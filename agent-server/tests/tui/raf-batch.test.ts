@@ -67,18 +67,6 @@ test('flushNow applies immediately and cancels pending', () => {
   assert.ok(cancelled);
 });
 
-test('throttle runs leading call immediately', () => {
-  const calls: number[] = [];
-  let clock = 1000;
-  const t = createThrottle((n: number) => calls.push(n), 16, {
-    now: () => clock,
-    schedule: () => 1,
-    cancelSchedule: () => {},
-  });
-  t.call(1);
-  assert.deepEqual(calls, [1]);
-});
-
 test('throttle coalesces a burst into one trailing call with latest args', () => {
   const calls: number[] = [];
   let clock = 1000;

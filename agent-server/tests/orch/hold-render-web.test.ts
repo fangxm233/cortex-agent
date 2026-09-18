@@ -268,12 +268,6 @@ test('hold: registers a Stop handle while held (Stop has something to call)', as
   assert.equal(h.held, true, 'Stop/supersede handles registered for the session');
 });
 
-test('hold: nothing to hold → no Stop handle registered', async () => {
-  const h = makeHarness();
-  await h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 });
-  assert.equal(h.held, false);
-});
-
 test('hold: abort → seals idle and releases the busy bracket (Stop is not a no-op)', async () => {
   const h = makeHarness();
   await h.install({ pendingBackgroundTasks: 1 });

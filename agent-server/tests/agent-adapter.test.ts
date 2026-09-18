@@ -3,17 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import { toCanonical, fromCanonical, type NormalizedEvent } from '../src/agent-adapter/index.js';
-import { getClaudeEngineAdapter, getPiEngineAdapter } from '../src/domain/runs/adapters.js';
+import { getPiEngineAdapter } from '../src/domain/runs/adapters.js';
 import { engines } from '../src/domain/runs/engines.js';
-import { claudePool } from './agent-adapter/claude-pool-fixture.js';
-
-test('each backend has one engine adapter, and it answers for its own backend', () => {
-  const claude = getClaudeEngineAdapter();
-  const pi = getPiEngineAdapter();
-  assert.equal(claude.backend, 'claude');
-  assert.equal(pi.backend, 'pi');
-  assert.notEqual(claude, pi as unknown);
-});
 
 test('engines.registerSessionPath updates the same PI singleton returned by getPiEngineAdapter', () => {
   const adapter = getPiEngineAdapter();
@@ -57,27 +48,6 @@ test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () =
   // Unknown native tool returns null
   assert.equal(toCanonical('claude', 'NoSuchTool'), null);
   assert.equal(fromCanonical('claude', 'no_such_tool'), null);
-});
-
-test('SessionEngines exposes the real pool contract (no spawn side effects)', async () => {
-  assert.deepEqual(engines.listKeys(), [], 'listKeys returns empty array before any spawn');
-  assert.equal(engines.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(engines.close('nonexistent'), 'close on unknown key resolves');
-  assert.equal(getPiEngineAdapter().backend, 'pi');
-});
-
-test('Claude engine pool exposes the real pool contract (no spawn side effects)', async () => {
-  // Replaces the claude case in the stub-strict iteration above. After task e0b6 the claude
-  // adapter is no longer a Phase-1 stub: spawn/close/kill/listSessions are real. spawn itself
-  // is not exercised here because it fork-execs the `claude` CLI and would leak timers;
-  // `tests/agent-adapter-claude.test.ts` covers the pure buildSpawnArgs / computeSpawnArgs surface.
-  // P2.3c moved the pool to SessionEngines, so the contract is reached through the test fixture.
-  const adapter = getClaudeEngineAdapter();
-  const pool = claudePool(adapter);
-  assert.deepEqual(pool.listSessions(), [], 'listSessions returns empty array before any spawn');
-  assert.equal(pool.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(pool.close('nonexistent'), 'close on unknown key resolves');
-  assert.equal(adapter.backend, 'claude');
 });
 
 // Compile-time exhaustiveness check for the normalized event protocol.

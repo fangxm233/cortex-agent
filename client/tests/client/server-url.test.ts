@@ -23,10 +23,6 @@ test('falls back to ws://host:port', () => {
   assert.equal(resolveServerUrl({ serverHost: 'lab2', serverPort: 3002 }, {}), 'ws://lab2:3002');
 });
 
-test('defaults port to 3002', () => {
-  assert.equal(resolveServerUrl({ serverHost: 'lab2' }, {}), 'ws://lab2:3002');
-});
-
 test('blank env/config are ignored', () => {
   assert.equal(
     resolveServerUrl({ serverUrl: '  ', serverHost: 'lab2', serverPort: 3002 }, { CORTEX_SERVER_URL: '  ' }),

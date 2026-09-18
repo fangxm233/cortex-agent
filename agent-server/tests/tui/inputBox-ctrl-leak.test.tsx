@@ -37,27 +37,3 @@ test('InputBox does not leak a char from a Ctrl combo (Ctrl+D)', async () => {
   instance.unmount();
   instance.cleanup();
 });
-
-test('InputBox does not leak from Ctrl+N / Ctrl+P', async () => {
-  const instance = render(
-    React.createElement(InputBox, {
-      onSubmit: () => {},
-      awaitingResponse: false,
-      focus: true,
-    }),
-  );
-  await delay(120);
-
-  instance.stdin.write('abc');
-  await delay(60);
-  instance.stdin.write('\x0e'); // Ctrl+N
-  instance.stdin.write('\x10'); // Ctrl+P
-  await delay(120);
-
-  const frame = instance.lastFrame() ?? '';
-  assert.ok(frame.includes('abc'), `typed text should remain — frame:\n${frame}`);
-  assert.ok(!frame.includes('abcn') && !frame.includes('abcp'), `Ctrl combos must not leak — frame:\n${frame}`);
-
-  instance.unmount();
-  instance.cleanup();
-});

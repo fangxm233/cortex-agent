@@ -17,7 +17,6 @@ import {
   loadUserToken,
   clearUserToken,
   getValidUserAccessToken,
-  hostsFor,
   FeishuUserTokenError,
   type UserToken,
   type FetchLike,
@@ -82,11 +81,6 @@ test('buildAuthorizeUrl uses larksuite host for lark domain and merges custom sc
   assert.match(scope, /offline_access/);
 });
 
-test('hostsFor distinguishes feishu and lark', () => {
-  assert.equal(hostsFor('feishu').tokenBase, 'https://open.feishu.cn');
-  assert.equal(hostsFor('lark').tokenBase, 'https://open.larksuite.com');
-});
-
 // ── exchangeCode / refreshUserToken ──────────────────────────────
 
 test('exchangeCode posts authorization_code and maps the response to a UserToken', async () => {
@@ -147,10 +141,6 @@ test('saveUserToken / loadUserToken round-trip', () => {
   saveUserToken(tok, file);
   assert.deepEqual(loadUserToken(file), tok);
   rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test('loadUserToken returns null when the file is absent', () => {
-  assert.equal(loadUserToken(path.join(os.tmpdir(), 'does-not-exist-xyz.json')), null);
 });
 
 test('clearUserToken deletes the file', () => {

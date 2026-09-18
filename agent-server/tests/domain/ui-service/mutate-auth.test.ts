@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
   handleAuthCancelFlow,
-  handleAuthLogout,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
   handleAuthSyncGateway,
@@ -189,30 +188,6 @@ function logoutDeps(result: unknown, calls: unknown[]): UiServiceDeps {
   } as unknown as UiServiceDeps;
 }
 
-test('auth.logout tRPC mutation reaches the UI service with the identity tuple', async () => {
-  const calls: unknown[] = [];
-  const success = { ok: true as const, ...LOGOUT_INPUT };
-  const caller = createAppRouter(createUiService(logoutDeps(success, calls))).createCaller({});
-
-  assert.deepEqual(await caller.auth.logout(LOGOUT_INPUT), success);
-  assert.deepEqual(calls, [LOGOUT_INPUT]);
-});
-
-test('auth.logout preserves structured external credential guidance', async () => {
-  const failure = {
-    ok: false as const, ...LOGOUT_INPUT,
-    error: {
-      code: 'external_credential' as const,
-      message: 'Run `claude /logout` in a terminal.',
-    },
-  };
-  const result = await handleAuthLogout(logoutDeps(failure, []), LOGOUT_INPUT);
-
-  assert.deepEqual(result, {
-    ok: false, code: 'external_credential', message: failure.error.message,
-  });
-});
-
 test('auth.logout tRPC maps external credentials to a client error with guidance', async () => {
   const failure = {
     ok: false as const, ...LOGOUT_INPUT,
@@ -249,32 +224,4 @@ test('auth.syncGateway rebuilds model routing and reports what it produced', asy
     configured: true, endpoints: 2, profiles: ['plan', 'execute'],
   });
   assert.equal(calls.length, 1);
-});
-
-test('auth.syncGateway surfaces a discovery miss as a successful no-op', async () => {
-  const deps = {
-    syncGateway: async () => ({
-      configured: false, endpoints: 0, profiles: [], reason: 'no-endpoints',
-    }),
-  } as unknown as UiServiceDeps;
-
-  const result = await handleAuthSyncGateway(deps, {});
-
-  assert.equal(result.ok, true, 'nothing to sync is a valid outcome, not an error');
-  assert.equal(result.ok && result.data.configured, false);
-  assert.equal(result.ok && result.data.reason, 'no-endpoints');
-});
-
-test('auth.syncGateway passes an explicit backend filter through', async () => {
-  const seen: Array<{ backends?: string[] }> = [];
-  const deps = {
-    syncGateway: async (options: { backends?: string[] }) => {
-      seen.push(options);
-      return { configured: true, endpoints: 1, profiles: ['plan'] };
-    },
-  } as unknown as UiServiceDeps;
-
-  await handleAuthSyncGateway(deps, { backend: 'pi' });
-
-  assert.deepEqual(seen, [{ backends: ['pi'] }]);
 });

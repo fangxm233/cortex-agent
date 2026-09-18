@@ -9,20 +9,4 @@ describe('mobile routes', () => {
       .toEqual(MOBILE_ROUTE_MANIFEST.map((route) => route.path));
     expect(routes.every((route) => route.element)).toBe(true);
   });
-
-  it('registers every phone-supported canonical settings detail', () => {
-    const paths = mobileRoutes[0]?.children?.map((route) => route.path).filter(Boolean);
-    expect(paths).toEqual(expect.arrayContaining([
-      '/m/settings/appearance', '/m/settings/platform', '/m/settings/accounts',
-      '/m/settings/profiles', '/m/settings/budget', '/m/settings/usage',
-      '/m/settings/mcp', '/m/settings/notifications', '/m/settings/hooks',
-      '/m/settings/advanced',
-    ]));
-  });
-
-  it('does not register desktop-only template or plugin editors', () => {
-    const paths = mobileRoutes[0]?.children?.map((route) => route.path);
-    expect(paths).not.toContain('/m/settings/templates');
-    expect(paths).not.toContain('/m/settings/plugins');
-  });
 });

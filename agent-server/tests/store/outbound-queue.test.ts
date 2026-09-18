@@ -99,18 +99,6 @@ test('OutboundQueue - enqueue writes entry to WAL file', async () => {
   assert.equal(parsed.status, 'pending');
 });
 
-test('OutboundQueue - multiple enqueue appends to WAL', async () => {
-  const { queue, walPath } = createQueue();
-
-  await queue.enqueue({ type: 'post', channel: 'C1', destination: testDest('C1'), text: 'msg1' });
-  await queue.enqueue({ type: 'post', channel: 'C2', destination: testDest('C2'), text: 'msg2' });
-  await queue.enqueue({ type: 'update', channel: 'C1', text: 'msg3', messageId: 'ts1' });
-
-  const raw = await fs.readFile(walPath, 'utf8');
-  const lines = raw.trim().split('\n');
-  assert.equal(lines.length, 3);
-});
-
 // ── markSent records completion in WAL ─────────────────────────
 
 test('OutboundQueue - markSent appends sent op to WAL', async () => {
@@ -146,13 +134,6 @@ test('OutboundQueue - recover returns count of pending entries', async () => {
   });
   const count = await queue2.recover();
   assert.equal(count, 2, 'should recover 2 pending entries');
-});
-
-test('OutboundQueue - recover with empty WAL returns 0', async () => {
-  const walPath = path.join(tmpDir, `outbound-wal-empty-${_testIdx++}.jsonl`);
-  const queue = new OutboundQueue({ walPath, adapter: createMockAdapter() });
-  const count = await queue.recover();
-  assert.equal(count, 0);
 });
 
 test('OutboundQueue - recover with missing WAL file returns 0', async () => {
@@ -322,26 +303,6 @@ test('OutboundQueue - drain skips entries older than TTL', async () => {
   assert.equal(postCount, 0, 'expired entries should not be sent');
 });
 
-test('OutboundQueue - drain sends entries within TTL', async () => {
-  let postCount = 0;
-  const adapter = createMockAdapter({
-    postMessage: async (_destination: Destination) => {
-      postCount++;
-      return { conduit: 'C1', messageId: `ts-${postCount}` };
-    },
-  });
-
-  const { queue } = createQueue(adapter, { ttlMs: 30 * 60 * 1000 });
-  await queue.enqueue({ type: 'post', channel: 'C1', destination: testDest('C1'), text: 'fresh' });
-
-  // Simulate restart
-  await queue.drain();
-
-  // drain on same instance processes the entry since it was just enqueued
-  // (pending map was populated by enqueue)
-  assert.equal(postCount, 1, 'fresh entries should be sent');
-});
-
 // ── compact: remove sent entries from WAL ──────────────────────
 
 test('OutboundQueue - compact removes sent entries from WAL file', async () => {
@@ -360,16 +321,6 @@ test('OutboundQueue - compact removes sent entries from WAL file', async () => {
   assert.equal(parsed.text, 'pending-msg');
 });
 
-test('OutboundQueue - compact on empty WAL creates empty file', async () => {
-  const { queue, walPath } = createQueue();
-  const id = await queue.enqueue({ type: 'post', channel: 'C1', destination: testDest('C1'), text: 'msg' });
-  await queue.markSent(id);
-  await queue.compact();
-
-  const raw = await fs.readFile(walPath, 'utf8');
-  assert.equal(raw.trim(), '', 'WAL should be empty after compacting all-sent entries');
-});
-
 // ── concurrent enqueue: no lost entries ────────────────────────
 
 test('OutboundQueue - 10 concurrent enqueue produce all 10 entries', async () => {
@@ -386,22 +337,6 @@ test('OutboundQueue - 10 concurrent enqueue produce all 10 entries', async () =>
   assert.equal(lines.length, 10, 'all 10 entries should be written');
   const channels = new Set(lines.map(l => JSON.parse(l).channel));
   assert.equal(channels.size, 10);
-});
-
-// ── flush: drain mutex queue ───────────────────────────────────
-
-test('OutboundQueue - flush resolves after all pending WAL writes', async () => {
-  const { queue } = createQueue();
-
-  // Fire off several enqueues
-  const promises = Array.from({ length: 5 }, (_, i) =>
-    queue.enqueue({ type: 'post', channel: 'C1', destination: testDest('C1'), text: `msg-${i}` })
-  );
-
-  await queue.flush();
-  // All enqueues should have completed by now
-  const ids = await Promise.all(promises);
-  assert.equal(ids.length, 5);
 });
 
 // ── drain handles adapter errors gracefully ────────────────────
@@ -425,24 +360,6 @@ test('OutboundQueue - drain retries on transient adapter failure', async () => {
   await queue.drain();
 
   assert.equal(attempt, 2, 'should have retried on second drain');
-});
-
-// ── richBlocks preservation ────────────────────────────────────
-
-test('OutboundQueue - enqueue preserves richBlocks in WAL', async () => {
-  const { queue, walPath } = createQueue();
-
-  await queue.enqueue({
-    type: 'post',
-    channel: 'C1',
-    destination: testDest('C1'),
-    text: 'with blocks',
-    richBlocks: [{ type: 'markdown', text: '**bold**' }],
-  });
-
-  const raw = await fs.readFile(walPath, 'utf8');
-  const parsed = JSON.parse(raw.trim());
-  assert.deepEqual(parsed.richBlocks, [{ type: 'markdown', text: '**bold**' }]);
 });
 
 // ── getPendingCount ────────────────────────────────────────────

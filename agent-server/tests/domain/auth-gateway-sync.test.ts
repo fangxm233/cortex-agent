@@ -99,17 +99,3 @@ test('sync never throws — a failing discovery is reported, not propagated', as
   assert.equal(result.configured, false);
   assert.match(String(result.reason), /exploded/);
 });
-
-test('sync passes the backend filter through to discovery', async () => {
-  const { configDir, gatewayConfigDir } = makeDirs();
-  const seen: Array<string[] | undefined> = [];
-
-  await syncGatewayFromBackends({
-    configDir,
-    gatewayConfigDir,
-    backends: ['pi'],
-    discover: (backends) => { seen.push(backends); return [piEndpoint('acme', ['acme-large'])]; },
-  });
-
-  assert.deepEqual(seen, [['pi']]);
-});

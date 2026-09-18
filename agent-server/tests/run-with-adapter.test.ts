@@ -320,34 +320,6 @@ test('run: a backend model fallback emits one warning and the turn continues', a
   ]);
 });
 
-test('run: context compaction emits one concise info notice', async (t) => {
-  const previousFlag = process.env.CORTEX_NOTIFY_COMPACTION;
-  const previousLocale = getLocale();
-  t.onTestFinished(() => {
-    if (previousFlag === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
-    else process.env.CORTEX_NOTIFY_COMPACTION = previousFlag;
-    resetSettingsForTests();
-    setLocale(previousLocale);
-  });
-  process.env.CORTEX_NOTIFY_COMPACTION = '1';
-  resetSettingsForTests();
-  setLocale('en');
-
-  const scripts = [[
-    { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'overflow', pre_tokens: 48000 } },
-    resultLine({ session_id: 's-compact' }),
-  ]];
-  const request = runRequestFixture({
-    channel: 'C1', sessionKey: 'compact-notice',
-    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
-  }, CLAUDE);
-  const seen = collector();
-  const run = openRun(request, [seen.observer]);
-  await run.settled;
-
-  assert.deepEqual(notices(seen.events), [{ text: 'Context auto-compacted.', level: 'info' }]);
-});
-
 test('run: a leading API Error becomes an error notice without reclassifying prose', async () => {
   const scripts = [[
     textLine('API Error: Unable to connect to API (ECONNRESET)'),

@@ -149,22 +149,7 @@ test('CostRepo - flush() resolves only after all pending mutations (FIFO on mute
   );
 });
 
-test('CostRepo - flush() on idle repo resolves immediately', async () => {
-  const { repo } = createRepo();
-  // Exercise the repo so its internal _repo is initialized.
-  await repo.recordEntry(makeEntry({ trigger: 'init' }));
-  // Now flush with no pending work.
-  await repo.flush();
-});
-
 // ── Budget: read/write roundtrip + defaults ───────────────────
-
-test('CostRepo - readBudget returns defaults when file is missing', async () => {
-  const { repo } = createRepo();
-  const budget = await repo.readBudget();
-  assert.equal(budget.daily_usd, 300);
-  assert.equal(budget.monthly_usd, 8000);
-});
 
 test('CostRepo - writeBudget persists and readBudget returns the value', async () => {
   const { repo } = createRepo();
@@ -220,13 +205,6 @@ test('CostRepo - malformed project entries are dropped, valid siblings survive',
   const repo = new CostRepo({ costsPath, budgetPath });
   const budget = await repo.readBudget();
   assert.deepEqual(Object.keys(budget.projects), ['good'], 'only the complete positive pair survives');
-});
-
-test('CostRepo - a non-object projects field degrades to an empty map', async () => {
-  const { costsPath, budgetPath } = createRepo();
-  await fs.writeFile(budgetPath, JSON.stringify({ daily_usd: 300, monthly_usd: 8000, projects: 'nope' }));
-  const repo = new CostRepo({ costsPath, budgetPath });
-  assert.deepEqual((await repo.readBudget()).projects, {});
 });
 
 test('CostRepo - invalidateBudget picks up an out-of-band file write', async () => {

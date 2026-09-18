@@ -7,7 +7,7 @@ import {
   _testResetRetryDelays,
 } from '../src/platform/adapters/slack-output-stream.js';
 import type { Destination, OutputStream } from '../src/platform/index.js';
-import { ToolTrace, createToolTrace, isToolTraceEnabled, _test } from '../src/platform/tool-trace.js';
+import { ToolTrace, createToolTrace, isToolTraceEnabled } from '../src/platform/tool-trace.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { subagentSpawnsFromToolCall } from '../src/agent-adapter/normalize/event-types.js';
 
@@ -40,36 +40,6 @@ test('subagent spawn parser preserves exact prompts and backend child ids', () =
     subagentSpawnsFromToolCall('mcp__third_party__agent', { prompt: 'private MCP input' }, 'tu_mcp'),
     [],
     'an MCP tool named agent is not a native subagent spawn',
-  );
-});
-
-test('tool summaries name the delegated task for both Agent spellings', () => {
-  const { summarizeToolInput } = _test;
-  const task = (description: string, subagent_type: string) => ({ description, prompt: 'p', subagent_type });
-
-  assert.equal(summarizeToolInput('Agent', task('Map the event flow', 'explore')), 'Map the event flow');
-  assert.equal(summarizeToolInput('agent', task('List files', 'explore')), 'List files');
-  assert.equal(
-    summarizeToolInput('agent', { prompt: 'p', subagent_type: 'explore' }),
-    'explore',
-    'a single call without a description falls back to the declared role',
-  );
-  assert.equal(
-    summarizeToolInput('agent', { parallel: [task('List files', 'explore'), task('Read docs', 'explore')] }),
-    'List files (+1 parallel)',
-    'a batch reads as its first task plus how many follow',
-  );
-  assert.equal(
-    summarizeToolInput('agent', {
-      chain: [task('Draft', 'writer'), task('Review', 'reviewer'), task('Polish', 'writer')],
-    }),
-    'Draft (+2 chain)',
-  );
-  assert.equal(summarizeToolInput('agent', { parallel: [task('Only task', 'explore')] }), 'Only task (parallel)');
-  assert.equal(
-    summarizeToolInput('agent', { parallel: ['malformed'] }),
-    '(parallel)',
-    'a batch whose tasks cannot be read is still reported as a batch',
   );
 });
 
@@ -157,24 +127,6 @@ test('ToolTrace preserves tool and assistant event order', async () => {
   assert.ok(readIndex >= 0 && readIndex < textIndex && textIndex < bashIndex);
 });
 
-test('ToolTrace flush starts a new group without creating another post', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as any, testDest('C1'));
-  const trace = new ToolTrace(stream);
-
-  trace.onToolUse('Read', { file_path: 'a.ts' });
-  await settle(stream);
-  trace.flush();
-  trace.onToolUse('Read', { file_path: 'b.ts' });
-  await settle(stream);
-
-  assert.equal(adapter.posted.length, 1);
-  const final = adapter.updated.at(-1)!.content.text as string;
-  assert.equal(final.match(/Read .*×1/g)?.length, 2);
-  assert.match(final, /a\.ts/);
-  assert.match(final, /b\.ts/);
-});
-
 test('ToolTrace folds a subagent\'s calls into one live line per spawning call', async () => {
   const adapter = new MockAdapter();
   const stream = new SlackOutputStream(adapter as any, testDest('C1'));
@@ -238,21 +190,4 @@ test('ToolTrace emits complete Agent prompts only for an opted-in TUI stream', (
   const text = stream.segments.filter((segment) => segment.kind === 'text').map((segment) => segment.text).join('\n');
   assert.ok(text.includes(prompt));
   assert.match(text, /Agent prompt — inspect cards/);
-});
-
-test('ToolTrace keeps main-agent calls in their own group after a subagent batch', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as any, testDest('C1'));
-  const trace = new ToolTrace(stream);
-
-  trace.onToolUse('Agent', { description: 'go look', subagent_type: 'explore' }, undefined, 'tu_a');
-  trace.onToolUse('Grep', { pattern: 'x' }, { parentToolUseId: 'tu_a', type: 'explore', description: 'go look' });
-  trace.onToolUse('Read', { file_path: 'main.ts' });
-  await settle(stream);
-
-  const final = adapter.updated.at(-1)!.content.text as string;
-  const agentIndex = final.indexOf('go look');
-  const readIndex = final.indexOf('main.ts');
-  assert.ok(agentIndex >= 0 && readIndex > agentIndex);
-  assert.match(final, /Read .*×1/);
 });

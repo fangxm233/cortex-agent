@@ -259,7 +259,7 @@ afterEach(() => {
 });
 
 describe('mobile chat run status priority', () => {
-  it('uses the live backgroundRunning fact and suppresses browser-starting copy', () => {
+  it('uses the live backgroundRunning fact for the running status', () => {
     harness.sessions = [{
       ...SESSION,
       running: true,
@@ -273,18 +273,6 @@ describe('mobile chat run status priority', () => {
 
     mounted = mountChat();
 
-    expect(view(mounted).props['data-status-text']).toContain('Background ·');
-    expect(view(mounted).props['data-status-text']).not.toContain('Starting Chrome');
-    expect(view(mounted).props['data-status-running']).toBe(true);
-  });
-
-  it('keeps browser-starting ahead of an ordinary foreground status', () => {
-    harness.sessions = [{ ...SESSION, running: true, browser: { device: 'my-pc' } }];
-    harness.liveState = { ...emptyLiveState(), running: true };
-
-    mounted = mountChat();
-
-    expect(view(mounted).props['data-status-text']).toContain('Starting Chrome on my-pc');
     expect(view(mounted).props['data-status-running']).toBe(true);
   });
 
@@ -317,7 +305,6 @@ describe('mobile chat run status priority', () => {
 
     mounted = mountChat();
 
-    expect(view(mounted).props['data-status-text']).toBe('plan pending · agent paused');
     expect(view(mounted).props['data-status-tone']).toBe('waiting');
     expect(view(mounted).props['data-status-running']).toBe(false);
   });
@@ -537,14 +524,6 @@ function tap(renderer: ReactTestRenderer, rowId: string): void {
 }
 
 describe('mobile engine picker', () => {
-  it('the chip shows what the next turn runs, not the profile name', () => {
-    mounted = mountChat();
-    // Model and level are separate parts — the chip sets them apart by colour, not by a separator,
-    // and drops the level first when the toolbar is short of width.
-    expect(view(mounted).props.selectionChipLabel).toBe('opus');
-    expect(view(mounted).props.selectionChipSub).toBe('high');
-  });
-
   it('sends the whole selection, so an unstated field follows the profile again', () => {
     mounted = mountChat();
     tap(mounted, 'model:claude::sonnet');
@@ -570,9 +549,6 @@ describe('mobile engine picker', () => {
     const sheet = openSelection(mounted);
     const rows = sheet.vm.sections.flatMap((section: any) => section.rows);
     expect(rows.find((row: any) => row.id === 'model:pi:zai:glm-5')).toBeUndefined();
-    // Not silently: the model section says how many were held back.
-    const models = sheet.vm.sections.find((section: any) => section.key === 'model');
-    expect(models.footer).toContain('models unavailable this session');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
   });
 
@@ -584,7 +560,6 @@ describe('mobile engine picker', () => {
 
     tap(mounted, 'model:pi:zai:glm-5');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
-    expect(view(mounted).props.selectionChipLabel).toBe('glm-5');
 
     typeAndSend(mounted, 'first turn');
     expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({

@@ -156,15 +156,6 @@ test('steer: no live process → false, nothing written', (t) => {
   assert.equal(f.writes.length, 0);
 });
 
-test('steer: process not alive → false', (t) => {
-  const f = openFixture(t, 'inject-dead-process');
-  f.session.currentTurn = stubTurn();
-  f.session.alive = false;
-
-  assert.equal(f.engine.steer({ text: 'hi' }).accepted, false);
-  assert.equal(f.writes.length, 0, 'nothing written to a dead process');
-});
-
 test('steer: no turn in flight → false (caller keeps the normal queue)', (t) => {
   const f = openFixture(t, 'inject-no-turn');
   f.session.currentTurn = null;

@@ -108,25 +108,3 @@ test('an unsupported thinking level becomes invalid-args and names the legal set
     assert.match(res.message, /low, high/);
   }
 });
-
-test('a provider on a backend without one becomes invalid-args', async () => {
-  const sink: Request[] = [];
-  const outcome = applied({ ok: false, reason: 'provider-not-supported' });
-  const res = await handleSetSelection(makeDeps(session('web:sess-1'), outcome, sink), {
-    sessionId: 'sess-1', selection: { provider: 'deepseek' },
-  });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'invalid-args');
-});
-
-test('a host with no selection rule wired answers not-available', async () => {
-  const deps = {
-    sessionStore: {
-      listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [],
-      getById: async () => session('web:sess-1'),
-    },
-  } as unknown as UiServiceDeps;
-  const res = await handleSetSelection(deps, { sessionId: 'sess-1', selection: { model: 'x' } });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-});

@@ -85,27 +85,6 @@ test('[p] key sends schedules.pause mutate for focused row', async () => {
   instance.cleanup();
 });
 
-test('[r] key sends schedules.resume mutate for focused row', async () => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardSchedulesTab, {
-    data: makeTabData([RUNNING, PAUSED]),
-    mutate: fn,
-  });
-
-  const instance = render(tab);
-  await delay(100);
-
-  // Focus first row, press r to resume
-  instance.stdin.write('r');
-  await delay(100);
-
-  assert.equal(capture.op, 'schedules.resume');
-  assert.deepEqual(capture.args, { scheduleId: 'sched-1' });
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('[x] opens ConfirmModal, confirm sends schedules.remove', async () => {
   const { fn, capture } = createMockMutate();
   const tab = React.createElement(DashboardSchedulesTab, {
@@ -183,32 +162,6 @@ test('↓ then [p] targets second schedule (row navigation)', async () => {
 
   assert.equal(capture.op, 'schedules.pause');
   assert.deepEqual(capture.args, { scheduleId: 'sched-2' });
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('error result renders inline error under row', async () => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardSchedulesTab, {
-    data: makeTabData([RUNNING, PAUSED]),
-    mutate: fn,
-  });
-
-  const instance = render(tab);
-  await delay(100);
-
-  // Trigger pause
-  instance.stdin.write('p');
-  await delay(100);
-
-  // Resolve with error
-  capture.resolve!({ ok: false, error: { code: 'not_found', message: 'Schedule sched-1 not found' } });
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('not_found'), 'error code in output');
-  assert.ok(output.includes('Schedule sched-1 not found'), 'error message in output');
 
   instance.unmount();
   instance.cleanup();

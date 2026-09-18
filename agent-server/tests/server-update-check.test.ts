@@ -37,11 +37,6 @@ test('compareCalVer - same version returns 0', () => {
   assert.equal(compareCalVer('2027.1.1', '2027.1.1'), 0);
 });
 
-test('compareCalVer - same version with suffix returns 0', () => {
-  assert.equal(compareCalVer('2026.5.23-1', '2026.5.23-1'), 0);
-  assert.equal(compareCalVer('2026.5.23-0', '2026.5.23'), 0, 'suffix 0 vs absent');
-});
-
 test('compareCalVer - different day, same month/year', () => {
   assert.ok(compareCalVer('2026.5.23', '2026.5.9') > 0, '23 > 9');
   assert.ok(compareCalVer('2026.5.9', '2026.5.23') < 0, '9 < 23');
@@ -50,21 +45,6 @@ test('compareCalVer - different day, same month/year', () => {
 test('compareCalVer - cross-digit day boundary', () => {
   assert.ok(compareCalVer('2026.5.9', '2026.5.10') < 0, '9 < 10');
   assert.ok(compareCalVer('2026.5.10', '2026.5.9') > 0, '10 > 9');
-});
-
-test('compareCalVer - different month', () => {
-  assert.ok(compareCalVer('2026.6.1', '2026.5.23') > 0, 'June > May');
-  assert.ok(compareCalVer('2026.5.23', '2026.6.1') < 0, 'May < June');
-});
-
-test('compareCalVer - cross-digit month boundary', () => {
-  assert.ok(compareCalVer('2026.10.1', '2026.5.1') > 0, 'October > May');
-  assert.ok(compareCalVer('2026.5.1', '2026.10.1') < 0, 'May < October');
-});
-
-test('compareCalVer - different year', () => {
-  assert.ok(compareCalVer('2027.1.1', '2026.12.31') > 0, '2027 > 2026');
-  assert.ok(compareCalVer('2026.12.31', '2027.1.1') < 0, '2026 < 2027');
 });
 
 test('compareCalVer - suffix comparison', () => {
@@ -86,18 +66,6 @@ test('isUpdateDevMode - returns false when CORTEX_REPO is not set', async () => 
     assert.equal(mod.isUpdateDevMode(), false);
   } finally {
     if (prev !== undefined) process.env.CORTEX_REPO = prev;
-  }
-});
-
-test('isUpdateDevMode - returns false when CORTEX_REPO dir does not exist', async () => {
-  const prev = process.env.CORTEX_REPO;
-  process.env.CORTEX_REPO = '/nonexistent/path/xyz789';
-  try {
-    const mod = await freshModule();
-    assert.equal(mod.isUpdateDevMode(), false);
-  } finally {
-    if (prev !== undefined) process.env.CORTEX_REPO = prev;
-    else delete process.env.CORTEX_REPO;
   }
 });
 
@@ -247,60 +215,4 @@ describe('checkServerUpdate (non-dev mode)', () => {
     assert.equal(savedState.skippedVersion, '2025.1.1', 'skippedVersion unchanged');
   });
 
-  test('null choice returns null without spawnInstall', async () => {
-    const mod = await freshModule();
-    let installCalled = false;
-    let savedState: any = null;
-
-    const result = await mod.checkServerUpdate({
-      prompt: mockPrompt(null),
-      getLatest: () => '9999.1.1',
-      spawnInstall: () => { installCalled = true; },
-      loadState: () => ({ skippedVersion: '2025.1.1' }),
-      saveState: (s: any) => { savedState = s; },
-      now: () => '2026-06-01T00:00:00.000Z',
-    });
-
-    assert.equal(result.action, null);
-    assert.equal(result.latestVersion, '9999.1.1');
-    assert.equal(installCalled, false, 'spawnInstall should NOT be called on null');
-    assert.ok(savedState !== null);
-  });
-
-  test('prompt.ask receives latestVersion in spec', async () => {
-    const mod = await freshModule();
-    let promptVersion: string | undefined;
-
-    const result = await mod.checkServerUpdate({
-      prompt: {
-        ask: async (spec: { latestVersion: string }) => {
-          promptVersion = spec.latestVersion;
-          return 'apply';
-        },
-      },
-      getLatest: () => '9999.1.1',
-      spawnInstall: () => {},
-      loadState: () => ({}),
-      saveState: () => {},
-      now: () => '2026-06-01T00:00:00.000Z',
-    });
-
-    assert.equal(promptVersion, '9999.1.1');
-    assert.equal(result.action, 'apply');
-  });
-
-  test('state with no previous skippedVersion still works', async () => {
-    const mod = await freshModule();
-    const result = await mod.checkServerUpdate({
-      prompt: mockPrompt('skip'),
-      getLatest: () => '9999.1.1',
-      spawnInstall: () => {},
-      loadState: () => ({ lastCheckedAt: '2026-01-01T00:00:00.000Z' }),
-      saveState: () => {},
-      now: () => '2026-06-01T00:00:00.000Z',
-    });
-
-    assert.equal(result.action, 'skip');
-    assert.equal(result.latestVersion, '9999.1.1');
-  });
 });

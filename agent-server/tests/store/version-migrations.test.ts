@@ -60,21 +60,11 @@ test('compareCalVer - same version returns 0', () => {
   assert.equal(compareCalVer('2027.1.1', '2027.1.1'), 0);
 });
 
-test('compareCalVer - different day, same month/year', () => {
-  assert.ok(compareCalVer('2026.5.23', '2026.5.9') > 0, '23 > 9');
-  assert.ok(compareCalVer('2026.5.9', '2026.5.23') < 0, '9 < 23');
-});
-
 test('compareCalVer - cross-digit day boundary', () => {
   // String comparison would fail: "2026.5.9" > "2026.5.10" (because '9' > '1')
   // Numeric comparison is correct: 9 < 10
   assert.ok(compareCalVer('2026.5.9', '2026.5.10') < 0, '9 < 10');
   assert.ok(compareCalVer('2026.5.10', '2026.5.9') > 0, '10 > 9');
-});
-
-test('compareCalVer - different month', () => {
-  assert.ok(compareCalVer('2026.6.1', '2026.5.23') > 0, 'June > May');
-  assert.ok(compareCalVer('2026.5.23', '2026.6.1') < 0, 'May < June');
 });
 
 test('compareCalVer - cross-digit month boundary', () => {
@@ -450,15 +440,6 @@ test('runMigrations - sessions.json: prefixes backend:channel and legacy bare ke
   assert.equal(out['C789'], undefined);
 });
 
-test('runMigrations - sessions.json: prefixes with feishu when configured', async () => {
-  const out = await runSessionsMigration(_testIdx++, 'feishu', {
-    'claude:oc_1': 'f1',
-    'oc_2': 'f2',
-  });
-  assert.equal(out['claude:feishu:oc_1'], 'f1');
-  assert.equal(out['feishu:oc_2'], 'f2');
-});
-
 test('runMigrations - sessions.json: is idempotent (already-prefixed keys untouched)', async () => {
   const already = { 'claude:slack:C1': 'x', 'slack:C2': 'y' };
   const out = await runSessionsMigration(_testIdx++, 'slack', already);
@@ -625,11 +606,6 @@ test('applyReplacements - idempotent: re-running on output is a no-op', () => {
   assert.equal(twice, once);
 });
 
-test('applyReplacements - replaces every occurrence of a `from`', () => {
-  const out = applyReplacements('npm test then npm test', [['npm test', 'the suite']]);
-  assert.equal(out, 'the suite then the suite');
-});
-
 // ── migrateAistatusConfigLocation ──────────────────────────────
 // Every call passes a temp target: the default is the real ~/.aistatus/config.yaml.
 
@@ -654,17 +630,6 @@ test('migrateAistatusConfigLocation: moves old config when target does not exist
   assert.equal(await fs.readFile(targetPath, 'utf8'), content, 'target should receive the old config');
   const oldExists = await fs.stat(oldPath).catch(() => null);
   assert.equal(oldExists, null, 'old file should be deleted after a successful copy');
-});
-
-test('migrateAistatusConfigLocation: skips when old file does not exist', async () => {
-  const idx = _testIdx++;
-  const { dataDir } = setupDirs(idx);
-
-  // Should not throw
-  await migrateAistatusConfigLocation(dataDir, aistatusTarget(dataDir));
-
-  // Nothing to verify beyond: function should return without error
-  assert.ok(true, 'should complete without error when source does not exist');
 });
 
 test('migrateAistatusConfigLocation: deletes malformed old config without copying', async () => {

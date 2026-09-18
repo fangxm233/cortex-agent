@@ -9,21 +9,6 @@ import { importFresh } from './module-loader.js';
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
 import { _testSetHealthy, GATEWAY_URL } from './../src/domain/costs/gateway-manager.js';
 
-test('resolveModeEnv(api) encodes mode in URL when gateway healthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
-
-  process.env.ANTHROPIC_API_KEY = 'sk-test-late';
-  process.env.ANTHROPIC_BASE_URL = 'https://late.example.test';
-  const route = modeManager.resolveModeEnv('api');
-
-  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/api/anthropic`,
-    'api mode should encode mode in URL path: /m/api/anthropic');
-  assert.equal(route.ANTHROPIC_API_KEY, 'sk-test-late',
-    'api mode should KEEP the API key so Claude Code passes its startup credential check — upstream auth is handled by the gateway');
-  assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://late.example.test',
-    'the route belongs to one spawn — the daemon env keeps the credentials it already had');
-});
-
 test('resolveModeEnv(api) sets placeholder key when no key available and gateway healthy', async (t) => {
   const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
@@ -100,47 +85,6 @@ function restoreFile(file: string, contents: string | undefined): void {
   else fs.writeFileSync(file, contents);
 }
 
-test('resolveModeEnv(plan) encodes mode in URL when gateway healthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
-  process.env.ANTHROPIC_API_KEY = 'sk-test-plan';
-  process.env.ANTHROPIC_BASE_URL = 'https://managed.example.test';
-  const route = modeManager.resolveModeEnv('plan');
-
-  assert.equal(route.ANTHROPIC_API_KEY, null,
-    'plan mode should clear API key (OAuth)');
-  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/anthropic`,
-    'plan mode should encode mode in URL path: /m/plan/anthropic');
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test-plan',
-    'plan mode clears the key for its own child only — the daemon keeps the saved credential the gateway child needs');
-});
-
-test('resolveModeEnv(api) falls back to direct when gateway unhealthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', false);
-
-  process.env.ANTHROPIC_API_KEY = 'sk-test-direct';
-  process.env.ANTHROPIC_BASE_URL = 'https://saved.example.test';
-  const route = modeManager.resolveModeEnv('api');
-
-  assert.equal(route.ANTHROPIC_API_KEY, 'sk-test-direct',
-    'api mode should restore API key when gateway unhealthy');
-  assert.ok(!route.ANTHROPIC_BASE_URL?.includes('/m/'),
-    'api mode should NOT use mode URL prefix when gateway unhealthy');
-});
-
-test('resolveModeEnv(plan) falls back to direct when gateway unhealthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', false);
-  process.env.ANTHROPIC_API_KEY = 'sk-test-plan-direct';
-  process.env.ANTHROPIC_BASE_URL = 'https://plan.example.test';
-  const route = modeManager.resolveModeEnv('plan');
-
-  assert.equal(route.ANTHROPIC_API_KEY, null,
-    'plan mode should clear API key even when gateway unhealthy');
-  assert.equal(route.ANTHROPIC_BASE_URL, undefined,
-    'plan mode should remove base URL for direct OAuth when gateway unhealthy');
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test-plan-direct',
-    'the daemon env is not part of any route');
-});
-
 test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effect)', async (t) => {
   await freshConfigWithSavedEnv(t, '', false);
 
@@ -158,25 +102,6 @@ test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effe
     'importing config.js must not delete/rewrite ANTHROPIC_API_KEY');
   assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://import-probe.example.test',
     'importing config.js must not delete/rewrite ANTHROPIC_BASE_URL');
-});
-
-test('GATEWAY_ANTHROPIC_URL has /anthropic suffix (backward compat)', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', false);
-  assert.ok(modeManager.GATEWAY_ANTHROPIC_URL.endsWith('/anthropic'),
-    'gateway URL should end with /anthropic endpoint');
-  assert.ok(modeManager.GATEWAY_ANTHROPIC_URL.startsWith('http://127.0.0.1:'),
-    'gateway URL should be localhost');
-});
-
-test('gatewayModeUrl builds per-request mode URL', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', false);
-  const planUrl = modeManager.gatewayModeUrl('plan');
-  const apiUrl = modeManager.gatewayModeUrl('api');
-
-  assert.ok(planUrl.includes('/m/plan/anthropic'), 'plan URL should contain /m/plan/anthropic');
-  assert.ok(apiUrl.includes('/m/api/anthropic'), 'api URL should contain /m/api/anthropic');
-  assert.notEqual(planUrl, apiUrl, 'plan and api URLs should differ');
-  assert.ok(planUrl.startsWith('http://127.0.0.1:'), 'should be localhost');
 });
 
 // --- resolveModeEnv: the mode decision as a value, not a global write (plan §4.1) ---

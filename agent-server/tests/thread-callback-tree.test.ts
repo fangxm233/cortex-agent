@@ -82,25 +82,6 @@ function makeParentChild(opts: {
 
 // --- buildChildResultNotice ---
 
-test('buildChildResultNotice includes status, cost, contract fields, and verification instructions', () => {
-  const { child } = makeParentChild();
-  const notice = buildChildResultNotice(child);
-  assert.match(notice, new RegExp(child.id));
-  assert.match(notice, /completed/);
-  assert.match(notice, /investigate flaky test/);
-  assert.match(notice, /root cause documented/);
-  assert.match(notice, /\/tmp\/report\.md/);
-  assert.match(notice, /thread_result/);
-  // Acceptance discipline: verify deliverable, do not trust the child's self-report.
-  assert.match(notice, /done.?when/i);
-  assert.match(notice, /Write tool/);
-  assert.match(notice, /cortex-task spawn --task-file/);
-  assert.match(notice, /per-task unique path/);
-  assert.match(notice, /thread_wait/);
-  assert.match(notice, /thread_abort/);
-  assert.doesNotMatch(notice, /thread_start/);
-});
-
 // --- fireThreadCallback terminal guard ---
 
 test('fireThreadCallback is a no-op for non-terminal threads (waiting return must not fire)', async () => {

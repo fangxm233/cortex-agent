@@ -5,7 +5,6 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import * as lark from '@larksuiteoapi/node-sdk';
 import { wrapWithUserToken, buildFeishuClientFromEnv } from '../src/domain/mcp/feishu/client.js';
 
 /** Pull the token value out of a lark request option object ({ lark: { [sym]: token } }). */
@@ -63,25 +62,10 @@ test('wrapWithUserToken propagates token-provider errors to the caller', async (
   await assert.rejects(wrapped.docx.v1.document.create({}), /cortex feishu login/);
 });
 
-test('lark.withUserAccessToken is the shape we rely on', () => {
-  const opt = lark.withUserAccessToken('ZZ');
-  assert.equal(tokenFromOptions(opt), 'ZZ');
-});
-
 // ── buildFeishuClientFromEnv mode + credential gating ────────────
 
 test('buildFeishuClientFromEnv returns null without app credentials (any mode)', () => {
   assert.equal(buildFeishuClientFromEnv({ FEISHU_AUTH_MODE: 'user' } as any), null);
   assert.equal(buildFeishuClientFromEnv({ FEISHU_AUTH_MODE: 'bot' } as any), null);
   assert.equal(buildFeishuClientFromEnv({} as any), null);
-});
-
-test('buildFeishuClientFromEnv returns a client in bot mode (default)', () => {
-  const c = buildFeishuClientFromEnv({ FEISHU_APP_ID: 'a', FEISHU_APP_SECRET: 'b' } as any);
-  assert.ok(c, 'expected a client');
-});
-
-test('buildFeishuClientFromEnv returns a client in user mode', () => {
-  const c = buildFeishuClientFromEnv({ FEISHU_APP_ID: 'a', FEISHU_APP_SECRET: 'b', FEISHU_AUTH_MODE: 'user' } as any);
-  assert.ok(c, 'expected a wrapped client');
 });

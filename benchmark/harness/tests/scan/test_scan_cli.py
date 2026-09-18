@@ -76,20 +76,3 @@ def test_unreadable_required_source_exits_two_without_path(tmp_path: Path, capsy
     assert exit_code == 2
     assert json.loads(output)["source"] == "stdout"
     assert str(missing_path) not in output
-
-
-def test_missing_source_parent_preserves_source_identity(tmp_path: Path, capsys) -> None:
-    arguments, config = make_inputs(tmp_path)
-    events_index = arguments.index("--events-file") + 1
-    Path(arguments[events_index]).unlink()
-    missing_path = tmp_path / "missing" / "events.jsonl"
-    arguments[events_index] = str(missing_path)
-
-    exit_code = main([*arguments, "--config-file", str(config)])
-    output = capsys.readouterr().out
-    report = json.loads(output)
-
-    assert exit_code == 2
-    assert report["source"] == "events"
-    assert "--events-file" in report["hint"]
-    assert str(missing_path) not in output

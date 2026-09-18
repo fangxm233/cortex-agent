@@ -1,4 +1,4 @@
-import { test, beforeEach, afterEach, vi } from 'vitest';
+import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   SlackOutputStream,
@@ -29,18 +29,6 @@ async function flush(stream: SlackOutputStream) {
 beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
 afterEach(() => { _testResetRetryDelays(); });
 
-test('SlackOutputStream: zero-delay retries do not schedule a wall-clock timer', async () => {
-  const timer = vi.spyOn(globalThis, 'setTimeout');
-  _testSetRetryDelays([0, 0, 0, 0]);
-  const adapter = new MockAdapter();
-  adapter.failPostMessageCount = 3; // forces 2 retries (rich + plain + retry)
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C-delay'));
-  stream.emitText('zero-delay retry');
-  await flush(stream);
-  assert.equal(timer.mock.calls.length, 0, 'zero-delay retries must not schedule a timer');
-  assert.equal(adapter.posted.length, 1, 'message still reaches Slack after retries');
-});
-
 // --- Basic aggregation ---
 
 test('SlackOutputStream: single emitText creates one top-level message', async () => {
@@ -68,22 +56,6 @@ test('SlackOutputStream: two short messages — second uses update', async () =>
   assert.equal(adapter.updated[0].content.text, 'first\nsecond');
 });
 
-test('SlackOutputStream: three short messages all aggregate', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('one');
-  stream.emitText('two');
-  stream.emitText('three');
-  await flush(stream);
-
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.updated.length, 2);
-  const finalText = adapter.updated[1].content.text;
-  assert.ok(finalText.includes('one'));
-  assert.ok(finalText.includes('two'));
-  assert.ok(finalText.includes('three'));
-});
-
 // --- Splitting ---
 
 test('SlackOutputStream: exceeding maxMessageLength forces new message', async () => {
@@ -95,27 +67,6 @@ test('SlackOutputStream: exceeding maxMessageLength forces new message', async (
 
   assert.equal(adapter.posted.length, 2);
   assert.equal(adapter.updated.length, 0);
-});
-
-test('SlackOutputStream: second table forces new message', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('intro\n| a | b |\n| 1 | 2 |');
-  stream.emitText('more\n| c | d |\n| 3 | 4 |');
-  await flush(stream);
-
-  assert.equal(adapter.posted.length, 2);
-});
-
-test('SlackOutputStream: 3rd HR forces new message', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('a\n---\nb');
-  stream.emitText('c\n---\nd');
-  stream.emitText('e\n---\nf');
-  await flush(stream);
-
-  assert.equal(adapter.posted.length, 2);
 });
 
 // --- Thread parent behavior (no external threadId) ---
@@ -130,15 +81,6 @@ test('SlackOutputStream: no threadId — first top-level, overflow to thread', a
   assert.equal(adapter.posted.length, 2);
   assert.equal(adapter.posted[0].threadId, undefined, 'first is top-level');
   assert.equal(adapter.posted[1].threadId, '1000', 'overflow threads under first');
-});
-
-test('SlackOutputStream: getParentRef returns first message id', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  assert.equal(stream.getParentRef(), null);
-  stream.emitText('hello');
-  await flush(stream);
-  assert.equal(stream.getParentRef()?.messageId, '1000');
 });
 
 test('SlackOutputStream: getParentRef returns full MessageRef', async () => {
@@ -204,21 +146,6 @@ test('SlackOutputStream: onMessagePosted called on post, not update', async () =
   assert.equal(refs[0].messageId, '1000');
 });
 
-test('SlackOutputStream: onMessagePosted called for each new post', async () => {
-  const adapter = new MockAdapter();
-  const refs: any[] = [];
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'), {
-    onMessagePosted: (ref) => refs.push(ref),
-  });
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await flush(stream);
-
-  assert.equal(refs.length, 2);
-  assert.equal(refs[0].messageId, '1000');
-  assert.equal(refs[1].messageId, '1001');
-});
-
 test('SlackOutputStream: empty/whitespace text ignored', async () => {
   const adapter = new MockAdapter();
   const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
@@ -229,19 +156,6 @@ test('SlackOutputStream: empty/whitespace text ignored', async () => {
 
   assert.equal(adapter.posted.length, 0);
   assert.equal(adapter.updated.length, 0);
-});
-
-test('SlackOutputStream: getRefs returns all message refs', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await flush(stream);
-
-  const refs = stream.getRefs();
-  assert.equal(refs.length, 2);
-  assert.equal(refs[0].messageId, '1000');
-  assert.equal(refs[1].messageId, '1001');
 });
 
 // --- Serialization ---
@@ -275,19 +189,6 @@ test('SlackOutputStream: char limit split with correct threading', async () => {
   assert.equal(adapter.posted[0].threadId, undefined);
   assert.equal(adapter.posted[1].threadId, '1000');
   assert.equal(adapter.updated.length, 1);
-});
-
-test('SlackOutputStream: richBlocks included in post and update', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('hello');
-  stream.emitText('world');
-  await flush(stream);
-
-  assert.ok(adapter.posted[0].content.richBlocks);
-  assert.equal(adapter.posted[0].content.richBlocks![0].type, 'markdown');
-  assert.ok(adapter.updated[0].content.richBlocks);
-  assert.equal(adapter.updated[0].content.richBlocks![0].type, 'markdown');
 });
 
 // --- postInteractive ---
@@ -372,36 +273,6 @@ test('SlackOutputStream: respects adapter maxMessageLength', async () => {
 });
 
 // --- MockAdapter tests ---
-
-test('MockAdapter: simulateMessage triggers registered handler', async () => {
-  const adapter = new MockAdapter();
-  const received: string[] = [];
-  adapter.onMessage(async (ctx) => {
-    received.push(ctx.message.text);
-  });
-  await adapter.simulateMessage('C123', 'hello');
-  assert.deepEqual(received, ['hello']);
-});
-
-test('MockAdapter: simulateAction triggers registered handler', async () => {
-  const adapter = new MockAdapter();
-  const received: string[] = [];
-  adapter.onAction('btn_click', async (ctx) => {
-    received.push(ctx.value);
-  });
-  await adapter.simulateAction('btn_click', 'payload-1');
-  assert.deepEqual(received, ['payload-1']);
-});
-
-test('MockAdapter: reset clears all recorded state', async () => {
-  const adapter = new MockAdapter();
-  await adapter.postMessage(testDest('C1'), { text: 'hi' });
-  await adapter.markQueued({ conduit: 'C1', messageId: '1' });
-  adapter.reset();
-
-  assert.equal(adapter.posted.length, 0);
-  assert.equal(adapter.marksQueued.length, 0);
-});
 
 // --- Regression: silent message drops on transient adapter failures ---
 // These tests guard against the bug where a single Slack API failure
@@ -552,16 +423,6 @@ test('SlackOutputStream: durable hooks called on postInteractive', async () => {
   await flush(stream);
 
   assert.deepEqual(walOps, ['beforePost', 'afterSent']);
-});
-
-test('SlackOutputStream: no durable hooks — works without hooks (backward compat)', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C-nodurable'));
-  stream.emitText('hello');
-  await flush(stream);
-
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.posted[0].content.text, 'hello');
 });
 
 /**

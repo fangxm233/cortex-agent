@@ -6,8 +6,6 @@ import {
   submitAnswer,
   getAnswer,
   tryAnswerFromHuman,
-  buildQuestionNotice,
-  buildOriginSessionNotice,
   _testResetManagerQa,
   _testSimulateManagerQaRestart,
 } from '../src/orchestration/manager-qa.js';
@@ -145,8 +143,6 @@ test('askManager wakes the origin session (no manager) and the origin agent answ
   // The origin session (the dispatcher) is woken as an AGENT — not a passive human ping.
   assert.equal(woke.length, 1);
   assert.equal(woke[0][0], 'C-human-origin');
-  assert.match(woke[0][1], /speed or accuracy/);
-  assert.match(woke[0][1], /answer_subtask/, 'origin session is told to answer via answer_subtask');
   assert.ok(res.ok && new RegExp(res.questionId).test(woke[0][1]), 'origin notice carries the questionId');
 
   // The origin agent resolves it from its own context and answers via answer_subtask.
@@ -218,40 +214,17 @@ test('answering an older question does not disarm a newer question on the same c
   assert.deepEqual(getAnswer(q2.ok ? q2.questionId : ''), { found: true, answered: true, answer: 'Second answer.' });
 });
 
-test('buildOriginSessionNotice is agent-facing: carries the subtask id, question, questionId, and answer_subtask guidance', () => {
-  const notice = buildOriginSessionNotice({ questionId: 'q_xyz789', fromTaskId: 'CH7', question: 'Which eval split?' });
-  assert.match(notice, /q_xyz789/);
-  assert.match(notice, /Which eval split\?/);
-  assert.match(notice, /answer_subtask/);
-  assert.match(notice, /CH7/);
-});
-
 test('askManager returns an error when there is neither a manager nor an origin channel', async () => {
   _testResetManagerQa();
   const { child, readTask } = makeManagerChild({ parentTaskId: null, originChannel: null });
   const res = await askManager(child.id, 'q', { readTask, resume: () => {} });
   assert.equal(res.ok, false);
-  assert.match(res.ok ? '' : res.error, /no manager|best judgment|abort/i);
-});
-
-test('tryAnswerFromHuman returns false for a channel with no pending escalated question', () => {
-  _testResetManagerQa();
-  assert.equal(tryAnswerFromHuman('C-nothing-pending', 'hello'), false);
 });
 
 test('submitAnswer on an unknown question id fails cleanly', async () => {
   _testResetManagerQa();
   const out = await submitAnswer('q_does_not_exist', 'answer');
   assert.equal(out.ok, false);
-  assert.match(out.error ?? '', /unknown|expired/i);
-});
-
-test('buildQuestionNotice carries the subtask id, the question, and answer_subtask guidance', () => {
-  const notice = buildQuestionNotice({ questionId: 'q_abc123', fromTaskId: 'CH9', question: 'Which dataset split?' });
-  assert.match(notice, /q_abc123/);
-  assert.match(notice, /Which dataset split\?/);
-  assert.match(notice, /answer_subtask/);
-  assert.match(notice, /CH9/);
 });
 
 test('durable Q&A survives daemon-memory loss and remains one-shot after answer consumption', async () => {

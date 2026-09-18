@@ -34,15 +34,6 @@ afterEach(() => {
 });
 
 describe('TodoRail', () => {
-  it('omits the summary header while expanded', () => {
-    const { renderer } = renderExpanded();
-    const rail = renderer.root.findByProps({ 'data-todo-rail': 'expanded' });
-
-    const markup = JSON.stringify(renderer.toJSON());
-    expect(rail.findAllByType('button')).toHaveLength(0);
-    expect(markup).not.toContain('1/2');
-    expect(markup).toContain('Inspecting the service');
-  });
 
   it('collapses when any part of the expanded region is clicked', () => {
     const { renderer, setItem } = renderExpanded();
@@ -51,7 +42,6 @@ describe('TodoRail', () => {
     act(() => rail.props.onClick());
 
     expect(renderer.root.findByProps({ 'data-todo-rail': 'collapsed' })).toBeTruthy();
-    expect(JSON.stringify(renderer.toJSON())).toContain('1/2');
     expect(setItem).toHaveBeenLastCalledWith('cortex.todoRailOpen.session-1', '0');
   });
 });

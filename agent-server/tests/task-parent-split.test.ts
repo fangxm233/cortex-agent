@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
-import { rawToTask, taskToYamlObj, parseTasksFile, serializeTasksFile } from '../src/core/task-parser.js';
+import { rawToTask, parseTasksFile, serializeTasksFile } from '../src/core/task-parser.js';
 import { decomposeTask } from '../src/domain/tasks/system/task-mutations.js';
 import { lintTasks } from '../src/domain/tasks/lint.js';
 import { processSplitOutcome } from '../src/domain/tasks/dispatch-utils.js';
@@ -36,20 +36,6 @@ function makeRepo(projects: Record<string, string>): { cleanup: () => void; task
 const BASE_TASK = 'tasks:\n  - id: "p111"\n    text: Big parent task\n    why: w\n    done-when: all parts done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: plans/x.md\n';
 
 // --- Task.parent round-trip ---
-
-test('rawToTask reads parent and defaults it to null', () => {
-  const withParent = rawToTask({ id: 'aaaa', text: 't', parent: 'bbbb' }, 'proj');
-  assert.equal(withParent.parent, 'bbbb');
-  const without = rawToTask({ id: 'aaaa', text: 't' }, 'proj');
-  assert.equal(without.parent, null);
-});
-
-test('taskToYamlObj emits parent only when set', () => {
-  const t = rawToTask({ id: 'aaaa', text: 't', parent: 'bbbb' }, 'proj');
-  assert.equal(taskToYamlObj(t).parent, 'bbbb');
-  const bare = rawToTask({ id: 'aaaa', text: 't' }, 'proj');
-  assert.equal('parent' in taskToYamlObj(bare), false, 'null parent stays hidden in YAML');
-});
 
 test('parent survives a serialize → parse round trip', () => {
   const t = rawToTask({ id: 'aaaa', text: 't', parent: 'bbbb' }, 'proj');

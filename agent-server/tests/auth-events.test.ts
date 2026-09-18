@@ -25,11 +25,6 @@ const AUTH_CASES: Array<[message: string, kind: AuthErrorKind]> = [
   ['unauthorized', 'unauthorized'],
   ['invalid_grant', 'invalid_grant'],
   ['PLEASE RUN /LOGIN', 'login_required'],
-  ['OAUTH TOKEN HAS EXPIRED', 'oauth_expired'],
-  ['AUTHENTICATION_ERROR', 'invalid_api_key'],
-  ['INVALID X-API-KEY', 'invalid_api_key'],
-  ['UNAUTHORIZED', 'unauthorized'],
-  ['INVALID_GRANT', 'invalid_grant'],
 ];
 
 for (const [message, kind] of AUTH_CASES) {

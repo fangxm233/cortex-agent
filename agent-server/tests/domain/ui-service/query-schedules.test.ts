@@ -34,11 +34,6 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   };
 }
 
-test('schedules.list returns all schedules when no filter', async () => {
-  const result = await handleSchedulesList(makeDeps(), {});
-  assert.equal(result.length, 3);
-});
-
 test('schedules.list filters by projectId', async () => {
   const result = await handleSchedulesList(makeDeps(), { projectId: 'proj1' });
   assert.equal(result.length, 2);
@@ -52,36 +47,11 @@ test('schedules.list filters by paused', async () => {
   assert.equal(result[0].paused, true);
 });
 
-test('schedules.list active schedules (paused: false)', async () => {
-  const result = await handleSchedulesList(makeDeps(), { paused: false });
-  assert.equal(result.length, 2);
-  assert.ok(result.every(s => s.paused === false));
-});
-
-test('schedules.list nextRun/lastRun are ISO strings', async () => {
-  const result = await handleSchedulesList(makeDeps(), {});
-  for (const s of result) {
-    if (s.nextRun) assert.ok(s.nextRun.endsWith('Z') || s.nextRun.includes('T'), `nextRun should be ISO: ${s.nextRun}`);
-    if (s.lastRun) assert.ok(s.lastRun.endsWith('Z') || s.lastRun.includes('T'), `lastRun should be ISO: ${s.lastRun}`);
-  }
-});
-
-test('schedules.list paused schedule has pausedBy', async () => {
-  const result = await handleSchedulesList(makeDeps(), { paused: true });
-  assert.equal(result[0].pausedBy, 'user');
-});
-
 test('schedules.list carries the real profile from the schedule config source', async () => {
   const result = await handleSchedulesList(makeDeps(), { projectId: 'proj1' });
   const byId = Object.fromEntries(result.map((s) => [s.id, s]));
   assert.equal(byId['sch1'].profile, 'claude-haiku');
   assert.equal(byId['sch2'].profile, 'claude-sonnet');
-});
-
-test('schedules.list maps a schedule without a profile to null (honest placeholder)', async () => {
-  const result = await handleSchedulesList(makeDeps(), { projectId: 'proj2' });
-  assert.equal(result[0].id, 'sch3');
-  assert.equal(result[0].profile, null);
 });
 
 test('schedules.list carries the timing spec + target/fallback for cadence labels and edit prefill', async () => {

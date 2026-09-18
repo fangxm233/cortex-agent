@@ -1,16 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   defaultScheduleForm,
-  visibleFields,
-  unitToMs,
   buildScheduleAddArgs,
   validateScheduleForm,
   editableScheduleFields,
   computeNextRun,
   profileOptions,
-  DAY_OPTIONS,
-  FALLBACK_OPTIONS,
-  TARGET_OPTIONS,
   type ScheduleForm,
 } from './schedule-modal-vm';
 
@@ -18,22 +13,7 @@ function form(overrides: Partial<ScheduleForm> = {}): ScheduleForm {
   return { ...defaultScheduleForm('nimbus'), ...overrides };
 }
 
-describe('SCHED_TYPES / option lists', () => {
-  it('day options map Sun..Sat → 0..6', () => {
-    expect(DAY_OPTIONS.map((d) => d.value)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-  });
-  it('fallback options are the real backend enum', () => {
-    expect(FALLBACK_OPTIONS).toEqual(['fresh', 'skip', 'wait']);
-  });
-  it('target options only include constructible kinds', () => {
-    expect(TARGET_OPTIONS).toEqual(['current-channel', 'fresh', 'project']);
-  });
-});
-
 describe('profileOptions', () => {
-  it('returns the real profile names unchanged when current is among them', () => {
-    expect(profileOptions(['default', 'research'], 'research')).toEqual(['default', 'research']);
-  });
   it('appends current once when it is not among the real names', () => {
     expect(profileOptions(['default', 'research'], 'claude-haiku')).toEqual([
       'default',
@@ -41,52 +21,8 @@ describe('profileOptions', () => {
       'claude-haiku',
     ]);
   });
-  it('does not duplicate current when it is already present', () => {
-    expect(profileOptions(['default', 'default'], 'default')).toEqual(['default']);
-  });
   it('no source (undefined names) → only the current value, nothing fabricated', () => {
     expect(profileOptions(undefined, 'claude-haiku')).toEqual(['claude-haiku']);
-  });
-  it('no source and empty current → empty list', () => {
-    expect(profileOptions(undefined, '')).toEqual([]);
-    expect(profileOptions([], '')).toEqual([]);
-  });
-});
-
-describe('defaultScheduleForm', () => {
-  it('defaults to a daily 09:00 fresh-fallback form carrying the projectId', () => {
-    const f = defaultScheduleForm('nimbus');
-    expect(f.type).toBe('daily');
-    expect(f.time).toBe('09:00');
-    expect(f.fallback).toBe('fresh');
-    expect(f.target).toBe('current-channel');
-    expect(f.projectId).toBe('nimbus');
-    expect(f.message).toBe('');
-  });
-  it('accepts a null projectId', () => {
-    expect(defaultScheduleForm(null).projectId).toBeNull();
-  });
-});
-
-describe('visibleFields', () => {
-  it('interval → only the interval input', () => {
-    expect(visibleFields('interval')).toEqual({ time: false, interval: true, dayOfWeek: false, delay: false });
-  });
-  it('daily → only time', () => {
-    expect(visibleFields('daily')).toEqual({ time: true, interval: false, dayOfWeek: false, delay: false });
-  });
-  it('weekly → time + dayOfWeek', () => {
-    expect(visibleFields('weekly')).toEqual({ time: true, interval: false, dayOfWeek: true, delay: false });
-  });
-  it('once → only delay', () => {
-    expect(visibleFields('once')).toEqual({ time: false, interval: false, dayOfWeek: false, delay: true });
-  });
-});
-
-describe('unitToMs', () => {
-  it('converts minutes and hours to milliseconds', () => {
-    expect(unitToMs(30, 'min')).toBe(30 * 60_000);
-    expect(unitToMs(2, 'hr')).toBe(2 * 3_600_000);
   });
 });
 

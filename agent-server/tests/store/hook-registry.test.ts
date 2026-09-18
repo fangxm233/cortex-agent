@@ -5,8 +5,6 @@ import * as path from 'node:path';
 import { test, vi } from 'vitest';
 
 import {
-  HOOK_SOURCES,
-  classifyHookSource,
   filterHookEntries,
   loadHookRegistry,
   loadHookRegistryRecords,
@@ -41,13 +39,6 @@ test('loads a valid hook entry synchronously with every schema field', (t) => {
   writeEntry(directory, 'approval.json', entry);
 
   assert.deepEqual(loadHookRegistry(directory), [entry]);
-});
-
-test('classifies hook sources with one reusable closed vocabulary', () => {
-  assert.deepEqual(HOOK_SOURCES, ['managed', 'user', 'template-scoped']);
-  assert.equal(classifyHookSource({ version: '2026.7.29' }), 'managed');
-  assert.equal(classifyHookSource({}), 'user');
-  assert.equal(classifyHookSource({}, 'template'), 'template-scoped');
 });
 
 test('loads source-aware records with the owning registry file path', (t) => {

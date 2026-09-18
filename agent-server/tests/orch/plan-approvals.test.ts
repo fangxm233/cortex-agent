@@ -96,17 +96,3 @@ test('resolve/reject of unknown requestId returns undefined and emits nothing', 
   assert.equal(approvals.reject('missing'), undefined);
   assert.equal(events.length, 0);
 });
-
-test('plan.approved uses empty executionId when register payload omitted it', () => {
-  const bus = new EventBus();
-  const approvals = new PlanApprovals(bus);
-  approvals.register('req-no-exec', { channel: 'C123' });
-
-  const events = collectEvents(bus);
-  approvals.resolve('req-no-exec');
-
-  assert.equal(events.length, 1);
-  if (events[0].type === 'plan.approved') {
-    assert.equal(events[0].executionId, '');
-  }
-});

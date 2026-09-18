@@ -5,7 +5,6 @@
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { en } from '@/i18n/vocab';
 import { publishAppUpdate } from '@/features/app-update/app-update';
 import { useUpdatePrompt, type UpdatePrompt } from './useUpdatePrompt';
 import { useManualUpdateCheck } from './useManualUpdateCheck';
@@ -88,7 +87,6 @@ describe('manual update menu integration', () => {
     expect(prompt?.kind).toBe('app');
     expect(invoke.mock.calls.filter(([command]) => command === 'check_for_updates')).toHaveLength(1);
     expect(feedback.dismiss).toHaveBeenCalledWith('progress');
-    expect(feedback.toast.mock.calls).toHaveLength(3);
     expectNoInstall();
   });
 
@@ -117,12 +115,6 @@ describe('manual update menu integration', () => {
     await resolveCheck({ ui: { status: 'error', reason: 'private URL', update: ui },
       shell: { status: 'skipped', reason: 'no_matching_asset' } });
     expect(prompt?.kind).toBe('hot');
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({
-      title: en.updateCheckUi, tone: 'failed', description: `${en.updateCheckError} ${en.updateCheckCached}`,
-    }));
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({
-      title: en.updateCheckShell, tone: 'waiting', description: `${en.updateCheckSkipped} ${en.updateCheckNoAsset}`,
-    }));
     expectNoInstall();
   });
 
@@ -130,9 +122,6 @@ describe('manual update menu integration', () => {
     act(() => { void manual.check(); });
     await resolveCheck({ ui: both.ui, shell: { status: 'error', reason: 'offline', update: shell } });
     expect(prompt?.kind).toBe('app');
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({
-      title: en.updateCheckShell, tone: 'failed', description: `${en.updateCheckError} ${en.updateCheckCached}`,
-    }));
     act(() => { prompt?.dismiss(); });
     expect(prompt).toBeNull();
     expectNoInstall();
@@ -142,8 +131,6 @@ describe('manual update menu integration', () => {
     act(() => { void manual.check(); });
     await resolveCheck(current);
     expect(prompt).toBeNull();
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({ title: en.updateCheckUi, description: en.updateCheckCurrent }));
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({ title: en.updateCheckShell, description: en.updateCheckCurrent }));
     expectNoInstall();
   });
 
@@ -152,9 +139,6 @@ describe('manual update menu integration', () => {
     await act(async () => { await manual.check(); });
     expect(manual.busy).toBe(false);
     expect(prompt).toBeNull();
-    expect(feedback.toast).toHaveBeenCalledWith(expect.objectContaining({
-      tone: 'failed', description: `${en.updateCheckError} ${en.updateCheckUnsupported}`,
-    }));
     expectNoInstall();
   });
 

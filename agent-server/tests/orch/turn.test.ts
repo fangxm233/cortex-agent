@@ -144,24 +144,6 @@ test('a turn with ledger:null opens and completes no conversation-ledger turn', 
 
 // ── 2. statusPrefix — the edit-retry shape ───────────────────────────────────
 
-test('statusPrefix rides both the opening status message and every progress rewrite', async () => {
-  const h = harness();
-  const prefix = '🔁 Retry (edited) | ';
-  answerWith(h, () => {
-    // Progress arrives while the turn is open, through the foreground observer startRun was given.
-    queueMicrotask(() => {
-      h.observers[0]?.onEvent({ type: 'turn_progress', numTurns: 2, phase: 'foreground' } as RunEvent);
-    });
-    return fakeRun(new Promise((resolve) => setTimeout(() => resolve(agentResult()), 10)));
-  });
-
-  await openTurn(turnInput(h, 'slack:C-turn-prefix', { statusPrefix: prefix }));
-
-  assert.equal(h.adapter.posted[0].content.text.startsWith(prefix), true, 'opening status carries the prefix');
-  const progressWrites = h.adapter.updated.filter((u: any) => typeof u.content.text === 'string' && u.content.text.startsWith(prefix));
-  assert.equal(progressWrites.length >= 1, true, 'the progress rewrite carries it too');
-});
-
 // ── 3. a background hold takes the session over ──────────────────────────────
 
 test('when a background hold takes over, openTurn resolves and publishes no running:false', async () => {

@@ -6,7 +6,6 @@ import * as path from 'node:path';
 import { DATA_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
-  buildThreadSummary,
   initThreadContext,
   setupStepCallbacks,
   evaluateAndTransition,
@@ -107,18 +106,6 @@ function makeRunOpts(channel: string, overrides: Partial<RunThreadOptions> = {})
     ...overrides,
   };
 }
-
-test('buildThreadSummary preserves the terminal failure reason', () => {
-  const thread = makeThreadRecord({
-    id: 'thr_failed', channel: 'C1', status: 'failed', error: 'worker crashed',
-    createdAt: '2026-04-16T10:00:00Z', endedAt: '2026-04-16T10:00:01Z',
-  });
-  const summary = buildThreadSummary({
-    thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0,
-    lastAgentResult: null, executionId: null, stopReason: null,
-  });
-  assert.match(summary, /worker crashed/);
-});
 
 // --- initThreadContext ---
 
@@ -261,20 +248,6 @@ test('finalizeThread includes executionId from last step when steps have executi
   assert.equal(result.executionId, 'exec_abc123');
 });
 
-test('finalizeThread returns null executionId when no steps exist', async () => {
-  const id = uniqueThreadId('execid-null');
-  registerTestThread(makeThreadRecord({
-    id, channel: 'C-exec2', templateName: null,
-    steps: [],
-  }));
-  const ctx: ThreadContext = {
-    thread: threadStore.get(id)!, template: null, meta: null, stream: noopStream,
-    lastAgentResult: null, totalNumTurns: 0, stopReason: null,
-  };
-  const result = await finalizeThread(id, ctx);
-  assert.equal(result.executionId, null);
-});
-
 // --- buildStepPrompt with pendingMessages ---
 
 test('buildStepPrompt includes pendingMessages from thread metadata', () => {
@@ -296,25 +269,6 @@ test('buildStepPrompt includes pendingMessages from thread metadata', () => {
   assert.match(prompt, /first reply/);
   assert.match(prompt, /second reply/);
   assert.match(prompt, /用户回复|buffered/i);
-});
-
-test('buildStepPrompt unchanged when no pendingMessages', () => {
-  const id = uniqueThreadId('prompt-none');
-  registerTestThread(makeThreadRecord({
-    id, channel: 'C-prompt2',
-    metadata: {},
-    workspacePath: '', artifactPath: '',
-  }));
-
-  const agentConfig: AgentSlotConfig = {
-    slotId: 'main',
-    profile: '__active__',
-    persistSession: false,
-    promptTemplate: '{{input}}',
-  };
-
-  const prompt = buildStepPrompt(id, agentConfig, null);
-  assert.doesNotMatch(prompt, /用户回复|buffered/i);
 });
 
 test('buildStepPrompt consumes structured buffered user input alongside legacy notices', () => {

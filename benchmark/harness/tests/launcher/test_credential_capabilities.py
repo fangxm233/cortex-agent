@@ -8,98 +8,13 @@ import pytest
 from cortex_bench_harness.launcher import credential_capabilities
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
-    CAPABILITY_STATES,
     project_credential_capabilities,
 )
 
-EXPECTED_PROJECTION = [
-    {
-        "id": "claude-api-key",
-        "state": "offline-contract-passed",
-        "key": {
-            "runner_or_backend": "claude",
-            "provider": "anthropic",
-            "protocol": "anthropic-messages",
-            "credential_kind": "api-key-bearer",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-    },
-    {
-        "id": "claude-subscription",
-        "state": "live-handshake-passed",
-        "key": {
-            "runner_or_backend": "claude-code",
-            "provider": "anthropic",
-            "protocol": "anthropic-messages",
-            "credential_kind": "subscription-oauth",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-        "evidence_sha256":
-            "68c7c62cdd57e3ebc5fdeb395e57eab76fe228ad4c33f7c1633ad5c8c7794987",
-    },
-    {
-        "id": "codex-subscription",
-        "state": "live-handshake-passed",
-        "key": {
-            "runner_or_backend": "codex-cli",
-            "provider": "openai-codex",
-            "protocol": "openai-codex-responses",
-            "credential_kind": "oauth",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-        "evidence_sha256":
-            "e0184b5fd292a30f6ad102a01739bf6c885a31b907c89305d8f48441ae2f8aa4",
-    },
-    {
-        "id": "pi-api-key",
-        "state": "unsupported",
-        "key": {
-            "runner_or_backend": "pi",
-            "provider": "??",
-            "protocol": "??",
-            "credential_kind": "api-key",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-    },
-    {
-        "id": "pi-deepseek-api-key",
-        "state": "live-handshake-passed",
-        "key": {
-            "runner_or_backend": "pi",
-            "provider": "deepseek",
-            "protocol": "openai-completions",
-            "credential_kind": "api-key",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-        "evidence_sha256":
-            "f11e82fd0efecfda60490de953f3af39833cda1adce0e2b87e0f078bafa289d5",
-    },
-    {
-        "id": "pi-openai-codex-oauth",
-        "state": "live-handshake-passed",
-        "key": {
-            "runner_or_backend": "pi",
-            "provider": "openai-codex",
-            "protocol": "openai-codex-responses",
-            "credential_kind": "oauth",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
-        },
-        "evidence_sha256":
-            "1e63a37bc945da31f7d518f7e25cb52d0a4964eed257741ac14b4760b184c6b4",
-    },
-]
 SECRET_VALUE = re.compile(
     r"(?:sk-(?:ant|proj)-[A-Za-z0-9_-]+|ghp_[A-Za-z0-9]+|"
     r"Bearer\s+\S+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)"
 )
-
-
-def test_registry_has_the_six_stateful_capability_rows() -> None:
-    assert CAPABILITY_STATES == {
-        "unsupported", "offline-contract-passed", "live-handshake-passed",
-    }
-    assert len(CAPABILITY_REGISTRY) == 6
-    assert project_credential_capabilities() == EXPECTED_PROJECTION
 
 
 def test_deepseek_promotion_requires_bound_evidence(

@@ -170,19 +170,6 @@ test('a throttle failure does not suppress usage persistence', async () => {
   assert.equal(records.length, 1);
 });
 
-test('attributes the reading to the profile provider, not the name the headers used', async () => {
-  const calls: { source: unknown }[] = [];
-  await reportCodexQuota(
-    READING,
-    { provider: 'my-codex', displayName: 'my-codex', mode: 'api' },
-    {
-      submit: async (_info, source) => { calls.push({ source }); },
-      usageStore: { update: async () => {} },
-    },
-  );
-  assert.deepEqual(new Set(calls.map((c) => (c.source as { provider: string }).provider)), new Set(['my-codex']));
-});
-
 test('persists usage under source provider and displayName even when the reading provider differs', async () => {
   const records: any[] = [];
   await reportCodexQuota(

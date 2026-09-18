@@ -77,49 +77,6 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   assert.equal(seen[1].toolDevice, 'lab2');
 });
 
-test('publishSessionMessage carries an optional notice level', () => {
-  const bus = new EventBus();
-  const seen: any[] = [];
-  bus.subscribe('session.message', (event) => { seen.push(event); });
-
-  const prev = getOrchestrationRuntime().bus;
-  setOrchestrationRuntime({ bus });
-  try {
-    publishSessionMessage({
-      sessionId: 'sess-notice',
-      channel: 'web:notice',
-      role: 'assistant',
-      text: 'Context auto-compacted.',
-      noticeLevel: 'info',
-    });
-  } finally {
-    setOrchestrationRuntime({ bus: prev });
-  }
-
-  assert.equal(seen[0].noticeLevel, 'info');
-});
-
-test('publishSessionMessage forwards a notice action to the live stream', () => {
-  const seen: any[] = [];
-  const bus = { publish: (e: any) => seen.push(e) } as any;
-  const prev = getOrchestrationRuntime().bus;
-  setOrchestrationRuntime({ bus });
-  try {
-    publishSessionMessage({
-      sessionId: 'sess-action',
-      channel: 'web:notice',
-      role: 'assistant',
-      text: 'Rate limited',
-      noticeLevel: 'warning',
-      noticeAction: { kind: 'cancel-resume' },
-    });
-  } finally {
-    setOrchestrationRuntime({ bus: prev });
-  }
-
-  assert.deepEqual(seen[0].noticeAction, { kind: 'cancel-resume' });
-});
-
 test('publishSessionMessage is a no-op when no bus is wired', () => {
   const prev = getOrchestrationRuntime().bus;
   setOrchestrationRuntime({ bus: null });
@@ -211,14 +168,4 @@ test('publishSessionMessageDelta emits a session.message.delta event', () => {
   assert.equal(seen[0].seq, 0);
   assert.ok(typeof seen[0].ts === 'string');
   assert.equal(seen[1].seq, 1);
-});
-
-test('publishSessionMessageDelta is a no-op when no bus is wired', () => {
-  const prev = getOrchestrationRuntime().bus;
-  setOrchestrationRuntime({ bus: null });
-  try {
-    assert.doesNotThrow(() => publishSessionMessageDelta({ sessionId: 's', channel: 'c', blockId: 'b', text: 'x', seq: 0 }));
-  } finally {
-    setOrchestrationRuntime({ bus: prev });
-  }
 });

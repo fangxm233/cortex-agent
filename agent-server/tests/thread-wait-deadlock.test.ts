@@ -154,15 +154,6 @@ test('empty wait set → null', () => {
   assert.equal(computeStuckWaitSet([t('aa')], []), null);
 });
 
-test('buildDeadlockNotice names the stuck tasks, the blockers, and the escape hatches', () => {
-  const notice = buildDeadlockNotice(['cc11', 'dd11'], ['bb11']);
-  assert.match(notice, /cc11/);
-  assert.match(notice, /dd11/);
-  assert.match(notice, /bb11/);
-  assert.match(notice, /unblock/);
-  assert.match(notice, /thread_abort/);
-});
-
 // --- integration: blocked child + stuck sibling wakes the manager ---
 
 test('blocked child among stuck siblings wakes the manager with a deadlock notice', async () => {

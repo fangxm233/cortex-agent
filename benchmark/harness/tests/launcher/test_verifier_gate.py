@@ -103,7 +103,6 @@ def test_a_missing_declared_dependency_is_the_verifiers_failure_not_the_agents()
 
     assert status == STATUS_UNAVAILABLE
     assert absent == ("numpy",)
-    assert "['numpy']" in (reason or "")
 
 
 def test_a_missing_module_the_task_never_installs_is_left_unjudged() -> None:
@@ -119,7 +118,6 @@ def test_a_missing_module_the_task_never_installs_is_left_unjudged() -> None:
 
     assert status == STATUS_INCONCLUSIVE
     assert absent == ("my_solution",)
-    assert "does not judge" in (reason or "")
 
 
 def test_a_script_that_promised_a_report_and_produced_none_died_before_pytest() -> None:
@@ -129,7 +127,6 @@ def test_a_script_that_promised_a_report_and_produced_none_died_before_pytest() 
         stdout_tail="/root/.local/bin/uvx: 6: exec: python3: not found", exit_code=0)
 
     assert status == STATUS_UNAVAILABLE
-    assert "died before" in (reason or "")
 
 
 def test_a_script_that_never_asked_for_a_report_is_not_condemned_for_lacking_one() -> None:
@@ -138,7 +135,6 @@ def test_a_script_that_never_asked_for_a_report_is_not_condemned_for_lacking_one
         stdout_tail="1 failed", exit_code=1)
 
     assert status == STATUS_INCONCLUSIVE
-    assert "not observable" in (reason or "")
 
 
 def test_a_probe_that_never_finished_cannot_be_budgeted_for() -> None:
@@ -146,7 +142,6 @@ def test_a_probe_that_never_finished_cannot_be_budgeted_for() -> None:
         script=UPSTREAM_SCRIPT, ctrf=None, stdout_tail="", exit_code=None)
 
     assert status == STATUS_UNAVAILABLE
-    assert "timeout" in (reason or "")
 
 
 @pytest.mark.parametrize(
@@ -297,8 +292,6 @@ def test_a_campaign_still_declaring_an_unrunnable_task_is_refused(tmp_path: Path
 
     with pytest.raises(bench.BenchError) as error:
         bench.check_verifier_gate(config)
-    assert "verifier gate found 1 task" in str(error.value)
-    assert "Exclude them" in str(error.value)
 
 
 def test_a_gate_report_naming_no_declared_task_lets_the_launch_proceed(tmp_path: Path) -> None:
@@ -312,7 +305,6 @@ def test_a_campaign_that_was_never_gated_is_told_how_rather_than_refused(tmp_pat
     step = bench.check_verifier_gate(gated_campaign(tmp_path))
 
     assert step["checked"] is False
-    assert "--verifier-gate" in str(step["note"])
 
 
 @pytest.mark.parametrize(

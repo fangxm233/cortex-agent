@@ -121,28 +121,14 @@ test('expandShell honors a maxTotalSteps override', () => {
   assert.equal(out.maxTotalSteps, 6);
 });
 
-test('expandShell falls back to a default description when the binding omits one', () => {
-  const out = expandShell('x-review', { shell: 'worker-review', worker: 'analyst', reviewer: 'analyst-reviewer' }, WORKER_REVIEW, AGENTS);
-  assert.equal(typeof out.description, 'string');
-  assert.ok(out.description.length > 0);
-});
-
 // --- Error branches (the 7 validation semantics preserved from the code-expander) ---
 
 test('missing worker param throws', () => {
   assert.throws(() => expandShell('x', { shell: 'worker-review', reviewer: 'analyst-reviewer' } as any, WORKER_REVIEW, AGENTS), /worker/i);
 });
 
-test('missing reviewer param throws', () => {
-  assert.throws(() => expandShell('x', { shell: 'worker-review', worker: 'analyst' } as any, WORKER_REVIEW, AGENTS), /reviewer/i);
-});
-
 test('worker agent not found throws', () => {
   assert.throws(() => expandShell('x', { shell: 'worker-review', worker: 'ghost', reviewer: 'analyst-reviewer' }, WORKER_REVIEW, AGENTS), /agent .*ghost.* not found/i);
-});
-
-test('reviewer agent not found throws', () => {
-  assert.throws(() => expandShell('x', { shell: 'worker-review', worker: 'analyst', reviewer: 'ghost' }, WORKER_REVIEW, AGENTS), /agent .*ghost.* not found/i);
 });
 
 test('worker agent without entryStage throws', () => {

@@ -64,13 +64,6 @@ describe('parseStreamEvent', () => {
     assert.equal(parseStreamEvent(null, st), null);
   });
 
-  test('ignores empty text deltas (nothing to render)', () => {
-    const st = createStreamDeltaState();
-    parseStreamEvent(messageStart('msg_1'), st);
-    parseStreamEvent(blockStart(0, 'text'), st);
-    assert.equal(parseStreamEvent(textDelta(0, ''), st), null);
-  });
-
   test('a text delta arriving before message_start is dropped rather than given a bogus blockId', () => {
     const st = createStreamDeltaState();
     assert.equal(parseStreamEvent(textDelta(0, 'orphan'), st), null);
@@ -127,23 +120,6 @@ describe('takeTextBlockId — tying the finalizing assistant event to its stream
     parseStreamEvent(blockStart(0, 'thinking'), st);
     parseStreamEvent(thinkingDelta(0), st);
     assert.equal(takeTextBlockId(st), null);
-  });
-
-  test('no streaming at all (kill switch / older CLI) yields no id — finalizing path unchanged', () => {
-    const st = createStreamDeltaState();
-    assert.equal(takeTextBlockId(st), null);
-  });
-
-  test('sequential text blocks hand out their ids in order', () => {
-    const st = createStreamDeltaState();
-    parseStreamEvent(messageStart('msg_1'), st);
-    parseStreamEvent(blockStart(0, 'text'), st);
-    parseStreamEvent(textDelta(0, 'one'), st);
-    assert.equal(takeTextBlockId(st), 'msg_1:0');
-    parseStreamEvent(blockStop(0), st);
-    parseStreamEvent(blockStart(1, 'text'), st);
-    parseStreamEvent(textDelta(1, 'two'), st);
-    assert.equal(takeTextBlockId(st), 'msg_1:1');
   });
 
   test('a text block that streamed no delta still yields its id', () => {
@@ -245,14 +221,6 @@ describe('ClaudeSession.handleLine — delta emission', () => {
     s.currentTurn = fakeTurn({ onAssistantMessage: (text: string, blockId?: string) => finals.push([text, blockId]) });
     s.handleLine(L_ASSISTANT_TEXT);
     assert.deepEqual(finals, [['Tea begins as a leaf.', undefined]]);
-  });
-
-  test('a turn with no delta callback ignores stream_event lines without throwing', (t) => {
-    const s: any = _test.makeSessionForTest();
-    t.onTestFinished(() => s.close());
-    s.currentTurn = fakeTurn();
-    for (const line of [L_MSG_START, L_TEXT_START, L_TEXT_D1]) s.handleLine(line);
-    assert.ok(true);
   });
 
   test('a throwing delta callback cannot break the line loop', (t) => {

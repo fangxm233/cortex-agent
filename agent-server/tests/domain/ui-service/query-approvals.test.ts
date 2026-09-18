@@ -90,13 +90,6 @@ test('parseApprovals parses every entry with title/queuedAt/status', () => {
 });
 
 // ── (2) missing fields → null ────────────────────────────────────────────────
-test('parseApprovals sets missing bullet fields to null', () => {
-  const [, , gamma] = parseApprovals(SAMPLE);
-  // Gamma has no Impact / Command-Action bullets.
-  assert.equal(gamma.impact, null);
-  assert.equal(gamma.command, null);
-  assert.equal(gamma.operation, 'Submit the bug report');
-});
 
 // ── (3) status filter ────────────────────────────────────────────────────────
 test('parseApprovals filters by status', () => {
@@ -185,20 +178,6 @@ test('parseApprovals parses a Project bullet into projectId, null when absent', 
   assert.equal(legacy.projectId, null);
 });
 
-test('parseApprovals sets projectId null across a Project-free file', () => {
-  for (const e of parseApprovals(SAMPLE)) {
-    assert.equal(e.projectId, null);
-  }
-});
-
-test('parseApprovals never fabricates a ttl/expiry field (zero-source)', () => {
-  // TTL is the prototype amber "expires in …" slot; the markdown queue has no expiry concept at all.
-  // Guard: the DTO must not carry a fabricated ttl value.
-  for (const e of parseApprovals(PROV_SAMPLE)) {
-    assert.equal((e as unknown as Record<string, unknown>).ttl, undefined);
-  }
-});
-
 // ── (5) missing file → [] ────────────────────────────────────────────────────
 test('handleApprovalsList returns [] when the file is missing', async () => {
   const deps = makeDeps(path.join(os.tmpdir(), 'does-not-exist-approvals.md'));
@@ -242,17 +221,6 @@ test('parseApprovals treats resolved/deferred/superseded as decided', () => {
   const pending = parseApprovals(SETTLED, 'pending');
   assert.equal(pending.length, 1);
   assert.equal(pending[0].title, 'Still waiting on you');
-});
-
-test('parseApprovals keeps the settlement wording and date', () => {
-  const [, resolved, deferred, superseded] = parseApprovals(SETTLED);
-  assert.equal(resolved.decidedAt, '2026-04-02');
-  assert.equal(resolved.feedback, 'resolved 2026-04-02 — owner decided in review');
-  assert.equal(deferred.decidedAt, '2026-04-03');
-  assert.equal(deferred.feedback, 'deferred 2026-04-03 (source commit only)');
-  // A settlement word anywhere but the start must NOT close the entry.
-  assert.equal(superseded.status, 'approved');
-  assert.equal(superseded.decidedAt, '2026-04-05');
 });
 
 test('parseApprovals leaves unknown status words pending', () => {

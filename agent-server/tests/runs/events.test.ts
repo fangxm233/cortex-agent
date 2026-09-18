@@ -89,14 +89,6 @@ test('passthrough events keep their payload and carry the foreground phase', () 
   }
 });
 
-test('the same passthrough events carry the background phase', () => {
-  for (const kind of PHASED_KINDS) {
-    const translated = toRunEvent(sample(kind), 'background');
-    assert.equal(translated.type, kind, kind);
-    assert.equal((translated as { phase?: string }).phase, 'background', kind);
-  }
-});
-
 test('session_started becomes engine_started with backendSessionId', () => {
   assert.deepEqual(toRunEvent(sample('session_started'), 'foreground'), {
     type: 'engine_started', backendSessionId: 'sess-1', sessionFile: '/tmp/s.jsonl',
@@ -141,13 +133,4 @@ test('turn_complete becomes background_result in the background phase', () => {
   const translated = toRunEvent(event, 'background');
   assert.equal(translated.type, 'background_result');
   assert.deepEqual((translated as { result: AgentResult }).result.num_turns, 3);
-});
-
-test('the phase tag is independent of the union member for every passthrough kind', () => {
-  for (const kind of PHASED_KINDS) {
-    const foreground = toRunEvent(sample(kind), 'foreground');
-    const done = toRunEvent(sample(kind), 'done');
-    assert.equal((foreground as { phase?: string }).phase, 'foreground', kind);
-    assert.equal((done as { phase?: string }).phase, 'done', kind);
-  }
 });

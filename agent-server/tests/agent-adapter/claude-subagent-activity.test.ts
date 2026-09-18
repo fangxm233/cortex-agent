@@ -102,16 +102,6 @@ test('a subagent tool-result line emits exactly one tool_result-kind census even
   ]);
 });
 
-test('subagentType is null unless the line carries a string subagent_type', (t) => {
-  const out = seen();
-  const s = sessionWith(out, t);
-
-  s.handleLine(assistantLine({ parent_tool_use_id: 'toolu_agent_1' }));
-  s.handleLine(assistantLine({ parent_tool_use_id: 'toolu_agent_1', subagent_type: 7 }));
-
-  assert.deepEqual(out.census.map(item => item.subagentType), [null, null]);
-});
-
 test('a replay echo carrying parent_tool_use_id emits no census event', (t) => {
   const out = seen();
   const s = sessionWith(out, t);

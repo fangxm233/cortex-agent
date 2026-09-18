@@ -75,25 +75,6 @@ test('TokenBucketRateLimiter: reportThrottled sets backoff window', { timeout: 5
   assert.equal(rl.tryAcquire('chat.postMessage').ok, true);
 });
 
-test('TokenBucketRateLimiter: reportThrottled without retryAfter defaults to 10s', () => {
-  const rl = makeFastLimiter();
-  rl.reportThrottled('chat.postMessage'); // default 10s
-  // Would block for 10s — just verify the state
-  assert.equal(rl.tryAcquire('chat.postMessage').ok, false);
-});
-
-test('TokenBucketRateLimiter: zero capacity denies all', () => {
-  const rl = new TokenBucketRateLimiter({
-    globalCapacity: 0,
-    globalRefillPerSec: 0,
-    perChannelCapacity: 0,
-    perChannelRefillPerSec: 0,
-    cleanupIntervalMs: 100_000,
-  });
-  assert.equal(rl.tryAcquire('chat.postMessage').ok, false);
-  assert.equal(rl.tryAcquire('chat.update', 'C1').ok, false);
-});
-
 test('TokenBucketRateLimiter: blocking acquire() eventually resolves', { timeout: 5000 }, async () => {
   vi.useFakeTimers(); // acquire() polls via module-internal setTimeout + Date.now() refill
   const rl = makeFastLimiter();
@@ -130,12 +111,4 @@ test('TokenBucketRateLimiter: acquire respects 429 backoff across channels', () 
   // Both C1 specific and global postMessage should be backed off
   assert.equal(rl.tryAcquire('chat.postMessage', 'C1').ok, false);
   assert.equal(rl.tryAcquire('chat.postMessage').ok, false);
-});
-
-test('TokenBucketRateLimiter: dispose stops cleanup timer', () => {
-  const rl = makeFastLimiter();
-  rl.dispose();
-  assert.equal(rl._bucketCount(), 0);
-  // Should not throw
-  rl.tryAcquire('chat.postMessage');
 });

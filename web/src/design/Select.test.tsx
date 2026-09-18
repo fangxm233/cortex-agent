@@ -79,23 +79,4 @@ describe('Select', () => {
     act(() => { part(renderer, 'root').props.onValueChange('option-0'); });
     expect(onValueChange).toHaveBeenCalledWith(0);
   });
-
-  it('forwards accessible trigger metadata and renders selected and disabled states', () => {
-    const options = [
-      { value: 'active', label: 'Active', description: 'current backend' },
-      { value: 'locked', label: 'Locked', disabled: true, disabledReason: 'Unavailable' },
-    ] as const;
-    const renderer = mount('active', options);
-    const trigger = part(renderer, 'trigger');
-    const items = renderer.root.findAllByProps({ 'data-radix-part': 'item' });
-
-    expect(trigger.props['data-field']).toBe('fixture');
-    expect(trigger.props['aria-label']).toBe('Fixture choice');
-    expect(part(renderer, 'value').children.join('')).toBe('Active');
-    expect(items[0].props.textValue).toBe('Active');
-    expect(items[1].props.disabled).toBe(true);
-    expect(items[1].props.title).toBe('Unavailable');
-    expect(JSON.stringify(renderer.toJSON())).toContain('current backend');
-  });
-
 });

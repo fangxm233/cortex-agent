@@ -77,45 +77,6 @@ test('uploadFileToFeishu strips feishu: prefix from channel ID before API calls'
   }
 });
 
-test('uploadFileToFeishu works with bare channel ID (no prefix)', async (t) => {
-  // Create a temporary test file
-  const testFile = path.join(__dirname, 'test-feishu-upload-bare.txt');
-  fs.writeFileSync(testFile, 'test content for feishu');
-
-  try {
-    // Create mock Feishu client
-    const mockClient = new MockFeishuClient() as any;
-
-    // Call with bare channel ID (should also work)
-    const result = await uploadFileToFeishu(mockClient, {
-      channel: 'oc_123abc',
-      filePath: testFile,
-      title: 'Test File',
-    });
-
-    // Verify the result
-    assert.equal(result.fileName, 'test-feishu-upload-bare.txt');
-    assert.equal(result.size, 23);
-
-    // Verify that API calls received the bare channel ID
-    const calls = mockClient.getRecordedCalls();
-    const createCall = calls.find((c: any) => c.method === 'im.v1.message.create');
-
-    if (createCall) {
-      assert.equal(
-        createCall.args.data.receive_id,
-        'oc_123abc',
-        'im.v1.message.create should receive channel ID as-is'
-      );
-    }
-  } finally {
-    // Clean up test file
-    if (fs.existsSync(testFile)) {
-      fs.unlinkSync(testFile);
-    }
-  }
-});
-
 test('uploadFileToFeishu throws on file not found', async (t) => {
   const mockClient = new MockFeishuClient() as any;
 

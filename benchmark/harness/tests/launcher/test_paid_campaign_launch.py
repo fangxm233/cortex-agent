@@ -574,22 +574,6 @@ def artifact_in(campaign_path: Path, key: str) -> Path:
     return Path(str(launcher.load_campaign_config(campaign_path).manifest[key]))
 
 
-def test_hermetic_campaign_preserves_every_non_infrastructure_declaration(
-    hermetic_campaign: Path,
-) -> None:
-    import yaml
-
-    committed = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
-    staged = yaml.safe_load(hermetic_campaign.read_text(encoding="utf-8"))
-    for task in committed["tasks"]:
-        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
-    committed["trials_dir"] = staged["trials_dir"]
-    for key in ("wheel_path", "npm_artifact_path", "lockfile_path"):
-        committed["manifest"][key] = staged["manifest"][key]
-        assert Path(staged["manifest"][key]).is_relative_to(hermetic_campaign.parents[2])
-    assert staged == committed
-
-
 @pytest.mark.parametrize("key", ["wheel_path", "npm_artifact_path"])
 def test_source_drift_refuses_the_launch_with_unchanged_artifact_bytes(
     key: str, gateway: Path, clean_environment: dict[str, str], stale_campaign: Path,

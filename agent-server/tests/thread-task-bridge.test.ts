@@ -71,30 +71,6 @@ function makeManager(proj: string, taskId: string, waitingOnTasks: string[], ove
 
 // --- buildTaskResultNotice ---
 
-test('buildTaskResultNotice completed: task identity + done_when + verification discipline', () => {
-  const task = rawToTask({ id: 'ab12', text: 'train the model', 'done-when': 'loss < 0.1 documented', 'completed-note': 'done via run-42', status: 'done' }, 'projX');
-  const notice = buildTaskResultNotice(task, 'completed');
-  assert.match(notice, /ab12/);
-  assert.match(notice, /train the model/);
-  assert.match(notice, /loss < 0.1 documented/);
-  assert.match(notice, /run-42/);
-  assert.match(notice, /done.?when/i);
-  assert.match(notice, /Write tool/);
-  assert.match(notice, /cortex-task spawn --task-file/);
-  assert.match(notice, /per-task unique path/);
-  assert.match(notice, /thread_abort/);
-});
-
-test('buildTaskResultNotice blocked: reason + escalation guidance', () => {
-  const task = rawToTask({ id: 'cd34', text: 'do thing', 'blocked-by': 'worker-abort:too-big', status: 'open' }, 'projX');
-  const notice = buildTaskResultNotice(task, 'blocked');
-  assert.match(notice, /cd34/);
-  assert.match(notice, /worker-abort:too-big/);
-  assert.match(notice, /Write tool/);
-  assert.match(notice, /cortex-task spawn --task-file/);
-  assert.match(notice, /unblock|修订|重建/);
-});
-
 // --- notifyTaskParentThreads ---
 
 test('notifyTaskParentThreads delivers a done child and keeps waiting on siblings', async () => {

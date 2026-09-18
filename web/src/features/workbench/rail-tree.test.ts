@@ -303,32 +303,6 @@ describe('buildRailTree session rows', () => {
     expect(tree.projects[0].sessions).toHaveLength(12);
     expect(tree.projects[0].showingAll).toBe(false);
   });
-
-  it('carries the relative age and the exact stamp for the tooltip', () => {
-    const tree = buildRailTree(
-      input({
-        projects: [project('nimbus')],
-        directSessions: [session('nimbus', { lastUsedAt: ago(3 * HOUR) })],
-        expanded: new Set(['nimbus']),
-      }),
-    );
-    const row = tree.projects[0].sessions[0];
-    expect(row.age).toBe('3h');
-    expect(row.stamp).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
-  });
-
-  it('falls back from label to name to id for the row title', () => {
-    const tree = buildRailTree(
-      input({
-        projects: [project('nimbus')],
-        directSessions: [
-          session('nimbus', { sessionId: 'only-id', label: undefined, name: undefined } as never),
-        ],
-        expanded: new Set(['nimbus']),
-      }),
-    );
-    expect(tree.projects[0].sessions[0].title).toBe('only-id');
-  });
 });
 
 describe('buildRailTree schedules', () => {

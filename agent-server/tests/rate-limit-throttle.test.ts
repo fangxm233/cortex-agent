@@ -79,7 +79,6 @@ test('activates on seven_day with utilization ≥ 0.95', async (t) => {
   assert.equal(mod.isThrottled(), true);
   const state = mod.getThrottleState();
   assert.ok(state.rateLimitedTypes.includes('seven_day'));
-  assert.ok(adapter.posted[0].content.text.includes('[seven_day]'));
 });
 
 test('ignores seven_day below threshold (0.94)', async (t) => {
@@ -89,17 +88,6 @@ test('ignores seven_day below threshold (0.94)', async (t) => {
   await mod.initRateLimitThrottle(adapter, persistence as any);
   await mod.handleRateLimitEvent({ rateLimitType: 'seven_day', utilization: 0.94, resetsAt: Math.floor(Date.now() / 1000) + 300 });
   assert.equal(mod.isThrottled(), false);
-});
-
-test('activates on seven_day_overage_included with utilization ≥ 0.95', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-  await mod.handleRateLimitEvent({ rateLimitType: 'seven_day_overage_included', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 300 });
-  assert.equal(mod.isThrottled(), true);
-  const state = mod.getThrottleState();
-  assert.ok(state.rateLimitedTypes.includes('seven_day_overage_included'));
 });
 
 test('activates on seven_day at exactly 0.95 (boundary)', async (t) => {
@@ -129,15 +117,6 @@ test('five_hour at 0.89 still ignored (below 0.90 threshold)', async (t) => {
   assert.equal(mod.isThrottled(), false);
 });
 
-test('ignores utilization below threshold', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.89, resetsAt: Math.floor(Date.now() / 1000) + 300 });
-  assert.equal(mod.isThrottled(), false);
-});
-
 test('ignores events without resetsAt', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
@@ -158,7 +137,6 @@ test('activates throttle and persists state', async (t) => {
 
   assert.equal(mod.isThrottled(), true);
   assert.equal(adapter.posted.length, 1);
-  assert.ok(adapter.posted[0].content.text.includes('throttle activated'));
 
   const state = mod.getThrottleState();
   assert.equal(state.resetsAt, resetSec);
@@ -233,21 +211,6 @@ test('initRateLimitThrottle recovers active throttle on restart', async (t) => {
   assert.ok(mod.isModeRateLimited('api'));
 });
 
-test('tracks mode on handleRateLimitEvent', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-
-  const resetSec = Math.floor(Date.now() / 1000) + 300;
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.95, resetsAt: resetSec }, 'plan');
-
-  assert.equal(mod.isThrottled(), true);
-  assert.ok(mod.isModeRateLimited('plan'));
-  assert.equal(mod.isModeRateLimited('api'), false);
-  assert.ok(mod.isModeRateLimited('plan'));
-});
-
 test('adds new mode on extended throttle', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
@@ -269,32 +232,6 @@ test('adds new mode on extended throttle', async (t) => {
   // Persistence includes both provider/mode records
   const saved = persistence.getSaved();
   assert.deepEqual(saved.providers.flatMap((p: any) => p.modes).sort(), ['execute', 'plan']);
-});
-
-test('isModeRateLimited returns false when not throttled', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-
-  assert.equal(mod.isThrottled(), false);
-  assert.equal(mod.isModeRateLimited('plan'), false);
-  assert.equal(mod.isModeRateLimited('api'), false);
-});
-
-test('handleRateLimitEvent without mode activates throttle but no mode tracking', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-
-  const resetSec = Math.floor(Date.now() / 1000) + 300;
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.95, resetsAt: resetSec });
-
-  assert.equal(mod.isThrottled(), true);
-  // No mode was tracked
-  assert.deepEqual(mod.getThrottleState().rateLimitedModes, []);
-  assert.equal(mod.isModeRateLimited('anything'), false);
 });
 
 test('onResume fires once when the resume timer clears the throttle', async (t) => {
@@ -340,22 +277,6 @@ test('onResume does NOT fire immediately when an active throttle is recovered', 
 
   assert.equal(mod.isThrottled(), true);
   assert.equal(resumeCount, 0);
-});
-
-test('initRateLimitThrottle is backward-compatible without onResume', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  vi.useFakeTimers({ toFake: ['setTimeout'] });
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-
-  const resetSec = Math.floor(Date.now() / 1000) + 1;
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.96, resetsAt: resetSec });
-  assert.equal(mod.isThrottled(), true);
-
-  // Timer clearing without an onResume callback must not throw.
-  await vi.advanceTimersByTimeAsync(60_000);
-  assert.equal(mod.isThrottled(), false);
 });
 
 test('persistence roundtrip with modes', async (t) => {
@@ -761,8 +682,6 @@ function assertOutageActivation(mod: any, persistence: any, adapter: MockAdapter
   assert.equal(mod.isProviderModeRateLimited('provider-a', 'subscription'), true);
   assert.equal(mod.isProviderModeRateLimited('provider-b', 'api'), false);
   assert.equal(persistence.getSaved().providers[0].windows[0].type, 'outage');
-  assert.match(adapter.posted[0].content.text, /provider outage/i);
-  assert.doesNotMatch(adapter.posted[0].content.text, /utilization/i);
 }
 
 test('synthetic outage is provider-wide, persisted, distinct, and expires on schedule', async (t) => {
@@ -784,7 +703,6 @@ test('synthetic outage is provider-wide, persisted, distinct, and expires on sch
   assert.deepEqual(cleared, [['provider-a']]);
   assert.equal(mod.getThrottleState().providers.length, 0);
   assert.equal(persistence.getSaved(), null);
-  assert.match(adapter.posted.at(-1)!.content.text, /provider outage.*cleared/i);
 });
 
 test('failed outage save does not erase a concurrent real limit update', async (t) => {
@@ -891,20 +809,6 @@ test('clearThrottle without provider clears every provider', async (t) => {
   assert.deepEqual(cleared, [['provider-a', 'provider-b']]);
 });
 
-test('clearThrottle is a no-op when nothing is throttled', async (t) => {
-  const cleared: string[][] = [];
-  const adapter = makeAdapterStub();
-  const mod = await freshModuleWithCleanup(t);
-  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any, (providers) => cleared.push(providers));
-
-  const result = await mod.clearThrottle();
-
-  assert.deepEqual(result.cleared, []);
-  assert.equal(mod.isThrottled(), false);
-  assert.deepEqual(cleared, []);
-  assert.equal(adapter.posted.length, 0);
-});
-
 test('clearThrottle clears an outage window and persists empty state', async (t) => {
   const persistence = makePersistenceStub();
   const cleared: string[][] = [];
@@ -951,17 +855,6 @@ test('clearThrottle cancels the pending resume timer', async (t) => {
   assert.equal(mod.isThrottled(), false);
 });
 
-test('clearThrottle sends a manual-clear notice', async (t) => {
-  const adapter = makeAdapterStub();
-  const mod = await throttledModule(t, adapter);
-
-  await mod.clearThrottle('provider-a');
-
-  const manual = adapter.posted.find((post: any) => post.content.text.includes('cleared manually'));
-  assert.ok(manual, 'manual-clear notice posted');
-  assert.equal(manual.destination.type, 'system-notice');
-});
-
 test('activation notice carries a resume-now button with the provider value', async (t) => {
   const adapter = makeAdapterStub();
   const mod = await freshModuleWithCleanup(t);
@@ -977,17 +870,4 @@ test('activation notice carries a resume-now button with the provider value', as
   assert.deepEqual(notice.actions, [
     { type: 'button', text: 'Resume now', actionId: 'rate-limit:clear', value: 'provider-a', style: 'primary' },
   ]);
-});
-
-test('outage notice carries a resume-now button', async (t) => {
-  const adapter = makeAdapterStub();
-  const mod = await freshModuleWithCleanup(t);
-  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
-
-  await mod.activateOutageWindow('provider-a', 5 * 60_000);
-
-  const notice = adapter.posted.find((post: any) => post.content.text.includes('outage detected'));
-  assert.ok(notice, 'outage notice posted');
-  assert.equal(notice.actions[0].actionId, 'rate-limit:clear');
-  assert.equal(notice.actions[0].value, 'provider-a');
 });

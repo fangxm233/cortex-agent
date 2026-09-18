@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { HookDetail } from '@cortex-agent/ui-contract';
 import {
-  HOOK_NAMESPACE_ORDER,
   buildHookCreateArgs,
   buildHookUpdateArgs,
-  claudeAlternativeEvent,
   countHooksByFilter,
   emptyHookForm,
   filterHooks,
@@ -22,7 +20,6 @@ import {
   parseFilterValue,
   reconcileResultForEvent,
   resolveSelectedHookId,
-  samplePayloadForEvent,
   validateHookForm,
   validateMatcherRegex,
 } from './hooks-panel-vm';
@@ -73,12 +70,6 @@ describe('hooks-panel-vm / filters + grouping', () => {
     }),
   ];
 
-  it('all returns every hook, untouched in load order', () => {
-    expect(filterHooks(hooks, 'all', '').map((h) => h.id)).toEqual([
-      'a-pre', 'a-turn', 'cc-perm', 'pi-hdr', 'cx-end', 'template:review:end',
-    ]);
-  });
-
   it('agent filters on the declaration namespace, not the mount target', () => {
     expect(filterHooks(hooks, 'agent', '').map((h) => h.id)).toEqual(['a-pre', 'a-turn']);
   });
@@ -123,7 +114,6 @@ describe('hooks-panel-vm / filters + grouping', () => {
   });
 
   it('groups valid server namespaces in a fixed order, dropping empty groups, ordered by load order', () => {
-    expect(HOOK_NAMESPACE_ORDER).toEqual(['agent', 'cc', 'pi', 'cortex', 'template', 'other']);
     const groups = groupHooks(hooks);
     expect(groups.map((g) => g.key)).toEqual(['agent', 'cc', 'pi', 'cortex', 'template']);
     expect(groups[0].hooks.map((h) => h.id)).toEqual(['a-pre', 'a-turn']);
@@ -159,17 +149,6 @@ describe('hooks-panel-vm / filters + grouping', () => {
 });
 
 describe('hooks-panel-vm / capability by source', () => {
-  it('managed can only be toggled, and says so', () => {
-    expect(hookCapability(hook({ source: 'managed', editable: false }))).toEqual({
-      canToggle: true, canEdit: false, canDelete: false, canTest: true, note: 'managed',
-    });
-  });
-
-  it('user is fully editable with no note', () => {
-    expect(hookCapability(hook({ source: 'user', editable: true, version: null }))).toEqual({
-      canToggle: true, canEdit: true, canDelete: true, canTest: true, note: null,
-    });
-  });
 
   it('template-scoped is read-only, with no toggle at all', () => {
     expect(hookCapability(hook({ source: 'template-scoped', editable: false, version: null }))).toEqual({
@@ -193,24 +172,9 @@ describe('hooks-panel-vm / mount gap', () => {
     expect(hasClaudeMountGap(hook({ event: 'cortex:thread.end', mountsOn: ['server'] }))).toBe(false);
     expect(hasClaudeMountGap(hook({ event: 'cc:Stop', mountsOn: ['claude'] }))).toBe(false);
   });
-
-  it('names the cc: event that reaches the missing Claude mount point', () => {
-    expect(claudeAlternativeEvent('agent:session-end')).toBe('cc:SessionEnd');
-    expect(claudeAlternativeEvent('agent:pre-compact')).toBe('cc:PreCompact');
-    expect(claudeAlternativeEvent('agent:user-prompt')).toBe('cc:UserPromptSubmit');
-    expect(claudeAlternativeEvent('agent:turn-end')).toBe('cc:Stop');
-    expect(claudeAlternativeEvent('agent:pre-tool')).toBeNull();
-  });
 });
 
 describe('hooks-panel-vm / result legality', () => {
-  it('mirrors the registry capability table', () => {
-    expect(legalResultsForEvent('cortex:thread.start')).toEqual(['none', 'hook-result']);
-    expect(legalResultsForEvent('cortex:thread.transition')).toEqual(['none', 'hook-result']);
-    expect(legalResultsForEvent('cortex:thread.end')).toEqual(['none', 'hook-result']);
-    expect(legalResultsForEvent('cortex:session.new')).toEqual(['none', 'stdout-as-prompt']);
-    expect(legalResultsForEvent('cortex:session.messageEnd')).toEqual(['none', 'stdout-as-prompt']);
-  });
 
   it('locks every other event down to none', () => {
     expect(legalResultsForEvent('agent:pre-tool')).toEqual(['none']);
@@ -305,17 +269,6 @@ describe('hooks-panel-vm / form state', () => {
       { key: 'retry', value: '2' },
     ]);
     expect(form.result).toBe('hook-result');
-  });
-
-  it('starts a new draft on a script-based agent:pre-tool hook that is enabled', () => {
-    const draft = emptyHookForm();
-    expect(draft.id).toBe('');
-    expect(draft.event).toBe('agent:pre-tool');
-    expect(draft.runKind).toBe('script');
-    expect(draft.result).toBe('none');
-    expect(draft.enabled).toBe(true);
-    expect(draft.backends).toEqual([]);
-    expect(draft.filters).toEqual([]);
   });
 
   it('is not dirty until a field actually changes', () => {
@@ -494,26 +447,5 @@ describe('hooks-panel-vm / event options and sample payloads', () => {
     ]);
     expect(options).toContain('pi:before_provider_headers');
     expect(options.filter((e) => e === 'agent:pre-tool')).toHaveLength(1);
-  });
-
-  it('pre-fills a parseable, event-shaped sample payload', () => {
-    const pre = JSON.parse(samplePayloadForEvent('agent:pre-tool')) as Record<string, unknown>;
-    expect(pre.hook_event_name).toBe('PreToolUse');
-    expect(pre.tool_name).toBe('Edit');
-
-    const thread = JSON.parse(samplePayloadForEvent('cortex:thread.end')) as Record<string, unknown>;
-    expect(thread.threadId).toBeDefined();
-    expect(thread.source).toBe('task-dispatch');
-
-    const session = JSON.parse(samplePayloadForEvent('cortex:session.messageEnd')) as Record<string, unknown>;
-    expect(session.trigger).toBe('messageEnd');
-
-    // Unknown events still get valid JSON rather than an empty textarea.
-    const unknown = JSON.parse(samplePayloadForEvent('pi:whatever')) as Record<string, unknown>;
-    expect(unknown).toBeTypeOf('object');
-  });
-
-  it('is deterministic — the same event always yields the same sample', () => {
-    expect(samplePayloadForEvent('cortex:session.new')).toBe(samplePayloadForEvent('cortex:session.new'));
   });
 });

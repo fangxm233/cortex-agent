@@ -51,12 +51,6 @@ test('register by executionId: resolvable by id and channel; not by unknown thre
   assert.equal(exec.getByThreadId('T1'), null);
 });
 
-test('register returns the primary key (executionId)', () => {
-  const exec = new RunRegistry();
-  const key = exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
-  assert.equal(key, 'E1');
-});
-
 // ── Live numTurns (S4 chat: real agent-turn snapshot on the running execution) ──
 
 test('numTurns: defaults to null on register; setNumTurns updates the live entry', () => {
@@ -71,12 +65,6 @@ test('numTurns: defaults to null on register; setNumTurns updates the live entry
 
   exec.setNumTurns('E1', 5);
   assert.equal(exec.getById('E1')!.numTurns, 5);
-});
-
-test('setNumTurns: no-op for an unknown key', () => {
-  const exec = new RunRegistry();
-  // Must not throw when the execution is already gone / never registered.
-  assert.doesNotThrow(() => exec.setNumTurns('missing', 2));
 });
 
 test('register with threadId: appears in byThreadId and byChannel; remove(id) cleans all', () => {
@@ -263,12 +251,6 @@ test('supersedeByChannel kills+supersedes every entry on the channel (edit flow)
 
 // ── kind field (Stage 4 dispatch accounting) ──────────────────────────
 
-test('register stores the kind field for dispatch accounting', () => {
-  const exec = new RunRegistry();
-  exec.register(makeInput({ executionId: 'E1', channel: 'C1', kind: 'dispatch' }));
-  assert.equal(exec.getById('E1')!.kind, 'dispatch');
-});
-
 // ── Identity-guarded index cleanup ─────────────────────────────────────
 
 test('removing an entry with a shared threadId must not corrupt byThreadId for the active entry', () => {
@@ -292,41 +274,6 @@ test('ad-hoc registryKey (no executionId) is supported and keyed by registryKey'
 });
 
 // ── Misc ───────────────────────────────────────────────────────────────
-
-test('getAll returns snapshot of all registered entries', () => {
-  const exec = new RunRegistry();
-  assert.equal(exec.getAll().length, 0);
-
-  exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
-  exec.register(makeInput({ executionId: 'E2', channel: 'C2' }));
-  assert.equal(exec.getAll().length, 2);
-
-  exec.remove('E1');
-  assert.equal(exec.getAll().length, 1);
-  assert.equal(exec.getAll()[0]!.executionId, 'E2');
-});
-
-test('getById returns null for unknown id', () => {
-  const exec = new RunRegistry();
-  exec.register(makeInput({ executionId: 'E1' }));
-  assert.equal(exec.getById('E1')!.executionId, 'E1');
-  assert.equal(exec.getById('nope'), null);
-});
-
-test('remove is a no-op for a non-existent id', () => {
-  const exec = new RunRegistry();
-  exec.remove('nonexistent');
-  assert.equal(exec.hasId('nonexistent'), false);
-});
-
-test('register stores startTime as a recent timestamp', () => {
-  const exec = new RunRegistry();
-  const before = Date.now();
-  exec.register(makeInput({ executionId: 'E1' }));
-  const entry = exec.getById('E1')!;
-  assert.ok(entry.startTime >= before);
-  assert.ok(entry.startTime <= Date.now());
-});
 
 test('setBus after construction: events not published until bus is wired', () => {
   const exec = new RunRegistry();

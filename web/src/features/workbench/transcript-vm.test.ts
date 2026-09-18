@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTranscriptRows,
   liveToMessage,
-  turnCount,
   currentTurnElapsedMs,
   resolveRunning,
   resolveBackgroundRunning,
@@ -16,7 +15,6 @@ import {
   finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
-  systemOriginSummary,
   toolCallLabel,
   type ChatRow,
   type LiveSessionMessage,
@@ -274,16 +272,6 @@ describe('buildTranscriptRows', () => {
     expect(assistants[1].streaming).toBe(true);
   });
 
-  it('no streaming caret when streaming=false', () => {
-    const rows = buildTranscriptRows(
-      tx([{ turnIndex: 0, messages: [{ type: 'assistant', text: 'x', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
-      [],
-      { streaming: false },
-    );
-    const a = rows.find((r) => r.kind === 'assistant') as { streaming: boolean };
-    expect(a.streaming).toBe(false);
-  });
-
   it('appends live-tail messages after the fetched transcript', () => {
     const live: LiveSessionMessage[] = [
       { sessionId: 's1', role: 'assistant', text: 'streamed reply', ts: T },
@@ -315,52 +303,6 @@ describe('buildTranscriptRows', () => {
       [],
     );
     expect(rows.filter((r) => r.kind === 'divider').length).toBe(2);
-  });
-
-  it('long real text passes through unmodified (ellipsis is a CSS concern)', () => {
-    const long = 'exec_dispatch_mr9w9opu_uqdw '.repeat(20).trim();
-    const rows = buildTranscriptRows(
-      tx([{ turnIndex: 0, messages: [{ type: 'tool', text: null, toolName: 'read', toolInput: long, ts: T, elapsedMs: null }] }]),
-      [],
-    );
-    const tools = rows.find((r) => r.kind === 'tools') as { calls: { input: string }[] };
-    expect(tools.calls[0].input).toBe(long);
-  });
-
-  it('an optional formatDivider overrides the default divider label (mobile ZH dividers)', () => {
-    const rows = buildTranscriptRows(
-      tx([{ turnIndex: 0, messages: [{ type: 'user', text: 'hi', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
-      [],
-      { formatDivider: () => '今天 07:42' },
-    );
-    expect(rows[0]).toEqual({ kind: 'divider', text: '今天 07:42' });
-  });
-
-  it('without formatDivider the default EN divider is unchanged', () => {
-    const rows = buildTranscriptRows(
-      tx([{ turnIndex: 0, messages: [{ type: 'user', text: 'hi', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
-      [],
-    );
-    expect((rows[0] as { text: string }).text.startsWith('TODAY') || (rows[0] as { text: string }).text.length > 0).toBe(true);
-  });
-});
-
-describe('liveToMessage', () => {
-  it('maps a tool live event to a tool TranscriptMessage (text null, tool fields set)', () => {
-    const m = liveToMessage({ sessionId: 's1', role: 'tool', text: '', toolName: 'grep', toolInput: 'foo', ts: T });
-    expect(m).toEqual({ type: 'tool', text: null, toolName: 'grep', toolInput: 'foo', ts: T, elapsedMs: null });
-  });
-
-  it('maps an assistant live event to an assistant TranscriptMessage', () => {
-    const m = liveToMessage({ sessionId: 's1', role: 'assistant', text: 'hi', ts: T });
-    expect(m).toEqual({ type: 'assistant', text: 'hi', toolName: null, toolInput: null, ts: T, elapsedMs: null });
-  });
-
-  it('preserves notice level on an assistant live event', () => {
-    const m = liveToMessage({
-      sessionId: 's1', role: 'assistant', text: 'Heads up', noticeLevel: 'error', ts: T,
-    });
-    expect(m.noticeLevel).toBe('error');
   });
 });
 
@@ -402,13 +344,6 @@ describe('currentTurnElapsedMs', () => {
     expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk('not-a-date', 5000), mk(T, 1000)] }]))).toBeNull();
     expect(currentTurnElapsedMs(tx([]))).toBeNull();
     expect(currentTurnElapsedMs(undefined)).toBeNull();
-  });
-});
-
-describe('turnCount', () => {
-  it('counts real turns', () => {
-    expect(turnCount(tx([{ turnIndex: 0, messages: [] }, { turnIndex: 1, messages: [] }]))).toBe(2);
-    expect(turnCount(undefined)).toBe(0);
   });
 });
 
@@ -1029,23 +964,6 @@ describe('system-authored user turns', () => {
     const rows = buildTranscriptRows(withOrigin, tail);
     const last = rows[rows.length - 1];
     expect(last.kind === 'user' && last.systemOrigin).toBe('resume');
-  });
-});
-
-describe('systemOriginSummary', () => {
-  it('drops the system-reminder envelope and keeps the first line of real prose', () => {
-    expect(systemOriginSummary('<system-reminder>\n[Task done] #ab12 is complete.\nRun cortex-task show.\n</system-reminder>'))
-      .toBe('[Task done] #ab12 is complete.');
-  });
-
-  it('clips a long line rather than letting the hint grow back into a bubble', () => {
-    expect(systemOriginSummary('x'.repeat(200))).toHaveLength(80);
-    expect(systemOriginSummary('x'.repeat(200)).endsWith('…')).toBe(true);
-  });
-
-  it('returns nothing when there is only an envelope — the label then carries the row', () => {
-    expect(systemOriginSummary('<system-reminder>\n\n</system-reminder>')).toBe('');
-    expect(systemOriginSummary('')).toBe('');
   });
 });
 

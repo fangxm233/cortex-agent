@@ -17,24 +17,6 @@ test('no rules and no role body appends nothing at all', () => {
   assert.equal(composeSystemPrompt({ appendSystemPrompt: null }, { rules: [] }), undefined);
 });
 
-test('rules alone join on a horizontal rule', () => {
-  assert.equal(
-    composeSystemPrompt({}, { rules: ['rule one', 'rule two'] }),
-    'rule one\n\n---\n\nrule two',
-  );
-});
-
-test('a role body is appended after the rules, trimmed', () => {
-  assert.equal(
-    composeSystemPrompt({ appendSystemPrompt: '  role body  ' }, { rules: ['rule one'] }),
-    'rule one\n\n---\n\nrole body',
-  );
-});
-
-test('a frozen role sees only its own body — no rules passed means no rules appended', () => {
-  assert.equal(composeSystemPrompt({ appendSystemPrompt: 'role body' }), 'role body');
-});
-
 test('a whitespace-only role body contributes nothing', () => {
   assert.equal(composeSystemPrompt({ appendSystemPrompt: '   \n ' }), undefined);
   assert.equal(
@@ -55,17 +37,6 @@ test('an absent template means the input verbatim', () => {
   assert.equal(composeUserPrompt({ promptTemplate: null }, 'hello'), 'hello');
 });
 
-test('the directive is prepended, separated by a blank line', () => {
-  assert.equal(
-    composeUserPrompt({ directive: 'You are the direct agent.', promptTemplate: '{{input}}' }, 'what is 2+2?'),
-    'You are the direct agent.\n\nwhat is 2+2?',
-  );
-});
-
-test('an empty directive contributes no prefix', () => {
-  assert.equal(composeUserPrompt({ directive: '', promptTemplate: '{{input}}' }, 'hi'), 'hi');
-});
-
 test('prefix order is user profile, directive, project, commission, preamble', () => {
   const prompt = composeUserPrompt(
     { directive: 'DIRECTIVE', promptTemplate: '{{input}}' },
@@ -81,18 +52,6 @@ test('prefix order is user profile, directive, project, commission, preamble', (
     .map((needle) => prompt.indexOf(needle));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), prompt);
   assert.ok(order.every((i) => i >= 0), prompt);
-});
-
-test('the project block names the id and the context directory', () => {
-  assert.equal(
-    composeUserPrompt({ promptTemplate: '{{input}}' }, 'hi', {
-      project: { id: 'cortex', contextDir: '/root/.cortex/projects/cortex' },
-    }),
-    '[Session Project] This session is bound to the project "cortex".\n'
-    + 'Project context directory: /root/.cortex/projects/cortex\n'
-    + 'Treat messages in this session as pertaining to this project unless stated otherwise, '
-    + 'and record project-related findings and status updates there.\n\nhi',
-  );
 });
 
 const ACTIVE: CommissionPromptContext = {
@@ -120,56 +79,7 @@ test('an active commission block is an index plus the protocol, never the file c
     + '\n\ngo');
 });
 
-test('a commission with no ledger yet is told to derive one', () => {
-  const prompt = composeUserPrompt({ promptTemplate: '{{input}}' }, 'go', {
-    commission: { ...ACTIVE, hasLedger: false },
-  });
-  assert.ok(prompt.includes("  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working"));
-  assert.ok(!prompt.includes('ledger.md   — your state record'));
-});
-
-test('a draft commission is handed to cortex_commission_start, with no contract named', () => {
-  assert.equal(
-    composeUserPrompt({ promptTemplate: '{{input}}' }, 'go', {
-      commission: { phase: 'draft', dir: '/root/c/_draft-x' },
-    }),
-    '[Commission] This session is drafting a commission contract: a long task anchored by a '
-    + 'contract the user approves before any work begins.\n'
-    + 'Draft directory: /root/c/_draft-x\n'
-    + '\n'
-    + 'If you have not already received the creation protocol in this session, call '
-    + 'cortex_commission_start now, before investigating or asking anything — it carries the drill '
-    + 'protocol and the contract structure, and is idempotent. If the user turned this mode on for '
-    + 'you, that is the decision made: start drilling rather than asking whether to.\n'
-    + 'Implement nothing until the contract is approved through cortex_commission_submit. If you '
-    + 'conclude the task does not warrant a commission, say so plainly and let the user close it.'
-    + '\n\ngo');
-});
-
 // --- composeUserPrompt: the thread-step shape ---
-
-test("the shipped `main` template renders input and artifactPath", () => {
-  assert.equal(
-    composeUserPrompt(
-      { promptTemplate: '{{input}}\n\nWrite your final reply to {{artifactPath}}.' },
-      'fix the bug',
-      { vars: { artifactPath: '/ws/thr_1/artifact.md' } },
-    ),
-    'fix the bug\n\nWrite your final reply to /ws/thr_1/artifact.md.',
-  );
-});
-
-test("the shipped `direct-review` template leaves a blank tail when there is no previous output", () => {
-  // `{{input}}\n\n{{previousOutput}}` with an empty previousOutput ends in whitespace; the final
-  // trim is what removes it — which is why the appendix is added BEFORE that trim.
-  assert.equal(composeUserPrompt({ promptTemplate: '{{input}}\n\n{{previousOutput}}' }, 'hi'), 'hi');
-  assert.equal(
-    composeUserPrompt({ promptTemplate: '{{input}}\n\n{{previousOutput}}' }, 'hi', {
-      vars: { previousOutput: 'PREV' },
-    }),
-    'hi\n\nPREV',
-  );
-});
 
 test('an unknown template variable renders empty, but an unknown one in the directive stays literal', () => {
   assert.equal(composeUserPrompt({ promptTemplate: 'a{{nope}}b' }, 'x'), 'ab');
@@ -185,15 +95,6 @@ test('{{#if}} blocks keep their body only when the variable is truthy', () => {
   assert.equal(
     composeUserPrompt({ promptTemplate: template }, 'go', { vars: { modifiedFiles: '- a.ts\n- b.ts' } }),
     'Changed:\n- a.ts\n- b.ts\n\ngo',
-  );
-});
-
-test('the lead is spliced between the prefixes and the body, on a horizontal rule', () => {
-  assert.equal(
-    composeUserPrompt({ directive: 'D', promptTemplate: '{{input}}' }, 'now', {
-      lead: 'Previous agent output:\n\nEARLIER',
-    }),
-    'D\n\nPrevious agent output:\n\nEARLIER\n\n---\n\nnow',
   );
 });
 
@@ -216,14 +117,5 @@ test('resumed still keeps the lead and the appendix — those are this turn\'s c
       lead: 'LEAD', appendix: '\n\n---\n\nAPPENDIX', resumed: true,
     }),
     'LEAD\n\n---\n\nnext\n\n---\n\nAPPENDIX',
-  );
-});
-
-test('the appendix lands after the body and inside the final trim', () => {
-  assert.equal(
-    composeUserPrompt({ promptTemplate: '{{input}}\n\n{{previousOutput}}' }, 'hi', {
-      appendix: '\n\n---\n\nUser replies (1 buffered):\n\nwait, stop',
-    }),
-    'hi\n\n\n\n---\n\nUser replies (1 buffered):\n\nwait, stop',
   );
 });

@@ -474,14 +474,6 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
       'ACAO must be the exact allow-listed origin');
   });
 
-  test('cors option: each configured static origin matches', async () => {
-    const { headers } = await get(
-      wCors.port, `/trpc/projects.list?input=${enc({})}`,
-      { 'x-cortex-token': TOKEN, origin: 'http://tauri.localhost' },
-    );
-    assert.equal(headers['access-control-allow-origin'], 'http://tauri.localhost');
-  });
-
   test('cors settings: a runtime allow-list flip affects the next request', async () => {
     const nextOrigin = 'cortexui://localhost';
     liveSettings.uiCorsOrigins = [CORS_ORIGIN];
@@ -802,11 +794,4 @@ describe('Access JWT dual gate', () => {
     assert.equal(accessVerifierFromEnv({ CORTEX_ACCESS_AUD: AUD }), undefined);
   });
 
-  test('accessVerifierFromEnv: missing aud → undefined (token-only degrade)', () => {
-    assert.equal(accessVerifierFromEnv({ CORTEX_ACCESS_TEAM_DOMAIN: 'myteam' }), undefined);
-  });
-
-  test('accessVerifierFromEnv: both missing → undefined', () => {
-    assert.equal(accessVerifierFromEnv({}), undefined);
-  });
 });

@@ -58,11 +58,6 @@ test('withCustomEntries: attaches definitions only to overrides that have one', 
   assert.equal(byName.get('anthropic')?.entry, undefined);
 });
 
-test('withCustomEntries: leaves overrides untouched when no definitions are supplied', () => {
-  const overrides = buildProviderOverrides(['anthropic'], null, null);
-  assert.deepEqual(withCustomEntries(overrides, {}), overrides);
-});
-
 test('open: a custom provider from the user catalog reaches the opened PI catalog complete', () => {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
   try {

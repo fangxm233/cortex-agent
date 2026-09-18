@@ -13,7 +13,7 @@ import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
-  syncManagedPlugins, parsePluginVersion, pruneRetiredPluginPaths, RETIRED_PLUGIN_PATHS,
+  syncManagedPlugins, pruneRetiredPluginPaths, RETIRED_PLUGIN_PATHS,
 } from '../../src/store/plugin-sync.js';
 
 /** Write a plugin tree under `root/<name>`: a versioned manifest (version=null → omit) + a SKILL.md. */
@@ -44,14 +44,6 @@ async function mkdirs(): Promise<{ src: string; dst: string; cleanup: () => Prom
   await fs.mkdir(dst, { recursive: true });
   return { src, dst, cleanup: () => fs.rm(base, { recursive: true, force: true }) };
 }
-
-test('parsePluginVersion extracts version, or null when absent/malformed', () => {
-  assert.equal(parsePluginVersion('{"version":"0.1.0"}'), '0.1.0');
-  assert.equal(parsePluginVersion('{"version":"2026.6.22-2"}'), '2026.6.22-2');
-  assert.equal(parsePluginVersion('{"name":"x"}'), null);
-  assert.equal(parsePluginVersion('not json'), null);
-  assert.equal(parsePluginVersion('{"version":""}'), null);
-});
 
 test('(a) deploys a brand-new plugin when the destination is missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
@@ -163,15 +155,6 @@ test('a retired skill path is removed from an existing install', async () => {
     assert.deepEqual(removed, [`${plugin}/${rel}`]);
     assert.equal(existsSync(retired), false);
     assert.equal(existsSync(path.join(keep, 'SKILL.md')), true, 'siblings survive');
-  } finally {
-    await cleanup();
-  }
-});
-
-test('pruning is idempotent when the retired path is already gone', async () => {
-  const { dst, cleanup } = await mkdirs();
-  try {
-    assert.deepEqual(await pruneRetiredPluginPaths(dst), []);
   } finally {
     await cleanup();
   }

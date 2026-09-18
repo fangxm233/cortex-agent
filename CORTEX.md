@@ -46,7 +46,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-evidence-export, cortex-hook, cortex-run, cortex-task) |
 | `agent-server/tsconfig.json` | TypeScript config (ES2022, NodeNext) |
 | `agent-server/defaults/` | Shipped default config, context templates, plugins, hooks, prompts, rules |
-| `agent-server/tests/` | Vitest regression suite (~470 test files) covering all major subsystems |
+| `agent-server/tests/` | Vitest regression suite (~510 test files) covering all major subsystems |
 
 ## Runtime Data (gitignored, at `~/.cortex/`)
 

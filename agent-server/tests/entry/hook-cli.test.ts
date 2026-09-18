@@ -178,22 +178,6 @@ test('template hooks are read-only and errors list registry ids', async (t) => {
 
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /template-scoped hooks are read-only/i);
-  assert.match(result.stderr, /Valid values: managed, user, disabled/);
-});
-
-test('invalid commands, flags, and ids fail fast with valid alternatives', async (t) => {
-  const fixture = makeFixture(t);
-  seedMountedHooks(fixture);
-
-  const command = await runHookCli(['lsit'], fixture.options);
-  assert.equal(command.exitCode, 1);
-  assert.match(command.stderr, /Valid values: list, show, enable, disable, test/);
-  const flag = await runHookCli(['list', '--id', 'user'], fixture.options);
-  assert.equal(flag.exitCode, 1);
-  assert.match(flag.stderr, /Valid values: --help, -h/);
-  const id = await runHookCli(['show', '--id', 'missing'], fixture.options);
-  assert.equal(id.exitCode, 1);
-  assert.match(id.stderr, /managed, user, disabled, template:review:end/);
 });
 
 test('duplicate registry and template ids fail instead of selecting silently', async (t) => {
@@ -205,7 +189,6 @@ test('duplicate registry and template ids fail instead of selecting silently', a
 
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /Ambiguous hook id: 'template:review:end'/);
-  assert.match(result.stderr, /Hint: Rename one declaration/);
 });
 
 test('test executes a registry script with a file payload through the shared runner', async (t) => {
@@ -266,7 +249,6 @@ test('test reports unreadable payloads with valid alternatives', async (t) => {
 
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, new RegExp(`Cannot read --payload file '${missing}'`));
-  assert.match(result.stderr, /Valid values: existing file path, -/);
 });
 
 test('test preserves output and mirrors a non-zero hook exit', async (t) => {

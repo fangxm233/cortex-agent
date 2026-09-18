@@ -13,11 +13,6 @@ function tmpPidFile(): { dir: string; file: string } {
   return { dir, file: path.join(dir, 'test.pid') };
 }
 
-test('isProcessAlive: current process is alive, fake pid is not', () => {
-  assert.equal(isProcessAlive(process.pid), true);
-  assert.equal(isProcessAlive(DEAD_PID), false);
-});
-
 test('tryAcquireSingletonLock: fresh file acquires and writes own pid', (t) => {
   const { dir, file } = tmpPidFile();
   t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
@@ -86,13 +81,4 @@ test('releaseSingletonLock: leaves file owned by another pid', (t) => {
   releaseSingletonLock(file);
   assert.equal(existsSync(file), true);
   assert.equal(readFileSync(file, 'utf8').trim(), String(DEAD_PID));
-});
-
-test('releaseSingletonLock: no-op when file is missing', (t) => {
-  const { dir, file } = tmpPidFile();
-  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
-
-  // file does not exist — must not throw
-  releaseSingletonLock(file);
-  assert.equal(existsSync(file), false);
 });

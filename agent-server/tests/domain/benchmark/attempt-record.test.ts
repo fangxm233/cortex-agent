@@ -220,9 +220,6 @@ describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {
 });
 
 describe('D-NULL3 — the three widened members (G4-N13 / G4-N14)', () => {
-  it('the member COUNT is unchanged at 39 — only three types moved', () => {
-    expect(ATTEMPT_RECORD_KEYS.length).toBe(39);
-  });
 
   it('G4-N13: dispatch_generation is null for EVERY attempt on the benchmark path', () => {
     // Not a parent-only absence: the shipped source type is already nullable

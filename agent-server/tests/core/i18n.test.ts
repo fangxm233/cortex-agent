@@ -1,8 +1,7 @@
 import { describe, it, afterEach } from 'vitest';
 import * as assert from 'node:assert/strict';
-import { t, setLocale, getLocale, normalizeLocale, detectSystemLocale } from '../../src/core/i18n.js';
+import { t, setLocale, normalizeLocale, detectSystemLocale } from '../../src/core/i18n.js';
 import { en } from '../../src/core/locales/en.js';
-import { zh } from '../../src/core/locales/zh.js';
 
 describe('i18n', () => {
   afterEach(() => setLocale('en'));
@@ -34,20 +33,6 @@ describe('i18n', () => {
     assert.equal(detectSystemLocale({ LC_ALL: 'en_US.UTF-8', LANG: 'zh_CN.UTF-8' }), 'en');
     // LANG used when LC_ALL/LC_MESSAGES absent
     assert.equal(detectSystemLocale({ LANG: 'zh_CN.UTF-8', LANGUAGE: 'en' }), 'zh');
-  });
-
-  it('setLocale/getLocale round-trip', () => {
-    setLocale('zh');
-    assert.equal(getLocale(), 'zh');
-    setLocale('en');
-    assert.equal(getLocale(), 'en');
-  });
-
-  it('t returns the active-locale string', () => {
-    setLocale('en');
-    assert.equal(t('lang.current'), en['lang.current']);
-    setLocale('zh');
-    assert.equal(t('lang.current'), zh['lang.current']);
   });
 
   it('t interpolates ${param} placeholders', () => {

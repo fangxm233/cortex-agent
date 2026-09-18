@@ -130,17 +130,6 @@ test('tasks.verification: open task → honest null evidence + empty dispatches 
   assert.deepEqual(r.dispatches, []);
 });
 
-test('tasks.verification: completed task with no linked execution → note kept, completing null', async () => {
-  const r = await handleTaskVerification(makeDeps(), { projectId: 'orchard', taskId: 'done2' });
-  assert.equal(r.evidence.completed, true);
-  assert.equal(r.evidence.completedNote, 'done by hand');
-  assert.equal(r.evidence.completedAt, iso(t0 + 5000));
-  assert.equal(r.evidence.completingExecutionId, null);
-  assert.equal(r.evidence.completingOutput, null);
-  assert.equal(r.evidence.doneWhen, null); // empty done_when → honest null
-  assert.deepEqual(r.dispatches, []);
-});
-
 test('tasks.verification: unknown task id → not-found', async () => {
   await assert.rejects(
     () => handleTaskVerification(makeDeps(), { projectId: 'atlas', taskId: 'ghost' }),

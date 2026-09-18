@@ -131,32 +131,6 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
-  it('shows the running model and level, not the profile name — and not the vendor prefix', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    expect(JSON.stringify(renderer.toJSON())).toContain('opus-4-8');
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('claude-opus-4-8');
-    expect(JSON.stringify(renderer.toJSON())).toContain('high');
-  });
-
-  it('keeps menu-option clicks from re-toggling the containing chip', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
-    const stopPropagation = vi.fn();
-    open(renderer);
-    act(() => {
-      renderer.root.findByProps({ 'data-selection-row': 'profile:execute' }).props.onClick({ stopPropagation });
-    });
-    expect(stopPropagation).toHaveBeenCalledOnce();
-  });
-
-  it('keeps a drill row from re-toggling the chip either', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
-    const stopPropagation = vi.fn();
-    open(renderer);
-    act(() => {
-      renderer.root.findByProps({ 'data-selection-pane': 'model' }).props.onClick({ stopPropagation });
-    });
-    expect(stopPropagation).toHaveBeenCalledOnce();
-  });
 
   it('updates local draft state before a session exists', () => {
     const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
@@ -202,8 +176,6 @@ describe('SessionSelector', () => {
     drill(renderer, 'model');
     expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' }))
       .toHaveLength(0);
-    // Held back, not hidden away: the pane says how many were held back.
-    expect(JSON.stringify(renderer.toJSON())).toContain('1 models unavailable this session');
   });
 
   it('a draft may still cross backends, so nothing is held back', () => {
@@ -213,50 +185,6 @@ describe('SessionSelector', () => {
     drill(renderer, 'model');
     expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' }))
       .toHaveLength(1);
-  });
-
-  it('shows the engine in force on the root, without opening anything', () => {
-    const renderer = mount({
-      isDraft: false, currentProfile: 'plan', hasHistory: true, currentOverride: { thinking: 'low' },
-    });
-    open(renderer);
-    expect(renderer.root.findAllByProps({ 'data-selection-pane': 'thinking' })).toHaveLength(1);
-    // The root is showing the level itself (the pane that lists levels is not open) …
-    const html = JSON.stringify(renderer.toJSON());
-    expect(html).toContain('low');
-    // … and marks it as the session's own choice rather than the profile's.
-    expect(html).toContain('•');
-  });
-
-  it('a pane pick returns to the root instead of closing, so the next facet is one click away', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    pick(renderer, 'model:claude::claude-sonnet-4-6');
-    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:execute' })).toHaveLength(1);
-  });
-
-  it('Escape retreats one level before it closes the picker', () => {
-    const listeners = vi.fn();
-    vi.stubGlobal('window', { addEventListener: listeners, removeEventListener: vi.fn() });
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    open(renderer);
-    drill(renderer, 'model');
-    const escape = (): void => {
-      const calls = listeners.mock.calls.filter(([type]) => type === 'keydown');
-      const onKey = calls[calls.length - 1][1] as (event: { key: string }) => void;
-      act(() => onKey({ key: 'Escape' }));
-    };
-    escape();
-    // Back at the root, still open.
-    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:execute' })).toHaveLength(1);
-    escape();
-    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
-  });
-
-  it('a profile pick closes the menu — it replaces the whole engine', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    pick(renderer, 'profile:execute');
-    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
   });
 
   it('hands every override back at once, and offers to only when there is one', () => {

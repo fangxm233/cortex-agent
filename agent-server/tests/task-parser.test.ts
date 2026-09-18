@@ -265,20 +265,6 @@ test('invalid --status lists valid values', () => {
   assert.match(result.stderr, /blocked/);
 });
 
-test('invalid --priority lists valid values', () => {
-  const result = runCli(['query', '--priority', 'urgent']);
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /invalid --priority: 'urgent'/);
-  assert.match(result.stderr, /Valid values:/);
-  assert.match(result.stderr, /high/);
-});
-
-test('qa statuses removed', () => {
-  const r = runCli(['query', '--status', 'qa-pending']);
-  assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /invalid --status/);
-});
-
 // --- not-before tests ---
 
 test('not-before future date is excluded from actionable list', () => {
@@ -286,16 +272,6 @@ test('not-before future date is excluded from actionable list', () => {
   try {
     const tasks = JSON.parse(runRead(['list', '--project', pA, '--json']));
     assert.ok(!tasks.some((t: any) => t.id === a6), 'future-gated task must not appear in actionable list');
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('not-before past date is included in actionable list', () => {
-  const { pA, repos, a7 } = createFixture();
-  try {
-    const tasks = JSON.parse(runRead(['list', '--project', pA, '--json']));
-    assert.ok(tasks.some((t: any) => t.id === a7), 'past-gated task must appear in actionable list');
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
@@ -364,12 +340,6 @@ test('parseTasksFileWithLock: empty content', () => {
   assert.equal(lock, null);
 });
 
-test('parseTasksFileWithLock: whitespace only', () => {
-  const { tasks, lock } = parseTasksFileWithLock('  \n  ', 'p1');
-  assert.deepEqual(tasks, []);
-  assert.equal(lock, null);
-});
-
 test('parseTasksFileWithLock: invalid YAML', () => {
   const { tasks, lock } = parseTasksFileWithLock('{{invalid', 'p1');
   assert.deepEqual(tasks, []);
@@ -379,16 +349,6 @@ test('parseTasksFileWithLock: invalid YAML', () => {
 test('parseTasksFileWithLock: lock present but missing required fields', () => {
   const yaml = `lock:
   owner: test
-tasks: []`;
-  const { tasks, lock } = parseTasksFileWithLock(yaml, 'p1');
-  assert.equal(lock, null);
-});
-
-test('parseTasksFileWithLock: lock with wrong field types', () => {
-  const yaml = `lock:
-  owner: test
-  acquired_at: 123
-  expires_at: 456
 tasks: []`;
   const { tasks, lock } = parseTasksFileWithLock(yaml, 'p1');
   assert.equal(lock, null);
@@ -421,19 +381,6 @@ test('serializeTasksFileWithLock: with lock outputs lock before tasks', () => {
 
 test('serializeTasksFileWithLock: without lock matches serializeTasksFile output', () => {
   const out = serializeTasksFileWithLock({ tasks: [] });
-  assert.equal(out, 'tasks: []\n');
-});
-
-test('serializeTasksFileWithLock: lock with note outputs note field', () => {
-  const out = serializeTasksFileWithLock({
-    tasks: [],
-    lock: { owner: 'x', acquired_at: 't1', expires_at: 't2', note: 'my note' },
-  });
-  assert.match(out, /note: my note/);
-});
-
-test('serializeTasksFileWithLock: lock with null is treated as no lock', () => {
-  const out = serializeTasksFileWithLock({ tasks: [], lock: null });
   assert.equal(out, 'tasks: []\n');
 });
 

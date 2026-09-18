@@ -60,25 +60,6 @@ describe('buildSessionGroups', () => {
     expect(groups[0].rows[0].id).toBe('a');
   });
 
-  it('prefers label over name for the row title', () => {
-    const [g] = buildSessionGroups([sess({ label: 'ablation planning', name: 'x' })], now);
-    expect(g.rows[0].title).toBe('ablation planning');
-  });
-
-  it('carries real turn count + running flag onto the row', () => {
-    const [g] = buildSessionGroups([sess({ running: true, numTurns: 4 })], now);
-    expect(g.rows[0]).toMatchObject({ running: true, numTurns: 4 });
-  });
-
-  it('carries the real unread flag onto the row', () => {
-    const [g] = buildSessionGroups(
-      [sess({ sessionId: 'read' }), sess({ sessionId: 'new', unread: true })],
-      now,
-    );
-    expect(g.rows.find((r) => r.id === 'new')?.unread).toBe(true);
-    expect(g.rows.find((r) => r.id === 'read')?.unread).toBe(false);
-  });
-
   it('floats unread sessions first within a day group (reuses groupSessions)', () => {
     const [g] = buildSessionGroups(
       [

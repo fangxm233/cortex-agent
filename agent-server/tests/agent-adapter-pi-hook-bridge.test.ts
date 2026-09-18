@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import {
   toClaude,
   normalizePiInput,
-  getSessionId,
   handlePreToolUse,
   handlePostToolUse,
   runHookScript,
@@ -44,12 +43,6 @@ test('toClaude: maps known PI names to Claude PascalCase', () => {
   assert.equal(toClaude('skill'), 'Skill');
 });
 
-test('toClaude: title-cases unknown names', () => {
-  assert.equal(toClaude('bash'), 'Bash');
-  assert.equal(toClaude('glob'), 'Glob');
-  assert.equal(toClaude('mcp__cortex__cost_query'), 'Mcp__cortex__cost_query');
-});
-
 // ---------------------------------------------------------------------------
 // Test 2: normalizePiInput()
 // ---------------------------------------------------------------------------
@@ -61,26 +54,10 @@ test('normalizePiInput: read with path adds file_path alias', () => {
   assert.equal(out.offset, 0);
 });
 
-test('normalizePiInput: write with path adds file_path alias', () => {
-  const out = normalizePiInput('write', { path: '/tmp/bar.ts', content: 'x' });
-  assert.equal(out.file_path, '/tmp/bar.ts');
-  assert.equal(out.content, 'x');
-});
-
-test('normalizePiInput: edit with path adds file_path alias', () => {
-  const out = normalizePiInput('edit', { path: '/tmp/baz.ts', old_string: 'a', new_string: 'b' });
-  assert.equal(out.file_path, '/tmp/baz.ts');
-});
-
 test('normalizePiInput: grep passes through unchanged (memory-ref-tracker uses tool_input.path)', () => {
   const out = normalizePiInput('grep', { path: '/tmp', pattern: 'foo' });
   assert.deepEqual(out, { path: '/tmp', pattern: 'foo' });
   assert.equal(out['file_path'], undefined);
-});
-
-test('normalizePiInput: read without path field passes through', () => {
-  const out = normalizePiInput('read', { file_path: '/tmp/x.ts' });
-  assert.equal(out.file_path, '/tmp/x.ts');
 });
 
 // ---------------------------------------------------------------------------
@@ -93,17 +70,6 @@ test('handlePreToolUse: non-.claude/ path exits 0 → returns undefined (no bloc
     toolName: 'edit',
     toolCallId: 'tc-001',
     input: { path: '/tmp/hook-bridge-test-regular.ts', old_string: 'x', new_string: 'y' },
-  };
-  const result = await handlePreToolUse(event, ctx);
-  assert.equal(result, undefined);
-});
-
-test('handlePreToolUse: write to non-.claude/ path → returns undefined (no block)', async () => {
-  const ctx = makeCtx();
-  const event = {
-    toolName: 'write',
-    toolCallId: 'tc-002',
-    input: { path: '/tmp/hook-bridge-test-write.ts', content: 'hello' },
   };
   const result = await handlePreToolUse(event, ctx);
   assert.equal(result, undefined);

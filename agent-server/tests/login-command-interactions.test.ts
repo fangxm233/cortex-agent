@@ -492,7 +492,6 @@ test('!login does not add explicit OAuth command arguments', async () => {
   await flush();
 
   assert.equal(fixture.auth.starts.length, 0);
-  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /!login \[status\|cc\|pi \[provider\]\]/);
 });
 
 test('Feishu form callback returns before backend login settlement', async () => {

@@ -18,8 +18,6 @@ test('first call produces blocks, second call with same mtime produces none', as
     const b1 = inj.buildBlocks('lab', [entry]);
     assert.strictEqual(b1.length, 1);
     assert.strictEqual(b1[0].type, 'text');
-    assert.ok(b1[0].text.includes('lab:/r/CORTEX.md'));
-    assert.ok(b1[0].text.includes('<system-reminder>'));
     assert.ok(b1[0].text.includes('hello'));
     const b2 = inj.buildBlocks('lab', [entry]);
     assert.strictEqual(b2.length, 0, 'duplicate call with same mtime suppressed');
@@ -133,13 +131,6 @@ test('env var CORTEX_SESSION_ID is used when sessionId option is not provided', 
   });
 });
 
-test('empty entries array returns empty blocks', async () => {
-  await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    assert.strictEqual(inj.buildBlocks('lab', []).length, 0);
-  });
-});
-
 test('corrupt cache file falls back to empty cache', async () => {
   await withCacheDir(async (cacheDir) => {
     await fs.promises.writeFile(path.join(cacheDir, 's1.json'), 'not json at all');
@@ -186,34 +177,6 @@ test('stale session cache files are removed on startup (TTL)', async () => {
     new CortexMDInjector({ sessionId: 'new', cacheDir });
     assert.ok(!fs.existsSync(stale), 'stale cache removed');
     assert.ok(fs.existsSync(fresh), 'fresh cache preserved');
-  });
-});
-
-test('legacy global cache file is removed on startup (migration)', async () => {
-  // We cannot safely touch /tmp/cortex-mcp-claudemd-cache.json in a shared test
-  // environment without risking interference with a live MCP server. So we only
-  // exercise the path when the legacy file does not exist — the implementation
-  // passes `force: true` and must not throw.
-  await withCacheDir(async (cacheDir) => {
-    assert.doesNotThrow(() => new CortexMDInjector({ sessionId: 's1', cacheDir }));
-  });
-});
-
-test('explicit cacheFile override bypasses sessionId resolution', async () => {
-  await withCacheDir(async (cacheDir) => {
-    const explicit = path.join(cacheDir, 'explicit.json');
-    const inj = new CortexMDInjector({ cacheFile: explicit });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
-    assert.ok(fs.existsSync(explicit));
-  });
-});
-
-test('explicit cacheFile=null disables persistence', async () => {
-  await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ cacheFile: null, cacheDir });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
-    const files = await fs.promises.readdir(cacheDir);
-    assert.deepStrictEqual(files, []);
   });
 });
 

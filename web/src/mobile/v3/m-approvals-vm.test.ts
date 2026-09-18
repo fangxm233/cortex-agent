@@ -39,38 +39,6 @@ describe('buildMApprovalsVm', () => {
     expect(vm.cards.map((c) => c.id)).toEqual(['a', 'c']);
   });
 
-  it('maps real DTO fields onto the card (operation/title/reason/impact/command/provenance)', () => {
-    const [card] = buildMApprovalsVm([apr({ command: 'cortex dispatch --gpus 8' })], now).cards;
-    expect(card).toMatchObject({
-      id: 'apr-a',
-      operation: '超预算',
-      title: '超预算 dispatch — 8×A100 消融扫描',
-      reason: '预估 $12.40 超过日预算 $10.00',
-      impact: '将启动 8 张 A100 约 3 小时',
-      command: 'cortex dispatch --gpus 8',
-      provenance: 'ablation-sweep › dispatch',
-    });
-  });
-
-  it('carries honest nulls when optional fields are absent (never fabricated)', () => {
-    const [card] = buildMApprovalsVm(
-      [apr({ operation: null, reason: null, impact: null, command: null, provenance: null, queuedAt: null })],
-      now,
-    ).cards;
-    expect(card.operation).toBeNull();
-    expect(card.reason).toBeNull();
-    expect(card.impact).toBeNull();
-    expect(card.command).toBeNull();
-    expect(card.provenance).toBeNull();
-  });
-
-  it('empty queue → zero count, no cards, no groups', () => {
-    const vm = buildMApprovalsVm([], now);
-    expect(vm.pendingCount).toBe(0);
-    expect(vm.cards).toEqual([]);
-    expect(vm.groups).toEqual([]);
-  });
-
   it('groups pending cards: current project → 全局 (null) → other projects by id', () => {
     const vm = buildMApprovalsVm(
       [

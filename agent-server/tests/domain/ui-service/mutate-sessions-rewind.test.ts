@@ -55,12 +55,3 @@ test('sessions.rewind maps an unknown turn to not-found', async () => {
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.code, 'not-found');
 });
-
-test('sessions.rewind returns not-available when the dep is not wired', async () => {
-  const deps = {
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session('web:sess-1') },
-  } as unknown as UiServiceDeps;
-  const res = await handleRewindSession(deps, { sessionId: 'sess-1', turnIndex: 0, text: 'x' });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-});

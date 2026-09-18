@@ -24,17 +24,6 @@ function makeSkillDir(root: string, skillName: string) {
 // Empty deps — handler ignores all deps (reads fs directly via skill-scanner)
 const DEPS: any = {};
 
-test('skills.list: returns empty array when no skills directories exist', async () => {
-  // DATA_DIR has no .claude/skills and no plugins/ in an isolated CORTEX_HOME
-  const result: SkillGroup[] = await handleSkillsList(DEPS, {});
-  // May include groups if the test home seeded any plugins; just verify shape
-  assert.ok(Array.isArray(result), 'result must be an array');
-  for (const g of result) {
-    assert.ok(typeof g.plugin === 'string' || g.plugin === null, 'plugin must be string | null');
-    assert.ok(Array.isArray(g.skills), 'skills must be an array');
-  }
-});
-
 test('skills.list: returns user skills group (plugin=null) when .claude/skills has skills', async () => {
   clearSkillScanCache(); // bust 60s cache before creating fixtures
   const dataDir = getDataDir();

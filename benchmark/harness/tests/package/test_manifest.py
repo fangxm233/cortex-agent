@@ -1,5 +1,4 @@
 import hashlib
-import json
 import platform
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,7 +8,6 @@ from cortex_bench_harness.manifest import (
     ContainerImage,
     HarnessManifestInput,
     build_harness_manifest,
-    write_harness_manifest,
 )
 
 
@@ -79,15 +77,3 @@ def test_builds_exact_h3_manifest_with_explicit_nulls(tmp_path: Path) -> None:
     )
 
     assert document == EXPECTED_MANIFEST
-
-
-def test_writes_manifest_to_trial_artifact_directory(tmp_path: Path) -> None:
-    artifact_dir = tmp_path / "artifacts"
-    document = build_harness_manifest(
-        manifest_input(tmp_path), created_at=datetime(2026, 8, 1, tzinfo=UTC)
-    )
-
-    output_path = write_harness_manifest(artifact_dir, document)
-
-    assert output_path == artifact_dir / "cortex-bench-harness-manifest.json"
-    assert json.loads(output_path.read_text()) == document

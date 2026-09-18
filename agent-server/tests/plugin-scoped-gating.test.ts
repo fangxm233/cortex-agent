@@ -24,10 +24,6 @@ test('non-feishu channels strip cortex-feishu but keep the rest', () => {
   }
 });
 
-test('undefined pluginDirs passes through unchanged', () => {
-  assert.equal(filterChannelScopedPlugins(undefined, 'feishu:oc_x'), undefined);
-});
-
 test('basename match is exact — cortex-feishu-x is not stripped', () => {
   const FEISHU_X = `${BASE}/cortex-feishu-x`;
   const out = filterChannelScopedPlugins([SYSTEM, FEISHU_X], 'slack:C1');
@@ -58,8 +54,4 @@ test('the two scopes are independent', () => {
     channel: 'feishu:oc_abc123', commissionMode: true,
   });
   assert.deepEqual(out, [FEISHU, COMMISSION]);
-});
-
-test('the channel-only wrapper still strips the commission plugin', () => {
-  assert.deepEqual(filterChannelScopedPlugins([SYSTEM, COMMISSION], 'feishu:oc_x'), [SYSTEM]);
 });

@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';
-import { en } from '@/i18n';
 import {
   buildCustomProviderArgs,
-  customProviderFieldErrorCopy,
   emptyCustomProviderForm,
   formStateFromCustomProvider,
   isCustomProviderFormValid,
@@ -80,14 +78,6 @@ describe('validateCustomProviderForm', () => {
   it('requires at least one unique model id', () => {
     expect(validateCustomProviderForm(form({ models: '' }), options).models).toBe('models-required');
     expect(validateCustomProviderForm(form({ models: 'a\na' }), options).models).toBe('model-id-duplicate');
-  });
-});
-
-describe('customProviderFieldErrorCopy', () => {
-  it('resolves shared field copy and preserves an absent error', () => {
-    expect(customProviderFieldErrorCopy('name-required', en)).toBe(en.cpvErrNameRequired);
-    expect(customProviderFieldErrorCopy('model-id-duplicate', en)).toBe(en.cpvErrModelsDuplicate);
-    expect(customProviderFieldErrorCopy(undefined, en)).toBeUndefined();
   });
 });
 

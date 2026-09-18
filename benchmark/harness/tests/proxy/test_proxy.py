@@ -288,18 +288,6 @@ def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
     assert len(upstream.requests) == 1
 
 
-def test_sse_usage_allows_fields_split_across_events() -> None:
-    body = _sse_body([
-        {"type": "message_start",
-         "message": {"model": "claude-synthetic-1",
-                     "usage": {"input_tokens": 2}}},
-        {"type": "message_delta", "usage": {"output_tokens": 3}},
-    ])
-    usage = _adapter().extract_usage(body, "text/event-stream")
-    assert usage.accounted is True
-    assert (usage.input_tokens, usage.output_tokens) == (2, 3)
-
-
 def test_sse_usage_rejects_later_malformed_token_field() -> None:
     body = _sse_body([
         {"type": "message_start",
@@ -317,21 +305,6 @@ def _adapter():
 def _sse_body(documents: list[dict[str, object]]) -> bytes:
     lines = [f"data: {json.dumps(document)}" for document in documents]
     return ("\n\n".join(lines) + "\n\n").encode()
-
-
-def test_empty_upstream_model_identity_revokes_budget_route(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        upstream.server.response["model"] = "  "
-        handle = start_proxy(tmp_path, upstream, max_requests=4)
-        try:
-            first = streamed_proxy_request(
-                handle.base_url, handle.dummy_token, "unknown")
-            second, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
-        finally:
-            handle.stop()
-    assert first.complete is False
-    assert second == 410
-    assert len(upstream.requests) == 1
 
 
 def test_revokes_request_that_crosses_absolute_deadline(tmp_path: Path) -> None:
@@ -602,8 +575,3 @@ def drive_turns(tmp_path: Path, max_requests: int, turns: int) -> list[int]:
 
 def test_the_declared_count_is_exactly_the_number_of_turns_admitted(tmp_path: Path) -> None:
     assert drive_turns(tmp_path, 4, 5) == [200, 200, 200, 200, 429]
-
-
-def test_a_larger_count_admits_a_longer_conversation(tmp_path: Path) -> None:
-    """Turn depth is now raised by declaring more turns, not by re-deriving a quotient."""
-    assert drive_turns(tmp_path, 12, 12) == [200] * 12

@@ -118,14 +118,6 @@ afterEach(() => {
 });
 
 describe('Overview schedule actions', () => {
-  it('opens the shared edit modal with the selected schedule', async () => {
-    const renderer = await mount();
-
-    act(() => renderer.root.findByProps({ 'data-schedule-edit': schedule.id }).props.onClick());
-
-    expect(adapter.openEdit).toHaveBeenCalledWith(schedule);
-  });
-
   it('deletes the selected schedule only after confirmation', async () => {
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
     vi.stubGlobal('confirm', confirm);

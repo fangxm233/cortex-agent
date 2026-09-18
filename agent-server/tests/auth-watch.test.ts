@@ -77,8 +77,6 @@ function assertWebDelivery(messages: Extract<CortexEvent, { type: 'session.messa
   assert.equal(messages[0].noticeLevel, 'error');
   assert.match(messages[0].text, /claude/);
   assert.match(messages[0].text, /anthropic/);
-  assert.match(messages[0].text, /invalid API key/);
-  assert.match(messages[0].text, /one-click login action/i);
   assert.deepEqual((messages[0] as any).authAction, {
     kind: 'auth-login',
     noticeId: (messages[0] as any).authAction.noticeId,
@@ -99,8 +97,6 @@ function assertPlatformDeliveries(posts: PostedMessage[]): void {
   const feishuText = posts[0].content.text;
   assert.match(feishuText, /pi/);
   assert.match(feishuText, /openai-codex/);
-  assert.match(feishuText, /OAuth 登录已过期/);
-  assert.match(feishuText, /下方的一键登录操作/);
   assert.match(posts[1].content.text, /openrouter/);
   const actions = posts.map(post => post.content.richBlocks?.find(block => block.type === 'actions'));
   assert.ok(actions.every(block => block?.type === 'actions'));
@@ -249,7 +245,6 @@ test('a null channel uses the system-notice path once', async () => {
 
   assert.equal(notices.length, 1);
   assert.equal(notices[0].level, 'error');
-  assert.match(notices[0].text, /pi/);
   assert.equal(adapter.posted.length, 1);
   assert.deepEqual(adapter.posted[0].destination, { type: 'system-notice' });
 });

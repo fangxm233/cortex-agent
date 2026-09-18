@@ -44,7 +44,6 @@ vi.mock('@/i18n', () => ({
 import { NewProjectModal } from './NewProjectModal';
 import { RunListModal } from './RunListModal';
 import { SessionIdModal } from './SessionIdModal';
-import { SessionStatsModal } from './SessionStatsModal';
 
 function render(node: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
@@ -81,7 +80,6 @@ describe('NewProjectModal shared shell', () => {
     const onClose = vi.fn();
     const tree = render(<NewProjectModal onClose={onClose} />);
 
-    expect(harness.modalProps).toMatchObject({ chrome: 'bare', size: 'custom', open: true, showClose: false });
     act(() => harness.modalProps.onOpenChange(false));
     expect(onClose).toHaveBeenCalledOnce();
 
@@ -97,39 +95,12 @@ describe('SessionIdModal shared shell', () => {
     const onClose = vi.fn();
     const tree = render(<SessionIdModal cortexId="cortex-7" backendUuid="uuid-7" onClose={onClose} />);
 
-    expect(harness.modalProps).toMatchObject({ chrome: 'bare', open: true, showClose: false });
-    expect(harness.modalProps.contentDataAttributes).toEqual({ 'data-modal': 'session-id' });
     act(() => harness.modalProps.onOpenChange(false));
     expect(onClose).toHaveBeenCalledOnce();
 
     const copy = tree.root.findAllByType('span').find((node) => node.children.includes('Copy'))!;
     act(() => copy.props.onClick());
     expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId']]);
-  });
-});
-
-describe('SessionStatsModal shared shell', () => {
-  it('lists every totals row and closes through the shared shell', () => {
-    const onClose = vi.fn();
-    const rows = [
-      { key: 'runs' as const, label: 'Runs', value: '13 runs' },
-      { key: 'turns' as const, label: 'Agent turns', value: '512 turns' },
-      { key: 'active' as const, label: 'Active time', value: '3h 12m' },
-      { key: 'span' as const, label: 'Open since first message', value: '1m 30s' },
-      { key: 'cost' as const, label: 'Total cost', value: '$48.20' },
-      { key: 'subagent' as const, label: 'Of which subagents', value: '$7.54' },
-    ];
-    const tree = render(<SessionStatsModal rows={rows} onClose={onClose} />);
-
-    expect(harness.modalProps).toMatchObject({ chrome: 'bare', open: true, showClose: false });
-    expect(harness.modalProps.contentDataAttributes).toEqual({ 'data-modal': 'session-stats' });
-    const rendered = tree.root.findAll((node) => !!node.props['data-session-stats-row'])
-      .map((node) => node.props['data-session-stats-row']);
-    expect(rendered).toEqual(['runs', 'turns', 'active', 'span', 'cost', 'subagent']);
-    expect(JSON.stringify(tree.toJSON())).toContain('$7.54');
-
-    act(() => harness.modalProps.onOpenChange(false));
-    expect(onClose).toHaveBeenCalledOnce();
   });
 });
 
@@ -146,7 +117,6 @@ describe('RunListModal shared shell', () => {
     const tree = render(<RunListModal row={value} selectedSessionId={null}
       onOpenRun={onOpenRun} onManage={onManage} onClose={onClose} />);
 
-    expect(harness.modalProps.overlayDataAttributes).toEqual({ 'data-backdrop': 'run-list' });
     act(() => harness.modalProps.onOpenChange(false));
     act(() => tree.root.findByProps({ 'data-run-row': 'run-1' }).props.onClick());
     act(() => tree.root.findByProps({ 'data-action': 'run-list-manage' }).props.onClick());

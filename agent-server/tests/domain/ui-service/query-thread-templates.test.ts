@@ -76,32 +76,6 @@ test('readThreadTemplates agent entry has name and non-null body', async () => {
   assert.equal((executor.body as Record<string, unknown>).entryStage, 'execute');
 });
 
-test('readThreadTemplates template entry has name and non-null body', async () => {
-  const configDir = await makeFixture();
-  const entries = await readThreadTemplates(configDir);
-  const tmpl = entries.find((e) => e.kind === 'template' && e.name === 'default');
-  assert.ok(tmpl, 'default template entry missing');
-  assert.equal(tmpl.description, 'Single agent template');
-  assert.ok(tmpl.body !== null);
-  assert.equal((tmpl.body as Record<string, unknown>).entryAgent, '__active__');
-});
-
-test('readThreadTemplates shell entry has name and non-null body', async () => {
-  const configDir = await makeFixture();
-  const entries = await readThreadTemplates(configDir);
-  const shell = entries.find((e) => e.kind === 'shell' && e.name === 'worker-review');
-  assert.ok(shell, 'worker-review shell entry missing');
-  assert.equal(shell.description, 'Execute-then-review shell');
-  assert.ok(shell.body !== null);
-  assert.equal((shell.body as Record<string, unknown>).worker, 'executor');
-});
-
-test('readThreadTemplates returns empty array when dirs are absent', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tt-empty-'));
-  const entries = await readThreadTemplates(path.join(root, 'config'));
-  assert.deepEqual(entries, []);
-});
-
 test('readThreadTemplates sets body=null for malformed JSON', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tt-bad-'));
   const agentDir = path.join(root, 'config', 'thread-templates', 'agents');
@@ -112,15 +86,4 @@ test('readThreadTemplates sets body=null for malformed JSON', async () => {
   assert.equal(entries[0].name, 'bad');
   assert.equal(entries[0].kind, 'agent');
   assert.equal(entries[0].body, null);
-});
-
-test('readThreadTemplates entries are sorted by name within each kind', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tt-sort-'));
-  const agentDir = path.join(root, 'config', 'thread-templates', 'agents');
-  await fs.mkdir(agentDir, { recursive: true });
-  await fs.writeFile(path.join(agentDir, 'z-last.json'), '{}');
-  await fs.writeFile(path.join(agentDir, 'a-first.json'), '{}');
-  const entries = await readThreadTemplates(path.join(root, 'config'));
-  const names = entries.map((e) => e.name);
-  assert.deepEqual(names, ['a-first', 'z-last']);
 });

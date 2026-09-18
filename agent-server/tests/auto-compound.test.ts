@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { shouldAutoRunCompound, combineFinalOutputs } from '../src/domain/threads/auto-thread.js';
+import { shouldAutoRunCompound } from '../src/domain/threads/auto-thread.js';
 
 test('shouldAutoRunCompound skips self-recursive compound runs', () => {
   assert.equal(shouldAutoRunCompound('/compound-simple'), false);
@@ -10,20 +10,4 @@ test('shouldAutoRunCompound skips self-recursive compound runs', () => {
 test('shouldAutoRunCompound allows normal scheduled or dispatched tasks', () => {
   assert.equal(shouldAutoRunCompound('check project status'), true);
   assert.equal(shouldAutoRunCompound('/orient-project then implement task'), true);
-});
-
-test('combineFinalOutputs keeps primary output when compound output is empty', () => {
-  assert.equal(combineFinalOutputs('main result', ''), 'main result');
-  assert.equal(combineFinalOutputs('main result', null), 'main result');
-});
-
-test('combineFinalOutputs appends compound output after main output', () => {
-  assert.equal(
-    combineFinalOutputs('main result', 'compound result'),
-    'main result\n\n--- Auto compound ---\ncompound result'
-  );
-});
-
-test('combineFinalOutputs returns compound output when primary output is empty', () => {
-  assert.equal(combineFinalOutputs('', 'compound result'), 'compound result');
 });

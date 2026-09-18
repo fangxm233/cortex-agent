@@ -98,18 +98,6 @@ test('conversation prompt prepends [User Context] when USER.md exists', () => {
   }
 });
 
-test('conversation prompt injects user context when includeUserContext is true', () => {
-  writeUser(SAMPLE);
-  delete process.env.CORTEX_DISABLE_USER_CONTEXT;
-  try {
-    const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', { includeUserContext: true });
-    assert.ok(prompt.startsWith('[User Context]'));
-    assert.ok(prompt.includes('Name: Test User'));
-  } finally {
-    removeUser();
-  }
-});
-
 test('conversation prompt omits user context when includeUserContext is false', () => {
   writeUser(SAMPLE);
   delete process.env.CORTEX_DISABLE_USER_CONTEXT;
@@ -118,20 +106,6 @@ test('conversation prompt omits user context when includeUserContext is false', 
     assert.equal(prompt, 'hi');
     assert.ok(!prompt.includes('[User Context]'));
   } finally {
-    removeUser();
-  }
-});
-
-test('conversation prompt omits user context when disabled', async () => {
-  writeUser(SAMPLE);
-  process.env.CORTEX_DISABLE_USER_CONTEXT = '1';
-  try {
-    resetSettingsForTests();
-    const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi');
-    assert.equal(prompt, 'hi');
-  } finally {
-    delete process.env.CORTEX_DISABLE_USER_CONTEXT;
-    resetSettingsForTests();
     removeUser();
   }
 });

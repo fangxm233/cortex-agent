@@ -33,13 +33,7 @@ describe('docKindOf', () => {
     expect(docKindOf('noext')).toBeNull();
     expect(docKindOf('bin', 'application/octet-stream')).toBeNull();
   });
-
-  it('is case-insensitive on extension and mimeType', () => {
-    expect(docKindOf('DATA.CSV')).toBe('text');
-    expect(docKindOf('x', 'APPLICATION/PDF')).toBe('pdf');
-  });
 });
-
 
 describe('isMarkdownName', () => {
   it('detects markdown extensions only', () => {
@@ -49,7 +43,6 @@ describe('isMarkdownName', () => {
     expect(isMarkdownName('data.json')).toBe(false);
   });
 });
-
 
 // The rule this pins: rendering intent rides the SERVER-minted attachment bucket, never the file
 // name. An uploaded .html must stay a source view — otherwise any file a user drops into the

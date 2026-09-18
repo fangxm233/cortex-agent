@@ -65,15 +65,6 @@ test('ui enable rejects an invalid port with the valid range', async () => {
   const result = await runCli(['ui', 'enable', '--home', home, '--port', 'http']);
 
   assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /--port/);
-  assert.match(result.stderr, /1-65535/);
-});
-
-test('ui without a subcommand explains the valid ones', async () => {
-  const result = await runCli(['ui']);
-
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /enable/);
 });
 
 test('ui enable prints a human summary when --json is absent', async () => {

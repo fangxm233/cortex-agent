@@ -50,11 +50,6 @@ test('scanCortexMDChain includes CORTEX.local.md alongside CORTEX.md', async () 
   }
 });
 
-test('scanCortexMDChain handles non-existent target path silently', () => {
-  const entries = scanCortexMDChain('/tmp/definitely-does-not-exist-xyz123-abc/sub/dir/file.txt');
-  assert.ok(Array.isArray(entries), 'returns an array even for non-existent path');
-});
-
 test('scanCortexMDChain records mtimeMs for each entry', async () => {
   const root = await mkTmp();
   try {

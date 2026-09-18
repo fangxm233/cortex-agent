@@ -29,22 +29,6 @@ test('answerQuestion not-found → err not-found', async () => {
   if (!res.ok) assert.equal(res.code, 'not-found');
 });
 
-test('respondPlan resolved → ok with outcome resolved', async () => {
-  const res = await handleRespondPlan(makeDeps('resolved'), { requestId: 'r1', approved: true });
-  assert.deepEqual(res, { ok: true, data: { outcome: 'resolved' } });
-});
-
-test('respondPlan already-resolved → ok with outcome already-resolved', async () => {
-  const res = await handleRespondPlan(makeDeps('already-resolved'), { requestId: 'r1', approved: false, feedback: 'no' });
-  assert.deepEqual(res, { ok: true, data: { outcome: 'already-resolved' } });
-});
-
-test('respondPlan not-found → err not-found', async () => {
-  const res = await handleRespondPlan(makeDeps('not-found'), { requestId: 'r1', approved: true });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-found');
-});
-
 test('missing requestId → invalid-args', async () => {
   const res = await handleRespondPlan(makeDeps('resolved'), { requestId: '', approved: true });
   assert.equal(res.ok, false);

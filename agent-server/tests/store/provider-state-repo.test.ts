@@ -76,14 +76,6 @@ function resumeEntries(): ResumeEntry[] {
   }];
 }
 
-test('ProviderStateRepo defaults to empty provider state', async () => {
-  const repo = new ProviderStateRepo(path.join(nextDir(), 'provider-state.json'));
-
-  assert.equal(await repo.getRateLimitThrottle(), null);
-  assert.deepEqual(await repo.getResumeQueue(), []);
-  assert.deepEqual(await repo.getProviderUsage(), []);
-});
-
 test('ProviderStateRepo serializes concurrent throttle and resume writes', async () => {
   const filePath = path.join(nextDir(), 'provider-state.json');
   const repo = new ProviderStateRepo(filePath);

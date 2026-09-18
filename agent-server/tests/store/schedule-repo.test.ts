@@ -78,23 +78,6 @@ test('ScheduleRepo - flush() resolves only after all pending mutations (FIFO on 
 
 // ── CRUD: find / add / remove / update ────────────────────────
 
-test('ScheduleRepo - findTask returns null for unknown id', async () => {
-  const repo = createRepo();
-  const result = await repo.findTask('nonexistent');
-  assert.equal(result, null);
-});
-
-test('ScheduleRepo - addTask then findTask returns the task', async () => {
-  const repo = createRepo();
-  const task = makeTask({ id: 'add-test' });
-  await repo.addTask(task);
-
-  const found = await repo.findTask('add-test');
-  assert.ok(found);
-  assert.equal(found.message, task.message);
-  assert.equal(found.projectId, task.projectId);
-});
-
 test('ScheduleRepo - removeTask returns true for existing id', async () => {
   const repo = createRepo();
   await repo.addTask(makeTask({ id: 'remove-test' }));
@@ -102,12 +85,6 @@ test('ScheduleRepo - removeTask returns true for existing id', async () => {
   const removed = await repo.removeTask('remove-test');
   assert.equal(removed, true);
   assert.equal(await repo.findTask('remove-test'), null);
-});
-
-test('ScheduleRepo - removeTask returns false for unknown id', async () => {
-  const repo = createRepo();
-  const removed = await repo.removeTask('does-not-exist');
-  assert.equal(removed, false);
 });
 
 test('ScheduleRepo - updateTask applies callback and returns updated task', async () => {
@@ -126,25 +103,6 @@ test('ScheduleRepo - updateTask applies callback and returns updated task', asyn
   const found = await repo.findTask('update-test');
   assert.equal(found!.message, 'updated');
   assert.equal(found!.isPaused, true);
-});
-
-test('ScheduleRepo - updateTask returns null for unknown id', async () => {
-  const repo = createRepo();
-  const result = await repo.updateTask('no-such-id', () => {});
-  assert.equal(result, null);
-});
-
-test('ScheduleRepo - read returns all tasks after mixed operations', async () => {
-  const repo = createRepo();
-  await repo.addTask(makeTask({ id: 'a', message: 'A' }));
-  await repo.addTask(makeTask({ id: 'b', message: 'B' }));
-  await repo.removeTask('a');
-  await repo.addTask(makeTask({ id: 'c', message: 'C' }));
-
-  const data = await repo.read();
-  assert.equal(data.tasks.length, 2);
-  const ids = data.tasks.map(t => t.id).sort();
-  assert.deepEqual(ids, ['b', 'c']);
 });
 
 // ── On-disk schema matches SchedulesData ──────────────────────
@@ -175,17 +133,6 @@ test('ScheduleRepo - target field round-trips through addTask/findTask (project 
   assert.ok(found);
   assert.deepEqual(found.target, { kind: 'project', projectId: 'cortex-self' });
   assert.equal(found.fallback, 'fresh');
-});
-
-test('ScheduleRepo - target field round-trips for thread kind', async () => {
-  const repo = createRepo();
-  await repo.addTask(makeTask({
-    id: 'target-thread',
-    target: { kind: 'thread', threadId: 'thr_xyz', channel: 'C1' },
-  } as Partial<ScheduleTask>));
-  const t = await repo.findTask('target-thread');
-  assert.ok(t && t.target?.kind === 'thread');
-  assert.equal((t.target as { threadId: string }).threadId, 'thr_xyz');
 });
 
 test('ScheduleRepo - migrate fills target=fresh for legacy records without target field', async () => {

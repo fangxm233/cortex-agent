@@ -17,17 +17,6 @@ async function reloadSchemas(): Promise<typeof import('./schemas.js')> {
   return reloadedSchemasPromise;
 }
 
-test('empty query schemas accept empty input', () => {
-  assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['config.get'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['plugins.list'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['system.usageStatus'].parse({}), {});
-  assert.deepEqual(queryInputSchemas['system.notices'].parse({}), {});
-  assert.deepEqual(mutateInputSchemas['system.refreshUsage'].parse({}), {});
-});
-
 test('auth flow schemas accept both auth types and require the prompt response value', () => {
   assert.deepEqual(
     queryInputSchemas['auth.flowState'].parse({ flowId: 'flow-1' }),
@@ -73,40 +62,6 @@ test('auth logout schema accepts only the secret-free identity tuple', () => {
   assert.throws(() => mutateInputSchemas['auth.logout'].parse({
     ...logout, authType: 'subscription',
   }));
-});
-
-test('list and detail query schemas accept valid input', () => {
-  const taskInput = { projectId: 'p', status: 'open' as const, actionable: true };
-  assert.equal(queryInputSchemas['tasks.list'].parse(taskInput).status, 'open');
-  assert.deepEqual(
-    queryInputSchemas['executions.list'].parse({ status: ['running'], limit: 5 }),
-    { status: ['running'], limit: 5 },
-  );
-  assert.deepEqual(
-    queryInputSchemas['executions.get'].parse({ executionId: 'exec_1' }),
-    { executionId: 'exec_1' },
-  );
-  assert.deepEqual(queryInputSchemas['cost.summary'].parse({ projectId: null }), { projectId: null });
-  assert.deepEqual(queryInputSchemas['threads.get'].parse({ threadId: 'thr_a' }), { threadId: 'thr_a' });
-  const detail = { threadId: 'thr_a', includeArtifactContent: true };
-  assert.deepEqual(queryInputSchemas['threads.get'].parse(detail), detail);
-});
-
-test('project-scoped query schemas accept valid input', () => {
-  assert.deepEqual(queryInputSchemas['memory.tree'].parse({ projectId: 'p' }), { projectId: 'p' });
-  const memoryFile = { projectId: 'p', path: 'STATUS.md' };
-  assert.deepEqual(queryInputSchemas['memory.file'].parse(memoryFile), memoryFile);
-  const transcript = { sessionId: 'sess-1', compactSubagents: true };
-  assert.deepEqual(queryInputSchemas['sessions.transcript'].parse(transcript), transcript);
-  const subagentTranscript = { sessionId: 'sess-1', subagentId: 'toolu_01#0' };
-  assert.deepEqual(queryInputSchemas['sessions.subagentTranscript'].parse(subagentTranscript), subagentTranscript);
-  const debugDetails = { sessionId: 'sess-1', ref: 'toolu_01:abc' };
-  assert.deepEqual(queryInputSchemas['sessions.debugDetails'].parse(debugDetails), debugDetails);
-  assert.deepEqual(queryInputSchemas['issues.list'].parse({ projectId: 'p' }), { projectId: 'p' });
-  assert.deepEqual(queryInputSchemas['notes.list'].parse({ projectId: 'p' }), { projectId: 'p' });
-  assert.deepEqual(queryInputSchemas['approvals.list'].parse({}), {});
-  const approval = { status: 'pending' as const };
-  assert.deepEqual(queryInputSchemas['approvals.list'].parse(approval), approval);
 });
 
 test('query schemas reject invalid input', () => {

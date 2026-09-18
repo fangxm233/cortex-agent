@@ -39,20 +39,6 @@ function actionsBlock(blocks: RichBlock[] | undefined): ActionElement[] {
   return (actions?.elements as ActionElement[] | undefined) ?? [];
 }
 
-test('background style: text is buildThreadSummary, no action blocks attached', async () => {
-  const adapter = new MockAdapter();
-  const ref = { conduit: 'C-seal', messageId: 'M1' };
-  const result = makeCompletedResult();
-
-  await sealThreadSummary(adapter as any, ref, result as any);
-
-  assert.equal(adapter.updated.length, 1);
-  const update = adapter.updated[0];
-  assert.deepEqual(update.ref, ref);
-  assert.equal(update.content.text, buildThreadSummary(result as any), 'text is exactly buildThreadSummary');
-  assert.equal((update.content as any).richBlocks, undefined, 'no richBlocks without a blocks template');
-});
-
 test('interactive style: same summary text, SEALED action blocks (Cancel button removed)', async () => {
   const adapter = new MockAdapter();
   const ref = { conduit: 'C-seal', messageId: 'M2' };

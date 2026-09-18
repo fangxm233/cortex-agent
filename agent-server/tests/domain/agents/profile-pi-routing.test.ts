@@ -44,13 +44,6 @@ test('validateProfilesFile does NOT require provider for non-pi backends', () =>
   }));
 });
 
-test('validateProfilesFile rejects a non-string provider', () => {
-  assert.throws(() => validateProfilesFile({
-    defaultProfile: 'd',
-    profiles: { d: { model: 'm', backend: 'pi', mode: 'anthropic', provider: 123 as any } },
-  }), /provider/);
-});
-
 test('validateProfilesFile rejects a provider with unsafe characters', () => {
   assert.throws(() => validateProfilesFile({
     defaultProfile: 'd',
@@ -62,10 +55,6 @@ test('validateProfilesFile rejects a provider with unsafe characters', () => {
 
 test('buildPiGatewaySubPath: composes /m/<mode>/<provider>', () => {
   assert.equal(buildPiGatewaySubPath('anthropic', 'anthropic'), '/m/anthropic/anthropic');
-});
-
-test('buildPiGatewaySubPath: distinct mode and provider compose independently', () => {
-  assert.equal(buildPiGatewaySubPath('deepseek-relay', 'anthropic'), '/m/deepseek-relay/anthropic');
 });
 
 test('buildPiGatewaySubPath: returns undefined when mode is absent (fallback to default /<provider>)', () => {

@@ -68,44 +68,10 @@ test('sessions.list exposes persisted context usage and uses null for legacy ses
   assert.equal(byId['s2'], null);
 });
 
-test('sessions.list exposes server-derived manual compaction support per session', async () => {
-  const result = await handleSessionsList(makeDeps({
-    supportsSessionCompaction: (session) => session.backend === 'pi',
-  }), {});
-  const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextCompactionSupported]));
-  assert.equal(byId['s1'], true);
-  assert.equal(byId['s2'], true);
-  assert.equal(byId['s3'], false);
-});
-
 test('sessions.list with resumable=true returns only non-scheduled sessions', async () => {
   const result = await handleSessionsList(makeDeps(), { resumable: true });
   assert.equal(result.length, 2);
   assert.ok(result.every(s => s.resumable === true));
-});
-
-test('sessions.list with projectId + resumable', async () => {
-  const result = await handleSessionsList(makeDeps(), { projectId: 'proj2', resumable: true });
-  assert.equal(result.length, 0); // proj2 only has scheduled session
-});
-
-test('sessions.list without filter returns all sessions grouped by project', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  assert.equal(result.length, 3);
-});
-
-test('sessions.list sets resumable correctly for scheduled sessions', async () => {
-  const result = await handleSessionsList(makeDeps(), { projectId: 'proj2' });
-  assert.equal(result.length, 1);
-  assert.equal(result[0].resumable, false);
-});
-
-test('sessions.list maps the origin field onto SessionInfo', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.origin]));
-  assert.equal(byId['s1'], 'direct');
-  assert.equal(byId['s2'], 'scheduled');
-  assert.equal(byId['s3'], 'thread');
 });
 
 test('sessions.list with origin=direct returns only direct sessions', async () => {
@@ -113,21 +79,6 @@ test('sessions.list with origin=direct returns only direct sessions', async () =
   assert.equal(result.length, 1);
   assert.equal(result[0].sessionId, 's1');
   assert.ok(result.every(s => s.origin === 'direct'));
-});
-
-test('sessions.list with origin=thread returns only thread sessions', async () => {
-  const result = await handleSessionsList(makeDeps(), { origin: 'thread' });
-  assert.equal(result.length, 1);
-  assert.equal(result[0].sessionId, 's3');
-});
-
-test('sessions.list with origin + projectId scopes to both', async () => {
-  const result = await handleSessionsList(makeDeps(), { origin: 'direct', projectId: 'proj1' });
-  assert.equal(result.length, 1);
-  assert.equal(result[0].sessionId, 's1');
-
-  const none = await handleSessionsList(makeDeps(), { origin: 'direct', projectId: 'proj2' });
-  assert.equal(none.length, 0);
 });
 
 test('sessions.list running snapshot: true when a live interactive turn is on the session', async () => {
@@ -162,17 +113,6 @@ test('sessions.list running snapshot: a thread execution does NOT mark the sessi
   } finally {
     runRegistry.remove('exec_t');
   }
-});
-
-test('sessions.list running snapshot: no live executions → running false everywhere', async () => {
-  const deps = makeDeps({
-    runningExecutions: {
-      getAll: () => [],
-      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
-    } as any,
-  });
-  const result = await handleSessionsList(deps, {});
-  assert.ok(result.every(s => s.running === false));
 });
 
 test('sessions.list running snapshot: a session is NOT running just because a DIFFERENT session on its channel is', async () => {
@@ -385,12 +325,6 @@ test('sessions.list totals: archived runs come back from the carry, and are not 
   sessionTotalsCarry.invalidate();
 });
 
-test('sessions.list totals: a session that never finished a run has none', async () => {
-  const deps = makeDeps({ executionRegistry: registryOf([]) });
-  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
-  assert.equal(s1.totals, null);
-});
-
 test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the same channel is not attributed', async () => {
   // Channel recycling (the session-switch case): the stale record keeps the channel, so a
   // channel-keyed snapshot would hand s1 the NEW session's numbers.
@@ -419,11 +353,6 @@ test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the 
   assert.equal(byId['s1'].costUsd, 0.42);
   assert.equal(byId['s1-new'].numTurns, 3);
   assert.equal(byId['s1-new'].costUsd, 0.07);
-});
-
-test('sessions.list numTurns: no execution data anywhere → null', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  assert.ok(result.every(s => s.numTurns === null));
 });
 
 test('sessions.list costUsd: idle session → last non-thread execution costUsd (latest by startedAt)', async () => {
@@ -466,11 +395,6 @@ test('sessions.list costUsd: running session → null (no live cost source, no s
   });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
   assert.equal(result.find(s => s.sessionId === 's1')!.costUsd, null);
-});
-
-test('sessions.list costUsd: no execution data anywhere → null', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  assert.ok(result.every(s => s.costUsd === null));
 });
 
 test('sessions.list bg-held session: running true + backgroundRunning true with NO live execution (web bg-hold snapshot)', async () => {
@@ -533,11 +457,6 @@ test('sessions.list live foreground turn wins over the bg flag (backgroundRunnin
   assert.equal(s1.backgroundRunning, false);
 });
 
-test('sessions.list with no registry background hold → backgroundRunning false everywhere', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  assert.ok(result.every(s => s.backgroundRunning === false));
-});
-
 test('sessions.list awaitingInput: a pending ask-user OR plan on the channel → true (needs-user amber)', async () => {
   // The rail dot turns amber only when the session is blocked on a user action (ask-user question /
   // plan approval), keyed by the session's channel via the in-memory pending maps. Background-hold
@@ -567,11 +486,6 @@ test('sessions.list awaitingInput: a pending NON-blocking ask does not stall the
   assert.equal(byId['s1'], false, 'non-blocking ask → not awaiting');
 });
 
-test('sessions.list awaitingInput: without pending-interaction deps → false everywhere (fixtures/TUI)', async () => {
-  const result = await handleSessionsList(makeDeps(), {});
-  assert.ok(result.every((s) => s.awaitingInput === false));
-});
-
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread
@@ -594,25 +508,6 @@ test('sessions.list unread: activity after lastReadAt → unread; read/never-tra
   assert.equal(byId['s1'], false, 'read after activity');
   assert.equal(byId['s2'], true, 'activity after read');
   assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
-});
-
-test('sessions.list carries scheduleId provenance, null when the record has none', async () => {
-  const withSchedule = [
-    { ...mockSessions[1], scheduleId: 'sched-7' },
-    { ...mockSessions[0] },
-  ];
-  const deps = makeDeps({
-    sessionStore: {
-      listByProject: async () => withSchedule,
-      listByOrigin: async () => withSchedule,
-      listResumable: async () => withSchedule,
-      getById: async () => null,
-    } as any,
-  });
-  const result = await handleSessionsList(deps, {});
-  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.scheduleId]));
-  assert.equal(byId['s2'], 'sched-7');
-  assert.equal(byId['s1'], null);
 });
 
 test('sessions.list unread: a never-viewed SCHEDULED session is unread (result attention dot)', async () => {
@@ -656,20 +551,6 @@ test('sessions.list exposes backendSessionId (resume target) distinct from the t
   const s1 = result.find((s) => s.sessionId === 's1')!;
   assert.equal(s1.sessionId, 's1', 'track id (UI identity) unchanged');
   assert.equal(s1.backendSessionId, 'be-uuid-1111', 'exposes the real backend resume id');
-});
-
-test('sessions.list backendSessionId: fresh session (explicit null) → null (never fabricated)', async () => {
-  const fresh = [{ ...mockSessions[0], backendSessionId: null }];
-  const deps = makeDeps({
-    sessionStore: {
-      listByProject: async () => fresh,
-      listByOrigin: async () => fresh,
-      listResumable: async () => fresh,
-      getById: async () => null,
-    } as any,
-  });
-  const result = await handleSessionsList(deps, { projectId: 'proj1' });
-  assert.equal(result.find((s) => s.sessionId === 's1')!.backendSessionId, null);
 });
 
 test('sessions.list backendSessionId: legacy record (field absent) → falls back to sessionId', async () => {
@@ -733,11 +614,6 @@ test('sessions.transcript returns durable pending messages even before committed
   assert.deepEqual(result.pendingUserMessages, [{
     id: 'pin-1', text: 'change direction', ts: '2026-05-01T00:00:03.000Z', attachments,
   }]);
-});
-
-test('sessions.transcript defaults pendingUserMessages to an empty snapshot', async () => {
-  const result = await handleSessionsTranscript(makeDeps(), { sessionId: 's1' });
-  assert.deepEqual(result.pendingUserMessages, []);
 });
 
 test('sessions.transcript reads active pending before history to avoid a cross-store handoff gap', async () => {

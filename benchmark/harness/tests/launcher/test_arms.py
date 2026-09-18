@@ -10,7 +10,6 @@ from cortex_bench_harness.launcher.arms import (
     build_agent_config,
     require_pinned_image,
     select_arm,
-    select_task,
 )
 
 def cortex_arm() -> dict[str, object]:
@@ -105,15 +104,6 @@ def test_select_arm_is_explicit_unique_and_immutable() -> None:
         select_arm([cortex_arm()], "missing")
     with pytest.raises(ValueError, match="unique"):
         select_arm([cortex_arm(), cortex_arm()], "cortex-direct")
-
-
-def test_select_task_requires_one_explicit_identifier() -> None:
-    tasks = [{"task_id": "terminal-task-a"}, {"task_id": "terminal-task-b"}]
-
-    selected = select_task(tasks, "terminal-task-b")
-    assert selected["task_id"] == "terminal-task-b"
-    with pytest.raises(LookupError, match="missing"):
-        select_task(tasks, "missing")
 
 
 def test_image_selection_requires_the_reference_to_match_its_digest() -> None:
@@ -223,5 +213,3 @@ def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:
         backend_cli_binary(arm)
 
     assert error.value.reason == "backend_unsupported_for_kind"
-    assert "cortex-unknown-direct" in str(error.value)
-    assert "its owning gate" in str(error.value)

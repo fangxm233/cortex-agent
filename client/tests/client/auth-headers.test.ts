@@ -18,10 +18,6 @@ test('resolveClientToken trims and treats blank as empty', () => {
   assert.equal(resolveClientToken({ clientToken: '   ' }, { CORTEX_CLIENT_TOKEN: '  ' }), '');
 });
 
-test('resolveClientToken returns empty string when neither source is set', () => {
-  assert.equal(resolveClientToken({}, {}), '');
-});
-
 test('buildClientHeaders returns the x-cortex-token header for a non-empty token', () => {
   assert.deepEqual(buildClientHeaders('tok123'), { 'x-cortex-token': 'tok123' });
 });

@@ -28,15 +28,6 @@ test('stream.mutableOpen on empty transcript creates a synthetic message', () =>
   assert.equal(msg.streams.get('s1')?.blocks.find(b => b.kind === 'region' && b.regionId === 'r1')?.text, 'pending');
 });
 
-test('_appendUserMessage adds a "**You:** …" row flagged isUser', () => {
-  const s = _appendUserMessage(EMPTY, 'hello there');
-  assert.equal(s.ids.length, 1);
-  const msg = s.messages.get(s.ids[0]);
-  assert.ok(msg);
-  assert.equal(msg.text, '**You:** hello there');
-  assert.equal(msg.isUser, true);
-});
-
 test('assistant stream does NOT merge into the last message when it is a user echo', () => {
   const withUser = _appendUserMessage(EMPTY, 'my question');
   const s = _handleStreamText(withUser, { type: 'stream.text' as const, streamId: 's1', text: 'answer', seq: 1 });

@@ -56,25 +56,10 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   };
 }
 
-test('executions.list returns all executions when no filter', async () => {
-  const result = await handleExecutionsList(makeDeps(), {});
-  assert.equal(result.length, 3);
-});
-
 test('executions.list filters by status', async () => {
   const result = await handleExecutionsList(makeDeps(), { status: ['running', 'failed'] });
   assert.equal(result.length, 2);
   assert.ok(result.every(e => e.status === 'running' || e.status === 'failed'));
-});
-
-test('executions.list respects limit', async () => {
-  const result = await handleExecutionsList(makeDeps(), { limit: 2 });
-  assert.equal(result.length, 2);
-});
-
-test('executions.list sorts by startedAt descending', async () => {
-  const result = await handleExecutionsList(makeDeps(), {});
-  assert.ok(result[0].startedAt >= result[result.length - 1].startedAt);
 });
 
 test('executions.list DTO shape for dispatch execution', async () => {

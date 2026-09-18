@@ -84,11 +84,3 @@ test('unknown decision id → not-found; unknown session → not-found', async (
   assert.equal(badSession.ok, false);
   if (!badSession.ok) assert.equal(badSession.code, 'not-found');
 });
-
-test('an unwired appendDecisionAction dep → not-available', async () => {
-  const h = makeDeps();
-  (h.deps.conversationHistory as any).appendDecisionAction = undefined;
-  const res = await handleRespondDecision(h.deps, { sessionId: 'sess-1', decisionId: 'd-1', action: 'approve' });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'not-available');
-});

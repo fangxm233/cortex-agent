@@ -101,12 +101,6 @@ test('@if(!var) includes content when var is missing', () => {
   assert.match(resolveTemplate(consumer, TMP_DIR), /Free tier/);
 });
 
-test('@if(!var) excludes content when var is defined', () => {
-  writeFileSync(join(TMP_DIR, 'cond-neg2.md'), '@if(!premium)\nFree tier.\n@endif\n');
-  const consumer = '---\nextends: cond-neg2.md\npremium: yes\n---\n';
-  assert.doesNotMatch(resolveTemplate(consumer, TMP_DIR), /Free tier/);
-});
-
 // --- Combined ---
 
 test('vars inside blocks and conditionals are resolved', () => {

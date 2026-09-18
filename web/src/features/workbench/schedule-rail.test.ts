@@ -67,7 +67,6 @@ describe('buildScheduleRows', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].scheduleId).toBe('sch1');
     expect(rows[0].kind).toBe('repeat');
-    expect(rows[0].title).toBe('scan arXiv');
     expect(rows[0].runs.map((r) => r.sessionId)).toEqual(['r2', 'r1']);
     expect(rows[0].latest?.sessionId).toBe('r2');
   });
@@ -174,10 +173,6 @@ describe('runOrdinals', () => {
     expect(ord.get('old')).toBe(1);
     expect(ord.get('mid')).toBe(2);
     expect(ord.get('new')).toBe(3);
-  });
-
-  it('returns an empty map for no runs', () => {
-    expect(runOrdinals([]).size).toBe(0);
   });
 });
 

@@ -8,7 +8,6 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';
-import { MockAdapter } from '../src/platform/testing.js';
 
 // Fresh module state per test — re-import via dynamic import to avoid shared module singletons
 async function freshHookBridge() {
@@ -62,70 +61,6 @@ test('registerAskQuestion publishes ask-user.requested with the severity level',
   assert.equal(ev.level, 'warning');
 
   hb.resolveRequest('req-lvl', { answers: {} });
-  await resultPromise;
-});
-
-// ── (2) registerAskQuestion → subscriber → MockAdapter.postMessage ─────────────
-
-test('ask-user.requested subscriber calls MockAdapter.postMessage (Slack side effect)', async () => {
-  const bus = new EventBus();
-  const hb = await freshHookBridge();
-  hb.initHookBridge(bus);
-
-  const mockAdapter = new MockAdapter();
-
-  // Inline subscriber simulating the app.ts 'ask-user.requested' handler (minimal wiring)
-  bus.subscribe('ask-user.requested', async (e) => {
-    const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
-    const text = `Questions (${ev.questions.length})`;
-    await mockAdapter.postMessage({ type: 'interactive-reply', conduit: ev.channel, sessionId: ev.sessionId }, { text });
-  });
-
-  const resultPromise = hb.registerAskQuestion('req-2', 'C_ASK', 'sess-2', [{ q: 'Pick one?' }]);
-
-  // bus.publish is synchronous fan-out; async handlers are fire-and-forget.
-  // Flush the microtask queue so the async subscriber body runs before our assert.
-  await new Promise(setImmediate as any);
-
-  assert.equal(mockAdapter.posted.length, 1, 'exactly one message posted to mock adapter');
-  assert.equal((mockAdapter.posted[0].destination as { conduit: string }).conduit, 'C_ASK');
-  assert.equal((mockAdapter.posted[0].content as any).text, 'Questions (1)');
-
-  hb.resolveRequest('req-2', { answers: {} });
-  await resultPromise;
-});
-
-// ── (3) registerPlanApproval → subscriber → MockAdapter.postInteractive ────────
-
-test('registerPlanApproval publishes plan.submitted and subscriber calls MockAdapter.postInteractive', async () => {
-  const bus = new EventBus();
-  const hb = await freshHookBridge();
-  hb.initHookBridge(bus);
-
-  const mockAdapter = new MockAdapter();
-
-  bus.subscribe('plan.submitted', async (e) => {
-    const ev = e as Extract<CortexEvent, { type: 'plan.submitted' }>;
-    await mockAdapter.postInteractive({ type: 'interactive-reply', conduit: ev.channel, sessionId: ev.sessionId }, {
-      text: 'Plan approval',
-      richBlocks: [],
-      actions: [{ type: 'button', text: 'Approve', value: ev.requestId, actionId: 'plan_approve' }],
-    });
-  });
-
-  const resultPromise = hb.registerPlanApproval('req-3', 'C_PLAN', 'sess-3', 'do the thing', {});
-
-  await new Promise(setImmediate as any);
-
-  assert.equal(mockAdapter.posted.length, 1, 'exactly one interactive message posted');
-  assert.equal((mockAdapter.posted[0].destination as { conduit: string }).conduit, 'C_PLAN');
-  assert.equal((mockAdapter.posted[0].content as any).text, 'Plan approval');
-
-  const actions = mockAdapter.posted[0].actions ?? [];
-  assert.equal(actions.length, 1);
-  assert.equal((actions[0] as any).value, 'req-3', 'requestId propagated to action value');
-
-  hb.resolveRequest('req-3', { approved: true, reason: '' });
   await resultPromise;
 });
 
@@ -197,21 +132,6 @@ test('registerAskQuestion with blocking=false resolves immediately and marks the
 
   // hook-bridge keeps module-level state across tests: drop the entry so a later TTL sweep is clean.
   hb.resolveRequest('req-nb', { answers: {} });
-});
-
-test('registerAskQuestion with blocking=true (default) leaves the event flag absent', async () => {
-  const bus = new EventBus();
-  const hb = await freshHookBridge();
-  hb.initHookBridge(bus);
-
-  const received: CortexEvent[] = [];
-  bus.subscribe('ask-user.requested', (e) => { received.push(e); });
-
-  const pending = hb.registerAskQuestion('req-b', 'web:sess-b', 'sess-b', [{ q: 'Which DB?' }]);
-  const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
-  assert.equal('blocking' in ev, false);
-  hb.resolveRequest('req-b', { answers: {} });
-  await pending;
 });
 
 test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (t) => {

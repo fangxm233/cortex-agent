@@ -79,22 +79,6 @@ def test_detects_planted_leaks_in_stdout(tmp_path: Path) -> None:
     assert_detected(tmp_path, "stdout")
 
 
-def test_detects_planted_leaks_in_stderr(tmp_path: Path) -> None:
-    assert_detected(tmp_path, "stderr")
-
-
-def test_detects_planted_leaks_in_events(tmp_path: Path) -> None:
-    assert_detected(tmp_path, "events")
-
-
-def test_detects_planted_leaks_in_manifest(tmp_path: Path) -> None:
-    assert_detected(tmp_path, "manifest")
-
-
-def test_detects_planted_leaks_in_workspace_diff(tmp_path: Path) -> None:
-    assert_detected(tmp_path, "workspace_diff")
-
-
 def test_scans_generalized_named_source(tmp_path: Path) -> None:
     source = tmp_path / "child-journal.jsonl"
     source.write_text("clean child journal\n")

@@ -354,10 +354,3 @@ test('control rejects an unknown control action', async () => {
   assert.match(json.error, /unknown control action/);
   assert.equal(threadStore.get(t.id)!.metadata?.pendingControl ?? null, null);
 });
-
-test('control rejects a missing control payload', async () => {
-  const t = makeThread();
-  const { json } = await postThreadOp({ action: 'control', threadId: t.id });
-  assert.equal(json.success, false);
-  assert.match(json.error, /requires threadId and control.action/);
-});

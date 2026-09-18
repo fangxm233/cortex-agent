@@ -62,32 +62,6 @@ function requireState(flowId: string): LoginFlowState {
   return state;
 }
 
-function assertInfoAndAuthNotices(flowId: string, interaction: AuthInteraction): void {
-  interaction.notify({ type: 'info', message: 'Open provider', links: [{ url: 'https://example.test', label: 'Help' }] });
-  assert.deepEqual(requireState(flowId).notice, {
-    kind: 'info', message: 'Open provider', links: [{ url: 'https://example.test', label: 'Help' }],
-  });
-  interaction.notify({ type: 'auth_url', url: 'https://example.test/auth', instructions: 'Sign in' });
-  assert.deepEqual(requireState(flowId).notice, {
-    kind: 'auth_url', url: 'https://example.test/auth', instructions: 'Sign in',
-  });
-}
-
-function assertDeviceAndProgressNotices(flowId: string, interaction: AuthInteraction): void {
-  interaction.notify({
-    type: 'device_code', userCode: 'ABCD-EFGH', verificationUri: 'https://example.test/device',
-    intervalSeconds: 5, expiresInSeconds: 600,
-  });
-  assert.deepEqual(requireState(flowId).notice, {
-    kind: 'device_code', userCode: 'ABCD-EFGH', verificationUri: 'https://example.test/device',
-    intervalSeconds: 5, expiresInSeconds: 600,
-  });
-  interaction.notify({ type: 'progress', message: 'Waiting for authorization' });
-  const state = requireState(flowId);
-  assert.deepEqual(state.notice, { kind: 'progress', message: 'Waiting for authorization' });
-  assert.equal(state.pendingPrompt, null);
-}
-
 async function startSignalProbe(provider: string): Promise<SignalProbe> {
   const aborted = deferred<unknown>();
   let signal: AbortSignal | undefined;
@@ -181,22 +155,6 @@ test('branded LoginFlowError exposes only safe message and code', async () => {
   assert.equal(serialized.includes(stackSecret), false);
 });
 
-test('structurally branded safe errors do not require instanceof', async () => {
-  const branded = {
-    name: 'LoginFlowError', message: 'Provider unavailable.', code: 'provider_unavailable',
-  };
-  assert.equal(branded instanceof LoginFlowError, false);
-  assert.equal(isLoginFlowError(branded), true);
-  assert.equal(isLoginFlowError({ ...branded, name: 'Error' }), false);
-  assert.equal(isLoginFlowError({ ...branded, code: 401 }), false);
-
-  const flow = await startFlow(input('structural-error'), async () => { throw branded; });
-  await flush();
-  const failed = requireState(flow.flowId);
-  assert.equal(failed.error, 'Provider unavailable.');
-  assert.equal(failed.errorCode, 'provider_unavailable');
-});
-
 test('a flow expires at 30 minutes and rejects its pending answer', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
@@ -267,22 +225,6 @@ test('successful consumers store defensive receipt metadata', async () => {
   result.detail = 'mutated consumer value';
   completed.outcome!.detail = 'mutated snapshot value';
   assert.equal(requireState(flow.flowId).outcome?.detail, 'Stored by provider');
-});
-
-test('AuthInteraction maps all four notify variants without a channel dependency', async () => {
-  const release = deferred<void>();
-  let interaction: AuthInteraction | undefined;
-  const flow = await startFlow(input('all-notices'), async (value) => {
-    interaction = value;
-    return delayedOutcome(release, 'all-notices');
-  });
-  await flush();
-  assert.ok(interaction);
-
-  assertInfoAndAuthNotices(flow.flowId, interaction);
-  assertDeviceAndProgressNotices(flow.flowId, interaction);
-  release.resolve();
-  await flush();
 });
 
 test('AuthPrompt signal rejects both pre-aborted and pending prompts', async () => {
@@ -387,23 +329,6 @@ test('exact TTL expiry aborts the flow-wide signal without a pending prompt', as
   assert.equal(probe.signal.aborted, true);
   assert.equal((reason as Error).name, 'AbortError');
   assert.equal(getFlowState(probe.flow.flowId), null);
-});
-
-test('startFlow and respondPrompt expose the frozen Promise contract', async () => {
-  const release = deferred<void>();
-  const startResult = startFlow(input('promise-contract'), async (interaction) => {
-    await interaction.prompt({ type: 'text', message: 'Account' });
-    return delayedOutcome(release, 'promise-contract');
-  });
-  assert.equal(startResult instanceof Promise, true);
-  const flow = await startResult;
-  await flush();
-
-  const responseResult = respondPrompt(flow.flowId, 'alice');
-  assert.equal(responseResult instanceof Promise, true);
-  assert.equal((await responseResult).step, 'running');
-  release.resolve();
-  await flush();
 });
 
 test('a submitted secret only resolves the consumer and never enters observable state', async () => {

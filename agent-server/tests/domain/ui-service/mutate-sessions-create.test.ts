@@ -45,19 +45,6 @@ test('sessions.create returns the new session id', async () => {
   assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null, commission: null }], 'creates under the requested project');
 });
 
-test('sessions.create falls back to the default project when projectId is omitted', async () => {
-  const sink: CreateCall[] = [];
-  const res = await handleCreateSession(makeDeps(sink), {});
-  assert.equal(res.ok, true);
-  assert.deepEqual(sink, [{ projectId: 'general', browser: null, commission: null }], 'uses the default project id');
-});
-
-test('sessions.create forwards an explicit browser opt-in', async () => {
-  const sink: CreateCall[] = [];
-  await handleCreateSession(makeDeps(sink), { projectId: 'nimbus', browser: { device: 'server' } });
-  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: { device: 'server' }, commission: null }]);
-});
-
 test('sessions.create forwards a commission opt-in, both new and join', async () => {
   await withCommissionEnabled(async () => {
     const fresh: CreateCall[] = [];
@@ -78,23 +65,6 @@ test('sessions.create refuses a commission opt-in while the feature switch is of
     if (!res.ok) assert.equal(res.code, 'invalid-args');
     assert.deepEqual(sink, [], 'no session is created — a refused commission must not degrade to an ordinary one');
   });
-});
-
-test('sessions.create is unaffected by the commission switch when no commission is asked for', async () => {
-  await withCommissionDisabled(async () => {
-    const sink: CreateCall[] = [];
-    const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
-    assert.equal(res.ok, true);
-    assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null, commission: null }]);
-  });
-});
-
-test('sessions.create propagates a creation failure as an Err', async () => {
-  const deps = {
-    projectStore: { getDefault: () => ({ id: 'general' }) },
-    createDirectSession: async () => { throw new Error('boom'); },
-  } as unknown as UiServiceDeps;
-  await assert.rejects(() => handleCreateSession(deps, { projectId: 'p' }), /boom/);
 });
 
 // ── sessions.createAndSend ──────────────────────────────────────

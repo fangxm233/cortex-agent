@@ -62,40 +62,12 @@ describe('buildTaskDetailVm', () => {
     expect(vm.found).toBe(false);
   });
 
-  it('maps the real id, text, status, template, doneWhen and derived runtime status', () => {
-    const vm = buildTaskDetailVm(
-      '001',
-      [task({ status: 'open', template: 'manager', claimedBy: 'exec_dispatch_x' })],
-      null,
-      NOW,
-    );
-    expect(vm.found).toBe(true);
-    expect(vm.displayId).toBe('T-001');
-    expect(vm.text).toContain('DR sweep');
-    expect(vm.status).toBe('open');
-    expect(vm.template).toBe('manager');
-    expect(vm.doneWhen).toContain('8 seed curves');
-    expect(vm.statusKind).toBe('in-progress');
-  });
-
   it('derives blocked / done / approval / actionable / waiting status kinds in precedence', () => {
     expect(buildTaskDetailVm('001', [task({ status: 'done', claimedBy: 'x' })], null, NOW).statusKind).toBe('done');
     expect(buildTaskDetailVm('001', [task({ blockedBy: 'gate' })], null, NOW).statusKind).toBe('blocked');
     expect(buildTaskDetailVm('001', [task({ approvalNeeded: true, actionable: true })], null, NOW).statusKind).toBe('approval-needed');
     expect(buildTaskDetailVm('001', [task({ actionable: true })], null, NOW).statusKind).toBe('actionable');
     expect(buildTaskDetailVm('001', [task({ actionable: false })], null, NOW).statusKind).toBe('waiting');
-  });
-
-  it('maps pending, approved, and unavailable approval fields honestly', () => {
-    const pending = buildTaskDetailVm('001', [task({ approvalNeeded: true, approvedAt: null })], null, NOW);
-    expect(pending.approvalNeeded).toBe(true);
-    expect(pending.approvedAt).toBeNull();
-
-    const approved = buildTaskDetailVm('001', [task({ approvalNeeded: false, approvedAt: '2026-07-30' })], null, NOW);
-    expect(approved.approvalNeeded).toBe(false);
-    expect(approved.approvedAt).toBe('2026-07-30');
-
-    expect(buildTaskDetailVm('001', [task({})], null, NOW).approvalNeeded).toBeNull();
   });
 
   it('uses verification completion time before the list and falls back to list data', () => {
@@ -118,17 +90,6 @@ describe('buildTaskDetailVm', () => {
     expect(buildTaskDetailVm('001', [task({})], null, NOW).completedAt).toBeNull();
   });
 
-  it('passes through done-when and blocker details honestly', () => {
-    const vm = buildTaskDetailVm(
-      '001',
-      [task({ doneWhen: null, blockedBy: 'waiting for external approval' })],
-      null,
-      NOW,
-    );
-    expect(vm.doneWhen).toBeNull();
-    expect(vm.blockedBy).toBe('waiting for external approval');
-  });
-
   it('prefers the tasks.list owning thread over dispatch-history and persisted owner ids', () => {
     const claimed = task({ claimedBy: 'task-dispatcher', claimThreadId: 'thr_owner' });
     const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
@@ -136,7 +97,6 @@ describe('buildTaskDetailVm', () => {
     expect(vm.claim!.template).toBe('experiment-pipeline');
     expect(vm.claim!.threadId).toBe('thr_owner');
     expect(vm.claim!.claimedBy).toBeNull();
-    expect(vm.claim!.meta).toBe('42m · $2.31');
   });
 
   it('uses a safe direct claim id but never an arbitrary history thread as the current owner', () => {
@@ -188,10 +148,5 @@ describe('buildTaskDetailVm', () => {
     expect(vm.history).toHaveLength(2);
     expect(vm.history[0]).toMatchObject({ status: 'completed', type: 'dispatch', isCompleting: true });
     expect(vm.history[1]).toMatchObject({ status: 'running', isCompleting: false });
-  });
-
-  it('empty history when never dispatched', () => {
-    const vm = buildTaskDetailVm('001', [task({})], verification({ dispatches: [] }), NOW);
-    expect(vm.history).toEqual([]);
   });
 });

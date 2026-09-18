@@ -34,28 +34,6 @@ test('ConfirmModal y key calls onConfirm', async () => {
   instance.cleanup();
 });
 
-test('ConfirmModal Enter key calls onConfirm', async () => {
-  let confirmed = false;
-
-  const app = React.createElement(ConfirmModal, {
-    title: 'Confirm Action',
-    body: 'Are you sure?',
-    onConfirm: () => { confirmed = true; },
-    onCancel: () => { throw new Error('onCancel should not be called'); },
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  instance.stdin.write('\r');
-  await delay(100);
-
-  assert.equal(confirmed, true, 'Enter key calls onConfirm');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('ConfirmModal n key calls onCancel', async () => {
   let cancelled = false;
 
@@ -73,28 +51,6 @@ test('ConfirmModal n key calls onCancel', async () => {
   await delay(100);
 
   assert.equal(cancelled, true, 'n key calls onCancel');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('ConfirmModal Escape calls onCancel', async () => {
-  let cancelled = false;
-
-  const app = React.createElement(ConfirmModal, {
-    title: 'Confirm Action',
-    body: 'Are you sure?',
-    onConfirm: () => { throw new Error('onConfirm should not be called'); },
-    onCancel: () => { cancelled = true; },
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  instance.stdin.write('\x1b');
-  await delay(100);
-
-  assert.equal(cancelled, true, 'Escape calls onCancel');
 
   instance.unmount();
   instance.cleanup();

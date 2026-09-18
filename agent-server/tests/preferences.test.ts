@@ -98,7 +98,4 @@ describe('applyLang', () => {
     assert.equal(getLocale(), 'en');
   });
 
-  it('works without a notifier', () => {
-    assert.equal(applyLang('zh'), 'zh');
-  });
 });

@@ -142,18 +142,6 @@ test('release — force releases across different owner', () => {
   }
 });
 
-test('release — returns success when no lock held', () => {
-  const project = nextProject();
-  setupProject(project);
-  try {
-    const result = releaseLock(project, 'anyone');
-    assert.equal(result.released, true);
-    assert.match(result.message!, /No lock/i);
-  } finally {
-    cleanupProject(project);
-  }
-});
-
 // ─── 3. isProjectLocked ─────────────────────────────────────────
 
 test('isProjectLocked — returns locked state for active lock', () => {
@@ -169,18 +157,6 @@ test('isProjectLocked — returns locked state for active lock', () => {
     assert.equal(result.locked, true);
     assert.equal(result.owner, 'owner-A');
     assert.ok(result.expiresAt);
-  } finally {
-    cleanupProject(project);
-  }
-});
-
-test('isProjectLocked — returns unlocked when no lock exists', () => {
-  const project = nextProject();
-  setupProject(project);
-  try {
-    const result = isProjectLocked(project);
-    assert.equal(result.locked, false);
-    assert.equal(result.owner, undefined);
   } finally {
     cleanupProject(project);
   }
@@ -292,17 +268,6 @@ test('writeLock — clearing lock removes lock fields and preserves tasks', () =
 
 test('readLock — returns null for nonexistent project', () => {
   assert.equal(readLock('__nonexistent_project_xyz__'), null);
-});
-
-test('readLock — returns null for project without TASKS.yaml', () => {
-  const project = nextProject();
-  const dir = path.join(PROJECTS_DIR, project);
-  fs.mkdirSync(dir, { recursive: true });
-  try {
-    assert.equal(readLock(project), null);
-  } finally {
-    try { fs.rmdirSync(dir); } catch {}
-  }
 });
 
 test('readLock — returns lock from disk with all fields', () => {

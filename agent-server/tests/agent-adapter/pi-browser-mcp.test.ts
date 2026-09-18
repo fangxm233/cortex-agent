@@ -4,7 +4,7 @@ import {
   buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from '../../src/agent-adapter/pi/session-options.js';
 import type { McpComposition } from '../../src/agent-adapter/types.js';
-import { browserMcpServer, BROWSER_MCP_SERVER_NAME } from '../../src/agent-adapter/browser-mcp-server.js';
+import { BROWSER_MCP_SERVER_NAME } from '../../src/agent-adapter/browser-mcp-server.js';
 
 const ENDPOINT = 'http://127.0.0.1:9222';
 
@@ -16,12 +16,6 @@ function request(extra: EngineSpecFixtureInput, composition: McpComposition = 'd
 }
 
 describe('browser MCP on the PI backend', () => {
-  it('hands the session no plugin server at all when nothing asked for one', () => {
-    // PI has no --mcp-config; the plugin server list IS the mechanism, so an empty list is the
-    // off state.
-    expect(request({}).pluginMcpServers).toEqual([]);
-  });
-
   it('hands the session only the browser when that is the only server', () => {
     // An earlier guard skipped the plugin handoff when the plugin list was empty; a browser-only
     // session has exactly that shape, so it would have silently got no tools.
@@ -50,10 +44,5 @@ describe('browser MCP on the PI backend', () => {
     const b = sessionIdentity(request({ browserCdpEndpoint: 'http://127.0.0.1:9333' }));
     expect(a).not.toBe(b);
     expect(a).toBe(sessionIdentity(request({ browserCdpEndpoint: ENDPOINT })));
-  });
-
-  it('shares one descriptor with the Claude path', () => {
-    const servers = request({ browserCdpEndpoint: ENDPOINT }).pluginMcpServers;
-    expect(servers[0]).toEqual(browserMcpServer(ENDPOINT));
   });
 });

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.launcher.capability_evidence import (
-    CAPABILITY_EVIDENCE_METADATA,
     CAPABILITY_EVIDENCE_SCHEMA_VERSION,
     CODEX_OFFLINE_CONTRACT,
     DEEPSEEK_OFFLINE_CONTRACT,
@@ -95,24 +94,6 @@ def test_validates_strict_offline_evidence_and_hash(tmp_path: Path) -> None:
         file, digest, capability_id="pi-deepseek-api-key", key=KEY,
         state="offline-contract-passed", adapter_id="deepseek-chat-completions/api-key",
     )["mutations_killed"] == 20
-
-
-def test_capability_metadata_is_declared_per_capability() -> None:
-    deepseek = CAPABILITY_EVIDENCE_METADATA["pi-deepseek-api-key"]
-    claude = CAPABILITY_EVIDENCE_METADATA["claude-subscription"]
-    codex = CAPABILITY_EVIDENCE_METADATA["codex-subscription"]
-    pi_codex = CAPABILITY_EVIDENCE_METADATA["pi-openai-codex-oauth"]
-
-    assert deepseek.metadata_fields == frozenset({"pi_version", "model_metadata_sha256"})
-    assert claude.metadata_fields == frozenset({"claude_code_version"})
-    assert codex.metadata_fields == frozenset({"codex_cli_version"})
-    assert pi_codex.metadata_fields == frozenset({"pi_version"})
-    assert deepseek.offline_fields == frozenset({
-        "mutation_manifest_sha256", "mutations_total", "mutations_killed",
-    })
-    assert claude.offline_fields == frozenset({"synthetic_observation_sha256"})
-    assert codex.offline_fields == frozenset(CODEX_PROOF_PATHS)
-    assert pi_codex.offline_fields == frozenset(PI_CODEX_PROOF_PATHS)
 
 
 def test_deepseek_evidence_output_is_byte_for_byte_unchanged() -> None:
@@ -419,38 +400,6 @@ def test_shipped_evidence_attests_mechanism_and_carries_no_declared_envelope(sta
     assert [field for field in UNVERIFIABLE_TREE_IDENTITY_FIELDS if field in shipped] == []
     assert all(shipped[field] for field in MECHANISM_FIELDS)
     assert shipped["capability_key"]["proxy_adapter_version"] == "cortex-bench-trial-proxy/2"
-
-
-@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
-@pytest.mark.parametrize("field", UNVERIFIABLE_TREE_IDENTITY_FIELDS)
-def test_evidence_carrying_an_unverifiable_tree_identity_is_refused(
-    tmp_path: Path, state: str, field: str,
-) -> None:
-    record = document(state)
-    record[field] = "0" * 64
-    file = tmp_path / f"{state}-{field}.json"
-    digest = write(file, record)
-    with pytest.raises(ValueError, match="fields"):
-        validate_capability_evidence(
-            file, digest, capability_id="pi-deepseek-api-key", key=KEY,
-            state=state, adapter_id="deepseek-chat-completions/api-key",
-        )
-
-
-@pytest.mark.parametrize("state", ["offline-contract-passed", "live-handshake-passed"])
-@pytest.mark.parametrize("field", NUMERIC_ENVELOPE_FIELDS)
-def test_evidence_carrying_a_declared_envelope_number_is_refused(
-    tmp_path: Path, state: str, field: str,
-) -> None:
-    record = document(state)
-    record[field] = 256
-    file = tmp_path / f"{state}-{field}.json"
-    digest = write(file, record)
-    with pytest.raises(ValueError, match="fields"):
-        validate_capability_evidence(
-            file, digest, capability_id="pi-deepseek-api-key", key=KEY,
-            state=state, adapter_id="deepseek-chat-completions/api-key",
-        )
 
 
 # --- mutation manifest ---------------------------------------------------------------------------

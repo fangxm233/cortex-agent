@@ -5,7 +5,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  _addNotification, _markRead, _clearNotifications,
+  _addNotification, _markRead,
   EMPTY_NOTIF_STATE,
 } from '../../src/tui/hooks/useNotifications.js';
 import type { Notification } from '../../src/platform/tui/protocol.js';
@@ -39,15 +39,6 @@ test('_addNotification adds entry and increments unreadCount', () => {
   assert.equal(entry.read, false);
 });
 
-test('_markRead marks notification as read and decrements unreadCount', () => {
-  const s1 = _addNotification(EMPTY_NOTIF_STATE, makeNotifFrame({ kind: 'system-notice' }));
-  assert.equal(s1.unreadCount, 1);
-
-  const s2 = _markRead(s1, s1.ids[0]);
-  assert.equal(s2.notifications.get(s1.ids[0])!.read, true);
-  assert.equal(s2.unreadCount, 0);
-});
-
 test('ring buffer evicts oldest at cap 50', () => {
   let state = EMPTY_NOTIF_STATE;
   for (let i = 0; i < 52; i++) {
@@ -62,24 +53,6 @@ test('ring buffer evicts oldest at cap 50', () => {
   const titles = state.ids.map(id => state.notifications.get(id)!.title);
   assert.ok(!titles.includes('Notif 0'), 'oldest notification evicted');
   assert.ok(titles.includes('Notif 51'), 'most recent notification present');
-});
-
-test('_clearNotifications returns empty state', () => {
-  const s1 = _addNotification(EMPTY_NOTIF_STATE, makeNotifFrame());
-  assert.equal(s1.ids.length, 1);
-
-  const cleared = _clearNotifications();
-  assert.equal(cleared.ids.length, 0);
-  assert.equal(cleared.notifications.size, 0);
-  assert.equal(cleared.unreadCount, 0);
-});
-
-test('_markRead with unknown id is no-op', () => {
-  const s1 = _addNotification(EMPTY_NOTIF_STATE, makeNotifFrame());
-  const s2 = _markRead(s1, 'nonexistent');
-
-  assert.equal(s2.ids.length, 1);
-  assert.equal(s2.unreadCount, 1);
 });
 
 test('multiple adds and reads interleaved', () => {

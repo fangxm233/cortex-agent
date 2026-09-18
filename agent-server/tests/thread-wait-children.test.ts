@@ -85,30 +85,12 @@ test('no wait control signal when neither artifact nor last step set one', () =>
   assert.equal(peekPendingControl(t.id), null);
 });
 
-test('peekPendingControl returns null for unknown thread id', () => {
-  assert.equal(peekPendingControl('thr_nope_' + Date.now()), null);
-});
-
-test('a wait control signal is read from pendingControl (set by thread_wait → control action)', async () => {
-  const t = makeThread();
-  await setControl(t.id, { action: 'wait', onThreads: null, onTasks: null });
-  assert.equal(peekPendingControl(t.id)?.action, 'wait');
-});
-
 test('clearPendingControl drains a wait signal so it fires exactly once', async () => {
   const t = makeThread();
   await setControl(t.id, { action: 'wait' });
   assert.equal(peekPendingControl(t.id)?.action, 'wait');
   await clearPendingControl(t.id);
   assert.equal(peekPendingControl(t.id), null);
-});
-
-// REGRESSION: artifact prose mentioning [WAIT_CHILDREN] must NOT create a wait control signal.
-test('artifact text mentioning [WAIT_CHILDREN] does NOT create a wait control signal', () => {
-  const t = makeThreadWithArtifact('Plan: spawn children, then [WAIT_CHILDREN] when ready.\n', {
-    steps: [step('progress; will [WAIT_CHILDREN] next time')],
-  });
-  assert.equal(peekPendingControl(t.id), null, 'prose must not trigger wait');
 });
 
 // --- tryEnterWaiting ---

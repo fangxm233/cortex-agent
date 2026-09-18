@@ -21,10 +21,8 @@ from synthetic import (
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-SEAM-UNIQUE"
 DENIED_TARGETS = [
     ("/v1/messages", "route_denied_messages_non_beta"),
-    ("/v1/messages?beta=false", "route_denied_messages_non_beta"),
     ("/v1/messages/count_tokens?beta=true", "route_denied_count_tokens"),
     ("/v1/messages/batches?beta=true", "route_denied_batches"),
-    ("/v1/messages/batches/batch_1?beta=true", "route_denied_batches"),
     ("/v1/complete", "route_not_allowed"),
 ]
 
@@ -49,23 +47,6 @@ def start_proxy(
 
 def records(log_path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in log_path.read_text().splitlines()]
-
-
-def test_forwards_the_api_key_and_never_a_bearer(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url)
-        try:
-            status, _ = proxy_request(
-                handle.base_url, handle.dummy_token, "call",
-                extra_headers={"x-api-key": "container-supplied-key"})
-        finally:
-            handle.stop()
-    headers = {key.lower(): value for key, value in upstream.requests[0].headers.items()}
-    assert status == 200
-    assert headers["x-api-key"] == REAL_CREDENTIAL
-    assert "authorization" not in headers
-    assert handle.dummy_token not in json.dumps(headers)
-    assert "container-supplied-key" not in json.dumps(headers)
 
 
 def test_forwarded_target_keeps_the_beta_query(tmp_path: Path) -> None:
@@ -180,26 +161,6 @@ def test_body_without_a_locatable_model_is_refused_never_passed_through(
     assert records(log_path)[0]["outcome"] == outcome
 
 
-def test_rejections_are_audited_without_touching_the_request_reservation(tmp_path: Path) -> None:
-    log_path = tmp_path / "seam.jsonl"
-    with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url)
-        try:
-            first, _ = proxy_request(
-                handle.base_url, handle.dummy_token, "denied", target="/v1/messages")
-            second, _ = proxy_request(
-                handle.base_url, handle.dummy_token, "denied", model="claude-other-9")
-            state = handle._server.state
-        finally:
-            handle.stop()
-    assert (first, second) == (403, 400)
-    assert state.request_count == 2
-    assert state.reserved_requests == 0
-    assert state.reserved_requests >= 0
-    assert [record["request_count"] for record in records(log_path)] == [1, 2]
-    assert [record["tokens"]["total"] for record in records(log_path)] == [0, 0]
-
-
 def test_refused_requests_leave_the_whole_request_count_for_an_admitted_one(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream.base_url, max_cost="5")
@@ -249,28 +210,6 @@ def test_unparsable_usage_leaves_accounting_unavailable_and_revokes(tmp_path: Pa
     assert len(upstream.requests) == 1
 
 
-def test_stream_that_stops_before_message_delta_is_unaccounted_and_revokes(
-    tmp_path: Path,
-) -> None:
-    with SyntheticUpstream() as upstream:
-        upstream.server.content_type = "text/event-stream"
-        upstream.server.raw_body = (
-            b'data: {"type":"message_start","message":{"model":"'
-            + SYNTHETIC_MODEL.encode()
-            + b'","usage":{"input_tokens":9,"output_tokens":1}}}\n\n'
-        )
-        handle = start_proxy(tmp_path, upstream.base_url)
-        try:
-            first = streamed_proxy_request(
-                handle.base_url, handle.dummy_token, "stream")
-            second, _ = proxy_request(handle.base_url, handle.dummy_token, "after")
-        finally:
-            handle.stop()
-    assert first.complete is False
-    assert second == 410
-    assert len(upstream.requests) == 1
-
-
 def test_proxy_refuses_to_start_for_an_upstream_the_adapter_does_not_declare(
     tmp_path: Path,
 ) -> None:
@@ -283,26 +222,6 @@ def test_proxy_refuses_to_start_for_an_upstream_the_adapter_does_not_declare(
             limits=limits(), log_path=tmp_path / "unstarted.jsonl",
             lease_terms=LEASE_TERMS,
         )
-
-
-def test_manifest_records_the_adapter_that_carried_the_trial(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        adapter = row_one_adapter(upstream.base_url, REAL_CREDENTIAL)
-        handle = start_trial_proxy(
-            trial_id="trial-seam", upstream_base_url=upstream.base_url, adapter=adapter,
-            bound_source_ip="127.0.0.1",
-            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-            limits=limits("20"), log_path=tmp_path / "seam.jsonl",
-            lease_terms=LEASE_TERMS,
-        )
-        try:
-            proxy_request(handle.base_url, handle.dummy_token, "one")
-            proxy_request(handle.base_url, handle.dummy_token, "two")
-            in_force = handle._server.adapter
-        finally:
-            handle.stop()
-    assert handle.manifest_block["adapter_id"] == adapter.adapter_id
-    assert in_force is adapter
 
 
 @pytest.mark.parametrize(

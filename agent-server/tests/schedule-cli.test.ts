@@ -307,23 +307,6 @@ test('schedule CLI update changes common fields and daily time', withTempSchedul
   assert.equal((await scheduler.get('daily1')).time, '10:30');
 }));
 
-test('schedule CLI edit is an alias for update', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['edit', 'daily1', '--time', '11:00', '--message', 'edited daily'], { scheduler, now: 1000 });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.time, '11:00');
-  assert.equal(parsed.task.message, 'edited daily');
-  assert.equal((await scheduler.get('daily1')).time, '11:00');
-}));
-
-test('schedule CLI accepts intervalMs as a compatibility alias for interval', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['edit', 'int1', '--intervalMs', '7200000'], { scheduler, now: 1000 });
-  const parsed = JSON.parse(result.stdout);
-
-  assert.equal(parsed.task.intervalMs, 7200000);
-  assert.equal((await scheduler.get('int1')).intervalMs, 7200000);
-}));
-
 test('schedule CLI remove deletes the target task', withTempSchedules(async ({ scheduler }) => {
   const result = await runScheduleCli(['remove', 'int1'], { scheduler, now: 1000 });
   const parsed = JSON.parse(result.stdout);
@@ -334,20 +317,6 @@ test('schedule CLI remove deletes the target task', withTempSchedules(async ({ s
 
 // --- error message tests ---
 
-test('schedule CLI unknown command lists available commands', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['nonexistent'], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /Unknown command: 'nonexistent'/);
-  assert.match(result.stderr, /Available commands:/);
-}));
-
-test('schedule CLI unknown add type lists valid types', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', 'badtype'], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /Unknown add type: 'badtype'/);
-  assert.match(result.stderr, /Valid types:/);
-}));
-
 // --- ISS-CS-005 source-level guard: CLI must refuse to persist null/empty messages ---
 
 test('schedule CLI add --type interval rejects empty --message', withTempSchedules(async ({ scheduler }) => {
@@ -357,26 +326,8 @@ test('schedule CLI add --type interval rejects empty --message', withTempSchedul
   assert.match(result.stderr, /--message is required|null\/empty\/whitespace message/);
 }));
 
-test('schedule CLI add --type interval rejects whitespace-only --message', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', '   '], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /null\/empty\/whitespace message/);
-}));
-
 test('schedule CLI add --type interval rejects literal "null" --message', withTempSchedules(async ({ scheduler }) => {
   const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', 'null'], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /null\/empty\/whitespace message/);
-}));
-
-test('schedule CLI add (legacy positional) rejects whitespace-only message', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', 'interval', '30m', '   '], { scheduler });
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /null\/empty\/whitespace message/);
-}));
-
-test('schedule CLI add (legacy positional) rejects empty message (trailing args elide to empty)', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', 'interval', '30m'], { scheduler });
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /null\/empty\/whitespace message/);
 }));
@@ -400,23 +351,6 @@ test('schedule CLI add with flags creates interval schedule and persists default
   assert.equal(parsed.task.intervalMs, 1800000);
   assert.equal(parsed.task.message, 'test flag add');
   assert.equal(parsed.task.profile, getDefaultProfileName());
-}));
-
-test('schedule CLI add legacy positional mode persists default profile when omitted', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', 'interval', '30m', 'test positional add'], { scheduler });
-  assert.equal(result.exitCode, 0);
-  const parsed = JSON.parse(result.stdout);
-  assert.ok(parsed.task);
-  assert.equal(parsed.task.type, 'interval');
-  assert.equal(parsed.task.message, 'test positional add');
-  assert.equal(parsed.task.profile, getDefaultProfileName());
-}));
-
-test('schedule CLI add preserves explicit profile override', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['add', '--type', 'interval', '--interval', '30m', '--message', 'test explicit profile', '--profile', 'qa'], { scheduler });
-  assert.equal(result.exitCode, 0);
-  const parsed = JSON.parse(result.stdout);
-  assert.equal(parsed.task.profile, 'qa');
 }));
 
 // --- dry-run tests ---

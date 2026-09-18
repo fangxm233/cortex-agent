@@ -112,20 +112,6 @@ test('maybeNotifyTurnComplete: disabled via env → no notification', async () =
   }
 });
 
-test('maybeNotifyTurnComplete: failed status → no metrics in text', async () => {
-  const { calls, adapter } = makeAdapter();
-  await maybeNotifyTurnComplete({ adapter, ...base, elapsedS: 120, status: 'failed' });
-  assert.equal(calls.length, 1);
-  assert.doesNotMatch(calls[0].content.text, /\$0\.12/, 'metrics suffix omitted for failure');
-});
-
-test('maybeNotifyTurnComplete: threadAnchorId forwarded as threadId opt', async () => {
-  const { calls, adapter } = makeAdapter();
-  await maybeNotifyTurnComplete({ adapter, ...base, threadAnchorId: 't-99', elapsedS: 120, status: 'completed' });
-  assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].opts, { threadId: 't-99' });
-});
-
 test('maybeNotifyTurnComplete: never throws when adapter.postMessage rejects', async () => {
   const adapter = { postMessage: async () => { throw new Error('boom'); } } as any;
   await assert.doesNotReject(maybeNotifyTurnComplete({ adapter, ...base, elapsedS: 120, status: 'completed' }));

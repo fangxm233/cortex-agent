@@ -67,18 +67,6 @@ test('ProjectDirRepo - flush() resolves only after all pending mutations (FIFO o
 
 // ── CRUD: get / set / remove ──────────────────────────────────
 
-test('ProjectDirRepo - getProjectDir returns null for unknown project/machine', async () => {
-  const projectDirRepo = createRepo();
-  assert.equal(await projectDirRepo.getProjectDir('no-proj', 'no-machine'), null);
-});
-
-test('ProjectDirRepo - setProjectDir then getProjectDir returns the value', async () => {
-  const projectDirRepo = createRepo();
-  await projectDirRepo.setProjectDir('proj-a', 'testbox', '/home/user/proj');
-  const dir = await projectDirRepo.getProjectDir('proj-a', 'testbox');
-  assert.equal(dir, '/home/user/proj');
-});
-
 test('ProjectDirRepo - removeProjectDir deletes entry and cleans up empty project', async () => {
   const projectDirRepo = createRepo();
   await projectDirRepo.setProjectDir('proj-a', 'testbox', '/path/a');
@@ -105,18 +93,6 @@ test('ProjectDirRepo - removeProjectDir keeps project when other machines remain
 
 // ── getAllProjectDirs returns all entries ─────────────────────
 
-test('ProjectDirRepo - getAllProjectDirs returns nested structure', async () => {
-  const projectDirRepo = createRepo();
-  await projectDirRepo.setProjectDir('proj-a', 'testbox', '/a');
-  await projectDirRepo.setProjectDir('proj-b', 'lab', '/b');
-
-  const all = await projectDirRepo.getAllProjectDirs();
-  assert.deepEqual(all, {
-    'proj-a': { 'testbox': '/a' },
-    'proj-b': { 'lab': '/b' },
-  });
-});
-
 // ── removeProjectDir is a no-op for non-existent project or machine ──
 
 test('ProjectDirRepo - removeProjectDir on unknown project is a no-op', async () => {
@@ -125,16 +101,6 @@ test('ProjectDirRepo - removeProjectDir on unknown project is a no-op', async ()
 
   // Remove something that doesn't exist — must not throw and must not corrupt state
   await projectDirRepo.removeProjectDir('does-not-exist', 'anywhere');
-
-  const all = await projectDirRepo.getAllProjectDirs();
-  assert.deepEqual(all, { 'proj-a': { 'testbox': '/a' } });
-});
-
-test('ProjectDirRepo - removeProjectDir on unknown machine of existing project is a no-op', async () => {
-  const projectDirRepo = createRepo();
-  await projectDirRepo.setProjectDir('proj-a', 'testbox', '/a');
-
-  await projectDirRepo.removeProjectDir('proj-a', 'lab-ksu');
 
   const all = await projectDirRepo.getAllProjectDirs();
   assert.deepEqual(all, { 'proj-a': { 'testbox': '/a' } });

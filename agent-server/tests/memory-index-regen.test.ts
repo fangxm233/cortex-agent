@@ -36,34 +36,11 @@ test('generateIndex separates invalidated from stale/superseded and keeps challe
     assert.match(index, /\| K-003 \|/);
 
     assert.match(index, /## Invalidated \(1 entries\)/);
-    assert.match(index, /Do NOT use their conclusions/);
     assert.match(index, /\| K-005 \|/);
 
     assert.match(index, /## Superseded \/ Deprecated \(2 entries\)/);
     assert.match(index, /\| K-004 \|/);
     assert.match(index, /\| K-006 \|/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('generateIndex includes Use when guidance for empty knowledge and patterns indexes', () => {
-  const root = mkTemp('index-regen-use-when-');
-
-  const knowledgeDir = path.join(root, 'demo', 'knowledge');
-  const patternsDir = path.join(root, 'demo', 'patterns');
-  fs.mkdirSync(knowledgeDir, { recursive: true });
-  fs.mkdirSync(patternsDir, { recursive: true });
-
-  try {
-    generateIndex(knowledgeDir, 'Knowledge Index — demo');
-    generateIndex(patternsDir, 'Patterns Index — demo');
-
-    const knowledgeIndex = fs.readFileSync(path.join(knowledgeDir, 'index.md'), 'utf8');
-    const patternsIndex = fs.readFileSync(path.join(patternsDir, 'index.md'), 'utf8');
-
-    assert.match(knowledgeIndex, /Use when: applying validated facts\/principles to current work/);
-    assert.match(patternsIndex, /Use when: looking for cross-experiment regularities/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

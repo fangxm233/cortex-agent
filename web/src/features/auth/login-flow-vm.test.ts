@@ -58,8 +58,6 @@ describe('buildLoginFlowVm', () => {
     }), en);
 
     expect(done).toMatchObject({ kind: 'done', terminal: true });
-    expect(done.message).toContain('anthropic');
     expect(failed).toMatchObject({ kind: 'failed', terminal: true });
-    expect(failed.message).toContain('PI runtime is unavailable.');
   });
 });

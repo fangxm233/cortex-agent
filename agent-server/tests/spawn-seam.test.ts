@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, test } from 'vitest';
+import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -1113,27 +1113,4 @@ test('the pool separates two routes that differ only by credential', async () =>
   assert.notEqual(claudePool(adapter).getPooledSession(key), first,
     'one endpoint reached with another account is another route');
   await claudePool(adapter).close(key);
-});
-
-// D9: Claude TUI is deprecated; P2.3c routes tui → print.
-describe.skip('Claude TUI pool (removed by D9)', () => {
-  test('the TUI pool compares the route the same way', async () => {
-    const adapter = new ClaudeAdapter();
-    const key = 'route-pool-tui';
-    const tui: EngineSpecFixtureInput = {
-      claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
-    };
-
-    claudePool(adapter).open(pooledRouteConfig(key, tui));
-    const first = claudePool(adapter).getPooledSession(key);
-    claudePool(adapter).open(pooledRouteConfig(key, tui));
-    assert.equal(claudePool(adapter).getPooledSession(key), first,
-      'an identical route keeps the tmux session alive');
-
-    claudePool(adapter).open(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
-    assert.ok(first);
-    assert.notEqual(claudePool(adapter).getPooledSession(key), first,
-      'dropping the key changes which account the TUI session bills');
-    await claudePool(adapter).close(key);
-  });
 });

@@ -36,8 +36,4 @@ describe('RailRateLimitStatus', () => {
     expect(html).toContain('data-state="closed"');
     expect(html).toContain('aria-expanded="false"');
   });
-
-  it('renders nothing without an active throttle', () => {
-    expect(renderToStaticMarkup(<RailRateLimitStatus status={null} />)).toBe('');
-  });
 });

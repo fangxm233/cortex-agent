@@ -1,8 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LANG_STORAGE_KEY } from '@/i18n/lang';
-import { LangProvider, useIsMobile, useLang } from '@/i18n/LangProvider';
+
 import { MOBILE_LAYOUT_QUERY, useMobileLayout } from './use-mobile-layout';
 
 // The suite runs in the vitest Node environment (no jsdom). Native shell flags live on
@@ -167,42 +166,9 @@ describe('useMobileLayout — native shell flags win over the viewport', () => {
 
     expect(layout).toBe(false);
   });
-
-  it('native mobile is mobile with no browser APIs at all', () => {
-    (globalThis as FlagGlobal).__CORTEX_MOBILE__ = true;
-
-    mount(<LayoutProbe />);
-
-    expect(layout).toBe(true);
-  });
-
-  it('native desktop is desktop with no browser APIs at all', () => {
-    (globalThis as FlagGlobal).__CORTEX_DESKTOP__ = true;
-
-    mount(<LayoutProbe />);
-
-    expect(layout).toBe(false);
-  });
 });
 
 describe('useMobileLayout — no browser API degrades to desktop', () => {
-  it('no window', () => {
-    mount(<LayoutProbe />);
-    expect(layout).toBe(false);
-  });
-
-  it('window without matchMedia', () => {
-    vi.stubGlobal('window', {});
-    mount(<LayoutProbe />);
-    expect(layout).toBe(false);
-  });
-
-  it('window with a non-function matchMedia', () => {
-    vi.stubGlobal('window', { matchMedia: 'not-a-function' });
-    mount(<LayoutProbe />);
-    expect(layout).toBe(false);
-  });
-
   it('matchMedia that throws does not break first paint', () => {
     vi.stubGlobal('window', {
       matchMedia: () => { throw new Error('denied'); },
@@ -210,57 +176,5 @@ describe('useMobileLayout — no browser API degrades to desktop', () => {
 
     expect(() => mount(<LayoutProbe />)).not.toThrow();
     expect(layout).toBe(false);
-  });
-});
-
-// The layout hook is the value LangProvider exposes as useIsMobile; the language itself is a
-// separate, server-owned knob and must not be derived from the viewport.
-describe('LangProvider integration', () => {
-  let app: { isMobile: boolean; lang: string } | null = null;
-
-  function AppProbe() {
-    app = { isMobile: useIsMobile(), lang: useLang() };
-    return null;
-  }
-
-  function browserWindow(matchMedia: (query: string) => MediaQueryList, seedLang?: string) {
-    const store = new Map<string, string>(seedLang ? [[LANG_STORAGE_KEY, seedLang]] : []);
-    return {
-      matchMedia,
-      localStorage: {
-        getItem: (k: string) => store.get(k) ?? null,
-        setItem: (k: string, v: string) => { store.set(k, v); },
-      },
-    };
-  }
-
-  beforeEach(() => {
-    app = null;
-  });
-
-  it('exposes the browser viewport as the layout without touching the language', () => {
-    const vp = fakeViewport(375);
-    vi.stubGlobal('window', browserWindow(vp.window.matchMedia, 'en'));
-    const renderer = mount(<LangProvider><AppProbe /></LangProvider>);
-
-    expect(app?.isMobile).toBe(true);
-    // A narrow viewport selects the mobile LAYOUT only; the language stays whatever the
-    // cache/server decided (here a cached 'en').
-    expect(app?.lang).toBe('en');
-
-    act(() => renderer.unmount());
-  });
-
-  it('updates the layout as the browser viewport crosses the breakpoint', () => {
-    const vp = fakeViewport(1024);
-    vi.stubGlobal('window', browserWindow(vp.window.matchMedia, 'en'));
-    const renderer = mount(<LangProvider><AppProbe /></LangProvider>);
-
-    expect(app?.isMobile).toBe(false);
-    act(() => vp.setWidth(375));
-    expect(app?.isMobile).toBe(true);
-    expect(app?.lang).toBe('en');
-
-    act(() => renderer.unmount());
   });
 });

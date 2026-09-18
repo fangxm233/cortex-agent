@@ -68,25 +68,11 @@ afterAll(() => {
   try { stopClientManager(); } catch {}
 });
 
-test('getOnlineDevices returns [] and isDeviceOnline returns false when no server started', () => {
-  // With no WebSocket server running and no clients, the module-level `devices` Map is empty.
-  // (If a previous test leaked state we still expect at most the previously-registered devices,
-  //  but stopClientManager clears them — and this is the first test in the file.)
-  assert.deepEqual(getOnlineDevices(), []);
-  assert.equal(isDeviceOnline('any-device'), false);
-});
-
 test('sendCommand rejects immediately with "not online" for unknown device', async () => {
   await assert.rejects(
     () => sendCommand('device-does-not-exist', { action: 'bash', params: { cmd: 'echo hi' } }),
     /not online/,
   );
-});
-
-test('stopClientManager is idempotent — safe to call when not started', () => {
-  assert.doesNotThrow(() => stopClientManager());
-  // Second call should also be a no-op.
-  assert.doesNotThrow(() => stopClientManager());
 });
 
 test('start + hello handshake populates devices; stopClientManager tears everything down', async (t) => {
@@ -227,22 +213,6 @@ test('WS handshake rejects a connection with a wrong token', async (t) => {
   try { ws.close(); } catch {}
 });
 
-test('WS handshake accepts a connection carrying the correct token', async (t) => {
-  const port = await findEphemeralPort();
-  startClientManager(port);
-  t.onTestFinished(() => stopClientManager());
-
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
-  await new Promise<void>((resolve, reject) => {
-    ws.once('open', () => resolve());
-    ws.once('error', reject);
-  });
-  ws.send(JSON.stringify({ type: 'hello', device: 'mock-auth-ok', platform: 'linux', capabilities: [] }));
-  await waitFor(() => isDeviceOnline('mock-auth-ok'));
-  ws.close();
-  await waitFor(() => !isDeviceOnline('mock-auth-ok'));
-});
-
 // --- Remote spawn injects the client token so SSH-launched clients can authenticate ---
 
 test('buildRemoteSpawnCommand injects token and managed URL on Linux remotes', () => {
@@ -283,12 +253,6 @@ test('buildRemoteSpawnCommand wraps the Windows launch with cmd.exe /c', () => {
   // expects the ProcessId on stdout).
   assert.match(cmd, /Invoke-WmiMethod -Class Win32_Process -Name Create/);
   assert.match(cmd, /\.ProcessId/);
-});
-
-test('buildRemoteSpawnCommand uses nohup + echo $! on Linux remotes', () => {
-  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/x', gpuCount: 0, ssh: 'user@host' });
-  assert.match(cmd, /^nohup node "\$HOME\/\.cortex\/client\/current\/client\.mjs"/);
-  assert.match(cmd, /echo \$!/);
 });
 
 // --- Configurable launch command (machines.json `clientCommand`) ---

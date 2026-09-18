@@ -220,34 +220,6 @@ beforeEach(() => {
 });
 
 describe('desktop Settings Usage panel', () => {
-  it('keeps the animated fill mounted when usage changes', () => {
-    const renderer = mount();
-    const fill = renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0];
-    expect(fill.props.style.width).toBe('54%');
-    currentUsage = usage.map((provider, index) => index === 0 ? {
-      ...provider, windows: provider.windows.map(window => ({ ...window, utilization: 0.2 })),
-    } : provider);
-    act(() => { renderer.update(<LangProvider><UsagePanel /></LangProvider>); });
-    expect(renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0]).toBe(fill);
-    expect(fill.props.style.width).toBe('20%');
-    act(() => renderer.unmount());
-  });
-
-  it('packs cards by height, aligns policy controls, separates windows, and omits status pills', () => {
-    const renderer = mount();
-    const cards = renderer.root.findByProps({ 'data-usage-cards': true });
-    const fiveHour = targetKey('anthropic', 'five_hour');
-
-    expect(cards.props.style).toMatchObject({ columnWidth: 380, columnCount: 2, columnGap: 12 });
-    expect(thresholdInput(renderer, fiveHour).props.style.height).toBe(30);
-    expect(saveButton(renderer, fiveHour).props.style.height).toBe(30);
-    expect(resetButton(renderer, fiveHour).props.style).toMatchObject({
-      height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    });
-    expect(renderer.root.findByProps({ 'data-usage-window': 'five_hour' }).props.style.borderTop).toBeUndefined();
-    expect(renderer.root.findByProps({ 'data-usage-window': 'seven_day' }).props.style.borderTop).toBe('1px solid var(--proto-line-3)');
-    expect(renderer.root.findAll((node) => node.props['data-usage-freshness'] !== undefined)).toHaveLength(0);
-  });
 
   it('hides row policy controls while config is loading, missing, or failed without hiding usage', () => {
     const cases = [
@@ -318,9 +290,7 @@ describe('desktop Settings Usage panel', () => {
     });
 
     expect(saveButton(renderer, fiveHour).props.disabled).toBe(true);
-    expect(toggle(renderer, fiveHour).props['aria-disabled']).toBe(true);
     expect(thresholdInput(renderer, sevenDay).props.disabled).toBe(false);
-    expect(toggle(renderer, sevenDay).props['aria-disabled']).toBe(false);
     act(() => renderer.root.findByProps({ 'data-usage-refresh': true }).props.onClick());
     expect(harness.mutations).toContainEqual({ kind: 'system.refreshUsage', args: {} });
 

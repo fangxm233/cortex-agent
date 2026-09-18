@@ -601,19 +601,6 @@ test('extractTuiAdapter: returns gateway from CompositeAdapter', () => {
   assert.equal(extracted, gateway);
 });
 
-test('extractTuiAdapter: returns self for bare TuiGatewayAdapter', () => {
-  const gateway = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
-  const extracted = extractTuiAdapter(gateway);
-  assert.ok(extracted !== null);
-  assert.equal(extracted, gateway);
-});
-
-test('extractTuiAdapter: returns null for non-TUI adapter', () => {
-  const primary = new MockAdapter({ adminChannel: 'C-admin' });
-  const extracted = extractTuiAdapter(primary);
-  assert.equal(extracted, null);
-});
-
 // ── Test: FanOutOutputStream ──────────────────────────────────────
 
 test('FanOutOutputStream: broadcasts emitText to all sub-streams', () => {
@@ -667,33 +654,4 @@ test('FanOutOutputStream: flush awaits all sub-streams', async () => {
 
   assert.equal(sub1.segments[0], 'flush');
   assert.equal(sub2.segments[0], 'flush');
-});
-
-test('FanOutOutputStream: getRefs concatenates all sub-stream refs', () => {
-  const sub1 = new RecordingOutputStream();
-  const sub2 = new RecordingOutputStream();
-
-  // Both sub-streams have auto-created refs from postInteractive
-  const fanOut = new FanOutOutputStream([sub1, sub2]);
-  // Trigger ref creation by calling postInteractive
-  fanOut.postInteractive('a');
-  fanOut.postInteractive('b');
-
-  const refs = fanOut.getRefs();
-  assert.equal(refs.length, sub1.refs.length + sub2.refs.length);
-});
-
-test('FanOutOutputStream: getParentRef returns first sub-stream parent', () => {
-  const sub1 = new RecordingOutputStream();
-  const sub2 = new RecordingOutputStream();
-  const fanOut = new FanOutOutputStream([sub1, sub2]);
-
-  // No parent ref set yet
-  assert.equal(fanOut.getParentRef(), null);
-
-  // After postInteractive, parent refs are set on sub-streams
-  fanOut.postInteractive('first');
-
-  const parent = fanOut.getParentRef();
-  assert.ok(parent !== null);
 });

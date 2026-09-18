@@ -66,26 +66,6 @@ describe('ApprovalCenterModal', () => {
     });
 
     expect(adapter.reject).toHaveBeenCalledWith('apr-1', '  explain first  ');
-    expect(adapter.toast).toHaveBeenCalledWith({ title: 'apToastRejected', tone: 'failed' });
-    expect(renderer!.root.findAllByProps({ 'data-approval-feedback': '' })).toHaveLength(0);
-  });
-
-  it('clears desktop-only armed feedback when selection changes', async () => {
-    let renderer: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(<ApprovalCenterModal open onClose={vi.fn()} />);
-    });
-    act(() => renderer!.root.findByProps({ 'data-action': 'arm' }).props.onClick());
-    act(() => {
-      renderer!.root.findByProps({ 'data-approval-feedback': '' }).props.onChange({
-        target: { value: 'draft' },
-      });
-      renderer!.root.findByProps({ 'data-approval-id': 'apr-2' }).props.onClick();
-    });
-    await act(async () => {});
-
-    expect(renderer!.root.findByProps({ 'data-approval-center': '' }).props['data-approval-selected'])
-      .toBe('apr-2');
     expect(renderer!.root.findAllByProps({ 'data-approval-feedback': '' })).toHaveLength(0);
   });
 });

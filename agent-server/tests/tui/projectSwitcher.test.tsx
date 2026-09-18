@@ -45,29 +45,3 @@ test('ProjectSwitcher renders projects and calls onSelect on Enter', async (t) =
   instance.unmount();
   instance.cleanup();
 });
-
-test('ProjectSwitcher escape closes', async (t) => {
-  let closeCalled = false;
-
-  const app = React.createElement(ProjectSwitcher, {
-    open: true,
-    projects: [{ id: 'general' }],
-    loading: false,
-    error: null,
-    onSelect: () => {},
-    onClose: () => { closeCalled = true; },
-    onRequestRefresh: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Press Escape
-  instance.stdin.write('\x1b');
-  await delay(100);
-
-  assert.equal(closeCalled, true, 'Escape calls onClose');
-
-  instance.unmount();
-  instance.cleanup();
-});

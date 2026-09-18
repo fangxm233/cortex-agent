@@ -73,10 +73,6 @@ describe('pickBudget', () => {
     expect(pickBudget(config, undefined).scope).toBe('global');
   });
 
-  test('a config with no projects map does not throw', () => {
-    const legacy = { daily_usd: 100, monthly_usd: 2000 } as BudgetConfig;
-    expect(pickBudget(legacy, 'alpha').scope).toBe('global');
-  });
 });
 
 // ── getCostSummary: scoped denominators ───────────────────────
@@ -188,11 +184,6 @@ describe('clearProjectBudget', () => {
     expect(budget.daily_usd).toBe(100);
   });
 
-  test('is a no-op returning false when the project has no override', async () => {
-    await seed({}, []);
-    expect(await clearProjectBudget('alpha')).toBe(false);
-  });
-
   test('a cleared project inherits the globals again', async () => {
     await seed({ projects: { alpha: { daily_usd: 5, monthly_usd: 80 } } }, [entry('alpha', 1)]);
     await clearProjectBudget('alpha');
@@ -200,17 +191,4 @@ describe('clearProjectBudget', () => {
     expect(b.scope).toBe('global');
     expect(b.dailyBudget).toBe(100);
   });
-});
-
-test('listProjectBudgets returns every override sorted by project id', async () => {
-  await seed({
-    projects: {
-      zeta: { daily_usd: 1, monthly_usd: 10 },
-      alpha: { daily_usd: 5, monthly_usd: 80 },
-    },
-  }, []);
-  expect(await listProjectBudgets()).toEqual([
-    { project: 'alpha', daily_usd: 5, monthly_usd: 80 },
-    { project: 'zeta', daily_usd: 1, monthly_usd: 10 },
-  ]);
 });

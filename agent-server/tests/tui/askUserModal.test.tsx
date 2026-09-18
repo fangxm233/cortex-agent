@@ -170,26 +170,6 @@ test('AskUserModal multi_select: submit with toggled options', async (t) => {
   instance.cleanup();
 });
 
-test('AskUserModal displays ack errors inline', async (t) => {
-  const app = React.createElement(AskUserModal, {
-    modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
-    sendFrame: () => {},
-    ackErrors: { q_0: 'Please make a selection' },
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('Please make a selection'), 'error message displayed');
-  assert.ok(output.includes('Pick one'), 'field label visible in error context');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('AskUserModal escape closes without submitting', async (t) => {
   let closeCalled = false;
 

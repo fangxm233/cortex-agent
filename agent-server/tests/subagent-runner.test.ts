@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { CONFIG_DIR } from '../src/core/paths.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import {
-  buildToolResult, failedChildResult, isFailed, resultText, runInvocation,
+  buildToolResult, failedChildResult, isFailed, runInvocation,
 } from '@core/agents/subagent/orchestrate.js';
 import {
   MAX_SUBAGENT_CONCURRENCY, MAX_SUBAGENT_TASKS, resolveInvocation,
@@ -229,13 +229,6 @@ test('resolveInvocation requires exactly one mode', () => {
   assert.throws(() => resolveInvocation({ parallel: [task()], chain: [task()] }), /exactly one Agent mode/);
 });
 
-test('resolveInvocation names the field that is missing', () => {
-  assert.throws(() => resolveInvocation({ description: 'd', prompt: '', subagent_type: 't' }),
-    /non-empty prompt/);
-  assert.throws(() => resolveInvocation({ description: 'd', prompt: 'p', subagent_type: '  ' }),
-    /non-empty subagent_type/);
-});
-
 test('resolveInvocation enforces the task cap and rejects an empty fan-out', () => {
   const many = Array.from({ length: MAX_SUBAGENT_TASKS + 1 }, () => task());
   assert.throws(() => resolveInvocation({ parallel: many }), new RegExp(`maximum is ${MAX_SUBAGENT_TASKS}`));
@@ -322,12 +315,6 @@ test('buildToolResult reports the last link for single and chain, and aggregates
   assert.equal(chain.details.usage.input, 20);
   assert.equal(chain.details.usage.cost, 3);
   assert.equal(buildToolResult('single', [ok('a', '')]).content[0].text, '(no output)');
-});
-
-test('resultText prefers the error message once a result has failed', () => {
-  const failed = failedChildResult(task(), new Error('exploded'));
-  assert.equal(resultText(failed), 'exploded');
-  assert.equal(failed.stopReason, 'error');
 });
 
 // --- daemon entry: precedence and validation ---

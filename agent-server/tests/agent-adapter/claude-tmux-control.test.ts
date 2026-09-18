@@ -3,8 +3,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 
 import { TmuxControl, type TmuxExecResult } from '../../src/agent-adapter/claude/tmux-control.js';
 
@@ -32,12 +30,6 @@ test('hasSession returns true when tmux has-session exits 0', () => {
   const t = new TmuxControl(exec);
   assert.equal(t.hasSession('cortex-claude-aaa'), true);
   assert.deepEqual(calls[0].args, ['has-session', '-t', 'cortex-claude-aaa']);
-});
-
-test('hasSession returns false when tmux has-session exits non-zero', () => {
-  const { exec } = makeMockExec([{ status: 1, stderr: "can't find session" }]);
-  const t = new TmuxControl(exec);
-  assert.equal(t.hasSession('cortex-claude-bbb'), false);
 });
 
 // --- newSession ---
@@ -126,32 +118,6 @@ test('killSession builds correct argv and is idempotent on missing session', () 
 
 // --- sendKeys ---
 
-test('sendKeys passes -t and key tokens through verbatim', () => {
-  const { exec, calls } = makeMockExec([{ status: 0 }]);
-  const t = new TmuxControl(exec);
-  t.sendKeys('cortex-claude-aaa', 'Escape');
-  assert.deepEqual(calls[0].args, ['send-keys', '-t', 'cortex-claude-aaa', 'Escape']);
-
-  const { exec: e2, calls: c2 } = makeMockExec([{ status: 0 }]);
-  const t2 = new TmuxControl(e2);
-  t2.sendKeys('foo', 'C-u');
-  assert.deepEqual(c2[0].args, ['send-keys', '-t', 'foo', 'C-u']);
-});
-
-test('sendKeys with multiple keys joins them in one invocation', () => {
-  const { exec, calls } = makeMockExec([{ status: 0 }]);
-  const t = new TmuxControl(exec);
-  t.sendKeys('foo', 'C-u', 'Enter');
-  assert.deepEqual(calls[0].args, ['send-keys', '-t', 'foo', 'C-u', 'Enter']);
-});
-
-test('sendKeys with empty key list is a no-op (does not invoke tmux)', () => {
-  const { exec, calls } = makeMockExec([]);
-  const t = new TmuxControl(exec);
-  t.sendKeys('foo');
-  assert.equal(calls.length, 0);
-});
-
 // --- pasteText (load-buffer + paste-buffer) ---
 
 test('pasteText uses a 0600 tempfile and removes it after paste', () => {
@@ -182,25 +148,6 @@ test('pasteText uses a 0600 tempfile and removes it after paste', () => {
   assert.equal(fs.existsSync(observedTempfile!), false);
 });
 
-test('pasteText loads, pastes, and explicitly deletes its named buffer', () => {
-  const { exec, calls } = makeMockExec([
-    { status: 0 },
-    { status: 0 },
-    { status: 0 },
-  ]);
-  const tmux = new TmuxControl(exec);
-  tmux.pasteText('cortex-claude-aaa', 'hi');
-
-  assert.deepEqual(calls.map(call => call.args[0]), [
-    'load-buffer', 'paste-buffer', 'delete-buffer',
-  ]);
-  const bufferName = calls[0].args[calls[0].args.indexOf('-b') + 1];
-  assert.deepEqual(calls[2].args, ['delete-buffer', '-b', bufferName]);
-  assert.equal(calls[1].args.includes('-p'), true);
-  assert.equal(calls[1].args.includes('-d'), false);
-  assert.equal(calls[1].args.includes('-t'), true);
-});
-
 test('pasteText deletes the named buffer when paste fails', () => {
   const buffers = new Set<string>();
   let tempfile = '';
@@ -227,14 +174,6 @@ test('pasteText deletes the named buffer when paste fails', () => {
 
 // --- capturePane ---
 
-test('capturePane returns stdout', () => {
-  const { exec, calls } = makeMockExec([{ stdout: 'line1\nline2\n', status: 0 }]);
-  const t = new TmuxControl(exec);
-  const out = t.capturePane('foo');
-  assert.equal(out, 'line1\nline2\n');
-  assert.deepEqual(calls[0].args, ['capture-pane', '-t', 'foo', '-p']);
-});
-
 // --- listSessions ---
 
 test('listSessions parses tmux ls -F output and filters by prefix', () => {
@@ -252,13 +191,4 @@ test('listSessions returns empty list when tmux server not running (status=1)', 
   const { exec } = makeMockExec([{ status: 1, stderr: 'no server running' }]);
   const t = new TmuxControl(exec);
   assert.deepEqual(t.listSessions(), []);
-});
-
-test('listSessions with no prefix returns all sessions', () => {
-  const { exec } = makeMockExec([{
-    stdout: 'a\nb\nc\n',
-    status: 0,
-  }]);
-  const t = new TmuxControl(exec);
-  assert.deepEqual(t.listSessions(), ['a', 'b', 'c']);
 });

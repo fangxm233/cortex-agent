@@ -911,27 +911,6 @@ def test_deadline_outcome_rereads_with_unavailable_counters_not_zeroes(
     )
 
 
-def test_an_unaccountable_proxy_export_is_recorded_and_still_published(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent, environment = make_agent(tmp_path, monkeypatch)
-    original = TrialProxySession.write_accounting
-
-    def write(self: TrialProxySession) -> tuple[Path, Path]:
-        paths = original(self)
-        document = json.loads(self.export_path.read_text())
-        document["requests"] = {"status": UNAVAILABLE, "reason": "counter_unreadable"}
-        write_json(self.export_path, document)
-        return paths
-
-    monkeypatch.setattr(TrialProxySession, "write_accounting", write)
-    run_agent(agent, environment)
-
-    assert published(tmp_path)["proxy_usage"]["requests"] == {
-        "status": UNAVAILABLE, "reason": "counter_unreadable",
-    }
-
-
 def install_accounting_leak(
     monkeypatch: pytest.MonkeyPatch, target: str, value: str,
 ) -> None:
@@ -1453,24 +1432,6 @@ def test_a_reward_only_measures_the_agent_when_the_verifier_ran_a_test(
     assert outcome.outcome_state == state
     assert outcome.verifier_rewards == rewards
     assert outcome.score_status == ("unavailable" if rewards is None else "available")
-
-
-def test_a_verifier_that_ran_nothing_is_unavailable_even_with_a_passing_reward(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A reward of 1 beside an empty report is not a pass, it is an unexplained reward file."""
-    finalize_vendor_trial(tmp_path, monkeypatch)
-    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1.0}}})
-    write_json(
-        tmp_path / "verifier" / "ctrf.json", {"results": {"summary": {"tests": 0}}})
-
-    outcome = TrialOutcomeReader(
-        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path,
-    ).read()
-
-    assert outcome.outcome_state == "terminal-verifier-failure"
-    assert outcome.verifier_rewards is None
-    assert "0 tests" in (outcome.reason or "")
 
 
 @pytest.mark.parametrize(

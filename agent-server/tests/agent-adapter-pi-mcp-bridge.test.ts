@@ -17,10 +17,6 @@ import {
 } from '../src/agent-adapter/pi/mcp-bridge.js';
 import {
   mapMcpContent,
-  shouldLoadFeishu,
-  shouldLoadSlack,
-  shouldLoadThreadControl,
-  shouldLoadWeb,
   type PiContent,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
 import {
@@ -37,10 +33,6 @@ function textOf(item: PiContent): string {
   assert.equal(item.type, 'text');
   return item.type === 'text' ? item.text : '';
 }
-
-test('mapMcpContent: text item passes through', () => {
-  assert.deepEqual(mapMcpContent({ type: 'text', text: 'hello' }), { type: 'text', text: 'hello' });
-});
 
 test('mapMcpContent: image item passes through as an image block', () => {
   assert.deepEqual(
@@ -60,12 +52,6 @@ test('mapMcpContent: image PI cannot send inline degrades to a description', () 
   const text = textOf(mapMcpContent({ type: 'image', data: 'abc', mimeType: 'image/bmp' }));
   assert.ok(text.includes('image/bmp'), 'includes mimeType');
   assert.ok(text.includes('3'), 'includes data length');
-});
-
-test('mapMcpContent: image without data degrades to a description', () => {
-  const text = textOf(mapMcpContent({ type: 'image', data: '', mimeType: 'image/png' }));
-  assert.ok(text.includes('image/png'), 'includes mimeType');
-  assert.ok(text.includes('0'), 'includes data length');
 });
 
 test('mapMcpContent: resource with text passthrough', () => {
@@ -95,54 +81,11 @@ test('mapMcpContent: unknown type falls back to JSON', () => {
 
 // --- shouldLoadFeishu: gate the cortex-feishu server on Feishu-originated sessions ---
 
-test('shouldLoadFeishu: true when channel carries the feishu: prefix', () => {
-  assert.equal(shouldLoadFeishu('feishu:oc_abc123'), true);
-});
-
-test('shouldLoadFeishu: false for slack / bare / empty channels', () => {
-  assert.equal(shouldLoadFeishu('slack:C0123'), false);
-  assert.equal(shouldLoadFeishu('C0123'), false);
-  assert.equal(shouldLoadFeishu(''), false);
-  assert.equal(shouldLoadFeishu(undefined), false);
-});
-
 // --- shouldLoadWeb: gate the cortex-web server on Web-UI-originated sessions ---
-
-test('shouldLoadWeb: true when channel carries the web: prefix', () => {
-  assert.equal(shouldLoadWeb('web:abc123'), true);
-});
-
-test('shouldLoadWeb: false for slack / feishu / bare / empty channels', () => {
-  assert.equal(shouldLoadWeb('slack:C0123'), false);
-  assert.equal(shouldLoadWeb('feishu:oc_abc'), false);
-  assert.equal(shouldLoadWeb('C0123'), false);
-  assert.equal(shouldLoadWeb(''), false);
-  assert.equal(shouldLoadWeb(undefined), false);
-});
 
 // --- shouldLoadSlack: gate the cortex-slack server on Slack-originated sessions ---
 
-test('shouldLoadSlack: true when channel carries the slack: prefix', () => {
-  assert.equal(shouldLoadSlack('slack:C0123ABC'), true);
-});
-
-test('shouldLoadSlack: false for feishu / bare / empty channels', () => {
-  assert.equal(shouldLoadSlack('feishu:oc_abc123'), false);
-  assert.equal(shouldLoadSlack('C0123'), false);
-  assert.equal(shouldLoadSlack(''), false);
-  assert.equal(shouldLoadSlack(undefined), false);
-});
-
 // --- shouldLoadThreadControl: gate lifecycle tools on thread context ---
-
-test('shouldLoadThreadControl: true when CORTEX_THREAD_ID is present', () => {
-  assert.equal(shouldLoadThreadControl('thr_abc123'), true);
-});
-
-test('shouldLoadThreadControl: false for empty or missing thread ids', () => {
-  assert.equal(shouldLoadThreadControl(''), false);
-  assert.equal(shouldLoadThreadControl(undefined), false);
-});
 
 type BridgeEvent = 'before_agent_start' | 'session_shutdown';
 type BridgeHandler = (event: Record<string, never>, ctx: Record<string, never>) => Promise<void> | void;

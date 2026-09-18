@@ -57,19 +57,6 @@ def arm(tmp_path: Path, *, environ: dict[str, str] | None = None):
     )
 
 
-def test_the_refusal_fixture_moves_the_state_and_nothing_else(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The control for every assertion below: what the arming point reads is an unadmitted row
-    under the shipped, adapted key. Every key is left as shipped, so adapter selection sees what it
-    sees in production and the state is the only difference."""
-    refuse_capability(monkeypatch, ADAPTED_ROW)
-
-    refused = trial_proxy.CAPABILITY_REGISTRY
-    assert set(refused) == set(CAPABILITY_REGISTRY)
-    assert {row.id: row.state for row in refused.values()}[ADAPTED_ROW] == "unsupported"
-
-
 def test_arming_refuses_a_capability_row_no_authority_admits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

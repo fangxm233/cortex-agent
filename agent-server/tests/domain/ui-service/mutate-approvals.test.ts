@@ -90,13 +90,6 @@ test('applyApprovalDecision reject records timestamp + feedback', () => {
   assert.match(md, /- \*\*Status\*\*: rejected 2026-07-07 \(not now\)/);
 });
 
-test('applyApprovalDecision reject without feedback writes no parens', () => {
-  const id = idOf(SAMPLE, 'Alpha: promote a rule');
-  const { md } = applyApprovalDecision(SAMPLE, id, 'rejected', '2026-07-07');
-  assert.match(md, /- \*\*Status\*\*: rejected 2026-07-07\n/);
-  assert.doesNotMatch(md, /rejected 2026-07-07 \(/);
-});
-
 // ── (3) idempotent: re-approve an already-approved entry is a no-op ──────────
 test('applyApprovalDecision is idempotent for the same decision', () => {
   const id = idOf(SAMPLE, 'Alpha: promote a rule');

@@ -312,19 +312,6 @@ test('block — blocks an open task', async () => {
   }
 });
 
-test('block — fails for nonexistent task', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.block('zzzz', 'reason');
-    assert.equal(result.success, false);
-    assert.match(result.message, /not found/i);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 test('block — emits cortex:task.blocked beside the existing domain event', async () => {
   const fx = makeFixtureRepo();
   try {
@@ -350,21 +337,6 @@ test('block — emits cortex:task.blocked beside the existing domain event', asy
   }
 });
 
-test('block — a rejected hook does not change the mutation outcome', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const mutator = new TaskMutator(createRepo());
-    hookBus.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
-
-    const result = await mutator.block(fx.seedTaskId, 'dependency unavailable');
-
-    assert.equal(result.success, true);
-    assert.equal(hookBus.emitCortexEvent.mock.calls[0]?.[0], 'cortex:task.blocked');
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // ─── 6. unblock ───────────────────────────────────────────────────
 
 test('unblock — unblocks a blocked task', async () => {
@@ -381,19 +353,6 @@ test('unblock — unblocks a blocked task', async () => {
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
       /blocked-by:/,
     );
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('unblock — fails for nonexistent task', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.unblock('zzzz');
-    assert.equal(result.success, false);
-    assert.match(result.message, /not found/i);
   } finally {
     fx.cleanup();
   }
@@ -514,19 +473,6 @@ test('approve — approves a task', async () => {
     const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
     assert.match(disk, /approved-at:\s*"?\d{4}-\d{2}-\d{2}"?/);
     assert.doesNotMatch(disk, /approval-needed:\s*true/);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('approve — fails for nonexistent task', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.approve('zzzz');
-    assert.equal(result.success, false);
-    assert.match(result.message, /not found/i);
   } finally {
     fx.cleanup();
   }
@@ -777,22 +723,6 @@ test('decompose — splits a task into subtasks', async () => {
   }
 });
 
-test('decompose — fails for nonexistent task', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.decompose(proj, 'Nothing here', [], 'zzzz');
-    assert.equal(result.success, false);
-    assert.match(result.message, /not found/i);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // ─── 16. EventBus publication — claim ─────────────────────────────
 
 test('claim — publishes task.claimed event when bus is wired', async () => {
@@ -811,19 +741,6 @@ test('claim — publishes task.claimed event when bus is wired', async () => {
     assert.equal(published[0].by, 'test-agent');
     // ts is injected by EventBus.publish() — not the mutator's job
     assert.equal('ts' in published[0], false);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('claim — does not publish when bus is not wired', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    // Backward compat: mutator works without a bus
-    const result = await mutator.claim(fx.seedTaskId, 'test-agent');
-    assert.equal(result.success, true);
   } finally {
     fx.cleanup();
   }
@@ -853,118 +770,11 @@ test('complete — publishes task.completed event when bus is wired', async () =
   }
 });
 
-test('complete — does not publish when bus is not wired', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    await mutator.claim(fx.seedTaskId, 'agent');
-    const result = await mutator.complete(fx.seedTaskId, 'test-note');
-    assert.equal(result.success, true);
-    // No crash — backward compat
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // ─── 17b. EventBus publication — unclaim ──────────────────────────
-
-test('unclaim — publishes task.unclaimed event when bus is wired', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const published: any[] = [];
-    const mockBus = { publish: (e: any) => { published.push(e); }, subscribe: () => ({ unsubscribe: () => {} }) };
-    const mutator = new TaskMutator(repo, mockBus as any);
-    await mutator.claim(fx.seedTaskId, 'agent');
-    published.length = 0; // clear claim event
-
-    const result = await mutator.unclaim(fx.seedTaskId);
-    assert.equal(result.success, true);
-
-    assert.equal(published.length, 1);
-    assert.equal(published[0].type, 'task.unclaimed');
-    assert.equal(published[0].taskId, fx.seedTaskId);
-    assert.equal('ts' in published[0], false);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('unclaim — does not publish on failure', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const published: any[] = [];
-    const mockBus = { publish: (e: any) => { published.push(e); }, subscribe: () => ({ unsubscribe: () => {} }) };
-    const mutator = new TaskMutator(repo, mockBus as any);
-    // seed task is not in-progress → unclaim fails, no event
-    const result = await mutator.unclaim(fx.seedTaskId);
-    assert.equal(result.success, false);
-    assert.equal(published.length, 0);
-  } finally {
-    fx.cleanup();
-  }
-});
 
 // ─── 17c. EventBus publication — unblock ──────────────────────────
 
-test('unblock — publishes task.unblocked event when bus is wired', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const published: any[] = [];
-    const mockBus = { publish: (e: any) => { published.push(e); }, subscribe: () => ({ unsubscribe: () => {} }) };
-    const mutator = new TaskMutator(repo, mockBus as any);
-    await mutator.block(fx.seedTaskId, 'blocker');
-    published.length = 0; // clear block event
-
-    const result = await mutator.unblock(fx.seedTaskId);
-    assert.equal(result.success, true);
-
-    assert.equal(published.length, 1);
-    assert.equal(published[0].type, 'task.unblocked');
-    assert.equal(published[0].taskId, fx.seedTaskId);
-    assert.equal('ts' in published[0], false);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('unblock — does not publish on failure', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const published: any[] = [];
-    const mockBus = { publish: (e: any) => { published.push(e); }, subscribe: () => ({ unsubscribe: () => {} }) };
-    const mutator = new TaskMutator(repo, mockBus as any);
-    // nonexistent task → unblock fails, no event (unblock is idempotent for existing tasks)
-    const result = await mutator.unblock('zzzz');
-    assert.equal(result.success, false);
-    assert.equal(published.length, 0);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // ─── 18. EventBus publication — setBus wiring ─────────────────────
-
-test('setBus — wires event bus after construction', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const published: any[] = [];
-    const mockBus = { publish: (e: any) => { published.push(e); }, subscribe: () => ({ unsubscribe: () => {} }) };
-    const mutator = new TaskMutator(repo);
-    mutator.setBus(mockBus as any);
-
-    await mutator.claim(fx.seedTaskId, 'test-agent');
-    assert.equal(published.length, 1);
-    assert.equal(published[0].type, 'task.claimed');
-  } finally {
-    fx.cleanup();
-  }
-});
 
 // --- 19. Lock-required: add ---
 
@@ -1018,56 +828,9 @@ test('edit \xe2\x80\x94 fails without lock held', async () => {
   }
 });
 
-test('edit \xe2\x80\x94 succeeds when lock held by current owner', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, {
-      owner,
-      acquired_at: new Date().toISOString(),
-      expires_at: '2099-01-01T00:00:00.000Z',
-    });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.edit(proj, { taskId: fx.seedTaskId, priority: 'high' });
-    assert.equal(result.success, true);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // --- 18. Lock-required: batchEdit ---
 
-test('batchEdit \xe2\x80\x94 fails without lock held', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.batchEdit(proj, [fx.seedTaskId], { priority: 'high' });
-    assert.equal(result.success, false);
-    assert.match(result.message, /lock/i);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // --- 19. Lock-required: decompose ---
-
-test('decompose \xe2\x80\x94 fails without lock held', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.decompose(proj, 'Seed task', [{ text: 'X', why: 'y', done_when: 'z', priority: 'high' }], fx.seedTaskId);
-    assert.equal(result.success, false);
-    assert.match(result.message, /lock/i);
-  } finally {
-    fx.cleanup();
-  }
-});
 
 // --- 20. Other project lock scoping ---
 

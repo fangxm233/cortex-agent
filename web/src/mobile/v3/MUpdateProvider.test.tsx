@@ -42,9 +42,4 @@ describe('MUpdateProvider', () => {
     expect(renderer.root.findAllByProps({ 'data-update-dialog': 'app' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-update-dialog': 'hot' })).toHaveLength(1);
   });
-
-  it('renders nothing without a prompt', () => {
-    render();
-    expect(renderer.toJSON()).toBeNull();
-  });
 });

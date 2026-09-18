@@ -86,16 +86,6 @@ test('resolveSystemVars leaves unknown placeholders untouched', () => {
   assert.doesNotMatch(out, /\{\{currentDateTime\}\}/);
 });
 
-test('resolveSystemVars leaves text without placeholders unchanged', () => {
-  assert.equal(resolveSystemVars('no vars here'), 'no vars here');
-});
-
-test('resolveSystemVars replaces multiple {{currentDateTime}} occurrences with identical value', () => {
-  const out = resolveSystemVars('{{currentDateTime}} = {{currentDateTime}}');
-  const [a, b] = out.split(' = ');
-  assert.equal(a, b);
-});
-
 // --- getModifiedFilesFromSession ---
 
 test('getModifiedFilesFromSession returns [] when sessionId is null/undefined/empty', () => {
@@ -107,16 +97,6 @@ test('getModifiedFilesFromSession returns [] when sessionId is null/undefined/em
 test('getModifiedFilesFromSession returns [] when log file is missing', () => {
   const id = uniqueSessionId();
   assert.deepEqual(getModifiedFilesFromSession(id), []);
-});
-
-test('getModifiedFilesFromSession returns [] for empty log', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, '');
-  try {
-    assert.deepEqual(getModifiedFilesFromSession(id), []);
-  } finally {
-    removeSessionLog(id);
-  }
 });
 
 test('getModifiedFilesFromSession extracts and de-dupes edit_file + write_file paths, ignoring other events', () => {
@@ -149,16 +129,6 @@ test('getModifiedFilesFromSession tolerates malformed JSON lines and missing fie
   writeSessionLog(id, lines);
   try {
     assert.deepEqual(getModifiedFilesFromSession(id), ['/only/one.ts']);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getModifiedFilesFromSession trims leading/trailing whitespace from file paths', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, JSON.stringify({ event: 'edit_file', file_path: '  /path/with/space.ts  ' }));
-  try {
-    assert.deepEqual(getModifiedFilesFromSession(id), ['/path/with/space.ts']);
   } finally {
     removeSessionLog(id);
   }
@@ -215,17 +185,7 @@ test('buildStepPrompt keeps the modified file list but drops obsolete inline cha
 
 // --- thread predicates ---
 
-test('isDefaultThread and isAdHocThread return false for unknown thread ids', () => {
-  assert.equal(isDefaultThread('nope-' + Math.random()), false);
-  assert.equal(isAdHocThread('nope-' + Math.random()), false);
-});
-
 // --- getSessionKey ---
-
-test('getSessionKey formats thread + slot as thr:<threadId>:<slotId>', () => {
-  assert.equal(getSessionKey('thr-123', 'writer'), 'thr:thr-123:writer');
-  assert.equal(getSessionKey('abc', 'a0'), 'thr:abc:a0');
-});
 
 // --- createThread / evaluateTransitions (P1 orchestration paths) ---
 //

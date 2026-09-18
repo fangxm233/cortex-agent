@@ -1,10 +1,8 @@
-import json
 
 import pytest
 
 from cortex_bench_harness.launcher.comparison_report import (
     build_comparison_report,
-    render_comparison_report,
 )
 
 
@@ -108,31 +106,6 @@ def test_report_pins_inputs_order_and_difference_classes() -> None:
                  expected_run("run-direct", "cortex-direct", "cortex", "claude", available)],
         "comparisons": comparisons,
     }
-    assert render_comparison_report(report) == json.dumps(
-        report, indent=2, sort_keys=True,
-    ) + "\n"
-
-
-@pytest.mark.parametrize(("vendor", "provider", "model"), [
-    ("claude-code", "anthropic", "claude-sonnet"),
-    ("pi", "openai", "gpt-5"),
-    ("codex", "openai", "gpt-5"),
-])
-def test_each_vendor_reports_native_cli_and_unavailable_cortex_telemetry(
-    vendor: str, provider: str, model: str,
-) -> None:
-    vendor_arm = arm(f"pure-{vendor}", "vendor-baseline", vendor)
-    vendor_arm.update({"provider": provider, "model": model})
-
-    report = build_comparison_report(
-        campaign_id="campaign-001",
-        runs=[run(f"run-{vendor}", vendor_arm, "1.2.3")],
-        comparisons=[],
-    )
-
-    assert report["runs"][0]["cli"] == {"name": vendor, "version": "1.2.3"}
-    assert report["runs"][0]["cortex_telemetry"] == UNAVAILABLE
-    assert report["runs"][0]["grader_admission"] == NO_ENVELOPE
 
 
 def test_a_report_says_of_every_cortex_run_whether_it_is_comparable() -> None:

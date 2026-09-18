@@ -359,21 +359,6 @@ test('handleLine: notification-turn result on resume does not settle the user tu
   assert.equal(cap.value.undeliveredBackgroundTasks, 0, 'orphan notices owe no continuation');
 });
 
-test('run: a spontaneous turn is still settled by its notification-turn result', async (t) => {
-  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
-
-  session.handleLine(TASK_STARTED);
-  session.handleLine(RESULT_FIRST);
-  await tick();
-  session.handleLine(TASK_NOTIFICATION);
-  session.handleLine(ASSISTANT_CONT);
-  session.handleLine(RESULT_CONT);
-
-  await run.settled;
-  await done;
-  assert.equal(backgroundResults(events).length, 1, 'continuation result delivered');
-});
-
 // Two background completions seconds apart: A's notification opens turn A; B's lands while the
 // model is producing turn A's final text, so the CLI queues turn B. At turn A's result both
 // notifications have been observed (counts 0) — the hold used to seal idle there, and turn B
@@ -436,17 +421,6 @@ test('handleLine: compact_boundary fires onCompact with trigger + preTokens', (t
   s.handleLine(JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 37418 } }));
 
   assert.deepEqual(compactCalls, [{ trigger: 'auto', preTokens: 37418 }]);
-});
-
-test('handleLine: compact_boundary with no active turn is a no-op', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
-
-  // No currentTurn set — must not throw.
-  assert.doesNotThrow(() =>
-    s.handleLine(JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual' } })),
-  );
 });
 
 // The old `setBackgroundTurnSink/clearBackgroundTurnSink and close clear the sink` test drove a surface

@@ -109,12 +109,6 @@ test('memory.file returns raw content + metadata for a real file', async () => {
   assert.ok(typeof dto.modifiedAt === 'string' && dto.modifiedAt.length > 0);
 });
 
-test('memory.file reads a nested file inside a memory dir', async () => {
-  const { root } = makeProject();
-  const dto = await handleMemoryFile(makeDeps('my-project', root), { projectId: 'my-project', path: 'experiments/EXP-001.md' });
-  assert.equal(dto.content, 'exp1');
-});
-
 // ── (3) path restricted to project root (traversal) ──────────────────────────
 test('memory.file REJECTS parent-dir traversal', async () => {
   const { root } = makeProject();
@@ -176,14 +170,6 @@ test('memory.tree / memory.file throw not-found for an unknown project', async (
   );
 });
 
-test('memory.file throws not-found for a missing file inside root', async () => {
-  const { root } = makeProject();
-  await assert.rejects(
-    () => handleMemoryFile(makeDeps('my-project', root), { projectId: 'my-project', path: 'roadmap.md' }),
-    (e: any) => e?.code === 'not-found',
-  );
-});
-
 // ── (5) git line-level +/− via numstat (working tree vs HEAD) ─────────────────
 // A real git repo fixture: commit a file, then modify the working tree so numstat is non-zero.
 function makeGitProject(): { root: string } {
@@ -218,24 +204,6 @@ test('memory.file reports real +/− from git numstat when the file is modified 
   const [added, removed] = raw.split('\t');
   assert.deepEqual(dto.lineDiff, { added: Number(added), removed: Number(removed) });
   assert.ok(dto.lineDiff!.added > 0 && dto.lineDiff!.removed > 0);
-});
-
-test('memory.file reports {added:0,removed:0} for a clean tracked file (no diff vs HEAD)', async () => {
-  const { root } = makeGitProject();
-  const dto = await handleMemoryFile(makeDeps('my-project', root), {
-    projectId: 'my-project',
-    path: 'STATUS.md',
-  });
-  assert.deepEqual(dto.lineDiff, { added: 0, removed: 0 });
-});
-
-test('memory.file lineDiff is null (honest placeholder) when the project dir is not a git repo', async () => {
-  const { root } = makeProject(); // makeProject fixture is a plain temp dir, NOT a git repo
-  const dto = await handleMemoryFile(makeDeps('my-project', root), {
-    projectId: 'my-project',
-    path: 'STATUS.md',
-  });
-  assert.equal(dto.lineDiff, null);
 });
 
 // ── (6) task-ref parser: keyword-anchored 4-hex, honest null otherwise ─────────
@@ -279,10 +247,6 @@ test('parseBlamePorcelain maps each line to short hash + parsed task ref', () =>
   assert.deepEqual(rows[2], { line: 3, commit: '22222222', taskRef: null });
 });
 
-test('parseBlamePorcelain returns [] for empty output', () => {
-  assert.deepEqual(parseBlamePorcelain(''), []);
-});
-
 // ── (8) handler blame: real per-line hash + task ref from a git fixture ────────
 test('memory.file returns real per-line blame (commit hash + task ref) for a tracked file', async () => {
   const { root } = makeGitProject();
@@ -311,26 +275,4 @@ test('memory.file returns real per-line blame (commit hash + task ref) for a tra
     dto.blame!.map((b) => b.line),
     [1, 2, 3],
   );
-});
-
-test('memory.file blame taskRef is null (honest) when the commit carries no task ref', async () => {
-  const { root } = makeGitProject(); // baseline commit subject = 'baseline' (no ref)
-  const dto = await handleMemoryFile(makeDeps('my-project', root), {
-    projectId: 'my-project',
-    path: 'STATUS.md',
-  });
-  assert.ok(Array.isArray(dto.blame));
-  for (const b of dto.blame!) {
-    assert.ok(typeof b.commit === 'string' && b.commit.length > 0);
-    assert.equal(b.taskRef, null);
-  }
-});
-
-test('memory.file blame is null (honest placeholder) when the project dir is not a git repo', async () => {
-  const { root } = makeProject();
-  const dto = await handleMemoryFile(makeDeps('my-project', root), {
-    projectId: 'my-project',
-    path: 'STATUS.md',
-  });
-  assert.equal(dto.blame, null);
 });

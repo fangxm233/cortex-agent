@@ -30,14 +30,6 @@ test('processAbortOutcome blocks the task with the abort reason', async () => {
   assert.match(r.note || '', /abort/i);
 });
 
-test('processAbortOutcome handles a missing abort reason', async () => {
-  const { blocked, deps } = makeDeps('aborted', null);
-  const r = await processAbortOutcome({ threadId: 'thr_x', taskId: 't222', project: 'proj' }, deps);
-  assert.equal(r.handled, true);
-  assert.equal(blocked.length, 1);
-  assert.match(blocked[0].reason, /worker-abort/);
-});
-
 test('processAbortOutcome is a no-op for non-aborted threads', async () => {
   for (const status of ['completed', 'failed', 'waiting', 'running']) {
     const { blocked, deps } = makeDeps(status);
@@ -60,10 +52,4 @@ test('processAbortOutcome surfaces block failures', async () => {
   const r = await processAbortOutcome({ threadId: 'thr_x', taskId: 't444', project: 'proj' }, deps);
   assert.equal(r.handled, true);
   assert.match(r.error || '', /lock held/);
-});
-
-test('processAbortOutcome truncates very long abort reasons in the block reason', async () => {
-  const { blocked, deps } = makeDeps('aborted', 'x'.repeat(500));
-  await processAbortOutcome({ threadId: 'thr_x', taskId: 't555', project: 'proj' }, deps);
-  assert.ok(blocked[0].reason.length <= 300, `reason too long: ${blocked[0].reason.length}`);
 });

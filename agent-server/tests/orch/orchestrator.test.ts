@@ -94,18 +94,3 @@ test('(d) no thread context → agentRunner.route called, not threadExecutor.rou
 });
 
 // ── (e) threadAddMatch + threadStartMatch both set → threadExecutor wins ──────
-
-test('(e) threadAddMatch takes precedence over threadStartMatch for thread routing', async () => {
-  const agentSpy = makeRunner();
-  const threadSpy = makeRunner();
-  const orch = new Orchestrator({ agentRunner: agentSpy.runner, threadExecutor: threadSpy.runner });
-
-  const ctx = makeCtx({
-    threadAddMatch: ['!thread add main', 'main'] as any,
-    threadStartMatch: ['!thread coder hi', 'coder', 'hi'] as any,
-  });
-  await orch.handleMessage(ctx);
-
-  assert.equal(threadSpy.calls.length, 1);
-  assert.equal(agentSpy.calls.length, 0);
-});

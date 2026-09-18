@@ -79,18 +79,6 @@ test('conversation prompt with the default {{input}} template and empty directiv
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE), 'conversation prompt must not contain the thread protocol preamble');
 });
 
-test('conversation prompt prepends a non-empty directive, still no preamble', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: 'You are the direct agent.' }), 'what is 2+2?');
-  assert.ok(prompt.startsWith('You are the direct agent.'));
-  assert.ok(prompt.includes('what is 2+2?'));
-  assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
-});
-
-test('conversation prompt applies a custom promptTemplate', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '', promptTemplate: 'User asked: {{input}}' }), 'status?');
-  assert.equal(prompt, 'User asked: status?');
-});
-
 // ── Project prefix (Web UI direct sessions bound to a project) ──────────────
 
 test('conversation prompt injects a project block naming the project id and context dir', () => {
@@ -103,16 +91,6 @@ test('conversation prompt injects a project block naming the project id and cont
   assert.ok(prompt.indexOf('tactile-vr') < prompt.indexOf('hello'));
   assert.ok(prompt.endsWith('hello'), 'user message stays last');
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
-});
-
-test('conversation prompt without a project opt injects no project block', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello');
-  assert.equal(prompt, 'hello');
-});
-
-test('conversation prompt with project:null behaves like no project', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello', { project: null });
-  assert.equal(prompt, 'hello');
 });
 
 // ── resolveConversationProject gating ───────────────────────────────────────
@@ -169,19 +147,6 @@ const commissionCtx: ActiveCommissionContext = {
   hasLedger: true,
 };
 
-test('conversation prompt injects the commission block as an index plus the protocol', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello', {
-    project: { id: 'proj-a', contextDir: '/ctx/projects/proj-a' },
-    commission: commissionCtx,
-  });
-  assert.match(prompt, /\[Commission\] This session belongs to the commission "Ship the parser" \(comm-1\)/);
-  assert.match(prompt, /Commission directory: \/ctx\/projects\/proj-a\/commissions\/ship-the-parser/);
-  assert.match(prompt, /Read both files now/);
-  assert.match(prompt, /Commission protocol:/);
-  assert.ok(prompt.indexOf('[Session Project]') < prompt.indexOf('[Commission]'), 'commission block follows the project block');
-  assert.ok(prompt.endsWith('hello'));
-});
-
 test('the commission block never pastes contract or ledger content', () => {
   const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
     commission: commissionCtx,
@@ -190,27 +155,6 @@ test('the commission block never pastes contract or ledger content', () => {
   assert.ok(!prompt.includes('ledger digest'), 'no ledger snapshot');
   // The whole block stays small enough to be free at the start of every commission session.
   assert.ok(prompt.length < 1_800, `block unexpectedly large: ${prompt.length}`);
-});
-
-test('conversation prompt tells the agent to create ledger.md when it does not exist yet', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
-    commission: { ...commissionCtx, hasLedger: false },
-  });
-  assert.match(prompt, /ledger\.md   — NOT created yet/);
-});
-
-test('a session still drafting its contract is told so, and pointed at cortex_commission_start', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'go', {
-    commission: { phase: 'draft', dir: '/ctx/projects/proj-a/commissions/_draft-cortex-4c80d3' },
-  });
-  assert.match(prompt, /\[Commission\] This session is drafting a commission contract/);
-  assert.match(prompt, /_draft-cortex-4c80d3/);
-  assert.match(prompt, /call cortex_commission_start now/);
-  // The block serves both entries: the agent's own call and the user switching the mode on mid
-  // conversation. The latter must not produce another round of "shall we?".
-  assert.match(prompt, /If the user turned this mode on for you/);
-  // No contract exists yet, so the maintenance protocol would be noise.
-  assert.ok(!prompt.includes('Commission protocol:'), 'no execution protocol before a contract');
 });
 
 test('resolveConversationCommission loads the context only for commission sessions', async () => {

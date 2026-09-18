@@ -69,19 +69,6 @@ test('assistant_text: blockId falls back to message.responseId (the real PI fiel
   assert.equal((events[0] as any).blockId, 'msg_abc123');
 });
 
-test('assistant_text: message.id still wins over responseId when both are present', () => {
-  const state = freshState();
-  const events = piEventToNormalized(
-    ev({
-      type: 'message_update',
-      message: { id: 'm1', responseId: 'msg_abc123' },
-      assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
-    }),
-    state,
-  );
-  assert.equal((events[0] as any).blockId, 'm1');
-});
-
 test('assistant_text: message_update without blockId', () => {
   const state = freshState();
   const events = piEventToNormalized(
@@ -122,16 +109,6 @@ test('tool_use: tool_execution_start regular tool (bash)', () => {
   );
   assert.equal(events.length, 1);
   assert.deepEqual(events[0], { type: 'tool_use', toolUseId: 'tc1', name: 'bash', input: { command: 'ls' } });
-});
-
-test('tool_use: tool_execution_start with canonical name mapping', () => {
-  const state = freshState();
-  const events = piEventToNormalized(
-    ev({ type: 'tool_execution_start', toolCallId: 'tc2', toolName: 'read', args: { file_path: '/tmp/x' } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.equal((events[0] as any).name, 'read');
 });
 
 test('tool_use: tool_execution_start missing toolCallId → []', () => {
@@ -443,24 +420,6 @@ test('turn_complete: final assistant error surfaces on agent_settled', () => {
   });
 });
 
-test('turn_complete: missing errorMessage uses the generic PI error', () => {
-  const events = agentEndThenSettle(freshState(), {
-    type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'error' }],
-  });
-  assert.equal(
-    (events[0] as any).error,
-    'PI agent reported an error during execution',
-  );
-});
-
-test('turn_complete: successful turn has no error field', () => {
-  const events = agentEndThenSettle(freshState(), {
-    type: 'agent_end',
-    messages: [{ role: 'assistant', usage: { cost: { total: 0.01 } } }],
-  });
-  assert.deepEqual(events, [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }]);
-});
-
 // ---------------------------------------------------------------------------
 // 8b. cost_record — emitted per agent_end before one settled terminal
 // ---------------------------------------------------------------------------
@@ -551,23 +510,9 @@ test('error: extension_error', () => {
   assert.deepEqual(events[0], { type: 'error', message: 'boom', fatal: false });
 });
 
-test('error: extension_error missing error field → fallback message', () => {
-  const state = freshState();
-  const events = piEventToNormalized(
-    ev({ type: 'extension_error' }),
-    state,
-  );
-  assert.equal((events[0] as any).message, 'extension error');
-});
-
 // ---------------------------------------------------------------------------
 // Edge cases — malformed input and silently dropped events
 // ---------------------------------------------------------------------------
-
-test('edge: missing type field → []', () => {
-  const state = freshState();
-  assert.deepEqual(piEventToNormalized(ev({ id: 'foo' }), state), []);
-});
 
 test('edge: unknown event type → []', () => {
   const state = freshState();

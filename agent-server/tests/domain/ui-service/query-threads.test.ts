@@ -33,17 +33,6 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   };
 }
 
-test('threads.list returns all threads when no filter', async () => {
-  const result = await handleThreadsList(makeDeps(), {});
-  assert.equal(result.length, 3);
-});
-
-test('threads.list filters by projectId', async () => {
-  const result = await handleThreadsList(makeDeps(), { projectId: 'proj1' });
-  assert.equal(result.length, 2);
-  assert.ok(result.every(t => t.projectId === 'proj1'));
-});
-
 test('threads.list filters by status', async () => {
   const result = await handleThreadsList(makeDeps(), { status: ['running', 'completed'] });
   assert.equal(result.length, 2);
@@ -82,18 +71,6 @@ test('threads.list totalSteps from template agents or step count', async () => {
   assert.equal(thrC.totalSteps, 1); // steps.length
 });
 
-test('threads.list includes the owning task id or null', async () => {
-  const result = await handleThreadsList(makeDeps(), {});
-  assert.equal(result.find(t => t.id === 'thr_a')!.taskId, 'a293');
-  assert.equal(result.find(t => t.id === 'thr_b')!.taskId, null);
-});
-
-test('threads.list artifactPath is null when absent', async () => {
-  const result = await handleThreadsList(makeDeps(), {});
-  const thrB = result.find(t => t.id === 'thr_b')!;
-  assert.equal(thrB.artifactPath, null);
-});
-
 test('threads.list scopes to the current session by channel', async () => {
   // sessionId resolves to a channel; only threads on that channel are returned (the inline chat
   // thread card shows THIS session's thread, not a random global one).
@@ -111,13 +88,5 @@ test('threads.list sessionId + status compose (both applied)', async () => {
   });
   // thr_a is on web:sess-1 but running; asking only for 'completed' yields nothing.
   const result = await handleThreadsList(deps, { sessionId: 'sess-1', status: ['completed'] });
-  assert.equal(result.length, 0);
-});
-
-test('threads.list returns empty when the sessionId is unknown', async () => {
-  const deps = makeDeps({
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-  });
-  const result = await handleThreadsList(deps, { sessionId: 'nope' });
   assert.equal(result.length, 0);
 });

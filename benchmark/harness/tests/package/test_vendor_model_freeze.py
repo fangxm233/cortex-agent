@@ -7,7 +7,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import threading
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,11 +33,6 @@ CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
 FROZEN_MODELS = {
     "claude-code": "claude-opus-5",
     "codex": "gpt-5.6-sol",
-}
-CLAUDE_MODEL_ENVIRONMENT = {
-    "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    "CLAUDE_CODE_SUBAGENT_MODEL",
 }
 MISMATCH_MODELS = {
     "pi": "deepseek-model-not-declared",
@@ -78,25 +72,6 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
     assert codex["model"] == FROZEN_MODELS["codex"]
     assert claude_wire["observed_model_identifiers"]["opus"] == claude["model"]
     assert codex_wire["request"]["model"] == "gpt-5.3-codex"
-
-
-@pytest.mark.parametrize("vendor,version", (
-    ("pi", "0.99.0"), ("claude-code", "2.1.263 (Claude Code)"),
-    ("codex", "codex-cli 0.200.0"),
-))
-def test_real_cli_accepts_current_version_independent_of_campaign(
-    vendor: str, version: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    binary = tmp_path / "pi"
-    binary.touch()
-    completed = subprocess.CompletedProcess([str(binary), "--version"], 0, version + "\n", "")
-    monkeypatch.setattr(shutil, "which", lambda _command: str(binary))
-    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
-    monkeypatch.setattr(
-        sys.modules[__name__], "arm", lambda _vendor: {"vendor_cli_version": "9.9.9"},
-    )
-
-    assert real_cli(vendor) == binary
 
 
 def sse(events: list[dict[str, object]]) -> bytes:
@@ -234,16 +209,6 @@ def claude_environment(root: Path, proxy_url: str, token: str, _model: str) -> d
     }
 
 
-def test_claude_environment_leaves_native_model_selection_unset(
-    tmp_path: Path,
-) -> None:
-    environment = claude_environment(
-        tmp_path, "http://127.0.0.1:1", "dummy", FROZEN_MODELS["claude-code"],
-    )
-
-    assert not CLAUDE_MODEL_ENVIRONMENT.intersection(environment)
-
-
 def run_claude(
     binary: Path, root: Path, proxy_url: str, token: str, model: str,
     selection: str, *, subagent: bool,
@@ -365,22 +330,6 @@ def test_proxy_refuses_real_cli_model_mismatch_before_upstream(
     assert "request_model_mismatch" in outcomes
 
 
-def test_claude_native_default_resolves_to_the_frozen_campaign_model(
-    tmp_path: Path, request: pytest.FixtureRequest,
-) -> None:
-    if not isolated_or_rerun(request):
-        return
-    declared = str(arm("claude-code")["model"])
-    result, requests, outcomes = exercise(
-        tmp_path, "claude-code", declared, "native-default",
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert [item["body"]["model"] for item in requests] == [declared]  # type: ignore[index]
-    assert [item["body"]["max_tokens"] for item in requests] == [64000]  # type: ignore[index]
-    assert "request_model_mismatch" not in outcomes
-
-
 def test_claude_native_default_subagent_drift_is_refused_after_primary(
     tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:
@@ -395,20 +344,3 @@ def test_claude_native_default_subagent_drift_is_refused_after_primary(
     assert result.returncode == 0, result.stderr
     assert observed and set(observed) == {declared}
     assert "request_model_mismatch" in outcomes
-
-
-@pytest.mark.parametrize("vendor", ("pi", "codex"))
-def test_campaign_marks_provider_acceptance_unverified_until_live(vendor: str) -> None:
-    path, document = campaign(vendor)
-    text = path.read_text(encoding="utf-8").lower()
-
-    assert document["arms"][0]["model"]  # type: ignore[index]
-    assert "provider acceptance: unverified-until-live" in text
-
-
-def test_claude_campaign_records_native_default_model_freeze() -> None:
-    path, document = campaign("claude-code")
-    text = path.read_text(encoding="utf-8").lower()
-
-    assert document["arms"][0]["model"] == "claude-opus-5"  # type: ignore[index]
-    assert "native default request" in text

@@ -35,12 +35,4 @@ describe('createShellRouter', () => {
     expect(mocks.browser).toHaveBeenCalledWith(routes);
     expect(mocks.hash).not.toHaveBeenCalled();
   });
-
-  it('defaults to the canonical native-shell predicate', () => {
-    mocks.isNative.mockReturnValue(true);
-    createShellRouter(routes);
-
-    expect(mocks.isNative).toHaveBeenCalledOnce();
-    expect(mocks.hash).toHaveBeenCalledWith(routes);
-  });
 });

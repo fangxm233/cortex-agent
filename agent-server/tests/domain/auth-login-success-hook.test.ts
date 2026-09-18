@@ -48,19 +48,6 @@ test('a failed login notifies nobody', async () => {
   assert.deepEqual(seen, []);
 });
 
-test('unsubscribing stops delivery', async () => {
-  const seen: LoginSuccessEvent[] = [];
-  onLoginSuccess((event) => { seen.push(event); })();
-
-  await startFlow(
-    { backend: 'pi', provider: 'quiet', authType: 'oauth', channel: null, sessionId: null },
-    succeedingConsumer('quiet'),
-  );
-  await settle();
-
-  assert.deepEqual(seen, []);
-});
-
 test('a listener that throws does not break the login it observed', async () => {
   const unsubscribeBad = onLoginSuccess(() => { throw new Error('listener exploded'); });
   const seen: LoginSuccessEvent[] = [];

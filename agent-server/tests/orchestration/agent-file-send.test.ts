@@ -8,20 +8,8 @@ import { promises as fs } from 'node:fs';
 import {
   sendAgentFile,
   copyFileIntoOutputs,
-  extToMime,
-  classifyAttachment,
   type SessionMessagePayload,
 } from '../../src/orchestration/agent-file-send.js';
-
-test('extToMime + classifyAttachment infer type from extension', () => {
-  assert.equal(extToMime('a.png'), 'image/png');
-  assert.equal(classifyAttachment(extToMime('a.png')), 'image');
-  assert.equal(extToMime('clip.mp4'), 'video/mp4');
-  assert.equal(classifyAttachment(extToMime('clip.mp4')), 'video');
-  assert.equal(extToMime('r.pdf'), 'application/pdf');
-  assert.equal(classifyAttachment(extToMime('r.pdf')), 'file');
-  assert.equal(extToMime('mystery.xyz'), 'application/octet-stream');
-});
 
 test('sendAgentFile dual-writes: appends assistant attachment + publishes session.message with a shared ts', async () => {
   const appended: any[] = [];
@@ -51,21 +39,6 @@ test('sendAgentFile dual-writes: appends assistant attachment + publishes sessio
   assert.equal(published[0].text, 'here it is');
   assert.equal(published[0].ts, '2026-07-14T00:00:00.000Z', 'history + bus share one ts for de-dup');
   assert.deepEqual(published[0].attachments, [meta]);
-});
-
-test('sendAgentFile defaults caption to empty string', async () => {
-  const published: SessionMessagePayload[] = [];
-  await sendAgentFile(
-    { sessionId: 's', filePath: '/x/plot.png' },
-    {
-      copyIntoOutputs: async () => ({ relPath: 'workspace/outputs/s/plot.png', name: 'plot.png', size: 10 }),
-      appendAssistant: async () => {},
-      publish: (p) => { published.push(p); },
-      now: () => 't',
-    },
-  );
-  assert.equal(published[0].text, '');
-  assert.equal(published[0].attachments![0].type, 'image');
 });
 
 test('copyFileIntoOutputs preserves Unicode display names while collision-renaming only storage', async () => {

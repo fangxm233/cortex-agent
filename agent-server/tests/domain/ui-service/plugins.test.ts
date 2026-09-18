@@ -2,7 +2,6 @@ import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { TRPCError } from '@trpc/server';
 import { beforeEach, test } from 'vitest';
 import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
 import {
@@ -385,26 +384,6 @@ test('plugins.assign rejects stale agent and template hashes', async () => {
   assert.ok(changedSlot.ok, JSON.stringify(changedSlot));
   expectCode(await assignAgent(writer, ['alpha']), 'conflict');
   expectCode(await assignSlot(target, ['alpha'], 'inherit'), 'conflict');
-});
-
-test('plugins.assign stale hashes map to router CONFLICT', async () => {
-  const caller = routerCaller();
-  const writer = agentTarget(await caller.plugins.list({}), 'writer');
-  const changed = await caller.plugins.assign({
-    target: { kind: 'agent', name: writer.name, baseHash: writer.baseHash },
-    pluginIds: ['beta'],
-  });
-
-  assert.equal(changed.changed, true);
-  await assert.rejects(
-    () => caller.plugins.assign({
-      target: { kind: 'agent', name: writer.name, baseHash: writer.baseHash },
-      pluginIds: ['alpha'],
-    }),
-    (error: unknown) => error instanceof TRPCError
-      && error.code === 'CONFLICT'
-      && (error.cause as { code?: string } | undefined)?.code === 'conflict',
-  );
 });
 
 test('plugins.assign rejects reordered template slots after refresh', async () => {

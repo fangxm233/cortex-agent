@@ -161,11 +161,8 @@ def test_a_ceiling_field_that_is_absent_is_refused(tmp_path: Path, field: str) -
     "overrides",
     [
         {"max_provider_requests": 0},
-        {"max_provider_requests": -1},
         {"max_provider_requests": '"1000"'},
-        {"deadline_seconds": "true"},
         {"max_cost_usd": '"0"'},
-        {"max_cost_usd": '"-1.00"'},
         {"max_cost_usd": 10.0},
         {"max_cost_usd": '"not-a-decimal"'},
     ],

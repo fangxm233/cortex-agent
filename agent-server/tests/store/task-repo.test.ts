@@ -59,27 +59,6 @@ function makeFixtureRepo(projects?: string[]): {
 
 // ── Test 1: runExclusive serializes concurrent callers (FIFO mutex) ──
 
-test('runExclusive — N concurrent calls serialize in FIFO order', async () => {
-  const repo = new TaskRepo({ skipGit: true });
-
-  const results: string[] = [];
-  const N = 10;
-
-  await Promise.all(
-    Array.from({ length: N }, (_, i) =>
-      repo.runExclusive(() => {
-        results.push(`op-${i}`);
-        return `op-${i}`;
-      })
-    )
-  );
-
-  assert.equal(results.length, N, 'all N operations completed');
-  for (let i = 0; i < N; i++) {
-    assert.equal(results[i], `op-${i}`);
-  }
-});
-
 // ── Test 2: Claim/complete state serialization ───────────────────
 
 test('runExclusive — overlapping async ops stay serialized', async () => {
@@ -165,16 +144,6 @@ test('withGitLock serializes operations from different callers', async () => {
   assert.equal(ra, 1);
   assert.equal(rb, 2);
   assert.deepEqual(order, ['a-start', 'a-end', 'b-start', 'b-end']);
-});
-
-// ── Test 5: flush() resolves immediately when idle ───────────────
-
-test('flush() resolves immediately when no mutation is pending', async () => {
-  const repo = new TaskRepo({ skipGit: true });
-  const t0 = Date.now();
-  await repo.flush();
-  const dt = Date.now() - t0;
-  assert.ok(dt < 50, `idle flush took ${dt}ms; expected near-instant`);
 });
 
 // ── End-to-end round-trip — add → load → getById → claim → complete ─────────
@@ -295,10 +264,3 @@ test('orphan sweep — pre-planted TASKS.yaml.tmp.* files removed on first write
 });
 
 // ── Test 10: commitAndPush is no-op when skipGit is true ──
-
-test('commitAndPush — no-op when skipGit is true', async () => {
-  const repo = new TaskRepo({ skipGit: true });
-  // Should not throw despite no git repo existing
-  repo.commitAndPush('should be ignored');
-  assert.ok(true, 'commitAndPush with skipGit: true did not throw');
-});

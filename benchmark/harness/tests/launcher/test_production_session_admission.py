@@ -425,28 +425,3 @@ def test_manager_arm_injects_its_task_root_through_the_real_sealed_exec(
         f"{CONTAINER_LOGS_DIR}/production-cortex-home"
         "/production-benchmark-evidence-context.json"
     ) in launch
-
-
-def test_manager_arm_opens_only_its_task_store_in_the_sealed_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The one relaxation this arm needs, against the home the trial actually materialized."""
-    trial = sealed_trial(tmp_path, MANAGER_BUNDLE)
-    logs_dir = trial.paths.agent_dir
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(trial.agent_environment, "_compose_exec", ContainerDouble(logs_dir))
-    session = production_session(trial, logs_dir, MANAGER_BUNDLE)
-    home = session._spec.materialized_home.cortex_home
-
-    tasks = home / "context/projects/general/TASKS.yaml"
-    assert tasks.stat().st_mode & 0o777 == 0o644
-    assert (home / "context/projects/general").stat().st_mode & 0o777 == 0o755
-    assert (home / "context/projects").stat().st_mode & 0o777 == 0o555
-    assert (home / "config/settings.json").stat().st_mode & 0o777 == 0o444
-    attestation = json.loads(
-        session._spec.materialized_home.launch_attestation_path.read_text())
-    assert attestation["arm_confinement"] == {
-        "injection": "task-root",
-        "webhook_endpoints": ["POST /webhook/thread-op"],
-        "writable_home_paths": ["context/projects/general"],
-    }

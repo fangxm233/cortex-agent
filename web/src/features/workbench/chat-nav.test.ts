@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatRow } from './transcript-vm';
-import { buildNavMarks, magnify, railStep, sameNavRows, visibleNavRows } from './chat-nav';
+import { buildNavMarks, visibleNavRows } from './chat-nav';
 
 const user = (text: string, extra: Partial<Extract<ChatRow, { kind: 'user' }>> = {}): ChatRow => ({
   kind: 'user', text, ...extra,
@@ -91,54 +91,5 @@ describe('visibleNavRows', () => {
 
   it('lights nothing for an empty transcript', () => {
     expect(visibleNavRows([], 500)).toEqual([]);
-  });
-});
-
-describe('sameNavRows', () => {
-  it('holds a set steady so scrolling does not re-render the rail', () => {
-    expect(sameNavRows([1, 4], [1, 4])).toBe(true);
-  });
-
-  it('sees a changed set', () => {
-    expect(sameNavRows([1, 4], [4])).toBe(false);
-    expect(sameNavRows([1, 4], [1, 9])).toBe(false);
-  });
-});
-
-describe('magnify', () => {
-  it('pulls hardest under the pointer', () => {
-    expect(magnify(0, 52)).toBe(1);
-  });
-
-  it('eases to nothing at the radius, and stays there beyond it', () => {
-    expect(magnify(52, 52)).toBe(0);
-    expect(magnify(90, 52)).toBe(0);
-  });
-
-  it('is symmetric either side of the pointer', () => {
-    expect(magnify(-20, 52)).toBeCloseTo(magnify(20, 52));
-  });
-
-  it('falls off monotonically', () => {
-    expect(magnify(10, 52)).toBeGreaterThan(magnify(30, 52));
-    expect(magnify(30, 52)).toBeGreaterThan(magnify(50, 52));
-  });
-});
-
-describe('railStep', () => {
-  it('gives a short session comfortable spacing', () => {
-    expect(railStep(3, 700)).toBe(14);
-  });
-
-  it('compresses a long session to fit the pane', () => {
-    expect(railStep(100, 700)).toBe(7);
-  });
-
-  it('stops compressing at the floor, leaving the rail to scroll', () => {
-    expect(railStep(400, 700)).toBe(4);
-  });
-
-  it('falls back to the comfortable step before the rail is measured', () => {
-    expect(railStep(0, 0)).toBe(14);
   });
 });

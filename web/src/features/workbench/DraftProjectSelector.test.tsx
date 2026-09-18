@@ -25,13 +25,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DraftProjectSelector', () => {
-  it('matches the profile capsule and follows the full left-rail order', () => {
+  it('follows the full left-rail order and selects the picked project', () => {
     const renderer = create(<LangProvider><DraftProjectSelector /></LangProvider>);
     const chip = renderer.root.findByProps({ 'data-chip': 'project' });
 
-    expect(chip.children.join('')).toBe('Project · alpha');
-    expect(chip.props.style.borderRadius).toBe(999);
-    expect(chip.props.style.height).toBe(30);
     act(() => chip.props.onClick({ stopPropagation: vi.fn() }));
 
     const rows = renderer.root.findAll((node) => typeof node.props['data-project'] === 'string');

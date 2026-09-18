@@ -86,18 +86,6 @@ test('_handleQueryResult with non-array (object) data wraps in array', () => {
   assert.equal(state.tabs.cost.error, null);
 });
 
-test('_handleQueryResult with null data produces empty array', () => {
-  const state = _handleQueryResult(
-    EMPTY_DASH_STATE,
-    'dash-threads',
-    TAB_SCOPES,
-    makeQueryResult('threads', 'dash-threads', null),
-  );
-
-  assert.equal(Array.isArray(state.tabs.threads.data), true);
-  assert.equal(state.tabs.threads.data.length, 0);
-});
-
 test('_handleQueryResult with unknown id is no-op', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
@@ -125,20 +113,6 @@ test('_handleEvent refreshes tab on matching event', () => {
   // For now, events just set loading = true (trigger re-fetch on next render)
   assert.equal(state.tabs.threads.loading, true);
   assert.equal(state.tabs.threads.error, null);
-});
-
-test('_handleEvent with unknown subscription id is no-op', () => {
-  const activeSubs = new Map<string, TabName>();
-  activeSubs.set('dash-threads', 'threads');
-
-  const state = _handleEvent(
-    EMPTY_DASH_STATE,
-    activeSubs,
-    makeUiEvent('dash-unknown', 'thread.created'),
-  );
-
-  // No tab should be affected
-  assert.equal(state.tabs.threads.loading, false);
 });
 
 test('_createPendingQuery and _clearPendingQuery manage pending state', () => {

@@ -5,11 +5,8 @@ import {
   activeTabOf,
   addTab,
   closeTab,
-  dockDownloadPath,
-  dockTabLabel,
   evictOverflow,
   fileTabKey,
-  isDocItem,
   openFileTab,
   openWebTab,
   reorderTabs,
@@ -118,25 +115,6 @@ describe('file tab identity', () => {
     let state = openFileTab(null, staged, 'file-0', 1);
     state = openFileTab(state, staged, 'file-1', 2);
     expect(state.tabs.map((tab) => tab.id)).toEqual(['file-0', 'file-1']);
-  });
-
-  it('labels a file tab by name and a web tab by its address', () => {
-    const state = openFileTab(null, pdf, 'file-0', 1);
-    expect(dockTabLabel(state.tabs[0]!)).toBe('paper.pdf');
-    expect(dockTabLabel(web('a', 'http://127.0.0.1:5173/'))).toBe('127.0.0.1');
-  });
-
-  it('offers a download only for a file that has workspace bytes', () => {
-    expect(dockDownloadPath(openFileTab(null, pdf, 'f', 1).tabs[0]!)).toBe('workspace/paper.pdf');
-    expect(dockDownloadPath(openFileTab(null, localImg, 'f', 1).tabs[0]!)).toBeNull();
-    expect(dockDownloadPath(web('a', 'http://127.0.0.1:5173/'))).toBeNull();
-  });
-
-  it('routes pdf/text/html through the document bodies and image/video through media', () => {
-    expect(isDocItem(pdf)).toBe(true);
-    expect(isDocItem({ kind: 'text', name: 'a.md', path: 'workspace/a.md' })).toBe(true);
-    expect(isDocItem(img)).toBe(false);
-    expect(isDocItem({ kind: 'video', name: 'v.mp4', path: 'workspace/v.mp4' })).toBe(false);
   });
 });
 

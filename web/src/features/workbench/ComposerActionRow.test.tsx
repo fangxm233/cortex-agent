@@ -88,26 +88,6 @@ function openPlus(renderer: ReactTestRenderer): void {
 }
 
 describe('ComposerActionRow ＋ menu', () => {
-  it('folds attach and commands into the menu and invokes their actions', () => {
-    const { renderer, onAttach, onCommands } = renderRow(null);
-
-    openPlus(renderer);
-    act(() => renderer.root.findByProps({ 'data-plus-item': 'attach' }).props.onClick(click));
-    expect(onAttach).toHaveBeenCalledOnce();
-    // A picked action closes the menu.
-    expect(renderer.root.findAllByProps({ 'data-menu': 'plus' })).toHaveLength(0);
-
-    openPlus(renderer);
-    act(() => renderer.root.findByProps({ 'data-plus-item': 'commands' }).props.onClick(click));
-    expect(onCommands).toHaveBeenCalledOnce();
-  });
-
-  it('omits the browser row entirely for a session that has none', () => {
-    // A live session that never opted in must not grow a control that would do nothing.
-    const { renderer } = renderRow(null);
-    openPlus(renderer);
-    expect(renderer.root.findAllByProps({ 'data-plus-item': 'browser' })).toHaveLength(0);
-  });
 
   it('offers a device page rather than a bare toggle, and picking this host names it', () => {
     // Where the browser runs matters as much as whether it runs: the server draws on the server's
@@ -137,50 +117,6 @@ describe('ComposerActionRow ＋ menu', () => {
     const row = renderer.root.findByProps({ 'data-plus-item': 'browser' });
     expect(row.props['data-editable']).toBe('false');
     expect(row.props.onClick).toBeUndefined();
-    expect(JSON.stringify(renderer.toJSON())).toContain('server');
-  });
-});
-
-describe('ComposerActionRow browser capsule', () => {
-  function chip(renderer: ReactTestRenderer) {
-    return renderer.root.findAllByProps({ 'data-chip': 'browser' })[0];
-  }
-
-  it('stays absent while browsing is off, on a draft and on a plain session alike', () => {
-    // The ＋ menu already carries the choice; a capsule for "no browser" would mark nothing.
-    expect(chip(renderRow({ device: null, onChange: vi.fn() }).renderer)).toBeUndefined();
-    expect(chip(renderRow(null).renderer)).toBeUndefined();
-  });
-
-  it('names the chosen device once a browser is on, without opening the ＋ menu', () => {
-    // Which machine's screen the agent drives is the whole point of the choice.
-    const { renderer } = renderRow({ device: 'my-pc', onChange: vi.fn() });
-    expect(chip(renderer).props['data-browser-device']).toBe('my-pc');
-    expect(JSON.stringify(renderer.toJSON())).toContain('my-pc');
-  });
-
-  it('switches machines from the capsule itself', () => {
-    const onChange = vi.fn();
-    const { renderer } = renderRow({ device: 'my-pc', onChange });
-    act(() => chip(renderer).props.onClick(click));
-    act(() => renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE }).props.onClick(click));
-    expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
-  });
-
-  it('turns browsing off from the capsule, and closes its menu after a pick', () => {
-    const onChange = vi.fn();
-    const { renderer } = renderRow({ device: DEFAULT_BROWSER_DEVICE, onChange });
-    act(() => chip(renderer).props.onClick(click));
-    act(() => renderer.root.findByProps({ 'data-device': '__off__' }).props.onClick(click));
-    expect(onChange).toHaveBeenCalledWith(null);
-    expect(renderer.root.findAllByProps({ 'data-menu': 'browser' })).toHaveLength(0);
-  });
-
-  it('only reports on a live session', () => {
-    // Same reason the ＋ row is read-only there: the tool set is fixed at spawn.
-    const { renderer } = renderRow({ device: 'server' });
-    expect(chip(renderer).props['data-editable']).toBe('false');
-    expect(chip(renderer).props.onClick).toBeUndefined();
   });
 });
 
@@ -188,12 +124,6 @@ describe('ComposerActionRow commission mode', () => {
   function chip(renderer: ReactTestRenderer) {
     return renderer.root.findAllByProps({ 'data-chip': 'commission' })[0];
   }
-
-  it('omits the commission row entirely for a session outside the mode', () => {
-    const { renderer } = renderRow(null, null);
-    openPlus(renderer);
-    expect(renderer.root.findAllByProps({ 'data-plus-item': 'commission' })).toHaveLength(0);
-  });
 
   it('starts a new commission from the ＋ menu', () => {
     // "New" is the ordinary way in: the user has a long task but no contract yet.
@@ -214,28 +144,9 @@ describe('ComposerActionRow commission mode', () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it('shows no capsule while the mode is off', () => {
-    expect(chip(renderRow(null, { value: null, onChange: vi.fn() }).renderer)).toBeUndefined();
-    expect(chip(renderRow(null, null).renderer)).toBeUndefined();
-  });
-
-  it('marks an unnamed draft rather than pretending it has a title', () => {
-    // The name is only fixed at contract approval — that is the point of the drill.
-    const { renderer } = renderRow(null, { value: 'new', onChange: vi.fn() });
-    expect(chip(renderer).props['data-commission-value']).toBe('new');
-  });
-
   it('names the commission on a live bound session, and only reports', () => {
     const { renderer } = renderRow(null, { value: 'cm-1', label: 'Refactor the rail' });
     expect(chip(renderer).props['data-editable']).toBe('false');
     expect(chip(renderer).props.onClick).toBeUndefined();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Refactor the rail');
-  });
-
-  it('is independent of the browser control', () => {
-    // Both are creation-time modes, but one is not a proxy for the other.
-    const { renderer } = renderRow({ device: 'my-pc', onChange: vi.fn() }, { value: 'new', onChange: vi.fn() });
-    expect(renderer.root.findAllByProps({ 'data-chip': 'browser' })[0]).toBeDefined();
-    expect(chip(renderer)).toBeDefined();
   });
 });

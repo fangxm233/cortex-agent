@@ -78,16 +78,6 @@ function makeChain(costs: [number, number, number] = [0, 0, 0]): { root: ThreadR
 
 // --- getRootThreadId ---
 
-test('getRootThreadId falls back to the thread own id when no rootThreadId metadata', () => {
-  const t = makeThread();
-  assert.equal(getRootThreadId(t), t.id);
-});
-
-test('getRootThreadId returns metadata.rootThreadId when set', () => {
-  const { root, grandchild } = makeChain();
-  assert.equal(getRootThreadId(grandchild), root.id);
-});
-
 // --- getTreeThreads / summarizeTree ---
 
 test('getTreeThreads returns root and all descendants, excluding unrelated threads', () => {

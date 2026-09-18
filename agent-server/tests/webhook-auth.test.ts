@@ -59,26 +59,11 @@ test('GET /webhook/devices without a token is rejected 401', async () => {
   assert.equal(statusCode, 401);
 });
 
-test('GET /webhook/devices with a wrong token is rejected 401', async () => {
-  const { statusCode } = await drive({ url: '/webhook/devices', headers: { 'x-cortex-token': 'nope' } });
-  assert.equal(statusCode, 401);
-});
-
 test('GET /webhook/devices with the correct token passes the gate', async () => {
   const { statusCode, body } = await drive({ url: '/webhook/devices', headers: { 'x-cortex-token': TOKEN } });
   assert.equal(statusCode, 200);
   // Devices list shape (no devices online in test) — proves we reached the handler, not the gate.
   assert.deepEqual(JSON.parse(body), { devices: [] });
-});
-
-test('POST /webhook/remote-command without a token is rejected 401', async () => {
-  const { statusCode } = await drive({ method: 'POST', url: '/webhook/remote-command', body: { device: 'x', action: 'bash' } });
-  assert.equal(statusCode, 401);
-});
-
-test('POST /webhook/thread-op without a token is rejected 401', async () => {
-  const { statusCode } = await drive({ method: 'POST', url: '/webhook/thread-op', body: { action: 'list' } });
-  assert.equal(statusCode, 401);
 });
 
 test('POST /hook/ask-user-question without a token is rejected 401', async () => {

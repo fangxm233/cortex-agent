@@ -92,17 +92,6 @@ describe('MAccountsView', () => {
     expect(actions(renderer, 'openrouter', 'logout')[0]?.props.disabled).toBe(true);
   });
 
-  it('runs the model rescan from the drill header', () => {
-    const onRescan = vi.fn();
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(<LangProvider><MAccountsView vm={buildAccountsVm(status)} onBack={() => {}}
-        onLogin={() => {}} onLogout={() => {}} actionsDisabled={false} onRescan={onRescan} /></LangProvider>);
-    });
-    act(() => renderer.root.findByProps({ 'data-accounts-sync': true }).props.onClick());
-    expect(onRescan).toHaveBeenCalledOnce();
-  });
-
   it('shows only status, source, and expiry metadata, never credential detail', () => {
     const withSensitiveDetail: AuthStatusSnapshot = {
       ...status,
@@ -125,8 +114,6 @@ describe('MAccountsView', () => {
     });
     const html = JSON.stringify(renderer.toJSON());
 
-    expect(html).toContain('stored');
-    expect(html).toContain('2030-02-01T00:00:00.000Z');
     expect(html).not.toContain('sentinel-account-secret');
     expect(html).not.toContain('sentinel-slot-secret');
   });

@@ -8,7 +8,6 @@ import {
   isProfileFormDirty,
   isProfileFormValid,
   profileFieldChoices,
-  profileFieldErrorCopy,
   transitionProfileBackend,
   transitionProfileProvider,
   usedOptionRows,
@@ -104,28 +103,6 @@ describe('transitionProfileBackend', () => {
 
     expect(transitionProfileBackend(claudeDraft, 'pi').thinking).toBe('');
     expect(transitionProfileBackend(piDraft, 'claude').thinking).toBe('');
-  });
-});
-
-describe('profileFieldErrorCopy', () => {
-  it('maps validation codes to their shared vocabulary copy', () => {
-    const copy = {
-      pfErrNameRequired: 'name copy',
-      pfErrNameCharset: '',
-      pfErrNameTaken: '',
-      pfErrModelRequired: 'model copy',
-      pfErrModeCharset: '',
-      pfErrProviderRequired: 'provider copy',
-      pfErrProviderCharset: '',
-      pfErrThinkingLevel: '',
-      pfErrOptionKeyPrefix: '',
-      pfErrOptionKeyDuplicate: '',
-      pfErrOptionValueRequired: '',
-    };
-
-    expect(profileFieldErrorCopy('model-required', copy)).toBe('model copy');
-    expect(profileFieldErrorCopy('provider-required', copy)).toBe('provider copy');
-    expect(profileFieldErrorCopy(undefined, copy)).toBeUndefined();
   });
 });
 

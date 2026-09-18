@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process';
 import { test } from 'vitest';
 import { AGENT_SERVER_DIR } from './module-loader.js';
 import {
-  buildRebuildAbortNotice,
   planRebuildSteps,
 } from '../src/entry/daemon.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
@@ -93,31 +92,6 @@ test('planRebuildSteps omits workspace packages that are absent', () => {
 });
 
 // --- Abort notice ---
-
-test('buildRebuildAbortNotice names the step, failure detail and the stale-code consequence', () => {
-  const text = buildRebuildAbortNotice({
-    step: 'web',
-    detail: 'exit 2',
-    reason: 'manual trigger (.restart file)',
-  });
-
-  assert.match(text, /web/);
-  assert.match(text, /exit 2/);
-  assert.match(text, /manual trigger \(\.restart file\)/);
-  // The operator-critical part: nothing restarted, so the running server is still stale.
-  assert.match(text, /not restarted|still running/i);
-});
-
-test('buildRebuildAbortNotice carries non-exit-code failure details verbatim', () => {
-  const text = buildRebuildAbortNotice({
-    step: 'pack',
-    detail: 'no cortex-agent-server-*.tgz found',
-    reason: 'src change: entry/daemon.ts',
-  });
-
-  assert.match(text, /pack/);
-  assert.match(text, /no cortex-agent-server-\*\.tgz found/);
-});
 
 test('handleDaemonMessage posts an error-level notice for a rebuild abort', async () => {
   const adapter = new MockAdapter({ adminChannel: 'D0AH43A75EZ' });

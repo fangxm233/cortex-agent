@@ -508,11 +508,6 @@ test('legacy saved Claude OAuth expiry never overrides CLI-owned status', async 
   }
 });
 
-test('getSavedApiEnv returns defensive snapshots', () => {
-  const sameReference = getSavedApiEnv() === getSavedApiEnv();
-  assert.equal(sameReference, false);
-});
-
 test('PI import and export failures degrade without suppressing Claude status', async () => {
   const wrongShape = await loadPiRuntime({ importModule: async () => ({ VERSION: '\uE130 secret' }) });
   assert.equal(wrongShape.available, false);

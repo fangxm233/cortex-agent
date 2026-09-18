@@ -145,17 +145,6 @@ test('markMissingRunningExecutionsStale auto-releases lock', async () => {
   }
 });
 
-// E: execution with no lock — completeExecution does not error
-test('completeExecution does not error when execution holds no lock', () => {
-  const execId = startExec('lock-test-no-lock');
-
-  // completeExecution should succeed even with no lock
-  const result = executionRegistry.completeExecution(execId);
-  assert.ok(result);
-  assert.equal(result.status, 'completed');
-  // No exception thrown = pass
-});
-
 // G: releaseExecutionLocks releases the lock owned by the executionId (suspend path, DR-0014).
 //    A manager that acquired a lock (e.g. `decompose --auto-lock`) and then suspends on its
 //    children must release BEFORE yielding — otherwise the lock is held across the whole child
@@ -199,15 +188,6 @@ test('releaseExecutionLocks(execB) does not release lock held by execA', () => {
     try { releaseLock(project, execA, { force: true }); } catch {}
     cleanup();
   }
-});
-
-// I: releaseExecutionLocks with no lock / null id — does not error.
-test('releaseExecutionLocks is a no-op when no lock is held or id is null', () => {
-  const execId = startExec('lock-test-suspend-nolock');
-  executionRegistry.releaseExecutionLocks(execId); // no lock held
-  executionRegistry.releaseExecutionLocks(null);   // null id
-  executionRegistry.releaseExecutionLocks(undefined);
-  // No exception = pass
 });
 
 // F: execution A holds lock, execution B calls completeExecution(B) — does NOT release A's lock

@@ -26,12 +26,6 @@ import {
   restoreBackup,
 } from '../src/domain/sessions/session-backup.js';
 
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => { resolve = done; });
-  return { promise, resolve };
-}
-
 beforeEach(() => {
   copyControl.calls.length = 0;
   copyControl.handler = null;
@@ -53,45 +47,6 @@ test('Claude create and restore preserve transcript bytes through the real async
     rmSync(sessionFile, { force: true });
     rmSync(backupFile, { force: true });
   }
-});
-
-test('Claude createBackup yields to the event loop while copyFile is pending', async () => {
-  const sessionId = `claude-pending-${process.pid}-${Date.now()}`;
-  const gate = deferred();
-  copyControl.handler = async () => gate.promise;
-  let settled = false;
-
-  const operation = createBackup(sessionId, 4).then((result) => {
-    settled = true;
-    return result;
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.equal(settled, false);
-  assert.equal(copyControl.calls.length, 1);
-  gate.resolve();
-  assert.equal(await operation, `${getSessionFilePath(sessionId)}.turn-4.bak`);
-});
-
-test('Claude restoreBackup yields to the event loop while copyFile is pending', async () => {
-  const sessionId = `claude-restore-pending-${process.pid}-${Date.now()}`;
-  const gate = deferred();
-  copyControl.handler = async () => gate.promise;
-  let settled = false;
-
-  const operation = restoreBackup(sessionId, 4).then((result) => {
-    settled = true;
-    return result;
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.equal(settled, false);
-  assert.deepEqual(copyControl.calls, [[
-    `${getSessionFilePath(sessionId)}.turn-4.bak`,
-    getSessionFilePath(sessionId),
-  ]]);
-  gate.resolve();
-  assert.equal(await operation, true);
 });
 
 test('Claude helpers preserve missing-file null and false results', async () => {

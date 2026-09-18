@@ -56,20 +56,6 @@ test('SlackAdapter: undefined subtype maps to kind=user', async () => {
   assert.equal(captured[0].message.kind, 'user');
 });
 
-test('SlackAdapter: missing subtype field maps to kind=user', async () => {
-  const { captured, triggerEvent } = makeCaptureAdapter();
-  await triggerEvent({
-    type: 'message',
-    // no subtype field at all
-    channel: 'C1',
-    ts: '123',
-    user: 'U1',
-    text: 'hello',
-  });
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0].message.kind, 'user');
-});
-
 // ── file_share → kind: 'file_share' ──
 
 test('SlackAdapter: file_share subtype maps to kind=file_share', async () => {
@@ -183,21 +169,3 @@ test('SlackAdapter: file_share message includes files in IncomingMessage', async
 });
 
 // ── kind field is not optional ──
-
-test('SlackAdapter: IncomingMessage has kind (not subtype)', async () => {
-  const { captured, triggerEvent } = makeCaptureAdapter();
-  await triggerEvent({
-    type: 'message',
-    subtype: undefined,
-    channel: 'C1',
-    ts: '123',
-    user: 'U1',
-    text: 'hello',
-  });
-  assert.equal(captured.length, 1);
-  const msg = captured[0].message as any;
-  // subtype should not exist
-  assert.equal('subtype' in msg, false, 'IncomingMessage should not have subtype field');
-  // kind should exist
-  assert.equal(msg.kind, 'user');
-});

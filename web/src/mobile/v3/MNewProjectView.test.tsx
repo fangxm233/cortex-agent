@@ -17,24 +17,6 @@ const copy = {
 };
 
 describe('MNewProjectView', () => {
-  it('shows the real project-create error', () => {
-    const renderer = create(
-      <MNewProjectView
-        name="nimbus"
-        onNameChange={vi.fn()}
-        onCreate={vi.fn()}
-        onClose={vi.fn()}
-        copy={copy}
-        error="Project already exists: nimbus"
-        pending={false}
-      />,
-    );
-
-    expect(renderer.root.findByProps({ 'data-project-create-error': true }).children.join('')).toBe(
-      'Project already exists: nimbus',
-    );
-  });
-
   it('disables duplicate submits while creation is pending', () => {
     const renderer = create(
       <MNewProjectView

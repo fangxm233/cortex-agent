@@ -26,46 +26,6 @@ test('CompositeAdapter.postMessage with unowned conduit returns valid MessageRef
   assert.equal(mock.posted.length, 0, 'real adapter should not receive the post');
 });
 
-test('CompositeAdapter.updateMessage with unowned conduit does not throw', async () => {
-  const mock = new MockAdapter();
-  mock.ownsConduitFn = (c) => !c.startsWith('web:');
-  const comp = new CompositeAdapter([mock]);
-
-  // updateMessage on a dummy ref from an unowned conduit should be a no-op, not a crash.
-  await comp.updateMessage(
-    { conduit: 'web:test-uuid-1234', messageId: 'noop_1_1234567890' },
-    { text: 'Updated status' },
-  );
-
-  // Should not throw — and the real adapter should not have been touched.
-  assert.equal(mock.updated.length, 0, 'real adapter should not receive the update');
-});
-
-test('CompositeAdapter.deleteMessage with unowned conduit does not throw', async () => {
-  const mock = new MockAdapter();
-  mock.ownsConduitFn = (c) => !c.startsWith('web:');
-  const comp = new CompositeAdapter([mock]);
-
-  await comp.deleteMessage(
-    { conduit: 'web:test-uuid-1234', messageId: 'noop_1_1234567890' },
-  );
-
-  assert.equal(mock.deleted.length, 0);
-});
-
-test('CompositeAdapter marker add/remove with unowned conduit do not throw', async () => {
-  const mock = new MockAdapter();
-  mock.ownsConduitFn = (c) => !c.startsWith('web:');
-  const comp = new CompositeAdapter([mock]);
-
-  const ref = { conduit: 'web:test-uuid-1234', messageId: 'noop_1_1234567890' };
-  await comp.markQueued(ref);
-  await comp.unmarkQueued(ref);
-
-  assert.equal(mock.marksQueued.length, 0);
-  assert.equal(mock.marksUnqueued.length, 0);
-});
-
 test('CompositeAdapter.ownsConduit: web conduits are not owned by any real adapter', () => {
   const mock = new MockAdapter();
   mock.ownsConduitFn = (c) => !c.startsWith('web:');

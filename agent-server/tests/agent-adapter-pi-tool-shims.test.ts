@@ -86,13 +86,6 @@ test('C: respondToDialog', async () => {
   await engine.close();
 });
 
-test('D: respondToDialog with value', async () => {
-  const { engine, runtime } = await spawnSession('k4');
-  engine.respondToDialog('ui-req-2', { value: 'Option A' });
-  assert.deepEqual(runtime.uiResponses, [{ id: 'ui-req-2', payload: { value: 'Option A' } }]);
-  await engine.close();
-});
-
 // Test F: generic extension dialog routing remains available
 test('F: generic extension dialog', async () => {
   const { engine, runtime } = await spawnSession('k6');
@@ -520,18 +513,6 @@ test('K: open forwards rawTools allowlist to the session env', async () => {
   const { fake, engine } = await spawnSession('kEnv', 'sess-abc', { rawTools: CODER_TOOLS });
   assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, CODER_TOOLS);
   await engine.close();
-});
-
-test('K2: open omits CORTEX_PI_ALLOWED_TOOLS when rawTools is unset', async () => {
-  const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
-  delete process.env.CORTEX_PI_ALLOWED_TOOLS;
-  try {
-    const { fake, engine } = await spawnSession('kEnv2');
-    assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, undefined);
-    await engine.close();
-  } finally {
-    if (prev !== undefined) process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
-  }
 });
 
 console.error("All tests registered");

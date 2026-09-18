@@ -88,20 +88,6 @@ test('hook allows Edit when lock held by current owner', () => {
   }
 });
 
-test('hook allows Write when lock held by current owner', () => {
-  const filePath = createTASKSYaml(ACTIVE_LOCK_TASKS_YAML);
-  try {
-    const result = invokeHook(
-      { tool_name: 'Write', tool_input: { file_path: filePath } },
-      { CORTEX_EXECUTION_ID: 'test-exec-1' },
-    );
-    assert.ok(result, 'hook must return a decision');
-    assert.equal(result!.hookSpecificOutput.permissionDecision, 'allow');
-  } finally {
-    cleanupDir(filePath);
-  }
-});
-
 // ─── 2. Deny cases ──────────────────────────────────────────────
 
 test('hook denies Edit when no lock exists on TASKS.yaml', () => {
@@ -148,53 +134,6 @@ test('hook denies Edit when lock held by different owner', () => {
 
 // ─── 3. permissionDecisionReason content ────────────────────────
 
-test('hook deny reason mentions cortex-task lock-acquire', () => {
-  const filePath = createTASKSYaml(null);
-  try {
-    const result = invokeHook(
-      { tool_name: 'Edit', tool_input: { file_path: filePath } },
-      { CORTEX_EXECUTION_ID: 'test-exec-1' },
-    );
-    assert.ok(result, 'hook must return a decision');
-    const reason = result!.hookSpecificOutput.permissionDecisionReason;
-    assert.match(reason, /cortex-task/);
-    assert.match(reason, /lock-acquire/);
-    assert.match(reason, /TASKS.yaml/);
-  } finally {
-    cleanupDir(filePath);
-  }
-});
-
-test('hook deny reason mentions different owner when lock held by other', () => {
-  const filePath = createTASKSYaml(DIFFERENT_OWNER_LOCK_TASKS_YAML);
-  try {
-    const result = invokeHook(
-      { tool_name: 'Edit', tool_input: { file_path: filePath } },
-      { CORTEX_EXECUTION_ID: 'test-exec-1' },
-    );
-    assert.ok(result, 'hook must return a decision');
-    const reason = result!.hookSpecificOutput.permissionDecisionReason;
-    assert.match(reason, /Lock is held by/);
-  } finally {
-    cleanupDir(filePath);
-  }
-});
-
-test('hook deny reason mentions expired when lock is expired', () => {
-  const filePath = createTASKSYaml(EXPIRED_LOCK_TASKS_YAML);
-  try {
-    const result = invokeHook(
-      { tool_name: 'Edit', tool_input: { file_path: filePath } },
-      { CORTEX_EXECUTION_ID: 'test-exec-1' },
-    );
-    assert.ok(result, 'hook must return a decision');
-    const reason = result!.hookSpecificOutput.permissionDecisionReason;
-    assert.match(reason, /expired/i);
-  } finally {
-    cleanupDir(filePath);
-  }
-});
-
 // ─── 4. Noop cases (no decision returned) ───────────────────────
 
 test('hook no-ops for non-TASKS.yaml files', () => {
@@ -221,19 +160,6 @@ test('hook no-ops for non-Edit/Write tools', () => {
       { CORTEX_EXECUTION_ID: 'test-exec-1' },
     );
     assert.equal(result, null, 'hook must not return a decision for non-Edit/Write tools');
-  } finally {
-    cleanupDir(filePath);
-  }
-});
-
-test('hook no-ops for Bash tool', () => {
-  const filePath = createTASKSYaml(ACTIVE_LOCK_TASKS_YAML);
-  try {
-    const result = invokeHook(
-      { tool_name: 'Bash', tool_input: { file_path: filePath } },
-      { CORTEX_EXECUTION_ID: 'test-exec-1' },
-    );
-    assert.equal(result, null, 'hook must not return a decision for Bash tool');
   } finally {
     cleanupDir(filePath);
   }

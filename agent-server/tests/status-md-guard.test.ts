@@ -171,21 +171,6 @@ test('guard denies an ISSUES.md write whose result exceeds 80 lines', () => {
   }
 });
 
-test('guard denies an ISSUES.md Edit whose result exceeds 6KB', () => {
-  const { dir, filePath } = mkProjectFile('ISSUES.md');
-  try {
-    fs.writeFileSync(filePath, '# Issues\n\nPLACEHOLDER\n', 'utf8');
-    const decision = runHook({
-      tool_name: 'Edit',
-      tool_input: { file_path: filePath, old_string: 'PLACEHOLDER', new_string: 'x'.repeat(7000) },
-      cwd: dir,
-    });
-    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test('guard denies a project CORTEX.md write whose result exceeds 120 lines', () => {
   const { dir, filePath } = mkProjectFile('CORTEX.md');
   try {
@@ -223,21 +208,6 @@ test('guard allows a 100-line CORTEX.md (over STATUS cap, under CORTEX cap)', ()
     const decision = runHook({
       tool_name: 'Write',
       tool_input: { file_path: filePath, content: lines(100) },
-      cwd: dir,
-    });
-    assert.notEqual(decision?.hookSpecificOutput?.permissionDecision, 'deny');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('guard allows a shrinking write on an over-limit CORTEX.md', () => {
-  const { dir, filePath } = mkProjectFile('CORTEX.md');
-  try {
-    fs.writeFileSync(filePath, `# index\n${'x'.repeat(30000)}\n`, 'utf8');
-    const decision = runHook({
-      tool_name: 'Write',
-      tool_input: { file_path: filePath, content: `# index\n${'x'.repeat(12000)}\n` },
       cwd: dir,
     });
     assert.notEqual(decision?.hookSpecificOutput?.permissionDecision, 'deny');

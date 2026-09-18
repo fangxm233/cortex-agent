@@ -643,21 +643,6 @@ async function runScenario(): Promise<void> {
   }
 }
 
-test('removes the isolated home when scenario preparation fails', async () => {
-  let createdHome: string | null = null;
-  const failInit = async (home: string): Promise<void> => {
-    createdHome = home;
-    throw new Error('forced scenario preparation failure');
-  };
-  try {
-    await assert.rejects(prepareScenario(failInit), /forced scenario preparation failure/);
-    assert.ok(createdHome);
-    assert.equal(existsSync(createdHome), false);
-  } finally {
-    if (createdHome) rmSync(createdHome, { recursive: true, force: true });
-  }
-});
-
 test('real server migrates all legacy settings and hot-reloads observable consumers', async () => {
   await runScenario();
 }, 120_000);

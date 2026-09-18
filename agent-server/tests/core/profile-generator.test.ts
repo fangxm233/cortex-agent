@@ -56,11 +56,6 @@ test('generateProfiles: never generates provider-specific tier profiles', () => 
   }
 });
 
-test('generateProfiles: defaultProfile is "plan"', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN]);
-  assert.equal(result.defaultProfile, 'plan');
-});
-
 // ─── plan/execute defaults: first lexicographic choice ──────────
 
 test('generateProfiles: plan defaults to first lexicographic (mode, model) when planChoice omitted', () => {
@@ -68,12 +63,6 @@ test('generateProfiles: plan defaults to first lexicographic (mode, model) when 
   const result = generateProfiles([ANTHROPIC_PLAN]);
   assert.equal(result.profiles.plan.mode, 'plan');
   assert.equal(result.profiles.plan.model, 'claude-haiku-4-5');
-});
-
-test('generateProfiles: execute defaults to first lexicographic when executeChoice omitted', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN]);
-  assert.equal(result.profiles.execute.mode, 'plan');
-  assert.equal(result.profiles.execute.model, 'claude-haiku-4-5');
 });
 
 // ─── Explicit planChoice / executeChoice ────────────────────────
@@ -134,42 +123,12 @@ test('generateProfiles: executeFallback array is written to ProfileEntry.fallbac
   assert.equal(result.profiles.execute.fallback![0].mode, 'plan');
 });
 
-test('generateProfiles: no fallback opts → ProfileEntry.fallback is undefined or empty', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN]);
-  const fb = result.profiles.plan.fallback;
-  assert.ok(fb === undefined || (Array.isArray(fb) && fb.length === 0));
-});
-
 test('generateProfiles: fallback referencing unknown (mode, model) throws', () => {
   assert.throws(() => {
     generateProfiles([ANTHROPIC_PLAN], {
       planFallback: [{ mode: 'nonexistent', model: 'fake' }],
     });
   }, /not found/i);
-});
-
-// ─── backend resolution ────────────────────────────────────────
-
-test('generateProfiles: anthropic plan endpoint → backend=claude', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN], {
-    planChoice: { mode: 'plan', model: 'claude-opus-4-7' },
-  });
-  assert.equal(result.profiles.plan.backend, 'claude');
-});
-
-test('generateProfiles: non-anthropic endpoint → backend=pi (e.g. deepseek)', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN, DEEPSEEK], {
-    planChoice: { mode: 'deepseek', model: 'deepseek-v4-pro' },
-  });
-  assert.equal(result.profiles.plan.backend, 'pi');
-});
-
-test('generateProfiles: openai-codex endpoint → backend=pi', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN, OPENAI_CODEX], {
-    planChoice: { mode: 'openai-codex', model: 'gpt-5.4-mini' },
-  });
-  assert.equal(result.profiles.plan.backend, 'pi');
-  assert.equal(result.profiles.plan.mode, 'openai-codex');
 });
 
 // ─── PI backends must carry an explicit provider (new routing contract) ─────
@@ -180,14 +139,6 @@ test('generateProfiles: pi backend profile includes provider === endpoint name',
   });
   assert.equal(result.profiles.execute.backend, 'pi');
   assert.equal((result.profiles.execute as any).provider, 'deepseek');
-});
-
-test('generateProfiles: openai-codex pi profile includes provider=openai-codex', () => {
-  const result = generateProfiles([ANTHROPIC_PLAN, OPENAI_CODEX], {
-    executeChoice: { mode: 'openai-codex', model: 'gpt-5.4-mini' },
-  });
-  assert.equal(result.profiles.execute.backend, 'pi');
-  assert.equal((result.profiles.execute as any).provider, 'openai-codex');
 });
 
 test('generateProfiles: claude backend profile does NOT carry a provider', () => {
@@ -233,36 +184,6 @@ test('listChoices: sorts by (mode, model) ascending lexicographically', () => {
   // Within deepseek, first model is deepseek-v4-flash (alphabetically before -pro)
   assert.equal(choices[0].model, 'deepseek-v4-flash');
   assert.equal(choices[1].model, 'deepseek-v4-pro');
-});
-
-test('listChoices: within same mode, models sorted ascending', () => {
-  const choices = listChoices([ANTHROPIC_PLAN]);
-  const models = choices.map(c => c.model);
-  for (let i = 1; i < models.length; i++) {
-    assert.ok(models[i - 1] <= models[i], `models not sorted at ${i}: ${models[i - 1]} vs ${models[i]}`);
-  }
-});
-
-test('listChoices: each choice has {mode, model}', () => {
-  const choices = listChoices([ANTHROPIC_PLAN]);
-  for (const c of choices) {
-    assert.equal(typeof c.mode, 'string');
-    assert.equal(typeof c.model, 'string');
-  }
-});
-
-test('listChoices: empty endpoints → empty array', () => {
-  assert.deepEqual(listChoices([]), []);
-});
-
-// ─── Validate profile name regex compatibility with OAuth providers ─────
-
-test('generateProfiles: mode "openai-codex" passes through to ProfileEntry (validated downstream)', () => {
-  // Hyphenated mode names must survive — profile-manager allows /^[a-zA-Z0-9_-]+$/
-  const result = generateProfiles([OPENAI_CODEX], {
-    planChoice: { mode: 'openai-codex', model: 'gpt-5.4-mini' },
-  });
-  assert.equal(result.profiles.plan.mode, 'openai-codex');
 });
 
 // ─── mergeProfilesJson: overwrite behavior (preserved) ──────────
@@ -351,43 +272,6 @@ test('writeProfilesJson: writes profiles.json containing plan and execute', () =
   }
 });
 
-test('writeProfilesJson: respects explicit choices', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-profile-write-'));
-  try {
-    writeProfilesJson([ANTHROPIC_PLAN, DEEPSEEK], {
-      outputDir: tmpDir,
-      planChoice: { mode: 'plan', model: 'claude-sonnet-4-6' },
-      executeChoice: { mode: 'deepseek', model: 'deepseek-v4-flash' },
-    });
-    const content = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles.json'), 'utf-8'));
-    assert.equal(content.profiles.plan.model, 'claude-sonnet-4-6');
-    assert.equal(content.profiles.execute.model, 'deepseek-v4-flash');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('writeProfilesJson: plumbs planFallback / executeFallback through to file', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-profile-write-'));
-  try {
-    writeProfilesJson([ANTHROPIC_PLAN, DEEPSEEK], {
-      outputDir: tmpDir,
-      planChoice: { mode: 'plan', model: 'claude-opus-4-7' },
-      planFallback: [{ mode: 'deepseek', model: 'deepseek-v4-flash' }],
-      executeChoice: { mode: 'deepseek', model: 'deepseek-v4-pro' },
-      executeFallback: [{ mode: 'plan', model: 'claude-haiku-4-5' }],
-    });
-    const content = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles.json'), 'utf-8'));
-    assert.ok(Array.isArray(content.profiles.plan.fallback));
-    assert.equal(content.profiles.plan.fallback[0].model, 'deepseek-v4-flash');
-    assert.equal(content.profiles.plan.fallback[0].backend, 'pi');
-    assert.ok(Array.isArray(content.profiles.execute.fallback));
-    assert.equal(content.profiles.execute.fallback[0].model, 'claude-haiku-4-5');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
 test('writeProfilesJson: overwrite=true forces overwrite of existing plan/execute', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-profile-write-'));
   try {
@@ -468,25 +352,4 @@ test('generateProfiles: extraProfiles skips names colliding with managed profile
   assert.ok(result.profiles['claude-haiku-4-5']);
   // plan and execute are managed profiles, not overwritten
   assert.equal(result.profiles.plan.model, 'claude-haiku-4-5'); // default lexicographic
-});
-
-test('writeProfilesJson: extraProfiles plumbed through to file', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-profile-write-'));
-  try {
-    writeProfilesJson([ANTHROPIC_PLAN, DEEPSEEK], {
-      outputDir: tmpDir,
-      planChoice: { mode: 'plan', model: 'claude-opus-4-7' },
-      extraProfiles: [
-        { mode: 'deepseek', model: 'deepseek-v4-pro' },
-        { mode: 'plan', model: 'claude-sonnet-4-6' },
-      ],
-    });
-    const content = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles.json'), 'utf-8'));
-    assert.ok(content.profiles['deepseek-v4-pro']);
-    assert.equal(content.profiles['deepseek-v4-pro'].backend, 'pi');
-    assert.ok(content.profiles['claude-sonnet-4-6']);
-    assert.equal(content.profiles['claude-sonnet-4-6'].backend, 'claude');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
 });

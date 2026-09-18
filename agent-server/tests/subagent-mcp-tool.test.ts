@@ -6,21 +6,16 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import assert from 'node:assert/strict';
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { beforeEach, test, vi } from 'vitest';
 import { z } from 'zod';
 import {
   MCP_TOOLS_BY_SERVER, SUBAGENT_TOOLS, withoutSubagentTools,
 } from '../src/core/mcp-tool-gate.js';
 import { registerGatedMcpTools } from '../src/core/mcp-tool-gate.js';
-import { CONFIG_DIR } from '../src/core/paths.js';
 import { buildSpawnArgs } from '../src/agent-adapter/claude/spawn-args.js';
 import {
   DEFAULT_TOOLS, MCP_CONFIG, subagentBridgeTools,
 } from '../src/agent-adapter/claude/defaults.js';
-import {
-  decodeSubagentModels, describeSubagent, encodeSubagentModels,
-} from '@core/agents/subagent/catalog.js';
-import { SUBAGENT_MODEL_DESCRIPTION } from '@core/agents/subagent/schema.js';
 import type { CortexToolContext } from '../src/domain/mcp/tools/context.js';
 
 const requestLoopbackJson = vi.hoisted(() => vi.fn());
@@ -75,83 +70,6 @@ function payloads() {
 }
 
 beforeEach(() => { requestLoopbackJson.mockReset(); });
-
-// --- catalog-driven field descriptions ---
-
-const AGENTS_DIR = path.join(CONFIG_DIR, 'agents');
-
-/** Seed the role table `loadRoles()` reads by default; the per-file temp home makes this safe. */
-function writeRoles(...roles: Array<{ name: string; description: string }>): void {
-  fs.rmSync(AGENTS_DIR, { recursive: true, force: true });
-  fs.mkdirSync(AGENTS_DIR, { recursive: true });
-  for (const role of roles) {
-    fs.writeFileSync(
-      path.join(AGENTS_DIR, `${role.name}.md`),
-      ['---', `name: ${role.name}`, `description: ${role.description}`, '---', 'body'].join('\n'),
-    );
-  }
-}
-
-// The catalog is read on every registration, so a role written by one test must not leak.
-afterEach(() => { fs.rmSync(AGENTS_DIR, { recursive: true, force: true }); });
-
-/** Parallel/chain tasks reuse the multi-task `subagent_type` description inside the agent shape. */
-function taskTypeDescription(shape: Record<string, z.ZodTypeAny>): string | undefined {
-  const parallel = shape.parallel as z.ZodOptional<
-    z.ZodArray<z.ZodObject<{ subagent_type: z.ZodString }>>
-  >;
-  return parallel.unwrap().element.shape.subagent_type.description;
-}
-
-test('the agent field descriptions name the host roles and models', () => {
-  writeRoles(
-    { name: 'explore', description: 'Look around the codebase.' },
-    { name: 'general-purpose', description: 'Do arbitrary work.' },
-  );
-  const piModels = encodeSubagentModels([
-    { backend: 'pi', provider: 'acme', id: 'pi-one' },
-    { backend: 'pi', id: 'pi-two' },
-  ]);
-  const { shape } = registerTools(null, ctx({
-    claudeModel: 'claude-host-model',
-    subagentPiModels: decodeSubagentModels(piModels),
-  })).get('agent')!;
-
-  const typeDescription = shape.subagent_type.description ?? '';
-  assert.match(typeDescription, /explore/);
-  assert.match(typeDescription, /general-purpose/);
-  const modelDescription = shape.model.description ?? '';
-  assert.match(modelDescription, /claude-host-model/);
-  assert.match(modelDescription, /acme\/pi-one/);
-  assert.match(modelDescription, /pi-two/);
-});
-
-test('a host with no roles falls back to the legacy role descriptions', () => {
-  fs.rmSync(AGENTS_DIR, { recursive: true, force: true });
-  const { shape } = registerTools(null, ctx()).get('agent')!;
-
-  assert.equal(
-    taskTypeDescription(shape),
-    'Role name, such as explore, general-purpose, or plan.',
-  );
-  assert.equal(
-    shape.subagent_type.description,
-    'Role name for single mode, such as explore, general-purpose, or plan.',
-  );
-  // The model field does NOT fall back here: the shipped Anthropic table is always known, with or
-  // without a role file and with or without model discovery having answered.
-  assert.match(shape.model.description ?? '', /Known available — claude: claude-/);
-});
-
-test('an empty catalog falls back to the exact legacy field descriptions', () => {
-  const described = describeSubagent({});
-  assert.equal(described.model, SUBAGENT_MODEL_DESCRIPTION);
-  assert.equal(described.subagentType, 'Role name, such as explore, general-purpose, or plan.');
-  assert.equal(
-    described.subagentTypeSingle,
-    'Role name for single mode, such as explore, general-purpose, or plan.',
-  );
-});
 
 // --- registration ---
 

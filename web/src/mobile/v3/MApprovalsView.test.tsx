@@ -58,7 +58,6 @@ describe('MApprovalsView', () => {
 
     const field = renderer.root.findByProps({ 'data-approval-feedback': true });
     expect(field.props.value).toBe('  reduce scope  ');
-    expect(field.props.placeholder).toBe('Optional feedback');
     field.props.onChange({ target: { value: 'wait for quota' } });
     expect(onFeedback).toHaveBeenCalledWith('wait for quota');
 

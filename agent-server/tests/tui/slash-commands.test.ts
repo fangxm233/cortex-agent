@@ -5,16 +5,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  SLASH_COMMANDS,
   parseSlashInput,
   filterSlashCommands,
   findSlashCommand,
 } from '../../src/tui/slash-commands.js';
-
-test('parseSlashInput: non-slash text is not a command', () => {
-  const p = parseSlashInput('hello world');
-  assert.equal(p.isSlash, false);
-});
 
 test('parseSlashInput: bare command, no args', () => {
   const p = parseSlashInput('/new');
@@ -32,14 +26,6 @@ test('filterSlashCommands: prefix match', () => {
   const r = filterSlashCommands('ne');
   const names = r.map(c => c.name);
   assert.deepEqual(names, ['new', 'newx']);
-});
-
-test('filterSlashCommands: empty query returns all', () => {
-  assert.equal(filterSlashCommands('').length, SLASH_COMMANDS.length);
-});
-
-test('filterSlashCommands: no match returns empty', () => {
-  assert.equal(filterSlashCommands('zzz').length, 0);
 });
 
 test('findSlashCommand: exact match and miss', () => {

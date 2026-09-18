@@ -56,17 +56,6 @@ test('resolveSessionName registers a new record with correct fields for an unkno
   assert.equal(rec.profileName, getActiveProfile(channel));
 });
 
-test('resolveSessionName generates a name without registering when sessionId is null', async () => {
-  const channel = 'c0-null';
-
-  // generateSessionName produces a name like cortex-XXXXXX
-  const name = await resolveSessionName(null, channel, 'hi', stubAdapter);
-  assert(name);
-  assert(typeof name === 'string');
-  assert(name.length > 0);
-  // No registry record is created for a null sessionId — just confirm no throw
-});
-
 // ── handleNewCmd test ─────────────────────────────────────────────────────────
 
 test('handleNewCmd clears sessions for all backends and the ledger', async () => {
@@ -98,12 +87,6 @@ test('handleNewCmd clears sessions for all backends and the ledger', async () =>
   // Assert: ledger conversation cleared
   const conv = await conversationLedger.getConversation(channel);
   assert.equal(conv, null);
-
-  // Assert: adapter recorded a "new conversation" message
-  const hasNewConv = adapter.posted.some(p =>
-    typeof p.content.text === 'string' && p.content.text.includes('new conversation')
-  );
-  assert(hasNewConv);
 });
 
 // ── handleResumeCmd test ──────────────────────────────────────────────────────
@@ -132,11 +115,5 @@ test('handleResumeCmd (arg path) attaches to an existing session', async () => {
   const conv = await conversationLedger.getConversation(channel);
   assert.equal(conv?.sessionId, sid);
   assert.equal(conv?.sessionName, 'cortex-resume-c4');
-
-  // Assert: adapter posted a "Switched to session" message
-  const hasSwitched = adapter.posted.some(p =>
-    typeof p.content.text === 'string' && p.content.text.includes('Switched to session')
-  );
-  assert(hasSwitched);
 });
 

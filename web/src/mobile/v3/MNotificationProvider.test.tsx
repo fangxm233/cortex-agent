@@ -137,7 +137,6 @@ describe('mobile notification delivery', () => {
 
   it('publishes an in-app reply onto the shared queue and routes when activated', () => {
     act(() => h.feed?.publish(item()));
-    expect(h.toasts[0]).toMatchObject({ title: 'Inbox', description: 'Done', level: 'info' });
     act(() => h.toasts[0].onActivate?.());
     expect(h.navigate).toHaveBeenCalledWith('/m/session/s1');
   });

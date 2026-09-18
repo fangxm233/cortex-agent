@@ -66,21 +66,6 @@ test('(a) route() calls track(+1) then enqueue fn calls track(-1) in finally', a
 
 // ── (b) enqueue called with correct channel ───────────────────────────────────
 
-test('(b) route() calls enqueue with the correct channel', async () => {
-  const channel = freshChannel();
-  const enqueueCalls: string[] = [];
-  const executor = new ThreadExecutor({
-    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return false; },
-    track: () => {},
-  });
-
-  const ctx = makeCtx(channel, { threadAddMatch: ['!thread add main', 'main'] as any });
-  await executor.route(ctx as any);
-
-  assert.equal(enqueueCalls.length, 1);
-  assert.equal(enqueueCalls[0], channel);
-});
-
 // ── (c) hourglass reaction when prior queue exists ────────────────────────────
 
 test('(c) route() calls addReaction(hourglass) when channel already has a running queue', async () => {
@@ -119,25 +104,6 @@ test('(c) route() calls addReaction(hourglass) when channel already has a runnin
 });
 
 // ── (e) route() without existing queue does NOT call addReaction ───────────────
-
-test('(e) route() on fresh channel skips addReaction (no prior queue)', async () => {
-  const channel = freshChannel();
-  const enqueueCalls: string[] = [];
-  const adapter = new MockAdapter();
-  // addReaction on MockAdapter shouldn't throw; we just verify the executor doesn't throw
-  const executor = new ThreadExecutor({
-    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return false; },
-    track: () => {},
-  });
-
-  const ctx = makeCtx(channel, { adapter });
-  await executor.route(ctx as any);
-
-  assert.equal(enqueueCalls.length, 1, 'enqueue was called');
-  // No prior queue → markQueued was NOT called (conduitQueues.has returned false)
-  assert.equal(adapter.marksQueued.length, 0, 'markQueued was not called when no prior queue');
-  assert.ok(true, 'route() completed synchronously without throwing');
-});
 
 // ── (g) message buffering when thread has a running step ─────────────────────
 

@@ -5,7 +5,6 @@ import {
   parseClaudeLineToNormalized,
   createClaudeParserState,
 } from './replay-harness.js';
-import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 
 // --- Claude parser edges ---
 
@@ -188,25 +187,4 @@ test('parseClaudeLineToNormalized: user tool_result with is_error=true → ok=fa
   assert.deepStrictEqual(events, [
     { type: 'tool_result', toolUseId: 'tu-a', ok: false, content: 'boom' },
   ]);
-});
-
-// --- Runtime enumeration of NormalizedEvent discriminators ---
-// Compile-time exhaustiveness is already enforced in tests/agent-adapter.test.ts via the
-// `_normalizedEventExhaustive` sentinel. This runtime check complements it by asserting
-// that a hand-enumerated set matches what the codebase actually constructs, so a rename
-// or removal of a variant surfaces even without tsc.
-
-test('runtime enumeration of NormalizedEvent discriminators matches canonical 9-variant set', () => {
-  const canonical = new Set<NormalizedEvent['type']>([
-    'session_started',
-    'assistant_text',
-    'tool_use',
-    'tool_result',
-    'ask_user_question',
-    'plan_written',
-    'rate_limit',
-    'turn_complete',
-    'error',
-  ]);
-  assert.equal(canonical.size, 9, 'canonical set must have 9 variants (DR-0008 §3.3)');
 });

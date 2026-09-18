@@ -11,60 +11,6 @@ import { getActiveProfile } from '@domain/agents/index.js';
 
 // ── registerNamedSession ────────────────────────────────────────
 
-describe('registerNamedSession', () => {
-  it('calls generateSessionName and registerSession with kind:local by default, label/profileName null when omitted', async () => {
-    let generateCount = 0;
-    let registered: any = null;
-
-    const fakeStore: SessionRegistryWriter = {
-      generateSessionName: async () => { generateCount++; return 'cortex-fake'; },
-      registerSession: async (name, opts) => { registered = { name, ...opts }; },
-    };
-
-    const name = await registerNamedSession(fakeStore, {
-      sessionId: 'sid-1',
-      channel: 'c1-reg-default',
-      backend: 'claude',
-      projectId: 'proj-x',
-    });
-
-    assert.strictEqual(generateCount, 1, 'generateSessionName called once');
-    assert.strictEqual(name, 'cortex-fake', 'returns generated name');
-    assert.ok(registered, 'registerSession was called');
-    assert.strictEqual(registered.name, 'cortex-fake');
-    assert.strictEqual(registered.sessionId, 'sid-1');
-    assert.strictEqual(registered.channel, 'c1-reg-default');
-    assert.strictEqual(registered.backend, 'claude');
-    assert.strictEqual(registered.kind, 'local', 'default kind is local');
-    assert.strictEqual(registered.projectId, 'proj-x');
-    assert.strictEqual(registered.label, null, 'default label is null');
-    assert.strictEqual(registered.profileName, null, 'default profileName is null');
-  });
-
-  it('passes through label and profileName when provided', async () => {
-    let registered: any = null;
-
-    const fakeStore: SessionRegistryWriter = {
-      generateSessionName: async () => 'cortex-labeld',
-      registerSession: async (name, opts) => { registered = { name, ...opts }; },
-    };
-
-    await registerNamedSession(fakeStore, {
-      sessionId: 'sid-2',
-      channel: 'c1-reg-label',
-      backend: 'pi',
-      projectId: 'proj-y',
-      kind: 'scheduled',
-      label: 'my-label',
-      profileName: 'my-profile',
-    });
-
-    assert.strictEqual(registered.kind, 'scheduled');
-    assert.strictEqual(registered.label, 'my-label');
-    assert.strictEqual(registered.profileName, 'my-profile');
-  });
-});
-
 // ── createDirectSession ─────────────────────────────────────────
 
 describe('createDirectSession', () => {

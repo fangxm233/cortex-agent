@@ -1,11 +1,11 @@
-// input:  helpers exported from trpc.ts (trpcUrl, buildBatchHeaders, createTrpcClient)
+// input:  helpers exported from trpc.ts (trpcUrl, buildBatchHeaders)
 // output: unit tests for two transport modes — browser/same-origin (no config) and
 //         desktop/remote (injected RemoteConfig with serverUrl + token)
 // pos:    Regression guard for the conditional tRPC transport (task 1b60, desktop-app.md).
 //         Pure-logic tests only — no real network connections made.
 
 import { describe, it, expect } from 'vitest';
-import { trpcUrl, buildBatchHeaders, createTrpcClient, type RemoteConfig } from './trpc';
+import { trpcUrl, buildBatchHeaders, type RemoteConfig } from './trpc';
 
 const REMOTE: RemoteConfig = {
   serverUrl: 'https://cortex.example.com',
@@ -49,17 +49,5 @@ describe('buildBatchHeaders', () => {
   it('carries the exact token from config', () => {
     const headers = buildBatchHeaders({ serverUrl: 'https://x.example.com', token: 'my-secret-42' });
     expect(headers['x-cortex-token']).toBe('my-secret-42');
-  });
-});
-
-// ── createTrpcClient (smoke — no real network) ────────────────────────────────
-
-describe('createTrpcClient', () => {
-  it('constructs a client in browser mode without throwing (same-origin, no token)', () => {
-    expect(() => createTrpcClient()).not.toThrow();
-  });
-
-  it('constructs a client in desktop mode without throwing (absolute URL + token + SSE ponyfill)', () => {
-    expect(() => createTrpcClient(REMOTE)).not.toThrow();
   });
 });

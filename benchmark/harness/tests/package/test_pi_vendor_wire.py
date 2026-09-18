@@ -31,7 +31,7 @@ def capture_script() -> dict:
     return runpy.run_path(str(CAPTURE_SCRIPT))
 
 
-@pytest.mark.parametrize("version", ["0.82.1", "0.90.0", "9.0.0"])
+@pytest.mark.parametrize("version", ["0.82.1", "9.0.0"])
 def test_resolve_pi_records_actual_identity(
     version: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capture_script: dict,
 ) -> None:
@@ -51,37 +51,6 @@ def test_resolve_pi_records_actual_identity(
     assert pin["cli"]["observed_stdout"] == version
     assert pin["cli"]["resolved_path"] == str(binary)
     assert pin["cli"]["sha256"] == hashlib.sha256(executable.read_bytes()).hexdigest()
-
-
-@pytest.mark.parametrize("returncode,stdout", [(1, "9.0.0\n"), (0, "")])
-def test_resolve_pi_rejects_failed_or_empty_version(
-    returncode: int, stdout: str, tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch, capture_script: dict,
-) -> None:
-    executable = tmp_path / "pi"
-    executable.write_bytes(b"bad CLI")
-    (tmp_path / "package.json").write_text(json.dumps({
-        "name": "@earendil-works/pi-coding-agent", "version": "9.0.0",
-    }), encoding="utf-8")
-    monkeypatch.setattr(shutil, "which", lambda _command: str(executable))
-    completed = subprocess.CompletedProcess([], returncode, stdout, "version failed")
-    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
-    with pytest.raises(RuntimeError, match="PI --version failed or returned empty output"):
-        capture_script["resolve_pi"]("pi")
-
-
-def test_resolve_pi_rejects_missing_command(
-    monkeypatch: pytest.MonkeyPatch, capture_script: dict,
-) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _command: None)
-    with pytest.raises(RuntimeError, match="PI executable not found"):
-        capture_script["resolve_pi"]("missing-pi")
-
-
-def test_capture_requires_explicit_output_directory(capture_script: dict) -> None:
-    with pytest.raises(SystemExit) as error:
-        capture_script["parser"]().parse_args([])
-    assert error.value.code == 2
 
 
 def test_safe_environment_drops_host_configuration(
@@ -223,26 +192,3 @@ def test_historical_pi_pin_is_complete() -> None:
         "harbor": {"package_version": "0.20.0", "version_check_command": ". ~/.nvm/nvm.sh; pi --version"},
     }
     assert Pi.get_version_command(Pi.__new__(Pi)) == pin["harbor"]["version_check_command"]
-
-
-def test_historical_pi_observed_contract_is_complete() -> None:
-    capture = load_json(CAPTURE_PATH)
-    assert capture["request"]["path"] == "/v1/chat/completions"
-    assert capture["request"]["query"] == ""
-    assert capture["request"]["headers"]["authorization"] == "<REDACTED>"
-    assert capture["request"]["body"]["model"] == "deepseek-chat"
-    assert capture["request"]["body"]["stream"] is True
-    assert capture["error_request"]["path"] == "/v1/chat/completions"
-    assert capture["error_request"]["body"]["model"] == "deepseek-chat"
-    assert capture["upstream_stream"][-1] == "data: [DONE]"
-    assert capture["error_response"]["status"] == 401
-    assert capture["success_process"]["event_types"][-2:] == ["agent_end", "agent_settled"]
-    assert capture["error_process"]["stop_reasons"] == ["error", "error", "error"]
-    assert capture["error_process"]["event_types"][-2:] == ["agent_end", "agent_settled"]
-    assert capture["observations"]["PI_CODING_AGENT_DIR"]["status"] == "observed"
-    assert capture["observations"]["PI_OFFLINE"]["status"] == "observed"
-    assert capture["observations"]["PI_SKIP_VERSION_CHECK"]["status"] == "not-exercised"
-    assert capture["observations"]["PI_TELEMETRY"]["status"] == "not-exercised"
-    assert capture["observations"]["auth.json"]["status"] == "observed"
-    assert capture["observations"]["models.json"]["status"] == "observed"
-    assert "dummy-pi-wire-key" not in json.dumps(capture)

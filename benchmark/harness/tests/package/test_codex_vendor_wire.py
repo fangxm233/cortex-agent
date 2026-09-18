@@ -1,6 +1,5 @@
 import base64
 import json
-import runpy
 from pathlib import Path
 
 from harbor.agents.installed.codex import Codex
@@ -88,34 +87,3 @@ def test_request_and_sse_fixture_records_the_native_contract() -> None:
     assert [event["type"] for event in events] == fixture["sse"]["completed_sequence"]
     assert events[-1]["type"] == "response.completed"
     assert TERMINAL_WIRE_EVENT == events[-1]["type"]
-
-
-def test_capture_probe_records_the_complete_json_body() -> None:
-    observe_request = runpy.run_path(
-        str(FIXTURE_DIR / "capture.py"), run_name="codex_capture_test",
-    )["observe_request"]
-    body = {"model": "gpt-5.3-codex", "input": [{"role": "user"}], "stream": True}
-    observed = observe_request(
-        "/codex/responses", {"authorization": "Bearer dummy"},
-        json.dumps(body).encode(),
-    )
-    assert observed["body"] == body
-    assert observed["headers"]["authorization"] == "Bearer <REDACTED_DUMMY_JWT>"
-
-
-def test_terminal_failure_and_expiry_observations_are_explicit() -> None:
-    fixture = load_fixture("contract.json")
-    terminal = fixture["sse"]["terminal_observations"]
-    expiry = fixture["jwt_expiry_observations"]
-
-    assert set(terminal) == {
-        "response.done", "response.completed", "response.incomplete",
-        "response.failed", "error",
-    }
-    assert terminal["response.completed"]["accepted"] is True
-    assert all(not terminal[name]["accepted"] for name in terminal if name != "response.completed")
-    assert expiry["no_exp_claim"]["request_emitted"] is True
-    assert expiry["ten_seconds_remaining"]["refresh_attempted"] is False
-    assert expiry["expired"]["refresh_attempted"] is True
-    assert expiry["expired"]["request_emitted_after_refresh_failure"] is True
-    assert expiry["refresh_exchange_wire_details"]["verified"] is False

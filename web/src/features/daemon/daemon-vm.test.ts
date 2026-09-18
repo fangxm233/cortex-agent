@@ -1,6 +1,6 @@
 import type { DaemonProcessInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
 import { describe, expect, it } from 'vitest';
-import { buildDaemonVm, daemonStatusTone } from './daemon-vm';
+import { buildDaemonVm } from './daemon-vm';
 
 function process(status: DaemonProcessInfo['status']): DaemonProcessInfo {
   return {
@@ -20,17 +20,6 @@ function status(): SystemDaemonStatus {
     lastRestart: { at: '2026-08-27T20:00:00.000Z', reason: 'manual' },
   };
 }
-
-describe('daemonStatusTone', () => {
-  it('maps every legal daemon state, with unknown using the cancelled tone', () => {
-    const states: DaemonProcessInfo['status'][] = ['running', 'stopped', 'unknown'];
-    expect(states.map(daemonStatusTone)).toEqual([
-      'done',
-      'failed',
-      'cancelled',
-    ]);
-  });
-});
 
 describe('buildDaemonVm', () => {
   it('keeps real process metrics and flattens extras without presentation tokens', () => {

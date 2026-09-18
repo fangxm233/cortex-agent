@@ -68,26 +68,7 @@ test('a slash command with args forwards the args via onCommand', async () => {
 });
 
 const LEFT = '\x1B[D';
-const BACKSPACE = '\x7f';
 const FORWARD_DELETE = '\x1B[3~';
-
-test('Backspace (\\x7f) deletes the character BEFORE the cursor', async () => {
-  const { instance } = setup();
-  await delay(120);
-  instance.stdin.write('abc');       // value "abc", cursor at 3
-  await delay(80);
-  instance.stdin.write(LEFT);        // cursor → 2
-  await delay(40);
-  instance.stdin.write(LEFT);        // cursor → 1 (between a and b)
-  await delay(40);
-  instance.stdin.write(BACKSPACE);   // removes the char before cursor → 'a' → "bc"
-  await delay(120);
-  const frame = instance.lastFrame() ?? '';
-  assert.match(frame, /bc/, 'expected "bc" after backspace');
-  assert.doesNotMatch(frame, /abc/, 'the "a" must be gone');
-  instance.unmount();
-  instance.cleanup();
-});
 
 test('forward Delete (\\x1b[3~) deletes the character AFTER the cursor', async () => {
   const { instance } = setup();

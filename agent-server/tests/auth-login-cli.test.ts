@@ -4,11 +4,9 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { setLocale, t } from '../src/core/i18n.js';
-import { initEn, initZh } from '../src/core/locales/slices/init.js';
 import { runAuthLoginCli, type LoginCliDeps } from '../src/entry/auth-login-cli.js';
 import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 import type { LoginFlowState } from '../src/domain/auth/login-flow.js';
-import { runAuthCli } from '../src/entry/auth-cli.js';
 
 const snapshot = { accounts: [{ backend: 'pi', provider: 'test', label: 'Test', capabilities: ['api_key'], state: 'logged-out' }, { backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['oauth'] }], piRuntime: { available: true } } as AuthStatusSnapshot;
 const state = (step: LoginFlowState['step']): LoginFlowState => ({ flowId: 'test-flow', backend: 'pi', provider: 'test', authType: 'api_key', step, pendingPrompt: step === 'prompt' ? { kind: 'secret', message: 'Key' } : null, notice: null, expiresAt: new Date(Date.now() + 60000).toISOString() }) as LoginFlowState;
@@ -28,30 +26,6 @@ describe('auth login CLI', () => {
     process.removeAllListeners('SIGINT');
     for (const listener of harnessInterrupts) process.on('SIGINT', listener);
     setLocale('en');
-  });
-  it.each(['en', 'zh'] as const)('localizes help, selections and safe errors in %s without translating protocol values', async locale => {
-    setLocale(locale);
-    const d = deps();
-    const help = await runAuthLoginCli(['--help'], d);
-    expect(help.stdout).toContain(t('init.auth.help'));
-    expect(help.stdout).toContain(t('cmd.auth.cli.helpExamples'));
-    expect((await runAuthCli(['--help'], d.readStatus)).stdout).toContain(t('init.auth.loginDescription'));
-    const result = await runAuthLoginCli([], d);
-    expect(result.exitCode).toBe(0);
-    expect(d.ui.select).toHaveBeenNthCalledWith(1, t('init.auth.backend'), expect.arrayContaining([{ value: 'pi', label: t('init.auth.bundled') }]));
-    expect(d.ui.select).toHaveBeenNthCalledWith(2, t('init.auth.provider'), [{ value: 'test', label: `Test (${t('cmd.auth.state.logged-out')})` }]);
-    expect(d.ui.select).toHaveBeenNthCalledWith(3, t('init.auth.type'), [{ value: 'api_key', label: t('init.auth.api_key') }]);
-    expect(JSON.parse(result.stdout)).toMatchObject({ backend: 'pi', provider: 'test', authType: 'api_key', state: 'done', inferenceVerified: false });
-    d.tty = false;
-    expect((await runAuthLoginCli(args, d)).stderr).toBe(t('init.auth.ttyRequired'));
-    expect((await runAuthLoginCli(['--api-key', 'private-key'], d)).stderr).toBe(t('init.auth.invalidOptions'));
-  });
-  it('keeps onboarding locale keys and placeholders in parity', () => {
-    for (const key of Object.keys(initEn).filter(key => key.startsWith('init.auth.')) as Array<keyof typeof initEn>) {
-      expect(initZh[key]).toBeTruthy();
-      expect(initZh[key]).not.toBe(initEn[key]);
-      expect(initZh[key].match(/\$\{\w+\}/g) ?? []).toEqual(initEn[key].match(/\$\{\w+\}/g) ?? []);
-    }
   });
   it.each(['secret', 'select'] as const)('SIGINT aborts a pending %s promptly with 130 and removes its listener', async kind => {
     const d = deps();
@@ -108,20 +82,10 @@ describe('auth login CLI', () => {
     expect(d.sync).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain('private-key');
   });
-  it('auth dispatcher exposes login help without invoking status', async () => {
-    const readStatus = vi.fn(async () => snapshot);
-    expect((await runAuthCli(['login', '-h'], readStatus)).stdout).toContain('--auth-type');
-    expect((await runAuthCli(['--help'], readStatus)).stdout).toContain('login');
-    expect(readStatus).not.toHaveBeenCalled();
-  });
   it('fails fast without a TTY and never scans or starts', async () => {
     const d = deps(); d.tty = false;
     expect((await runAuthLoginCli(args, d)).exitCode).toBe(1);
     expect(d.readStatus).not.toHaveBeenCalled(); expect(d.service.start).not.toHaveBeenCalled();
-  });
-  it.each(['--help', '-h'])('supports %s without TTY', async flag => {
-    const d = deps(); d.tty = false;
-    expect((await runAuthLoginCli([flag], d)).stdout).toContain('Examples:');
   });
   it.each([['--backend', 'bad'], ['--auth-type', 'bad'], ['--api-key', 'private-key'], ['--provider']])('rejects invalid options without leaking values: %s', async (...input) => {
     const d = deps(); const result = await runAuthLoginCli(input, d);

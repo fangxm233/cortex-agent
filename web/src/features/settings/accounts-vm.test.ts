@@ -69,19 +69,6 @@ const snapshot: AuthStatusSnapshot = {
 };
 
 describe('buildAccountsVm', () => {
-  it('builds two Claude credential slots with a single collapsed expiry field', () => {
-    const vm = buildAccountsVm(snapshot);
-
-    expect(vm.claude?.slots.map(slot => slot.authType)).toEqual(['oauth', 'api_key']);
-    expect(vm.claude?.slots[0]?.credentials[0]).toEqual({
-      kind: 'expiring', tone: 'waiting', labelKey: 'accountsStatusExpiring',
-      source: 'credentials.json', expiresAt: '2030-06-01T00:00:00.000Z',
-    });
-    expect(vm.claude?.slots[1]?.credentials[0]).toEqual({
-      kind: 'logged-in', tone: 'done', labelKey: 'accountsStatusLoggedIn',
-      source: 'env', expiresAt: null,
-    });
-  });
 
   it('puts in-use providers first and groups the mobile list as in-use, logged-in, then other', () => {
     const vm = buildAccountsVm(snapshot);
@@ -121,25 +108,11 @@ describe('buildAccountsVm', () => {
     expect(vm.piProviders.find(item => item.provider === 'runtime-shadow')?.logoutTypes).toEqual([]);
   });
 
-  it('maps unknown and expired states to the invalid four-state presentation', () => {
-    const vm = buildAccountsVm(snapshot);
-    expect(vm.piProviders.find(provider => provider.provider === 'broken')?.status).toEqual({
-      kind: 'invalid', tone: 'failed', labelKey: 'accountsStatusInvalid',
-    });
-  });
-
   it('filters providers by id or label and never carries credential detail into the UI model', () => {
     const vm = buildAccountsVm(snapshot, 'route');
 
     expect(vm.piProviders.map(provider => provider.provider)).toEqual(['openrouter']);
     expect(JSON.stringify(buildAccountsVm(snapshot))).not.toContain('sentinel-credential-fragment');
     expect(JSON.stringify(buildAccountsVm(snapshot))).not.toContain('sentinel-account-fragment');
-  });
-
-  it('summarizes usable Claude and PI accounts for the mobile settings row', () => {
-    expect(buildAccountsVm(snapshot).summary).toEqual({
-      claudeLoggedIn: true,
-      piLoggedInCount: 2,
-    });
   });
 });

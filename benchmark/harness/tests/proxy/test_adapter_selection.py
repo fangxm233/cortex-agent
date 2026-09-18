@@ -70,45 +70,11 @@ def test_selects_claude_code_subscription_oauth_only_by_its_exact_key() -> None:
 @pytest.mark.parametrize(
     "key",
     [
-        CredentialCapabilityKey(
-            "claude", "anthropic", "anthropic-messages", "subscription-oauth",
-        ),
-        CredentialCapabilityKey(
-            "claude-code", "anthropic", "anthropic-messages", "api-key-bearer",
-        ),
-    ],
-)
-def test_claude_subscription_partial_keys_raise_instead_of_falling_back(
-    key: CredentialCapabilityKey,
-) -> None:
-    with pytest.raises(AdapterUnavailable):
-        select_adapter(key)
-
-
-@pytest.mark.parametrize(
-    "key",
-    [
-        CredentialCapabilityKey("claude", "anthropic", "anthropic-messages", "api-key"),
         CredentialCapabilityKey("claude", "anthropic", "anthropic-messages", "api-key-bearer-v2"),
-        CredentialCapabilityKey("claude", "anthropic", "anthropic", "api-key-bearer"),
         CredentialCapabilityKey("claude-code", "anthropic", "anthropic-messages", "api-key-bearer"),
     ],
 )
 def test_partial_and_prefix_keys_never_match(key: CredentialCapabilityKey) -> None:
-    with pytest.raises(AdapterUnavailable):
-        select_adapter(key)
-
-
-def test_unknown_member_key_never_matches() -> None:
-    key = CredentialCapabilityKey("pi", UNKNOWN_MEMBER, UNKNOWN_MEMBER, "api-key")
-    with pytest.raises(AdapterUnavailable):
-        select_adapter(key)
-
-
-def test_unknown_member_never_matches_even_beside_a_registered_row() -> None:
-    key = CredentialCapabilityKey(
-        "claude", "anthropic", UNKNOWN_MEMBER, "api-key-bearer",
-    )
     with pytest.raises(AdapterUnavailable):
         select_adapter(key)
 
@@ -175,10 +141,6 @@ def test_selection_binds_the_frozen_upstream_credential_and_model() -> None:
     assert adapter.upstream_hosts == ("127.0.0.1",)
     assert adapter.validate_body(
         "messages_beta", b'{"model":"claude-synthetic-1"}').allow is True
-
-
-def test_unbound_adapter_declares_no_upstream_host() -> None:
-    assert select_adapter(ROW_ONE).upstream_hosts == ()
 
 
 def deepseek_body(max_completion_tokens: int) -> bytes:

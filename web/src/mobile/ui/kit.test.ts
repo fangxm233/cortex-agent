@@ -1,35 +1,5 @@
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import {
-  composerCharCount,
-  composerLineCount,
-  MBottomSheet,
-  shouldFlingClose,
-} from './kit';
-
-describe('MBottomSheet viewport containment', () => {
-  it('layers the entire sheet and scrim above chat menus', () => {
-    const html = renderToStaticMarkup(
-      createElement(MBottomSheet, { onClose: () => {}, children: 'rows' }),
-    );
-    expect(html.split('>')[0]).toContain('z-index:10');
-  });
-
-  it('caps the sheet height and scrolls overflowing content', () => {
-    const html = renderToStaticMarkup(
-      createElement(MBottomSheet, {
-        onClose: () => {},
-        children: createElement('div', null, 'rows'),
-      }),
-    );
-
-    expect(html).toContain('max-height:calc(100% - max(12px, env(safe-area-inset-top)))');
-    expect(html).toContain('data-mobile-sheet-scroll="true"');
-    expect(html).toContain('overflow-y:auto');
-    expect(html).toContain('touch-action:pan-y');
-  });
-});
+import { shouldFlingClose } from './kit';
 
 describe('shouldFlingClose', () => {
   it('closes after crossing the distance threshold', () => {
@@ -43,16 +13,5 @@ describe('shouldFlingClose', () => {
 
   it('keeps a short, slow drag open', () => {
     expect(shouldFlingClose(20, 300, 0.4)).toBe(false);
-  });
-});
-
-describe('composer text metrics', () => {
-  it('counts newline-separated rows, including a trailing empty row', () => {
-    expect(composerLineCount('')).toBe(1);
-    expect(composerLineCount('a\nb\n')).toBe(3);
-  });
-
-  it('counts Unicode code points and includes newlines', () => {
-    expect(composerCharCount('A😀\n中')).toBe(4);
   });
 });

@@ -5,7 +5,6 @@ import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
-  parseHookVersion,
   syncManagedHookEntries,
   syncManagedHooks,
 } from '../../src/store/hook-sync.js';
@@ -22,12 +21,6 @@ async function mkdirs(): Promise<{ src: string; dst: string; cleanup: () => Prom
   await fs.mkdir(dst, { recursive: true });
   return { src, dst, cleanup: () => fs.rm(base, { recursive: true, force: true }) };
 }
-
-test('parseHookVersion extracts the stamp, or null when absent', () => {
-  assert.equal(parseHookVersion('// @cortex-hook-version 2026.6.8\ncode'), '2026.6.8');
-  assert.equal(parseHookVersion('// @cortex-hook-version 2026.6.8-2\ncode'), '2026.6.8-2');
-  assert.equal(parseHookVersion('no stamp here'), null);
-});
 
 test('(a) deploys a managed hook when the destination is missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();

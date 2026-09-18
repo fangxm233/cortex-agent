@@ -3,7 +3,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS } from '@/features/settings/platform-env';
 
 const adapter = vi.hoisted(() => ({
   onSet: vi.fn(),
@@ -72,18 +71,6 @@ describe('mobile runtime Advanced settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter.snapshot = snapshot;
-  });
-
-  it('renders every advanced row by descriptor identity or setting key', () => {
-    const renderer = mountAdvanced();
-    const keys = renderer.root.findAll(node => typeof node.props['data-settings-row'] === 'string')
-      .map(node => node.props['data-settings-row']);
-    const flagKeys = ADVANCED_FLAGS.map(flag => flag.kind === 'env' ? flag.env : flag.setting);
-    const numberKeys = ADVANCED_NUMBER_SETTINGS.map(descriptor => descriptor.setting);
-
-    expect(keys).toEqual(expect.arrayContaining([...flagKeys, ...numberKeys]));
-    expect(renderer.root.findByProps({ 'data-settings-row': 'DEBUG' })
-      .findByProps({ role: 'switch' }).props.disabled).toBe(true);
   });
 
   it('writes retention by its descriptor key and rejects unsafe integer drafts', () => {

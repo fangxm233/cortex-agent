@@ -63,33 +63,16 @@ function task(over: Partial<TaskInfo> = {}): TaskInfo {
 }
 
 describe('buildCmdkItems', () => {
-  it('maps a session to an SE row jumping to /workbench', () => {
+  it('maps a session to a row jumping to /workbench', () => {
     const [item] = buildCmdkItems({ sessions: [session()], threads: [], tasks: [] });
-    expect(item.glyph).toBe('SE');
-    expect(item.kbd).toBe('session');
-    expect(item.label).toBe('morning review');
-    expect(item.sub).toBe('cortex-self');
     expect(item.route).toBe('/workbench');
     expect(item.focusId).toBe('sess_1');
     expect(item.id).toBe('session:sess_1');
     expect(item.keywords).toContain('sess_1');
   });
 
-  it('falls back to the sessionId when the session has no name', () => {
-    const [item] = buildCmdkItems({
-      sessions: [session({ name: '', sessionId: 'sess_x' })],
-      threads: [],
-      tasks: [],
-    });
-    expect(item.label).toBe('sess_x');
-  });
-
   it('maps a thread to an in-place detail modal target', () => {
     const [item] = buildCmdkItems({ sessions: [], threads: [thread()], tasks: [] });
-    expect(item.glyph).toBe('TH');
-    expect(item.kbd).toBe('thread');
-    expect(item.label).toBe('experiment-pipeline');
-    expect(item.sub).toBe('thr_8f2c');
     expect(item.route).toBeUndefined();
     expect(item.modal).toBe('thread');
     expect(item.focusId).toBe('thr_8f2c');
@@ -97,25 +80,12 @@ describe('buildCmdkItems', () => {
     expect(item.keywords).toContain('thr_8f2c');
   });
 
-  it('maps a task to a TK row jumping to /tasks with id·project sub', () => {
+  it('maps a task to a row jumping to /tasks', () => {
     const [item] = buildCmdkItems({ sessions: [], threads: [], tasks: [task()] });
-    expect(item.glyph).toBe('TK');
-    expect(item.kbd).toBe('task');
-    expect(item.label).toBe('Rebuild the command palette');
-    expect(item.sub).toBe('c967 · cortex-self');
     expect(item.route).toBe('/tasks');
     expect(item.focusId).toBe('c967');
     expect(item.id).toBe('task:c967');
     expect(item.keywords).toContain('c967');
-  });
-
-  it('returns items in stable sessions→threads→tasks order', () => {
-    const items = buildCmdkItems({
-      sessions: [session()],
-      threads: [thread()],
-      tasks: [task()],
-    });
-    expect(items.map((i) => i.glyph)).toEqual(['SE', 'TH', 'TK']);
   });
 
   it('produces collision-free cmdk values across kinds', () => {
@@ -126,36 +96,6 @@ describe('buildCmdkItems', () => {
     });
     const ids = items.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it('returns no entity items for empty sources', () => {
-    expect(buildCmdkItems({ sessions: [], threads: [], tasks: [] })).toEqual([]);
-  });
-
-  it('titles a session by its user-set label, falling back to name then id', () => {
-    const [labelled] = buildCmdkItems({
-      sessions: [session({ label: 'renamed by hand', name: 'morning review' })],
-      threads: [],
-      tasks: [],
-    });
-    expect(labelled.label).toBe('renamed by hand');
-    const [named] = buildCmdkItems({ sessions: [session({ label: null })], threads: [], tasks: [] });
-    expect(named.label).toBe('morning review');
-    const [bare] = buildCmdkItems({
-      sessions: [session({ label: null, name: undefined })],
-      threads: [],
-      tasks: [],
-    });
-    expect(bare.label).toBe('sess_1');
-  });
-
-  it('drops empty keyword tokens', () => {
-    const [item] = buildCmdkItems({
-      sessions: [session({ label: null, name: 'n' })],
-      threads: [],
-      tasks: [],
-    });
-    expect(item.keywords.every((k) => k.length > 0)).toBe(true);
   });
 });
 

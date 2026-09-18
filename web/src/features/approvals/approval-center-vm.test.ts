@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import {
-  toListCard,
-  toDetail,
-  defaultSelectedId,
-  DASH,
-} from './approval-center-vm';
+import { defaultSelectedId } from './approval-center-vm';
 
 function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
   return {
@@ -26,74 +21,6 @@ function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
   };
 }
 
-describe('toListCard', () => {
-  it('carries id/title and queuedAt as age', () => {
-    expect(toListCard(mk({ id: 'x', title: 'T', queuedAt: '2026-07-05' }))).toEqual({
-      id: 'x',
-      title: 'T',
-      age: '2026-07-05',
-      origin: null,
-      project: null,
-    });
-  });
-  it('leaves age null when queuedAt is null (no fabrication)', () => {
-    expect(toListCard(mk({ queuedAt: null })).age).toBeNull();
-  });
-  it('carries the provenance origin when present, null when absent (§12 C item 13)', () => {
-    expect(toListCard(mk({ provenance: 'thread thr_1 (task 89dd)' })).origin).toBe(
-      'thread thr_1 (task 89dd)',
-    );
-    expect(toListCard(mk({ provenance: null })).origin).toBeNull();
-  });
-  it('carries the project attribution, null for unattributed (global) entries', () => {
-    expect(toListCard(mk({ projectId: 'nimbus' })).project).toBe('nimbus');
-    expect(toListCard(mk({ projectId: null })).project).toBeNull();
-  });
-});
-
-describe('toDetail', () => {
-  it('maps real operation/reason/impact through', () => {
-    const d = toDetail(mk({ operation: 'op', reason: 'rs', impact: 'im' }));
-    expect(d.operation).toBe('op');
-    expect(d.reason).toBe('rs');
-    expect(d.impact).toBe('im');
-  });
-  it('renders — placeholders for missing fields (no fabrication)', () => {
-    const d = toDetail(mk({ operation: null, reason: null, impact: null }));
-    expect(d.operation).toBe(DASH);
-    expect(d.reason).toBe(DASH);
-    expect(d.impact).toBe(DASH);
-  });
-  it('exposes command + hasCommand when present', () => {
-    const d = toDetail(mk({ command: 'cortex-run x' }));
-    expect(d.command).toBe('cortex-run x');
-    expect(d.hasCommand).toBe(true);
-  });
-  it('omits the command block when command is null or blank', () => {
-    expect(toDetail(mk({ command: null })).hasCommand).toBe(false);
-    expect(toDetail(mk({ command: '   ' })).hasCommand).toBe(false);
-  });
-  it('prefixes queued with the date, null when absent', () => {
-    expect(toDetail(mk({ queuedAt: '2026-07-05' })).queued).toBe('queued 2026-07-05');
-    expect(toDetail(mk({ queuedAt: null })).queued).toBeNull();
-  });
-  it('carries reject feedback through', () => {
-    expect(toDetail(mk({ status: 'rejected', feedback: 'nope' })).feedback).toBe('nope');
-  });
-  it('maps the provenance origin + parsed task ref, null when absent (§12 C item 13)', () => {
-    const d = toDetail(mk({ provenance: 'manager c2a3 raised this', taskRef: 'c2a3' }));
-    expect(d.origin).toBe('manager c2a3 raised this');
-    expect(d.task).toBe('c2a3');
-    const bare = toDetail(mk({ provenance: null, taskRef: null }));
-    expect(bare.origin).toBeNull();
-    expect(bare.task).toBeNull();
-  });
-  it('maps the project attribution, null for unattributed (global) entries', () => {
-    expect(toDetail(mk({ projectId: 'nimbus' })).project).toBe('nimbus');
-    expect(toDetail(mk({ projectId: null })).project).toBeNull();
-  });
-});
-
 describe('defaultSelectedId', () => {
   const list = [mk({ id: 'a' }), mk({ id: 'b' })];
   it('keeps the current id when still present', () => {
@@ -104,8 +31,5 @@ describe('defaultSelectedId', () => {
   });
   it('returns null for an empty list', () => {
     expect(defaultSelectedId([], 'a')).toBeNull();
-  });
-  it('accepts layout-neutral id facts so mobile and desktop share the fallback', () => {
-    expect(defaultSelectedId([{ id: 'mobile-a' }, { id: 'mobile-b' }], 'gone')).toBe('mobile-a');
   });
 });

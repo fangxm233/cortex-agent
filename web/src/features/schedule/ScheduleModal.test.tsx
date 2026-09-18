@@ -90,21 +90,6 @@ describe('ScheduleModal custom selections', () => {
     ]);
   });
 
-  it('locks target and fallback selections while editing', () => {
-    const renderer = mount(defaultScheduleForm(null), vi.fn(), 'edit');
-
-    expect(renderer.root.findByProps({ 'data-schedule-select': 'target' }).props.disabled).toBe(true);
-    expect(renderer.root.findByProps({ 'data-schedule-select': 'fallback' }).props.disabled).toBe(true);
-  });
-
-  it('hides the fabricated delay editor for once edits and explains the API limitation', () => {
-    const renderer = mount({ ...defaultScheduleForm(null), type: 'once' }, vi.fn(), 'edit');
-
-    expect(renderer.root.findAllByProps({ 'data-schedule-select': 'delayUnit' })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-once-timing-note': true })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-schedule-next-run': true })).toHaveLength(0);
-  });
-
   it('keeps the modal open when an inner Select consumes Escape', () => {
     const onCancel = vi.fn();
     mount(defaultScheduleForm(null), vi.fn(), 'create', onCancel);

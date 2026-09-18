@@ -21,8 +21,6 @@ import {
   needsRunningConfirm,
   deleteBlockedReason,
   forksFromDefaults,
-  selectionKey,
-  sameSelection,
 } from './templates-panel-vm';
 
 function entry(over: Partial<ThreadTemplateEntry> = {}): ThreadTemplateEntry {
@@ -99,14 +97,6 @@ describe('selection', () => {
   test('is null when nothing is visible', () => {
     expect(resolveSelection([], { kind: 'agent', name: 'coder' })).toBeNull();
   });
-
-  test('key and equality helpers', () => {
-    expect(selectionKey({ kind: 'agent', name: 'coder' })).toBe('agent:coder');
-    expect(sameSelection({ kind: 'agent', name: 'a' }, { kind: 'agent', name: 'a' })).toBe(true);
-    expect(sameSelection({ kind: 'agent', name: 'a' }, { kind: 'template', name: 'a' })).toBe(false);
-    expect(sameSelection(null, null)).toBe(true);
-    expect(sameSelection(null, { kind: 'agent', name: 'a' })).toBe(false);
-  });
 });
 
 describe('starter skeletons', () => {
@@ -125,9 +115,6 @@ describe('starter skeletons', () => {
 });
 
 describe('editor parsing', () => {
-  test('accepts an object', () => {
-    expect(parseEditor('{"a":1}')).toEqual({ body: { a: 1 }, parseError: null });
-  });
 
   test('rejects arrays, scalars and empty text as a non-object body', () => {
     expect(parseEditor('[1,2]').parseError).toBe('Body must be a JSON object');

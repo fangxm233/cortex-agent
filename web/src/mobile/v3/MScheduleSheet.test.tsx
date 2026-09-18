@@ -92,8 +92,6 @@ describe('MScheduleSheetView', () => {
     expect(editor.openEdit).toHaveBeenCalledWith(real);
     expect(renderer.root.findAllByProps({ 'data-bottom-sheet': true })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-mobile-schedule-editor': true })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-schedule-delay': true })).toHaveLength(0);
-    expect(renderer.root.findAllByProps({ 'data-once-timing-note': true })).toHaveLength(1);
   });
 
   it('Escape and hardware back retreat one level, then close only from the list', () => {

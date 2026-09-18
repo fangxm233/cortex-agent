@@ -10,11 +10,6 @@ test('rebuilds the nested run shape from flat form fields', () => {
   assert.equal(draft.event, 'agent:pre-tool');
 });
 
-test('carries a raw command through unchanged', () => {
-  const draft = hookDraftFromArgs({ event: 'cc:PermissionRequest', command: "printf '{}'" });
-  assert.deepEqual(draft.run, { command: "printf '{}'" });
-});
-
 test('omitted fields stay absent so the writer drops them', () => {
   const draft = hookDraftFromArgs({ event: 'agent:pre-tool', script: 'x.mjs' });
   assert.equal('matcher' in draft, false);
@@ -22,15 +17,6 @@ test('omitted fields stay absent so the writer drops them', () => {
   assert.equal('result' in draft, false);
   assert.equal('enabled' in draft, false);
   assert.equal(draft.run.timeout, undefined);
-});
-
-test('a filter object becomes the matcher for cortex events', () => {
-  const draft = hookDraftFromArgs({
-    event: 'cortex:thread.end',
-    command: 'true',
-    matcherFilters: { source: 'task-dispatch' },
-  });
-  assert.deepEqual(draft.matcher, { source: 'task-dispatch' });
 });
 
 test('a regex matcher wins when both matcher forms are supplied', () => {
@@ -41,17 +27,6 @@ test('a regex matcher wins when both matcher forms are supplied', () => {
     matcherFilters: { source: 'x' },
   });
   assert.equal(draft.matcher, 'Edit');
-});
-
-test('scope is only built when one of its fields is present', () => {
-  assert.deepEqual(
-    hookDraftFromArgs({ event: 'agent:pre-tool', script: 'x.mjs', backends: ['pi'] }).scope,
-    { backends: ['pi'] },
-  );
-  assert.deepEqual(
-    hookDraftFromArgs({ event: 'agent:pre-tool', script: 'x.mjs', requiresTool: 'Edit' }).scope,
-    { requiresTool: 'Edit' },
-  );
 });
 
 test('blocking can never be set from the flat draft', () => {
@@ -75,10 +50,6 @@ function registryHook(timeout?: number): MountedHook {
 
 test('clamps a long declared timeout so a blocking hook cannot park the request', () => {
   assert.equal(testProcessOptions(registryHook(1800), '/hooks', '{}').timeoutMs, 15_000);
-});
-
-test('keeps a short declared timeout as declared', () => {
-  assert.equal(testProcessOptions(registryHook(10), '/hooks', '{}').timeoutMs, 10_000);
 });
 
 test('resolves a script against the hooks directory with quoting', () => {

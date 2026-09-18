@@ -99,13 +99,6 @@ describe('the language is the server\'s, not the device\'s', () => {
     expect(cache.getItem(LANG_STORAGE_KEY)).toBe('zh');
   });
 
-  it('reports env provenance so the UI can warn that CORTEX_LANG wins at boot', async () => {
-    cacheLang();
-    adapter.config.mockResolvedValue(snapshot({ value: 'zh', source: 'env' }));
-    await mount();
-    await vi.waitFor(() => expect(seen?.source).toBe('env'));
-  });
-
   it('flips immediately and writes the change back — this is what switches the conversation too', async () => {
     cacheLang('zh');
     adapter.config.mockResolvedValue(snapshot({ value: 'zh', source: 'file' }));

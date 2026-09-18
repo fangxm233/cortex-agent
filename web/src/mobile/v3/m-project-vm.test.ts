@@ -51,10 +51,6 @@ describe('onlineMachineCount', () => {
   it('counts only machines with online=true (MachineInfo.online)', () => {
     expect(onlineMachineCount([{ online: true }, { online: false }, { online: true }])).toBe(2);
   });
-
-  it('is 0 for an empty list', () => {
-    expect(onlineMachineCount([])).toBe(0);
-  });
 });
 
 describe('pendingApprovalCounts', () => {
@@ -72,10 +68,6 @@ describe('pendingApprovalCounts', () => {
       total: 3,
     });
   });
-
-  it('is all-zero for an empty list', () => {
-    expect(pendingApprovalCounts([])).toEqual({ byProject: {}, global: 0, total: 0 });
-  });
 });
 
 describe('buildProjectSwitchRows', () => {
@@ -85,21 +77,15 @@ describe('buildProjectSwitchRows', () => {
     atlas: { today: 0.87, week: 1, month: 2, total: 3 },
   };
 
-  it('drops the current project and carries real initials, running count, today $', () => {
+  it('drops the current project and carries running count and today $', () => {
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject);
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
     expect(rows.find((r) => r.id === 'atlas')).toMatchObject({
       running: 1,
       todayCost: 0.87,
-      initials: 'AT',
     });
     // orchard has no cost bucket → honest null, no fabricated $0.
     expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ running: 0, todayCost: null });
-  });
-
-  it('todayCost is null for every row when the global byProject map is absent', () => {
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, undefined);
-    expect(rows.every((r) => r.todayCost === null)).toBe(true);
   });
 
   it('carries the per-project unread count and defaults to 0 when absent', () => {

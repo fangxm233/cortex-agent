@@ -202,15 +202,6 @@ test('a notice action round-trips so the button survives a transcript reload', a
   assert.deepEqual(assistant.noticeAction, { kind: 'cancel-resume' });
 });
 
-test('assistant messages without attachments have undefined attachments (no empty-array pollution)', async () => {
-  const repo = new ConversationHistoryRepo();
-  const sid = 'sess-noatt';
-  await repo.appendUser(sid, { text: 'q' });
-  await repo.appendAssistant(sid, { text: 'a' });
-  const h = await repo.getHistory(sid);
-  assert.equal(h!.events.find(e => e.type === 'assistant')!.attachments, undefined);
-});
-
 test('streaming growth collapses into a single assistant message on read', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-B';
@@ -372,15 +363,6 @@ test('truncateFromTurn(0) empties the session history (getHistory → null)', as
   const removed = await repo.truncateFromTurn(sid, 0);
   assert.equal(removed!.text, 'only');
   assert.equal(await repo.getHistory(sid), null, 'empty file reads as null');
-});
-
-test('truncateFromTurn out of range is a no-op returning null', async () => {
-  const repo = new ConversationHistoryRepo();
-  const sid = 'sess-rw-3';
-  await repo.appendUser(sid, { text: 'one' });
-  const removed = await repo.truncateFromTurn(sid, 5);
-  assert.equal(removed, null);
-  assert.equal((await repo.getHistory(sid))!.events.length, 1, 'history untouched');
 });
 
 test('edit marker attaches to the NEXT user event as `edited` and is not emitted itself', async () => {

@@ -30,10 +30,6 @@ describe('runningCountByProject', () => {
     ]);
     expect(counts).toEqual({ a: 2, b: 1 });
   });
-
-  it('returns an empty map for no active threads', () => {
-    expect(runningCountByProject([thread('a', 'completed')])).toEqual({});
-  });
 });
 
 describe('project attention counts', () => {
@@ -61,10 +57,5 @@ describe('project attention counts', () => {
     expect(projectAttentionBadge(2, 1)).toEqual({ count: 3, tone: 'action' });
     expect(projectAttentionBadge(2, 0)).toEqual({ count: 2, tone: 'unread' });
     expect(projectAttentionBadge(0, 0)).toEqual({ count: 0, tone: null });
-  });
-
-  it('empty input → empty maps', () => {
-    expect(unreadCountByProject([])).toEqual({});
-    expect(awaitingInputCountByProject([])).toEqual({});
   });
 });

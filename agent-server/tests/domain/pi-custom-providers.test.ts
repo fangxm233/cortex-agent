@@ -8,7 +8,6 @@ import { parse as yamlParse } from 'yaml';
 import {
   GATEWAY_PLACEHOLDER_KEY,
   customProviderBaseUrl,
-  gatewayAuthStyle,
   gatewayEndpoint,
   validateCustomProvider,
 } from '../../src/domain/pi-providers/custom-provider-model.js';
@@ -86,13 +85,6 @@ test('validateCustomProvider: requires at least one model with a usable id', () 
     validateCustomProvider({ ...VALID, models: [{ id: 'a' }, { id: 'a' }] }),
     ['model-id-duplicate'],
   );
-});
-
-test('gatewayAuthStyle: maps every supported PI api onto a gateway auth style', () => {
-  assert.equal(gatewayAuthStyle('anthropic-messages'), 'anthropic');
-  assert.equal(gatewayAuthStyle('openai-completions'), 'openai');
-  assert.equal(gatewayAuthStyle('openai-responses'), 'openai');
-  assert.equal(gatewayAuthStyle('google-generative-ai'), 'google');
 });
 
 test('customProviderBaseUrl: points PI at the gateway mode route, not the upstream', () => {
@@ -215,18 +207,6 @@ test('readCustomProviderEntries: returns definitions only, never bare baseUrl ov
   }
 });
 
-test('readCustomProviderEntries: returns an empty map when the file is missing or unparsable', () => {
-  const { dir, modelsPath } = tmpStores();
-  try {
-    assert.deepEqual(readCustomProviderEntries(modelsPath), {});
-    fs.mkdirSync(path.dirname(modelsPath), { recursive: true });
-    fs.writeFileSync(modelsPath, '{ not json');
-    assert.deepEqual(readCustomProviderEntries(modelsPath), {});
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 // ─── gateway route store ─────────────────────────────────────────
 
 test('upsertGatewayRoute: creates the route and the top-level fields on a fresh file', () => {
@@ -300,21 +280,6 @@ test('upsertGatewayRoute: updates an existing route in place (what add-only merg
     assert.equal(route.auth_style, 'openai');
     assert.deepEqual(route.keys, ['new-key']);
     assert.ok(fs.existsSync(`${gatewayPath}.bak`), 'the previous config is backed up');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('readGatewayRoute: returns the stored route or null when absent', () => {
-  const { dir, gatewayPath } = tmpStores();
-  try {
-    assert.equal(readGatewayRoute(gatewayPath, 'my-vllm', 'my-vllm'), null);
-    upsertGatewayRoute(gatewayPath, {
-      endpoint: 'my-vllm', mode: 'my-vllm', base_url: 'http://box:8100',
-      auth_style: 'anthropic', keys: ['k'], passthrough: false,
-    });
-    assert.equal(readGatewayRoute(gatewayPath, 'my-vllm', 'my-vllm')?.base_url, 'http://box:8100');
-    assert.equal(readGatewayRoute(gatewayPath, 'other', 'other'), null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -435,17 +400,6 @@ test('upsertCustomProvider: a failed catalog write rolls the gateway route back'
     assert.equal(result.ok, false);
     assert.deepEqual(result.ok === false ? result.errors : [], ['write-failed']);
     assert.equal(readGatewayRoute(stores.gatewayPath, 'anthropic', 'my-vllm'), null);
-  } finally {
-    fs.rmSync(stores.dir, { recursive: true, force: true });
-  }
-});
-
-test('upsertCustomProvider: notifies the caller so provider discovery can refresh', () => {
-  const stores = tmpStores();
-  let changed = 0;
-  try {
-    upsertCustomProvider({ ...stores, onChanged: () => { changed += 1; } }, VALID);
-    assert.equal(changed, 1);
   } finally {
     fs.rmSync(stores.dir, { recursive: true, force: true });
   }

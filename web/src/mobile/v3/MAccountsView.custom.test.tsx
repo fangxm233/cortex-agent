@@ -63,23 +63,10 @@ function button(renderer: ReactTestRenderer, action: string) {
 }
 
 describe('mobile custom providers', () => {
-  it('offers the editor entry points and hands over the tapped provider', () => {
-    const view = mountView();
-
-    act(() => { button(view.renderer, 'new').props.onClick(); });
-    act(() => { button(view.renderer, 'edit').props.onClick(); });
-
-    expect(view.onNew).toHaveBeenCalledTimes(1);
-    expect(view.onEdit).toHaveBeenCalledWith(PROVIDER);
-  });
-
   it('arms a delete before it removes the gateway route', () => {
     const view = mountView();
     act(() => { button(view.renderer, 'delete').props.onClick(); });
     expect(view.onDelete).toHaveBeenCalledWith('my-vllm');
-
-    const armed = mountView({ confirmingDelete: 'my-vllm' });
-    expect(JSON.stringify(armed.renderer.toJSON())).toContain('Confirm delete');
   });
 
   it('gates save/edit and remove actions independently', () => {

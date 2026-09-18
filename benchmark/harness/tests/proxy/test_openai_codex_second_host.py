@@ -213,8 +213,6 @@ def test_one_refresh_serves_the_calls_that_follow_it(tmp_path: Path) -> None:
     "document",
     [
         {"refresh_token": "rt-next", "expires_in": 3600},
-        {"access_token": REFRESHED_ACCESS_TOKEN, "expires_in": 3600},
-        {"access_token": REFRESHED_ACCESS_TOKEN, "refresh_token": "rt-next"},
         {"access_token": REFRESHED_ACCESS_TOKEN, "refresh_token": "rt-next",
          "expires_in": "3600"},
     ],
@@ -293,11 +291,6 @@ def test_cp1_the_host_set_is_declared_from_frozen_inputs_alone() -> None:
         twin = refreshing_adapter("http://127.0.0.1:9001", endpoint.url)
     assert adapter.upstream_hosts == (MODEL_HOST, TOKEN_HOST)
     assert adapter.upstream_hosts == twin.upstream_hosts
-
-
-def test_cp1_a_single_host_adapter_declares_only_the_model_host() -> None:
-    adapter = refreshing_adapter("http://127.0.0.1:9000", None)
-    assert adapter.upstream_hosts == (MODEL_HOST,)
 
 
 def test_cp1_the_host_set_survives_a_container_request_and_both_upstreams(

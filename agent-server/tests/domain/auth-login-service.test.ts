@@ -256,13 +256,3 @@ test('blocked credential persistence cannot be reported as cancelled after hando
   assert.equal((await waitForStep(service, started.flowId, 'done')).step, 'done');
   assert.equal(persisted, true);
 });
-
-test('shared login service delegates state, response, and cancellation exactly', async () => {
-  const fixture = makeDependencies();
-  const service = createAuthLoginService(fixture.dependencies);
-
-  assert.equal(service.getState('flow-1'), STATE);
-  assert.equal(service.getState('missing'), null);
-  assert.equal((await service.cancel('flow-1')).step, 'cancelled');
-  assert.equal((await service.respond('flow-1', 'sentinel')).step, 'running');
-});

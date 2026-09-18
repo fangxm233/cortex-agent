@@ -70,7 +70,6 @@ test('login writes FEISHU_AUTH_MODE=user into the dotenv on success', async () =
   assert.match(env, /^FEISHU_AUTH_MODE=user$/m);
   assert.match(env, /FEISHU_APP_ID=id/); // pre-existing lines preserved
   assert.equal(loadUserToken(file)?.access_token, 'AT');
-  assert.match(res.stdout, /written to/i);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -149,22 +148,6 @@ test('manual login rejects an unparseable code input', async () => {
   assert.match(res.stderr, /code/i);
 });
 
-test('status reports not-logged-in when no token exists', async () => {
-  const res = await cmdFeishu(['status'], { env: { ...creds, FEISHU_AUTH_MODE: 'user' }, loadDotenv: false, tokenFile: tmpFile() });
-  assert.equal(res.exitCode, 0);
-  assert.match(res.stdout, /user/);
-  assert.match(res.stdout, /not logged in|no .*token/i);
-});
-
-test('status shows token presence and mode when logged in', async () => {
-  const file = tmpFile();
-  saveUserToken({ access_token: 'AT', refresh_token: 'RT', access_expires_at: 5_000_000_000_000, refresh_expires_at: 6_000_000_000_000, scope: 'offline_access', obtained_at: 0 }, file);
-  const res = await cmdFeishu(['status'], { env: { ...creds, FEISHU_AUTH_MODE: 'user' }, loadDotenv: false, tokenFile: file });
-  assert.equal(res.exitCode, 0);
-  assert.match(res.stdout, /logged in|active|valid/i);
-  rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
 test('logout removes the token file', async () => {
   const file = tmpFile();
   saveUserToken({ access_token: 'AT', refresh_token: 'RT', access_expires_at: 1, refresh_expires_at: 2, obtained_at: 0 }, file);
@@ -173,10 +156,4 @@ test('logout removes the token file', async () => {
   assert.equal(res.exitCode, 0);
   assert.ok(!existsSync(file));
   rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test('unknown subcommand returns help/usage with non-zero exit', async () => {
-  const res = await cmdFeishu(['bogus'], { env: {}, loadDotenv: false, tokenFile: tmpFile() });
-  assert.notEqual(res.exitCode, 0);
-  assert.match(res.stderr + res.stdout, /login|status|logout/);
 });

@@ -5,14 +5,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  buildCoreConfig,
-  buildFeishuConfig,
   buildFullConfig,
-  buildManagerQaConfig,
   buildTasksConfig,
   buildThreadConfig,
   buildInteractionConfig,
-  buildWebConfig,
   materializeMcpToolAllowlistConfigs,
 } from '../../src/core/config-generator.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '../../src/core/mcp-tool-gate.js';
@@ -35,24 +31,6 @@ test('buildFullConfig: always-on direct servers, no cortex-thread', () => {
   });
 });
 
-test('buildCoreConfig: cortex-core only', () => {
-  assert.deepEqual(buildCoreConfig('/test'), {
-    mcpServers: { 'cortex-core': expectedBundled('cortex-core') },
-  });
-});
-
-test('buildTasksConfig: cortex-tasks only', () => {
-  assert.deepEqual(buildTasksConfig('/test'), {
-    mcpServers: { 'cortex-tasks': expectedBundled('cortex-tasks') },
-  });
-});
-
-test('buildManagerQaConfig: cortex-manager-qa only', () => {
-  assert.deepEqual(buildManagerQaConfig('/test'), {
-    mcpServers: { 'cortex-manager-qa': expectedBundled('cortex-manager-qa') },
-  });
-});
-
 test('buildThreadConfig: complete thread-control composition', () => {
   assert.deepEqual(buildThreadConfig('/test'), {
     mcpServers: {
@@ -66,18 +44,6 @@ test('buildThreadConfig: complete thread-control composition', () => {
 test('buildInteractionConfig: interaction bridge only (no core/ext leak)', () => {
   assert.deepEqual(buildInteractionConfig('/test'), {
     mcpServers: { 'cortex-interaction-bridge': expectedBundled('cortex-interaction-bridge') },
-  });
-});
-
-test('buildFeishuConfig: cortex-feishu only (layered on the base config)', () => {
-  assert.deepEqual(buildFeishuConfig('/test'), {
-    mcpServers: { 'cortex-feishu': expectedBundled('cortex-feishu') },
-  });
-});
-
-test('buildWebConfig: cortex-web only (layered on the base config)', () => {
-  assert.deepEqual(buildWebConfig('/test'), {
-    mcpServers: { 'cortex-web': expectedBundled('cortex-web') },
   });
 });
 

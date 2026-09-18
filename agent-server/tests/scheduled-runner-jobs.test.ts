@@ -8,20 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 import { register, dispatch } from '../src/domain/scheduling/job-registry.js';
 import { registerThreadSession } from '../src/domain/scheduling/jobs/register-thread-session.js';
-import { resolveSyncPublicScript } from '../src/domain/scheduling/jobs/sync-public.js';
 import { sessionStore } from '../src/store/session-registry-repo.js';
 
 test('unknown key dispatch logs a warning and returns false', () => {
   const result = dispatch('nonexistent-key', {});
   assert.equal(result, false, 'dispatch returns false for unknown key');
-});
-
-test('sync-public resolves its script from the configured agent-server checkout', () => {
-  assert.equal(
-    resolveSyncPublicScript('/opt/cortex/agent-server'),
-    path.join('/opt/cortex/scripts', 'sync-pull-from-public.sh'),
-  );
-  assert.equal(resolveSyncPublicScript(''), null);
 });
 
 test('sync-public shell script operates on the checkout that contains it', () => {

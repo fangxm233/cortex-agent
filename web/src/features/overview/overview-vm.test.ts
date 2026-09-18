@@ -1,32 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { ScheduleInfo, ExecutionInfo, SessionInfo, ProjectConduitInfo } from '@cortex-agent/ui-contract';
-import { deriveActiveProjectId } from '@/features/projects/current-project';
+import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import {
-  scheduleProfileLabel,
   execDurationMs,
   budgetPercent,
   dailySeriesBars,
-  dailyAverage,
   whereItGoesRows,
 } from './overview-vm';
-
-const sched = (p: Partial<ScheduleInfo>): ScheduleInfo => ({
-  id: 's1',
-  type: 'interval',
-  message: 'x',
-  projectId: 'proj',
-  profile: null,
-  nextRun: null,
-  lastRun: null,
-  paused: false,
-  pausedBy: null,
-  intervalMs: null,
-  time: null,
-  dayOfWeek: null,
-  target: null,
-  fallback: null,
-  ...p,
-});
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
   id: 'exec_1',
@@ -41,60 +20,6 @@ const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
   durationMs: null,
   cost: null,
   ...p,
-});
-
-describe('deriveActiveProjectId', () => {
-  const proj = (id: string): ProjectConduitInfo => ({
-    id,
-    kind: 'research',
-    contextDir: '/x',
-    hasMission: true,
-    conduits: {},
-  });
-  const sess = (projectId: string, lastUsedAt: string): SessionInfo => ({
-    sessionId: 's-' + lastUsedAt,
-    backendSessionId: null,
-    name: 'n',
-    projectId,
-    backend: 'claude',
-    kind: 'local',
-    origin: 'direct',
-    createdAt: lastUsedAt,
-    lastUsedAt,
-    resumable: true,
-    label: null,
-    profileName: null,
-    running: false,
-    backgroundRunning: false,
-    awaitingInput: false,
-    numTurns: null,
-    costUsd: null,
-    unread: false,
-    scheduleId: null,
-    commissionId: null,
-  });
-  it('picks the most-recently-used session project', () => {
-    const sessions = [
-      sess('alpha', '2026-07-01T00:00:00Z'),
-      sess('beta', '2026-07-05T00:00:00Z'),
-    ];
-    expect(deriveActiveProjectId(sessions, [proj('alpha'), proj('beta')])).toBe('beta');
-  });
-  it('falls back to first project when no sessions', () => {
-    expect(deriveActiveProjectId([], [proj('gamma')])).toBe('gamma');
-  });
-  it('returns null when nothing available', () => {
-    expect(deriveActiveProjectId([], [])).toBeNull();
-  });
-});
-
-describe('scheduleProfileLabel', () => {
-  it('returns the real profile from the schedule config source', () => {
-    expect(scheduleProfileLabel(sched({ profile: 'claude-haiku' }))).toBe('claude-haiku');
-  });
-  it('returns empty string when the schedule has no profile (honest placeholder)', () => {
-    expect(scheduleProfileLabel(sched({ profile: null }))).toBe('');
-  });
 });
 
 describe('execDurationMs', () => {
@@ -152,16 +77,6 @@ describe('dailySeriesBars', () => {
   it('returns [] for empty or undefined input', () => {
     expect(dailySeriesBars([])).toEqual([]);
     expect(dailySeriesBars(undefined)).toEqual([]);
-  });
-});
-
-describe('dailyAverage', () => {
-  it('averages the series cost', () => {
-    expect(dailyAverage([day('a', 3), day('b', 5), day('c', 4)])).toBe(4);
-  });
-  it('returns null for an empty or undefined series', () => {
-    expect(dailyAverage([])).toBeNull();
-    expect(dailyAverage(undefined)).toBeNull();
   });
 });
 

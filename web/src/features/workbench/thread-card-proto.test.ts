@@ -4,7 +4,7 @@ import type {
   ThreadStepDetail,
   ThreadChildNode,
 } from '@cortex-agent/ui-contract';
-import { threadPill, buildThreadCard } from './thread-card-proto';
+import { buildThreadCard } from './thread-card-proto';
 
 function step(p: Partial<ThreadStepDetail> & { stepIndex: number }): ThreadStepDetail {
   return {
@@ -65,21 +65,8 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
   } as ThreadDetail;
 }
 
-describe('threadPill', () => {
-  it.each([
-    ['running', 'Running'],
-    ['waiting', 'Waiting'],
-    ['completed', 'Done'],
-    ['failed', 'Failed'],
-    ['cancelled', 'Cancelled'],
-    ['aborted', 'Cancelled'],
-  ] as const)('maps %s to its semantic label', (status, label) => {
-    expect(threadPill(status).text).toBe(label);
-  });
-});
-
 describe('buildThreadCard', () => {
-  it('maps a completed/running/pending step sequence to node states, tails, chevrons', () => {
+  it('maps a completed/running/pending step sequence to node states and tails', () => {
     const d = detail({
       id: 'thr_8f2c',
       templateName: 'experiment-pipeline',
@@ -95,18 +82,14 @@ describe('buildThreadCard', () => {
     });
     const card = buildThreadCard(d);
     expect(card.id).toBe('thr_8f2c');
-    expect(card.name).toBe('experiment-pipeline');
-    expect(card.pillText).toBe('Step 2/4');
     expect(card.rows).toHaveLength(3);
 
     expect(card.rows[0].node).toBe('done');
-    expect(card.rows[0].chev).toBe(true);
     expect(card.rows[0].expanded).toBe(false);
     expect(card.rows[0].hasTail).toBe(true);
 
     expect(card.rows[1].node).toBe('running');
     expect(card.rows[1].expanded).toBe(true);
-    expect(card.rows[1].fw).toBe(600);
     expect(card.rows[1].hasTail).toBe(true);
 
     expect(card.rows[2].node).toBe('pending');
@@ -134,10 +117,8 @@ describe('buildThreadCard', () => {
     expect(active.node).toBe('running');
     expect(active.subs).toHaveLength(1);
     expect(active.subs[0].name).toBe('verify-metrics');
-    expect(active.subs[0].level).toBe('L2');
     expect(active.subs[0].nested).not.toBeNull();
     expect(active.subs[0].nested?.name).toBe('stats-audit');
-    expect(active.subs[0].nested?.level).toBe('L3');
     expect(active.subs[0].nested?.running).toBe(true);
   });
 

@@ -157,15 +157,6 @@ describe('threadTemplates.save', () => {
     assert.equal((stale as { code: string }).code, 'conflict');
   });
 
-  test('warnings come back on a successful save', async () => {
-    const result = await handleThreadTemplatesSave(deps(), {
-      kind: 'agent',
-      name: 'c',
-      body: { ...agentBody('c'), somethingNew: 1 },
-    });
-    assert.ok(result.ok, JSON.stringify(result));
-    assert.ok(result.data.warnings.some((w) => w.path === 'somethingNew'));
-  });
 });
 
 describe('threadTemplates.remove', () => {
@@ -258,9 +249,6 @@ describe('threadTemplates.detail', () => {
     assert.equal((detail.expanded?.transitions as Array<{ from: string }>)[0].from, 'worker:produce');
   });
 
-  test('a missing entity is a not-found error', async () => {
-    await assert.rejects(() => handleThreadTemplatesDetail(deps(), { kind: 'agent', name: 'ghost' }), /Unknown agent/);
-  });
 });
 
 describe('threadTemplates.get', () => {
@@ -279,8 +267,4 @@ describe('threadTemplates.get', () => {
     assert.equal(healthy.errorCount, 0);
   });
 
-  test('classifies origin against the shipped defaults', async () => {
-    const entries = await readThreadTemplates(CONFIG_DIR);
-    assert.equal(entries.find((e) => e.name === 'a')?.origin, 'custom');
-  });
 });

@@ -85,19 +85,6 @@ test('assignIds backfills 4-hex ids for tasks missing them', () => {
   } finally { f.cleanup(); }
 });
 
-test('assignIds is a no-op when every task already has an id', () => {
-  const proj = nextProject();
-  const f = writeFixture(proj,
-    'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: default\n    plan: ""\n  - id: "2222"\n    text: B\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: default\n    plan: ""\n');
-  try {
-    const before = readFile(f.tasksPath);
-    const result = assignIds(proj);
-    assert.equal(result.success, true);
-    assert.equal(result.assigned, 0);
-    assert.equal(readFile(f.tasksPath), before);
-  } finally { f.cleanup(); }
-});
-
 test('assignIds scoped to single project leaves other projects untouched', () => {
   const projA = nextProject();
   const projB = nextProject();

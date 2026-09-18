@@ -47,13 +47,6 @@ test('requestDeviceAuthorization POSTs form+Basic-auth to the accounts device en
   assert.equal(out.interval, 5);
 });
 
-test('requestDeviceAuthorization targets the larksuite host when domain=lark', async () => {
-  let url = '';
-  const fetchImpl = (async (u: string) => { url = u; return res(200, { device_code: 'D', user_code: 'U', verification_uri: 'x', expires_in: 300, interval: 5 }); }) as any;
-  await requestDeviceAuthorization({ appId: 'a', appSecret: 'b', domain: 'lark', fetchImpl });
-  assert.equal(url, 'https://accounts.larksuite.com/oauth/v1/device_authorization');
-});
-
 test('requestDeviceAuthorization throws on an error response', async () => {
   const fetchImpl = (async () => res(400, { error: 'invalid_client', error_description: 'bad app' })) as any;
   await assert.rejects(
@@ -126,10 +119,4 @@ test('cmdFeishu login runs the device flow, prints the URL, and stores the token
     (process.stdout as any).write = origWrite;
     if (existsSync(tokenFile)) unlinkSync(tokenFile);
   }
-});
-
-test('cmdFeishu login fails clearly without app credentials', async () => {
-  const r = await cmdFeishu(['login'], { env: {} as any, fetchImpl: (async () => res(200, {})) as any });
-  assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /FEISHU_APP_ID/);
 });

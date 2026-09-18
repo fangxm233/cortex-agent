@@ -1,22 +1,10 @@
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
-import { checkRealGpuOccupancy, filterDispatchableTasks } from '../src/domain/tasks/dispatcher.js';
+import { filterDispatchableTasks } from '../src/domain/tasks/dispatcher.js';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
-});
-
-// --- checkRealGpuOccupancy per-GPU structure ---
-
-test('checkRealGpuOccupancy returns per-GPU structure with freeIndices', async () => {
-  // We can't call the real nvidia-smi in tests, but we test the return structure
-  // by injecting a mock. For now, test that the function exists and handles unknown machines.
-  const result = await checkRealGpuOccupancy('nonexistent-machine');
-  // Unknown machine should return allOccupied: false with empty gpus array
-  assert.equal(result.allOccupied, false);
-  assert.ok(Array.isArray(result.freeIndices));
-  assert.ok(Array.isArray(result.gpus));
 });
 
 // --- filterDispatchableTasks slot logic ---

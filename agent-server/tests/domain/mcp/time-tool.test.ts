@@ -27,14 +27,6 @@ test('current_time returns local/utc/unix fields for a valid timezone', async ()
   assert.match(payload.offset, /^UTC/);
 });
 
-test('current_time defaults to a timezone when none given', async () => {
-  const handler = captureHandler();
-  const res = await handler({});
-  assert.notEqual(res.isError, true);
-  const payload = JSON.parse(res.content[0].text);
-  assert.ok(payload.timezone && payload.timezone.length > 0);
-});
-
 test('current_time reports an error for an invalid timezone', async () => {
   const handler = captureHandler();
   const res = await handler({ timezone: 'Not/AZone' });

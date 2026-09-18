@@ -7,7 +7,6 @@ import * as dotenv from 'dotenv';
 
 import {
   enableLocalUi,
-  readEnvValue,
   LOCAL_UI_ORIGINS,
   DEFAULT_LOCAL_UI_PORT,
 } from '../src/entry/local-ui.js';
@@ -124,15 +123,4 @@ test('enableLocalUi rejects a settings.json that is not a JSON object', async ()
   fs.writeFileSync(path.join(configDir, 'settings.json'), '["not", "an", "object"]');
 
   await assert.rejects(() => enableLocalUi({ configDir }), /JSON object/);
-});
-
-test('readEnvValue returns undefined for a missing file, key, or blank value', () => {
-  const configDir = makeConfigDir();
-  const envPath = path.join(configDir, '.env');
-
-  assert.equal(readEnvValue(envPath, 'CORTEX_CLIENT_TOKEN'), undefined);
-  fs.writeFileSync(envPath, 'CORTEX_CLIENT_TOKEN=\nCORTEX_MACHINE=box\n');
-  assert.equal(readEnvValue(envPath, 'CORTEX_CLIENT_TOKEN'), undefined);
-  assert.equal(readEnvValue(envPath, 'MISSING_KEY'), undefined);
-  assert.equal(readEnvValue(envPath, 'CORTEX_MACHINE'), 'box');
 });

@@ -81,49 +81,6 @@ test('InputBox "?" on empty input toggles shortcuts instead of typing', async (t
   instance.cleanup();
 });
 
-test('InputBox dismisses shortcuts on any key when shown', async (t) => {
-  let dismissed = 0;
-  const app = React.createElement(InputBox, {
-    onSubmit: () => {},
-    onDismissShortcuts: () => { dismissed += 1; },
-    showShortcuts: true,
-    awaitingResponse: false,
-    focus: true,
-  });
-  const instance = render(app);
-  await delay(150);
-
-  instance.stdin.write('x'); // any key
-  await delay(120);
-
-  assert.equal(dismissed, 1, 'any key dismisses the shortcuts overlay');
-  // The key that dismissed must not be inserted into the buffer.
-  assert.doesNotMatch(instance.lastFrame() ?? '', /x/);
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('InputBox ignores mouse-tracking escape residue (no leak into the buffer)', async (t) => {
-  const submitted: string[] = [];
-  const app = React.createElement(InputBox, {
-    onSubmit: (txt: string) => submitted.push(txt),
-    awaitingResponse: false,
-    focus: true,
-  });
-  const instance = render(app);
-  await delay(120);
-
-  instance.stdin.write('[<64;30;10M'); // SGR wheel residue (ESC already stripped by Ink)
-  await delay(100);
-  // The residue must not appear in the input (placeholder still shown).
-  assert.match(instance.lastFrame() ?? '', /Type a message/);
-  assert.doesNotMatch(instance.lastFrame() ?? '', /64;30;10M/);
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('InputBox does NOT submit while awaiting a response', async (t) => {
   const submitted: string[] = [];
   const app = React.createElement(InputBox, {

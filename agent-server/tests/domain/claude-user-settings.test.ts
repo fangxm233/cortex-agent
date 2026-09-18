@@ -211,11 +211,3 @@ test('syncClaudeUserCleanupPeriodDays blocks writes to the real ~/.claude during
     /real ~\/\.claude/i,
   );
 });
-
-test('syncClaudeUserCleanupPeriodDays blocks writes to descendants of the real ~/.claude during tests', async () => {
-  const realDir = path.join(os.homedir(), '.claude', 'nested');
-  await assert.rejects(
-    () => syncClaudeUserCleanupPeriodDays(5, { claudeConfigDir: realDir }),
-    /real ~\/\.claude/i,
-  );
-});

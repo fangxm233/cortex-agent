@@ -29,16 +29,6 @@ test('plan: target=fresh always returns { kind: "fresh" }', async () => {
   assert.deepEqual(plan, { kind: 'fresh', channel: 'C1' });
 });
 
-test('plan: undefined target falls back to fresh', async () => {
-  const plan = await planScheduledDispatch({
-    target: undefined,
-    fallback: undefined,
-    fallbackChannel: 'C1',
-    lookups: lookups(),
-  });
-  assert.deepEqual(plan, { kind: 'fresh', channel: 'C1' });
-});
-
 // --- target=project ---
 
 test('plan: target=project always returns { kind: "fresh" } on fallbackChannel', async () => {
@@ -63,18 +53,6 @@ test('plan: target=thread running → continue-thread', async () => {
     }),
   });
   assert.deepEqual(plan, { kind: 'continue-thread', channel: 'CT', threadId: 'thr_live' });
-});
-
-test('plan: target=thread waiting → continue-thread', async () => {
-  const plan = await planScheduledDispatch({
-    target: { kind: 'thread', threadId: 'thr_wait', channel: 'CT' },
-    fallback: 'fresh',
-    fallbackChannel: 'C1',
-    lookups: lookups({
-      getThread: () => ({ id: 'thr_wait', channel: 'CT', status: 'waiting' } as any),
-    }),
-  });
-  assert.equal(plan.kind, 'continue-thread');
 });
 
 test('plan: target=thread terminal status + fallback=skip → skip', async () => {

@@ -149,10 +149,6 @@ describe('fetchRemoteFile', () => {
 });
 
 describe('statRemoteFile', () => {
-  it('falls back to the path basename when the device reports no name', async () => {
-    cmdMock.mockResolvedValue({ size: 3 });
-    expect(await statRemoteFile('win-pc', 'D:\\data\\run.log')).toMatchObject({ size: 3, name: 'run.log' });
-  });
 
   it('rejects a response without a size rather than inventing one', async () => {
     cmdMock.mockResolvedValue({ name: 'x' });

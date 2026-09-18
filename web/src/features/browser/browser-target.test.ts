@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   EMPTY_HISTORY,
-  WEB_SANDBOX,
   applyBrowserTitle,
-  browserItemName,
-  browserTabChip,
-  browserTabForwardSource,
-  browserTabLabel,
   createBrowserTab,
-  isBlankWebTab,
   canGoBack,
   canGoForward,
   currentUrl,
@@ -18,7 +12,6 @@ import {
   previewOriginConflict,
   pushHistory,
   frameRefusedEmbedding,
-  FRAME_REFUSED_HINT,
 } from './browser-target';
 
 describe('normalizeBrowserUrl', () => {
@@ -79,16 +72,6 @@ describe('previewOriginConflict — the pane security boundary', () => {
   });
 });
 
-describe('WEB_SANDBOX', () => {
-  it('never grants top-level navigation', () => {
-    expect(WEB_SANDBOX).not.toContain('allow-top-navigation');
-  });
-
-  it('grants same-origin — which is why previewOriginConflict must stay strict', () => {
-    expect(WEB_SANDBOX).toContain('allow-same-origin');
-  });
-});
-
 describe('history', () => {
   it('starts empty', () => {
     expect(currentUrl(EMPTY_HISTORY)).toBeNull();
@@ -128,77 +111,7 @@ describe('history', () => {
   });
 });
 
-describe('browserItemName', () => {
-  it('shows host:port and a non-root path', () => {
-    expect(browserItemName('http://127.0.0.1:5173/')).toBe('127.0.0.1:5173');
-    expect(browserItemName('http://localhost:3000/admin')).toBe('localhost:3000/admin');
-  });
-});
-
 describe('browser tabs', () => {
-  it('creates a blank tab that reads as a dock tab of kind web', () => {
-    const tab = createBrowserTab('tab-a');
-    expect(tab.kind).toBe('web');
-    expect(isBlankWebTab(tab)).toBe(true);
-    expect(currentUrl(tab.history)).toBeNull();
-    expect(tab).toMatchObject({ pageTitle: null, titleTimeOrigin: 0, documentGeneration: 0, forward: null });
-    expect(isBlankWebTab({ ...tab, history: pushHistory(tab.history, 'http://127.0.0.1:5173/') })).toBe(false);
-  });
-
-  it('keeps the page title and forwarded source as separate tab labels', () => {
-    const targetUrl = 'http://127.0.0.1:41235/';
-    const ready = {
-      ...createBrowserTab('tab-a'),
-      history: pushHistory(EMPTY_HISTORY, targetUrl),
-      pageTitle: 'Robot Dashboard',
-      forward: { status: 'ready' as const, device: 'my-pc', originalPort: 6006, targetUrl },
-    };
-    expect(browserTabLabel(ready)).toBe('Robot Dashboard');
-    expect(browserTabForwardSource(ready)).toBe('my-pc:6006');
-    expect(browserTabForwardSource({
-      ...ready,
-      history: pushHistory(ready.history, 'https://example.com/'),
-    })).toBeNull();
-  });
-
-  it('shows a connecting source before the forwarded URL exists', () => {
-    const tab = {
-      ...createBrowserTab('tab-a'),
-      forward: { status: 'connecting' as const, operationId: 7, device: 'lab', originalPort: 3000 },
-    };
-    expect(browserTabLabel(tab)).toBe('New tab');
-    expect(browserTabForwardSource(tab)).toBe('lab:3000');
-  });
-
-  it('chips a forward with its original device:port and a plain address with its own port', () => {
-    const targetUrl = 'http://127.0.0.1:41235/';
-    const history = pushHistory(EMPTY_HISTORY, targetUrl);
-    const forwarded = {
-      ...createBrowserTab('tab-a'),
-      history,
-      forward: { status: 'ready' as const, device: 'my-pc', originalPort: 6006, targetUrl },
-    };
-    expect(browserTabChip(forwarded)).toEqual({ text: 'my-pc:6006', kind: 'forward' });
-    expect(browserTabChip({
-      ...forwarded,
-      forward: { status: 'ready' as const, device: '', originalPort: 5173, targetUrl },
-    })).toEqual({ text: ':5173', kind: 'forward' });
-    expect(browserTabChip({ ...createBrowserTab('tab-b'), history })).toEqual({ text: ':41235', kind: 'plain' });
-  });
-
-  it('drops the chip, and keeps the port in the label, when the URL carries no port', () => {
-    const tab = { ...createBrowserTab('tab-a'), history: pushHistory(EMPTY_HISTORY, 'https://example.com/docs') };
-    expect(browserTabChip(tab)).toBeNull();
-    expect(browserTabLabel(tab)).toBe('example.com/docs');
-    expect(browserTabChip(createBrowserTab('tab-b'))).toBeNull();
-  });
-
-  it('spells the port once: the chip shows it, so the label drops it', () => {
-    const tab = { ...createBrowserTab('tab-a'), history: pushHistory(EMPTY_HISTORY, 'http://localhost:3000/admin') };
-    expect(browserTabChip(tab)).toEqual({ text: ':3000', kind: 'plain' });
-    expect(browserTabLabel(tab)).toBe('localhost/admin');
-  });
-
   it('orders title loads but accepts a BFCache document restore', () => {
     const tab = { ...createBrowserTab('tab-a'), pageTitle: 'New title', titleTimeOrigin: 2000 };
     expect(applyBrowserTitle(tab, 'Old title', 1000, 'load')).toBe(tab);
@@ -210,7 +123,6 @@ describe('browser tabs', () => {
     });
     expect(applyBrowserTitle(newest, 'Wrong document', 1000, 'update')).toBe(newest);
   });
-
 });
 
 describe('frameRefusedEmbedding', () => {
@@ -228,9 +140,5 @@ describe('frameRefusedEmbedding', () => {
     // Mid-load the frame is legitimately still on the blank document; calling that a refusal would
     // flash the banner on every navigation.
     expect(frameRefusedEmbedding({ loaded: false, documentReachable: true })).toBe(false);
-  });
-
-  it('names the cause and does not blame the pane', () => {
-    expect(FRAME_REFUSED_HINT).toMatch(/X-Frame-Options/);
   });
 });

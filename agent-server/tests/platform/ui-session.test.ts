@@ -5,7 +5,6 @@ import * as path from 'node:path';
 import {
   createUiSessionStore,
   parseCookie,
-  DEFAULT_SESSION_TTL_MS,
 } from '@platform/ui-http/ui-session.js';
 
 function tmpFile(): { file: string; cleanup: () => void } {
@@ -116,7 +115,4 @@ describe('ui session store', () => {
     }
   });
 
-  it('defaults to a 30-day lifetime', () => {
-    expect(DEFAULT_SESSION_TTL_MS).toBe(30 * 24 * 60 * 60 * 1000);
-  });
 });

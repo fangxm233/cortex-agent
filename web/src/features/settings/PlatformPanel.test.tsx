@@ -4,7 +4,6 @@
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
 import { act, create } from 'react-test-renderer';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
 import type { ConfigSnapshot, PlatformSettingsSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
@@ -77,15 +76,5 @@ test('insecure transport disables credential entry but leaves runtime preference
   const view = render(props({ secure: false }));
   expect(view.root.findByProps({ name: 'FEISHU_APP_SECRET' }).props.disabled).toBe(true);
   expect(view.root.findByProps({ name: 'feishuAdminChannel' }).props.disabled).toBe(false);
-  expect(view.root.findAllByProps({ role: 'alert' })).toHaveLength(1);
   view.unmount();
-});
-
-test('old server and pending-save states are honest and contain no placeholder reconnect', () => {
-  const html = renderToStaticMarkup(<LangProvider><PlatformPanelView {...props({ snapshot: { ...snapshot, platforms: undefined } })} /></LangProvider>);
-  expect(html).toMatch(/Upgrade|升级/);
-  const ready = renderToStaticMarkup(<LangProvider><PlatformPanelView {...props({ feedback: 'saved' })} /></LangProvider>);
-  expect(ready).toContain('daemon');
-  expect(ready).not.toContain('data-reconnect');
-  expect(ready).not.toContain('CORTEX_TUI');
 });

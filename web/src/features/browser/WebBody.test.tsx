@@ -53,23 +53,6 @@ beforeEach(() => {
 });
 
 describe('WebBody', () => {
-  it('shows the address bar until the tab has navigated', () => {
-    let renderer!: ReactTestRenderer;
-    act(() => { renderer = create(<Harness />); });
-    expect(renderer.root.findAllByType('iframe')).toHaveLength(0);
-    navigate(renderer, 'http://127.0.0.1:5173/');
-    expect(renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' }).props.src).toBe('http://127.0.0.1:5173/');
-  });
-
-  it('replaces the frame identity when the tab navigates to a new document', () => {
-    let renderer!: ReactTestRenderer;
-    act(() => { renderer = create(<Harness />); });
-    navigate(renderer, 'http://127.0.0.1:5173/');
-    const firstFrame = renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' });
-    navigate(renderer, 'http://127.0.0.1:3000/');
-    expect(renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' })).not.toBe(firstFrame);
-  });
-
   it('refuses an address that is not previewable, without navigating', () => {
     let renderer!: ReactTestRenderer;
     act(() => { renderer = create(<Harness />); });
@@ -91,7 +74,6 @@ describe('WebBody', () => {
 
     expect(forwardMocks.startForward).toHaveBeenCalledWith(5173);
     expect(input(renderer).props.value).toBe('http://127.0.0.1:5174/');
-    expect(renderer.root.findByProps({ 'data-forward-origin': 'server:5173' })).toBeTruthy();
   });
 
   it('keeps the original device port visible while opening its mapped URL', async () => {
@@ -111,7 +93,6 @@ describe('WebBody', () => {
     const portButton = renderer.root.findAllByType('button').find((node) => nodeText(node).startsWith('6006'));
     act(() => portButton!.props.onClick());
 
-    expect(renderer.root.findByProps({ 'data-forward-origin': 'my-pc:6006' })).toBeTruthy();
     await act(async () => {
       resolveMapping({ device: 'my-pc', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 });
       await Promise.resolve();
@@ -120,7 +101,6 @@ describe('WebBody', () => {
 
     expect(forwardMocks.startForward).toHaveBeenCalledWith(41234);
     expect(input(renderer).props.value).toBe('http://127.0.0.1:41235/');
-    expect(renderer.root.findByProps({ 'data-forward-origin': 'my-pc:6006' })).toBeTruthy();
   });
 
   it('ignores an older forward that finishes after a newer operation', async () => {

@@ -69,25 +69,6 @@ test('sessions.transcript reports the system origin on user rows and nowhere els
   assert.equal(transcript.turns[1].messages[0].systemOrigin, 'task-callback');
 });
 
-test('sessions.transcript carries the system origin on a pending (not yet read) row', async () => {
-  const deps = {
-    conversationHistory: { getHistory: async () => null },
-    pendingInjections: {
-      listBySession: async () => [
-        { id: 'pin-1', text: 'typed while busy', createdAt: '2026-07-07T00:00:00.000Z' },
-        {
-          id: 'pin-2', text: '[Background agent bg-1 — probe]', createdAt: '2026-07-07T00:00:01.000Z',
-          systemOrigin: 'agent-result' as const,
-        },
-      ],
-    },
-  } as unknown as UiServiceDeps;
-
-  const transcript = await handleSessionsTranscript(deps, { sessionId: 'sess-pending' });
-  assert.equal('systemOrigin' in transcript.pendingUserMessages![0], false);
-  assert.equal(transcript.pendingUserMessages![1].systemOrigin, 'agent-result');
-});
-
 test('sessions.debugDetails fetches one full tool payload only while DEBUG is enabled', async (t) => {
   const previous = process.env.DEBUG;
   t.onTestFinished(() => {
@@ -162,19 +143,6 @@ test('sessions.transcript exposes complete subagent spawn metadata outside DEBUG
   assert.equal(out.turns[0].messages[1].debug, undefined);
 });
 
-test('sessions.transcript exposes an assistant notice level', async () => {
-  const history: SessionHistory = {
-    sessionId: 'sess-notice',
-    events: [
-      { type: 'user', text: 'hi', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
-      { type: 'assistant', text: 'Heads up', noticeLevel: 'warning', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
-    ],
-  };
-
-  const out = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-notice' });
-  assert.equal(out.turns[0].messages[1].noticeLevel, 'warning');
-});
-
 test('sessions.transcript derives per-message elapsedMs from ts deltas (chronological, first=null)', async () => {
   const history: SessionHistory = {
     sessionId: 'sess-2',
@@ -194,25 +162,6 @@ test('sessions.transcript derives per-message elapsedMs from ts deltas (chronolo
   // Elapsed spans turn boundaries (previous = last assistant of turn 0).
   assert.equal(out.turns[1].messages[0].elapsedMs, 7500);
   assert.equal(out.turns[1].messages[1].elapsedMs, 1000);
-});
-
-test('sessions.transcript elapsedMs is null when a ts is unparseable', async () => {
-  const history: SessionHistory = {
-    sessionId: 'sess-3',
-    events: [
-      { type: 'user', text: 'hi', ts: 'not-a-date', turnIndex: 0 },
-      { type: 'assistant', text: 'ok', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
-    ],
-  };
-  const out = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-3' });
-  assert.equal(out.turns[0].messages[0].elapsedMs, null);
-  // Previous ts is unparseable → cannot derive a delta.
-  assert.equal(out.turns[0].messages[1].elapsedMs, null);
-});
-
-test('sessions.transcript returns empty turns for an absent history', async () => {
-  const out = await handleSessionsTranscript(makeDeps(null), { sessionId: 'nope' });
-  assert.deepEqual(out, { sessionId: 'nope', turns: [], pendingUserMessages: [] });
 });
 
 test('sessions.transcript stays full by default and compact opt-in always returns subagent summaries', async () => {

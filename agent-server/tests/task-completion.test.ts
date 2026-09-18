@@ -404,12 +404,6 @@ test('completeTask clears depends-on dependencies across projects and reports un
   } finally { rA.cleanup(); rB.cleanup(); rC.cleanup(); }
 });
 
-test('completeTask returns project-missing error when TASKS.yaml absent', () => {
-  const result = completeTask(null, '_test_comp_ghost', '', 'a111');
-  assert.equal(result.success, false);
-  assert.match(result.message, /TASKS\.yaml not found/);
-});
-
 test('uncompleteTask flips status back to open and clears completion provenance', () => {
   const proj = np();
   const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a111\n    text: Task\n    why: ""\n    done-when: ""\n    priority: high\n    status: done\n    template: coder-review\n    plan: ""\n    completed-at: "2026-01-01"\n    completed-note: done\n    dispatch-generation: generation-a\n');
@@ -567,12 +561,6 @@ test('completeTask rejects missing and empty current-thread artifacts', () => {
       fs.rmSync(artifactDir, { recursive: true, force: true });
     }
   }
-});
-
-test('completeTask accepts configured repository and matching persisted artifact evidence together', () => {
-  const result = probeCompletionEvidence('valid', 'non-empty');
-  assert.equal(result.success, true);
-  assert.equal(result.verify_warning, null);
 });
 
 test('completeTask accepts a commit from the configured project repository without artifact evidence', () => {

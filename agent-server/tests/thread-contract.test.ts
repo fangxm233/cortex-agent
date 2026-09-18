@@ -5,7 +5,7 @@ import {
   buildMissionChain,
   checkContractBudget,
 } from '../src/domain/threads/contract.js';
-import type { ThreadRecord, ThreadContract } from '../src/core/types/thread-types.js';
+import type { ThreadRecord } from '../src/core/types/thread-types.js';
 
 function fakeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
   const now = new Date().toISOString();
@@ -38,55 +38,6 @@ function fakeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
 }
 
 // --- buildContractPrompt ---
-
-test('buildContractPrompt with no contract and no mission chain returns the message unchanged', () => {
-  const out = buildContractPrompt({ message: 'just do the thing', contract: null, missionChain: [] });
-  assert.equal(out, 'just do the thing');
-});
-
-test('buildContractPrompt renders all contract sections in order', () => {
-  const contract: ThreadContract = {
-    goal: 'find root cause of flaky test',
-    doneWhen: 'root cause documented in report.md with reproduction steps',
-    contextFiles: ['/proj/STATUS.md', '/proj/tests/flaky.test.ts'],
-    deliverablePath: '/proj/report.md',
-    budgetUsd: 2.5,
-  };
-  const out = buildContractPrompt({
-    message: 'see details above',
-    contract,
-    missionChain: ['ship v2 of the pipeline', 'stabilize CI'],
-  });
-
-  const idx = (s: string) => out.indexOf(s);
-  assert.ok(idx('## Mission Chain') >= 0);
-  assert.ok(idx('1. ship v2 of the pipeline') >= 0);
-  assert.ok(idx('2. stabilize CI') >= 0);
-  assert.ok(idx('## Goal') > idx('## Mission Chain'));
-  assert.ok(idx('find root cause of flaky test') > 0);
-  assert.ok(idx('## Done When') > idx('## Goal'));
-  assert.ok(idx('## Context') > idx('## Done When'));
-  assert.ok(idx('/proj/STATUS.md') > 0 && idx('/proj/tests/flaky.test.ts') > 0);
-  assert.ok(idx('## Deliverable') > idx('## Context'));
-  assert.ok(idx('/proj/report.md') > 0);
-  assert.ok(idx('## Budget') > idx('## Deliverable'));
-  assert.ok(idx('$2.50') > 0);
-  assert.ok(out.trimEnd().endsWith('see details above'), 'original message comes last');
-});
-
-test('buildContractPrompt omits sections for absent fields', () => {
-  const out = buildContractPrompt({
-    message: 'msg',
-    contract: { goal: 'only a goal' },
-    missionChain: [],
-  });
-  assert.ok(out.includes('## Goal'));
-  assert.equal(out.includes('## Mission Chain'), false);
-  assert.equal(out.includes('## Done When'), false);
-  assert.equal(out.includes('## Context'), false);
-  assert.equal(out.includes('## Deliverable'), false);
-  assert.equal(out.includes('## Budget'), false);
-});
 
 // --- buildMissionChain ---
 

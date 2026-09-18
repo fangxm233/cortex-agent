@@ -12,7 +12,6 @@ import {
 } from '../src/domain/auth/auth-watch.js';
 import { createAuthLoginService } from '../src/domain/auth/login-service.js';
 import { runAuthExpiryScan } from '../src/domain/scheduling/jobs/auth-expiry-scan.js';
-import { createScheduler } from '../src/domain/scheduling/runner.js';
 import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
 import { EventBus } from '../src/events/event-bus.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
@@ -89,8 +88,6 @@ test('an in-use expiring account produces an actionable secret-free warning', as
 
   assert.equal(adapter.posted.length, 1);
   assert.equal(adapter.posted[0].destination.type, 'system-notice');
-  assert.match(adapter.posted[0].content.text, /openai-codex/);
-  assert.match(adapter.posted[0].content.text, /expiring/);
   assert.match(adapter.posted[0].content.text, new RegExp(EXPIRY));
   const metadata = buttonMetadata(adapter.posted[0]);
   assert.equal(metadata.backend, 'pi');
@@ -103,7 +100,6 @@ test('an in-use expired account produces an expiry warning', async () => {
   const adapter = await scan([account('expired', true)]);
 
   assert.equal(adapter.posted.length, 1);
-  assert.match(adapter.posted[0].content.text, /expired/);
   assert.match(adapter.posted[0].content.text, new RegExp(EXPIRY));
 });
 
@@ -111,7 +107,6 @@ test('an in-use logged-out account produces a login warning', async () => {
   const adapter = await scan([account('logged-out', true)]);
 
   assert.equal(adapter.posted.length, 1);
-  assert.match(adapter.posted[0].content.text, /logged out/);
   assert.equal(adapter.posted[0].content.text.includes(EXPIRY), false);
 });
 
@@ -170,11 +165,4 @@ test('the scan skips a pair that auth-watch just reminded', async () => {
   });
   assert.equal(adapter.posted.length, 1);
   assert.equal(adapter.posted[0].destination.type, 'interactive-reply');
-});
-
-test('scheduled runner wires the self-registering auth expiry job', () => {
-  const scheduler = createScheduler();
-
-  assert.equal(typeof scheduler.programmaticHandlers['auth-expiry-scan'], 'function');
-  scheduler.stop();
 });

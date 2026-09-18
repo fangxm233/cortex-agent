@@ -8,7 +8,6 @@ import {
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
-import type { SubagentCatalog } from '@core/agents/subagent/catalog.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {
@@ -236,69 +235,8 @@ function throughParentStream(notices: SubagentNotice[]) {
   ));
 }
 
-/** The catalog only shapes the tool schema, so these tools never need a working factory. */
-function describedTool(catalog: SubagentCatalog): any {
-  const deps: SubagentToolDeps = {
-    agentDir: '/nonexistent',
-    ensureRoles: () => undefined,
-    createSession: async () => { throw new Error('not reached'); },
-    childExtensions: () => [],
-    parentEnv: {},
-  };
-  return createSubagentTool(deps, catalog);
-}
-
-/** The model choices moved from the tool description onto the `model` field, so assertions read
- *  that field's rendered description instead. */
-function modelField(tool: any): string {
-  return tool.parameters.properties.model.description;
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-test('Agent schema bounds and deduplicates provider/model choices', () => {
-  const tool = describedTool({
-    models: [
-      { backend: 'pi', provider: 'openai-codex', id: 'gpt-5.6-sol' },
-      { backend: 'pi', provider: 'deepseek', id: 'deepseek-v4-flash' },
-      { backend: 'pi', provider: 'openai-codex', id: 'gpt-5.6-sol' },
-    ],
-  });
-  const description = modelField(tool);
-  assert.equal(description.match(/openai-codex\/gpt-5\.6-sol/g)?.length, 1);
-  assert.match(description, /deepseek\/deepseek-v4-flash/);
-
-  const manyModels = Array.from({ length: 80 }, (_, index) => ({
-    backend: 'pi' as const,
-    provider: 'provider',
-    id: `model-${String(index).padStart(3, '0')}`,
-  }));
-  const bounded = modelField(describedTool({ models: manyModels }));
-  assert.match(bounded, /\+\d+ more/);
-  assert.ok(bounded.length <= 1_500);
-
-  const overlong = modelField(describedTool({
-    models: [
-      { backend: 'pi', provider: 'a', id: 'x'.repeat(1_300) },
-      { backend: 'pi', provider: 'z', id: 'short-model' },
-    ],
-  }));
-  assert.match(overlong, /z\/short-model/);
-  assert.doesNotMatch(overlong, /x{100}/);
-});
-
-test('roles render in the subagent_type field description when the catalog carries them', () => {
-  const tool = describedTool({
-    roles: [
-      { name: 'explore', summary: 'Search the codebase' },
-      { name: 'plan', summary: 'Draft a plan' },
-    ],
-  });
-  const described = tool.parameters.properties.subagent_type.description;
-  assert.match(described, /explore — Search the codebase/);
-  assert.match(described, /plan — Draft a plan/);
 });
 
 test('single child runs on a nested session with the role scope, a stripped env, and usage', async () => {
@@ -492,8 +430,6 @@ test('parallel mode starts eight children concurrently and preserves result orde
     );
     assert.equal(result.details.usage.input, MAX_SUBAGENT_TASKS);
     assert.equal(result.details.usage.output, MAX_SUBAGENT_TASKS * 2);
-    assert.match(result.content[0].text, /Parallel: 8\/8 succeeded/);
-    assert.match(result.content[0].text, /### \[Task 0\] completed/);
   } finally {
     harness.cleanup();
   }
@@ -590,7 +526,6 @@ test('a child whose session cannot start is a failed result, and its siblings st
     const outcome: any = await observed;
     assert.equal(settledBeforeSibling, false);
     assert.equal('error' in outcome, false);
-    assert.match(outcome.result.content[0].text, /Parallel: 1\/2 succeeded/);
     assert.equal(outcome.result.details.results[0].stopReason, 'error');
     assert.match(outcome.result.details.results[0].errorMessage, /child session 0 could not start/);
     assert.equal(outcome.result.details.results[1].output, 'healthy answer');

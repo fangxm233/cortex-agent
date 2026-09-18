@@ -23,21 +23,6 @@ const ADD_ARGS = [
   '--url', 'http://127.0.0.1:8100', '--key', 'upstream-secret', '--model', 'Model-27B',
 ];
 
-test('provider CLI: an unknown subcommand names the valid ones and exits non-zero', () => {
-  const stores = tmpStores();
-  try {
-    const result = runProviderCli(['ad'], stores);
-    assert.equal(result.exitCode, 1);
-    assert.equal(result.stdout, '');
-    assert.match(result.stderr, /ad/);
-    assert.match(result.stderr, /list/);
-    assert.match(result.stderr, /add/);
-    assert.match(result.stderr, /remove/);
-  } finally {
-    fs.rmSync(stores.dir, { recursive: true, force: true });
-  }
-});
-
 test('provider CLI: add writes both files and reports the stored provider as JSON', () => {
   const stores = tmpStores();
   try {

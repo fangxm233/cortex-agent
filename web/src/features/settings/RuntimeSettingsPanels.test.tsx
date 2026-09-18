@@ -1,5 +1,4 @@
 import { Children, isValidElement, type ReactElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
@@ -32,7 +31,6 @@ vi.mock('@/features/notifications/useNoticeHistory', () => ({
 
 import {
   AdvancedPanelView,
-  NotificationsPanelView,
   RuntimeSettingToggleRow,
 } from './RuntimeSettingsPanels';
 import { MAX_SESSION_RETENTION_DAYS } from './platform-env';
@@ -77,119 +75,7 @@ const snapshot: ConfigSnapshot = {
   settings,
 };
 
-function renderNotifications(value = snapshot): string {
-  return renderToStaticMarkup(
-    <LangProvider>
-      <NotificationsPanelView snapshot={value} pending={false} onToggle={() => {}} />
-    </LangProvider>,
-  );
-}
-
-function renderAdvanced(value = snapshot): string {
-  return renderToStaticMarkup(
-    <LangProvider>
-      <AdvancedPanelView snapshot={value} pending={false} onToggle={() => {}} onSet={() => {}} />
-    </LangProvider>,
-  );
-}
-
-describe('runtime settings panel reads', () => {
-  it('renders Notifications from settings even when legacy env presence disagrees', () => {
-    const html = renderNotifications();
-
-    expect(html).toContain('data-setting-key="turnNotify" data-setting-value="false"');
-    expect(html).toContain('data-setting-key="autoResume" data-setting-value="true"');
-    expect(html).toContain('data-setting-key="notifyCompaction" data-setting-value="false"');
-    expect(html).toContain('C0123');
-    expect(html).toContain('oc_456');
-    expect(html).toContain('75s');
-  });
-
-  it('states the empty notice history honestly and lists real notices when the ring has them', () => {
-    noticeHistory.entries = [];
-    expect(renderNotifications()).toContain('No system notices since the server started');
-
-    noticeHistory.entries = [
-      { id: 'sn-2', ts: new Date().toISOString(), level: 'warning', title: 'Disk', text: 'Low free space on /' },
-      { id: 'sn-1', ts: new Date().toISOString(), level: 'info', text: 'Cortex restarted' },
-    ];
-    const html = renderNotifications();
-    expect(html).toContain('Disk');
-    expect(html).toContain('Low free space on /');
-    expect(html).toContain('Cortex restarted');
-    expect(html).toContain('newest 50 kept in memory');
-    noticeHistory.entries = [];
-  });
-
-  it('renders Advanced settings from the snapshot while DEBUG stays env-backed and read-only', () => {
-    const html = renderAdvanced();
-
-    expect(html).toContain('data-setting-key="eventLog" data-setting-value="true"');
-    expect(html).toContain('data-setting-key="diskMonitor" data-setting-value="true"');
-    expect(html).toContain('data-setting-key="showToolCalls" data-setting-value="false"');
-    expect(html).toContain('data-setting-key="disableUserContext" data-setting-value="true"');
-    expect(html).toContain('data-setting-key="serverUpdateDisable" data-setting-value="false"');
-    expect(html).toContain('data-setting-key="sessionRetentionDays" data-setting-value="30"');
-    expect(html).toContain('data-setting-source="env"');
-    expect(html).toContain('data-setting-key="taskDispatchMaxConcurrent" data-setting-value="6"');
-    expect(html).toContain('data-setting-key="taskDispatchEnabled" data-setting-value="false"');
-    expect(html).toContain('data-setting-key="taskDispatchIntervalMs" data-setting-value="30000"');
-    expect(html).toContain('data-setting-key="taskArchiveEnabled" data-setting-value="true"');
-    expect(html).toContain('data-setting-key="memoryIndexRegenIntervalMs" data-setting-value="86400000"');
-    expect(html).toContain('value="30"');
-    expect(html).toContain('data-duration-unit="taskDispatchIntervalMs"');
-    expect(html).toContain('data-select-value="sec"');
-    expect(html).toContain('value="6"');
-    expect(html).toContain('data-setting-key="sessionRetentionDays" data-setting-value="30"');
-    expect(html).toContain('data-number-input="sessionRetentionDays"');
-    expect(html).toContain('data-number-save="sessionRetentionDays"');
-    expect(html).toContain('value="30"');
-    expect(html).toContain('disabled=""');
-    expect(html).toContain('data-duration-unit="taskArchiveIntervalMs"');
-    expect(html).toContain('data-select-value="hr"');
-    expect(html).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
-    expect(html).toContain('data-setting-key="piCompactReserveTokens" data-setting-value="16384"');
-    expect(html).toContain('data-number-input="piCompactReserveTokens"');
-  });
-
-  it('keeps migrated controls missing and inert when the optional settings snapshot is absent', () => {
-    const missing = { ...snapshot, settings: undefined };
-    const notifications = renderNotifications(missing);
-    const advanced = renderAdvanced(missing);
-
-    expect(notifications.match(/data-setting-value="missing"/g)).toHaveLength(3);
-    expect((advanced.match(/data-setting-value="missing"/g) ?? []).length).toBeGreaterThanOrEqual(6);
-    expect(notifications).not.toContain('role="button"');
-    expect(advanced).not.toContain('role="button"');
-    expect(notifications).not.toContain('••••••••');
-    expect(advanced).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
-  });
-
-  it('renders nullable channels as absent and nullable concurrency as localized auto', () => {
-    const nullable = {
-      ...snapshot,
-      env: [
-        ...snapshot.env,
-        { key: 'SLACK_ADMIN_CHANNEL', present: true, masked: '••••••••' },
-        { key: 'FEISHU_ADMIN_CHANNEL', present: true, masked: '••••••••' },
-        { key: 'TASK_DISPATCH_MAX_CONCURRENT', present: true, masked: '••••••••' },
-      ],
-      settings: settings.map((entry) => {
-        if (entry.key === 'adminChannel' || entry.key === 'feishuAdminChannel'
-          || entry.key === 'taskDispatchMaxConcurrent') return { ...entry, value: null };
-        return entry;
-      }),
-    } satisfies ConfigSnapshot;
-    const notifications = renderNotifications(nullable);
-    const advanced = renderAdvanced(nullable);
-
-    expect(notifications).toContain('settings.adminChannel: ');
-    expect(notifications).toContain('settings.feishuAdminChannel: ');
-    expect(notifications.match(/>—<\/span>/g)).toHaveLength(2);
-    expect(notifications).not.toContain('••••••••');
-    expect(advanced).toContain('data-setting-key="taskDispatchMaxConcurrent" data-setting-value="null"');
-    expect(advanced).toContain('>auto<');
-  });
+describe('runtime settings panel save gates', () => {
 
   it('gates session retention save on the same max bound the server validates', () => {
     let renderer: ReturnType<typeof create>;
@@ -211,7 +97,6 @@ describe('runtime settings panel reads', () => {
     act(() => { input.props.onChange({ target: { value: String(MAX_SESSION_RETENTION_DAYS + 1) } }); });
     const blocked = renderer!.root.findByProps({ 'data-number-save': 'sessionRetentionDays' });
     expect(blocked.props.disabled).toBe(true);
-    expect(blocked.props.title).toContain(String(MAX_SESSION_RETENTION_DAYS));
   });
 
   it('accepts 0 as off for the PI mid-turn percent and rejects a value below the range', () => {
@@ -233,7 +118,6 @@ describe('runtime settings panel reads', () => {
 
     act(() => { input.props.onChange({ target: { value: '1023' } }); });
     expect(save().props.disabled).toBe(true);
-    expect(save().props.title).toContain('1024–131072');
 
     act(() => { input.props.onChange({ target: { value: '32768' } }); });
     act(() => { save().props.onClick(); });

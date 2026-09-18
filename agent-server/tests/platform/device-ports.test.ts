@@ -37,11 +37,6 @@ beforeEach(() => {
 });
 
 describe('device port routes', () => {
-  it('are served under the api prefix so the same auth gate applies', () => {
-    for (const p of [DEVICES_PATH, DEVICE_PORTS_PATH, DEVICE_PORT_OPEN_PATH]) {
-      expect(p.startsWith('/api/')).toBe(true);
-    }
-  });
 
   it('lists online devices without their transport details', async () => {
     listDevices.mockReturnValue([

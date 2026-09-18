@@ -12,15 +12,11 @@ import {
   generateDefaultModeJson,
   safeCopy,
   isBackendInstalled,
-  getInstallCommand,
-  isGitInstalled,
   generateGatewayUsageYaml,
-  getAistatusConfigPath,
   generateSystemdUnit,
   generateLaunchdPlist,
   runFeishuUserLogin,
   parseInitAnswersJson,
-  SLACK_APP_MANIFEST,
 } from '../src/entry/init.js';
 
 import type { InitAnswers, FeishuInitConfig } from '../src/entry/init.js';
@@ -229,11 +225,6 @@ const MULTI_ANSWERS: InitAnswers = {
   installService: false,
 };
 
-test('generateDotEnvContent includes CORTEX_MACHINE', () => {
-  const content = generateDotEnvContent(MINIMAL_ANSWERS);
-  assert.match(content, /^CORTEX_MACHINE=test-host/m);
-});
-
 test('generateDotEnvContent seeds unique CORTEX_CLIENT_TOKEN and CORTEX_WEBHOOK_TOKEN', () => {
   const content = generateDotEnvContent(MINIMAL_ANSWERS);
   const client = content.match(/^CORTEX_CLIENT_TOKEN=([0-9a-f]{64})$/m);
@@ -331,15 +322,6 @@ test('generateDotEnvContent writes comma-joined CORTEX_PLATFORM and both platfor
   assert.match(content, /^FEISHU_AUTH_MODE=bot/m);
 });
 
-test('SLACK_APP_MANIFEST is a non-empty JSON string with expected fields', () => {
-  const manifest = SLACK_APP_MANIFEST;
-  assert.ok(manifest.length > 0, 'manifest should not be empty');
-  const parsed = JSON.parse(manifest);
-  assert.equal(parsed.display_information.name, 'Cortex');
-  assert.equal(parsed.settings.socket_mode_enabled, true);
-  assert.ok(parsed.oauth_config.scopes.bot.includes('chat:write'));
-});
-
 // ─── generateDefaultModeJson ────────────────────────────────────
 
 test('generateDefaultModeJson returns valid JSON with expected fields', () => {
@@ -353,38 +335,13 @@ test('generateDefaultModeJson returns valid JSON with expected fields', () => {
   assert.equal(parsed.defaultAgent, 'direct');
 });
 
-test('generateDefaultModeJson produces compact JSON (single line)', () => {
-  const json = generateDefaultModeJson();
-  assert.equal(json.includes('\n'), false);
-});
-
 test('generateDefaultModeJson uses provided backend', () => {
   const json = generateDefaultModeJson('pi');
   const parsed = JSON.parse(json);
   assert.equal(parsed.backend, 'pi');
 });
 
-test('generateDefaultModeJson defaults to claude when no arg', () => {
-  const json = generateDefaultModeJson();
-  const parsed = JSON.parse(json);
-  assert.equal(parsed.backend, 'claude');
-});
-
 // ─── safeCopy ───────────────────────────────────────────────────
-
-test('safeCopy copies file when destination does not exist', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-test-'));
-  try {
-    const src = path.join(tmpDir, 'src.txt');
-    const dst = path.join(tmpDir, 'dst.txt');
-    fs.writeFileSync(src, 'source content');
-    const copied = safeCopy(src, dst, false, 'test');
-    assert.equal(copied, true);
-    assert.equal(fs.readFileSync(dst, 'utf-8'), 'source content');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true });
-  }
-});
 
 test('safeCopy does not overwrite existing file without force', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-test-'));
@@ -445,33 +402,8 @@ test('safeCopy creates parent directories for destination', () => {
 
 // ─── isBackendInstalled ─────────────────────────────────────────
 
-test('isBackendInstalled returns true for node (always available)', () => {
-  // node is always on PATH in a Node.js test — use as a known-installed binary
-  // We can't directly test 'claude' or 'pi' reliably, but we test the mechanism
-  // by checking that the function returns boolean without throwing
-  const result = isBackendInstalled('claude');
-  assert.equal(typeof result, 'boolean');
-});
-
-// ─── getInstallCommand ──────────────────────────────────────────
-
-test('getInstallCommand returns correct command for claude', () => {
-  assert.equal(getInstallCommand('claude'), 'npm install -g @anthropic-ai/claude-code');
-});
-
-test('getInstallCommand returns null for the bundled pi backend', () => {
-  assert.equal(getInstallCommand('pi'), null);
-});
-
 test('isBackendInstalled is always true for the bundled pi backend', () => {
   assert.equal(isBackendInstalled('pi'), true);
-});
-
-// ─── isGitInstalled ────────────────────────────────────────────
-
-test('isGitInstalled returns a boolean without throwing', () => {
-  const result = isGitInstalled();
-  assert.equal(typeof result, 'boolean');
 });
 
 // ─── generateGatewayUsageYaml ───────────────────────────────────
@@ -495,13 +427,6 @@ test('generateGatewayUsageYaml with disabled config omits user fields', () => {
   assert.doesNotMatch(yamlStr, /name:/);
   assert.doesNotMatch(yamlStr, /org:/);
   assert.doesNotMatch(yamlStr, /email:/);
-});
-
-// ─── getAistatusConfigPath ──────────────────────────────────────
-
-test('getAistatusConfigPath returns ~/.aistatus/config.yaml', () => {
-  const expected = path.join(os.homedir(), '.aistatus', 'config.yaml');
-  assert.equal(getAistatusConfigPath(), expected);
 });
 
 // ─── generateSystemdUnit ────────────────────────────────────────

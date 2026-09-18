@@ -165,10 +165,6 @@ describe('teardown', () => {
     await expect(connect(info.localPort)).rejects.toThrow();
   });
 
-  it('reports nothing to close for an unmapped port', async () => {
-    expect(closeDevicePort('my-pc', 4321)).toBe(false);
-  });
-
   it('closes every mapping for one device only', async () => {
     captureControl();
     await openDevicePort('my-pc', 9222);

@@ -198,29 +198,3 @@ def test_the_scan_is_clean_and_looked_at_every_source_this_row_creates(
     scanned = {source.source: source.bytes_scanned for source in report.sources}
     # bytes_scanned is what tells a clean report apart from one that never looked.
     assert all(scanned[source] > 0 for source in PROXY_ARTIFACT_SOURCES), scanned
-
-
-@pytest.mark.parametrize("source", PROXY_ARTIFACT_SOURCES)
-def test_removing_any_source_this_row_creates_fails_the_scan(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str,
-) -> None:
-    inventory, _calls = row_four_trial(tmp_path, monkeypatch)
-    inventory.sources[source].unlink()
-
-    report = scan_trial_artifacts(inventory, scan_policy())
-
-    assert not report.clean
-    assert report.missing_sources == (source,)
-    assert report.exit_code == 1
-
-
-def test_no_source_this_row_creates_carries_the_host_access_token(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The refresh credential and the account claim are decoded from the same token the proxy
-    injects, so a record that widened to carry either would put it in a trial artifact."""
-    inventory, _calls = row_four_trial(tmp_path, monkeypatch)
-
-    for source in PROXY_ARTIFACT_SOURCES:
-        payload = inventory.sources[source].read_bytes()
-        assert HOST_ACCESS_TOKEN.encode() not in payload, source

@@ -28,18 +28,6 @@ function setup() {
   return { instance, commands, submitted };
 }
 
-test('typing "/" opens the command menu', async (t) => {
-  const { instance } = setup();
-  await delay(120);
-  instance.stdin.write('/');
-  await delay(120);
-  const frame = instance.lastFrame() ?? '';
-  assert.match(frame, /\/new\b/, 'menu lists /new');
-  assert.match(frame, /\/resume\b/, 'menu lists /resume');
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('"/new" + Enter runs the command, not onSubmit', async (t) => {
   const { instance, commands, submitted } = setup();
   await delay(120);

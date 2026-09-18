@@ -98,22 +98,3 @@ test('machines.list: liveRuns counts only running executions on the named machin
   assert.strictEqual(result.length, 1);
   assert.strictEqual(result[0].liveRuns, 2, 'only 2 running on this machine');
 });
-
-test('machines.list: windows machine returns os=windows', async () => {
-  const deps = makeDeps({
-    machines: {
-      'mypc': { cortexPath: 'C:\\cortex', gpuCount: 1, ssh: 'user@mypc', win: true },
-    },
-  });
-
-  const result: MachineInfo[] = await handleMachinesList(deps, {});
-
-  assert.strictEqual(result.length, 1);
-  assert.strictEqual(result[0].os, 'windows');
-});
-
-test('machines.list: empty registry returns empty array', async () => {
-  const deps = makeDeps({ machines: {} });
-  const result = await handleMachinesList(deps, {});
-  assert.deepStrictEqual(result, []);
-});

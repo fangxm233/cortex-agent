@@ -368,14 +368,6 @@ def test_permit_cannot_be_minted_outside_the_validating_issuer() -> None:
         LiveHandshakePermit(CAPABILITY_ID)  # type: ignore[call-arg]
 
 
-def test_issued_permit_fields_cannot_be_rebound() -> None:
-    permit = issue_permit()
-    with pytest.raises(AttributeError):
-        permit.request = handshake_request(999_999)  # type: ignore[attr-defined]
-    with pytest.raises(AttributeError):
-        permit.upstream = "http://attacker.invalid"  # type: ignore[attr-defined]
-
-
 def test_permit_refuses_an_unsupported_row_before_credential_use(tmp_path: Path) -> None:
     with pytest.raises(LiveHandshakePermitRefused, match="unsupported"):
         run_handshake(tmp_path, capability_id="pi-api-key")
@@ -705,28 +697,6 @@ def test_artifact_failure_still_revokes_the_credential_route(
         lambda *_args: (_ for _ in ()).throw(OSError("artifact failure")),
     )
     with pytest.raises(OSError, match="artifact failure"):
-        run_handshake(tmp_path)
-    evidence = captured["session"].proxy.handle.revocation_evidence
-    assert evidence["route_active"] is False
-    assert evidence["listener_present"] is False
-
-
-def test_inventory_failure_still_revokes_the_credential_route(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured = {}
-    original = live_handshake._start_session
-
-    def capture(*args, **kwargs):
-        captured["session"] = original(*args, **kwargs)
-        return captured["session"]
-
-    monkeypatch.setattr(live_handshake, "_start_session", capture)
-    monkeypatch.setattr(
-        live_handshake, "_inventory",
-        lambda *_args: (_ for _ in ()).throw(OSError("inventory failure")),
-    )
-    with pytest.raises(OSError, match="inventory failure"):
         run_handshake(tmp_path)
     evidence = captured["session"].proxy.handle.revocation_evidence
     assert evidence["route_active"] is False

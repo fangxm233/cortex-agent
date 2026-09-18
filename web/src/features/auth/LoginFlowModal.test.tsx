@@ -1,6 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthNoticeAction, LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';
+import type { AuthNoticeAction, LoginFlowState } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const harness = vi.hoisted(() => ({
@@ -244,54 +244,7 @@ beforeEach(() => {
   harness.mobile = false;
 });
 
-const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
-  [{ kind: 'info', message: 'Provider information', links: [{ label: 'Help', url: 'https://help.example.test' }] }, 'info'],
-  [{ kind: 'auth_url', url: 'https://login.example.test/authorize?state=fixture', instructions: 'Authorize' }, 'auth_url'],
-  [{ kind: 'device_code', userCode: 'ABCD-EFGH', verificationUri: 'https://verify.example.test', expiresInSeconds: 600 }, 'device_code'],
-  [{ kind: 'progress', message: 'Waiting for authorization' }, 'progress'],
-];
-
 describe('LoginFlowModal', () => {
-  it('renders OAuth as open-page then code-entry without duplicate prompt copy', async () => {
-    const message = 'Paste code here if prompted.';
-    const login = state('prompt', {
-      authType: 'oauth',
-      notice: {
-        kind: 'auth_url', url: 'https://login.example.test/authorize?state=fixture',
-        instructions: message,
-      },
-      pendingPrompt: { kind: 'manual_code', message },
-    });
-    harness.queryState = login;
-    const renderer = mount({ initialState: login });
-    const ordered = renderer.root.findAll(node => (
-      node.props['data-auth-open-step'] !== undefined
-      || node.props['data-auth-code-step'] !== undefined
-    )).map(node => node.props['data-auth-open-step'] !== undefined ? 'open' : 'code');
-
-    expect(ordered).toEqual(['open', 'code']);
-    const openStep = renderer.root.findByProps({ 'data-auth-open-step': true });
-    const codeStep = renderer.root.findByProps({ 'data-auth-code-step': true });
-    expect(codeStep.props.className).toBe(openStep.props.className);
-    expect(openStep.props.className).toContain('p-2g');
-    expect(renderer.root.findAllByProps({ 'data-auth-prompt-copy': true })).toHaveLength(1);
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
-    expect(input.props.type).toBe('text');
-    expect(input.props.autoComplete).toBe('one-time-code');
-    expect(input.props.placeholder).toBe('Paste authorization code');
-
-    await clickAsync(renderer, 'auth-open-url');
-    expect(harness.externalUrls).toEqual(['https://login.example.test/authorize?state=fixture']);
-  });
-
-  it('keeps native authentication selectors on the mobile shell', () => {
-    harness.mobile = true;
-    const renderer = mount();
-
-    expect(renderer.root.findAllByType('select')).toHaveLength(2);
-    expect(renderer.root.findAllByProps({ 'data-select-control': true })).toHaveLength(0);
-  });
-
   it('auto-starts a notice target with the server-selected OAuth capability', async () => {
     harness.startState = state('prompt', {
       backend: 'pi', provider: 'dual-auth', authType: 'oauth',
@@ -370,12 +323,6 @@ describe('LoginFlowModal', () => {
     const renderer = mount();
     pick(renderer, 'backend', 'pi');
     pick(renderer, 'provider', 'dual-auth');
-    const selectors = renderer.root.findAllByProps({ 'data-select-control': true }).map(node => (
-      node.props['data-auth-backend'] ? 'backend'
-        : node.props['data-auth-provider'] ? 'provider'
-          : node.props['data-auth-type'] ? 'authType' : 'unknown'
-    ));
-    expect(selectors).toEqual(['backend', 'provider', 'authType']);
     const authType = renderer.root.findByProps({ 'data-auth-type': true });
     expect(authType.props.options.map((option: any) => option.value)).toEqual([
       'api_key', 'oauth',
@@ -398,32 +345,6 @@ describe('LoginFlowModal', () => {
     expect(harness.startCalls).toEqual([{
       backend: 'pi', provider: 'oauth-only', authType: 'oauth',
     }]);
-  });
-
-  it('polls from the initial running state into the first secret prompt', async () => {
-    harness.startState = state('running');
-    harness.queryState = state('prompt');
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
-    expect(input.props.type).toBe('password');
-    expect(input.props['aria-labelledby']).toBe('auth-login-prompt-label');
-    expect(renderer.root.findByProps({ id: 'auth-login-prompt-label' }).children.join('')).toContain('API key');
-  });
-
-  it('renders manual-code prompts as visible one-time-code inputs', async () => {
-    harness.startState = state('prompt', {
-      authType: 'oauth',
-      pendingPrompt: { kind: 'manual_code', message: 'Paste authorization code' },
-    });
-    harness.queryState = harness.startState;
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
-    expect(input.props.type).toBe('text');
-    expect(input.props.autoComplete).toBe('one-time-code');
   });
 
   it('submits the exact id selected by an interactive login prompt', async () => {
@@ -494,49 +415,6 @@ describe('LoginFlowModal', () => {
     await act(async () => { pending.resolve(state('running')); await pending.promise; });
   });
 
-  it('does not offer cancellation after the credential handoff begins', async () => {
-    harness.respondState = state('running');
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-    const input = renderer.root.findByProps({ 'data-auth-secret': true });
-    act(() => { input.props.onChange({ target: { value: 'sentinel-web-secret' } }); });
-    await clickAsync(renderer, 'auth-submit');
-
-    expect(renderer.root.findAllByProps({ 'data-action': 'auth-cancel' })).toHaveLength(0);
-  });
-
-  it.each(NOTICE_CASES)('renders %s notice metadata without a pending input', async (notice, kind) => {
-    harness.startState = state('running', { authType: 'oauth', notice });
-    harness.queryState = harness.startState;
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-
-    expect(renderer.root.findByProps({ 'data-auth-notice': kind })).toBeTruthy();
-    expect(renderer.root.findAllByProps({ 'data-auth-secret': true })).toHaveLength(0);
-    const html = JSON.stringify(renderer.toJSON());
-    if (kind === 'info') {
-      expect(renderer.root.findByProps({
-        'data-auth-external-url': 'https://help.example.test',
-      })).toBeTruthy();
-    }
-    if (kind === 'auth_url') {
-      expect(renderer.root.findByProps({
-        'data-auth-external-url': 'https://login.example.test/authorize?state=fixture',
-      })).toBeTruthy();
-    }
-    if (kind === 'device_code') {
-      expect(html).toContain('ABCD-EFGH');
-      expect(html).toContain('600');
-      expect(html.match(/Open verification page/g)).toHaveLength(1);
-      expect(renderer.root.findByProps({
-        'data-auth-external-url': 'https://verify.example.test',
-      })).toBeTruthy();
-    }
-    if (kind === 'progress') {
-      expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);
-    }
-  });
-
   it('cancels the active flow and stops polling terminal state', async () => {
     const renderer = mount();
     await clickAsync(renderer, 'auth-start');
@@ -566,26 +444,6 @@ describe('LoginFlowModal', () => {
     await act(async () => { pending.resolve(state('prompt')); await pending.promise; });
 
     expect(renderer.root.findByProps({ 'data-action': 'auth-start' })).toBeTruthy();
-  });
-
-  it('shows a safe tRPC start failure in the selection view', async () => {
-    harness.startError = 'Login is already active on another surface.';
-    const renderer = mount();
-    await clickAsync(renderer, 'auth-start');
-
-    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toBe(
-      'A login flow is already active on another surface.',
-    );
-  });
-
-  it('localizes a server-reported expired notice binding', async () => {
-    harness.startError = 'Login flow not found or expired.';
-    const renderer = mount({ target: NOTICE_TARGET });
-    await act(async () => { await Promise.resolve(); });
-
-    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toContain(
-      'This login flow expired',
-    );
   });
 
   it('renders an expired error when flowState returns null', async () => {

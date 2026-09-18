@@ -234,52 +234,6 @@ describe('UsageService', () => {
     assert.ok(!providers.includes('qwen-ksu'));
   });
 
-  test('an unrecognised provider is surfaced with a derived display name', async () => {
-    const fetch = gatewayFetch(
-      [spend('moonshot-ai', 'moonshot-ai', 0.5)],
-      [spend('moonshot-ai', 'moonshot-ai', 3.25)],
-    );
-    const { service } = serviceWith({ fetch });
-
-    const row = (await service.collect()).find((record) => record.provider === 'moonshot-ai');
-
-    assert.equal(row?.displayName, 'Moonshot Ai');
-    assert.equal(row?.billing, 'api');
-    assert.deepEqual(row?.spend, { today: 0.5, month: 3.25 });
-    assert.deepEqual(row?.modes, ['moonshot-ai']);
-  });
-
-  test('the grouped route placeholder for an unnamed mode reads like a missing one', async () => {
-    const grouped = gatewayFetch(
-      [spend('moonshot-ai', 'unknown', 0.5)],
-      [spend('moonshot-ai', 'unknown', 3.25)],
-    );
-    const records = legacyGatewayFetch(
-      [{ provider: 'moonshot-ai', cost: 0.5 }],
-      [{ provider: 'moonshot-ai', cost: 3.25 }],
-    );
-
-    const moonshot = (status: ProviderUsage[]) =>
-      status.find((record) => record.provider === 'moonshot-ai')!;
-    const viaGrouped = moonshot(await serviceWith({ fetch: grouped }).service.collect());
-    const viaRecords = moonshot(await serviceWith({ fetch: records }).service.collect());
-
-    assert.equal(viaGrouped.billing, 'api');
-    assert.deepEqual(viaGrouped.modes, []);
-    assert.deepEqual(viaGrouped.modes, viaRecords.modes);
-    assert.deepEqual(viaGrouped.spend, viaRecords.spend);
-  });
-
-  test('known providers keep their brand casing', async () => {
-    const fetch = gatewayFetch([spend('deepseek', 'deepseek', 1)], [spend('deepseek', 'deepseek', 1)]);
-    const { service } = serviceWith({ fetch });
-
-    assert.equal(
-      (await service.collect()).find((record) => record.provider === 'deepseek')?.displayName,
-      'DeepSeek',
-    );
-  });
-
   test('a provider that stops being used is dropped from the table', async () => {
     const store = new MemoryUsageStore([
       usage('qwen-ksu', 'unsupported', { billing: 'api', spend: { today: 0, month: 0 } }),

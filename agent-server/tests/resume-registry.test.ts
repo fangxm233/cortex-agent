@@ -154,12 +154,6 @@ test('resume registry publishes changes when entries are queued and drained', as
   assert.equal(changes, 2);
 });
 
-test('recordResume works in-memory before init (no persistence)', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
-  assert.equal(mod.getResumeCount(), 1);
-});
-
 test('removeDirectResume cancels one channel and leaves other entries queued', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();

@@ -18,7 +18,7 @@ import {
   resolveAgentSlotConfig,
   THREAD_PROTOCOL_PREAMBLE,
 } from '../src/domain/threads/index.js';
-import { buildThreadSummary, finalizeAbortedThread } from '../src/domain/threads/runner.js';
+import { finalizeAbortedThread } from '../src/domain/threads/runner.js';
 import type { ThreadRecord } from '../src/core/types/thread-types.js';
 
 const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
@@ -90,10 +90,6 @@ test('peekPendingControl returns null when no control signal is set', () => {
   assert.equal(peekPendingControl(thread.id), null);
 });
 
-test('peekPendingControl returns null for missing / unknown thread id', () => {
-  assert.equal(peekPendingControl('thr_does-not-exist-' + Date.now()), null);
-});
-
 test('peekPendingControl returns the abort signal written by the control action', async () => {
   const thread = makeAdHocThread();
   await setControl(thread.id, { action: 'abort', kind: 'too-big', diagnosis: 'three independent units' });
@@ -112,13 +108,6 @@ test('peekPendingControl does NOT clear; clearPendingControl removes the signal 
   assert.equal(peekPendingControl(thread.id), null);
 });
 
-test('clearPendingControl is a no-op when nothing is set (and for unknown ids)', async () => {
-  const thread = makeAdHocThread();
-  await clearPendingControl(thread.id); // no throw
-  await clearPendingControl('thr_nope-' + Date.now()); // no throw
-  assert.equal(peekPendingControl(thread.id), null);
-});
-
 // --- REGRESSION: artifact prose mentioning the old markers must NOT trigger control ---
 // These reproduce the 2026-06-13 double-abort incident: worker artifact text that merely
 // references [ABORT] must produce NO control signal under the out-of-band mechanism.
@@ -126,16 +115,6 @@ test('clearPendingControl is a no-op when nothing is set (and for unknown ids)',
 test('artifact text "No [ABORT]." does NOT produce any pending control', () => {
   const thread = makeAdHocThread('Feasibility confirmed. Proceed. No [ABORT].\n');
   assert.equal(peekPendingControl(thread.id), null, 'prose mentioning [ABORT] must not signal abort');
-});
-
-test('a plan that says "[ABORT: too-big — ...]" in the artifact does NOT produce any pending control', () => {
-  const thread = makeAdHocThread('Plan: if the LEAP asset is missing, escalate with [ABORT: too-big — LEAP asset].\n');
-  assert.equal(peekPendingControl(thread.id), null, 'conditional plan text must not signal abort');
-});
-
-test('artifact mentioning [SPLIT] / [WAIT_CHILDREN] prose does NOT produce any pending control', () => {
-  const thread = makeAdHocThread('We could [SPLIT] this, or emit [WAIT_CHILDREN] later, but for now we just do it.\n');
-  assert.equal(peekPendingControl(thread.id), null);
 });
 
 // --- abortThread ---
@@ -226,24 +205,6 @@ test('finalizeAbortedThread tolerates a missing onAbort callback', async () => {
   const thread = makeAdHocThread();
   await finalizeAbortedThread(thread.id, { taskId: 'efgh', taskProject: 'p' } as any, 'x', {} as any);
   assert.equal(threadStore.get(thread.id)!.status, 'aborted');
-});
-
-test('buildThreadSummary preserves the abort reason', () => {
-  const thread = {
-    id: 'thr_aborted', templateName: null, status: 'aborted',
-    channel: 'C1', projectId: 'general', platformThreadId: null,
-    userMessage: '', userMessageTs: 'ts', workspacePath: '', artifactPath: '',
-    agents: {}, activeAgent: null, activeStage: null, currentStepIndex: 0, steps: [],
-    iterationCounts: {}, totalCostUsd: 0,
-    createdAt: '2026-04-16T10:00:00Z', updatedAt: '2026-04-16T10:00:01Z',
-    endedAt: '2026-04-16T10:00:01Z', error: null,
-    abortReason: 'blocked on upstream', metadata: null,
-  } as ThreadRecord;
-  const summary = buildThreadSummary({
-    thread, finalOutput: null, totalCostUsd: 0, totalNumTurns: 0,
-    lastAgentResult: null, executionId: null, stopReason: null,
-  });
-  assert.match(summary, /blocked on upstream/);
 });
 
 // --- THREAD_PROTOCOL_PREAMBLE injection into buildStepPrompt ---

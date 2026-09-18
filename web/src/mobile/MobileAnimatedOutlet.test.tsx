@@ -1,32 +1,5 @@
-import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { AnimatedOutletLayers, planFrameChange, planTransition, type Frame } from './MobileAnimatedOutlet';
-
-describe('planTransition', () => {
-  it('maps drill-in and drill-out navigation to opposite directions', () => {
-    expect(planTransition('PUSH', false, false, false)).toEqual({ animate: true, dir: 'forward' });
-    expect(planTransition('POP', false, false, false)).toEqual({ animate: true, dir: 'back' });
-  });
-
-  it('does not animate route replacement', () => {
-    expect(planTransition('REPLACE', false, false, false)).toEqual({ animate: false });
-  });
-
-  it('does not animate an unchanged path or reduced-motion request', () => {
-    expect(planTransition('PUSH', true, false, false)).toEqual({ animate: false });
-    expect(planTransition('PUSH', false, true, false)).toEqual({ animate: false });
-  });
-
-  it('does not animate switches between peer tab routes', () => {
-    expect(planTransition('PUSH', false, false, true)).toEqual({ animate: false });
-    expect(planTransition('POP', false, false, true)).toEqual({ animate: false });
-  });
-
-  it('animates a semantic return to a retained tab root as back even when the route is replaced', () => {
-    expect(planTransition('REPLACE', false, false, false, true)).toEqual({ animate: true, dir: 'back' });
-    expect(planTransition('REPLACE', false, true, false, true)).toEqual({ animate: false });
-  });
-});
+import { planFrameChange, type Frame } from './MobileAnimatedOutlet';
 
 const frame = (key: string): Frame => ({ key, element: key });
 
@@ -86,26 +59,5 @@ describe('planFrameChange', () => {
 
     expect(result.current).toBe(root);
     expect(result.returningToRetained).toBe(true);
-  });
-});
-
-// The outgoing layer keeps painting for the ~40ms between the 160ms slide-out and the 200ms
-// slide-in, with its transform (and its stacking context) already gone. Without isolation a
-// z-indexed child of that layer -- the sticky subagent header -- flashes over the incoming route.
-describe('route layers', () => {
-  it('isolates each layer so a route\'s z-index cannot paint over another route', () => {
-    const tree = create(
-      <AnimatedOutletLayers
-        current={frame('/m/sessions')}
-        retainedTab={frame('/m/tasks')}
-        previous={frame('/m/session/chat-1')}
-        dir="back"
-        onSettled={() => {}}
-      />,
-    );
-    const layers = tree.root.findAll((node) => typeof node.props['data-route-layer'] === 'string');
-
-    expect(layers).toHaveLength(3);
-    for (const layer of layers) expect(layer.props.style.isolation).toBe('isolate');
   });
 });

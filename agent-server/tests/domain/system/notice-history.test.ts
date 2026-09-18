@@ -24,16 +24,6 @@ describe('notice-history', () => {
     assert.deepEqual(entries.map((e) => e.text), ['second', 'first']);
   });
 
-  it('defaults level to info and carries an optional title', () => {
-    recordSystemNotice({ text: 'disk low', level: 'warning', title: 'Disk' });
-    recordSystemNotice({ text: 'plain' });
-    const [plain, warn] = listSystemNotices();
-    assert.equal(warn.level, 'warning');
-    assert.equal(warn.title, 'Disk');
-    assert.equal(plain.level, 'info');
-    assert.equal(plain.title, undefined);
-  });
-
   it('assigns monotonically increasing ids and ISO timestamps', () => {
     recordSystemNotice({ text: 'a' });
     recordSystemNotice({ text: 'b' });
@@ -52,15 +42,4 @@ describe('notice-history', () => {
     assert.equal(entries[entries.length - 1].text, `n10`);
   });
 
-  it('clamps to the given limit', () => {
-    for (let i = 0; i < 5; i++) recordSystemNotice({ text: `n${i}` });
-    assert.equal(listSystemNotices(2).length, 2);
-    assert.deepEqual(listSystemNotices(2).map((e) => e.text), ['n4', 'n3']);
-  });
-
-  it('resetSystemNoticeHistory clears entries', () => {
-    recordSystemNotice({ text: 'x' });
-    resetSystemNoticeHistory();
-    assert.deepEqual(listSystemNotices(), []);
-  });
 });

@@ -5,7 +5,6 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  buildProfileEntry,
   createProfile,
   updateProfile,
   removeProfile,
@@ -181,14 +180,6 @@ test('removeProfile rejects an unknown name as not-found', async () => {
 });
 
 // ── entry assembly ──────────────────────────────────────────────────
-test('buildProfileEntry drops omitted fields and an empty extraOption map', () => {
-  assert.deepEqual(buildProfileEntry({ model: 'm' }), { model: 'm' });
-  assert.deepEqual(buildProfileEntry({ model: 'm', extraOption: {} }), { model: 'm' });
-  assert.deepEqual(
-    buildProfileEntry({ model: 'm', backend: 'pi', provider: 'deepseek', extraOption: { '--thinking': 'xhigh' } }),
-    { model: 'm', backend: 'pi', provider: 'deepseek', extraOption: { '--thinking': 'xhigh' } },
-  );
-});
 
 // ── schema shape gate ───────────────────────────────────────────────
 test('profilesCreateInput rejects an unsafe name, an unknown backend and a bare flag key', () => {

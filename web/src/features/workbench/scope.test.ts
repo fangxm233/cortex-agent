@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ThreadInfo } from '@cortex-agent/ui-contract';
-import { groupThreads, threadScopeFilter } from './scope';
+import { groupThreads } from './scope';
 
 function thread(id: string, status: ThreadInfo['status']): ThreadInfo {
   return {
@@ -15,12 +15,6 @@ function thread(id: string, status: ThreadInfo['status']): ThreadInfo {
     artifactPath: null,
   };
 }
-
-describe('threadScopeFilter', () => {
-  it('returns active statuses for non-list consumers', () => {
-    expect(threadScopeFilter('active')).toEqual(['running', 'waiting']);
-  });
-});
 
 describe('groupThreads', () => {
   it('groups running and waiting as active, with terminal threads in history', () => {

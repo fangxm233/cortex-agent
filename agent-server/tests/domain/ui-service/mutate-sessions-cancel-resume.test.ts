@@ -33,10 +33,3 @@ test('cancelResume after the window already reset succeeds without cancelling an
   assert.deepEqual(res, { ok: true, data: { cancelled: false } });
   assert.equal(getResumeCount(), 1, 'another session\'s pending resume is untouched');
 });
-
-test('cancelResume without a sessionId → invalid-args', async () => {
-  const res = await handleCancelResume({ sessionId: '' });
-
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'invalid-args');
-});

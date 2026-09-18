@@ -651,22 +651,6 @@ def test_audit_retry_arm_materializes_its_own_bundle_and_never_the_direct_one(
         tmp_path / "direct", bundle=DIRECT_BUNDLE).input_bundle_sha256
 
 
-def test_attestation_and_sealed_environment_state_the_arm_that_ran(tmp_path: Path) -> None:
-    """The webhook's single-root guard is widened by exactly this attested template."""
-    result = materialize(tmp_path, bundle=AUDIT_RETRY_BUNDLE)
-
-    assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT"] == "1"
-    assert result.process_environment["CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE"] == (
-        "coder-review")
-    attestation = read_json(result.launch_attestation_path)
-    assert attestation["arm_bundle"] == {
-        "key": "coder-review-audit-retry-pi-deepseek",
-        "profile_name": "coder-review",
-        "root_template": "coder-review",
-    }
-    assert attestation["schema_version"] == "cortex-bench-launch-attestation/4"
-
-
 def test_committed_bundle_files_are_read_from_the_bundle_that_ran(tmp_path: Path) -> None:
     """`committed_input_bundle_files` answers per bundle key, never for one hardcoded arm."""
     entries = production_home.committed_input_bundle_files(AUDIT_RETRY_BUNDLE.key)

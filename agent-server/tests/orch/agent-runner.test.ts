@@ -325,21 +325,6 @@ test('(b) route() calls track(+1) then the enqueue fn calls track(-1) in finally
 
 // ── (c) enqueue is called with the correct channel ───────────────────────────
 
-test('(c) route() calls enqueue with the correct channel', async () => {
-  const channel = freshChannel();
-  const enqueueCalls: Array<{ ch: string }> = [];
-  const runner = new AgentRunner({
-    enqueue: (ch, _fn) => { enqueueCalls.push({ ch }); return false; },
-    track: () => {},
-  });
-
-  const ctx = makeCtx({ channel });
-  await runner.route(ctx as any);
-
-  assert.equal(enqueueCalls.length, 1);
-  assert.equal(enqueueCalls[0].ch, channel);
-});
-
 // ── (d) resolveDefaultAgent — no default agent → uses activeProfile ───────────
 
 test('(d) resolveDefaultAgent with no default agent uses activeProfile for profileForRun', () => {

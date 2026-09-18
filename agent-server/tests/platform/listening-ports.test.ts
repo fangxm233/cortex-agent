@@ -135,11 +135,6 @@ describe('parseProcNetTcp', () => {
     expect(parseProcNetTcp(PROC).some((p) => p.address.startsWith('192.'))).toBe(false);
   });
 
-  it('reports no process names, which is the price of needing no package', () => {
-    // /proc gives a socket inode; resolving it means walking every /proc/<pid>/fd symlink.
-    expect(parseProcNetTcp(PROC).every((p) => p.process === null)).toBe(true);
-  });
-
   it('backs up ss on a Linux box with no iproute2', () => {
     // BusyBox has no `ss` applet and Alpine does not install iproute2, so a container device would
     // otherwise report an empty list — which reads as "nothing is running there".

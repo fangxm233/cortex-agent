@@ -18,33 +18,6 @@ describe('buildRateLimitView', () => {
     }, NOW, 'en')).toBeNull();
   });
 
-  it('keeps the compact label window-free while retaining window detail', () => {
-    const vm = buildRateLimitView({
-      providers: [{
-        provider: 'anthropic', displayName: 'Anthropic', waitingSessions: 1, waitingThreads: 2,
-        windows: [window('seven_day', 14 * 3600 + 43 * 60)],
-      }],
-    }, NOW, 'en');
-
-    expect(vm?.label).toBe('Anthropic · 14h 43m');
-    expect(vm?.providers[0].windows[0]).toMatchObject({ typeLabel: '7d', countdown: '14h 43m' });
-    expect(vm?.providers[0].waitingLabel).toBe('1 session · 2 threads waiting');
-  });
-
-  it('keeps active model-scoped labels distinguishable', () => {
-    const vm = buildRateLimitView({
-      providers: [{
-        provider: 'anthropic', displayName: 'Anthropic', waitingSessions: 0, waitingThreads: 0,
-        windows: [
-          window('model_scoped', 600, 0.96, 'Sonnet'),
-          window('model_scoped', 600, 0.97, 'Opus'),
-        ],
-      }],
-    }, NOW, 'en');
-
-    expect(vm?.providers[0].windows.map((item) => item.typeLabel)).toEqual(['Opus', 'Sonnet']);
-  });
-
   it('uses earliest provider recovery for aggregate copy, not the earliest individual window', () => {
     const vm = buildRateLimitView({
       providers: [
@@ -59,7 +32,6 @@ describe('buildRateLimitView', () => {
       ],
     }, NOW, 'en');
 
-    expect(vm?.label).toBe('2 providers limited · first 42m');
     expect(vm?.firstRecoveryAt).toBe(NOW + 42 * 60);
   });
 

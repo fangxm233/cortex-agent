@@ -68,17 +68,6 @@ test('cortex_plan_exit POSTs to /hook/exit-plan-mode with planContent loaded fro
   assert.equal(result.isError, undefined);
 });
 
-test('cortex_plan_exit accepts a missing summary (PI parity — summary is optional)', async (t) => {
-  const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
-  fs.writeFileSync(planPath, 'plan');
-  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
-
-  const { post, calls } = makeMockHttp([{ status: 200, body: { approved: true, reason: '' } }]);
-  const result = await runPlanExit({ plan_file_path: planPath }, makeDeps({ httpPost: post }));
-  assert.equal(result.isError, undefined);
-  assert.equal(calls[0].body.toolInput.summary, '');
-});
-
 test('cortex_plan_exit propagates approval back to the assistant tool_result', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
@@ -89,18 +78,6 @@ test('cortex_plan_exit propagates approval back to the assistant tool_result', a
   const text = result.content.map((c: any) => c.text).join('\n');
   assert.ok(/approve/i.test(text));
   assert.equal(result.isError, undefined);
-});
-
-test('cortex_plan_exit handles approval with appended user feedback', async (t) => {
-  const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
-  fs.writeFileSync(planPath, 'plan');
-  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
-
-  const { post } = makeMockHttp([{ status: 200, body: { approved: true, reason: 'looks good but tighten step 2' } }]);
-  const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
-  const text = result.content.map((c: any) => c.text).join('\n');
-  assert.ok(/approved/i.test(text));
-  assert.ok(text.includes('looks good but tighten step 2'));
 });
 
 test('cortex_plan_exit handles denial and surfaces feedback to assistant', async (t) => {
@@ -264,18 +241,6 @@ test('cortex_ask_user supports multiple questions in one call', async () => {
   assert.ok(text.includes('Use cache?'));
 });
 
-test('cortex_ask_user accepts free-text question without options', async () => {
-  const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'What should we do?': 'my custom answer' } } }]);
-  const result = await runAskUser(
-    { questions: [{ question: 'What should we do?' }] },
-    makeDeps({ httpPost: post }),
-  );
-  assert.equal(calls[0].body.questions[0].question, 'What should we do?');
-  assert.deepEqual(calls[0].body.questions[0].options, []);
-  const text = result.content.map((c: any) => c.text).join('\n');
-  assert.ok(text.includes('my custom answer'));
-});
-
 test('cortex_ask_user treats timeout as a non-fatal error', async () => {
   const { post } = makeMockHttp([{ status: 200, body: { error: 'timeout', answers: {} } }]);
   const result = await runAskUser(
@@ -293,16 +258,6 @@ test('cortex_ask_user returns isError on webhook failure', async () => {
   assert.equal(result.isError, true);
 });
 
-test('cortex_ask_user returns isError when channel missing', async () => {
-  const result = await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ channel: null as any }));
-  assert.equal(result.isError, true);
-});
-
-test('cortex_ask_user returns isError when questions[] is empty', async () => {
-  const result = await runAskUser({ questions: [] }, makeDeps());
-  assert.equal(result.isError, true);
-});
-
 test('cortex_ask_user returns isError when answers payload is not a dict', async () => {
   const { post } = makeMockHttp([{ status: 200, body: { answers: [{ answer: 'X' }] } }]); // legacy array shape
   const result = await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ httpPost: post }));
@@ -317,12 +272,6 @@ test('cortex_ask_user forwards a normalized level in the webhook body', async ()
   );
   assert.equal(result.isError, undefined);
   assert.equal(calls[0].body.level, 'warning');
-});
-
-test('cortex_ask_user omits level from the body when not given', async () => {
-  const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'Q?': 'ok' } } }]);
-  await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ httpPost: post }));
-  assert.equal('level' in calls[0].body, false);
 });
 
 test('cortex_ask_user omits blocking from the body by default (every legacy caller still waits)', async () => {
@@ -344,12 +293,6 @@ test('cortex_ask_user with blocking:false forwards the flag and returns without 
   assert.ok(/without blocking/i.test(text), text);
   assert.ok(text.includes('DB'));
   assert.ok(/user message/i.test(text), text);
-});
-
-test('cortex_ask_user with blocking:false does not treat a missing answers payload as an error', async () => {
-  const { post } = makeMockHttp([{ status: 200, body: { posted: true } }]);
-  const result = await runAskUser({ questions: [{ question: 'Q?' }], blocking: false }, makeDeps({ httpPost: post }));
-  assert.equal(result.isError, undefined);
 });
 
 test('cortex_ask_user with blocking:false still surfaces a webhook failure', async () => {

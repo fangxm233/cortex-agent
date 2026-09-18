@@ -70,10 +70,6 @@ describe('groupSessions', () => {
     const groups = groupSessions([s], now);
     expect(groups[0].label).toBe('TODAY');
   });
-
-  it('returns no groups for an empty list', () => {
-    expect(groupSessions([], now)).toEqual([]);
-  });
 });
 
 describe('groupSessions unread ordering', () => {

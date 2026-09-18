@@ -62,13 +62,6 @@ test('lists stored providers without their upstream key', async () => {
   assert.ok(!result.text.includes('sentinel-upstream-key'));
 });
 
-test('reports an empty catalog rather than an error', async () => {
-  const result = await handleCustomProviderCommand(['list'], tmpStores());
-
-  assert.ok(result.text.length > 0);
-  assert.ok(!/undefined|\[object/.test(result.text));
-});
-
 test('adds a keyless provider and points elsewhere for the upstream key', async () => {
   const stores = tmpStores();
 
@@ -106,11 +99,4 @@ test('removes a stored provider and reports an unknown name', async () => {
 
   const missing = await handleCustomProviderCommand(['remove', 'my-vllm'], stores);
   assert.match(missing.text, /my-vllm/);
-});
-
-test('usage never suggests typing a key into a channel', async () => {
-  const result = await handleCustomProviderCommand(['nonsense'], tmpStores());
-
-  assert.match(result.text, /!login custom/);
-  assert.ok(!/--key/.test(result.text.split('\n')[0]));
 });

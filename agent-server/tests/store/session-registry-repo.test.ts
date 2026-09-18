@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import * as fssync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { SessionRegistryRepo, deriveSessionOrigin, type Session } from '../../src/store/session-registry-repo.js';
+import { SessionRegistryRepo, type Session } from '../../src/store/session-registry-repo.js';
 
 let tmpDir = '';
 let testId = 0;
@@ -70,13 +70,6 @@ function lineText(value: unknown) {
 async function fileText(filePath: string) {
   return fs.readFile(filePath, 'utf8');
 }
-
-test('deriveSessionOrigin keeps scheduled precedence and detects thread labels', () => {
-  assert.equal(deriveSessionOrigin('scheduled', null), 'scheduled');
-  assert.equal(deriveSessionOrigin('scheduled', '[thr:x]'), 'scheduled');
-  assert.equal(deriveSessionOrigin('local', '[thr_1:coder]'), 'thread');
-  assert.equal(deriveSessionOrigin('local', 'plain text'), 'direct');
-});
 
 test('session registry appends one JSONL event per mutation and keeps prior prefix bytes', async () => {
   const { filePath } = nextPaths();

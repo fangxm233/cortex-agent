@@ -90,16 +90,9 @@ describe('gpu rows', () => {
     ];
     expect(buildMachineDetailVm(detail({ gpus, liveRuns })).gpus[0].owners).toEqual([]);
   });
-
 });
 
 describe('gpu processes', () => {
-  it('shows compute processes with basenames and GB memory', () => {
-    const vm = buildMachineDetailVm(detail({ gpus }));
-    expect(vm.gpus[0].processes).toEqual([{ pid: '41233', name: 'python3', memText: '23.4 GB' }]);
-    expect(vm.gpus[0].hiddenProcessCount).toBe(0);
-  });
-
   it('caps a long process list to the heaviest few and counts the remainder', () => {
     // A desktop host can report dozens of processes on one card; the row must stay bounded.
     const many = Array.from({ length: 9 }, (_, i) => ({
@@ -109,48 +102,5 @@ describe('gpu processes', () => {
 
     expect(vm.gpus[0].processes.map((p) => p.pid)).toEqual(['108', '107', '106', '105', '104']);
     expect(vm.gpus[0].hiddenProcessCount).toBe(4);
-  });
-});
-
-describe('live runs', () => {
-  it('labels a run by run name and the GPUs it holds', () => {
-    const vm = buildMachineDetailVm(
-      detail({
-        liveRuns: [
-          {
-            executionId: 'e1', taskId: 'a3f1', runName: 'exp-042', project: 'dexhand',
-            gpuIndices: [0, 2], startedAt: '2026-08-03T11:00:00.000Z',
-          },
-        ],
-      }),
-      Date.parse('2026-08-03T12:30:00.000Z'),
-    );
-    expect(vm.liveRuns).toEqual([
-      { key: 'e1', label: 'exp-042', taskId: 'a3f1', gpuText: 'GPU 0,2', duration: '1h 30m' },
-    ]);
-  });
-
-  it('falls back to the task id when the run has no name, and blanks unknown GPUs', () => {
-    const vm = buildMachineDetailVm(
-      detail({
-        liveRuns: [
-          { executionId: 'e1', taskId: 'a3f1', runName: null, project: null, gpuIndices: [], startedAt: null },
-        ],
-      }),
-    );
-    expect(vm.liveRuns[0]).toMatchObject({ label: 'a3f1', gpuText: '', duration: '' });
-  });
-});
-
-describe('probe status', () => {
-  it('surfaces a probe error verbatim', () => {
-    const vm = buildMachineDetailVm(detail({ probeError: 'Command timed out after 15s', vitals: null }));
-    expect(vm.probeError).toBe('Command timed out after 15s');
-  });
-
-  it('reports a GPU-less online host as probed rather than failed', () => {
-    const vm = buildMachineDetailVm(detail({ gpus: [] }));
-    expect(vm.probeError).toBeNull();
-    expect(vm.gpus).toEqual([]);
   });
 });

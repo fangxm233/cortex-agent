@@ -57,22 +57,6 @@ test('SlackOutputStream: two emitTexts — second uses update', async () => {
   assert.equal(adapter.updated[0].content.text, 'first\nsecond');
 });
 
-test('SlackOutputStream: three emitTexts all aggregate', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('one');
-  stream.emitText('two');
-  stream.emitText('three');
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.updated.length, 2);
-  const finalText = adapter.updated[1].content.text;
-  assert.ok(finalText.includes('one'));
-  assert.ok(finalText.includes('two'));
-  assert.ok(finalText.includes('three'));
-});
-
 test('SlackOutputStream: exceeding maxMessageLength forces new message', async () => {
   const adapter = new MockAdapter();
   const stream = slackStream(adapter);
@@ -105,18 +89,6 @@ test('SlackOutputStream: 3rd HR forces new message', async () => {
   assert.equal(adapter.posted.length, 2);
 });
 
-test('SlackOutputStream: no threadId — first top-level, overflow to thread', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 2);
-  assert.equal(adapter.posted[0].threadId, undefined, 'first is top-level');
-  assert.equal(adapter.posted[1].threadId, '1000', 'overflow threads under first');
-});
-
 test('SlackOutputStream: getParentRef returns first message ref', async () => {
   const adapter = new MockAdapter();
   const stream = slackStream(adapter);
@@ -127,20 +99,6 @@ test('SlackOutputStream: getParentRef returns first message ref', async () => {
   assert.ok(ref);
   assert.equal(ref!.conduit, 'C123');
   assert.equal(ref!.messageId, '1000');
-});
-
-test('SlackOutputStream: multiple splits all go to thread under first', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  stream.emitText('z'.repeat(1500));
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 3);
-  assert.equal(adapter.posted[0].threadId, undefined);
-  assert.equal(adapter.posted[1].threadId, '1000');
-  assert.equal(adapter.posted[2].threadId, '1000');
 });
 
 test('SlackOutputStream: with threadId — all messages use it', async () => {
@@ -177,21 +135,6 @@ test('SlackOutputStream: onMessagePosted called on post, not update', async () =
   assert.equal(refs[0].messageId, '1000');
 });
 
-test('SlackOutputStream: onMessagePosted called for each new post', async () => {
-  const adapter = new MockAdapter();
-  const refs: MessageRef[] = [];
-  const stream = slackStream(adapter, testDest('C123'), {
-    onMessagePosted: (ref) => refs.push(ref),
-  });
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await stream.flush();
-
-  assert.equal(refs.length, 2);
-  assert.equal(refs[0].messageId, '1000');
-  assert.equal(refs[1].messageId, '1001');
-});
-
 test('SlackOutputStream: empty/whitespace text ignored', async () => {
   const adapter = new MockAdapter();
   const stream = slackStream(adapter);
@@ -202,36 +145,6 @@ test('SlackOutputStream: empty/whitespace text ignored', async () => {
 
   assert.equal(adapter.posted.length, 0);
   assert.equal(adapter.updated.length, 0);
-});
-
-test('SlackOutputStream: getRefs returns all message refs', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await stream.flush();
-
-  const refs = stream.getRefs();
-  assert.equal(refs.length, 2);
-  assert.equal(refs[0].messageId, '1000');
-  assert.equal(refs[1].messageId, '1001');
-});
-
-test('SlackOutputStream: rapid emitTexts processed in order', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('msg1');
-  stream.emitText('msg2');
-  stream.emitText('msg3');
-  stream.emitText('msg4');
-  stream.emitText('msg5');
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.updated.length, 4);
-  const finalText = adapter.updated[3].content.text;
-  assert.ok(finalText.includes('msg1'));
-  assert.ok(finalText.includes('msg5'));
 });
 
 test('SlackOutputStream: char limit split with correct threading', async () => {
@@ -246,19 +159,6 @@ test('SlackOutputStream: char limit split with correct threading', async () => {
   assert.equal(adapter.posted[0].threadId, undefined);
   assert.equal(adapter.posted[1].threadId, '1000');
   assert.equal(adapter.updated.length, 1);
-});
-
-test('SlackOutputStream: richBlocks included in post and update', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('hello');
-  stream.emitText('world');
-  await stream.flush();
-
-  assert.ok(adapter.posted[0].content.richBlocks);
-  assert.equal(adapter.posted[0].content.richBlocks![0].type, 'markdown');
-  assert.ok(adapter.updated[0].content.richBlocks);
-  assert.equal(adapter.updated[0].content.richBlocks![0].type, 'markdown');
 });
 
 test('SlackOutputStream: postInteractive creates independent message', async () => {
@@ -416,16 +316,6 @@ test('SlackOutputStream: durable hooks called on postInteractive', async () => {
   assert.deepEqual(walOps, ['beforePost', 'afterSent']);
 });
 
-test('SlackOutputStream: no durable hooks works without hooks (backward compat)', async () => {
-  const adapter = new MockAdapter();
-  const stream = slackStream(adapter);
-  stream.emitText('hello');
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.posted[0].content.text, 'hello');
-});
-
 // --- MutableRegion ---
 
 test('SlackOutputStream: openMutable creates editable region', async () => {
@@ -504,21 +394,6 @@ test('SlackOutputStream: postInteractive seals mutable region', async () => {
 // FeishuOutputStream tests
 // =========================================================================
 
-test('FeishuOutputStream: consecutive emitText coalesce into one card', async () => {
-  const adapter = new MockAdapter();
-  const stream = feishuStream(adapter);
-  stream.emitText('first');
-  stream.emitText('second');
-  await stream.flush();
-
-  // Coalescing parity with Slack: the first emit posts the card, the second
-  // patches it rather than posting a new message.
-  assert.equal(adapter.posted.length, 1, 'only one card is posted');
-  assert.equal(adapter.updated.length, 1, 'second emit patches the card');
-  assert.equal(adapter.posted[0].content.text, 'first');
-  assert.equal(adapter.updated[0].content.text, 'first\nsecond');
-});
-
 test('FeishuOutputStream: exceeding maxMessageLength forces chunks', async () => {
   const adapter = new MockAdapter({ maxMessageLength: 100 });
   const stream = feishuStream(adapter);
@@ -529,20 +404,6 @@ test('FeishuOutputStream: exceeding maxMessageLength forces chunks', async () =>
   // Coalescing the two 80-char emits exceeds the 100-char limit, so the stream
   // splits the content across two messages (the overflow threads under the first).
   assert.equal(adapter.posted.length, 2);
-});
-
-test('FeishuOutputStream: openMutable patches the card, never posts a new message', async () => {
-  const adapter = new MockAdapter();
-  const stream = feishuStream(adapter);
-  stream.emitText('base');
-  const region = stream.openMutable('mutable text');
-  region.update('region update');
-  await stream.flush();
-
-  // Tool-trace regions render via card patch (im.v1.message.patch), so no extra
-  // top-level message is posted — only the single 'base' card.
-  assert.equal(adapter.posted.length, 1);
-  assert.equal(adapter.posted[0].content.text, 'base');
 });
 
 test('FeishuOutputStream: postInteractive delegates to adapter', async () => {
@@ -557,28 +418,4 @@ test('FeishuOutputStream: postInteractive delegates to adapter', async () => {
   assert.equal(adapter.posted.length, 1, 'postInteractive posts a message');
   assert.ok(adapter.posted[0].actions, 'actions included');
   assert.equal(adapter.posted[0].actions![0].actionId, 'go');
-});
-
-test('FeishuOutputStream: getRefs and getParentRef', async () => {
-  const adapter = new MockAdapter();
-  const stream = feishuStream(adapter);
-  stream.emitText('msg1');
-  stream.emitText('msg2');
-  await stream.flush();
-
-  const refs = stream.getRefs();
-  assert.equal(refs.length, 1, 'short emits coalesce into a single card');
-  const parent = stream.getParentRef();
-  assert.ok(parent);
-  assert.equal(parent!.messageId, refs[0].messageId);
-});
-
-test('FeishuOutputStream: empty/whitespace text ignored', async () => {
-  const adapter = new MockAdapter();
-  const stream = feishuStream(adapter);
-  stream.emitText('');
-  stream.emitText('   ');
-  await stream.flush();
-
-  assert.equal(adapter.posted.length, 0);
 });

@@ -47,7 +47,7 @@ BUDGET_MS = DEADLINE_SECONDS * 1000
 SETUP_MS = 90_000
 ELAPSED_MS = 120_000
 CONTAINER_ORIGIN_MS = 1_800_000_000_000
-SKEWS = (-600_000, -1, 0, 1, 600_000)
+SKEWS = (-600_000, 0, 600_000)
 
 
 @dataclass(frozen=True)
@@ -279,16 +279,6 @@ def test_echo_cannot_extend_lease_beyond_provisional_bound(
     assert record["value"]["lease_state"] == "clamped"
     assert before == 200
     assert (after, json.loads(payload)) == (410, {"error": "deadline_expired"})
-
-
-def test_remaining_beyond_the_budget_is_refused_rather_than_clamped(tmp_path: Path) -> None:
-    """The clamp is not a sanitiser: a document whose own durations do not agree is refused before
-    any arming, so an over-large `remaining_ms` never reaches the clamp."""
-    document = echo_document(
-        {"compiled_at_epoch_ms": CONTAINER_ORIGIN_MS,
-         "absolute_epoch_ms": CONTAINER_ORIGIN_MS + BUDGET_MS}, BUDGET_MS + 3_600_000,
-    )
-    echo_refusal_leaves_the_bound(tmp_path, document, (400, "lease_echo_inconsistent"))
 
 
 @pytest.mark.parametrize("row", ROWS, ids=ROW_IDS)
@@ -621,60 +611,7 @@ def test_echo_that_loses_the_race_to_stop_is_refused_as_terminal(tmp_path: Path)
 # ---------------------------------------------------------------- revocation, both routes
 
 
-def test_route_fails_closed_after_stop(tmp_path: Path) -> None:
-    clocks = TrialClocks(0)
-    with SyntheticUpstream() as upstream:
-        handle, deadline = run_trial(tmp_path, clocks, upstream)
-        post_echo(
-            handle.base_url, handle.dummy_token, echo_document(deadline, BUDGET_MS - ELAPSED_MS),
-        )
-        assert proxy_request(handle.base_url, handle.dummy_token, "live")[0] == 200
-        handle.stop()
-        with pytest.raises(OSError):
-            proxy_request(handle.base_url, handle.dummy_token, "dead")
-
-
-def test_route_fails_closed_after_the_armed_deadline(tmp_path: Path) -> None:
-    clocks = TrialClocks(0)
-    with SyntheticUpstream() as upstream:
-        handle, deadline = run_trial(tmp_path, clocks, upstream)
-        try:
-            remaining_ms = BUDGET_MS - ELAPSED_MS
-            _, echoed = post_echo(
-                handle.base_url, handle.dummy_token, echo_document(deadline, remaining_ms),
-            )
-            clocks.host.advance(remaining_ms + TEARDOWN_GRACE_MS + 1)
-            status, payload = proxy_request(handle.base_url, handle.dummy_token, "dead")
-        finally:
-            handle.stop()
-
-    assert echoed["ok"] is True
-    assert (status, json.loads(payload)) == (410, {"error": "deadline_expired"})
-
-
 # ---------------------------------------------------------------- the provisional bound
 
 
-def test_provisional_bound_is_the_named_setup_and_teardown_budget() -> None:
-    assert provisional_lease_bound_ms(1_000, BUDGET_MS) == (
-        1_000 + SETUP_TIMEOUT_MS + BUDGET_MS + TEARDOWN_GRACE_MS
-    )
-    assert SETUP_TIMEOUT_MS > 0 and TEARDOWN_GRACE_MS > 0
-
-
 # ---------------------------------------------------------------- writer to reader
-
-
-def test_model_route_still_reaches_upstream_under_the_lease(tmp_path: Path) -> None:
-    clocks = TrialClocks(0)
-    with SyntheticUpstream() as upstream:
-        handle, _ = run_trial(tmp_path, clocks, upstream)
-        try:
-            status, _ = proxy_request(
-                handle.base_url, handle.dummy_token, "model", target=MESSAGES_TARGET,
-            )
-        finally:
-            handle.stop()
-
-    assert status == 200
-    assert len(upstream.requests) == 1

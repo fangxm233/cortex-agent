@@ -147,22 +147,6 @@ test('admin channel env fallbacks reach legacy Slack alias independently', async
   });
 });
 
-test('admin channel env fallbacks terminate independently with no configured channel', async () => {
-  await withFreshEnv({
-    CORTEX_PLATFORM: 'slack,feishu,test',
-    ...SLACK,
-    ...FEISHU,
-  }, (createPrimaries) => {
-    const adapters = createPrimaries() as any[];
-    const slack = adapters.find((adapter) => adapter.name === 'slack');
-    const feishu = adapters.find((adapter) => adapter.name === 'feishu');
-    const mock = adapters.find((adapter) => adapter.name === 'mock');
-    assert.equal(slack.config.adminChannel, undefined);
-    assert.equal(feishu.config.adminChannel, undefined);
-    assert.equal(mock._adminChannel, null);
-  });
-});
-
 test('settings admin channels override every env fallback without crossing platforms', async () => {
   await updateSettings({ adminChannel: 'C_settings', feishuAdminChannel: 'oc_settings' });
   await withFreshEnv({

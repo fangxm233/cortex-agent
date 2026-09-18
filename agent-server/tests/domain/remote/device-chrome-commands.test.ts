@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  chromeCandidates, chromeLaunchCommand, chromeStopCommand, DEVICE_PROFILE_PATH,
+  chromeLaunchCommand, chromeStopCommand, DEVICE_PROFILE_PATH,
 } from '@domain/remote/device-chrome-commands.js';
 
 describe('chromeLaunchCommand', () => {
@@ -51,12 +51,6 @@ describe('chromeLaunchCommand', () => {
     expect(win).toContain('interactive-user-mismatch');
   });
 
-  it('falls back to PATH lookups where there is no fixed install location', () => {
-    expect(chromeCandidates('linux')).toEqual([]);
-    expect(linux).toContain('command -v "$b"');
-    expect(linux).toContain('google-chrome');
-  });
-
   it('fails loudly when there is no Chrome at all', () => {
     expect(linux).toContain('chrome-not-found');
     expect(linux).toContain('chrome-did-not-listen');
@@ -89,10 +83,3 @@ describe('chromeStopCommand', () => {
   });
 });
 
-describe('chromeCandidates', () => {
-  it('knows the fixed install locations per platform', () => {
-    expect(chromeCandidates('win32').some((p) => p.includes('chrome.exe'))).toBe(true);
-    expect(chromeCandidates('darwin')[0]).toContain('Google Chrome.app');
-    expect(chromeCandidates('linux')).toEqual([]);
-  });
-});

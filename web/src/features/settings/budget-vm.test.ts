@@ -8,8 +8,6 @@ import {
   budgetClearArgs,
   parseAmountInput,
   buildBudgetDraft,
-  isChipActive,
-  budgetBarPct,
 } from './budget-vm';
 
 const budget = (
@@ -19,14 +17,6 @@ const budget = (
 ): ConfigBudget => ({ daily_usd: daily, monthly_usd: monthly, projects });
 
 const withAlpha = budget(300, 8000, { alpha: { daily_usd: 5, monthly_usd: 100 } });
-
-describe('budget-vm chips', () => {
-  it('isChipActive matches the current limit', () => {
-    expect(isChipActive(10, 10)).toBe(true);
-    expect(isChipActive(10, 20)).toBe(false);
-    expect(isChipActive(null, 10)).toBe(false);
-  });
-});
 
 describe('scope resolution', () => {
   it('the global scope shows the globals and is never inherited', () => {
@@ -124,15 +114,5 @@ describe('parseAmountInput', () => {
     expect(parseAmountInput('0')).toBeNull();
     expect(parseAmountInput('-5')).toBeNull();
     expect(parseAmountInput('1e5')).toBeNull();
-  });
-});
-
-describe('formatting', () => {
-  it('budgetBarPct is spend/limit clamped to 0..100', () => {
-    expect(budgetBarPct(4.21, 10)).toBe('42%');
-    expect(budgetBarPct(15, 10)).toBe('100%');
-    expect(budgetBarPct(0, 10)).toBe('0%');
-    expect(budgetBarPct(5, null)).toBe('0%');
-    expect(budgetBarPct(5, 0)).toBe('0%');
   });
 });

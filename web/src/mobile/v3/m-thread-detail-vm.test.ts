@@ -90,22 +90,12 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
 }
 
 describe('buildMThreadDetailVm', () => {
-  it('maps the header identity + status + cost (real, no Σ prefix)', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
-    expect(vm.name).toBe('audit-pipeline');
-    expect(vm.tid).toBe('thr_c3a1');
-    expect(vm.status).toBe('running');
-    expect(vm.live).toBe(true);
-    expect(vm.cost).toBe('$0.41');
-  });
-
   it('builds the breadcrumb from the drill trail + real self depth', () => {
     const vm = buildMThreadDetailVm(detail(), [
       { id: 'thr_root', name: 'experiment-pipeline' },
       { id: 'thr_mid', name: 'verify-metrics' },
     ], NOW);
     expect(vm.crumbs.map((c) => c.name)).toEqual(['experiment-pipeline', 'verify-metrics']);
-    expect(vm.crumbs.every((c) => c.accent)).toBe(true);
     expect(vm.selfLevel).toBe(3); // trail.length + 1
     expect(vm.depthText).toBe('1/5'); // no children → subtree depth 1, MAX 5
   });
@@ -117,36 +107,20 @@ describe('buildMThreadDetailVm', () => {
     expect(vm.depthText).toBe('1/5');
   });
 
-  it('builds the meta parts (tid · agent · machine) and the elapsed clock', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
-    expect(vm.metaParts).toEqual(['thr_c3a1', 'agent auditor', 'node-01']);
-    expect(vm.elapsed).toBe('04:12');
-  });
-
-  it('omits the agent + machine meta segments when the DTO has none', () => {
-    const vm = buildMThreadDetailVm(detail({ activeAgent: null, dispatches: [] }), [], NOW);
-    expect(vm.metaParts).toEqual(['thr_c3a1']);
-  });
-
-  it('maps a completed step to a collapsed one-line row (name + note + duration)', () => {
+  it('maps a completed step to a collapsed row with a connector', () => {
     const vm = buildMThreadDetailVm(detail(), [], NOW);
     const done = vm.steps[0];
     expect(done.kind).toBe('done');
     expect(done.name).toBe('collect');
-    expect(done.note).toBe('8 seeds · metrics/*.json');
-    expect(done.time).toBe('2m');
     expect(done.agent).toBeUndefined();
     expect(done.hasConnector).toBe(true);
   });
 
-  it('expands the running step with its agent-flow box (turn/profile · cost · lastOutput lines)', () => {
+  it('expands the running step with its live agent-flow lines', () => {
     const vm = buildMThreadDetailVm(detail(), [], NOW);
     const active = vm.steps[1];
     expect(active.kind).toBe('running');
-    expect(active.time).toBe('02:07');
     expect(active.agent).toBeDefined();
-    expect(active.agent!.turnLabel).toBe('turn 6 · sonnet');
-    expect(active.agent!.cost).toBe('$0.09');
     expect(active.agent!.lines).toEqual([
       'read metrics/seed.json',
       'bootstrap ci95 — 10k resamples',
@@ -164,11 +138,10 @@ describe('buildMThreadDetailVm', () => {
     expect(pending.hasConnector).toBe(false);
   });
 
-  it('lists real artifacts (basename + rel-time) with no fabricated size/diff', () => {
+  it('lists real artifacts by basename', () => {
     const vm = buildMThreadDetailVm(detail(), [], NOW);
     expect(vm.artifactCount).toBe(1);
     expect(vm.artifacts[0].filename).toBe('audit-report.md');
-    expect(vm.artifacts[0].meta).toBe('2 分钟');
   });
 
   it('yields zero artifacts when the DTO carries no artifact path', () => {

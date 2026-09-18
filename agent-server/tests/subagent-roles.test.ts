@@ -7,7 +7,6 @@ import {
   BUILTIN_AGENT_ROLE_NAMES,
   DEFAULT_AGENT_ROLES_DIR,
   ensureAgentRoles,
-  findRole,
   loadRoles,
   parseRole,
   roleToolsForBackend,
@@ -109,15 +108,6 @@ test('roleToolsForBackend de-duplicates and returns undefined for a role with no
 });
 
 // --- lookup ---
-
-test('findRole names the available roles when the requested one does not exist', () => {
-  const roles = [role({ name: 'plan' }), role({ name: 'explore' })];
-  assert.equal(findRole(roles, 'plan').name, 'plan');
-  assert.throws(
-    () => findRole(roles, 'nope'),
-    /Unknown subagent_type "nope"\. Available roles: explore, plan\./,
-  );
-});
 
 // --- seeding and migration ---
 

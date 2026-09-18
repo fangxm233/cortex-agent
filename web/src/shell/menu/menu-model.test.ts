@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accelItems, flattenItems, formatAccel, matchesAccel, parseAccel, toNativeAccel, type MenuDef } from './menu-model';
+import { accelItems, flattenItems, matchesAccel, parseAccel, toNativeAccel, type MenuDef } from './menu-model';
 
 const key = (over: Partial<{ key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }>) => ({
   key: 'a', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...over,
@@ -11,20 +11,6 @@ describe('parseAccel', () => {
   });
   it('handles a bare function key', () => {
     expect(parseAccel('f11')).toEqual({ key: 'f11', mod: false, shift: false, alt: false });
-  });
-});
-
-describe('formatAccel', () => {
-  it('uses symbols on a command-key platform', () => {
-    expect(formatAccel('mod+shift+n', true)).toBe('⌘⇧N');
-    expect(formatAccel('mod+alt+b', true)).toBe('⌘⌥B');
-  });
-  it('spells modifiers out elsewhere', () => {
-    expect(formatAccel('mod+shift+n', false)).toBe('Ctrl+Shift+N');
-    expect(formatAccel('f11', false)).toBe('F11');
-  });
-  it('renders the zoom-in key as a plus', () => {
-    expect(formatAccel('mod+=', false)).toBe('Ctrl++');
   });
 });
 

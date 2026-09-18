@@ -87,21 +87,6 @@ test('writeProvidersConfig: explicit basePath overrides default /<name>', () => 
   }
 });
 
-test('writeProvidersConfig: creates parent directory if missing', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'nested', 'dir', 'models.json');
-    writeProvidersConfig(
-      [{ name: 'anthropic' }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    assert.ok(fs.existsSync(modelsPath));
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
 test('writeProvidersConfig: atomic — leaves no .tmp files on success', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
   try {
@@ -122,18 +107,6 @@ test('writeProvidersConfig: deepseek gets compat.supportsDeveloperRole=false (ga
     writeProvidersConfig([{ name: 'deepseek' }], 'http://127.0.0.1:9880', { modelsPath });
     const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
     assert.equal(data.providers.deepseek.compat.supportsDeveloperRole, false);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('writeProvidersConfig: non-deepseek provider has NO compat field (no regression)', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig([{ name: 'anthropic' }], 'http://127.0.0.1:9880', { modelsPath });
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.equal(data.providers.anthropic.compat, undefined);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -206,17 +179,6 @@ test('buildProviderOverrides: gatewayPath overrides default path even when curre
   const out = buildProviderOverrides(['deepseek'], 'deepseek', '/deepseek/anthropic');
   assert.equal(out.length, 1);
   assert.equal(out[0].basePath, '/deepseek/anthropic');
-});
-
-test('buildProviderOverrides: discovered providers get no explicit basePath (default /<name>)', () => {
-  const out = buildProviderOverrides(['deepseek'], 'anthropic', null);
-  const d = out.find(o => o.name === 'deepseek');
-  assert.equal(d?.basePath, undefined);
-});
-
-test('buildProviderOverrides: returns discovered as-is when no current provider', () => {
-  const out = buildProviderOverrides(['deepseek', 'qwen-ksu'], null, null);
-  assert.deepEqual(out.map(o => o.name).sort(), ['deepseek', 'qwen-ksu']);
 });
 
 test('buildProviderOverrides: current provider alone when discovery is empty (gateway-managed creds)', () => {

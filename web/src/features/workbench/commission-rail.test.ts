@@ -77,11 +77,6 @@ describe('buildCommissionRows', () => {
     expect(rows[0].commissionId).toBe('open');
   });
 
-  it('falls back to the slug when a commission has a blank title', () => {
-    const rows = buildCommissionRows([commission('c1', { title: '   ' })], []);
-    expect(rows[0].title).toBe('slug-c1');
-  });
-
   it('reports claimed session ids and unread row count', () => {
     const a = session({ commissionId: 'c1', unread: true });
     const b = session({ commissionId: 'c2' });

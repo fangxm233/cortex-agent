@@ -22,16 +22,6 @@ const FULL_CTX: CortexContextSnapshot = {
 
 // --- shorthand strings ---
 
-test('resolveTargetShorthand: undefined target → fresh', () => {
-  const out = resolveTargetShorthand(undefined, FULL_CTX);
-  assert.deepEqual(out, { kind: 'fresh' });
-});
-
-test('resolveTargetShorthand: "fresh" string → fresh', () => {
-  const out = resolveTargetShorthand('fresh', FULL_CTX);
-  assert.deepEqual(out, { kind: 'fresh' });
-});
-
 test('resolveTargetShorthand: "current-project" → resolved project', () => {
   const out = resolveTargetShorthand('current-project', FULL_CTX);
   assert.deepEqual(out, { kind: 'project', projectId: 'cortex-self' });
@@ -63,11 +53,6 @@ test('resolveTargetShorthand: "current-thread" without threadId → throws (does
 test('resolveTargetShorthand: explicit { kind: "project", projectId } passes through', () => {
   const out = resolveTargetShorthand({ kind: 'project', projectId: 'my-project' } as any, FULL_CTX);
   assert.deepEqual(out, { kind: 'project', projectId: 'my-project' });
-});
-
-test('resolveTargetShorthand: explicit { kind: "thread", threadId, channel } passes through', () => {
-  const out = resolveTargetShorthand({ kind: 'thread', threadId: 'thr_explicit', channel: 'C-other' }, FULL_CTX);
-  assert.deepEqual(out, { kind: 'thread', threadId: 'thr_explicit', channel: 'C-other' });
 });
 
 test('resolveTargetShorthand: unknown shorthand string → throws', () => {

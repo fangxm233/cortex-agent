@@ -174,19 +174,6 @@ test('open resolves the thinking level from the profile, letting an explicit --t
   for (const engine of engines) engine.kill();
 });
 
-test('open resolves no skill roots when pluginDirs is empty or undefined', () => {
-  const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory);
-  const engines = [
-    piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'skills-empty', resume: false, pluginDirs: [] })),
-    piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'skills-undefined', resume: false })),
-  ];
-
-  assert.deepEqual(fake.requests[0].skillPaths, []);
-  assert.deepEqual(fake.requests[1].skillPaths, []);
-  for (const engine of engines) engine.kill();
-});
-
 // --- Group B2: the session's CORTEX_* env (read by hook scripts and plugin MCP servers) ---
 
 test('open forwards authoritative Cortex thread context to the session env', () => {
@@ -912,11 +899,6 @@ test('G-1: a session whose transcript is not on disk does not expose a synthesiz
   assert.equal(engine.backendSessionId, 'g1-unstaged');
 
   engine.kill();
-});
-
-test('G-2: resolveSessionPath on unknown sessionId returns null', () => {
-  const adapter = new PIAdapter();
-  assert.equal(adapter.resolveSessionPath('no-such-session'), null);
 });
 
 test('G-3: switchSession with unknown sessionId returns {ok:false, cancelled:false}', async () => {

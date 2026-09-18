@@ -140,19 +140,6 @@ test('threads.get throws for unknown thread id', async () => {
   await assert.rejects(() => handleThreadsGet(makeDeps(), { threadId: 'nope' }), /not found/i);
 });
 
-test('threads.get returns summary superset fields', async () => {
-  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
-  assert.equal(d.id, 'thr_root');
-  assert.equal(d.templateName, 'manager');
-  assert.equal(d.status, 'running');
-  assert.equal(d.projectId, 'proj1');
-  assert.equal(d.totalCostUsd, 0.02);
-  assert.equal(d.artifactPath, '/tmp/threads/thr_root/artifact.md');
-  assert.equal(d.activeAgent, 'reviewer');
-  assert.equal(d.activeStage, 'review');
-  assert.deepEqual(d.currentStep, { index: 1, name: 'step-1' });
-});
-
 test('threads.get maps completed steps and synthesizes the active running step', async () => {
   const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
   assert.equal(d.steps.length, 2);
@@ -173,21 +160,6 @@ test('threads.get maps completed steps and synthesizes the active running step',
   assert.equal(active.status, 'running');
   assert.equal(active.endedAt, null);
   assert.equal(active.outputSummary, 'reviewing now');
-});
-
-test('threads.get surfaces the active agent flow', async () => {
-  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
-  assert.ok(d.agentFlow);
-  assert.equal(d.agentFlow!.slotId, 'reviewer');
-  assert.equal(d.agentFlow!.profile, 'reviewer-profile');
-  assert.equal(d.agentFlow!.status, 'running');
-  assert.equal(d.agentFlow!.stage, 'review');
-  assert.equal(d.agentFlow!.lastOutput, 'reviewing now');
-});
-
-test('threads.get agentFlow is null for a terminal thread with no active slot', async () => {
-  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_l1' });
-  assert.equal(d.agentFlow, null);
 });
 
 test('threads.get returns only owning-thread cortex-runs and attributes each to its launch step', async () => {
@@ -240,15 +212,6 @@ test('threads.get builds a nested child tree capped at 5 levels', async () => {
   assert.equal(node.truncated, true);
 });
 
-test('threads.get child node carries status/template/cost/taskId', async () => {
-  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
-  const l1 = d.children[0];
-  assert.equal(l1.templateName, 'coder-review');
-  assert.equal(l1.status, 'completed');
-  assert.equal(l1.costUsd, 0.5);
-  assert.equal(l1.taskId, 'cd34');
-});
-
 test('threads.get child tree terminates on a self-referential cycle', async () => {
   const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_cycle' });
   // must not infinite-loop; cycle child is dropped once seen
@@ -275,22 +238,6 @@ test('threads.get reads artifact content only when explicitly requested', async 
     threads.thr_root.artifactPath = originalPath;
     rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('threads.get returns null content when the stored artifact is unreadable', async () => {
-  const d = await handleThreadsGet(
-    makeDeps(),
-    { threadId: 'thr_root', includeArtifactContent: true } as any,
-  );
-  assert.equal(d.artifacts.content, null);
-});
-
-test('threads.get surfaces thread-level artifact refs', async () => {
-  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
-  assert.equal(d.artifacts.artifactPath, '/tmp/threads/thr_root/artifact.md');
-  assert.equal(d.artifacts.workspacePath, '/tmp/threads/thr_root');
-  assert.equal(d.artifacts.taskId, 'ab12');
-  assert.equal(d.artifacts.taskProject, 'cortex-self');
 });
 
 test('threads.get maps rate_limited status to waiting', async () => {

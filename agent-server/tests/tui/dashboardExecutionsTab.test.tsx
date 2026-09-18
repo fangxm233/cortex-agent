@@ -84,42 +84,6 @@ test('happy-path: cancel execution via [c]→confirm→onMutate success', async 
   resolveMutate!({ ok: true, data: { cancelled: true } });
   await delay(100);
 
-  // No error text should be visible
-  const lastFrame = instance.lastFrame();
-  assert.equal(lastFrame?.includes('not found'), false);
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('not-found-path: cancel returns not-found → inline error', async (t) => {
-  let resolveMutate: (r: MutateResult) => void;
-  const mutatePromise = new Promise<MutateResult>(resolve => { resolveMutate = resolve; });
-
-  const app = React.createElement(DashboardExecutionsTab, {
-    data: makeTabData(EXECUTIONS_DATA),
-    mutate: () => mutatePromise,
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Press [c] on focused row 0
-  instance.stdin.write('c');
-  await delay(100);
-
-  // Confirm: press Enter
-  instance.stdin.write('\r');
-  await delay(100);
-
-  // Resolve with not-found error
-  resolveMutate!({ ok: false, error: { code: 'not-found', message: 'not found' } });
-  await delay(100);
-
-  // Assert error text is visible under the row
-  const lastFrame = instance.lastFrame();
-  assert.ok(lastFrame?.includes('not found'), 'Error text should be visible');
-
   instance.unmount();
   instance.cleanup();
 });

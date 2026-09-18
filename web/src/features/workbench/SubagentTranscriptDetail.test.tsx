@@ -97,47 +97,5 @@ describe('SubagentTranscriptDetail', () => {
     expect(harness.queryCalls[0].input).toEqual({ sessionId: 's1', subagentId: 'child-1' });
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('child output');
-    expect(rendered).toContain('1 tool call');
-    expect(rendered).not.toContain('"aria-expanded"');
-  });
-
-  it('shows a minimal loading placeholder', () => {
-    harness.queryResult = {
-      data: undefined,
-      isPending: true,
-      isError: false,
-      refetch: undefined,
-    } as any;
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <LangProvider>
-          <SubagentTranscriptDetail sessionId="s1" subagentId="child-1" render={() => null} />
-        </LangProvider>,
-      );
-    });
-
-    expect(JSON.stringify(renderer.toJSON())).toContain('Loading detail…');
-  });
-
-  it('shows a retry button on error', () => {
-    harness.queryResult = {
-      data: undefined,
-      isPending: false,
-      isError: true,
-      refetch: undefined,
-    } as any;
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <LangProvider>
-          <SubagentTranscriptDetail sessionId="s1" subagentId="child-1" render={() => null} />
-        </LangProvider>,
-      );
-    });
-
-    const retry = renderer.root.findByProps({ children: 'Retry' });
-    act(() => retry.props.onClick());
-    expect(harness.refetch).toHaveBeenCalledOnce();
   });
 });

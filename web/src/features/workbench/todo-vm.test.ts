@@ -88,10 +88,6 @@ describe('todoRailViewModel', () => {
     expect(todoRailViewModel({ ...snapshot, items: [snapshot.items[0], ...items.slice(1)], activeLabel: null })!.counts).toBe('1/3');
   });
 
-  it('drops the connector tail on the last row only', () => {
-    expect(todoRailViewModel(snapshot)!.rows.map((r) => r.hasTail)).toEqual([true, true, false]);
-  });
-
   it('flags an all-complete list so the rail can switch to the success tone', () => {
     const done: TodoSnapshot = {
       items: snapshot.items.map((i) => ({ ...i, status: 'completed' })),

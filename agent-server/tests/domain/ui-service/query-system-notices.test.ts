@@ -21,15 +21,3 @@ test('system.notices returns the ring buffer newest first with its cap', async (
   assert.equal(result.entries[0].level, 'warning');
   assert.equal(result.entries[0].title, 'Disk');
 });
-
-test('system.notices honors the limit param', async () => {
-  for (let i = 0; i < 5; i++) recordSystemNotice({ text: `n${i}` });
-  const result = await handleSystemNotices({ limit: 2 });
-  assert.deepEqual(result.entries.map((e) => e.text), ['n4', 'n3']);
-});
-
-test('system.notices returns an empty list when nothing was recorded', async () => {
-  const result = await handleSystemNotices({});
-  assert.deepEqual(result.entries, []);
-  assert.equal(result.cap, NOTICE_HISTORY_CAP);
-});

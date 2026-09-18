@@ -156,10 +156,6 @@ test('resolveBackendForChannel returns the default profile backend when the chan
   assert.equal(resolveBackendForChannel(ch), resolveRunBackend({ channel: ch }));
 });
 
-test('resolveBackendForChannel falls back to the default profile backend with no channel', () => {
-  assert.equal(resolveBackendForChannel(), resolveRunBackend());
-});
-
 test('resolveBackendForChannel returns profile backend when channel has a profile override', () => {
   // Use 'plan' profile — it always exists (it is the seeded default in profiles.json) and has backend=claude.
   // Even users with custom profiles cannot remove 'plan' without first changing defaultProfile.

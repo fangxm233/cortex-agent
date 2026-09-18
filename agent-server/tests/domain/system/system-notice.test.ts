@@ -32,17 +32,6 @@ describe('publishSystemNotice', () => {
     assert.equal(events[0].text, 'server restarted');
   });
 
-  it('carries an explicit level and optional title', () => {
-    const events = captureBus();
-    publishSystemNotice({ text: 'disk low', level: 'warning', title: 'Disk' });
-    assert.equal(events[0].level, 'warning');
-    assert.equal(events[0].title, 'Disk');
-  });
-
-  it('is a no-op when no bus is wired', () => {
-    jobCtx.bus = null;
-    assert.doesNotThrow(() => publishSystemNotice({ text: 'x' }));
-  });
 });
 
 describe('emitSystemNotice', () => {

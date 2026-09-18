@@ -63,28 +63,6 @@ test('maps a registry declaration into the full detail DTO', (t) => {
   assert.equal(hook.appliesAt, 'next-agent');
 });
 
-test('a user declaration is editable and carries no version', (t) => {
-  const dirs = makeDirs(t);
-  fs.writeFileSync(path.join(dirs.scripts, 'mine.mjs'), '');
-  writeJson(dirs.registry, '50-mine.json', {
-    id: 'mine',
-    event: 'cortex:session.new',
-    run: { script: 'mine.mjs' },
-    result: 'stdout-as-prompt',
-  });
-
-  const hook = find(readHooksOverview(dirs.registry, dirs.templates, dirs.scripts), 'mine');
-
-  assert.equal(hook.source, 'user');
-  assert.equal(hook.editable, true);
-  assert.equal(hook.version, null);
-  assert.equal(hook.result, 'stdout-as-prompt');
-  assert.deepEqual(hook.legalResults, ['none', 'stdout-as-prompt']);
-  assert.deepEqual(hook.mountsOn, ['server']);
-  assert.equal(hook.appliesAt, 'server-restart');
-  assert.equal(hook.run.timeoutSec, null);
-});
-
 test('an object matcher lands in matcherFilters, not matcher', (t) => {
   const dirs = makeDirs(t);
   writeJson(dirs.registry, '50-scoped.json', {

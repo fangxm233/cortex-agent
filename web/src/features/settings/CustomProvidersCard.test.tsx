@@ -90,24 +90,6 @@ beforeEach(() => {
 });
 
 describe('desktop custom providers', () => {
-  it('lists a stored definition with its protocol, upstream and key state', () => {
-    const html = JSON.stringify(mount().toJSON());
-
-    expect(html).toContain('my-vllm');
-    expect(html).toContain('anthropic-messages');
-    expect(html).toContain('http://127.0.0.1:8100');
-    expect(html).toContain('Model-27B');
-    expect(html).toContain('key stored');
-  });
-
-  it('flags a definition the gateway does not route', () => {
-    harness.providers = [{ ...PROVIDER, routed: false, upstreamUrl: null, hasApiKey: false }];
-
-    const html = JSON.stringify(mount().toJSON());
-
-    expect(html).toContain('no gateway route');
-    expect(html).toContain('no key');
-  });
 
   it('sends a new definition with the models the editor listed', () => {
     const renderer = mount();

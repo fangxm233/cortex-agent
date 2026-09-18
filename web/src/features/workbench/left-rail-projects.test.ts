@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
   lastActivityByProject,
-  projectIndexFromKey,
-  relativeAge,
   sortProjectsByActivity,
 } from './left-rail-projects';
 
@@ -22,18 +20,6 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo =>
     lastUsedAt,
     createdAt: lastUsedAt,
   }) as SessionInfo;
-
-const NOW = Date.parse('2026-07-16T12:00:00');
-
-describe('relativeAge', () => {
-  it('collapses a span into one compact unit, never a negative one', () => {
-    expect(relativeAge(NOW - 30_000, NOW)).toBe('now');
-    expect(relativeAge(NOW - 5 * 60_000, NOW)).toBe('5m');
-    expect(relativeAge(NOW - 3 * 3_600_000, NOW)).toBe('3h');
-    expect(relativeAge(NOW - 2 * 86_400_000, NOW)).toBe('2d');
-    expect(relativeAge(NOW + 60_000, NOW)).toBe('now');
-  });
-});
 
 describe('lastActivityByProject', () => {
   it('keeps the max effective timestamp per project', () => {
@@ -73,25 +59,5 @@ describe('sortProjectsByActivity', () => {
 
   it('empty activity map → incoming order preserved verbatim (never NaN-shuffled)', () => {
     expect(sortProjectsByActivity(projects, {}).map((p) => p.id)).toEqual(['a', 'b', 'c', 'd']);
-  });
-
-  it('does not mutate the input array', () => {
-    const input = [project('x'), project('y')];
-    const before = input.map((p) => p.id);
-    sortProjectsByActivity(input, { y: 1 });
-    expect(input.map((p) => p.id)).toEqual(before);
-  });
-});
-
-describe('projectIndexFromKey', () => {
-  it('maps digit keys 1–9 to list indices 0–8', () => {
-    expect(projectIndexFromKey('1')).toBe(0);
-    expect(projectIndexFromKey('9')).toBe(8);
-  });
-
-  it('rejects everything else', () => {
-    expect(projectIndexFromKey('0')).toBeNull();
-    expect(projectIndexFromKey('a')).toBeNull();
-    expect(projectIndexFromKey('10')).toBeNull();
   });
 });

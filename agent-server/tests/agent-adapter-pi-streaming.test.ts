@@ -131,24 +131,6 @@ test('PI keeps attribution on a subagent assistant message instead of merging it
 
 // --- (a) per-delta assistant_delta with a stable, shared blockId ---
 
-test('PI streams one assistant_delta per incoming text_delta, carrying the incremental chunk', async () => {
-  // 3 deltas + flushed assistant_text + turn_progress = 5
-  const events = await runBlock(undefined, 'm1', 5);
-
-  const deltas = events.filter((e) => e.type === 'assistant_delta') as Extract<NormalizedEvent, { type: 'assistant_delta' }>[];
-  assert.equal(deltas.length, 3, 'one assistant_delta per incoming text_delta');
-  assert.deepEqual(
-    deltas.map((d) => d.text),
-    ['Hel', 'lo ', 'world'],
-    'text is the incremental chunk, never the accumulated total',
-  );
-  assert.deepEqual(
-    deltas.map((d) => d.blockId),
-    ['m1', 'm1', 'm1'],
-    'blockId is stable across every delta of one assistant block',
-  );
-});
-
 // --- (b) the finalizing assistant_text still arrives once, whole, with the same blockId ---
 
 test('PI still emits exactly one whole-message assistant_text carrying the same blockId', async () => {

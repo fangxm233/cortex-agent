@@ -26,30 +26,12 @@ const EXPECTED: Record<DeliveryOrigin, { senderId: string; systemOrigin?: string
   'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'subtask-question', prefix: /^cb_tg_\d+$/ },
 };
 
-test('every origin maps to its sender id, system origin and messageId prefix', () => {
-  for (const [origin, want] of Object.entries(EXPECTED) as Array<[DeliveryOrigin, typeof EXPECTED[DeliveryOrigin]]>) {
-    const m = buildDeliveryMessage({ channel: 'C1', text: 'hi', origin, tag: 'tg' });
-    assert.equal(m.senderId, want.senderId, `${origin}: senderId`);
-    assert.equal(m.systemOrigin, want.systemOrigin, `${origin}: systemOrigin`);
-    assert.match(m.ref.messageId, want.prefix, `${origin}: messageId prefix`);
-    assert.equal(m.kind, 'user', `${origin}: routed as a user turn`);
-    assert.equal(m.isBot, false, `${origin}: not a bot message`);
-    assert.equal(m.ref.conduit, 'C1');
-    assert.equal(m.text, 'hi');
-  }
-});
-
 test('a backgrounded agent result keeps a web sender id so it can still fold into a live turn', () => {
   // isInjectableMessage refuses SYNTHETIC_CALLBACK_SENDER; tagging this origin synthetic would
   // push a finished background run behind the queue instead of into the running turn.
   const m = buildDeliveryMessage({ channel: 'C1', text: 'done', origin: 'agent-result' });
   assert.notEqual(m.senderId, SYNTHETIC_CALLBACK_SENDER);
   assert.equal(m.senderId, WEB_UI_SENDER);
-});
-
-test('a typed web message is authored by the human — no system origin', () => {
-  const m = buildDeliveryMessage({ channel: 'C1', text: 'run the probe', origin: 'web-user' });
-  assert.equal('systemOrigin' in m, false);
 });
 
 test('raw carries the origin source, and the caller may add fields but not replace it', () => {

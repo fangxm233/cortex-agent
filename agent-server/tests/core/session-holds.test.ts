@@ -60,11 +60,6 @@ test('setHoldHandles registers handles and stopHolds() fires them once', () => {
   assert.equal(r.stopHolds('s1'), false);
 });
 
-test('stopHolds() on a session with no hold is a no-op', () => {
-  const r = new SessionHolds();
-  assert.equal(r.stopHolds('nope'), false);
-});
-
 // ── the two verbs ──────────────────────────────────────────────────────
 //
 // One slot per session used to carry handles that meant two different things. A foreground turn

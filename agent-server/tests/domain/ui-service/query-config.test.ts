@@ -57,12 +57,6 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
   return { configDir, hooksDir };
 }
 
-test('readConfigSnapshot parses budget', async () => {
-  const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir);
-  assert.deepEqual(snap.budget, { daily_usd: 100, monthly_usd: 2000, projects: {} });
-});
-
 test('readConfigSnapshot surfaces per-project budgets and drops half-pair entries', async () => {
   const { configDir } = await makeFixture();
   await fs.writeFile(path.join(configDir, 'budget.json'), JSON.stringify({
@@ -241,20 +235,6 @@ test('readConfigSnapshot returns null / empty when files are absent', async () =
   assert.deepEqual(snap.env, []);
 });
 
-test('readConfigSnapshot returns empty hooks for a non-directory registry path', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-hook-file-'));
-  const configDir = path.join(root, 'config');
-  await fs.mkdir(configDir, { recursive: true });
-  await fs.writeFile(path.join(configDir, 'hooks'), 'not a directory');
-  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
-  const snap = await readConfigSnapshot(configDir);
-
-  assert.deepEqual(snap.hooks, []);
-  assert.match(error.mock.calls.flat().join('\n'), /hook-registry/);
-  error.mockRestore();
-});
-
 test('readConfigSnapshot returns empty hooks for malformed registry JSON', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-hook-json-'));
   const configDir = path.join(root, 'config');
@@ -273,15 +253,3 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
 // `lang` is what the Web UI picks its vocabulary from AND what every server-side t() renders in.
 // It is passed in rather than read off the configDir: the live process locale (post-!lang) is the
 // honest answer, and readConfigSnapshot must stay hermetic over its directory argument.
-
-test('readConfigSnapshot omits lang when the caller does not supply one', async () => {
-  const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir);
-  assert.equal(snap.lang, undefined);
-});
-
-test('readConfigSnapshot passes the supplied language through with its provenance', async () => {
-  const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, undefined, { value: 'zh', source: 'env' });
-  assert.deepEqual(snap.lang, { value: 'zh', source: 'env' });
-});

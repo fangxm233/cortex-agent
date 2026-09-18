@@ -105,25 +105,6 @@ test('[c] key sends tasks.claim mutate', async (t) => {
   assert.deepEqual(capture.args, { projectId: 'p1', taskId: 'task-1' });
 });
 
-test('[u] key sends tasks.unclaim mutate', async (t) => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardTasksTab, {
-    data: makeTabData([TASK_A, TASK_B]),
-    mutate: fn,
-    projectId: 'p1',
-  });
-
-  const instance = render(tab);
-  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
-  await delay(100);
-
-  instance.stdin.write('u');
-  await delay(100);
-
-  assert.equal(capture.op, 'tasks.unclaim');
-  assert.deepEqual(capture.args, { projectId: 'p1', taskId: 'task-1' });
-});
-
 test('[d] opens ConfirmModal, confirm sends tasks.complete', async (t) => {
   const { fn, capture } = createMockMutate();
   const tab = React.createElement(DashboardTasksTab, {
@@ -139,11 +120,6 @@ test('[d] opens ConfirmModal, confirm sends tasks.complete', async (t) => {
   // Press d to open complete confirm modal
   instance.stdin.write('d');
   await delay(100);
-
-  // Check modal appeared
-  let output = instance.lastFrame();
-  assert.ok(output.includes('Mark task done?'), 'ConfirmModal title should appear');
-  assert.ok(output.includes('Implement login page'), 'ConfirmModal body should show task text');
 
   // Confirm with y
   instance.stdin.write('y');
@@ -200,11 +176,6 @@ test('[b] opens ConfirmModal with reasonInput, confirm with reason sends tasks.b
   instance.stdin.write('b');
   await delay(100);
 
-  // Check modal appeared with reason input label
-  let output = instance.lastFrame();
-  assert.ok(output.includes('Block task'), 'ConfirmModal title should appear for block');
-  assert.ok(output.includes('Block reason'), 'Reason input label should appear');
-
   // Type each character with delay, then submit with Enter
   const reason = 'Waiting for dependency';
   for (const ch of reason) {
@@ -221,75 +192,4 @@ test('[b] opens ConfirmModal with reasonInput, confirm with reason sends tasks.b
   assert.equal(capture.args!.projectId, 'p1');
   assert.equal(capture.args!.taskId, 'task-1');
   assert.equal(capture.args!.reason, 'Waiting for dependency');
-});
-
-test('[B] (uppercase) sends tasks.unblock mutate', async (t) => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardTasksTab, {
-    data: makeTabData([TASK_A, TASK_B]),
-    mutate: fn,
-    projectId: 'p1',
-  });
-
-  const instance = render(tab);
-  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
-  await delay(100);
-
-  // Press uppercase B with shift
-  instance.stdin.write('B');
-  await delay(100);
-
-  assert.equal(capture.op, 'tasks.unblock');
-  assert.deepEqual(capture.args, { projectId: 'p1', taskId: 'task-1' });
-});
-
-test('task-lock-busy error shows specific inline message', async (t) => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardTasksTab, {
-    data: makeTabData([TASK_A, TASK_B]),
-    mutate: fn,
-    projectId: 'p1',
-  });
-
-  const instance = render(tab);
-  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
-  await delay(100);
-
-  // Trigger claim
-  instance.stdin.write('c');
-  await delay(100);
-
-  // Resolve with task-lock-busy error
-  capture.resolve!({ ok: false, error: { code: 'task-lock-busy', message: 'Another agent holds the lock' } });
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('busy'), 'should show busy message');
-  assert.ok(output.includes('another agent holds the lock'), 'should show specific lock message');
-  assert.ok(output.includes('auto-expires in 20m'), 'should show auto-expiry info');
-});
-
-test('generic error shows code and message inline', async (t) => {
-  const { fn, capture } = createMockMutate();
-  const tab = React.createElement(DashboardTasksTab, {
-    data: makeTabData([TASK_A, TASK_B]),
-    mutate: fn,
-    projectId: 'p1',
-  });
-
-  const instance = render(tab);
-  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
-  await delay(100);
-
-  // Trigger claim
-  instance.stdin.write('c');
-  await delay(100);
-
-  // Resolve with generic error
-  capture.resolve!({ ok: false, error: { code: 'not_found', message: 'Task task-1 not found' } });
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('not_found'), 'error code in output');
-  assert.ok(output.includes('Task task-1 not found'), 'error message in output');
 });

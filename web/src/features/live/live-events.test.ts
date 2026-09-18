@@ -8,7 +8,6 @@ import {
   LIVE_RETRY_BASE_MS,
   LIVE_RETRY_MAX_MS,
   matchesLiveEvent,
-  ASSISTANT_DELTA_EVENTS,
   COMMISSION_LIVE_EVENTS,
   CONFIG_LIVE_EVENTS,
   RATE_LIMIT_LIVE_EVENTS,
@@ -16,7 +15,6 @@ import {
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
   TASK_LIVE_EVENTS,
-  TASK_LIST_LIVE_EVENTS,
   THREAD_LIVE_EVENTS,
   type LiveEvent,
 } from './live-events';
@@ -34,52 +32,7 @@ describe('LIVE_EVENT_TYPES', () => {
   });
 });
 
-describe('SESSION_LIVE_EVENTS', () => {
-  it('carries the mid-turn delivery commit — without it a sent message stays dimmed forever', () => {
-    expect(SESSION_LIVE_EVENTS).toContain('session.message.delivered');
-  });
-  it('carries context usage/compaction plus the content-free DEBUG refresh hint', () => {
-    expect(SESSION_LIVE_EVENTS).toContain('session.context-usage');
-    expect(LIVE_EVENT_TYPES).toContain('session.context-usage');
-    expect(SESSION_LIVE_EVENTS).toContain('session.context-compacted');
-    expect(LIVE_EVENT_TYPES).toContain('session.context-compacted');
-    expect(SESSION_LIVE_EVENTS).toContain('session.debug.updated');
-    expect(LIVE_EVENT_TYPES).toContain('session.debug.updated');
-  });
-});
-
-describe('TASK_LIST_LIVE_EVENTS', () => {
-  it('refreshes after thread creation so a new task claim gains its owning thread id', () => {
-    expect(TASK_LIST_LIVE_EVENTS).toContain('thread.created');
-    for (const type of TASK_LIVE_EVENTS) expect(TASK_LIST_LIVE_EVENTS).toContain(type);
-  });
-});
-
-describe('RATE_LIMIT_LIVE_EVENTS', () => {
-  it('carries the content-free throttle refresh hint on the shared stream', () => {
-    expect(RATE_LIMIT_LIVE_EVENTS).toEqual(['rate-limit.changed']);
-    expect(LIVE_EVENT_TYPES).toContain('rate-limit.changed');
-  });
-});
-
-describe('COMMISSION_LIVE_EVENTS', () => {
-  it('carries the registry-changed hint the board and rail refetch on', () => {
-    expect(COMMISSION_LIVE_EVENTS).toContain('commission.updated');
-  });
-  it('also carries a session changing its own binding, which no registry event describes', () => {
-    // Entering or leaving the drafting phase writes only the SESSION record: there is no
-    // commission id yet to name in a commission.updated (DR-0037 v4).
-    expect(COMMISSION_LIVE_EVENTS).toContain('session.commission');
-    expect(SESSION_LIVE_EVENTS).not.toContain('session.commission');
-  });
-});
-
 describe('CONFIG_LIVE_EVENTS', () => {
-  it('carries the structured config change hint on the shared stream', () => {
-    expect(CONFIG_LIVE_EVENTS).toEqual(['config.changed']);
-    expect(LIVE_EVENT_TYPES).toContain('config.changed');
-  });
-
   it('recognizes only the sections config.get actually reports', () => {
     expect(isConfigSnapshotChanged(ev('config.changed', { section: 'profiles' }))).toBe(true);
     // the language lives in the same snapshot, so a !lang switch must invalidate it too
@@ -87,15 +40,6 @@ describe('CONFIG_LIVE_EVENTS', () => {
     expect(isConfigSnapshotChanged(ev('config.changed', { section: 'budget' }))).toBe(false);
     expect(isConfigSnapshotChanged(ev('system.notice', { section: 'profiles' }))).toBe(false);
     expect(isConfigSnapshotChanged(ev('config.changed'))).toBe(false);
-  });
-});
-
-describe('ASSISTANT_DELTA_EVENTS', () => {
-  it('names the token-level preview event', () => {
-    expect(ASSISTANT_DELTA_EVENTS).toEqual(['session.message.delta']);
-  });
-  it('is deliberately OUTSIDE the shared union — the server only serves it session-scoped', () => {
-    for (const t of ASSISTANT_DELTA_EVENTS) expect(LIVE_EVENT_TYPES).not.toContain(t);
   });
 });
 

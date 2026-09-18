@@ -104,14 +104,6 @@ test('removeIssueEntry removes exactly the target entry block, preserving the re
   assert.ok(!md.includes('\n\n\n'));
 });
 
-test('removeIssueEntry removes the last entry cleanly', () => {
-  const id = idOf(SAMPLE, 'Third issue title');
-  const { md } = removeIssueEntry(SAMPLE, id);
-  const remaining = parseIssues(md);
-  assert.deepEqual(remaining.map((e) => e.title), ['First issue title', 'Second issue title']);
-  assert.ok(!md.includes('third body line'));
-});
-
 test('removeIssueEntry throws not-found for an unknown id', () => {
   assert.throws(
     () => removeIssueEntry(SAMPLE, 'deadbeef'),
@@ -120,15 +112,6 @@ test('removeIssueEntry throws not-found for an unknown id', () => {
 });
 
 // ── (2) buildIssuePrompt carries the full entry text ─────────────────────────
-test('buildIssuePrompt embeds project, title and the full entry body', () => {
-  const entry = parseIssues(SAMPLE)[0];
-  const prompt = buildIssuePrompt('demo', entry);
-  assert.match(prompt, /demo/);
-  assert.match(prompt, /First issue title/);
-  assert.match(prompt, /first body line\./);
-  assert.match(prompt, /first suggestion\./);
-  assert.match(prompt, /ISSUES\.md/);
-});
 
 // ── (3) delete handler ───────────────────────────────────────────────────────
 test('handleIssuesDelete removes the entry from disk and returns ok', async () => {

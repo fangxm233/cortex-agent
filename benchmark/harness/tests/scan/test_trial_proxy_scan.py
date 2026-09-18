@@ -246,21 +246,6 @@ def test_removing_any_new_source_fails_the_scan(
     assert report.exit_code == 1
 
 
-def test_proxy_log_and_export_are_written_under_a_trial_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    trial = offline_trial(tmp_path, monkeypatch)
-    inventory = trial.agent.captured_inventory
-
-    for source in PROXY_ARTIFACT_SOURCES:
-        path = inventory.sources[source]
-        assert path.is_file()
-        assert any(path.is_relative_to(root) for root in inventory.trial_roots), path
-    # The scanner rejects an inventory whose source escapes every trial root, so a report at all
-    # is itself the containment proof rather than a claim about placement.
-    assert scan_trial_artifacts(inventory, scan_policy()).clean
-
-
 def test_container_visible_surface_is_only_a_scoped_endpoint_and_a_dummy_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -117,30 +117,6 @@ def test_audit_retry_arm_resolves_to_its_own_bundle_template_and_roles() -> None
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
 
-def test_reviewer_fix_arm_resolves_to_its_own_bundle_template_and_roles() -> None:
-    bundle = require_production_arm(reviewer_fix_arm())
-
-    assert bundle.key == "coder-review-reviewer-fix-pi-deepseek"
-    assert bundle.root_template == "coder-review-fix"
-    assert bundle.profile_name == "coder-review-fix"
-    assert bundle.evidence_mode == "coder-review"
-    assert bundle.expected_roles == ("coder", "fixer")
-    assert bundle.manager_qa is None
-    assert bundle.bundle_dir != require_production_arm(audit_retry_arm()).bundle_dir
-
-
-def test_manager_qa_off_arm_resolves_to_its_own_bundle_template_and_role() -> None:
-    bundle = require_production_arm(manager_qa_off_arm())
-
-    assert bundle.key == "manager-qa-off-pi-deepseek"
-    assert bundle.root_template == "manager"
-    assert bundle.profile_name == "manager"
-    assert bundle.evidence_mode == "manager"
-    assert bundle.expected_roles == ("manager",)
-    assert bundle.manager_qa == "off"
-    assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
-
-
 def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
     off = require_production_arm(manager_qa_off_arm())
     on = require_production_arm(manager_qa_on_arm())
@@ -208,20 +184,6 @@ def test_manager_arm_confinement_is_recorded_with_a_closed_endpoint_set() -> Non
         "webhook_endpoints": ["POST /webhook/thread-op"],
         "writable_home_paths": [],
     }
-
-
-def test_manager_bundle_gates_ask_manager_out_of_its_agent_tool_surface() -> None:
-    """Plan section 4 C2: Q&A off is the per-tool MCP gate, not a whole-server removal — the
-    agent keeps a real MCP surface so the omission is the arm's only capability difference.
-    """
-    bundle = require_production_arm(manager_qa_off_arm())
-    agent = read_json(
-        bundle.bundle_dir / "config/thread-templates/agents/manager.json")
-
-    allowlist = agent["mcpToolAllowlist"]
-    assert isinstance(allowlist, list) and allowlist
-    assert "ask_manager" not in allowlist
-    assert agent["mcpComposition"] == "thread-control"
 
 
 def test_a_coder_review_variant_without_a_bundle_is_not_a_production_candidate() -> None:

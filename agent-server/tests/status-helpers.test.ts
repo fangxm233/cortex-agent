@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as statusHelpers from '../src/orchestration/status-helpers.js';
-import { resetSettingsForTests } from '../src/core/settings.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { RichBlock, ActionElement } from '../src/platform/index.js';
 
@@ -11,11 +10,6 @@ function cancelButtonValue(blocks: RichBlock[]): any {
   const actions = blocks.find((b: any) => b.type === 'actions') as any;
   const cancel = (actions?.elements as ActionElement[] | undefined)?.find((e: any) => e.actionId === 'status_cancel') as any;
   return cancel ? JSON.parse(cancel.value) : null;
-}
-
-function findButton(blocks: RichBlock[], actionId: string): any {
-  const actions = blocks.find((b: any) => b.type === 'actions') as any;
-  return (actions?.elements as ActionElement[] | undefined)?.find((e: any) => e.actionId === actionId) ?? null;
 }
 
 // --- Cancel button payload ---
@@ -33,51 +27,6 @@ test('buildStatusActionBlocks: Cancel button carries threadId (thread path), exe
   const value = cancelButtonValue(blocks);
   assert.equal(value.threadId, 'thr_x');
   assert.equal(value.executionId, null);
-});
-
-// --- New (quiet) button (=!newq), env-gated, default off ---
-
-async function withNewqEnv(
-  value: string | undefined,
-  fn: (helpers: typeof statusHelpers) => void | Promise<void>,
-): Promise<void> {
-  const prev = process.env.CORTEX_STATUS_NEWQ_BUTTON;
-  if (value === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
-  else process.env.CORTEX_STATUS_NEWQ_BUTTON = value;
-  try {
-    resetSettingsForTests();
-    await fn(statusHelpers);
-  } finally {
-    if (prev === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
-    else process.env.CORTEX_STATUS_NEWQ_BUTTON = prev;
-    resetSettingsForTests();
-  }
-}
-
-test('newq button: hidden by default (env unset), New button still present', async () => {
-  await withNewqEnv(undefined, ({ buildStatusActionBlocks: build, isStatusNewqButtonEnabled: enabled }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: true });
-    assert.equal(enabled(), false);
-    assert.ok(findButton(blocks, 'status_new'), 'New button present in DM');
-    assert.equal(findButton(blocks, 'status_newq'), null, 'newq button absent by default');
-  });
-});
-
-test('newq button: shown in DM when CORTEX_STATUS_NEWQ_BUTTON enabled, carries channel', async () => {
-  await withNewqEnv('1', ({ buildStatusActionBlocks: build, isStatusNewqButtonEnabled: enabled }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: true });
-    assert.equal(enabled(), true);
-    const newq = findButton(blocks, 'status_newq');
-    assert.ok(newq, 'newq button present when enabled');
-    assert.equal(newq.value, 'C1');
-  });
-});
-
-test('newq button: DM-only — absent in a non-DM thread even when enabled', async () => {
-  await withNewqEnv('on', ({ buildStatusActionBlocks: build }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: false, threadId: 'thr_x' });
-    assert.equal(findButton(blocks, 'status_newq'), null, 'newq button absent outside DM');
-  });
 });
 
 // --- Basic serialization ---

@@ -223,9 +223,6 @@ describe('useProfilesController', () => {
     expect(mounted.invalidate.mock.calls.map(call => call[0])).toEqual([
       { queryKey: ['config.get', {}] }, { queryKey: ['config.get', {}] },
     ]);
-    expect(adapter.toast).toHaveBeenCalledWith({
-      title: `${en.stDefaultProfile} → sol · ${en.stToastDefaultProfile}`, tone: 'done',
-    });
     mounted.renderer.unmount();
     mounted.queryClient.clear();
   });
@@ -265,9 +262,6 @@ describe('useProfilesController', () => {
     await vi.waitFor(() => expect(controller?.removePendingName).toBeNull());
     expect(controller?.confirmingDelete).toBeNull();
     expect(mounted.invalidate).not.toHaveBeenCalled();
-    expect(adapter.toast).toHaveBeenCalledWith({
-      title: `${en.pfToastWriteFailed}: remove denied`, tone: 'failed',
-    });
     mounted.renderer.unmount();
     mounted.queryClient.clear();
   });

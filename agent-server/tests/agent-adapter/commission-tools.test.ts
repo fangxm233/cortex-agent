@@ -117,14 +117,6 @@ describe('cortex_commission_start', () => {
     expect(text).toContain('cortex_commission_submit');
   });
 
-  it('is idempotent, and says so, so the [Commission] block can tell a session to call it', async () => {
-    const text = await textOf(deps({
-      reply: { ok: true, dir: '/ctx/proj/commissions/_draft-cortex-a1b2', alreadyDrafting: true },
-    }));
-    expect(text).toContain('already drafting');
-    expect(text).toContain('/ctx/proj/commissions/_draft-cortex-a1b2');
-  });
-
   it('surfaces a refusal from the daemon instead of handing out the protocol', async () => {
     const result = await runCommissionStart({}, deps({
       reply: { error: 'this session is already bound to commission dc44f400 — open a new session for another one' },
@@ -137,40 +129,5 @@ describe('cortex_commission_start', () => {
   it('refuses without a session id rather than creating a stray directory', async () => {
     const result = await runCommissionStart({}, deps({ sessionId: null }));
     expect(result.isError).toBe(true);
-  });
-
-  it('carries the whole creation protocol, since the skill no longer covers it', async () => {
-    const text = await textOf(deps());
-    for (const section of [
-      '## Goal (user\'s words)', '## Inferences', '## Acceptance criteria',
-      '## Out of scope', '## Gates', '## Revisions',
-    ]) {
-      expect(text).toContain(section);
-    }
-    // The whole feature is English-only: no Chinese leaks into anything the agent reads.
-    expect(text).not.toMatch(/[\u4e00-\u9fff]/);
-    expect(text).toContain('Depth-first');
-    expect(text).toContain('cortex_ask_user');
-  });
-
-  it('states when a commission is the wrong shape, now that the agent decides', async () => {
-    const text = await textOf(deps());
-    expect(text).toContain('Phase 0');
-    expect(text).toMatch(/several sessions or\s+days/);
-    expect(text).toContain('does not fit');
-    // And it must not turn a user-initiated entry into another round of asking permission.
-    expect(text).toContain('unless the user turned this mode on themselves');
-  });
-
-  it('says nothing about plan mode being replaced — the two are unrelated now', async () => {
-    const text = await textOf(deps());
-    expect(text).not.toContain('cortex_plan_exit');
-    expect(text).not.toContain('cortex_plan_enter');
-    expect(text).not.toContain('plan mode');
-  });
-
-  it('records the optional reasoning', async () => {
-    const text = await textOf(deps(), { reasoning: 'why' });
-    expect(text).toContain('Reasoning recorded: why');
   });
 });

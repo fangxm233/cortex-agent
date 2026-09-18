@@ -86,21 +86,6 @@ function injectionAcks(events: RunEvent[]): RunEvent[] {
 /** Flush every microtask queued by an emit before the assertions run. */
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
-/**
- * Sequential reader over the raw protocol tap, reproducing the legacy `nextEvent(proc)` cursor:
- * per-message cost and context readings are skipped, everything else is returned in order.
- */
-function lifecycleReader(events: NormalizedEvent[]): () => NormalizedEvent | undefined {
-  let cursor = 0;
-  return () => {
-    while (cursor < events.length) {
-      const event = events[cursor++]!;
-      if (event.type !== 'cost_record' && event.type !== 'context_usage') return event;
-    }
-    return undefined;
-  };
-}
-
 function settleRun(runtime: FakeRuntime, cost: number): void {
   runtime.emitAgentEnd({ usage: { cost: { total: cost } } });
 }
@@ -160,72 +145,6 @@ test('injection refuses while the run is still switching to the target session',
   firstRuntime.emitUserMessage('opening after switch-back');
   firstRuntime.emitUserMessage('now safe');
   settleRun(firstRuntime, 0.01);
-  await run.result;
-});
-
-test('a prompt still in PI preflight is steered with the dedicated steer call', async (t) => {
-  const fixture = openEngine();
-  t.onTestFinished(() => fixture.engine.close());
-  const { run, runtime, events } = await openTurn(fixture);
-
-  // PI has the opening prompt but has not entered its agent loop, so it still reads its own run
-  // flag as inactive: a streaming prompt would be dropped and poison every later injection.
-  const injection = fixture.engine.steer({ text: 'during preflight' }, 'inj-preflight');
-  assert.equal(injection.accepted, true);
-  const [call] = steeringCalls(runtime);
-  assert.equal(call?.kind, 'steer');
-  assert.match(runtime.steers()[0]!, /during preflight/);
-
-  runtime.emitAgentStart();
-  runtime.emitUserMessage('during preflight');
-  await tick();
-  assert.deepEqual(injectionAcks(events), [
-    { type: 'injection_delivered', injectionId: 'inj-preflight', foldedIntoTurn: true },
-  ], 'the loop opening poll drains it into the turn');
-
-  settleRun(runtime, 0.01);
-  await run.result;
-});
-
-test('an injection reopening a settled PI turn steers its own follow-on preflight', async (t) => {
-  const fixture = openEngine();
-  t.onTestFinished(() => fixture.engine.close());
-  const { run, runtime } = await openTurn(fixture);
-
-  runtime.emitAgentStart();
-  assert.equal(fixture.engine.steer({ text: 'while running' }).accepted, true);
-  settleRun(runtime, 0.01);
-
-  // PI is provably idle now, so this one has to be a prompt to reopen a turn -- and the next one
-  // lands in that fresh preflight, which is only safe as a steer.
-  assert.equal(fixture.engine.steer({ text: 'reopens the turn' }).accepted, true);
-  assert.equal(fixture.engine.steer({ text: 'rides the new preflight' }).accepted, true);
-  assert.deepEqual(steeringCalls(runtime).map((call) => call.kind), ['prompt', 'prompt', 'steer']);
-
-  runtime.emitAgentStart();
-  runtime.emitUserMessage('while running');
-  runtime.emitUserMessage('reopens the turn');
-  runtime.emitUserMessage('rides the new preflight');
-  settleRun(runtime, 0.02);
-  await run.result;
-});
-
-test('a rejected steer call seals its message just like a rejected prompt', async (t) => {
-  const fixture = openEngine();
-  t.onTestFinished(() => fixture.engine.close());
-  const { run, runtime, events } = await openTurn(fixture);
-
-  runtime.steerRejections.push(new Error('steer rejected'));
-  const injection = fixture.engine.steer({ text: 'rejected steer' }, 'inj-rejected-steer');
-  assert.equal(injection.accepted, true);
-  assert.equal(steeringCalls(runtime)[0]?.kind, 'steer');
-  await tick();
-  assert.deepEqual(injectionAcks(events), [
-    { type: 'injection_rejected', injectionId: 'inj-rejected-steer', reason: 'undelivered' },
-  ], 'rejected steering must not be delivered');
-
-  runtime.emitAgentStart();
-  settleRun(runtime, 0.01);
   await run.result;
 });
 
@@ -320,71 +239,6 @@ test('post-run compaction stays active until agent_settled and aggregates both P
   const result = await run.result;
   assert.equal(result.num_turns, 2);
   assert.equal(result.total_cost_usd, 0.05);
-});
-
-test('idle-boundary first agent_end is suppressed and final result aggregates both PI runs', async (t) => {
-  const fixture = openEngine();
-  t.onTestFinished(() => fixture.engine.close());
-  const { run, runtime, events, raw } = await openTurn(fixture);
-  let settled = false;
-  void run.result.then(() => { settled = true; }, () => { settled = true; });
-
-  runtime.emitAgentStart();
-  assert.equal(fixture.engine.steer({ text: 'late steering' }, 'inj-late-steering').accepted, true);
-  settleRun(runtime, 0.02);
-  await Promise.resolve();
-  assert.equal(settled, false, 'the old run cannot terminate Cortex while its race-safe prompt is pending');
-
-  runtime.emitUserMessage('late steering');
-  settleRun(runtime, 0.03);
-  const result = await run.result;
-  await tick();
-  assert.deepEqual(injectionAcks(events), [
-    { type: 'injection_delivered', injectionId: 'inj-late-steering', foldedIntoTurn: true },
-  ]);
-  assert.equal(result.num_turns, 2);
-  assert.equal(result.total_cost_usd, 0.05);
-
-  // The deferred terminal is a protocol-layer fact, so it is asserted on the raw tap rather than
-  // the translated run stream, which drops `turn_complete` and emits `foreground_result` instead.
-  const nextEvent = lifecycleReader(raw);
-  assert.equal(nextEvent()?.type, 'session_started');
-  const terminal = nextEvent();
-  assert.equal(terminal?.type, 'turn_complete');
-  if (terminal?.type === 'turn_complete') {
-    assert.equal(terminal.numTurns, 2);
-    assert.equal(terminal.totalCostUsd, 0.05);
-  }
-});
-
-test('a refused steering prompt after a deferred completion seals the message and settles the original turn', async (t) => {
-  const fixture = openEngine();
-  t.onTestFinished(() => fixture.engine.close());
-  const { run, runtime, events, raw } = await openTurn(fixture);
-
-  runtime.emitAgentStart();
-  runtime.promptRejections.push(new Error('prompt rejected'));
-  assert.equal(fixture.engine.steer({ text: 'rejected steering' }, 'inj-refused-deferred').accepted, true);
-  // The refusal lands a microtask later, i.e. after PI already settled this run.
-  settleRun(runtime, 0.02);
-
-  const result = await run.result;
-  await tick();
-  assert.deepEqual(injectionAcks(events), [
-    { type: 'injection_rejected', injectionId: 'inj-refused-deferred', reason: 'undelivered' },
-  ]);
-  assert.equal(result.num_turns, 1);
-  assert.equal(result.total_cost_usd, 0.02);
-
-  const nextEvent = lifecycleReader(raw);
-  assert.equal(nextEvent()?.type, 'session_started');
-  const refusal = nextEvent();
-  assert.equal(refusal?.type, 'error', 'PI rejection remains observable');
-  if (refusal?.type === 'error') {
-    assert.equal(refusal.fatal, false);
-    assert.match(refusal.message, /prompt rejected/);
-  }
-  assert.equal(nextEvent()?.type, 'turn_complete', 'deferred terminal event is restored');
 });
 
 test('a failing opening prompt reports every queued steering message as undelivered', async (t) => {

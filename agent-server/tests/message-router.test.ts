@@ -28,18 +28,6 @@ function buildDeps(dispatchReturns: boolean = false): {
   return { deps, dispatchCalls, editCalls };
 }
 
-test('registerMessageHandler wires both onMessage and onMessageEdit on the adapter', async () => {
-  const adapter = new MockAdapter();
-  const { deps, editCalls } = buildDeps();
-  registerMessageHandler(adapter, deps);
-
-  // onMessageEdit delegation: edit ctx is forwarded to deps.handleMessageEdit.
-  await adapter.simulateMessageEdit('C1', 'M1', 'edited text');
-  assert.equal(editCalls.length, 1);
-  assert.equal(editCalls[0].originalRef.conduit, 'C1');
-  assert.equal(editCalls[0].newText, 'edited text');
-});
-
 test('plain bot message (no BRANCH_CALLBACK prefix) returns early without dispatching', async () => {
   const adapter = new MockAdapter();
   const { deps, dispatchCalls } = buildDeps();

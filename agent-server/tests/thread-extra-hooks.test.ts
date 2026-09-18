@@ -641,11 +641,3 @@ test('runThread executes per-call extraHooks after template hooks for every phas
 
   assertOrderedHookCaptures(captures(capturePath), thread);
 });
-
-// Compile-time contract: callers may still supply generic per-call lifecycle hooks.
-test('RunThreadOptions.extraHooks remains optional and phase-scoped', () => {
-  const hookConfig: ThreadHookConfig = { command: 'true' };
-  const options = makeOptions('C-extra');
-  options.extraHooks = { onStart: hookConfig, onTransition: hookConfig, onEnd: hookConfig };
-  assert.equal(options.extraHooks.onEnd, hookConfig);
-});

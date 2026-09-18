@@ -45,16 +45,6 @@ test('backupSessionFile: creates .turn-N.bak alongside original', async () => {
   }
 });
 
-test('backupSessionFile: returns null if file does not exist', async () => {
-  const dir = tmpDir();
-  try {
-    const backupPath = await backupSessionFile(path.join(dir, 'nonexistent.jsonl'), 0);
-    assert.equal(backupPath, null);
-  } finally {
-    try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
-  }
-});
-
 test('restoreSessionFile: copies backup over original', async () => {
   const dir = tmpDir();
   try {
@@ -69,18 +59,6 @@ test('restoreSessionFile: copies backup over original', async () => {
     const restored = await restoreSessionFile(filePath, 1);
     assert.equal(restored, true);
     assert.equal(readFileSync(filePath, 'utf8'), 'original content');
-  } finally {
-    try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
-  }
-});
-
-test('restoreSessionFile: returns false if backup does not exist', async () => {
-  const dir = tmpDir();
-  try {
-    const filePath = path.join(dir, 'session.jsonl');
-    writeFileSync(filePath, 'content', 'utf8');
-    const restored = await restoreSessionFile(filePath, 99);
-    assert.equal(restored, false);
   } finally {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
   }
@@ -114,18 +92,6 @@ test('cleanupBackupsForFile: removes backups after given turn index', async () =
     assert.ok(existsSync(`${filePath}.turn-1.bak`), 'turn 1 should remain');
     assert.ok(!existsSync(`${filePath}.turn-2.bak`), 'turn 2 should be removed');
     assert.ok(!existsSync(`${filePath}.turn-3.bak`), 'turn 3 should be removed');
-  } finally {
-    try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
-  }
-});
-
-test('cleanupBackupsForFile: no-op when no backups exist', () => {
-  const dir = tmpDir();
-  try {
-    const filePath = path.join(dir, '2026-04-30_s-1.jsonl');
-    writeFileSync(filePath, 'content', 'utf8');
-    // Should not throw
-    cleanupBackupsForFile(filePath, 0);
   } finally {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
   }

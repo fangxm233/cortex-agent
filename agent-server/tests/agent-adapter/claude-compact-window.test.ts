@@ -65,13 +65,6 @@ describe('resolveAutoCompactWindow', () => {
     }
   });
 
-  test('accepts the documented range boundaries', () => {
-    const low = layout({ user: { autoCompactWindow: 100_000 } });
-    const high = layout({ user: { autoCompactWindow: 1_000_000 } });
-    assert.equal(resolveAutoCompactWindow(low.cwd, low.userConfigDir), 100_000);
-    assert.equal(resolveAutoCompactWindow(high.cwd, high.userConfigDir), 1_000_000);
-  });
-
   test('treats malformed and missing settings files as unset', () => {
     const { cwd, userConfigDir } = layout({ project: '{ not json', user: { autoCompactWindow: 350_000 } });
     assert.equal(resolveAutoCompactWindow(cwd, userConfigDir), 350_000);

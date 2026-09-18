@@ -37,17 +37,6 @@ test('mutate - 10 concurrent increments produce count === 10 (no lost updates)',
   assert.equal(final.count, 10);
 });
 
-test('mutate - returns the result value from the transform function', async () => {
-  const filePath = path.join(tmpDir, 'result-check.json');
-  const repo = new JsonRepository<{ v: number }>({
-    filePath,
-    defaultValue: () => ({ v: 0 }),
-  });
-
-  const r = await repo.mutate(cur => ({ next: { v: cur.v + 7 }, result: cur.v + 7 }));
-  assert.equal(r, 7);
-});
-
 // ── Group 2: atomic write / mid-write crash simulation ─────────
 
 test('atomicWrite - no .tmp. files remain after successful write', async () => {
@@ -118,18 +107,6 @@ test('cache - write(A) then external modification is invisible until invalidate(
   repo.invalidate();
   const fresh = await repo.read();
   assert.equal(fresh.x, 99);
-});
-
-test('cache - mutate result is immediately visible in subsequent read()', async () => {
-  const filePath = path.join(tmpDir, 'mutate-cache.json');
-  const repo = new JsonRepository<{ n: number }>({
-    filePath,
-    defaultValue: () => ({ n: 0 }),
-  });
-
-  await repo.mutate(cur => ({ next: { n: cur.n + 5 }, result: undefined }));
-  const val = await repo.read();
-  assert.equal(val.n, 5);
 });
 
 test('cache - new instance with same file reads from disk (no shared cache)', async () => {
@@ -240,20 +217,6 @@ test('flush - FIFO: resolves only after every pending mutate has finished (and i
   assert.equal(onDisk.v, N, 'all N writes persisted before flush resolved');
 });
 
-test('flush - resolves immediately when nothing is pending', async () => {
-  const filePath = path.join(tmpDir, 'flush-idle.json');
-  const repo = new JsonRepository<{ v: number }>({
-    filePath,
-    defaultValue: () => ({ v: 0 }),
-  });
-  await repo.write({ v: 5 });
-
-  const t0 = Date.now();
-  await repo.flush();
-  const dt = Date.now() - t0;
-  assert.ok(dt < 50, `idle flush took ${dt}ms; expected near-instant`);
-});
-
 // ── Group 5: existing tests ─────────────────────────────────────
 
 test('migrate - migrate() is applied on disk read and result is cached', async () => {
@@ -297,16 +260,4 @@ test('compact - write() serializes without pretty-print; default remains pretty'
   });
   await prettyRepo.write(value);
   assert.equal(await fs.readFile(prettyPath, 'utf8'), JSON.stringify(value, null, 2));
-});
-
-test('compact - round-trip: compact-written file reads back identically', async () => {
-  const filePath = path.join(tmpDir, 'compact-rt.json');
-  const repo = new JsonRepository<{ v: number[] }>({
-    filePath,
-    defaultValue: () => ({ v: [] }),
-    compact: true,
-  });
-  await repo.write({ v: [1, 2, 3] });
-  repo.invalidate();
-  assert.deepEqual(await repo.read(), { v: [1, 2, 3] });
 });

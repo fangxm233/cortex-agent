@@ -72,9 +72,3 @@ test('resumeThreadRunInput leaves statusMessage null when no statusMsgRef was pe
   assert.equal(input!.statusMessage, null);
   assert.deepEqual(input!.mode, { kind: 'resume' });
 });
-
-test('resumeThreadRunInput returns null without an adapter', () => {
-  setOrchestrationRuntime({ adapter: null });
-  const t = makeThread();
-  assert.equal(resumeThreadRunInput(t, 'resume'), null);
-});

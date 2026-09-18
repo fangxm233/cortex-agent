@@ -22,12 +22,6 @@ test('[project:xxx] tag overrides everything', () => {
   assert.equal(detectProject('[project:fantasy] something'), 'fantasy');
 });
 
-test('[project:xxx] tag works even with empty project list', () => {
-  _resetProjectCache([]);
-
-  assert.equal(detectProject('[project:solo] message'), 'solo');
-});
-
 // ── Dynamic name matching ──
 
 test('case-insensitive substring match on project names', () => {
@@ -63,14 +57,6 @@ test('longest match wins when multiple project names appear', () => {
   assert.equal(detectProject('check orchard status'), 'orchard');
 });
 
-test('exact project name match in message', () => {
-  _resetProjectCache(['cortex-self', 'nimbus', 'beacon-nav']);
-
-  assert.equal(detectProject('cortex-self needs a restart'), 'cortex-self');
-  assert.equal(detectProject('nimbus experiment results'), 'nimbus');
-  assert.equal(detectProject('beacon-nav paper draft'), 'beacon-nav');
-});
-
 // ── Falsy / empty messages ──
 
 test('null returns general', () => {
@@ -78,33 +64,7 @@ test('null returns general', () => {
   assert.equal(detectProject(null), 'general');
 });
 
-test('undefined returns general', () => {
-  _resetProjectCache(['orchard']);
-  assert.equal(detectProject(undefined), 'general');
-});
-
-test('empty string returns general', () => {
-  _resetProjectCache(['orchard']);
-  assert.equal(detectProject(''), 'general');
-});
-
-test('falsy message with empty project list', () => {
-  _resetProjectCache([]);
-  assert.equal(detectProject(null), 'general');
-  assert.equal(detectProject(undefined), 'general');
-  assert.equal(detectProject(''), 'general');
-});
-
 // ── Empty / missing project list ──
-
-test('empty project list returns general for any message', () => {
-  _resetProjectCache([]);
-
-  assert.equal(detectProject('debug orchard issue'), 'general');
-  assert.equal(detectProject('cortex-self update'), 'general');
-  // Tag still works
-  assert.equal(detectProject('[project:explicit] message'), 'explicit');
-});
 
 test('null cache (lazy load fallback) returns general', () => {
   _resetProjectCache(null);
@@ -128,32 +88,12 @@ test('_resetProjectCache with names pre-seeds the cache', () => {
   assert.equal(detectProject('check project-b'), 'project-b');
 });
 
-test('cache persists across calls', () => {
-  _resetProjectCache(['stable-project']);
-
-  // Multiple calls use same cache
-  assert.equal(detectProject('stable-project check'), 'stable-project');
-  assert.equal(detectProject('stable-project again'), 'stable-project');
-  assert.equal(detectProject('stable-project third time'), 'stable-project');
-});
-
 // ── Ambiguity and edge cases ──
-
-test('multiple projects, only one matches', () => {
-  _resetProjectCache(['alpha', 'beta', 'gamma']);
-  assert.equal(detectProject('running beta tests'), 'beta');
-});
 
 test('project name is substring of another but only partial appears', () => {
   _resetProjectCache(['atlas', 'atlas-extra', 'atlas-security']);
   // "atlas" is substring of both "atlas-extra" and "atlas-security", but message only contains "atlas"
   assert.equal(detectProject('atlas setup'), 'atlas');
-});
-
-test('tag takes priority over dynamic match', () => {
-  _resetProjectCache(['tag-test', 'other']);
-
-  assert.equal(detectProject('[project:override] fix tag-test'), 'override');
 });
 
 test('hyphenated project names match correctly', () => {

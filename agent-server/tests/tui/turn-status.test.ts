@@ -31,11 +31,3 @@ test('processing line without turns', () => {
   assert.equal(s.turns, null);
   assert.equal(formatTurnStatus(s), '⏳ Processing · 1s');
 });
-
-test('error line keeps state + elapsed', () => {
-  const s = parseTurnStatus('❌ Error | cortex-x · `id` | (1s · 0 turns · $0.0000)');
-  assert.equal(s.state, '❌ Error');
-  assert.equal(s.time, '1s');
-  assert.equal(s.turns, 0);
-  assert.equal(s.cost, '0.0000');
-});

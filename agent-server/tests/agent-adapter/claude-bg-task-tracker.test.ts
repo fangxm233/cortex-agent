@@ -12,15 +12,6 @@ const TASK_NOTIFICATION = { type: 'system', subtype: 'task_notification', task_i
 const RESULT_FIRST = { type: 'result', subtype: 'success', is_error: false };
 const RESULT_CONTINUATION = { type: 'result', subtype: 'success', is_error: false, origin: { kind: 'task-notification' } };
 
-test('BgTaskTracker: task_started increments running (pendingCount) by task_id', () => {
-  const t = new BgTaskTracker();
-  assert.equal(t.pendingCount, 0);
-  assert.equal(t.undeliveredCount, 0);
-  t.observe(TASK_STARTED);
-  assert.equal(t.pendingCount, 1);
-  assert.equal(t.hasPending(), true);
-});
-
 test('BgTaskTracker: still running at first result, fully cleared after completion signals', () => {
   const t = new BgTaskTracker();
   t.observe(TASK_STARTED);
@@ -125,18 +116,6 @@ test('BgTaskTracker: task_notification arms continuation; disarm clears it', () 
   assert.equal(t.continuationArmed, true);
   t.disarmContinuation();
   assert.equal(t.continuationArmed, false);
-});
-
-test('BgTaskTracker: multiple concurrent tasks counted independently', () => {
-  const t = new BgTaskTracker();
-  t.observe({ type: 'system', subtype: 'task_started', task_id: 'a1' });
-  t.observe({ type: 'system', subtype: 'task_started', task_id: 'a2' });
-  assert.equal(t.pendingCount, 2);
-  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a1', status: 'completed' });
-  assert.equal(t.pendingCount, 1);
-  assert.equal(t.hasPending(), true);
-  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a2', status: 'completed' });
-  assert.equal(t.pendingCount, 0);
 });
 
 test('BgTaskTracker: ignores non-system events and malformed payloads', () => {

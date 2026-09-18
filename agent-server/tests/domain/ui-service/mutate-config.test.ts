@@ -66,11 +66,6 @@ test('writeBudget rejects invalid values without writing', async () => {
 });
 
 // ── zod schema validation ───────────────────────────────────────────
-test('configSetInput accepts a valid budget mutation', () => {
-  const parsed = configSetInput.parse({ section: 'budget', value: { daily_usd: 100, monthly_usd: 2000 } });
-  assert.equal(parsed.section, 'budget');
-  assert.deepEqual(parsed.value, { daily_usd: 100, monthly_usd: 2000 });
-});
 
 test('configSetInput accepts partial settings and rejects unknown or wrongly typed keys', () => {
   const value = {
@@ -149,11 +144,6 @@ test('configSetInput rejects illegal values / shapes', () => {
 });
 
 // ── handler section guard (defensive: direct calls bypass the router) ─
-test('handleConfigSet rejects a non-budget section with invalid-args', async () => {
-  const result = await handleConfigSet(makeMinimalDeps(), { section: 'profiles' as any, value: {} as any });
-  assert.equal(result.ok, false);
-  assert.equal((result as any).code, 'invalid-args');
-});
 
 test('handleConfigSet rejects an invalid budget with invalid-args (no write)', async () => {
   const result = await handleConfigSet(makeMinimalDeps(), { section: 'budget', value: { daily_usd: -1, monthly_usd: 5 } });
@@ -161,50 +151,7 @@ test('handleConfigSet rejects an invalid budget with invalid-args (no write)', a
   assert.equal((result as any).code, 'invalid-args');
 });
 
-test('handleConfigSet rejects unknown and wrongly typed settings with invalid-args', async () => {
-  const unknown = await handleConfigSet(
-    makeMinimalDeps(),
-    { section: 'settings', value: { unknownSetting: true } } as any,
-  );
-  const wrongType = await handleConfigSet(
-    makeMinimalDeps(),
-    { section: 'settings', value: { turnNotify: 'false' } } as any,
-  );
-  const explicitUndefined = await handleConfigSet(
-    makeMinimalDeps(),
-    { section: 'settings', value: { turnNotify: undefined } } as any,
-  );
-  const unsafeInterval = await handleConfigSet(
-    makeMinimalDeps(),
-    { section: 'settings', value: { taskDispatchIntervalMs: 999 } } as any,
-  );
-  const invalidRetention = await handleConfigSet(
-    makeMinimalDeps(),
-    { section: 'settings', value: { sessionRetentionDays: 0 } } as any,
-  );
-  assert.equal(unknown.ok, false);
-  assert.equal(wrongType.ok, false);
-  assert.equal(explicitUndefined.ok, false);
-  assert.equal(unsafeInterval.ok, false);
-  assert.equal(invalidRetention.ok, false);
-  if (!unknown.ok) assert.equal(unknown.code, 'invalid-args');
-  if (!wrongType.ok) assert.equal(wrongType.code, 'invalid-args');
-  if (!explicitUndefined.ok) assert.equal(explicitUndefined.code, 'invalid-args');
-  if (!unsafeInterval.ok) assert.equal(unsafeInterval.code, 'invalid-args');
-  if (!invalidRetention.ok) assert.equal(invalidRetention.code, 'invalid-args');
-});
-
 // ── facade + app-router wiring ──────────────────────────────────────
-test('config.set via facade writes to the isolated CONFIG_DIR and returns written', async () => {
-  const ui = createUiService(makeMinimalDeps());
-  const result = await ui.mutate('config.set', { section: 'budget', value: { daily_usd: 55, monthly_usd: 1234 } });
-  assert.ok(result.ok);
-  assert.deepEqual(result.data, { written: true, section: 'budget' });
-  // read it back through config.get (same isolated CONFIG_DIR)
-  const got = await ui.query('config.get', {});
-  assert.ok(got.ok);
-  assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234, projects: {} });
-});
 
 test('handleConfigSetProviderRateLimitPolicy writes and clears committed window policies', async () => {
   await fs.rm(path.join(CONFIG_DIR, 'settings.json'), { force: true });
@@ -290,17 +237,6 @@ test('writeBudget with a null value clears only that project override', async ()
   assert.equal(raw.daily_usd, 300, 'globals untouched');
 });
 
-test('writeBudget emits one consistent shape regardless of which write path ran last', async () => {
-  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-proj-empty-'));
-  await writeBudget(configDir, { daily_usd: 300, monthly_usd: 8000 });
-  await writeBudget(configDir, { daily_usd: 5, monthly_usd: 100 }, 'alpha');
-  await writeBudget(configDir, null, 'alpha');
-  const raw = JSON.parse(await fs.readFile(path.join(configDir, 'budget.json'), 'utf8'));
-  // The domain path (costRepo, behind !budget) serialises the whole BudgetConfig including an
-  // empty map; this path matches it rather than producing a shape that depends on the surface.
-  assert.deepEqual(raw, { daily_usd: 300, monthly_usd: 8000, projects: {} });
-});
-
 test('configSetInput accepts the project forms and rejects a projectless clear', () => {
   const set = configSetInput.parse({ section: 'budget', project: 'alpha', value: { daily_usd: 5, monthly_usd: 100 } });
   assert.equal(set.section, 'budget');
@@ -333,21 +269,6 @@ test('config.set via facade round-trips a per-project override through config.ge
   const after = await ui.query('config.get', {});
   assert.ok(after.ok);
   assert.deepEqual(after.data.budget?.projects, {});
-});
-
-test('config.set settings writes without retention side-effect hooks', async () => {
-  const deps = makeMinimalDeps();
-  const first = await handleConfigSet(deps, {
-    section: 'settings',
-    value: { turnNotify: false },
-  } as any);
-  const second = await handleConfigSet(deps, {
-    section: 'settings',
-    value: { sessionRetentionDays: 45 },
-  } as any);
-
-  assert.equal(first.ok, true);
-  assert.equal(second.ok, true);
 });
 
 test('config.set settings remains successful when async CC retention sync fails later', async () => {

@@ -93,9 +93,6 @@ describe('buildMobileStepper', () => {
     const s = buildMobileStepper(detail());
     expect(s.nodes.slice(1).map((n) => n.lineDone)).toEqual([true, true, false]);
   });
-  it('carries the real child count into the footer state', () => {
-    expect(buildMobileStepper(detail()).footer.subCount).toBe(2);
-  });
   it('empty steps → no nodes, no crash', () => {
     const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }));
     expect(s.nodes).toEqual([]);

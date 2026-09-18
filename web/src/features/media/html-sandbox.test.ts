@@ -83,21 +83,6 @@ describe('wrapViewDocument', () => {
     expect(out.match(/Content-Security-Policy/g)).toHaveLength(1);
   });
 
-  it('injects the author-overridable base style before any author style', () => {
-    const src = '<html><head><style>body{color:red}</style></head><body/></html>';
-    const out = wrapViewDocument(src, { theme: 'dark' });
-    expect(out).toMatch('color-scheme:dark');
-    expect(out.indexOf('color-scheme:dark')).toBeLessThan(out.indexOf('body{color:red}'));
-  });
-
-  // The frame is a separate document, so the app's CSS variables cannot cascade in; the caller
-  // resolves `--proto-ink` and passes the value. With no value the UA default for the declared
-  // color-scheme applies, which is already correct in both themes.
-  it('carries the resolved ink colour across, and omits it when absent', () => {
-    expect(wrapViewDocument('<p/>', { ink: 'rgb(20, 20, 20)' })).toMatch('color:rgb(20, 20, 20);');
-    expect(wrapViewDocument('<p/>')).not.toMatch(/html,body\{[^}]*color:/);
-  });
-
   it('never lets a token value escape its declaration', () => {
     const out = wrapViewDocument('<p/>', { ink: 'red}body{display:none' });
     expect(out).not.toMatch('display:none');

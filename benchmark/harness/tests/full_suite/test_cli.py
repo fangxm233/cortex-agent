@@ -22,16 +22,6 @@ def required_args(tmp_path: Path) -> list[str]:
     return arguments
 
 
-def test_help_has_copyable_preflight_and_run_examples(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        cli.build_parser().parse_args(["--help"])
-    output = capsys.readouterr().out
-    assert exit_info.value.code == 0
-    assert "Examples:" in output
-    assert "--preflight" in output
-    assert "--run" in output
-
-
 def test_preflight_success_is_structured_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:

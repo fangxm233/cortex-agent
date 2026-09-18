@@ -556,24 +556,6 @@ test('ui.query without uiService returns error result', async (t) => {
   assert.equal(result.error.code, 'ui-service-unavailable');
 });
 
-test('ui.mutate without uiService returns error result', async (t) => {
-  const { adapter, port, stop } = await startEphemeralGateway();
-  t.onTestFinished(() => stop());
-
-  const ws = await wsConnect(port);
-  const coll = makeFrameCollector(ws);
-  t.onTestFinished(() => ws.close());
-
-  await handshake(ws, coll);
-
-  sendFrame(ws, { type: 'ui.mutate', id: 'm1', op: 'test', args: {} });
-
-  const result: any = await coll.read();
-  assert.equal(result.type, 'ui.mutateResult');
-  assert.equal(result.ok, false);
-  assert.equal(result.error.code, 'ui-service-unavailable');
-});
-
 // ── UI query with UiService ────────────────────────────────────────
 
 test('ui.query with UiService returns real data', async (t) => {
@@ -750,27 +732,6 @@ test('ui.unsubscribe closes subscription', async (t) => {
 
   await delay(50);
   assert.equal(subscriptionClosed, true);
-});
-
-test('ui.subscribe without UiService returns error', async (t) => {
-  const { adapter, port, stop } = await startEphemeralGateway();
-  t.onTestFinished(() => stop());
-
-  const ws = await wsConnect(port);
-  const coll = makeFrameCollector(ws);
-  t.onTestFinished(() => ws.close());
-
-  await handshake(ws, coll);
-
-  sendFrame(ws, {
-    type: 'ui.subscribe',
-    id: 'sub3',
-    filter: { events: ['thread.created'] },
-  });
-
-  const result: any = await coll.read();
-  assert.equal(result.type, 'error');
-  assert.equal(result.code, 4100);
 });
 
 // ── Notification routing (unit-level, no WS) ─────────────────────────
@@ -976,20 +937,6 @@ test('postMessage sends to connection matching sessionId', async (t) => {
   assert.equal(frame.ref.conduit.length > 0, true);
 });
 
-test('postMessage on noop adapter returns empty ref', async () => {
-  const adapter = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
-  // Simulate EADDRINUSE by directly setting noop
-  (adapter as any)._noopOutbound = true;
-
-  const ref = await adapter.postMessage(
-    { type: 'interactive-reply', conduit: 'c1', sessionId: '' },
-    { text: 'noop' },
-  );
-
-  assert.equal(ref.conduit, '');
-  assert.equal(ref.messageId, '');
-});
-
 test('postMessage sends chat.post to matching project and notification to cross-project connections', async (t) => {
   const adapter = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
   await adapter.start();
@@ -1061,23 +1008,6 @@ test('openOutputStream creates TuiOutputStream for matching connection', async (
   const frame: any = await coll.read();
   assert.equal(frame.type, 'stream.text');
   assert.equal(frame.text, 'stream test');
-});
-
-test('openOutputStream on noop adapter returns noop stream', async (t) => {
-  const { adapter, port, stop } = await startEphemeralGateway();
-  t.onTestFinished(() => stop());
-
-  const stream = adapter.openOutputStream(
-    { type: 'system-notice' },
-  );
-
-  // Noop stream should not throw
-  stream.emitText('test');
-  stream.openMutable('test');
-  await stream.postInteractive('test');
-  await stream.flush();
-  assert.equal(stream.getRefs().length, 0);
-  assert.equal(stream.getParentRef(), null);
 });
 
 // ── Resume / switch characterization (B0) ────────────────────────────

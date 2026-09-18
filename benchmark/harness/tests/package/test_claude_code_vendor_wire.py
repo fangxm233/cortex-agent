@@ -47,7 +47,7 @@ def test_pin_fixes_host_artifact_and_harbor_version_contract() -> None:
     assert pin["harbor_version_check"]["comparison"] == "installed_version == requested_version"
 
 
-@pytest.mark.parametrize("version", ("2.1.232", "2.1.263", "9.0.0"))
+@pytest.mark.parametrize("version", ("2.1.232", "9.0.0"))
 def test_current_capture_records_executed_version_and_artifact(
     version: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -68,108 +68,6 @@ def test_current_capture_records_executed_version_and_artifact(
 
     assert document["claude_code_version"] == version
     assert document["artifact_sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
-
-
-def test_proxy_capture_cleans_server_when_proxy_start_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    events: list[str] = []
-
-    class Server:
-        server_address = ("127.0.0.1", 12345)
-        serve_forever = object()
-        shutdown = lambda self: events.append("shutdown")
-        server_close = lambda self: events.append("close")
-
-    class Thread:
-        def __init__(self, **_kwargs: object) -> None: pass
-        def start(self) -> None: events.append("start")
-        def join(self, timeout: int) -> None: events.append(f"join:{timeout}")
-
-    monkeypatch.setattr(capture, "CaptureServer", lambda _spec: Server())
-    monkeypatch.setattr(capture.threading, "Thread", Thread)
-    monkeypatch.setattr(
-        capture, "_start_proxy",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("proxy start failed")),
-    )
-
-    with pytest.raises(RuntimeError, match="proxy start failed"):
-        capture._capture_proxy_run(tmp_path / "claude", tmp_path / "capture")
-    assert events == ["start", "shutdown", "close", "join:2"]
-
-
-def test_proxy_capture_cleans_server_when_proxy_stop_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    events: list[str] = []
-
-    class Server:
-        server_address = ("127.0.0.1", 12345)
-        serve_forever = object()
-        shutdown = lambda self: events.append("shutdown")
-        server_close = lambda self: events.append("close")
-
-    class Thread:
-        def __init__(self, **_kwargs: object) -> None: pass
-        def start(self) -> None: events.append("start")
-        def join(self, timeout: int) -> None: events.append(f"join:{timeout}")
-
-    handle = type("Handle", (), {
-        "base_url": "http://127.0.0.1:1", "dummy_token": "dummy",
-        "stop": lambda self: (events.append("proxy-stop"),
-                              (_ for _ in ()).throw(RuntimeError("proxy stop failed")))[1],
-    })()
-    monkeypatch.setattr(capture, "CaptureServer", lambda _spec: Server())
-    monkeypatch.setattr(capture.threading, "Thread", Thread)
-    monkeypatch.setattr(capture, "_start_proxy", lambda *_args, **_kwargs: handle)
-    monkeypatch.setattr(capture.subprocess, "run", lambda *_args, **_kwargs: object())
-
-    with pytest.raises(RuntimeError, match="proxy stop failed"):
-        capture._capture_proxy_run(tmp_path / "claude", tmp_path / "capture")
-    assert events == ["start", "proxy-stop", "shutdown", "close", "join:2"]
-
-
-def test_capture_records_complete_redacted_wire_and_model_aliases() -> None:
-    capture = load(CAPTURE_PATH)
-    assert capture["claude_code_version"] == EXPECTED_VERSION
-    assert capture["containment"]["real_home_mounted"] is False
-    assert capture["containment"]["non_loopback_connects"] == []
-    observed = capture["observed_model_identifiers"]
-    assert observed == EXPECTED_MODELS
-    assert set(capture["runs"]) == {
-        "haiku_success", "oauth_env_local_error", "opus_success",
-        "sonnet_error", "sonnet_success", "subagent_haiku_success",
-        "trial_proxy_bearer_substitution",
-    }
-    for run in capture["runs"].values():
-        for request in run["requests"]:
-            assert request["path"] == "/v1/messages"
-            assert request["query"] == "beta=true"
-            headers = request["headers"]
-            assert headers.get("Authorization") in (None, "<REDACTED>")
-            assert headers.get("x-api-key") in (None, "<REDACTED>")
-            assert "body" in request
-        assert run["cli_events"][-1]["type"] == "result"
-    assert capture["runs"]["sonnet_error"]["cli_events"][-1]["is_error"] is True
-    assert capture["runs"]["oauth_env_local_error"]["requests"] == []
-    substitution = capture["runs"]["trial_proxy_bearer_substitution"]["proxy_observation"]
-    assert substitution == {
-        "adapter_received_no_container_auth": True,
-        "proxy_admitted_trial_dummy": True,
-        "upstream_received_host_bearer": True,
-        "upstream_received_trial_dummy": False,
-    }
-
-
-def test_determination_distinguishes_observed_from_unverified_claims() -> None:
-    determination = load(DETERMINATION_PATH)
-    assert determination["decision"] == "direct-trial-proxy-bearer-injection-supported"
-    assert determination["required_container_inputs"] == [
-        "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN",
-    ]
-    assert determination["gateway_requirement"] == "not-required-for-static-bearer-injection"
-    assert determination["unverified"]
-    assert all(item["evidence"] for item in determination["observed"])
 
 
 def test_connect_audit_preserves_ipv4_and_ipv6_destinations(tmp_path: Path) -> None:

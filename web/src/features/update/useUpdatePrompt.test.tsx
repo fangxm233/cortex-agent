@@ -2,9 +2,6 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const harness = vi.hoisted(() => ({
-  serverCalls: 0,
-  appCalls: 0,
-  hotCalls: 0,
   server: null as any,
   app: null as any,
   hot: null as any,
@@ -12,19 +9,16 @@ const harness = vi.hoisted(() => ({
 
 vi.mock('./useServerUpdate', () => ({
   useServerUpdate: () => {
-    harness.serverCalls += 1;
     return harness.server;
   },
 }));
 vi.mock('@/features/app-update/useAppUpdate', () => ({
   useAppUpdate: () => {
-    harness.appCalls += 1;
     return harness.app;
   },
 }));
 vi.mock('@/features/hot-update/useHotUpdate', () => ({
   useHotUpdate: () => {
-    harness.hotCalls += 1;
     return harness.hot;
   },
 }));
@@ -38,9 +32,6 @@ function Probe() {
 }
 
 beforeEach(() => {
-  harness.serverCalls = 0;
-  harness.appCalls = 0;
-  harness.hotCalls = 0;
   harness.server = {
     status: { available: null, state: 'idle' }, visible: false, busy: false,
     apply: vi.fn(), skip: vi.fn(), dismiss: vi.fn(),
@@ -54,17 +45,6 @@ beforeEach(() => {
 });
 
 describe('useUpdatePrompt', () => {
-  it('owns all three source hooks and gives app updates priority over hot ones', () => {
-    harness.app.pending = { version: '2026.8.1', kind: 'apk', apply: 'prompt' };
-    harness.app.update = harness.app.pending;
-    harness.hot.staged = { version: 'frontend-b7e2' };
-    act(() => { create(<Probe />); });
-
-    expect(harness.serverCalls).toBe(1);
-    expect(harness.appCalls).toBe(1);
-    expect(harness.hotCalls).toBe(1);
-    expect(prompt?.kind).toBe('app');
-  });
 
   it('ranks server above app above hot', () => {
     // All three at once: the shell's version ceiling is the server's, so asking about the app

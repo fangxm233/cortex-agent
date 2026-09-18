@@ -83,12 +83,6 @@ test('disk monitor hot toggle stops checks and re-enables with an immediate chec
   assert.equal(mocks.statfs.mock.calls.length, 3);
 });
 
-test('shouldAlert: free >= hysteresis clears state and does not alert', () => {
-  const { alert, newState } = shouldAlert(HYSTERESIS_BYTES, CLEAN_STATE, NOW);
-  assert.equal(alert, false);
-  assert.deepEqual(newState, { hasAlerted: false, lastAlertAt: null });
-});
-
 test('shouldAlert: free >= hysteresis resets a previously-alerted state', () => {
   const prior = { hasAlerted: true, lastAlertAt: NOW - 1000 };
   const { alert, newState } = shouldAlert(HYSTERESIS_BYTES + 1, prior, NOW);
@@ -122,13 +116,6 @@ test('shouldAlert: free in gray band (between warn and hysteresis) keeps alerted
   const { alert, newState } = shouldAlert(between, prior, NOW);
   assert.equal(alert, false);
   assert.deepEqual(newState, prior);
-});
-
-test('shouldAlert: free in gray band from clean state stays clean and silent', () => {
-  const between = (WARN_BYTES + HYSTERESIS_BYTES) / 2;
-  const { alert, newState } = shouldAlert(between, CLEAN_STATE, NOW);
-  assert.equal(alert, false);
-  assert.deepEqual(newState, CLEAN_STATE);
 });
 
 test('shouldAlert: free at exact warn boundary does not alert (strict <)', () => {

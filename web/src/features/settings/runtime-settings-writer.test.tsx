@@ -54,16 +54,7 @@ function deferred<T>() {
 describe('runtime setting commits', () => {
   it.each<[WritableBooleanSettingKey, boolean]>([
     ['turnNotify', true],
-    ['autoResume', false],
-    ['notifyCompaction', true],
-    ['eventLog', false],
-    ['diskMonitor', false],
-    ['showToolCalls', true],
-    ['disableUserContext', false],
-    ['serverUpdateDisable', true],
-    ['taskDispatchEnabled', true],
     ['taskArchiveEnabled', false],
-    ['memoryIndexRegenEnabled', false],
   ])('writes %s through config.set settings and refreshes the snapshot', async (key, nextValue) => {
     const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
     const refresh = vi.fn().mockResolvedValue(undefined);

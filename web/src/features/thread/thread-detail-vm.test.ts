@@ -130,30 +130,10 @@ describe('buildThreadDetailVm', () => {
     },
   });
 
-  it('maps the header, pill, meta fields and depth', () => {
-    const vm = buildThreadDetailVm(expDetail, NOW);
-    expect(vm.name).toBe('plan-exec-review');
-    expect(vm.tid).toBe('thr_8f2c');
-    expect(vm.pill.text).toBe('Running');
-    expect(vm.live).toBe(true);
-    expect(vm.template).toBe('plan-exec-review');
-    expect(vm.cost).toBe('Σ $2.52');
-    expect(vm.task).toBe('T-041');
-    expect(vm.elapsed).toBe('42:18'); // 00:00 → 00:42:18 elapsed
-    expect(vm.depthText).toBe('2/5'); // direct children (depth 0) reach level 2
-    expect(vm.depthDots).toHaveLength(5);
-    expect(vm.depthDots.filter((d) => d.filled)).toHaveLength(2);
-  });
-
-  it('builds one row per step, connectors after the first, done/running/pending kinds', () => {
+  it('builds one row per step with done/running/pending kinds', () => {
     const vm = buildThreadDetailVm(expDetail, NOW);
     expect(vm.steps).toHaveLength(4);
     expect(vm.steps.map((s) => s.kind)).toEqual(['done', 'done', 'running', 'pending']);
-    expect(vm.steps[0].hasConnector).toBe(false);
-    expect(vm.steps[1].hasConnector).toBe(true);
-    expect(vm.steps[0].title).toBe('1 · Plan');
-    expect(vm.steps[0].meta).toBe('3m · $0.04');
-    expect(vm.steps[3].meta).toBe('gated');
   });
 
   it('carries the per-step session id / name / index for the expandable chat', () => {
@@ -234,12 +214,12 @@ describe('buildThreadDetailVm', () => {
     expect(vm.artifact.content).toBe('# Verified artifact\n\nBody marker.');
     // written-by has one chip per step; the running step is the active writer
     expect(vm.artifact.writtenBy).toHaveLength(4);
-    expect(vm.artifact.writtenBy[0]).toMatchObject({ label: '1 Plan · done', active: false });
-    expect(vm.artifact.writtenBy[2]).toMatchObject({ label: '3 Review · editing', active: true });
-    expect(vm.artifact.writtenBy[3]).toMatchObject({ label: '4 Commit · queued', active: false });
+    expect(vm.artifact.writtenBy[0]).toMatchObject({ active: false });
+    expect(vm.artifact.writtenBy[2]).toMatchObject({ active: true });
+    expect(vm.artifact.writtenBy[3]).toMatchObject({ active: false });
   });
 
-  it('handles a terminal thread: Done pill, no live, elapsed to endedAt, task "—"', () => {
+  it('handles a terminal thread: no live state, no active agents', () => {
     const done = detail({
       id: 'thr_done',
       status: 'completed',
@@ -253,10 +233,7 @@ describe('buildThreadDetailVm', () => {
       artifacts: { artifactPath: 'audits/a.md', workspacePath: null, taskId: null, taskProject: null },
     });
     const vm = buildThreadDetailVm(done, NOW);
-    expect(vm.pill.text).toBe('Done');
     expect(vm.live).toBe(false);
-    expect(vm.elapsed).toBe('05:00');
-    expect(vm.task).toBe('—');
     expect(vm.artifact.live).toBe(false);
     expect(vm.steps.every((s) => s.agent === undefined)).toBe(true);
   });

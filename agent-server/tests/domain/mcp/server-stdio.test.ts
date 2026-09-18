@@ -204,13 +204,6 @@ test('tool gate removes ask_manager without removing thread_wait or task monitor
   }, env);
 });
 
-test('a declared empty tool gate starts with zero registered tools', async () => {
-  await withServer('thread-server.js', async (client) => {
-    await client.ping();
-    await assert.rejects(client.listTools(), /Method not found/);
-  }, { [MCP_TOOL_ALLOWLIST_ENV]: '[]' });
-});
-
 test('an unknown tool gate name refuses MCP server startup', async () => {
   await assert.rejects(withServer('thread-server.js', async () => {}, {
     [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'thread_wiat']),

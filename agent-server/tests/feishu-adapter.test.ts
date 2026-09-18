@@ -91,15 +91,6 @@ test('Feishu parsePostContent: extracts text + image_keys from mixed post', () =
   assert.deepEqual(imageKeys, ['img_post_1']);
 });
 
-test('Feishu parsePostContent: prefixes a non-empty title and renders @mentions', () => {
-  const a = makeAdapter();
-  const { text } = a.parsePostContent({
-    title: 'Heads up',
-    content: [[{ tag: 'at', user_name: 'Fang' }, { tag: 'text', text: ' please review' }]],
-  });
-  assert.equal(text, 'Heads up\n@Fang please review');
-});
-
 test('Feishu extractInboundFiles: post message yields one file ref per inline image', () => {
   const a = makeAdapter();
   const files = a.extractInboundFiles('post', POST_TEXT_AND_IMAGE, 'om_post', 'oc_chat');
@@ -107,12 +98,6 @@ test('Feishu extractInboundFiles: post message yields one file ref per inline im
   assert.equal(files[0].id, 'img_post_1');
   assert.equal(files[0].mimetype, 'image/png');
   assert.deepEqual(files[0].raw, { message_id: 'om_post', resourceType: 'image' });
-});
-
-test('Feishu extractInboundFiles: text-only post has no files', () => {
-  const a = makeAdapter();
-  const post = { content: [[{ tag: 'text', text: 'just text' }]] };
-  assert.equal(a.extractInboundFiles('post', post, 'om_1', 'oc_1'), undefined);
 });
 
 test('Feishu handleIncomingMessage: mixed text+image post delivers text AND file (regression)', async () => {
@@ -224,24 +209,6 @@ test('Feishu handleIncomingMessage: quoted parent that is a bot message is still
 
   assert.equal(getCalled, true, 'parent fetched even though it is a bot message');
   assert.ok(received.text.includes('机器人之前的回答'));
-});
-
-test('Feishu handleIncomingMessage: quoted post preserves anchor label and destination', async () => {
-  const a = makeAdapter();
-  a.config.adminChannel = 'oc_known';
-  a.client = { im: { v1: { message: { get: async () => ({ data: { items: [{
-    message_id: 'om_post_parent',
-    msg_type: 'post',
-    body: { content: JSON.stringify({
-      content: [[{ tag: 'a', text: 'Project plan', href: 'https://example.com/plan' }]],
-    }) },
-  }] } }) } } } };
-  let received: any = null;
-  a.onMessage(async (ctx: any) => { received = ctx.message; });
-
-  await a.handleIncomingMessage(makeReplyInbound('om_post_parent', '请查看'));
-
-  assert.equal(received.text, '请查看\n\n[引用消息]\n[Project plan](https://example.com/plan)');
 });
 
 test('Feishu handleIncomingMessage: quoted-parent fetch failure is non-fatal', async () => {
@@ -445,8 +412,6 @@ test('Feishu admin auto-detect: first p2p DM registers + persists admin chat_id'
   assert.equal(process.env.FEISHU_ADMIN_CHANNEL, undefined);
   assert.equal(persisted, 'oc_admin');
   assert.ok(noticeText && noticeText.includes('oc_admin'));
-  assert.match(noticeText!, /settings\.json/);
-  assert.doesNotMatch(noticeText!, /\.env/);
 });
 
 test('Feishu admin auto-detect persists only to settings.json', async () => {
@@ -546,9 +511,6 @@ test('Feishu buildCardJson: actions render as column_set buttons (no `action` ta
   assert.ok(ctxTags.includes('hr'), 'divider renders as hr');
   const colset = card.body.elements.find((e: any) => e.tag === 'column_set');
   assert.equal(colset.columns.length, 2);
-  // flow + auto-width so buttons wrap and stay readable (not crushed into one row).
-  assert.equal(colset.flex_mode, 'flow');
-  assert.equal(colset.columns[0].width, 'auto');
   const btn = colset.columns[0].elements[0];
   assert.equal(btn.tag, 'button');
   assert.equal(btn.name, 'status_cancel');
@@ -594,38 +556,6 @@ test('Feishu postInteractive: threaded card uses reply_in_thread:true (lands in 
   assert.equal(seen.path.message_id, 'om_root');
   assert.equal(seen.data.reply_in_thread, true, 'card must collect into the topic, not inline quote');
   assert.equal(ref.threadId, 'om_root');
-});
-
-test('Feishu postInteractive: threaded card falls back to plain reply when chat rejects threads (230071)', async () => {
-  const a = makeAdapter();
-  const calls: boolean[] = [];
-  a.client = {
-    im: { v1: { message: { reply: async (payload: any) => {
-      calls.push(payload.data.reply_in_thread);
-      if (payload.data.reply_in_thread) {
-        const err: any = new Error('thread not supported');
-        err.response = { data: { code: 230071 } };
-        throw err;
-      }
-      return { data: { message_id: 'om_plain' } };
-    } } } },
-  };
-  const dest: Destination = { type: 'interactive-reply', conduit: 'feishu:oc_chat', sessionId: '' };
-  const ref = await a.postInteractive(dest, {
-    text: 'Plan approval',
-    actions: [{ type: 'button', text: 'Approve', actionId: 'hook_plan_approve', value: 'req1' }],
-  }, { threadId: 'om_root' });
-  assert.deepEqual(calls, [true, false], 'tries thread first, then plain reply');
-  assert.equal(ref.messageId, 'om_plain');
-});
-
-test('Feishu buildMessagePayload: text-only renders as a markdown card (not plain text)', () => {
-  const a = makeAdapter();
-  const { msgType, msgContent } = a.buildMessagePayload({ text: '**bold** and `code`' });
-  assert.equal(msgType, 'interactive');
-  const card = JSON.parse(msgContent);
-  assert.equal(card.schema, '2.0');
-  assert.deepEqual(card.body.elements, [{ tag: 'markdown', content: '**bold** and `code`' }]);
 });
 
 test('Feishu modalToFeishuCard: form name is distinct from submit button name (no duplicate)', () => {

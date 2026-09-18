@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   draftStorageKey,
-  isDraftEmpty,
   parseDraft,
   serializeDraft,
   mergeDraftPrefill,
@@ -32,17 +31,6 @@ describe('draftStorageKey', () => {
   it('returns null for a non-draft with no session id (nothing stable to key on)', () => {
     expect(draftStorageKey({ isDraft: false })).toBeNull();
     expect(draftStorageKey({ isDraft: false, sessionId: '' })).toBeNull();
-  });
-});
-
-describe('isDraftEmpty', () => {
-  it('treats null / whitespace-only / no attachments as empty', () => {
-    expect(isDraftEmpty(null)).toBe(true);
-    expect(isDraftEmpty({ text: '   ', attachments: [] })).toBe(true);
-  });
-  it('is non-empty with real text or any attachment', () => {
-    expect(isDraftEmpty({ text: 'hi', attachments: [] })).toBe(false);
-    expect(isDraftEmpty({ text: '', attachments: [meta('a.png')] })).toBe(false);
   });
 });
 

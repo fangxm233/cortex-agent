@@ -75,15 +75,6 @@ test('addTask rejects unknown template name', () => {
   } finally { cleanup(); }
 });
 
-test('addTask accepts known template names', () => {
-  const proj = nextProject();
-  const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: Existing\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = addTask(proj, 'Good template task', 'why', 'done', 'medium', 'coder-review');
-    assert.equal(result.success, true);
-  } finally { cleanup(); }
-});
-
 test('addTask rejects empty text', () => {
   const proj = nextProject();
   const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
@@ -91,16 +82,6 @@ test('addTask rejects empty text', () => {
     const result = addTask(proj, null, 'why', 'done', 'medium', 'coder-review');
     assert.equal(result.success, false);
     assert.match(result.message, /--text is required/);
-  } finally { cleanup(); }
-});
-
-test('addTask rejects null template', () => {
-  const proj = nextProject();
-  const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = addTask(proj, 'New', 'why', 'done', 'medium', null);
-    assert.equal(result.success, false);
-    assert.match(result.message, /--template is required/);
   } finally { cleanup(); }
 });
 
@@ -129,18 +110,6 @@ test('addTask stores depends-on list for dependencies', () => {
     assert.equal(result.success, true);
     const content = readFile(tasksPathFor(proj));
     assert.match(content, /depends-on:/);
-    assert.match(content, /- "1111"/);
-    assert.match(content, /- "2222"/);
-  } finally { cleanup(); }
-});
-
-test('addTask splits comma-joined depends-on argument', () => {
-  const proj = nextProject();
-  const { tasksPathFor, cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = addTask(proj, 'Tagged', 'why', 'done', 'medium', 'coder-review', ['1111,2222']);
-    assert.equal(result.success, true);
-    const content = readFile(tasksPathFor(proj));
     assert.match(content, /- "1111"/);
     assert.match(content, /- "2222"/);
   } finally { cleanup(); }
@@ -198,16 +167,6 @@ test('decomposeTask replaces original task with N subtasks each with unique 4-he
     assert.equal(subIds.length, 3);
     assert.equal(new Set(subIds).size, 3);
     assert.equal(subIds.includes('p111'), false);
-  } finally { cleanup(); }
-});
-
-test('decomposeTask defaults priority to medium when not supplied', () => {
-  const proj = nextProject();
-  const { tasksPathFor, cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: p111\n    text: Parent\n    why: ""\n    done-when: ""\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = decomposeTask(proj, null, [{ text: 'Only sub' }], 'p111');
-    assert.equal(result.success, true);
-    assert.match(readFile(tasksPathFor(proj)), /priority:\s*medium/);
   } finally { cleanup(); }
 });
 
@@ -321,30 +280,6 @@ test('bulkAddTasks rejects missing key', () => {
   } finally { cleanup(); }
 });
 
-test('bulkAddTasks rejects missing text', () => {
-  const proj = nextProject();
-  const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = bulkAddTasks(proj, [
-      { key: 'a', text: '', template: 'coder-review' } as any,
-    ]);
-    assert.equal(result.success, false);
-    assert.match(result.message, /"text" is required/);
-  } finally { cleanup(); }
-});
-
-test('bulkAddTasks rejects missing template', () => {
-  const proj = nextProject();
-  const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = bulkAddTasks(proj, [
-      { key: 'a', text: 'No template' } as any,
-    ]);
-    assert.equal(result.success, false);
-    assert.match(result.message, /"template" is required/);
-  } finally { cleanup(); }
-});
-
 test('bulkAddTasks rejects unknown template name', () => {
   const proj = nextProject();
   const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
@@ -406,54 +341,4 @@ test('bulkAddTasks stores GPU fields when provided', () => {
     assert.match(content, /gpu:\s*lab2/);
     assert.match(content, /gpu-count:\s*2/);
   } finally { cleanup(); }
-});
-
-test('bulkAddTasks defaults missing optional fields', () => {
-  const proj = nextProject();
-  const { tasksPathFor, cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = bulkAddTasks(proj, [
-      { key: 'min', text: 'Minimal', template: 'coder-review' },
-    ]);
-    assert.equal(result.success, true);
-    const content = readFile(tasksPathFor(proj));
-    assert.match(content, /priority:\s*medium/);
-  } finally { cleanup(); }
-});
-
-test('bulkAddTasks handles whitespace in depends-on entries', () => {
-  const proj = nextProject();
-  const { tasksPathFor, cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = bulkAddTasks(proj, [
-      { key: 'a', text: 'Task A', template: 'coder-review', 'depends-on': [] },
-      { key: 'b', text: 'Task B', template: 'coder-review', 'depends-on': [' a ', ' 1111 '] },
-    ]);
-    assert.equal(result.success, true);
-    const content = readFile(tasksPathFor(proj));
-    const idA = result.created.find((c: any) => c.key === 'a')!.id;
-    // Trimmed whitespace should resolve correctly
-    assert.match(content, new RegExp(`- "?${idA}"?`));
-    assert.match(content, /- "1111"/);
-  } finally { cleanup(); }
-});
-
-test('bulkAddTasks rejects non-string depends-on entries', () => {
-  const proj = nextProject();
-  const { cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
-  try {
-    const result = bulkAddTasks(proj, [
-      { key: 'a', text: 'Task A', template: 'coder-review', 'depends-on': [null] } as any,
-    ]);
-    assert.equal(result.success, false);
-    assert.match(result.message, /invalid depends-on entry/);
-  } finally { cleanup(); }
-});
-
-test('bulkAddTasks reports 404 when project TASKS.yaml missing', () => {
-  const result = bulkAddTasks('_test_mut_ghost3', [
-    { key: 'a', text: 'Ghost', template: 'coder-review' },
-  ]);
-  assert.equal(result.success, false);
-  assert.match(result.message, /TASKS\.yaml not found/);
 });

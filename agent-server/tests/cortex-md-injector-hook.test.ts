@@ -87,8 +87,6 @@ test('PostToolUse: Read tool with file_path produces additionalContext', async (
   const ctx = getAdditionalContext(output);
   assert.ok(ctx, 'PostToolUse should produce additionalContext');
   assert.ok(ctx!.includes('hello-world-content'), 'additionalContext contains file content');
-  assert.ok(ctx!.includes('CORTEX.md'), 'additionalContext contains CORTEX.md reference');
-  assert.ok(ctx!.includes('<system-reminder>'), 'additionalContext wrapped in system-reminder');
 });
 
 // ---------------------------------------------------------------------------

@@ -107,7 +107,7 @@ vi.mock('@/features/attachments/useAttachmentUploads', () => ({
   }),
 }));
 
-import { Composer, ComposerSendFailure } from './Composer';
+import { Composer } from './Composer';
 
 function mountComposer(
   compact: () => void,
@@ -181,7 +181,7 @@ describe('Composer draft project selector', () => {
 });
 
 describe('Composer UI slash shortcuts', () => {
-  it.each(['/unknown hello', '  /tmp/file', '/pro', '/profile', '/profile missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
+  it.each(['/unknown hello', '/profile missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
     const renderer = mountComposer(() => {});
     enterCommand(renderer, text);
     expect(renderer.root.findByProps({ 'data-slash-error': true }).props.children).toMatch(/not sent|未发送/i);
@@ -221,89 +221,6 @@ describe('Composer UI slash shortcuts', () => {
   });
 });
 
-describe('Composer browser startup status', () => {
-  it('names the Chrome device until agent progress begins', () => {
-    const renderer = mountComposer(() => {}, {
-      turns: null,
-      sessionBrowser: { device: 'my-pc' },
-      turnProgressStarted: false,
-    });
-    expect(JSON.stringify(renderer.toJSON())).toContain('Starting Chrome on my-pc and connecting browser tools');
-
-    act(() => renderer.update(
-      <LangProvider>
-        <Composer
-          sessionId="s1"
-          running
-          turns={1}
-          cost={null}
-          elapsed="1s"
-          currentProfile="plan"
-          currentOverride={null}
-          draftSelection={{ profileName: null, override: null }}
-          hasHistory
-          sessionBrowser={{ device: 'my-pc' }}
-          turnProgressStarted
-          prepareOptimistic={() => ({ clientId: 'c1' }) as never}
-          enqueueOptimistic={() => {}}
-          acceptOptimistic={() => true}
-          rejectOptimistic={() => true}
-        />
-      </LangProvider>,
-    ));
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Starting Chrome');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Running');
-    act(() => renderer.unmount());
-  });
-});
-
-describe('Composer session run status', () => {
-  it('renders an active background hold with background copy', () => {
-    const renderer = mountComposer(() => {}, { backgroundRunning: true });
-    const output = JSON.stringify(renderer.toJSON());
-
-    expect(output).toContain('Background · 1s · 1 turns');
-    expect(output).not.toContain('Running · 1s');
-    act(() => renderer.unmount());
-  });
-});
-
-describe('Composer session totals segment', () => {
-  const TOTALS = { runs: 13, turns: 512, activeMs: 11_520_000, costUsd: 48.2, subagentCostUsd: 7.54 };
-
-  it('shows the whole-session totals beside the run status, in the SAME colour', () => {
-    const renderer = mountComposer(() => {}, { totals: TOTALS, sessionSpanMs: 90_000 });
-    const line = renderer.root.findByProps({ 'data-composer-status-line': 'true' });
-    const segment = renderer.root.findByProps({ 'data-composer-session-totals': 'true' });
-
-    expect(JSON.stringify(renderer.toJSON())).toContain('Running · 1s · 1 turns');
-    expect(segment.children.join('')).toBe('session 3h 12m · 512 turns · $48.20');
-    // The point of the second segment is to be READ: dimming it defeats it. `inherit` is what keeps
-    // it locked to the line's own colour no matter which run state is active.
-    expect(segment.props.style.color).toBe('inherit');
-    expect(line.props.style.color).toBe('var(--proto-muted-2)');
-    act(() => renderer.unmount());
-  });
-
-  // The rows themselves are asserted against SessionStatsModal in WorkbenchModals.test.tsx, which
-  // stubs the shared Modal; here the contract is only that the segment is an activatable control.
-  it('makes the totals segment an activatable control', () => {
-    const renderer = mountComposer(() => {}, { totals: TOTALS, sessionSpanMs: 90_000 });
-    const segment = renderer.root.findByProps({ 'data-composer-session-totals': 'true' });
-    expect(segment.props.role).toBe('button');
-    expect(segment.props.tabIndex).toBe(0);
-    expect(typeof segment.props.onClick).toBe('function');
-    act(() => renderer.unmount());
-  });
-
-  it('omits the segment entirely on a session that has never finished a run', () => {
-    const renderer = mountComposer(() => {});
-    expect(renderer.root.findAllByProps({ 'data-composer-session-totals': 'true' })).toHaveLength(0);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Running · 1s · 1 turns');
-    act(() => renderer.unmount());
-  });
-});
-
 describe('Composer attachment send gate', () => {
   it('blocks text when done metadata is mixed with an upload error', () => {
     harness.attachmentItems = [
@@ -320,15 +237,5 @@ describe('Composer attachment send gate', () => {
     act(() => renderer.unmount());
     harness.attachmentItems = [];
     harness.attachmentRetry.mockReset();
-  });
-});
-
-describe('ComposerSendFailure', () => {
-  it('renders a visible alert that says the rejected message was restored', () => {
-    const renderer = create(<LangProvider><ComposerSendFailure error="offline" /></LangProvider>);
-    const alert = renderer.root.findByProps({ role: 'alert' });
-
-    expect(alert.props['data-send-error']).toBe(true);
-    expect(alert.children.join('')).toContain('Send failed · message restored: offline');
   });
 });

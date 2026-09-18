@@ -93,19 +93,6 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
 }
 
 describe('MUsageView policy controls', () => {
-  it('keeps the animated fill mounted when usage changes', () => {
-    const renderer = create(view());
-    const fill = renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0];
-    expect(fill.props.style.width).toBe('54%');
-    const updated = status.map((provider, index) => index === 0 ? {
-      ...provider, windows: provider.windows.map(window => ({ ...window, utilization: 0.8 })),
-    } : provider);
-    act(() => renderer.update(view({ view: buildUsageView(updated, policies, NOW, 'en') })));
-    expect(renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0]).toBe(fill);
-    expect(fill.props.style.width).toBe('80%');
-    act(() => renderer.unmount());
-  });
-
   it('saves exact row targets, resets fallback rows to explicit defaults, and clears legacy fallback', () => {
     const onSavePolicy = vi.fn();
     let renderer!: ReturnType<typeof create>;
@@ -143,11 +130,6 @@ describe('MUsageView policy controls', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
-  });
-
-  it('omits freshness status pills from every provider card', () => {
-    const renderer = create(view());
-    expect(renderer.root.findAll((node) => node.props['data-usage-freshness'] !== undefined)).toHaveLength(0);
   });
 });
 

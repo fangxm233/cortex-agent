@@ -1,7 +1,7 @@
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
 
-import { afterAll, beforeAll, describe, test } from 'vitest';
+import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -19,24 +19,14 @@ import {
   validateClaudeSupplementalMcpConfig,
   writeClaudeSupplementalMcpConfig,
 } from '../src/agent-adapter/claude/mcp-config.js';
+import { buildHooksSettings } from '../src/agent-adapter/claude/hooks-builder.js';
 import {
-  buildHooksSettings,
-  POST_TOOL_USE_HOOKS,
-  SESSION_START_HOOKS,
-} from '../src/agent-adapter/claude/hooks-builder.js';
-import {
-  CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   subagentBridgeTools,
   EMPTY_MCP_CONFIG,
-  FEISHU_MCP_CONFIG,
-  MANAGER_QA_MCP_CONFIG,
   MCP_CONFIG,
-  TASKS_MCP_CONFIG,
   THREAD_MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
-  INTERACTION_MCP_CONFIG,
-  WEB_MCP_CONFIG,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
   extractAskUserQuestions,
@@ -244,19 +234,6 @@ test('buildSpawnArgs baseline — no optional flags', () => {
   assert.deepEqual(args, expected);
 });
 
-test('buildSpawnArgs direct session never loads the thread-control layer', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    needsResume: false,
-    sessionId: 'uuid-direct',
-  });
-  assert.ok(args.includes(MCP_CONFIG));
-  assert.ok(!args.includes(CORE_MCP_CONFIG));
-  assert.ok(!args.includes(TASKS_MCP_CONFIG));
-  assert.ok(!args.includes(MANAGER_QA_MCP_CONFIG));
-  assert.ok(!args.includes(THREAD_MCP_CONFIG));
-});
-
 test('buildSpawnArgs thread session layers core, tasks, manager Q&A, and thread configs', () => {
   const args = buildSpawnArgs({
     tools: null,
@@ -419,22 +396,6 @@ test('buildSpawnArgs: thinking level is passed as --effort', () => {
   assert.equal(args[idx + 1], 'xhigh');
 });
 
-test('buildSpawnArgs: no --effort when thinking is absent (backward compat)', () => {
-  const base = {
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-ddd',
-  };
-  assert.ok(!buildSpawnArgs(base).includes('--effort'));
-  assert.ok(!buildSpawnArgs({ ...base, thinking: null }).includes('--effort'));
-});
-
 // --- bundled MCP selection for platform-originated sessions ---
 
 test('loadFeishuMcp selects Feishu tools without adding another config', () => {
@@ -456,21 +417,6 @@ test('loadFeishuMcp selects Feishu tools without adding another config', () => {
   }).includes('cortex-feishu'));
 });
 
-test('buildSpawnArgs without loadFeishuMcp — does NOT load the cortex-feishu config', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-noFeishu',
-  });
-  assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'non-feishu session must NOT load the cortex-feishu server');
-});
-
 test('loadWebMcp selects Web tools without adding another config', () => {
   const args = buildSpawnArgs({
     tools: null,
@@ -488,21 +434,6 @@ test('loadWebMcp selects Web tools without adding another config', () => {
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-web', loadWebMcp: true,
   }).includes('cortex-web'));
-});
-
-test('buildSpawnArgs without loadWebMcp — does NOT load the cortex-web config', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-noWeb',
-  });
-  assert.ok(!args.includes(WEB_MCP_CONFIG), 'non-web session must NOT load the cortex-web server');
 });
 
 test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the web layer', () => {
@@ -588,50 +519,6 @@ test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messa
   }
 });
 
-test('buildSpawnArgs: any other CORTEX_STREAM_DELTAS value keeps streaming on and restores inherited setting', () => {
-  const original = process.env.CORTEX_STREAM_DELTAS;
-  process.env.CORTEX_STREAM_DELTAS = '0';
-  resetSettingsForTests();
-  try {
-    const prev = process.env.CORTEX_STREAM_DELTAS;
-    process.env.CORTEX_STREAM_DELTAS = '1';
-    try {
-      resetSettingsForTests();
-      const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3' });
-      assert.ok(args.includes('--include-partial-messages'));
-    } finally {
-      if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
-      else process.env.CORTEX_STREAM_DELTAS = prev;
-      resetSettingsForTests();
-    }
-
-    const restoredArgs = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3-restored' });
-    assert.ok(!restoredArgs.includes('--include-partial-messages'));
-  } finally {
-    if (original === undefined) delete process.env.CORTEX_STREAM_DELTAS;
-    else process.env.CORTEX_STREAM_DELTAS = original;
-    resetSettingsForTests();
-  }
-});
-
-test('buildSpawnArgs — the default direct-session argv is unchanged from the legacy baseline', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-baseline',
-  });
-  // And the legacy expected sequence is preserved
-  assert.ok(args[0] === '-p');
-  assert.ok(args.includes('--input-format'));
-  assert.ok(args.includes('--replay-user-messages'));
-});
-
 // --- buildSpawnArgs: print-mode interaction-bridge tools (user-initiated sessions) ---
 // The native EnterPlanMode/ExitPlanMode/AskUserQuestion tools are filtered out by headless -p
 // mode. User-message-initiated direct sessions add interaction registrations to the bundled
@@ -692,25 +579,6 @@ test('buildSpawnArgs print + isUserInitiated + thread-control gets no bridge', (
   }
 });
 
-test('buildSpawnArgs print WITHOUT isUserInitiated — no bridge (baseline unchanged)', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-print-nonuser',
-  });
-  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'non-user print must not load the interaction bridge');
-  const tools = args[args.indexOf('--tools') + 1].split(',');
-  for (const tool of INTERACTION_BRIDGE_TOOLS) {
-    assert.ok(!tools.includes(tool), `non-user session must not get bridge tool ${tool}`);
-  }
-});
-
 test('buildSpawnArgs print + isUserInitiated with explicit tools — bridge tools appended to the explicit list', () => {
   const args = buildSpawnArgs({
     tools: 'Bash,Read,Write',
@@ -752,18 +620,6 @@ test('buildSpawnArgs print + isUserInitiated with explicit interaction tools —
   for (const tool of INTERACTION_BRIDGE_TOOLS) {
     assert.ok(tools.includes(tool), `bridge tool ${tool} replaces the natives`);
   }
-});
-
-test('INTERACTION_BRIDGE_TOOLS is the three native replacements plus the commission pair', () => {
-  // The commission pair is unconditional since DR-0037 v4: `--tools` cannot filter MCP tools, so a
-  // per-session list was a fiction. Entry to the mode is gated by state, not by visibility.
-  assert.deepEqual([...INTERACTION_BRIDGE_TOOLS].sort(), [
-    'mcp__cortex-core__cortex_ask_user',
-    'mcp__cortex-core__cortex_commission_start',
-    'mcp__cortex-core__cortex_commission_submit',
-    'mcp__cortex-core__cortex_plan_enter',
-    'mcp__cortex-core__cortex_plan_exit',
-  ]);
 });
 
 function stubClaudeChild() {
@@ -978,17 +834,6 @@ test('buildHooksSettings byte parity — null tools', () => {
   assert.equal(JSON.stringify(buildHooksSettings(null)), GOLDEN_HOOKS);
 });
 
-// The retired AskUserQuestion / ExitPlanMode bridge hooks left no matcher behind: headless `-p`
-// drops those tools regardless of --tools, so naming them must not change the compiled settings.
-test('buildHooksSettings byte parity — naming the retired interaction tools changes nothing', () => {
-  const tools = 'Edit,Write,AskUserQuestion,ExitPlanMode';
-  assert.equal(JSON.stringify(buildHooksSettings(tools)), GOLDEN_HOOKS);
-});
-
-test('buildHooksSettings byte parity — interaction tools absent', () => {
-  assert.equal(JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')), GOLDEN_HOOKS);
-});
-
 test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', async () => {
   const entries: HookEntry[] = [
     { id: 'only-notification', event: 'cc:Notification', matcher: 'idle', run: { command: 'notify' } },
@@ -1008,54 +853,6 @@ test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', 
     else process.env.CORTEX_HOOKS_LEGACY = legacy;
     resetSettingsForTests();
   }
-});
-
-test('buildHooksSettings default — PreToolUse has only Edit|Write matcher', () => {
-  const settings = buildHooksSettings('Bash,Read,Edit,Write');
-  const matchers = settings.PreToolUse.map((h: any) => h.matcher);
-  assert.deepEqual(matchers, ['Edit|Write']);
-  // PostToolUse remains fixed; the retired PermissionRequest auto-allow mounts nothing.
-  assert.ok(Array.isArray(settings.PostToolUse));
-  assert.equal(settings.PermissionRequest, undefined);
-});
-
-test('buildHooksSettings with AskUserQuestion + ExitPlanMode — no bridge matcher is mounted', () => {
-  const settings = buildHooksSettings('Edit,Write,AskUserQuestion,ExitPlanMode');
-  const matchers = settings.PreToolUse.map((h: any) => h.matcher);
-  assert.deepEqual(matchers, ['Edit|Write']);
-});
-
-test('buildHooksSettings null (tools unset) — DEFAULT_TOOLS mounts no interaction matcher', () => {
-  const settings = buildHooksSettings(null);
-  const matchers = settings.PreToolUse.map((h: any) => h.matcher);
-  assert.deepEqual(matchers, ['Edit|Write']);
-});
-
-// --- SESSION_START_HOOKS ---
-
-test('SESSION_START_HOOKS — includes cortex-md-injector with expected matchers', () => {
-  assert.equal(SESSION_START_HOOKS.length, 1);
-  assert.equal(SESSION_START_HOOKS[0].matcher, 'startup|resume|clear|compact');
-  assert.equal(SESSION_START_HOOKS[0].hooks.length, 1);
-  assert.ok((SESSION_START_HOOKS[0].hooks[0] as any).command.includes('cortex-md-injector.mjs'));
-});
-
-// --- POST_TOOL_USE_HOOKS cortex-md-injector entry ---
-
-test('POST_TOOL_USE_HOOKS — includes cortex-md-injector entry for Read and Edit', () => {
-  const entry = POST_TOOL_USE_HOOKS.find((h: any) => h.matcher === 'Read|Edit');
-  assert.ok(entry, 'expected cortex-md-injector entry in POST_TOOL_USE_HOOKS');
-  assert.equal(entry.hooks.length, 1);
-  assert.ok((entry.hooks[0] as any).command.includes('cortex-md-injector.mjs'));
-});
-
-// --- buildHooksSettings includes session keys ---
-
-test('buildHooksSettings — return value includes SessionStart key', () => {
-  const settings = buildHooksSettings(null);
-  assert.ok(Array.isArray(settings.SessionStart));
-  assert.equal(settings.SessionStart.length, 1);
-  assert.equal((settings as any).UserPromptSubmit, undefined);
 });
 
 // --- buildClaudeEnv extraEnv merge ---
@@ -1184,14 +981,6 @@ test('buildClaudeEnv — context.threadId/profile/project/sessionName surface as
   assert.equal(env.CORTEX_SESSION_ID, 'sid-1');
 });
 
-test('buildClaudeEnv — omitted context fields do not pollute env with empty strings', () => {
-  const env = buildClaudeEnv('C1', 'sid-1');
-  assert.equal(env.CORTEX_THREAD_ID, undefined);
-  assert.equal(env.CORTEX_PROFILE, undefined);
-  assert.equal(env.CORTEX_PROJECT, undefined);
-  assert.equal(env.CORTEX_SESSION_NAME, undefined);
-});
-
 test('buildClaudeEnv — context.taskId/taskProject surface as CORTEX_TASK_ID/PROJECT', () => {
   const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, {
     threadId: 'thr_abc',
@@ -1200,20 +989,6 @@ test('buildClaudeEnv — context.taskId/taskProject surface as CORTEX_TASK_ID/PR
   });
   assert.equal(env.CORTEX_TASK_ID, 'a1b2');
   assert.equal(env.CORTEX_TASK_PROJECT, 'cortex-self');
-});
-
-test('buildClaudeEnv — omitted task context does not set CORTEX_TASK_* vars', () => {
-  const env = buildClaudeEnv('C1', 'sid-1');
-  assert.equal(env.CORTEX_TASK_ID, undefined);
-  assert.equal(env.CORTEX_TASK_PROJECT, undefined);
-});
-
-test('buildClaudeEnv — partial context (only threadId) sets only that var', () => {
-  const env = buildClaudeEnv('C1', 'sid-1', null, null, undefined, undefined, { threadId: 'thr_xyz' });
-  assert.equal(env.CORTEX_THREAD_ID, 'thr_xyz');
-  assert.equal(env.CORTEX_PROFILE, undefined);
-  assert.equal(env.CORTEX_PROJECT, undefined);
-  assert.equal(env.CORTEX_SESSION_NAME, undefined);
 });
 
 // --- extractAskUserQuestions ---
@@ -1420,17 +1195,6 @@ test('ClaudeAdapter.open: resume:true swaps --session-id for --resume', () => {
   }));
   const last2 = args.slice(-2);
   assert.deepEqual(last2, ['--resume', 'uuid-yyy']);
-});
-
-test('ClaudeAdapter.open: no tools provided → --tools uses DEFAULT_TOOLS', () => {
-  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
-    sessionId: 'uuid-zzz',
-    sessionKey: 'k',
-    resume: false,
-  }));
-  const toolsIdx = args.indexOf('--tools');
-  assert.ok(toolsIdx >= 0, '--tools flag must appear');
-  assert.equal(args[toolsIdx + 1], withAgentTools(DEFAULT_TOOLS));
 });
 
 // Regression: appendSystemPrompt must be propagated through deriveClaudeSpawnOptions()

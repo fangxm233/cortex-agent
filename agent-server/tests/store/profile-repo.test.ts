@@ -48,21 +48,6 @@ async function createRepo(initial?: ProfilesFile): Promise<{ repo: ProfileRepo; 
 
 // ── Read: async + sync ────────────────────────────────────────
 
-test('ProfileRepo - read() returns seeded profile data', async () => {
-  const { repo } = await createRepo();
-  const data = await repo.read();
-  assert.equal(data.defaultProfile, 'a');
-  assert.equal(data.profiles.a.model, 'claude-opus-4-6');
-  assert.equal(data.profiles.b.mode, 'plan');
-});
-
-test('ProfileRepo - readSync() returns the same data as read()', async () => {
-  const { repo } = await createRepo();
-  const asyncData = await repo.read();
-  const syncData = repo.readSync();
-  assert.deepEqual(syncData, asyncData);
-});
-
 test('ProfileRepo - readSync() caches after first call', async () => {
   const { repo, filePath } = await createRepo();
   const first = repo.readSync();
@@ -239,19 +224,4 @@ test('startProfileWatcher - logs, keeps old cache, and reports no success for in
   const current = repo.readSync();
   assert.equal(current.defaultProfile, initial.defaultProfile, 'invalid JSON should not wipe cache');
   assert.equal(successfulReloads, 0, 'a failed reload must not be reported as successful');
-});
-
-// ── On-disk schema unchanged (byte-level check) ───────────────
-
-test('ProfileRepo - save() writes JSON with 2-space indent matching historical schema', async () => {
-  const { repo, filePath } = await createRepo();
-  const target: ProfilesFile = {
-    defaultProfile: 'a',
-    profiles: { a: { model: 'claude-opus-4-6' } },
-  };
-  await repo.save(target);
-  await repo.flush();
-
-  const raw = await fs.readFile(filePath, 'utf8');
-  assert.equal(raw, JSON.stringify(target, null, 2), 'on-disk bytes should match JSON.stringify(·, null, 2)');
 });

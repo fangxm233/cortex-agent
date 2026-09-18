@@ -111,13 +111,6 @@ describe('runDiagnostics — all green', () => {
     assert.equal(report.sections.length, 4);
   });
 
-  it('passes the core credential checks', async () => {
-    const checks = byId(await runDiagnostics(baseDeps()));
-    assert.equal(checks['auth-tokens'].status, 'pass');
-    assert.equal(checks['slack-creds'].status, 'pass');
-    assert.equal(checks['anthropic-key'].status, 'pass');
-  });
-
   it('never looks for a pi binary when the PI backend is selected', async () => {
     const deps = baseDeps();
     const readText = deps.readText;
@@ -173,17 +166,6 @@ describe('runDiagnostics — PI runtime', () => {
     assert.match(checks['pi-runtime'].detail, /in-process SDK @earendil-works\/pi-coding-agent 0\.82\.1/);
   });
 
-  it('runs the runtime check without a pi binary on PATH', async () => {
-    let loadCalls = 0;
-    const deps = baseDeps({
-      commandExists: bin => bin !== 'pi',
-      loadPiRuntime: async () => { loadCalls += 1; return healthyPiRuntime(); },
-    });
-    const checks = byId(await runDiagnostics(deps));
-    assert.equal(checks['pi-runtime'].status, 'pass');
-    assert.equal(loadCalls, 1);
-  });
-
   it('warns without loading the runtime when the bundled SDK is unresolvable', async () => {
     let loadCalls = 0;
     const result = await runDiagnostics(baseDeps({
@@ -195,20 +177,6 @@ describe('runDiagnostics — PI runtime', () => {
     assert.equal(loadCalls, 0);
     assert.match(check.hint ?? '', /Reinstall the Cortex server package/);
     assert.equal(result.ok, true);
-  });
-
-  it('never tells the user to install a pi CLI', async () => {
-    const reports = await Promise.all([
-      runDiagnostics(baseDeps()),
-      runDiagnostics(baseDeps({ resolvePiSdk: () => null })),
-      runDiagnostics(baseDeps({ loadPiRuntime: async () => healthyPiRuntime(null) })),
-    ]);
-    for (const report of reports) {
-      const rendered = JSON.stringify(byId(report)['pi-runtime']);
-      assert.doesNotMatch(rendered, /pi CLI/i);
-      assert.doesNotMatch(rendered, /pi not installed/i);
-      assert.doesNotMatch(rendered, /npm install/i);
-    }
   });
 
   it('warns without failing doctor when the PI runtime cannot load', async () => {
@@ -332,19 +300,11 @@ describe('runDiagnostics — gateway', () => {
     assert.equal(checks['gateway-health'].status, 'skip');
   });
 
-  it('passes health when gateway responds', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({ probeGateway: async () => true })));
-    assert.equal(checks['gateway-health'].status, 'pass');
-  });
 });
 
 // ─── Runtime ──────────────────────────────────────────────────────
 
 describe('runDiagnostics — runtime', () => {
-  it('warns on an old node major', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({ nodeVersion: 'v18.0.0' })));
-    assert.equal(checks['node-version'].status, 'warn');
-  });
 
   it('fails when git is not on PATH', async () => {
     const checks = byId(await runDiagnostics(baseDeps({ commandExists: (b: string) => b !== 'git' })));

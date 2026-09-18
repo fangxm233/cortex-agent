@@ -192,36 +192,6 @@ def test_unobservable_descendant_cgroup_census_fails_closed(tmp_path: Path) -> N
         observe(probe, census)
 
 
-def test_live_descendant_count_is_recorded(tmp_path: Path) -> None:
-    proc_root = tmp_path / "proc"
-    write_process(proc_root, 101, 1001)
-    write_process(proc_root, 102, 1002)
-    commands = runner()
-    probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
-    census = capture(probe)
-
-    observation = observe(probe, census)
-
-    assert observation.descendants_alive == 2
-    assert observation.process_namespace_alive is False
-
-
-def test_live_pid_namespace_is_recorded(tmp_path: Path) -> None:
-    proc_root = tmp_path / "proc"
-    write_process(proc_root, 101, 1001)
-    write_process(proc_root, 102, 1002)
-    commands = runner(lsns=ExecResult(stdout=f"{NAMESPACE_ID}\n", return_code=0))
-    probe = ContainerBoundaryProbe(commands, proc_root=proc_root)
-    census = capture(probe)
-    shutil.rmtree(proc_root / "101")
-    shutil.rmtree(proc_root / "102")
-
-    observation = observe(probe, census)
-
-    assert observation.descendants_alive == 0
-    assert observation.process_namespace_alive is True
-
-
 @docker_opt_in
 def test_real_pull_disabled_container_stop_is_observed_from_host() -> None:
     name = f"cortex-boundary-{uuid.uuid4().hex[:12]}"

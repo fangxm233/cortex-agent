@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import {
   buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange, effectiveSelection,
-  groupModelOptions, modelChange, profileChange, profileForModel, selectionRootRows, thinkingChange,
+  groupModelOptions, modelChange, profileChange, profileForModel, thinkingChange,
   visibleModelOptions, visibleProfileOptions,
 } from './selection-menu';
 
@@ -165,26 +165,6 @@ describe('visibleProfileOptions', () => {
   it('leaves the whole list of a draft alone', () => {
     const options = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: false });
     expect(visibleProfileOptions(options)).toMatchObject({ hidden: 0, hiddenBackend: null });
-  });
-});
-
-describe('selectionRootRows', () => {
-  const copy = { model: 'model', thinking: 'thinking', mode: 'route' };
-
-  it('shows the value in force, and whether the session chose it', () => {
-    const current = effectiveSelection(profiles, 'opus', { model: 'claude-sonnet-5' });
-    expect(selectionRootRows(current, copy, { hasThinking: true, hasModes: true })).toEqual([
-      { key: 'model', label: 'model', value: 'claude-sonnet-5', overridden: true },
-      { key: 'thinking', label: 'thinking', value: 'xhigh', overridden: false },
-      { key: 'mode', label: 'route', value: 'plan', overridden: false },
-    ]);
-  });
-
-  it('has no row for a choice the session cannot make, and a dash for one nothing declares', () => {
-    const current = effectiveSelection(profiles, 'sonnet', null);
-    const rows = selectionRootRows(current, copy, { hasThinking: true, hasModes: false });
-    expect(rows.map((row) => row.key)).toEqual(['model', 'thinking']);
-    expect(rows[1].value).toBe('—');
   });
 });
 

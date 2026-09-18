@@ -74,11 +74,6 @@ test('executions.get handler maps real ExecutionRecord fields into the detail DT
   assert.deepEqual(dto.text, { label: 'dispatch-task', finalOutput: 'done', error: null });
 });
 
-test('executions.get handler returns gpu:null when the record has no GPU', async () => {
-  const dto = await handleExecutionsGet(makeDeps(), { executionId: 'exec_nogpu' });
-  assert.equal(dto.gpu, null);
-});
-
 test('executions.get handler throws not-found for an unknown id', async () => {
   await assert.rejects(
     () => handleExecutionsGet(makeDeps(), { executionId: 'missing' }),

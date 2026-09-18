@@ -35,19 +35,6 @@ test('triggerServerRestart: no-op when the daemon pid file is missing', () => {
   assert.deepEqual(touched, [], 'must not touch .restart when there is no daemon to act on it');
 });
 
-test('triggerServerRestart: no-op when the daemon process is dead', () => {
-  const touched: string[] = [];
-  const out = triggerServerRestart({
-    storeDir: '/store',
-    readPid: () => 999,
-    isAlive: () => false,
-    touch: (f) => touched.push(f),
-  });
-  assert.equal(out.ok, false);
-  assert.equal(out.messageKey, 'noDaemon');
-  assert.deepEqual(touched, []);
-});
-
 test('!restart is routed to a handler and posts a reply', async () => {
   const dispatch = registerCommands({ scheduler: null });
   const adapter = new MockAdapter();

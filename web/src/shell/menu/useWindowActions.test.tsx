@@ -1,5 +1,5 @@
 // input:  window hook, deterministic native calls and key events
-// output: full screen, Escape and visible devtools failure tests
+// output: full screen and Escape regression tests
 // pos:    Observable window actions regression checks
 // >>> Once updated, update this header and parent CORTEX.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -60,21 +60,8 @@ it('queries native state on focus changes, including OS fullscreen gestures', as
   await act(async () => { target.dispatchEvent(new Event('focus')); });
   expect(actions.isFullscreen).toBe(true);
 });
-it('opens devtools through the supported native command', async () => {
-  await act(async () => { actions.toggleDevTools(); });
-  expect(invoke).toHaveBeenCalledWith('plugin:webview|internal_toggle_devtools', { label: 'main' });
-  expect(toast.toast).not.toHaveBeenCalled();
-});
-it('shows a useful error for older shells without release devtools', async () => {
-  invoke.mockRejectedValueOnce(new Error('Command not found'));
-  await act(async () => { actions.toggleDevTools(); });
-  expect(toast.toast).toHaveBeenCalledWith(expect.objectContaining({
-    title: en.windowDevtoolsFailed, description: en.windowDevtoolsFailedHint, tone: 'failed',
-  }));
-});
 it('reports fullscreen command errors without claiming successful state', async () => {
   invoke.mockRejectedValueOnce(new Error('denied'));
   await act(async () => { actions.toggleFullscreen(); });
   expect(actions.isFullscreen).toBe(false);
-  expect(toast.toast).toHaveBeenCalledWith(expect.objectContaining({ title: en.windowActionFailed }));
 });

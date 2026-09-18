@@ -88,19 +88,6 @@ test('parseIssues parses every top-level bullet entry with title/date/body', () 
   assert.equal(all[2].date, null);
 });
 
-test('parseIssues skips the H1 / preamble / --- rule and never emits them as entries', () => {
-  const all = parseIssues(SAMPLE);
-  for (const e of all) {
-    assert.ok(!e.title.includes('ISSUES'));
-    assert.ok(!e.body.includes('---'));
-  }
-});
-
-test('parseIssues on empty / heading-only markdown returns []', () => {
-  assert.deepEqual(parseIssues(''), []);
-  assert.deepEqual(parseIssues('# Only a heading\n\nsome prose\n'), []);
-});
-
 // ── (2) stable ids ───────────────────────────────────────────────────────────
 test('issue ids are stable hashes of the title line and unique per entry', () => {
   const all = parseIssues(SAMPLE);

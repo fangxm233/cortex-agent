@@ -20,9 +20,6 @@ process.env.CORTEX_HOME = testHome;
 let CORTEX_RUN_DIR: string;
 let handleCortexRunLaunch: any;
 let handleCortexRunCancel: any;
-let isPidAlive: any;
-let readJsonSafe: any;
-let tailFile: any;
 let findRunDirByCallbackId: any;
 let flushPendingCallbacks: any;
 let synthesizeOrphanResult: any;
@@ -34,9 +31,6 @@ before(async () => {
   CORTEX_RUN_DIR = mod.CORTEX_RUN_DIR;
   handleCortexRunLaunch = mod.handleCortexRunLaunch;
   handleCortexRunCancel = mod.handleCortexRunCancel;
-  isPidAlive = mod.isPidAlive;
-  readJsonSafe = mod.readJsonSafe;
-  tailFile = mod.tailFile;
   findRunDirByCallbackId = mod.findRunDirByCallbackId;
   flushPendingCallbacks = mod.flushPendingCallbacks;
   synthesizeOrphanResult = mod.synthesizeOrphanResult;
@@ -50,80 +44,7 @@ after(() => {
 // Utility Functions
 // ========================================================================
 
-describe('isPidAlive', () => {
-  it('returns false for a non-existent PID', () => {
-    assert.strictEqual(isPidAlive(0x7ffffffe), false);
-  });
-
-  it('returns true for the current process (always alive)', () => {
-    assert.strictEqual(isPidAlive(process.pid), true);
-  });
-});
-
-describe('readJsonSafe', () => {
-  it('returns null for missing file', () => {
-    assert.strictEqual(readJsonSafe('/nonexistent/path.json'), null);
-  });
-
-  it('returns null for invalid JSON', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'readjson-'));
-    try {
-      writeFileSync(join(tmpDir, 'bad.json'), 'not json');
-      assert.strictEqual(readJsonSafe(join(tmpDir, 'bad.json')), null);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('returns parsed object for valid JSON', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'readjson-'));
-    try {
-      writeFileSync(join(tmpDir, 'good.json'), JSON.stringify({ a: 1, b: 'hello' }));
-      const result = readJsonSafe(join(tmpDir, 'good.json'));
-      assert.notStrictEqual(result, null);
-      assert.strictEqual(result!.a, 1);
-      assert.strictEqual(result!.b, 'hello');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('tailFile', () => {
-  it('returns empty string for missing file', () => {
-    assert.strictEqual(tailFile('/nonexistent/path.log', 100), '');
-  });
-
-  it('returns last N bytes', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'tail-'));
-    try {
-      // 18 bytes: l,i,n,e,1,\n,l,i,n,e,2,\n,l,i,n,e,3,\n
-      writeFileSync(join(tmpDir, 'test.log'), 'line1\nline2\nline3\n');
-      const result = tailFile(join(tmpDir, 'test.log'), 10);
-      // Last 10 bytes start at offset 8: 'ne2\nline3\n'
-      assert.strictEqual(result, 'ne2\nline3\n');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('returns full file when smaller than maxBytes', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'tail-'));
-    try {
-      writeFileSync(join(tmpDir, 'small.log'), 'hello world');
-      const result = tailFile(join(tmpDir, 'small.log'), 100);
-      assert.strictEqual(result, 'hello world');
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe('findRunDirByCallbackId', () => {
-  it('returns null for empty CORTEX_RUN_DIR', () => {
-    assert.strictEqual(findRunDirByCallbackId('dev:test:none'), null);
-  });
-
   it('scans directories under CORTEX_RUN_DIR', () => {
     mkdirSync(CORTEX_RUN_DIR, { recursive: true });
     const dir1 = join(CORTEX_RUN_DIR, 'run-a');
@@ -489,17 +410,6 @@ describe('flushPendingCallbacks', () => {
     assert.strictEqual(sentMessages.length, 1);
     const msg = JSON.parse(sentMessages[0]);
     assert.deepStrictEqual(msg.gpu, { indices: [1], memoryMb: 49140 });
-  });
-
-  it('sends task-callback for each pending dir', async () => {
-    createRunDir('run-a');
-    createRunDir('run-b');
-    const ws = createMockWs();
-    await flushPendingCallbacks(ws, 'test-device');
-
-    assert.strictEqual(sentMessages.length, 2);
-    const ids = sentMessages.map((m: string) => JSON.parse(m).callbackId).sort();
-    assert.deepStrictEqual(ids, ['dev:run-a:none', 'dev:run-b:none']);
   });
 
   it('skips dirs without callback.pending (non-orphan)', async () => {

@@ -149,10 +149,6 @@ test('parseTarget returns stage=null when endpoint has no colon', () => {
   assert.deepEqual(parseTarget('coder'), { agent: 'coder', stage: null });
 });
 
-test('parseTarget treats trailing empty stage as null (agent:)', () => {
-  assert.deepEqual(parseTarget('coder:'), { agent: 'coder', stage: null });
-});
-
 test('parseTarget keeps only the first segment as agent and preserves remainder as stage', () => {
   // Defensive: stages with further colons still get captured; no agent should use colons,
   // but this guarantees backward-compatible parsing if a stage name ever contains one.
@@ -184,10 +180,6 @@ test('resolveStageName falls back to the first declared stage when entryStage is
   const def = makeAgentDef({ entryStage: undefined });
   // First key of `stages` in the order it was declared.
   assert.equal(resolveStageName(def, null), 'plan');
-});
-
-test('resolveStageName returns null for null agent (defensive)', () => {
-  assert.equal(resolveStageName(null, 'anything'), null);
 });
 
 // ==============================

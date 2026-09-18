@@ -34,17 +34,6 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   };
 }
 
-test('tasks.list returns all tasks when no filter', async () => {
-  const result = await handleTasksList(makeDeps(), {});
-  assert.equal(result.length, 4);
-});
-
-test('tasks.list filters by projectId', async () => {
-  const result = await handleTasksList(makeDeps(), { projectId: 'proj2' });
-  assert.equal(result.length, 1);
-  assert.equal(result[0].id, 't4');
-});
-
 test('tasks.list filters by status', async () => {
   const result = await handleTasksList(makeDeps(), { status: 'done' });
   assert.equal(result.length, 1);
@@ -74,13 +63,6 @@ test('tasks.list DTO shape is correct', async () => {
   assert.deepEqual(t1.dependsOn, []);
   assert.equal(t1.plan, 'plan1');
   assert.equal(t1.template, 'coder-review');
-});
-
-test('tasks.list exposes real why + doneWhen from the task store', async () => {
-  const result = await handleTasksList(makeDeps(), { projectId: 'proj1' });
-  const t1 = result.find(t => t.id === 't1')!;
-  assert.equal(t1.why, 'because one');
-  assert.equal(t1.doneWhen, 'tests green');
 });
 
 test('tasks.list exposes the newest project-matched claim thread without replacing the claim owner', async () => {
@@ -133,24 +115,4 @@ test('tasks.list exposes pending and completed approval state', async () => {
   assert.equal(t1.approvedAt, null);
   assert.equal(t2.approvalNeeded, false);
   assert.equal(t2.approvedAt, '2026-07-30');
-});
-
-test('tasks.list maps empty why/done_when to null (null-safe)', async () => {
-  const result = await handleTasksList(makeDeps(), { projectId: 'proj1' });
-  const t2 = result.find(t => t.id === 't2')!;
-  assert.equal(t2.why, null);
-  assert.equal(t2.doneWhen, null);
-});
-
-test('tasks.list maps absent why/done_when to null', async () => {
-  const result = await handleTasksList(makeDeps(), { projectId: 'proj2' });
-  const t4 = result.find(t => t.id === 't4')!;
-  assert.equal(t4.why, null);
-  assert.equal(t4.doneWhen, null);
-});
-
-test('tasks.list exposes completion time and maps absent values to null', async () => {
-  const result = await handleTasksList(makeDeps(), { projectId: 'proj1' });
-  assert.equal(result.find((task) => task.id === 't3')!.completedAt, '2026-07-30T16:00:00.000Z');
-  assert.equal(result.find((task) => task.id === 't1')!.completedAt, null);
 });

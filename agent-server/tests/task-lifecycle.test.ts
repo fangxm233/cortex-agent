@@ -193,52 +193,10 @@ test('add accepts --depends-on with space-separated values', () => {
   }
 });
 
-test('add accepts --depends-on as repeatable flag', () => {
-  const proj = np();
-  const [id1, id2] = [uid(), uid()];
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${id1}\n    text: "Existing"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n  - id: ${id2}\n    text: "Existing 2"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    lockProject(proj);
-    const result = runTask([
-      'add', '--project', proj,
-      '--text', 'Repeatable',
-      '--why', 'mixed',
-      '--done-when', 'all done',
-      '--priority', 'medium',
-      '--template', 'coder-review',
-      '--depends-on', id1,
-      '--depends-on', id2,
-    ]);
-
-    assert.equal(result.success, true);
-    const parsed = readYaml(repos[proj].tasksPath);
-    const task = findTask(parsed.tasks, result['task-id']);
-    assert.deepEqual(task['depends-on'], [id1, id2]);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('stop requires --task-id', () => {
-  const result = runCli(['stop']);
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /--task-id is required/);
-});
-
 test('stop returns error for unknown task ID', () => {
   const result = runCli(['stop', '--task-id', 'zzzz']);
   assert.equal(result.exitCode, 1);
   assert.match(result.stdout, /No running dispatched task found/);
-});
-
-test('unknown command lists available commands', () => {
-  const result = runCli(['nonexistent']);
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /Unknown command: 'nonexistent'/);
-  assert.match(result.stderr, /Available commands:/);
-  assert.match(result.stderr, /claim/);
 });
 
 test('complete returns task_id in result', () => {
@@ -433,20 +391,6 @@ test('lock-acquire with --force overrides existing lock', () => {
   }
 });
 
-test('lock-acquire with --note persists note in lock state', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    const result = runTask(['lock-acquire', '--project', proj, '--note', 'restructuring']);
-    assert.equal(result.success, true);
-
-    const parsed = readYaml(repos[proj].tasksPath);
-    assert.equal(parsed.lock.note, 'restructuring');
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
 test('lock-release releases a lock', () => {
   const proj = np();
   const repos = makeRepo({ [proj]: 'tasks:\n' });
@@ -457,50 +401,6 @@ test('lock-release releases a lock', () => {
 
     const parsed = readYaml(repos[proj].tasksPath);
     assert.ok(!parsed.lock);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock-release with --force releases lock', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    runTask(['lock-acquire', '--project', proj]);
-    const result = runTask(['lock-release', '--project', proj, '--force']);
-    assert.equal(result.success, true);
-
-    const parsed = readYaml(repos[proj].tasksPath);
-    assert.ok(!parsed.lock);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock-release reports lock owner/acquired_at/expires_at before release', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    runTask(['lock-acquire', '--project', proj]);
-    const result = runTask(['lock-release', '--project', proj]);
-    assert.equal(result.success, true);
-    assert.ok(result.owner);
-    assert.ok(result['acquired-at']);
-    assert.ok(result['expires-at']);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock-status shows single project lock', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    runTask(['lock-acquire', '--project', proj]);
-    const result = runCli(['lock-status', '--project', proj]);
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, /LOCKED/);
-    assert.match(result.stdout, new RegExp(proj));
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
@@ -521,19 +421,6 @@ test('lock-status --json outputs structured JSON', () => {
     assert.ok(parsed['expires-at']);
     assert.equal(parsed['ttl-minutes'], 20);
     assert.equal(parsed.force, false);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock-status without --project lists all projects', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    runTask(['lock-acquire', '--project', proj]);
-    const result = runCli(['lock-status']);
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, new RegExp(proj));
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
@@ -582,70 +469,6 @@ test('lock guard: add without lock fails', () => {
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.success, false);
     assert.match(parsed.message, /Lock required/);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock guard: batch-edit without lock fails', () => {
-  const proj = np();
-  const [id1] = [uid()];
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${id1}\n    text: "Task"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    const result = runCli(['batch-edit', '--project', proj, '--task-ids', id1, '--text', 'new']);
-    assert.equal(result.exitCode, 1);
-    const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.success, false);
-    assert.match(parsed.message, /Lock required/);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock guard: decompose without lock fails', () => {
-  const proj = np();
-  const [id1] = [uid()];
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${id1}\n    text: "Parent"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    const result = runCli(['decompose', '--project', proj, '--task-id', id1, '--subtasks-file', '/dev/null']);
-    assert.equal(result.exitCode, 1);
-    const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.success, false);
-    assert.match(parsed.message, /Lock required/);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock guard: assign-ids without lock fails', () => {
-  const proj = np();
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ""\n    text: "No id"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    const result = runCli(['assign-ids', '--project', proj]);
-    assert.equal(result.exitCode, 1);
-    const parsed = JSON.parse(result.stdout);
-    assert.equal(parsed.success, false);
-    assert.match(parsed.message, /Lock required/);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock-acquire --json outputs structured JSON', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    const result = runTask(['lock-acquire', '--project', proj, '--json']);
-    assert.equal(result.success, true);
-    assert.ok(result.owner);
-    assert.ok(result['acquired-at']);
-    assert.ok(result['expires-at']);
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }

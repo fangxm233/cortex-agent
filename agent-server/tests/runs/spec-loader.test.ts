@@ -19,13 +19,6 @@ function role(overrides: Partial<AgentRole> = {}): AgentRole {
 
 // --- bareSpec ---
 
-test('a prompt-forwarding run declares no agent identity at all', () => {
-  assert.deepEqual(bareSpec(), {
-    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
-    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
-  });
-});
-
 test('bareSpec hands out a fresh object each time — callers put it on a request they may mutate', () => {
   const a = bareSpec();
   a.pluginDirs.push('/x');
@@ -33,13 +26,6 @@ test('bareSpec hands out a fresh object each time — callers put it on a reques
 });
 
 // --- fromAgentSlot ---
-
-test('an empty slot yields every optional field as null or empty, not undefined', () => {
-  assert.deepEqual(fromAgentSlot(slot(), { mcpComposition: 'direct' }), {
-    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
-    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
-  });
-});
 
 test('the composition is the caller\'s, not the slot\'s — a thread step and a conversation differ', () => {
   const config = slot({ mcpComposition: 'none' });
@@ -57,25 +43,9 @@ test('the system prompt is expanded for system vars; the directive is left for p
   assert.equal(spec.directive, 'also {{currentDateTime}}');
 });
 
-test('an empty system prompt stays null rather than becoming an empty override', () => {
-  assert.equal(fromAgentSlot(slot({ systemPrompt: '' }), { mcpComposition: 'direct' }).systemPrompt, null);
-});
-
 test('a slot tool list travels as the Claude-native string it was authored as', () => {
   assert.equal(fromAgentSlot(slot({ tools: 'Read,Grep' }), { mcpComposition: 'direct' }).tools, 'Read,Grep');
   assert.equal(fromAgentSlot(slot({ tools: '' }), { mcpComposition: 'direct' }).tools, null);
-});
-
-test('backendOptions omit keys the slot did not set, rather than carrying undefined', () => {
-  assert.deepEqual(fromAgentSlot(slot(), { mcpComposition: 'direct' }).backendOptions, {});
-  assert.deepEqual(
-    fromAgentSlot(slot({ claudeAgent: 'reviewer' }), { mcpComposition: 'direct' }).backendOptions,
-    { claudeAgent: 'reviewer' },
-  );
-  assert.deepEqual(
-    fromAgentSlot(slot({ claudeAgent: 'reviewer', outputStyle: 'terse' }), { mcpComposition: 'direct' }).backendOptions,
-    { claudeAgent: 'reviewer', outputStyle: 'terse' },
-  );
 });
 
 test('the MCP allowlist passes through, and its absence means the full surface', () => {

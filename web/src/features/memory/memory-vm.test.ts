@@ -61,12 +61,6 @@ describe('buildTreeRows', () => {
     expect(rows.find((r) => r.path === 'experiments/EXP-002.md')!.selected).toBe(true);
     expect(rows.find((r) => r.path === 'mission.md')!.selected).toBe(false);
   });
-
-  it('appends a trailing slash to dir names only', () => {
-    const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), null);
-    expect(rows.find((r) => r.kind === 'dir')!.name.endsWith('/')).toBe(true);
-    expect(rows.find((r) => r.kind === 'file')!.name.endsWith('/')).toBe(false);
-  });
 });
 
 describe('pickDefaultPath', () => {

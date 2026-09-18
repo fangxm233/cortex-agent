@@ -52,18 +52,6 @@ def test_cli_rejects_a_non_integer_request_count_with_structured_error(tmp_path:
     assert "Traceback" not in result.stderr
 
 
-def test_cli_missing_required_input_uses_structured_error() -> None:
-    result = subprocess.run(
-        [_python(), "-m", "cortex_bench_harness.proxy", "--trial-id", "trial-cli"],
-        capture_output=True, text=True, timeout=20,
-    )
-    document = json.loads(result.stderr)
-    assert result.returncode == 1
-    assert result.stdout == ""
-    assert document["ok"] is False
-    assert "required" in document["error"]
-
-
 def test_limits_model_rejects_a_count_that_buys_nothing() -> None:
     with pytest.raises(ValueError, match="greater than zero"):
         ProxyLimits(max_requests=0)

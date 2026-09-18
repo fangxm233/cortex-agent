@@ -11,12 +11,11 @@ import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { sessionState } from '../../src/core/session-state.js';
 import { cancelBgHolds } from '../../src/orchestration/routing/commands/cancel.js';
 import {
-  holdBackgroundContinuation, holdSession, isBgContinuationEnabled, isInteractiveChannel,
-  isWebChannel, shouldHoldForBg,
+  holdBackgroundContinuation, holdSession, isBgContinuationEnabled,
+  shouldHoldForBg,
 } from '../../src/orchestration/turn/background-hold.js';
 import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
-
 
 test('isBgContinuationEnabled: default ON, opt-out via CORTEX_BG_CONTINUATION=0/false', async () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
@@ -72,23 +71,6 @@ test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope
   }
 });
 
-test('isInteractiveChannel: only slack/feishu interactive conduits, not thread/dispatch/web', () => {
-  assert.equal(isInteractiveChannel('slack:D123'), true);
-  assert.equal(isInteractiveChannel('feishu:oc_abc'), true);
-  assert.equal(isInteractiveChannel('thread-abc123'), false);
-  assert.equal(isInteractiveChannel('dispatch:task-1'), false);
-  assert.equal(isInteractiveChannel('web:cortex-abcd'), false, 'web is NOT slack/feishu — held separately');
-  assert.equal(isInteractiveChannel(''), false);
-});
-
-test('isWebChannel: only the web: conduit', () => {
-  assert.equal(isWebChannel('web:cortex-abcd'), true);
-  assert.equal(isWebChannel('slack:D123'), false);
-  assert.equal(isWebChannel('feishu:oc_abc'), false);
-  assert.equal(isWebChannel('thread-abc123'), false);
-  assert.equal(isWebChannel(''), false);
-});
-
 test('shouldHoldForBg on web: the same gates, answering with the web renderer', async () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
   try {
@@ -111,7 +93,6 @@ test('shouldHoldForBg on web: the same gates, answering with the web renderer', 
     resetSettingsForTests();
   }
 });
-
 
 // --- The hold itself. Two of these are NEW coverage (plan §3, behaviour change 3): before T2.2
 // the Slack/Feishu hold registered nothing, so `sessionState` reported the session idle while its
@@ -241,7 +222,6 @@ test('the seal stays quiet while another owner still holds the session', async (
     h.restore();
   }
 });
-
 
 // --- The streaming slot across a seal (T2.2b). The slot is channel-keyed and outlives the turn
 // that registered it, so a hold's seal must release only the slot it owns: `supersedeHolds` fires

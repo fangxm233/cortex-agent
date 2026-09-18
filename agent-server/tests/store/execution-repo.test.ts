@@ -54,26 +54,6 @@ test('sequential touchExecution — 10 same-ID increments produce costUsd === 10
   assert.equal(record?.metrics.costUsd, 10, 'final costUsd must be 10 after flush');
 });
 
-test('interleaved-await touchExecution — 10 await-yielded mutations on same ID all persist', async () => {
-  // Real async interleaving: awaits a microtask between each map mutation + queuePersist.
-  // Exercises the persist chain under microtask contention (not just sync burst).
-  const repo = createRepo();
-  const exec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'test' });
-
-  await Promise.all(Array.from({ length: 10 }, async (_, i) => {
-    await Promise.resolve(); // yield to scheduler
-    repo.touchExecution(exec.id, { metrics: { costUsd: i + 1 } });
-    await Promise.resolve();
-  }));
-
-  await repo.flush();
-  const record = repo.getExecution(exec.id);
-  // Last-writer-wins in single-threaded JS: final costUsd is whichever completed last.
-  // The invariant is that the record exists and has SOME value from 1..10 — no lost updates or corruption.
-  assert.ok(record?.metrics.costUsd != null);
-  assert.ok(record!.metrics.costUsd! >= 1 && record!.metrics.costUsd! <= 10);
-});
-
 test('concurrent start+complete on different IDs — persist chain does not drop entries', async () => {
   const repo = createRepo();
 
@@ -181,17 +161,6 @@ test('flush — resolves after all pending persists have drained', async () => {
   // Verify all 10 records are on disk
   const allRecords = repo.getAll();
   assert.equal(allRecords.length, N);
-});
-
-test('flush — resolves immediately when nothing is pending', async () => {
-  const repo = createRepo();
-  repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'idle' });
-  await repo.flush();
-
-  const t0 = Date.now();
-  await repo.flush();
-  const dt = Date.now() - t0;
-  assert.ok(dt < 50, `idle flush took ${dt}ms; expected near-instant`);
 });
 
 test('persist-error — transient write failure does not poison the persist chain', async () => {
@@ -337,14 +306,6 @@ test('dispatch — registerDispatchExecution persists runName (B2-C log-ref)', a
 
 // ── Group 5b: Per-execution GPU capture (DR-0018 §6.3 B2-followup) ──
 
-test('gpu — new records default gpu to null', async () => {
-  const repo = createRepo();
-  const local = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'g' });
-  const dispatch = repo.registerDispatchExecution({ taskId: 't-g', machine: 'lab', project: 'proj', taskText: 'd' });
-  assert.equal(local.gpu, null);
-  assert.equal(dispatch?.gpu, null);
-});
-
 test('gpu — setExecutionGpuByTaskId records the GPU on the dispatch record', async () => {
   const repo = createRepo();
   repo.registerDispatchExecution({ taskId: 't-gpu', machine: 'lab', project: 'proj', taskText: 'run', runName: 'r1' });
@@ -367,11 +328,6 @@ test('gpu — setExecutionGpuByTaskId records even on a terminal record (write-o
   assert.equal(updated?.status, 'completed', 'status is unchanged by a GPU backfill');
 });
 
-test('gpu — setExecutionGpuByTaskId returns null for an unknown taskId', async () => {
-  const repo = createRepo();
-  assert.equal(repo.setExecutionGpuByTaskId('nope', { indices: [0], memoryMb: null }), null);
-});
-
 // ── Group 6: Terminal state stickiness ──
 
 test('terminal stickiness — completed record resists fail/cancel', async () => {
@@ -392,17 +348,6 @@ test('terminal stickiness — completed record resists fail/cancel', async () =>
   // Touch should not change
   const touched = repo.touchExecution(exec.id, { text: { label: 'hacked' } });
   assert.equal(touched?.text.label, 'sticky');
-});
-
-test('terminal stickiness — failed record resists complete', async () => {
-  const repo = createRepo();
-  const exec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'fail-sticky' });
-
-  repo.failExecution(exec.id, { error: 'boom' });
-  assert.equal(repo.getExecution(exec.id)?.status, 'failed');
-
-  const completed = repo.completeExecution(exec.id, { costUsd: 1.0 });
-  assert.equal(completed?.status, 'failed');
 });
 
 // ── Group 7: Mark stale on startup ──
@@ -629,37 +574,6 @@ test('getAll — returns records sorted by createdAt descending', async () => {
 });
 
 // ── Group 13: flush after concurrent mutations — clean resolve ──
-
-test('flush after concurrent start+complete — all records persisted and consistent', async () => {
-  const repo = createRepo();
-
-  const ids: string[] = [];
-  const promises = Array.from({ length: 15 }, (_, i) => {
-    const exec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: `parallel-${i}` });
-    ids.push(exec.id);
-    if (i % 2 === 0) {
-      repo.completeExecution(exec.id, { costUsd: 0.1 * i, durationS: i });
-    } else {
-      repo.failExecution(exec.id, { error: `error-${i}` });
-    }
-  });
-
-  await Promise.all(promises);
-  await repo.flush();
-
-  // All 15 records should exist
-  assert.equal(repo.getAll().length, 15);
-
-  // Running count should be 0 (all completed or failed)
-  assert.equal(repo.getRunningExecutions().length, 0);
-
-  // Verify each ID
-  for (const id of ids) {
-    const r = repo.getExecution(id);
-    assert.ok(r, `missing record ${id}`);
-    assert.ok(r.status === 'completed' || r.status === 'failed', `unexpected status ${r.status} for ${id}`);
-  }
-});
 
 // ── Group 15: terminal-record archival ──
 

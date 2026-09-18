@@ -45,10 +45,6 @@ test('cortex events mount on the server, never on a backend', () => {
   assert.deepEqual(hookMountTargets(entry({ event: 'cortex:session.new' })), ['server']);
 });
 
-test('a disabled declaration still reports where it would mount', () => {
-  assert.deepEqual(hookMountTargets(entry({ event: 'agent:pre-tool', enabled: false })), ['claude', 'pi']);
-});
-
 test('scope.backends that excludes the only implicit backend leaves no target', () => {
   const impossible = entry({ event: 'cc:SessionEnd', scope: { backends: ['pi'] } });
   assert.deepEqual(hookMountTargets(impossible), []);

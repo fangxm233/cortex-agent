@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
 import { effectiveSelection } from '@/features/workbench/selection-menu';
-import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import {
-  chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
-  selectionChipLabel,
   buildSelectionSheet,
   buildMobileChatRows,
 } from './m-chat-vm';
@@ -27,46 +24,6 @@ const profiles: ConfigProfileEntry[] = [
   profile({ name: 'deep', model: 'opus-4.5', backend: 'pi' }),
 ];
 
-const STATUS_COPY = {
-  foreground: 'running', background: 'background', idle: 'idle', turnsUnit: 'turns',
-};
-
-function runStatus(running: boolean, backgroundRunning: boolean, hasRun: boolean) {
-  return deriveSessionRunStatus({ running, backgroundRunning, hasRun });
-}
-
-describe('chatHeaderStatus', () => {
-  it('formats foreground and completed sessions without exposing mid-turn cost', () => {
-    const running = chatHeaderStatus(runStatus(true, false, true), 12, '2m 4s', 0.42, STATUS_COPY);
-    expect(running.running).toBe(true);
-    expect(running.tone).toBe('running');
-    expect(running.text).toBe('running · 2m 4s · 12 turns');
-    expect(running.text).not.toContain('$');
-
-    const completed = chatHeaderStatus(runStatus(false, false, true), 12, '2m 4s', 0.42, STATUS_COPY);
-    expect(completed.running).toBe(false);
-    expect(completed.tone).toBe('idle');
-    expect(completed.text).toBe('idle · 2m 4s · 12 turns · $0.42');
-  });
-
-  it('renders a background hold with background copy and an active tone', () => {
-    const background = chatHeaderStatus(runStatus(true, true, true), 12, '2m 4s', 0.42, STATUS_COPY);
-    expect(background).toEqual({
-      running: true,
-      tone: 'running',
-      text: 'background · 2m 4s · 12 turns',
-    });
-  });
-
-  it('keeps never-run sessions free of stale metrics', () => {
-    const fresh = chatHeaderStatus(runStatus(false, false, false), 3, '10s', 0.1, STATUS_COPY);
-    expect(fresh.running).toBe(false);
-    expect(fresh.text).toBe('idle');
-    expect(fresh.text).not.toContain('3');
-    expect(fresh.text).not.toContain('$');
-  });
-});
-
 describe('interactionHeaderStatus', () => {
   it('marks pending interactions as waiting and paused', () => {
     const s = interactionHeaderStatus('plan-approval', 0, 1, 'zh');
@@ -83,24 +40,6 @@ describe('effectiveProfileName', () => {
     expect(effectiveProfileName(null, profiles, 'default')).toBe('default');
     expect(effectiveProfileName(null, profiles, null)).toBe('default');
     expect(effectiveProfileName(null, [], null)).toBe('—');
-  });
-});
-
-describe('selectionChipLabel', () => {
-  it('shows what the next turn runs — the model, and the level when one is set', () => {
-    expect(selectionChipLabel(effectiveSelection(profiles, 'default', null))).toBe('sonnet-4.5 · high');
-    expect(selectionChipLabel(effectiveSelection(profiles, 'cheap', null))).toBe('haiku-4');
-    expect(selectionChipLabel(effectiveSelection(profiles, 'default', { model: 'opus-4.9' })))
-      .toBe('opus-4.9 · high');
-  });
-
-  it('falls back to the profile name when the profile declares no model', () => {
-    expect(selectionChipLabel(effectiveSelection([profile({ name: 'bare' })], 'bare', null))).toBe('bare');
-  });
-
-  it('drops the claude vendor prefix — the chip has no room for it', () => {
-    expect(selectionChipLabel(effectiveSelection(profiles, 'default', { model: 'claude-opus-5' })))
-      .toBe('opus-5 · high');
   });
 });
 
@@ -135,10 +74,6 @@ describe('buildSelectionSheet', () => {
     defaultProfile: 'default',
     copy,
     ...over,
-  });
-
-  it('reads profile first, then the overrides on top of it', () => {
-    expect(sheet().sections.map((section) => section.key)).toEqual(['profile', 'model', 'thinking', 'mode']);
   });
 
   it('collapses every override into a root row showing the value in force', () => {
@@ -192,13 +127,6 @@ describe('buildSelectionSheet', () => {
     }).sections[0].rows.find((row) => row.current)!;
     expect(overridden).toMatchObject({ current: true, change: { profileName: 'default' } });
     expect(sheet().sections[0].rows.find((row) => row.current)?.change).toBeNull();
-  });
-
-  it('marks what is running now', () => {
-    const { sections } = sheet();
-    expect(sections[0].rows.find((row) => row.current)?.label).toBe('default');
-    expect(sections[1].rows.find((row) => row.current && row.id !== 'model:follow')?.label).toBe('sonnet-4.5');
-    expect(sections[2].rows.find((row) => row.current && row.id !== 'thinking:follow')?.label).toBe('high');
   });
 
   it('carries the change each row produces, restating the whole selection', () => {

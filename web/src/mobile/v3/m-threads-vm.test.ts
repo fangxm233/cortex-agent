@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadChildNode } from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import {
   threadsBudgetBand,
   isLiveThread,
   pipelineSteps,
-  runningMeta,
 } from './m-threads-vm';
 
 // Neutral fixtures (守则11 — nimbus/atlas, no real project ids).
@@ -42,22 +41,6 @@ function step(over: Partial<ThreadStepDetail>): ThreadStepDetail {
   };
 }
 
-function child(over: Partial<ThreadChildNode>): ThreadChildNode {
-  return {
-    id: 'thr_child',
-    templateName: 'verify-metrics',
-    status: 'running',
-    activeAgent: null,
-    costUsd: 0,
-    depth: 1,
-    createdAt: '2026-07-15T11:40:00Z',
-    taskId: null,
-    children: [],
-    truncated: false,
-    ...over,
-  };
-}
-
 function detail(over: Partial<ThreadDetail>): ThreadDetail {
   return {
     id: 'thr_1a2b',
@@ -84,8 +67,6 @@ function detail(over: Partial<ThreadDetail>): ThreadDetail {
     ...over,
   };
 }
-
-const now = Date.parse('2026-07-15T12:00:00Z');
 
 describe('threadsBudgetBand', () => {
   it('computes progress from today and the daily budget', () => {
@@ -140,18 +121,5 @@ describe('pipelineSteps', () => {
   });
   it('empty when there are no steps at all', () => {
     expect(pipelineSteps(info({ totalSteps: 0, currentStep: null }))).toEqual([]);
-  });
-});
-
-describe('runningMeta', () => {
-  it('puts the owning task after the thread id', () => {
-    expect(runningMeta(info({ taskId: 'a293' }), detail({ totalCostUsd: 2.31, children: [child({}), child({ id: 'c2' })] }), now, '子线程'))
-      .toBe('thr_1a2b · task a293 · 42m · $2.31 · 2 子线程');
-  });
-  it('omits cost / children before the detail loads (no fabrication)', () => {
-    expect(runningMeta(info({}), undefined, now, '子线程')).toBe('thr_1a2b · 42m');
-  });
-  it('omits the child count when there are none', () => {
-    expect(runningMeta(info({}), detail({ totalCostUsd: 0.1, children: [] }), now, '子线程')).toBe('thr_1a2b · 42m · $0.10');
   });
 });

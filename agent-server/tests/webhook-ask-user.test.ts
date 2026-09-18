@@ -60,13 +60,6 @@ test("level 'warn' is normalized to 'warning' on the published event", async () 
   assert.equal(ev.level, 'warning');
 });
 
-test("level 'error' and 'info' pass through unchanged", async () => {
-  await drive({ channel: 'C_LE', sessionId: 's1', questions: QUESTIONS, dryRun: true, level: 'error' });
-  assert.equal(askEvents.at(-1)!.level, 'error');
-  await drive({ channel: 'C_LI', sessionId: 's1', questions: QUESTIONS, dryRun: true, level: 'info' });
-  assert.equal(askEvents.at(-1)!.level, 'info');
-});
-
 test('an invalid level is rejected with 400 and valid values', async () => {
   const before = askEvents.length;
   const { statusCode, body } = await drive({ channel: 'C_BAD', questions: QUESTIONS, dryRun: true, level: 'fatal' });

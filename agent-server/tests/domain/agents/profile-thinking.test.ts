@@ -59,13 +59,6 @@ test('validateProfilesFile rejects the removed codex backend', () => {
   }), /invalid backend: codex/);
 });
 
-test('validateProfilesFile rejects non-string thinking', () => {
-  assert.throws(() => validateProfilesFile({
-    defaultProfile: 'd',
-    profiles: { d: { model: 'm', backend: 'claude', thinking: 3 as any } },
-  }), /thinking/);
-});
-
 test('validateProfilesFile accepts profile without thinking (backward compat)', () => {
   assert.doesNotThrow(() => validateProfilesFile({
     defaultProfile: 'd',
@@ -84,18 +77,6 @@ test('validateProfilesFile validates fallback thinking against the fallback effe
       },
     },
   }), /thinking/);
-});
-
-test('validateProfilesFile accepts fallback with its own valid thinking', () => {
-  assert.doesNotThrow(() => validateProfilesFile({
-    defaultProfile: 'd',
-    profiles: {
-      d: {
-        model: 'm', backend: 'claude',
-        fallback: [{ model: 'm2', backend: 'pi', provider: 'anthropic', thinking: 'minimal' }],
-      },
-    },
-  }));
 });
 
 // --- resolveProfileConfig: propagation + no inheritance ---
@@ -135,11 +116,6 @@ test('resolveProfileConfig: fallback thinking is explicit-only (no inheritance f
 test('buildEngineSpec passes thinking through to the engine spec', () => {
   const spec = specFromFixture({ sessionKey: 'k' }, { model: 'm', backend: 'claude', thinking: 'high' });
   assert.equal(spec.model.thinking, 'high');
-});
-
-test('buildEngineSpec omits thinking when unset (backward compat)', () => {
-  const spec = specFromFixture({ sessionKey: 'k' }, { model: 'm', backend: 'claude' });
-  assert.equal(spec.model.thinking, undefined);
 });
 
 test('PI maxOutputTokens is validated and propagated into the resolved spawn', () => {

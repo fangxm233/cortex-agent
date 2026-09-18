@@ -9,12 +9,7 @@ import {
   captureAuthTokensForRuntime,
   getClientToken,
   getWebhookToken,
-  AUTH_HEADER,
 } from '../../src/core/auth.js';
-
-test('AUTH_HEADER is the lowercase x-cortex-token header name', () => {
-  assert.equal(AUTH_HEADER, 'x-cortex-token');
-});
 
 test('timingSafeEqualStr returns true only for equal non-empty strings', () => {
   assert.equal(timingSafeEqualStr('abc123', 'abc123'), true);

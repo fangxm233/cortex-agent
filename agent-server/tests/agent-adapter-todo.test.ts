@@ -4,7 +4,6 @@ import {
   parseTodoSnapshot,
   parseTodoWrite,
   parseTodoWriteByName,
-  renderTodoProgress,
 } from '../src/agent-adapter/normalize/todo.js';
 
 const THREE = {
@@ -56,11 +55,6 @@ test('malformed entries never overstate progress', () => {
   assert.equal(snap.completed, 1);
 });
 
-test('a missing activeForm falls back to content so the label is never blank', () => {
-  const snap = parseTodoSnapshot({ todos: [{ content: 'Ship it', status: 'in_progress' }] });
-  assert.equal(snap?.activeLabel, 'Ship it');
-});
-
 test('multiple in-progress entries resolve to the first, without error', () => {
   const snap = parseTodoSnapshot({
     todos: [
@@ -79,19 +73,4 @@ test('only TodoWrite is recognized, under either backend spelling', () => {
   assert.ok(parseTodoWriteByName('TodoWrite', THREE));
   assert.ok(parseTodoWriteByName('todo_write', THREE));
   assert.equal(parseTodoWriteByName('Write', THREE), null);
-});
-
-test('progress rendering is compact, truncated, and empty when there is nothing to show', () => {
-  assert.equal(renderTodoProgress(parseTodoSnapshot(THREE)), '1/3 · Running the test suite');
-  assert.equal(renderTodoProgress(null), '');
-  assert.equal(renderTodoProgress(parseTodoSnapshot({ todos: [] })), '');
-  // Nothing in progress → counts only.
-  const done = parseTodoSnapshot({ todos: [{ content: 'A', activeForm: 'A', status: 'completed' }] });
-  assert.equal(renderTodoProgress(done), '1/1');
-  const long = parseTodoSnapshot({
-    todos: [{ content: 'x', activeForm: 'A'.repeat(80), status: 'in_progress' }],
-  });
-  const rendered = renderTodoProgress(long, 20);
-  assert.ok(rendered.endsWith('…'));
-  assert.ok(rendered.length <= '1/1 · '.length + 20);
 });

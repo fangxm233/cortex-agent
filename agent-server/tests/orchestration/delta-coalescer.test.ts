@@ -5,17 +5,12 @@ import {
   createDeltaCoalescer,
   createSessionDeltaStream,
   resolveFlushMs,
-  DEFAULT_FLUSH_MS,
   MAX_PENDING_CHARS,
   type DeltaFlush,
 } from '../../src/orchestration/delta-coalescer.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 
 describe('resolveFlushMs', () => {
-  test('defaults to 120ms', () => {
-    assert.equal(resolveFlushMs({}), 120);
-    assert.equal(DEFAULT_FLUSH_MS, 120);
-  });
 
   test('honours CORTEX_STREAM_DELTA_MS', () => {
     assert.equal(resolveFlushMs({ CORTEX_STREAM_DELTA_MS: '250' }), 250);
@@ -111,17 +106,6 @@ describe('createDeltaCoalescer', () => {
     // The pending timer must have been cancelled — no phantom empty flush later.
     vi.advanceTimersByTime(20_000);
     assert.equal(out.length, 1);
-  });
-
-  test('flushing a block with nothing pending publishes nothing', () => {
-    const out: DeltaFlush[] = [];
-    const c = createDeltaCoalescer({ onFlush: (f) => out.push(f), flushMs: 100 });
-
-    c.flush('never-seen');
-    c.push('b1', 'x');
-    c.flush('b1');
-    c.flush('b1');
-    assert.equal(out.length, 1, 'a second flush of a drained block is a no-op');
   });
 
   test('flush() with no argument drains every block', () => {

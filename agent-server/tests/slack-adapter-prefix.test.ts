@@ -4,7 +4,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SlackAdapter } from '../src/platform/adapters/slack.js';
 import { CONFIG_DIR } from '../src/core/paths.js';
-import { shouldWarnReactionFailure } from '../src/platform/utils/reaction-diagnostics.js';
 import type { ActionContext, MessageContext } from '../src/platform/types.js';
 
 /** Build a SlackAdapter without invoking the real constructor (no Bolt App). */
@@ -44,14 +43,6 @@ test('SlackAdapter.resolveDestination: unbound project-report dropped when no ad
 });
 
 // ── ownsConduit ───────────────────────────────────────────────────
-
-test('SlackAdapter.ownsConduit: only matches slack: prefix', () => {
-  const a = makeAdapter();
-  assert.equal(a.ownsConduit('slack:C1'), true);
-  assert.equal(a.ownsConduit('feishu:oc_1'), false);
-  assert.equal(a.ownsConduit('tui-abc'), false);
-  assert.equal(a.ownsConduit('C1'), false);
-});
 
 // ── postMessage returns a prefixed conduit; SDK sees the bare channel ──
 
@@ -247,13 +238,6 @@ test('SlackAdapter queue marker failure propagates instead of being hidden in th
 
   await assert.rejects(a.markQueued(ref), /missing_scope/);
   await assert.rejects(a.unmarkQueued(ref), /missing_scope/);
-});
-
-test('reaction failure warning fires once per distinct reason', () => {
-  const seen = new Set<string>();
-  assert.equal(shouldWarnReactionFailure('missing_scope', seen), true);
-  assert.equal(shouldWarnReactionFailure('missing_scope', seen), false, 'no per-message log spam');
-  assert.equal(shouldWarnReactionFailure('already_reacted', seen), true, 'a new reason is still reported');
 });
 
 // ── project conduit registry: store stays bare, surface is prefixed ──

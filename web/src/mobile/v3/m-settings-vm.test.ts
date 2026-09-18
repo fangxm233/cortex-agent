@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ConfigSnapshot, ConfigEnvEntry, ConfigHook, CostSummary } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, ConfigEnvEntry, CostSummary } from '@cortex-agent/ui-contract';
 import { buildMSettingsVm } from './m-settings-vm';
 
 function env(present: string[]): ConfigEnvEntry[] {
@@ -41,12 +41,6 @@ function cost(over: Partial<CostSummary> = {}): CostSummary {
 }
 
 describe('buildMSettingsVm', () => {
-  it('surfaces the default profile and budget summary', () => {
-    const vm = buildMSettingsVm(snap(), cost());
-    expect([vm.profileName, vm.profileModel, vm.profileThinking]).toEqual(['default', 'sonnet-4.5', 'high']);
-    expect(vm.budgetSpendLabel).toBe('$4.21 / $10.00');
-  });
-
   it('reads notification values from effective settings rather than legacy env presence', () => {
     const vm = buildMSettingsVm(snap({ env: env(['CORTEX_TURN_NOTIFY']) }), cost());
     expect(vm.notifyOn).toBe(false);
@@ -59,19 +53,5 @@ describe('buildMSettingsVm', () => {
     expect(vm.notifyOn).toBeNull();
     expect(vm.autoResumeOn).toBeNull();
     expect(vm.notifyEnabledCount).toBeNull();
-  });
-
-  it('maps platform, template and MCP summaries', () => {
-    const vm = buildMSettingsVm(snap({ env: env(['SLACK_BOT_TOKEN', 'FEISHU_APP_ID']) }), cost());
-    expect(vm.platforms).toEqual(['slack', 'feishu']);
-    expect(vm.templatesCount).toBe(2);
-    expect(vm.mcpServers).toEqual(['filesystem']);
-  });
-
-  it('passes mounted hooks through', () => {
-    const hooks: ConfigHook[] = [
-      { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
-    ];
-    expect(buildMSettingsVm(snap({ hooks }), cost()).hooks).toEqual(hooks);
   });
 });

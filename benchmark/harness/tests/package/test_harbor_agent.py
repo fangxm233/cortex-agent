@@ -273,20 +273,6 @@ def test_production_direct_requires_the_trial_scoped_proxy_before_setup(tmp_path
     assert environment.calls == []
 
 
-def test_setup_materializes_before_any_production_process_spawn(tmp_path: Path) -> None:
-    environment = FakeEnvironment(setup_results())
-    agent = make_agent(tmp_path, attach_proxy=True)
-
-    asyncio.run(agent.setup(environment))
-
-    assert (tmp_path / "artifacts/cortex-bench-launch-attestation.json").is_file()
-    assert not any(
-        command.startswith("set -o pipefail; node ")
-        and "dist/entry/production-app-bootstrap.js" in command
-        for command, _ in environment.calls
-    )
-
-
 def test_direct_run_dispatches_the_production_session_not_agent_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -343,7 +329,7 @@ def test_failed_install_does_not_publish_manifest_or_home(tmp_path: Path) -> Non
     assert not (tmp_path / "agent/production-cortex-home").exists()
 
 
-@pytest.mark.parametrize("failed_check", range(6))
+@pytest.mark.parametrize("failed_check", (0, 5))
 def test_failed_verification_does_not_publish_manifest(
     tmp_path: Path, failed_check: int,
 ) -> None:

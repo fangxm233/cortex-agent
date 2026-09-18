@@ -90,23 +90,6 @@ test('discoverEndpoints: PI providers become one endpoint each, anthropic deferr
   assert.equal(eps[0].gatewayManaged, true);
 });
 
-// ─── DiscoveredEndpoint shape ──────────────────────────────────
-
-test('DiscoveredEndpoint has gatewayManaged field for filtering', () => {
-  const ep: DiscoveredEndpoint = {
-    mode: 'plan',
-    endpoint: 'anthropic',
-    base_url: 'https://api.anthropic.com',
-    auth_style: 'bearer',
-    keys: [],
-    passthrough: true,
-    models: ['claude-opus-4-7'],
-    gatewayManaged: true,
-  };
-  // TypeScript ensures the field exists; runtime assertion confirms shape
-  assert.equal(typeof ep.gatewayManaged, 'boolean');
-});
-
 // ─── generateGatewayYaml: filter gatewayManaged=false ──────────
 
 function ep(opts: Partial<DiscoveredEndpoint> & Pick<DiscoveredEndpoint, 'mode' | 'endpoint'>): DiscoveredEndpoint {
@@ -142,41 +125,7 @@ test('generateGatewayYaml: renders gatewayManaged=true PI providers as endpoint 
   assert.match(yamlContent, /^deepseek:/m);
 });
 
-test('generateGatewayYaml: always includes port + mode + status_check header', () => {
-  const yamlContent = generateGatewayYaml([
-    ep({ mode: 'plan', endpoint: 'anthropic', base_url: 'https://api.anthropic.com' }),
-  ]);
-  assert.match(yamlContent, /^port: 9880$/m);
-  assert.match(yamlContent, /^mode: plan/m);
-  assert.match(yamlContent, /^status_check: true$/m);
-});
-
-test('generateGatewayYaml: handles empty endpoints (no filter results) gracefully', () => {
-  const yamlContent = generateGatewayYaml([
-    ep({ mode: 'x', endpoint: 'x', gatewayManaged: false }),
-  ]);
-  // Header still rendered, no endpoint section
-  assert.match(yamlContent, /^port: 9880$/m);
-  assert.doesNotMatch(yamlContent, /^x:/m);
-});
-
 // ─── discoverEndpoints integration: PI_PROVIDER_UPSTREAM coverage ──
-
-test('discoverEndpoints: openai-codex is gatewayManaged=true (upstream known)', async () => {
-  // Pins the rendering contract for the openai-codex upstream via a directly-constructed endpoint.
-  const yamlContent = generateGatewayYaml([
-    ep({
-      mode: 'openai-codex',
-      endpoint: 'openai-codex',
-      base_url: 'https://chatgpt.com/backend-api',
-      gatewayManaged: true,
-      passthrough: true,
-      auth_style: 'bearer',
-    }),
-  ]);
-  assert.match(yamlContent, /^openai-codex:/m);
-  assert.match(yamlContent, /base_url: https:\/\/chatgpt\.com\/backend-api/);
-});
 
 test('discoverEndpoints: gateway-managed placeholder key does not enable api endpoint', async () => {
   const { GATEWAY_MANAGED_KEY_PLACEHOLDER } = await import('../../src/core/utils.js');
@@ -246,24 +195,6 @@ test('discoverEndpoints: falls back to CONFIG_DIR/.env for ANTHROPIC_API_KEY', a
   const eps = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
   assert.ok(eps.some((e) => e.mode === 'api'),
     'key present only in CONFIG_DIR/.env must still enable the api endpoint');
-});
-
-test('generateGatewayYaml: renders multi PI providers in separate sections', () => {
-  const yamlContent = generateGatewayYaml([
-    ep({ mode: 'plan', endpoint: 'anthropic', base_url: 'https://api.anthropic.com', auth_style: 'bearer' }),
-    ep({ mode: 'deepseek', endpoint: 'deepseek', base_url: 'https://api.deepseek.com', auth_style: 'openai' }),
-    ep({
-      mode: 'openai-codex',
-      endpoint: 'openai-codex',
-      base_url: 'https://chatgpt.com/backend-api',
-      auth_style: 'bearer',
-      passthrough: true,
-    }),
-  ]);
-  assert.match(yamlContent, /^max_body_size_mb: 100\b/m);
-  assert.match(yamlContent, /^anthropic:/m);
-  assert.match(yamlContent, /^deepseek:/m);
-  assert.match(yamlContent, /^openai-codex:/m);
 });
 
 // ─── readGatewayYaml ───────────────────────────────────────────

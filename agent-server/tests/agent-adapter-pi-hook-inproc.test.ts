@@ -82,10 +82,3 @@ process.stdout.write(JSON.stringify({ hookSpecificOutput: { additionalContext: '
     'the spawned hook still contributes its context',
   );
 });
-
-test('the deployed cortex-md-injector exposes the in-process entry point', async () => {
-  const source = fs.readFileSync(
-    path.resolve(__dirname, '../defaults/hooks/cortex-md-injector.mjs'), 'utf8',
-  );
-  assert.ok(source.includes('export function runHook('), 'injector exports runHook');
-});

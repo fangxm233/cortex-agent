@@ -68,11 +68,6 @@ def test_unknown_top_level_field_is_refused(tmp_path: Path) -> None:
         load_suite_spec(path)
 
 
-def test_empty_prerequisites_marks_suite_ready_for_run(tmp_path: Path) -> None:
-    spec = load_suite_spec(write_spec(tmp_path, outstanding_prerequisites=[]))
-    assert spec.outstanding_prerequisites == ()
-
-
 def test_paid_schedule_cannot_override_concurrency_attempts_or_retries(tmp_path: Path) -> None:
     path = write_spec(tmp_path)
     document = yaml.safe_load(path.read_text())

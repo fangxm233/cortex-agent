@@ -2,18 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { deriveLang, MOBILE_MAX_WIDTH, readStoredLang, resolveInitialLang, storeLang } from './lang';
 
 describe('deriveLang (viewport → lang)', () => {
-  it('desktop viewport derives en', () => {
-    expect(deriveLang(1440)).toBe('en');
-    expect(deriveLang(1024)).toBe('en');
-  });
-
-  it('mobile viewport derives zh', () => {
-    expect(deriveLang(375)).toBe('zh');
-    expect(deriveLang(414)).toBe('zh');
-  });
-
   it('breakpoint boundary is inclusive on the mobile side', () => {
-    expect(MOBILE_MAX_WIDTH).toBe(767);
     expect(deriveLang(MOBILE_MAX_WIDTH)).toBe('zh');
     expect(deriveLang(MOBILE_MAX_WIDTH + 1)).toBe('en');
   });

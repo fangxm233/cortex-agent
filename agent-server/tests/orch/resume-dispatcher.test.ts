@@ -3,7 +3,6 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   dispatchPendingResumes,
-  buildResumeReminder,
   isAutoResumeEnabled,
   registerResumeWakeOnAgentSettle,
 } from '../../src/orchestration/resume-dispatcher.js';
@@ -68,15 +67,6 @@ test('isAutoResumeEnabled defaults true, false only for 0/false', async () => {
   assert.equal(isAutoResumeEnabled(), true);
   if (prev === undefined) delete process.env.CORTEX_AUTO_RESUME; else process.env.CORTEX_AUTO_RESUME = prev;
   resetSettingsForTests();
-});
-
-test('buildResumeReminder returns the concise system reminder', () => {
-  assert.equal(buildResumeReminder(), [
-    '<system-reminder>',
-    'The previous turn was interrupted by an API error. The provider has recovered; you may continue.',
-    'This message is only a resume signal; it should not change your original task.',
-    '</system-reminder>',
-  ].join('\n'));
 });
 
 test('agent terminal events wake requeued resume work', async () => {

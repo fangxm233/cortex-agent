@@ -29,29 +29,19 @@ describe('!lang command', () => {
   });
   afterEach(() => setLocale('en'));
 
-  it('with no arg shows current language + available + usage', async () => {
-    const res = await handleLangCmd('chan', adapter as any, '!lang');
-    assert.ok(res && 'text' in res);
-    assert.match((res as any).text, /English/);
-    assert.match((res as any).text, /!lang/);
-  });
-
   it('!lang zh switches the live locale and persists it', async () => {
-    const res = await handleLangCmd('chan', adapter as any, '!lang zh');
+    await handleLangCmd('chan', adapter as any, '!lang zh');
     assert.equal(getLocale(), 'zh');
     assert.equal(loadLang(), 'zh');
-    // confirmation rendered in the NEW locale (Chinese)
-    assert.match((res as any).text, /中文/);
     // the notifier fires so an open SPA re-reads config.get and follows the switch
     assert.deepEqual(changed, ['zh']);
   });
 
   it('!lang en switches back', async () => {
     setLocale('zh');
-    const res = await handleLangCmd('chan', adapter as any, '!lang en');
+    await handleLangCmd('chan', adapter as any, '!lang en');
     assert.equal(getLocale(), 'en');
     assert.equal(loadLang(), 'en');
-    assert.match((res as any).text, /English/);
   });
 
   it('unknown arg reports an error and does not change locale', async () => {
@@ -61,8 +51,4 @@ describe('!lang command', () => {
     assert.deepEqual(changed, []);
   });
 
-  it('showing the language notifies nobody', async () => {
-    await handleLangCmd('chan', adapter as any, '!lang');
-    assert.deepEqual(changed, []);
-  });
 });

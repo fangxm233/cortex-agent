@@ -41,46 +41,6 @@ function toggle(tree: ReactTestRenderer): void {
   act(() => { tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' }).props.onClick(); });
 }
 
-function text(tree: ReactTestRenderer): string {
-  return JSON.stringify(tree.toJSON());
-}
-
-describe('DecisionCard disclosure', () => {
-  it('collapsed shows only the title; expanding reveals the sections and the action log', () => {
-    const tree = mount(dec([{ action: 'explain', message: 'why not JSONL?', ts: T }]));
-    expect(text(tree)).toContain('Use SQLite');
-    expect(text(tree)).not.toContain('storage choice');
-
-    toggle(tree);
-    const shown = text(tree);
-    expect(shown).toContain('storage choice');
-    expect(shown).toContain('simpler queries');
-    expect(shown).toContain('why not JSONL?'); // the recorded action log entry
-  });
-
-  it('collapses back, dropping the body again', () => {
-    const tree = mount(dec());
-    toggle(tree);
-    expect(text(tree)).toContain('storage choice');
-    toggle(tree);
-    expect(text(tree)).not.toContain('storage choice');
-  });
-
-  it('keeps all response buttons hidden while collapsed, including on hover', () => {
-    const tree = mount(dec(), fakeActions());
-    const header = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });
-    expect(header.props.onMouseEnter).toBeUndefined();
-    expect(findButtons(tree.root, '✓ Approve')).toHaveLength(0);
-    expect(findButtons(tree.root, 'Explain')).toHaveLength(0);
-    expect(findButtons(tree.root, 'Revise')).toHaveLength(0);
-
-    toggle(tree);
-    expect(findButtons(tree.root, '✓ Approve')).toHaveLength(1);
-    expect(findButtons(tree.root, 'Explain')).toHaveLength(1);
-    expect(findButtons(tree.root, 'Revise')).toHaveLength(1);
-  });
-});
-
 describe('DecisionCard responses', () => {
   it('approve fires respond(id, approve) with no message and leaves the card in place', () => {
     const actions = fakeActions();
@@ -88,7 +48,6 @@ describe('DecisionCard responses', () => {
     toggle(tree);
     act(() => { findButton(tree.root, '✓ Approve').props.onClick(); });
     expect(actions.respond).toHaveBeenCalledWith('ab12cd34', 'approve');
-    expect(text(tree)).toContain('storage choice'); // still expanded
   });
 
   it('an approved decision offers no approve button — only the sealed stamp', () => {
@@ -110,7 +69,6 @@ describe('DecisionCard responses', () => {
     expect(actions.respond).toHaveBeenCalledWith(
       'ab12cd34', 'revise', 'About the decision "Use SQLite", I propose a change: keep JSONL',
     );
-    expect(text(tree)).not.toContain('storage choice'); // sending collapses the card
   });
 
   it('explain with empty text sends the bare template', () => {

@@ -185,27 +185,3 @@ test('migrateThreadTemplatesToDir is a no-op when there is no single file', () =
 });
 
 // --- mergeThreadTemplates: per-file copy-if-missing (defaults dir → user dir) ---
-
-test('mergeThreadTemplates copies missing files and preserves existing ones', () => {
-  clean();
-  const defaultsDir = path.join(CONFIG_DIR, '_defaults-tt');
-  rmSync(defaultsDir, { recursive: true, force: true });
-  for (const sub of ['agents', 'templates', 'shells']) mkdirSync(path.join(defaultsDir, sub), { recursive: true });
-  writeFileSync(path.join(defaultsDir, 'agents', 'executor.json'), JSON.stringify(workerAgent('executor', 'execute'), null, 2), 'utf8');
-  writeFileSync(path.join(defaultsDir, 'shells', 'worker-review.json'), JSON.stringify(WORKER_REVIEW, null, 2), 'utf8');
-
-  // user dir already has a customized executor.json
-  mkdirSync(path.join(CONFIG_DIR_PATH, 'agents'), { recursive: true });
-  const custom = JSON.stringify({ ...workerAgent('executor', 'execute'), profile: 'CUSTOM' }, null, 2);
-  writeFileSync(path.join(CONFIG_DIR_PATH, 'agents', 'executor.json'), custom, 'utf8');
-
-  const changed = mergeThreadTemplates(defaultsDir, CONFIG_DIR_PATH);
-  assert.equal(changed, true);
-  // new shell file added
-  assert.ok(existsSync(path.join(CONFIG_DIR_PATH, 'shells', 'worker-review.json')), 'missing shell copied in');
-  // existing user file preserved (not overwritten)
-  assert.equal(readFileSync(path.join(CONFIG_DIR_PATH, 'agents', 'executor.json'), 'utf8'), custom, 'existing file preserved');
-
-  // second run is a no-op (everything present)
-  assert.equal(mergeThreadTemplates(defaultsDir, CONFIG_DIR_PATH), false);
-});

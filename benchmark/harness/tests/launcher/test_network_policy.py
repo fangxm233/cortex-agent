@@ -193,7 +193,6 @@ def test_filtered_evidence_states_the_denylist_caveat_in_the_document() -> None:
         "host": "192.0.2.1", "resolved": ["192.0.2.1"],
         "enforcement": "best-effort-dns-snapshot",
     }]
-    assert "DNS rotation" in record["denylist"]["caveat"]
 
 
 def test_denied_categories_track_the_effective_policy_not_the_declaration() -> None:

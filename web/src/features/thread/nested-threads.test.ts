@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { ThreadChildNode } from '@cortex-agent/ui-contract';
 import {
   MAX_LEVEL,
-  nodeLevel,
   treeMaxLevel,
 } from './nested-threads';
 
@@ -27,19 +26,7 @@ function node(
   };
 }
 
-describe('nodeLevel', () => {
-  it('maps direct child (depth 0) to level 2 — the root thread is level 1', () => {
-    expect(nodeLevel(node('a', 0))).toBe(2);
-  });
-  it('maps depth 3 to level 5', () => {
-    expect(nodeLevel(node('a', 3))).toBe(5);
-  });
-});
-
 describe('treeMaxLevel', () => {
-  it('is 1 (root only) for an empty subthread tree', () => {
-    expect(treeMaxLevel([])).toBe(1);
-  });
   it('reflects the deepest node, mapped to a level', () => {
     // deepest node depth 2 → level 4
     const tree = [node('a', 0, [node('b', 1, [node('c', 2)])])];

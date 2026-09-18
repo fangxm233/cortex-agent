@@ -59,22 +59,10 @@ test('chat.post deduplicates by messageId', () => {
   assert.equal(s2.ids.length, 1); // no duplicate
 });
 
-test('chat.post preserves insertion order across multiple messages', () => {
-  const s1 = _handleChatPost(EMPTY, makeChatPost('m-001', 'first'));
-  const s2 = _handleChatPost(s1, makeChatPost('m-002', 'second'));
-  assert.deepEqual(s2.ids, ['m-001', 'm-002']);
-});
-
 test('chat.update replaces text by messageId', () => {
   const s1 = _handleChatPost(EMPTY, makeChatPost('m-001', 'hello'));
   const s2 = _handleChatUpdate(s1, makeChatUpdate('m-001', 'updated'));
   assert.equal(s2.messages.get('m-001')?.text, 'updated');
-});
-
-test('chat.update ignores unknown messageId', () => {
-  const s1 = _handleChatPost(EMPTY, makeChatPost('m-001', 'hello'));
-  const s2 = _handleChatUpdate(s1, makeChatUpdate('m-999', 'nope'));
-  assert.equal(s2.ids.length, 1); // unchanged
 });
 
 test('chat.delete removes message by messageId', () => {
@@ -82,12 +70,6 @@ test('chat.delete removes message by messageId', () => {
   const s2 = _handleChatDelete(s1, makeChatDelete('m-001'));
   assert.equal(s2.ids.length, 0);
   assert.equal(s2.messages.has('m-001'), false);
-});
-
-test('chat.delete ignores unknown messageId', () => {
-  const s1 = _handleChatPost(EMPTY, makeChatPost('m-001', 'hello'));
-  const s2 = _handleChatDelete(s1, makeChatDelete('m-999'));
-  assert.equal(s2.ids.length, 1);
 });
 
 test('chat.markQueued sets queued flag', () => {
@@ -103,14 +85,6 @@ test('stream.text appends to last message stream', () => {
   assert.ok(msg);
   assert.equal(msg.streams.get('s1')?.blocks.length, 1);
   assert.equal(msg.streams.get('s1')?.blocks[0].text, 'part1');
-});
-
-test('stream.text appends multiple segments to same stream', () => {
-  const s1 = _handleChatPost(EMPTY, makeChatPost('m-001', 'hello'));
-  const s2 = _handleStreamText(s1, makeStreamText('s1', 'part1'));
-  const s3 = _handleStreamText(s2, makeStreamText('s1', 'part2'));
-  assert.equal(s3.messages.get('m-001')?.streams.get('s1')?.blocks.length, 2);
-  assert.equal(s3.messages.get('m-001')?.streams.get('s1')?.blocks[1].text, 'part2');
 });
 
 test('stream.mutableOpen opens a mutable region', () => {

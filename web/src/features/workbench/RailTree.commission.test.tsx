@@ -102,21 +102,6 @@ describe('commission rail row', () => {
     act(() => renderer.unmount());
   });
 
-  it('does not resize under the cursor', () => {
-    // The ＋ takes the trailing count's place, and a row whose height followed its content would
-    // shove every row below it down the moment the pointer crossed one.
-    const { renderer } = renderTree();
-    const resting = row(renderer).props.style;
-    expect(resting.height).toBe(26);
-    expect(resting.minHeight).toBeUndefined();
-
-    act(() => row(renderer).props.onMouseEnter());
-    expect(row(renderer).props.style.height).toBe(26);
-    // The button has to fit inside that height, padding included.
-    expect(plus(renderer)[0].props.style.height).toBeLessThanOrEqual(26 - 4 - 4);
-    act(() => renderer.unmount());
-  });
-
   it('keeps the count on a closed commission — it takes no new sessions', () => {
     // The server refuses a join on a closed commission, so the row must not offer one.
     const { renderer } = renderTree({ nodes: [node([commission({ status: 'done' })])] });

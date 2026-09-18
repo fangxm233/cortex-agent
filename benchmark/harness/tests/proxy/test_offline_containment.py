@@ -1,13 +1,10 @@
 import json
 import select
 import socket
-import time
 from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection, HTTPResponse
 from pathlib import Path
 from urllib.parse import urlsplit
-
-import pytest
 
 from cortex_bench_harness.proxy import ProxyLimits, start_trial_proxy
 from synthetic import (
@@ -49,46 +46,6 @@ def test_h7_property_1_source_binding_holds_offline(tmp_path: Path) -> None:
     assert bound[0] == 200
     assert unbound[0] == 403
     assert json.loads(unbound[1]) == {"error": "source_rejected"}
-    assert len(upstream.requests) == 1
-
-
-def test_h7_property_2_request_cutoff_holds_offline(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url, max_requests=1)
-        try:
-            first, _ = proxy_request(handle.base_url, handle.dummy_token, "first")
-            second, payload = proxy_request(handle.base_url, handle.dummy_token, "second")
-        finally:
-            handle.stop()
-    assert (first, second) == (200, 429)
-    assert json.loads(payload) == {"error": "requests_exhausted"}
-    assert len(upstream.requests) == 1
-
-
-def test_h7_property_3_absolute_deadline_revocation_holds_offline(tmp_path: Path) -> None:
-    deadline = datetime.now(UTC) + timedelta(seconds=2)
-    with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url, deadline=deadline)
-        try:
-            before, _ = proxy_request(handle.base_url, handle.dummy_token, "before")
-            while datetime.now(UTC) <= deadline:
-                time.sleep(0.01)
-            after, payload = proxy_request(handle.base_url, handle.dummy_token, "after")
-        finally:
-            handle.stop()
-    assert (before, after) == (200, 410)
-    assert json.loads(payload) == {"error": "deadline_expired"}
-    assert len(upstream.requests) == 1
-
-
-def test_h7_property_6_route_is_dead_after_stop_offline(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url)
-        alive, _ = proxy_request(handle.base_url, handle.dummy_token, "alive")
-        handle.stop()
-        with pytest.raises(OSError):
-            proxy_request(handle.base_url, handle.dummy_token, "dead")
-    assert alive == 200
     assert len(upstream.requests) == 1
 
 

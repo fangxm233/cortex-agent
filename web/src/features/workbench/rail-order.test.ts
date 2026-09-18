@@ -1,19 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isRailSortMode,
   moveInOrder,
   reconcileManualOrder,
   resolveRailOrder,
 } from './rail-order';
-
-describe('isRailSortMode', () => {
-  it('accepts only the two real modes', () => {
-    expect(isRailSortMode('activity')).toBe(true);
-    expect(isRailSortMode('manual')).toBe(true);
-    expect(isRailSortMode('name')).toBe(false);
-    expect(isRailSortMode(null)).toBe(false);
-  });
-});
 
 describe('reconcileManualOrder', () => {
   it('keeps the stored order for projects that still exist', () => {

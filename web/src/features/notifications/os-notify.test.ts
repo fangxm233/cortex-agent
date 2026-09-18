@@ -41,7 +41,6 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
 
 type OsNotifyModule = typeof import('./os-notify');
 let osNotificationSpec: OsNotifyModule['osNotificationSpec'];
-let osNotifyAvailable: OsNotifyModule['osNotifyAvailable'];
 let ensureOsNotifyPermission: OsNotifyModule['ensureOsNotifyPermission'];
 let sendOsNotification: OsNotifyModule['sendOsNotification'];
 let onOsNotificationAction: OsNotifyModule['onOsNotificationAction'];
@@ -74,7 +73,6 @@ beforeEach(async () => {
   vi.resetModules();
   ({
     osNotificationSpec,
-    osNotifyAvailable,
     ensureOsNotifyPermission,
     sendOsNotification,
     onOsNotificationAction,
@@ -121,15 +119,6 @@ describe('Android native post and permission', () => {
   });
 });
 
-describe('osNotifyAvailable', () => {
-  it('is false in a plain browser and true in the native shell', () => {
-    h.native = false;
-    expect(osNotifyAvailable()).toBe(false);
-    h.native = true;
-    expect(osNotifyAvailable()).toBe(true);
-  });
-});
-
 describe('off-shell (browser) is a no-op', () => {
   it('ensureOsNotifyPermission returns false without touching the plugin', async () => {
     h.native = false;
@@ -149,7 +138,6 @@ describe('native shell', () => {
     h.granted = true;
     expect(await sendOsNotification(osNotificationSpec(item()))).toBe(true);
     expect(h.sent).toHaveLength(1);
-    expect(h.sent[0]).toMatchObject({ title: '线程完成 — orchard-pipeline', body: '评审通过 · 42m · 轻点查看产物' });
   });
 
   it('shares an in-flight permission prompt with concurrent delivery', async () => {

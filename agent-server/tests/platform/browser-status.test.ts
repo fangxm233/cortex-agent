@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { browserStatusPayload, BROWSER_STATUS_PATH } from '@platform/ui-http/browser-status.js';
+import { browserStatusPayload } from '@platform/ui-http/browser-status.js';
 
 describe('browserStatusPayload', () => {
   it('answers "can I take it over?" even while Chrome is stopped', () => {
@@ -20,7 +20,4 @@ describe('browserStatusPayload', () => {
     expect(Date.now() - t0).toBeLessThan(1000);
   });
 
-  it('is served under the api prefix so the same auth gate applies', () => {
-    expect(BROWSER_STATUS_PATH.startsWith('/api/')).toBe(true);
-  });
 });

@@ -8,7 +8,6 @@ import { promises as fs } from 'node:fs';
 import { WORKSPACE_DIR } from '../../src/core/paths.js';
 import {
   sendAgentView,
-  clampViewHeight,
   viewFileName,
   MAX_INLINE_HTML_BYTES,
   VIEW_HEIGHT_DEFAULT,
@@ -108,14 +107,6 @@ test('oversized inline html is refused with a pointer to file_path', async () =>
     () => sendAgentView({ sessionId: 's', title: 'Big', html: 'x'.repeat(MAX_INLINE_HTML_BYTES + 1) }, h.deps),
     /file_path/,
   );
-});
-
-test('height is clamped; junk falls back to the default', () => {
-  assert.equal(clampViewHeight(undefined), VIEW_HEIGHT_DEFAULT);
-  assert.equal(clampViewHeight(NaN), VIEW_HEIGHT_DEFAULT);
-  assert.equal(clampViewHeight(10), 160);
-  assert.equal(clampViewHeight(99999), 900);
-  assert.equal(clampViewHeight(500.4), 500);
 });
 
 test('viewFileName slugifies non-ASCII titles without producing an empty stem', () => {

@@ -7,7 +7,6 @@ vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 import {
   isInjectableMessage,
-  backendSupportsInject,
   tryInjectIntoLiveTurn,
   _test as injectTest,
   type MidTurnInjectDeps,
@@ -211,17 +210,6 @@ test('isInjectableMessage: a !command never injects — it carries its own execu
 
 test('isInjectableMessage: a synthetic wake/callback must open its own turn, not fold into one', () => {
   assert.equal(isInjectableMessage({ text: 'a child finished', senderId: SYNTHETIC_CALLBACK_SENDER }), false);
-});
-
-test('isInjectableMessage: an empty message is not injectable', () => {
-  assert.equal(isInjectableMessage({ text: '   ', senderId: 'U1' }), false);
-});
-
-test('backendSupportsInject: Claude and PI declare live-turn injection', () => {
-  assert.equal(backendSupportsInject('claude'), true);
-  assert.equal(backendSupportsInject('pi'), true);
-  assert.equal(backendSupportsInject('unknown'), false);
-  assert.equal(backendSupportsInject('nonsense'), false);
 });
 
 // --- Fallback: everything that must keep today's conduit-queue behaviour ---

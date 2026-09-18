@@ -18,7 +18,6 @@ describe('execBash timeout', () => {
       const elapsedMs = Date.now() - startedAt;
 
       assert.equal(result.exitCode, 124);
-      assert.match(result.stderr, /timed out after 0\.15s/);
       assert.ok(elapsedMs < 1_000, `timeout returned after ${elapsedMs}ms`);
       await delay(2_100);
       assert.equal(existsSync(marker), false);

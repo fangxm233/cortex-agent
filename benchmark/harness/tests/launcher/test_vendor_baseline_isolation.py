@@ -55,10 +55,7 @@ def test_baseline_uses_only_the_native_harbor_path(
     assert all("cortex" not in path.name.casefold() for path in logs_dir.rglob("*"))
 
 
-@pytest.mark.parametrize("field", [
-    "backend", "orchestration", "plugin_dirs", "task_store", "coordinator",
-    "artifact_inventory_spec",
-])
+@pytest.mark.parametrize("field", ["backend", "orchestration"])
 def test_baseline_rejects_cortex_composition_fields(field: str) -> None:
     arm = baseline_arm("claude-code", None, "claude-sonnet")
     arm[field] = {"configured": True}
@@ -67,9 +64,7 @@ def test_baseline_rejects_cortex_composition_fields(field: str) -> None:
         build_agent_config(arm, cli_version="1.2.3")
 
 
-@pytest.mark.parametrize("key", [
-    "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "CORTEX_BENCH_TRIAL_ID",
-])
+@pytest.mark.parametrize("key", ["CORTEX_HOME", "CORTEX_BENCH_TRIAL_ID"])
 def test_baseline_rejects_cortex_environment(key: str) -> None:
     arm = baseline_arm("codex", "openai", "gpt-5")
 

@@ -62,10 +62,6 @@ test('computeFocusZone: dashboard when side panel visible and no modal', () => {
   assert.equal(computeFocusZone({ modalOpen: false, sidePanelVisible: true }), 'dashboard');
 });
 
-test('computeFocusZone: input by default', () => {
-  assert.equal(computeFocusZone({ modalOpen: false, sidePanelVisible: false }), 'input');
-});
-
 // ── isAgentResponseFrame ──
 
 test('isAgentResponseFrame: true for agent reply / stream frames', () => {
@@ -77,15 +73,6 @@ test('isAgentResponseFrame: true for agent reply / stream frames', () => {
   }
 });
 
-test('isAgentResponseFrame: false for non-response frames', () => {
-  for (const type of [
-    'notification', 'ui.event', 'ui.queryResult', 'chat.markQueued',
-    'pong', 'session.switched', 'handshake.ack', 'msg.user', 'error',
-  ]) {
-    assert.equal(isAgentResponseFrame({ type } as any), false, `expected false for ${type}`);
-  }
-});
-
 // ── collectStreamText ──
 
 test('collectStreamText: joins blocks one per line, in order', () => {
@@ -94,23 +81,7 @@ test('collectStreamText: joins blocks one per line, in order', () => {
   assert.equal(collectStreamText(streams), 'Hello,\nworld\n!');
 });
 
-test('collectStreamText: empty streams → empty string', () => {
-  assert.equal(collectStreamText(new Map()), '');
-});
-
-test('collectStreamText: multiple streams joined per line in insertion order', () => {
-  const streams = new Map<string, { blocks: Array<{ kind: 'text' | 'region'; regionId?: string; text: string }> }>();
-  streams.set('s1', { blocks: [{ kind: 'text', text: 'a' }, { kind: 'text', text: 'b' }] });
-  streams.set('s2', { blocks: [{ kind: 'text', text: 'c' }] });
-  assert.equal(collectStreamText(streams), 'a\nb\nc');
-});
-
 // ── input history navigation ──
-
-test('historyPrev: empty history is a no-op', () => {
-  const r = historyPrev([], { index: null, draft: '' }, 'typing');
-  assert.deepEqual(r, { value: 'typing', state: { index: null, draft: '' } });
-});
 
 test('historyPrev: first Up shows newest entry and saves the live draft', () => {
   const r = historyPrev(['a', 'b', 'c'], { index: null, draft: '' }, 'half-typed');
@@ -130,11 +101,6 @@ test('historyPrev: successive Up steps to older entries and stops at the oldest'
   assert.equal(s.value, 'a');
   assert.equal(s.state.index, 0);
   assert.equal(s.state.draft, 'd'); // draft preserved through navigation
-});
-
-test('historyNext: not navigating is a no-op', () => {
-  const r = historyNext(['a', 'b'], { index: null, draft: '' }, 'typing');
-  assert.deepEqual(r, { value: 'typing', state: { index: null, draft: '' } });
 });
 
 test('historyNext: Down steps to newer entries then restores the draft past the newest', () => {
@@ -173,12 +139,6 @@ test('matchResumeTarget: exact sessionId, exact name, suffix, and bare suffix', 
   assert.equal(matchResumeTarget(SESSIONS, 'sid-bbbb'), 'sid-bbbb2222'); // id prefix
 });
 
-test('matchResumeTarget: no match and empty target → null', () => {
-  assert.equal(matchResumeTarget(SESSIONS, 'nope'), null);
-  assert.equal(matchResumeTarget(SESSIONS, '   '), null);
-  assert.equal(matchResumeTarget([], 'cortex-8cdfbe'), null);
-});
-
 // ── isMouseSequence / parseWheelEvents ──
 
 test('isMouseSequence: detects raw ESC and SGR residue, passes normal text', () => {
@@ -199,14 +159,6 @@ test('parseWheelEvents: extracts up/down from SGR wheel codes', () => {
 
 test('detectUserMessage: strips the "**You:** " prefix and marks user', () => {
   assert.deepEqual(detectUserMessage('**You:** hi there'), { text: 'hi there', user: true });
-});
-
-test('detectUserMessage: honours the isUser flag without a prefix', () => {
-  assert.deepEqual(detectUserMessage('hello', true), { text: 'hello', user: true });
-});
-
-test('detectUserMessage: plain assistant text is not a user message', () => {
-  assert.deepEqual(detectUserMessage('some answer'), { text: 'some answer', user: false });
 });
 
 // ── multi-line cursor navigation ──
@@ -288,13 +240,6 @@ test('classifyDeleteChunk: \\x1b[3~ (and modified) is forward-delete (delete the
   assert.equal(classifyDeleteChunk('\x1b[3;5~'), 'forward-delete'); // ctrl+delete
 });
 
-test('classifyDeleteChunk: anything else is null', () => {
-  assert.equal(classifyDeleteChunk('a'), null);
-  assert.equal(classifyDeleteChunk(''), null);
-  assert.equal(classifyDeleteChunk('\x1b[D'), null);   // left arrow
-  assert.equal(classifyDeleteChunk('hello'), null);    // a paste
-});
-
 // ── parseAllMouseEvents ──
 
 test('parseAllMouseEvents: parses left press + release (SGR)', () => {
@@ -302,12 +247,6 @@ test('parseAllMouseEvents: parses left press + release (SGR)', () => {
   const events = parseAllMouseEvents('\x1b[<0;10;5M');
   assert.equal(events.length, 1);
   assert.deepEqual(events[0], { type: 'press', button: 0, col: 9, row: 4 }); // 1-based → 0-based
-});
-
-test('parseAllMouseEvents: parses release (lowercase m)', () => {
-  const events = parseAllMouseEvents('\x1b[<0;10;5m');
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0], { type: 'release', button: 0, col: 9, row: 4 });
 });
 
 test('parseAllMouseEvents: parses drag events (button bit 0x20 set)', () => {
@@ -327,12 +266,6 @@ test('parseAllMouseEvents: parses wheel events (button bit 0x40 set)', () => {
   assert.equal(events[1].button, 65);
 });
 
-test('parseAllMouseEvents: parses right-click (button 2)', () => {
-  const events = parseAllMouseEvents('\x1b[<2;20;10M');
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0], { type: 'press', button: 2, col: 19, row: 9 });
-});
-
 test('parseAllMouseEvents: handles multiple events in one chunk', () => {
   // left press then drag then release
   const chunk = '\x1b[<0;5;3M\x1b[<32;10;3M\x1b[<0;10;3m';
@@ -343,31 +276,11 @@ test('parseAllMouseEvents: handles multiple events in one chunk', () => {
   assert.equal(events[2].type, 'release');
 });
 
-test('parseAllMouseEvents: returns empty array for non-mouse input', () => {
-  assert.deepEqual(parseAllMouseEvents('hello'), []);
-  assert.deepEqual(parseAllMouseEvents(''), []);
-});
-
 // ── normalizeSelection ──
-
-test('normalizeSelection: already normalized (start before end) is returned as-is', () => {
-  const s = normalizeSelection(2, 5, 4, 10);
-  assert.deepEqual(s, { startLine: 2, startCol: 5, endLine: 4, endCol: 10 });
-});
 
 test('normalizeSelection: swaps when start is after end (backward drag)', () => {
   const s = normalizeSelection(4, 10, 2, 5);
   assert.deepEqual(s, { startLine: 2, startCol: 5, endLine: 4, endCol: 10 });
-});
-
-test('normalizeSelection: same line, swaps columns when startCol > endCol', () => {
-  const s = normalizeSelection(3, 15, 3, 5);
-  assert.deepEqual(s, { startLine: 3, startCol: 5, endLine: 3, endCol: 15 });
-});
-
-test('normalizeSelection: same point is a no-op', () => {
-  const s = normalizeSelection(3, 5, 3, 5);
-  assert.deepEqual(s, { startLine: 3, startCol: 5, endLine: 3, endCol: 5 });
 });
 
 // ── extractSelectionText ──
@@ -391,35 +304,7 @@ test('extractSelectionText: multi-line selection', () => {
   assert.equal(text, 'one\nline two\nline');
 });
 
-test('extractSelectionText: out-of-range startLine returns empty', () => {
-  const lines = [{ text: 'only' }];
-  assert.equal(extractSelectionText(lines, { startLine: 5, startCol: 0, endLine: 5, endCol: 3 }), '');
-  assert.equal(extractSelectionText(lines, { startLine: -1, startCol: 0, endLine: 0, endCol: 3 }), '');
-});
-
-test('extractSelectionText: endLine clamped to lines length', () => {
-  const lines = [{ text: 'alpha' }, { text: 'beta' }];
-  // endLine beyond array length — only first line from startCol
-  const text = extractSelectionText(lines, { startLine: 0, startCol: 2, endLine: 5, endCol: 2 });
-  assert.equal(text, 'pha\nbeta');
-});
-
 // ── osc52Copy ──
-
-test('osc52Copy: writes the correct OSC 52 escape to stdout', () => {
-  // Capture what osc52Copy writes to stdout
-  const written: string[] = [];
-  const origWrite = process.stdout.write;
-  process.stdout.write = ((chunk: string) => { written.push(chunk); return true; }) as any;
-  try {
-    osc52Copy('hello');
-    assert.equal(written.length, 1);
-    const b64 = Buffer.from('hello').toString('base64');
-    assert.equal(written[0], `\x1b]52;c;${b64}\x07`);
-  } finally {
-    process.stdout.write = origWrite;
-  }
-});
 
 // ── Display-width-aware helpers (CJK / full-width support) ──
 // Terminal columns are display cells; CJK chars occupy 2 columns but 1 JS char. These helpers

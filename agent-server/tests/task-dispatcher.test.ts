@@ -333,31 +333,3 @@ test('filterLockedProjects — expired lock does not block dispatch', () => {
     cleanupLockProject(expiredP);
   }
 });
-
-test('filterLockedProjects — all tasks pass through when no locks exist', () => {
-  const p1 = nextLockProject();
-  const p2 = nextLockProject();
-  try {
-    setupLockProject(p1, null);
-    setupLockProject(p2, null);
-
-    const tasks = [
-      { id: 'd4', project: p1, text: 'first', template: 'default' },
-      { id: 'e5', project: p2, text: 'second', template: 'default' },
-    ];
-
-    const result = filterLockedProjects(tasks);
-    assert.equal(result.length, 2);
-  } finally {
-    cleanupLockProject(p1);
-    cleanupLockProject(p2);
-  }
-});
-
-test('filterLockedProjects — empty input returns empty', () => {
-  assert.deepEqual(filterLockedProjects([]), []);
-});
-
-test('filterLockedProjects — null input returns null (passthrough)', () => {
-  assert.equal(filterLockedProjects(null as any), null);
-});

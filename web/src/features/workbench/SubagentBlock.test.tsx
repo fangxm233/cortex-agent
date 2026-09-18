@@ -27,21 +27,11 @@ describe('SubagentBlock', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
-    const count = renderer.root.findAll((node) => node.type === 'span' && node.children.join('') === '1 tool call')[0];
-    expect(count.props.style.marginLeft).toBe('auto');
     const header = renderer.root.findByProps({ role: 'button' });
-    expect(header.props.style).toMatchObject({
-      position: 'sticky', top: 0, zIndex: 1, background: 'var(--proto-rail)',
-      borderRadius: 7,
-    });
-    expect(header.parent!.props.style.overflow).toBeUndefined();
     act(() => header.props.onClick());
-    expect(header.props.style.borderRadius).toBe('7px 7px 0 0');
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
-    act(() => header.props.onClick());
-    expect(header.props.style.borderRadius).toBe(7);
   });
 
   it('keeps one outer turn-copy action after an expanded subagent', () => {

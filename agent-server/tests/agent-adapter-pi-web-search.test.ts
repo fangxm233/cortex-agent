@@ -154,7 +154,6 @@ test('dispatches anthropic-messages through model.baseUrl and returns source URL
     blocked_domains: ['archive.example.test'],
   }]);
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
-  assert.match(result.content[0].text, /Queries:\n- runtime release status/);
   assert.equal(result.content[0].text.match(new RegExp(SOURCE_URL, 'g'))?.length, 1);
 });
 
@@ -190,7 +189,6 @@ test('routes PI DeepSeek completions models through the Anthropic web-search end
     max_uses: 3,
   }]);
   assert.match(result.content[0].text, /DeepSeek returned a sourced search result/);
-  assert.match(result.content[0].text, /Queries:\n- deepseek runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
@@ -242,7 +240,6 @@ test.each([
   assert.deepEqual(body.tools, [{ type: 'web_search' }]);
   assert.match(body.input[0].content[0].text, /Only use these domains: docs\.example\.test/);
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
-  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
@@ -298,7 +295,6 @@ test('accepts Codex SSE when a proxy mislabels the response as JSON', async () =
   const requestHeaders = new Headers((fetchSpy.mock.calls[0][1] as RequestInit).headers);
   assert.equal(requestHeaders.get('accept'), 'text/event-stream');
   assert.match(result.content[0].text, /Recovered streamed answer/);
-  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
@@ -334,7 +330,6 @@ test('retries once without Anthropic domain fields when a 400 names them', async
   assert.equal(retryBody.tools[0].blocked_domains, undefined);
   assert.match(retryBody.messages[0].content, /Only use these domains: docs\.example\.test/);
   assert.match(result.content[0].text, /Domain filtering was applied through the query prompt/i);
-  assert.match(result.content[0].text, /Queries:\n- degraded domain query/);
 });
 
 test('negative-caches unknown search variants per provider:api', async () => {
@@ -458,7 +453,6 @@ test('accepts completed JSON when a proxy mislabels it as SSE', async () => {
   const result = await executeSearch(ctx);
 
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
-  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 

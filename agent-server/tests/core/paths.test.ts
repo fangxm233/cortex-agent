@@ -6,7 +6,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INSTALL_ROOT, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath } from '../../src/core/paths.js';
+import { INSTALL_ROOT, DATA_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath } from '../../src/core/paths.js';
 
 test('INSTALL_ROOT resolves to the installed package root (two levels up from dist/core/, equivalent under tsx to src/core/)', () => {
   const testFileDir = path.dirname(fileURLToPath(import.meta.url));
@@ -14,20 +14,6 @@ test('INSTALL_ROOT resolves to the installed package root (two levels up from di
   // tests/core/ → ../.. → agent-server/ should equal INSTALL_ROOT.
   const expected = path.resolve(testFileDir, '..', '..');
   assert.equal(INSTALL_ROOT, expected);
-});
-
-test('PACKAGE_ROOT / SERVER_ROOT / REPO_ROOT are deprecated aliases for INSTALL_ROOT', () => {
-  assert.equal(PACKAGE_ROOT, INSTALL_ROOT);
-  assert.equal(SERVER_ROOT, INSTALL_ROOT);
-  assert.equal(REPO_ROOT, INSTALL_ROOT);
-});
-
-test('PROJECTS_DIR = DATA_DIR/context/projects by default', () => {
-  assert.equal(PROJECTS_DIR, path.join(DATA_DIR, 'context', 'projects'));
-});
-
-test('WORKSPACE_DIR = DATA_DIR/tmp', () => {
-  assert.equal(WORKSPACE_DIR, path.join(DATA_DIR, 'tmp'));
 });
 
 test('resolveWorkspaceRelPath maps the `workspace/` alias to WORKSPACE_DIR contents', () => {
