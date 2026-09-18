@@ -65,7 +65,7 @@ test('the three waitpoint tools register under the names the gate declares', () 
   // …but ending the turn is only safe once something will actually signal. Cortex launches and
   // watches nothing, so an agent that arms a waitpoint and walks away without wiring the callback
   // has built a 7-day silence. The description must name the CLI and say the callback is on them.
-  assert.match(registered[0].description, /NOTHING SIGNALS BY ITSELF/);
+  assert.match(registered[0].description, /launches nothing and watches nothing/);
   assert.match(registered[0].description, /cortex-signal/);
   assert.ok('intent' in registered[0].schema, 'wait_create must capture an intent for the cold wake');
 });

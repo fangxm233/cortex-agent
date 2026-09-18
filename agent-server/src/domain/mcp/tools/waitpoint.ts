@@ -63,20 +63,25 @@ function buildRecipe(id: string, secret: string, port: number, device: string | 
 export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'wait_create',
-    'Arm a waitpoint: a durable wake that anything outside Cortex can address. You get back an id, '
-    + 'a one-time secret and ready-to-paste command lines; whoever holds them wakes this session with '
-    + 'a result. Completion is only the commonest shape — the same object is an alarm clock '
-    + '(`(sleep 3600; cortex-signal) &`) and, with `max_signals` > 1, a monitor that reports in over '
-    + 'and over. '
-    + 'NOTHING SIGNALS BY ITSELF: Cortex never launches or watches your process, so the job only '
-    + 'reports back if you arrange it. Arm the waitpoint FIRST, then start the job with the returned '
-    + 'cortex-signal line in the same command (`python train.py; cortex-signal --exit-code $?`). If '
-    + 'the job is already running, use the returned line that watches its pid instead. A waitpoint '
-    + 'nobody signals just expires, days later. '
-    + 'Once the line is in place, END YOUR TURN — the wait costs nothing while you are idle, and when '
-    + 'the signal arrives this session is woken with a message carrying the result and the `intent` '
-    + 'you record here. Use `members` + `quorum` to wait on several jobs at once; by default the '
-    + 'first failure wakes you immediately.',
+    [
+      'Arm a waitpoint: a durable wake that anything outside Cortex can address. You get back an id,',
+      'a one-time secret and ready-to-paste lines; anything able to run one of them wakes this session',
+      'later, carrying a result.',
+      '',
+      'Shapes it takes:',
+      '  a job that just finished   python train.py; cortex-signal --exit-code $?',
+      '  a job already running      the reply\'s attach_to_pid line watches its pid',
+      '  an alarm clock             (sleep 3600; cortex-signal --message "an hour is up") &',
+      '  a monitor                  max_signals > 1 — every report wakes you, until you cancel it',
+      '  several jobs at once       members + quorum — woken once, when the set is done',
+      '',
+      'Mechanism: Cortex launches nothing and watches nothing, so that callback exists only because',
+      'you put it somewhere. Arm the waitpoint before starting the job, so its line goes into the same',
+      'command; a waitpoint nobody signals just expires days later, having told you nothing.',
+      '',
+      'Then END YOUR TURN. Idle waiting is free and you never poll — when the signal lands this session',
+      'is woken with the result and the intent you recorded here.',
+    ].join('\n'),
     {
       label: z.string().describe('Short human name, e.g. "arm2 training". Appears in the wake message.'),
       intent: z.string().describe(
