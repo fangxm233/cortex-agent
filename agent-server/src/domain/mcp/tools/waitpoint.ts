@@ -11,6 +11,9 @@ interface SignalRecipe {
   cli: string;
   curl: string;
   shell: string;
+  /** For a job that is ALREADY running: nothing can be appended to its command line any more, so
+   *  watch its pid from the side. The only form that works when the waitpoint is armed too late. */
+  attach_to_pid: string;
 }
 
 async function proxy(ctx: CortexToolContext, action: string, payload: Record<string, unknown>): Promise<any> {
@@ -52,18 +55,26 @@ function buildRecipe(id: string, secret: string, port: number, device: string | 
   ].join('\n');
   // On a device the daemon cannot be reached over HTTP at all, so the file drop is the only
   // form that works there; on this machine the CLI is shorter and reports failures immediately.
-  return { recommended: device ? 'shell' : 'cli', env, cli, curl, shell };
+  const attachToPid = `(while kill -0 <PID> 2>/dev/null; do sleep 5; done; `
+    + `cortex-signal --status ok --message "pid <PID> exited") &`;
+  return { recommended: device ? 'shell' : 'cli', env, cli, curl, shell, attach_to_pid: attachToPid };
 }
 
 export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'wait_create',
     'Arm a waitpoint: a durable "wake me when this finishes" object for something running outside '
-    + 'Cortex (a training run, a build, an evaluation). You get back an id and a one-time secret, '
-    + 'plus ready-to-paste lines to append to whatever you are running. Then END YOUR TURN — the '
-    + 'wait costs nothing while you are idle, and when the signal arrives this session is woken with '
-    + 'a message carrying the result and the `intent` you record here. Use `members` + `quorum` to '
-    + 'wait on several jobs at once; by default the first failure wakes you immediately.',
+    + 'Cortex (a training run, a build, an evaluation). You get back an id, a one-time secret and '
+    + 'ready-to-paste command lines. '
+    + 'NOTHING SIGNALS BY ITSELF: Cortex never launches or watches your process, so the job only '
+    + 'reports back if you arrange it. Arm the waitpoint FIRST, then start the job with the returned '
+    + 'cortex-signal line in the same command (`python train.py; cortex-signal --exit-code $?`). If '
+    + 'the job is already running, use the returned line that watches its pid instead. A waitpoint '
+    + 'nobody signals just expires, days later. '
+    + 'Once the line is in place, END YOUR TURN — the wait costs nothing while you are idle, and when '
+    + 'the signal arrives this session is woken with a message carrying the result and the `intent` '
+    + 'you record here. Use `members` + `quorum` to wait on several jobs at once; by default the '
+    + 'first failure wakes you immediately.',
     {
       label: z.string().describe('Short human name, e.g. "arm2 training". Appears in the wake message.'),
       intent: z.string().describe(
@@ -106,7 +117,9 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
         return ok({
           ...data,
           how_to_signal: recipe,
-          next: 'Hand one of the how_to_signal lines to the job, then end your turn. You will be woken.',
+          next: 'Nothing will signal this waitpoint unless you put one of the how_to_signal lines '
+            + 'where the job runs it (start the job with it, or attach_to_pid if it is already '
+            + 'running). Do that first, then end your turn — you will be woken.',
         });
       } catch (e) {
         return fail(`wait_create failed: ${(e as Error).message}`);

@@ -40,7 +40,12 @@ wait_create({
 })
 ```
 
-Then **end your turn**. You are not supposed to wait around.
+Arm it **before** you start the job, so the signal line goes into the same command. Nothing
+signals by itself — Cortex launches nothing and watches nothing, so a waitpoint whose callback was
+never wired just sits there until it expires. If the job is already running, the reply's
+`attach_to_pid` line watches its pid instead.
+
+Once the callback is in place, **end your turn**. You are not supposed to wait around.
 
 ## Signalling it
 
