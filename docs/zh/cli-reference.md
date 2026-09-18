@@ -414,7 +414,7 @@ cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--messag
 选项：
 - `--id <wp_…>` — waitpoint id（默认：`$CORTEX_SIGNAL_ID`）
 - `--secret <hex>` — 随该 waitpoint 一起签发的能力凭证（默认：`$CORTEX_SIGNAL_SECRET`）
-- `--status <s>` — `ok`、`fail` 或 `progress`（默认：`ok`）；`progress` 只记录心跳，不解决也不唤醒
+- `--status <s>` — `ok`、`fail` 或 `progress`（默认：`ok`）。`ok`/`fail` 是终态：计入 quorum 并唤醒会话；`progress` 只记录心跳，不结算、**也不唤醒任何人** —— 两者的区别完全在于「这件事值不值一个 turn」
 - `--exit-code <n>` — 由命令退出码推导状态（0 为 `ok`，其余为 `fail`），消息默认为 `exit=<n>`
 - `--message <text>` — 一行摘要，显示在唤醒消息里
 - `--member <name>` — 多任务 waitpoint 中这条信号属于哪个成员

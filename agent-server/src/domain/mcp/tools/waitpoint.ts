@@ -63,9 +63,11 @@ function buildRecipe(id: string, secret: string, port: number, device: string | 
 export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'wait_create',
-    'Arm a waitpoint: a durable "wake me when this finishes" object for something running outside '
-    + 'Cortex (a training run, a build, an evaluation). You get back an id, a one-time secret and '
-    + 'ready-to-paste command lines. '
+    'Arm a waitpoint: a durable wake that anything outside Cortex can address. You get back an id, '
+    + 'a one-time secret and ready-to-paste command lines; whoever holds them wakes this session with '
+    + 'a result. Completion is only the commonest shape — the same object is an alarm clock '
+    + '(`(sleep 3600; cortex-signal) &`) and, with `max_signals` > 1, a monitor that reports in over '
+    + 'and over. '
     + 'NOTHING SIGNALS BY ITSELF: Cortex never launches or watches your process, so the job only '
     + 'reports back if you arrange it. Arm the waitpoint FIRST, then start the job with the returned '
     + 'cortex-signal line in the same command (`python train.py; cortex-signal --exit-code $?`). If '
@@ -91,7 +93,10 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
         'Wake on the first failure even if the quorum is unmet. Default true.',
       ),
       max_signals: z.number().optional().describe(
-        'How many times it may wake you before closing. Default 1 (one-shot). >1 turns it into a mailbox.',
+        'How many times it may wake you before closing. Default 1: one job, one wake. Set it above 1 '
+        + 'to keep the waitpoint open as a mailbox, so a job reporting every 30 minutes wakes you every '
+        + 'time; cancel it yourself once you have what you need. A sender that should be recorded '
+        + 'WITHOUT waking you uses `cortex-signal --status progress` instead.',
       ),
       expires_in_hours: z.number().optional().describe(
         'Deadline. If nothing signals by then you are told so instead of waiting forever. Default 168h (7d), max 720h.',

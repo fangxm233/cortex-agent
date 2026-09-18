@@ -97,6 +97,37 @@ simply wait there.
 That spool directory works on the daemon's own machine too, and `cortex-signal` falls back to it
 automatically when the daemon is down, so a signal written during a restart is not lost.
 
+## Other shapes
+
+A waitpoint is not a completion notification; it is a wake with an address. Nothing about it
+assumes the sender is a job that just finished, so the other useful shapes need no extra feature —
+they are the same object with a different line pasted somewhere else.
+
+**An alarm clock.** Nobody says the signal has to come from real work:
+
+```bash
+(sleep 3600; cortex-signal --message "an hour is up, look at the queue again") &
+```
+
+**A monitor.** Set `max_signals` above 1 and the waitpoint stays open, waking you on every report:
+
+```
+wait_create({ label: "nightly", intent: "…", max_signals: 24 })
+```
+```bash
+while :; do sleep 1800; cortex-signal --message "$(tail -1 train.log)"; done &
+```
+
+The hourly wake cap still applies, so a chatty monitor cannot burn the session down. Cancel it with
+`wait_cancel` once you have what you need — closing it is your decision, not the server's.
+
+**A heartbeat you are not woken for.** `--status progress` records the report without resolving
+anything and without waking you; it shows up when you next look, and in the session's wait rail. Use
+it for "still alive at step 12000" and keep `ok`/`fail` for the moments actually worth a turn.
+
+**Both at once.** Point the real job and a `sleep` loop at the same waitpoint: whichever arrives
+first wakes you, and a check-in tells you the run is still alive without you having to ask.
+
 ## Waiting on several jobs
 
 Name the members and the waitpoint becomes a barrier:

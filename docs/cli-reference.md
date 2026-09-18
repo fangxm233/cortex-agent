@@ -519,7 +519,7 @@ once, then append one command.
 Options:
 - `--id <wp_…>` — waitpoint id (default: `$CORTEX_SIGNAL_ID`)
 - `--secret <hex>` — the capability issued with that waitpoint (default: `$CORTEX_SIGNAL_SECRET`)
-- `--status <s>` — `ok`, `fail`, or `progress` (default: `ok`); `progress` records a heartbeat without resolving anything
+- `--status <s>` — `ok`, `fail`, or `progress` (default: `ok`). `ok`/`fail` are terminal: they count toward the quorum and wake the session. `progress` records a heartbeat without resolving anything and **without waking anyone** — the difference between the two is entirely "is this worth a turn"
 - `--exit-code <n>` — derive the status from a command's exit code (0 = `ok`, anything else = `fail`) and default the message to `exit=<n>`
 - `--message <text>` — one-line summary shown in the wake message
 - `--member <name>` — which member of a multi-job waitpoint this signal is for

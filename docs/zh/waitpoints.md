@@ -87,6 +87,35 @@ printf '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"%s","message":"exit=%s"
 这个 spool 目录在守护进程本机同样有效；`cortex-signal` 在守护进程不可达时会自动落到这里，
 所以重启期间写出的信号不会丢。
 
+## 别的用法 {#other-shapes}
+
+waitpoint 不是「完成通知」，它是**一个带地址的唤醒**。它对发信号的一方没有任何假设 ——
+所以下面这些用法都不需要新功能，是同一个对象换个地方粘一行而已。
+
+**当闹钟。** 没人规定信号必须来自真实工作：
+
+```bash
+(sleep 3600; cortex-signal --message "一小时到了，再看一眼队列") &
+```
+
+**当监控。** `max_signals` 设成大于 1，等待点就一直开着，每次汇报都叫醒你：
+
+```
+wait_create({ label: "nightly", intent: "…", max_signals: 24 })
+```
+```bash
+while :; do sleep 1800; cortex-signal --message "$(tail -1 train.log)"; done &
+```
+
+每小时的唤醒上限照常生效，话痨的监控烧不垮这个会话。拿到想要的之后自己 `wait_cancel` 关掉 ——
+什么时候算完，是你的判断，不是服务器的。
+
+**不打扰你的心跳。** `--status progress` 只记录、不结算、**不唤醒**；你下次去看时才看到它，
+会话的等待栏里也有。「还活着，第 12000 步」用它，把 `ok`/`fail` 留给真正值得一个 turn 的时刻。
+
+**两者同时。** 让真实任务和一个 sleep 循环打到**同一个**等待点：谁先到谁叫醒你，
+而 check-in 会告诉你这个 run 还活着 —— 不用你主动去问。
+
 ## 同时等多个任务 {#waiting-on-several-jobs}
 
 写上成员名，waitpoint 就变成一个 barrier：
