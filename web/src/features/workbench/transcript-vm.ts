@@ -359,8 +359,18 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
     case 'thread-callback': return L.chatSystemOriginThreadCallback;
     case 'subtask-question': return L.chatSystemOriginSubtaskQuestion;
     case 'agent-result': return L.chatSystemOriginAgentResult;
-    default: return L.chatSystemOriginGeneric;
+    case 'external-signal': return L.chatSystemOriginExternalSignal;
+    default: return unlabelledOrigin(origin, L);
   }
+}
+
+/** Compile-time exhaustiveness plus the runtime fallback: a value the compiler knows about must
+ *  have its own case, or `origin` stops being `never` here and the build fails. A value only a
+ *  newer server knows about still reaches this at runtime and renders as the generic label
+ *  instead of a raw enum. */
+function unlabelledOrigin(origin: never, L: Vocab): string {
+  void origin;
+  return L.chatSystemOriginGeneric;
 }
 
 /**

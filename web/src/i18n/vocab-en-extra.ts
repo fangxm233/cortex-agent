@@ -273,6 +273,7 @@ export const enExtra = {
   chatSystemOriginThreadCallback: 'Thread callback',
   chatSystemOriginSubtaskQuestion: 'Subtask question',
   chatSystemOriginAgentResult: 'Background agent result',
+  chatSystemOriginExternalSignal: 'External signal',
   chatSystemOriginGeneric: 'System message',
   noticeCancelResume: "Don't resume",
   noticeCancelResumeDone: 'Resume cancelled',

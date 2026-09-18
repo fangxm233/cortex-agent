@@ -273,6 +273,7 @@ export const zhExtra = {
   chatSystemOriginThreadCallback: '线程回调',
   chatSystemOriginSubtaskQuestion: '子任务提问',
   chatSystemOriginAgentResult: '后台 agent 结果',
+  chatSystemOriginExternalSignal: '外部信号',
   chatSystemOriginGeneric: '系统消息',
   noticeCancelResume: '取消',
   noticeCancelResumeDone: '已取消续跑',

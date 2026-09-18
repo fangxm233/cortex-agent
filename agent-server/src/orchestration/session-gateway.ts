@@ -37,7 +37,8 @@ export type DeliveryOrigin =
   | 'resume'            // the rate-limit resume reminder
   | 'thread-callback'   // a background thread finished
   | 'task-callback'     // a dispatched task turned terminal
-  | 'subtask-question'; // ask_manager escalated to the top of the tree
+  | 'subtask-question'  // ask_manager escalated to the top of the tree
+  | 'external-signal';  // a waitpoint fired — an external process reported it finished
 
 interface OriginSpec {
   senderId: string;
@@ -67,6 +68,7 @@ const ORIGINS: Record<DeliveryOrigin, OriginSpec> = {
   'thread-callback':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'thread-callback' },
   'task-callback':    { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'task-callback' },
   'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'subtask-question' },
+  'external-signal':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'external-signal', systemOrigin: 'external-signal' },
 };
 
 export interface DeliverToSessionOptions {

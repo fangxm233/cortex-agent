@@ -24,6 +24,7 @@ const EXPECTED: Record<DeliveryOrigin, { senderId: string; systemOrigin?: string
   'thread-callback': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'thread-callback', prefix: /^cb_tg_\d+$/ },
   'task-callback': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'task-callback', prefix: /^cb_tg_\d+$/ },
   'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'subtask-question', prefix: /^cb_tg_\d+$/ },
+  'external-signal': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'external-signal', prefix: /^cb_tg_\d+$/ },
 };
 
 test('a backgrounded agent result keeps a web sender id so it can still fold into a live turn', () => {

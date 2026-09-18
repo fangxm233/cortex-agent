@@ -33,7 +33,9 @@ export type SystemTurnOrigin =
   /** A subtask escalated a question to the manager session (`ask_manager`). */
   | 'subtask-question'
   /** A backgrounded `agent` run delivered its result. */
-  | 'agent-result';
+  | 'agent-result'
+  /** A waitpoint an agent armed was resolved by a signal from outside the process. */
+  | 'external-signal';
 
 export interface AuthNoticeAction {
   kind: 'auth-login';

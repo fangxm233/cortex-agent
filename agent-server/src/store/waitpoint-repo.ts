@@ -40,6 +40,9 @@ export interface WaitpointSignal {
   source: string;
   /** Idempotency key. A second signal carrying a key already present is dropped as a duplicate. */
   dedupeKey?: string | null;
+  /** Set once this signal has been folded into a delivered wake notice, so a later wake on the
+   *  same (mailbox) waitpoint reports only what is new. */
+  deliveredAt?: number | null;
 }
 
 export interface Waitpoint {
