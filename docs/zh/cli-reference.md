@@ -1,7 +1,7 @@
 # CLI 参考 {#cli-reference}
 
 
-Cortex 提供五个可执行文件，在 `agent-server/package.json` 中注册：
+Cortex 提供六个可执行文件，在 `agent-server/package.json` 中注册：
 
 | 可执行文件 | 入口点 | 用途 |
 |---|---|---|
@@ -10,8 +10,9 @@ Cortex 提供五个可执行文件，在 `agent-server/package.json` 中注册�
 | `cortex-hook` | `dist/entry/hook-cli.js` | 检查 hook 并处理阻塞式用户询问 |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | 任务系统读取和修改 |
 | `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | 远程命令分发 |
+| `cortex-signal` | `dist/entry/signal-cli.js` | 让外部程序解决一个 waitpoint |
 
-五个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
+六个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
 
 ---
 
@@ -469,4 +470,71 @@ cortex-run --cancel train-v2
 
 # 用特定信号取消
 cortex-run --cancel train-v2 --signal SIGKILL
+```
+
+---
+
+## cortex-signal
+
+```
+cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--message TEXT] [--exit-code N]
+```
+
+告诉 Cortex：它在等的那件事结束了。Agent 先用 `wait_create` MCP 工具登记一个 waitpoint 并结束自己那一轮，
+这个命令解决该 waitpoint 并唤醒对应 session。完整说明见 [waitpoints.md](./waitpoints.md)。
+
+`--id` 和 `--secret` 默认取 `$CORTEX_SIGNAL_ID` 和 `$CORTEX_SIGNAL_SECRET`，所以通常的接入就是两行：
+先 export 一次，再在命令后面追加一行。
+
+选项：
+- `--id <wp_…>` — waitpoint id（默认：`$CORTEX_SIGNAL_ID`）
+- `--secret <hex>` — 随该 waitpoint 一起签发的能力凭证（默认：`$CORTEX_SIGNAL_SECRET`）
+- `--status <s>` — `ok`、`fail` 或 `progress`（默认：`ok`）；`progress` 只记录心跳，不解决也不唤醒
+- `--exit-code <n>` — 由命令退出码推导状态（0 为 `ok`，其余为 `fail`），消息默认为 `exit=<n>`
+- `--message <text>` — 一行摘要，显示在唤醒消息里
+- `--member <name>` — 多任务 waitpoint 中这条信号属于哪个成员
+- `--data <@file|->` — 来自文件或 stdin 的附加载荷；它以**数据**身份到达 agent，绝不作为指令
+- `--url <url>` — 守护进程 signal 端点（默认：`http://127.0.0.1:$WEBHOOK_PORT/webhook/signal`）
+- `--no-spool` — 守护进程不可达时直接失败，不落盘
+- `--help`、`-h` — 显示用法
+
+该端点只监听回环，并且**不**接受 `CORTEX_WEBHOOK_TOKEN`：每个 waitpoint 的 secret 是唯一凭证，
+而它除了解决自己那一个 waitpoint 之外什么都做不了。要从别的机器发信号，就在那台机器的
+`~/.cortex/tmp/signals/` 里落一个 JSON 文件——见
+[waitpoints.md](./waitpoints.md#on-another-machine)。
+
+### 落盘缓冲 {#spooling}
+
+守护进程不可达时，信号会写到 `$CORTEX_HOME/tmp/signals/<name>.json`（先写 `.tmp` 再 rename，
+所以永远不会有人读到半截文件），命令仍然退出 0。守护进程会在下一个 sweep 周期收走它，
+因此重启期间发出的信号只是延迟，不会丢失。`--no-spool` 关掉这个行为，改为退出 1。
+
+### 退出码 {#exit-codes_3}
+
+| 代码 | 含义 |
+|---|---|
+| 0 | 已接受、已落盘，或该 waitpoint 早已被解决 |
+| 1 | 被拒绝（secret 错误、id 不存在、被限流），或带 `--no-spool` 且不可达 |
+| 2 | 用法错误（缺少 id/secret、未知标志、`--status` 非法） |
+
+「早已被解决」故意退出 0：重试的脚本不该把「别人已经报过了」当成失败。
+
+### 示例 {#examples_1}
+
+```bash
+# 报告刚跑完那条命令的退出码
+export CORTEX_SIGNAL_ID=wp_1a2b3c4d5e6f CORTEX_SIGNAL_SECRET=…
+python train.py; cortex-signal --exit-code $?
+
+# 报告多任务 waitpoint 的其中一个成员
+cortex-signal --member arm2 --status ok --message "33,120 steps"
+
+# 把日志尾巴作为数据附上
+python train.py; s=$?; tail -c 2000 train.log | cortex-signal --exit-code $s --data -
+
+# 只报进度，不吵醒任何人
+cortex-signal --status progress --message "epoch 12/40"
+
+# 给一个已经在跑的进程补一个信号
+(while kill -0 12345 2>/dev/null; do sleep 5; done; cortex-signal --status ok) &
 ```

@@ -264,6 +264,9 @@ $CORTEX_HOME/
 | `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `managerRotateSteps` | number | `10` | 一个 manager 会话在被轮换成新 incarnation 之前运行的步数。参见 [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
 | `waitingSweepMs` | number | `60000` | 磁盘对账扫描的间隔（毫秒），逐个核对等待中的 manager 线程与磁盘上的任务状态。`0` 表示禁用扫描（见下文的热更新例外） | `CORTEX_WAITING_SWEEP_MS` |
+| `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
+| `waitpointTtlMs` | number | `604800000` | agent 未指定时 waitpoint 的默认存活时长（7 天）。单个 waitpoint 可以要更短，也可以更长但不超过 30 天硬上限；超时后 waitpoint 过期，并会告知 session「什么都没来」 | `CORTEX_WAITPOINT_TTL_MS` |
+| `waitpointMaxWakesPerHour` | number | `12` | 单个 waitpoint 每小时唤醒其 session 的次数上限。失控的信号循环会被限流（并只提示一次），而不是刷屏 | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |
 | `injectWaitMaxS` | number | `600` | 一条中途注入的消息等待回复的时长上限（秒），超过即释放 busy 闸门。防止卡死的进程永久占住守护进程的重启闸门 | `CORTEX_INJECT_WAIT_MAX_S` |
 | `threadMaxDepth` | number | `5` | 嵌套线程生成的最大深度；达到或超过该深度的 spawn 会被拒绝 | `CORTEX_THREAD_MAX_DEPTH` |
 | `taskArtifactTemplates` | string[] | `["manager"]` | 哪些模板的派发线程把 artifact 挂在任务节点上，而不是临时工作区 | `CORTEX_TASK_ARTIFACT_TEMPLATES`（逗号分隔） |

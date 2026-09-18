@@ -109,6 +109,7 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | [Scheduling](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | Interval/daily/weekly/once 调度、preCheck、回退 |
 | [Safety & Approvals](https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/) | 影响范围等级、审批工作流、审计追踪 |
 | [Hooks](https://fangxm233.github.io/cortex-agent/zh/hooks/) | 钩子生命周期、hook-bridge、settings.json 中的自定义钩子 |
+| [Waitpoints](https://fangxm233.github.io/cortex-agent/zh/waitpoints/) | 不靠轮询地等待外部任务：登记、发信号、quorum、过期 |
 | [MCP](https://fangxm233.github.io/cortex-agent/zh/mcp/) | Cortex 按权限拆分的 MCP 服务器、第三方 MCP |
 | [Cross-machine](https://fangxm233.github.io/cortex-agent/zh/cross-machine/) | cortex-client 部署、远程工具、网络拓扑 |
 

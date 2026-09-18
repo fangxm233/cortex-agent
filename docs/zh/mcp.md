@@ -86,7 +86,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 仅在直接/用户会话中加载它；PI bridge 在所有顶层会话中加载 cortex-ext。
+暴露 Cortex 管理工具：调度、费用查询、上下文解析和 waitpoint。Claude 仅在直接/用户会话中加载它；PI bridge 在所有顶层会话中加载 cortex-ext。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -99,6 +99,11 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 | `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
 | `query_executions` | `execution_id?`、`task_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
 | `cortex_context` | _(无)_ | 返回当前执行上下文：channel、sessionId、sessionName、threadId、profile、project、backend |
+| `wait_create` | `label`、`intent`、`members?`、`quorum?`、`fail_fast?`、`max_signals?`、`expires_in_hours?`、`device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；然后结束这一轮 |
+| `wait_check` | `id?` | 查看某个 waitpoint，或列出本 session 正在等的全部内容 |
+| `wait_cancel` | `id` | 取消一个 waitpoint，使其不再触发 |
+
+`wait_create` 是 session 等待 Cortex 之外的事情——训练、构建、评测——而不轮询它的方式。外部程序用 `cortex-signal` CLI、回环 `POST /webhook/signal`，或往 spool 目录落一个文件来回报，session 随即被带着结果唤醒。见 [waitpoints.md](./waitpoints.md)。
 
 服务器实现在 `agent-server/src/domain/mcp/server.ts`。各个工具在 `agent-server/src/domain/mcp/tools/`。
 

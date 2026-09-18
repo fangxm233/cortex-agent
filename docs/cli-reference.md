@@ -1,6 +1,6 @@
 # CLI Reference
 
-Cortex ships five binaries, registered in `agent-server/package.json`:
+Cortex ships six binaries, registered in `agent-server/package.json`:
 
 | Binary | Entry point | Purpose |
 |---|---|---|
@@ -9,8 +9,9 @@ Cortex ships five binaries, registered in `agent-server/package.json`:
 | `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection and blocking user asks |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | Task system read and mutation |
 | `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | Remote command dispatch |
+| `cortex-signal` | `dist/entry/signal-cli.js` | Resolve a waitpoint from an external program |
 
-All five accept `--help` (or `-h`) to print their usage. The `cortex task`
+All six accept `--help` (or `-h`) to print their usage. The `cortex task`
 subcommand delegates directly to `cortex-task`.
 
 ---
@@ -579,4 +580,78 @@ cortex-run --cancel train-v2
 
 # Cancel with a specific signal
 cortex-run --cancel train-v2 --signal SIGKILL
+```
+
+---
+
+## cortex-signal
+
+```
+cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--message TEXT] [--exit-code N]
+```
+
+Tell Cortex that something it is waiting for has finished. The agent arms a
+waitpoint with the `wait_create` MCP tool and ends its turn; this command
+resolves that waitpoint and wakes the session. See
+[waitpoints.md](./waitpoints.md) for the full picture.
+
+`--id` and `--secret` default to `$CORTEX_SIGNAL_ID` and
+`$CORTEX_SIGNAL_SECRET`, so the usual integration is two lines: export them
+once, then append one command.
+
+Options:
+- `--id <wp_…>` — waitpoint id (default: `$CORTEX_SIGNAL_ID`)
+- `--secret <hex>` — the capability issued with that waitpoint (default: `$CORTEX_SIGNAL_SECRET`)
+- `--status <s>` — `ok`, `fail`, or `progress` (default: `ok`); `progress` records a heartbeat without resolving anything
+- `--exit-code <n>` — derive the status from a command's exit code (0 = `ok`, anything else = `fail`) and default the message to `exit=<n>`
+- `--message <text>` — one-line summary shown in the wake message
+- `--member <name>` — which member of a multi-job waitpoint this signal is for
+- `--data <@file|->` — extra payload from a file or stdin; it reaches the agent labelled as data, never as instructions
+- `--url <url>` — daemon signal endpoint (default: `http://127.0.0.1:$WEBHOOK_PORT/webhook/signal`)
+- `--no-spool` — fail instead of spooling to disk when the daemon is unreachable
+- `--help`, `-h` — show usage
+
+The endpoint is loopback-only and does **not** accept `CORTEX_WEBHOOK_TOKEN`:
+the per-waitpoint secret is the only credential, and it can do nothing except
+resolve its own waitpoint. To signal from another machine, drop a JSON file in
+`~/.cortex/tmp/signals/` there instead — see
+[waitpoints.md](./waitpoints.md#on-another-machine).
+
+### Spooling
+
+If the daemon cannot be reached, the signal is written to
+`$CORTEX_HOME/tmp/signals/<name>.json` (`.tmp` first, then renamed, so a
+half-written file is never picked up) and the command still exits 0. The
+daemon drains that directory on its next sweep, so a signal sent during a
+restart is delayed, not lost. `--no-spool` turns this off and exits 1 instead.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Accepted, spooled, or the waitpoint was already resolved |
+| 1 | Refused (bad secret, unknown id, rate-limited) or unreachable with `--no-spool` |
+| 2 | Usage error (missing id/secret, unknown flag, bad `--status`) |
+
+An already-resolved waitpoint exits 0 on purpose: a retrying script should not
+treat "someone already reported this" as a failure.
+
+### Examples
+
+```bash
+# Report the exit code of the command that just ran
+export CORTEX_SIGNAL_ID=wp_1a2b3c4d5e6f CORTEX_SIGNAL_SECRET=…
+python train.py; cortex-signal --exit-code $?
+
+# Report one arm of a multi-job waitpoint
+cortex-signal --member arm2 --status ok --message "33,120 steps"
+
+# Attach the tail of a log as data
+python train.py; s=$?; tail -c 2000 train.log | cortex-signal --exit-code $s --data -
+
+# Heartbeat without waking anyone
+cortex-signal --status progress --message "epoch 12/40"
+
+# Signal when a process that is already running exits
+(while kill -0 12345 2>/dev/null; do sleep 5; done; cortex-signal --status ok) &
 ```

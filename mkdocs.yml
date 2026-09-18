@@ -92,6 +92,7 @@ plugins:
             Scheduling: 调度
             Safety & Approvals: 安全与审批
             Hooks: 钩子
+            Waitpoints: 等待点
             MCP: MCP
             Cross-machine: 跨机器
 
@@ -112,5 +113,6 @@ nav:
   - Scheduling: scheduling.md
   - Safety & Approvals: safety-and-approvals.md
   - Hooks: hooks.md
+  - Waitpoints: waitpoints.md
   - MCP: mcp.md
   - Cross-machine: cross-machine.md

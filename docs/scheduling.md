@@ -2,6 +2,13 @@
 
 The scheduling system lets you set up recurring or one-time agent invocations. Schedules persist to disk, survive restarts, and hot-reload when changed externally. Daemon infrastructure loops such as task dispatch, task archiving, and memory-index rebuild use the built-in job controller described below rather than schedule records.
 
+!!! tip "Waiting for something to finish? Do not schedule a poll"
+    A schedule that fires only to check whether a job is done costs a full agent
+    turn every time, and almost every one of those turns finds nothing. Arm a
+    [waitpoint](./waitpoints.md) instead: the job reports back when it finishes and
+    the session wakes exactly once. Schedules are for work that should happen on a
+    clock, not for watching something else.
+
 ## Schedule Types
 
 Four trigger types are supported:

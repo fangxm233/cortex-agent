@@ -123,8 +123,8 @@ Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
 
 ### cortex-ext
 
-Exposes Cortex management tools: scheduling, cost queries, and context
-resolution. Claude loads it only for direct/user sessions; the PI bridge
+Exposes Cortex management tools: scheduling, cost queries, context
+resolution, and waitpoints. Claude loads it only for direct/user sessions; the PI bridge
 loads cortex-ext in all top-level sessions.
 
 | Tool | Parameters | Description |
@@ -138,6 +138,15 @@ loads cortex-ext in all top-level sessions.
 | `cost_query` | _(none)_ | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage |
 | `query_executions` | `execution_id?`, `task_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
 | `cortex_context` | _(none)_ | Return the current execution context: channel, sessionId, sessionName, threadId, profile, project, backend |
+| `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | Arm a waitpoint and return the id, a one-time secret, and ready-to-paste signal commands; then end the turn |
+| `wait_check` | `id?` | Inspect one waitpoint, or list everything this session is waiting on |
+| `wait_cancel` | `id` | Cancel a waitpoint so it can no longer fire |
+
+`wait_create` is how a session waits for something outside Cortex — a training
+run, a build, an eval — without polling it. The external program reports back
+with the `cortex-signal` CLI, a loopback `POST /webhook/signal`, or a file
+dropped in a spool directory, and the session is woken with the result. See
+[waitpoints.md](./waitpoints.md).
 
 The server implementation is at `agent-server/src/domain/mcp/server.ts`.
 Individual tools are in `agent-server/src/domain/mcp/tools/`.
