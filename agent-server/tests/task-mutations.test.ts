@@ -1,16 +1,27 @@
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test } from 'vitest';
+import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { PROJECTS_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import {
   addTask,
   batchEdit,
   bulkAddTasks,
   decomposeTask,
 } from '../src/domain/tasks/system/task-mutations.js';
+
+// addTask/bulkAddTasks validate `template` against the loaded thread templates and fail OPEN when
+// none are loaded. A scoped run starts from an empty skeleton home (run-tests.sh seeds one via
+// `cortex init`), so copy the shipped defaults in before the first mutation touches the cache.
+beforeAll(() => {
+  fs.cpSync(
+    path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
+    path.join(CONFIG_DIR, 'thread-templates'),
+    { recursive: true },
+  );
+});
 
 function readFile(filePath: string): string {
   return fs.readFileSync(filePath, 'utf8');

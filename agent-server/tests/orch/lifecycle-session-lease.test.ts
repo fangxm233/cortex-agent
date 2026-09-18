@@ -3,7 +3,7 @@
 // pos:    Guards retention from deleting sessions while lifecycle continuations start
 
 import '../_test-home.js';
-import { beforeEach, test, vi } from 'vitest';
+import { beforeAll, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 const { mockStartAttempt } = vi.hoisted(() => ({
@@ -35,6 +35,10 @@ import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
 import { runRegistry } from '../../src/core/run-registry.js';
+import { seedTestProfiles } from '../_seed-profiles.js';
+
+// startRun resolves the run's profile; a scoped run starts from an empty skeleton home.
+beforeAll(seedTestProfiles);
 
 beforeEach(() => {
   vi.restoreAllMocks();

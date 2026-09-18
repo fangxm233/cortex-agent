@@ -1,5 +1,5 @@
 import '../_test-home.js';
-import { test, vi, afterEach } from 'vitest';
+import { beforeAll, test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
@@ -19,6 +19,11 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR } from '../../src/core/utils.js';
+import { seedTestProfiles } from '../_seed-profiles.js';
+
+// The tests below select the 'plan' (claude) and 'execute' (pi) profiles; a scoped run starts from
+// an empty skeleton home, so seed the same minimal set run-tests.sh would.
+beforeAll(seedTestProfiles);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

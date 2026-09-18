@@ -14,10 +14,12 @@
 //      sessions.json, PROJECTS_DIR scans), causing intermittent, file-order-dependent failures.
 //
 // Both are fixed the same way: give each test-file process its OWN CORTEX_HOME before paths.ts
-// binds. When CORTEX_HOME is already set (case 2) we CLONE it so the per-process home keeps the
-// seeded config (profiles.json, machines.json, thread-templates.json, gateway, …); when unset
-// (case 1) we create a minimal empty skeleton. ESM evaluates imports in source order, so as long
-// as this is the first import (or the first --import) the guarantee holds.
+// binds. When run-tests.sh seeded a home (case 2) it hands it over as CORTEX_TEST_SEED_HOME and we
+// CLONE it so the per-process home keeps the seeded config (profiles.json, machines.json,
+// thread-templates.json, gateway, …); otherwise (case 1) we create a minimal empty skeleton. A bare
+// CORTEX_HOME is never cloned — a shell that inherited the daemon's live ~/.cortex would otherwise
+// leak the operator's settings.json / USER.md / profiles into every test. ESM evaluates imports in
+// source order, so as long as this is the first import (or the first --import) the guarantee holds.
 //
 // Allocation and cleanup of the temp home live in _test-home-root.ts: homes are parked under a
 // single parent so they can be swept as a unit, and cleanup is layered (exit + signal handlers
@@ -27,7 +29,7 @@ import { mkdirSync, cpSync } from 'node:fs';
 import * as path from 'node:path';
 import { allocateTestHome, redirectTmpdir } from './_test-home-root.js';
 
-const _shared = process.env.CORTEX_HOME;
+const _shared = process.env.CORTEX_TEST_SEED_HOME;
 const _home = allocateTestHome();
 
 if (_shared) {

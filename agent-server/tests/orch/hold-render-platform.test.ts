@@ -3,7 +3,7 @@
 // only the way they are driven is — `holdBackgroundContinuation` + `platformHoldRenderer` instead
 // of the terminal handler, which now only decides that the turn MAY be held.
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import { beforeEach, test } from 'vitest';
+import { beforeAll, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { holdBackgroundContinuation } from '../../src/orchestration/turn/background-hold.js';
 import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
@@ -12,7 +12,10 @@ import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
+import { seedTestProfiles } from '../_seed-profiles.js';
 
+// finalizeBackgroundContinuation resolves the run's profile; a scoped run starts from an empty skeleton home.
+beforeAll(seedTestProfiles);
 beforeEach(() => sessionHolds.clear());
 
 function baseResult(overrides: Record<string, unknown> = {}) {

@@ -39,6 +39,9 @@ cleanup() { rm -rf "$CORTEX_HOME"; }
 trap cleanup EXIT
 
 export CORTEX_HOME
+# The per-file isolation guards (tests/_vitest-setup.ts, tests/_test-home.ts) clone ONLY this
+# variable, never a bare CORTEX_HOME, so a live home inherited from the daemon is never copied.
+export CORTEX_TEST_SEED_HOME="$CORTEX_HOME"
 
 # ── Init ─────────────────────────────────────────────────────────
 

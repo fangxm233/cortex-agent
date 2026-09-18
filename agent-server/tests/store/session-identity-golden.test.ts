@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '../../src/store/session-registry-repo.js';
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { profileRepo } from '../../src/store/profile-repo.js';
+import { seedTestProfiles } from '../_seed-profiles.js';
 import { resolveOnNewProfileName } from '../../src/domain/sessions/session-hooks.js';
 import { registerThreadSession } from '../../src/domain/scheduling/jobs/register-thread-session.js';
 import { setSessionAsync, getSessionAsync } from '../../src/domain/sessions/session.js';
@@ -49,32 +49,14 @@ import {
 // this file uses deterministic ids so the snapshots stay stable.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HOME = process.env.CORTEX_HOME!;
-const PROFILES = path.join(HOME, 'config', 'profiles.json');
-
-// Same minimal profile set the run-tests.sh harness seeds. Written here too so
-// the file also passes under `pnpm test:file` (which does NOT run through
-// run-tests.sh and therefore leaves the isolated home without a profiles.json).
-// `plan`/`scan`/`qa` share backend claude; `execute` is pi — used to pin the
-// cross-backend switch rejection.
-const PROFILES_FILE = {
-  defaultProfile: 'plan',
-  profiles: {
-    plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-    scan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-    qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-    execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
-  },
-};
-
 let tmpDir = '';
 let testId = 0;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-identity-golden-'));
-  await fs.mkdir(path.dirname(PROFILES), { recursive: true });
-  await fs.writeFile(PROFILES, JSON.stringify(PROFILES_FILE));
-  profileRepo.invalidate();
+  // Same minimal profile set the run-tests.sh harness seeds, so the file also passes under a
+  // scoped `vitest run` that starts from an empty skeleton home.
+  seedTestProfiles();
 });
 
 afterAll(async () => {
@@ -305,6 +287,7 @@ test('golden 9: registerThreadSession keeps track id as sessionId and backend id
   const trackSid = 'track-sid-9';
   const backendSid = 'backend-sid-9';
 
+  setActiveProfile('plan', channel); // the record carries the channel's profile — pin it explicitly
   await registerThreadSession(channel, {
     sessionName: 'cortex-thr-9',
     result: { sessionId: backendSid } as any,
@@ -324,7 +307,7 @@ test('golden 9: registerThreadSession keeps track id as sessionId and backend id
     effectiveBackendSessionId: record ? effectiveBackendSessionId(record) : null,
   };
 
-  assert.deepEqual(normalize(snapshot, [[getActiveProfile(channel) ?? '<no-active-profile>', '<profile>']]), {
+  assert.deepEqual(normalize(snapshot), {
     lookupBySessionId: 'cortex-thr-9',
     lookupBackendId: null,
     record: {
@@ -338,7 +321,7 @@ test('golden 9: registerThreadSession keeps track id as sessionId and backend id
       createdAt: '<ts>',
       lastUsedAt: '<ts>',
       label: 'nightly run label',
-      profileName: '<profile>',
+      profileName: 'plan',
       backendSessionId: 'backend-sid-9',
       scheduleId: 'sched-9',
       browser: null,

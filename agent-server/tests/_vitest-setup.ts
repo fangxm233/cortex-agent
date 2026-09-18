@@ -5,8 +5,12 @@
 // at import time. With `pool: 'forks'` + `isolate: true`, each test file gets a
 // fresh module registry and its own process, so each file lands on its own home.
 //
-// When CORTEX_HOME is already set (run-tests seeds one shared home), we CLONE it
-// so this file keeps the seeded config; otherwise we build a minimal skeleton.
+// When run-tests.sh seeded a shared home it hands it over as CORTEX_TEST_SEED_HOME and we
+// CLONE it so this file keeps the seeded config; otherwise we build a minimal skeleton. A bare
+// CORTEX_HOME in the environment is deliberately NOT cloned: an agent session or a dev shell
+// inherits the daemon's live ~/.cortex, and cloning it would leak the operator's settings.json,
+// USER.md, profiles and UI sessions into every test (env-gated settings then silently lose to
+// the file overrides).
 //
 // The home itself is allocated by _test-home-root.ts, which parks it under a single
 // run-scoped parent and owns the cleanup layers — a `process.on('exit')` handler here
@@ -16,7 +20,7 @@ import { mkdirSync, cpSync } from 'node:fs';
 import * as path from 'node:path';
 import { allocateTestHome, redirectTmpdir } from './_test-home-root.js';
 
-const shared = process.env.CORTEX_HOME;
+const shared = process.env.CORTEX_TEST_SEED_HOME;
 // Allocated under the run-scoped root and registered for exit/signal cleanup; the authoritative
 // removal is _global-setup.ts's teardown, which runs in the main process (see that file).
 const home = allocateTestHome();
