@@ -1,7 +1,7 @@
 // @ds-adherence-ignore -- mobile inline thread card, 1:1 from scheme.dc.html L2954-2973 (raw px/hex/
 // font/svg by design, §8.3; mobile palette is not in the light `proto.*` token set).
 import { Fragment } from 'react';
-import type { Pill } from '@/features/workbench/right-panel-vm';
+import type { Pill } from '@/features/workbench/right-panel/right-panel-vm';
 import type { MobileStepper, StepperNode } from './mobile-session-vm';
 
 const mono = "'IBM Plex Mono',monospace";

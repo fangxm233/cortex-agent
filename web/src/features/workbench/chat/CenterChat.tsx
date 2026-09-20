@@ -5,7 +5,7 @@ import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
 import { InlineThreadCard } from './InlineThreadCard';
-import { Composer } from './Composer';
+import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
 import { useSessionCompact } from '@/features/session/live/useSessionCompact';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';

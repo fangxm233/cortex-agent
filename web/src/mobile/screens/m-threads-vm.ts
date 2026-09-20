@@ -1,6 +1,6 @@
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
-import { formatAge } from '@/features/workbench/right-panel-vm';
+import { formatAge } from '@/features/workbench/right-panel/right-panel-vm';
 import { formatUsd } from '@/lib/format';
 
 // ── 今日 budget band (scheme L188–192) ────────────────────────────────────────

@@ -43,8 +43,8 @@ vi.mock('@/i18n', () => ({
 }));
 
 import { NewProjectModal } from '@/features/projects/NewProjectModal';
-import { RunListModal } from './RunListModal';
-import { SessionIdModal } from './SessionIdModal';
+import { RunListModal } from '@/features/workbench/rail/RunListModal';
+import { SessionIdModal } from '@/features/workbench/chat/SessionIdModal';
 
 function render(node: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;

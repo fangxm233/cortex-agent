@@ -171,7 +171,7 @@ vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: v
 vi.mock('./ChatHeader', () => ({ ChatHeader: () => null }));
 vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
-vi.mock('./DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
+vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('@/features/session/transcript/MessageStream', async () => {
   const React = await import('react');
   return {

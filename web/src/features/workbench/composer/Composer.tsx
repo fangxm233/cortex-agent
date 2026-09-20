@@ -9,7 +9,7 @@ import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from '@/features/session/composer/composer-slash';
-import { formatCost } from './right-panel-vm';
+import { formatCost } from '@/features/workbench/right-panel/right-panel-vm';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from '@/features/session/state/selected-session';
 import {

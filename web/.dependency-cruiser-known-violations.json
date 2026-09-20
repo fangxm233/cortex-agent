@@ -511,7 +511,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/CenterChat.tsx",
+    "from": "src/features/workbench/chat/CenterChat.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -528,7 +528,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/Composer.tsx",
+    "from": "src/features/workbench/chat/InlineThreadCard.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -545,7 +545,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/InlineThreadCard.tsx",
+    "from": "src/features/workbench/composer/Composer.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -562,7 +562,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/LeftRail.tsx",
+    "from": "src/features/workbench/composer/SessionSelector.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -579,7 +579,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/RightPanel.tsx",
+    "from": "src/features/workbench/rail/LeftRail.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -596,7 +596,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/RightThreadCard.tsx",
+    "from": "src/features/workbench/right-panel/RightPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -613,7 +613,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/SessionSelector.tsx",
+    "from": "src/features/workbench/right-panel/RightThreadCard.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

@@ -9,7 +9,7 @@ import type {
   ThreadChildNode,
 } from '@cortex-agent/ui-contract';
 import { formatDurationShort, formatUsd } from '@/lib/format';
-import { threadPill, type Pill } from './right-panel-vm';
+import { threadPill, type Pill } from '@/features/workbench/right-panel/right-panel-vm';
 
 export interface ThreadCardNested {
   name: string;
