@@ -21,7 +21,7 @@ The import rules below are enforced *today*, against the current tree.
 | `features/workbench/` | **(planned sub-dirs)** `rail/` `chat/` `composer/` `right-panel/` — it is the biggest feature and flat today. |
 | `features/settings/` | **(planned sub-dirs)** `panels/` `controllers/` `vm/` — the split already exists by filename, not by directory. |
 | `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, modal providers. |
-| `mobile/` | Mobile chrome. **(planned)** `screens/` = today's `v3/`, `shared/` = today's `screens/` (vms), `ui/` = the mobile kit (unchanged). |
+| `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
 | `dev/` | **(planned)** DEV-only routes — today's `features/kit` + `features/base-demo`. |
 | root files | `router.tsx`, `RootRouter.tsx`, `responsive-route.tsx`, `providers.tsx`, `main.tsx`. |
 
@@ -68,7 +68,7 @@ about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
   because they are pure. New display logic goes here first.
 - **`use*Resource` / `use*Controller`** — the only place tRPC queries and mutations live.
   A controller owns the query keys, the invalidations and the optimistic updates for one panel.
-- **Container / View split** — `mobile/v3` is the reference: `MAccountsScreen.tsx` holds the
+- **Container / View split** — `mobile/screens` is the reference: `MAccountsScreen.tsx` holds the
   controllers and navigation, `MAccountsView.tsx` is presentational and takes props (21 pairs).
   `features/settings` does the same thing with `XPanel.tsx` + `x-vm.ts`.
 - **One SSE stream** — `features/live` owns the single `EventSource`. Nothing else opens one;

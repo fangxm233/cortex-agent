@@ -5,7 +5,7 @@
 //   • client version (scheme `client v0.4.2`) → NO DTO source → omitted.
 //   • heartbeat → fmtConnectedZh(lastHeartbeat); '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { machineCardVm, fmtConnectedZh } from '@/mobile/screens/mobile-machines-vm';
+import { machineCardVm, fmtConnectedZh } from '@/mobile/shared/mobile-machines-vm';
 import { formatSince } from '@/features/machines/machine-detail-vm';
 
 export interface MMachineCard {

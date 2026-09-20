@@ -20,9 +20,9 @@ vi.mock('@/mobile/MobileShell', () => ({ MobileShell: () => <Outlet /> }));
 vi.mock('@/features/workbench/WorkbenchPage', () => ({ WorkbenchPage: () => <span>workbench</span> }));
 vi.mock('@/features/tasks/TasksPage', () => ({ TasksPage: () => <span>tasks</span> }));
 vi.mock('@/features/provider-setup/ProviderSetupPage', () => ({ ProviderSetupPage: () => <span>setup</span> }));
-vi.mock('@/mobile/v3/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
-vi.mock('@/mobile/v3/MTasksScreen', () => ({ MTasksScreen: () => <span>mobile tasks</span> }));
-vi.mock('@/mobile/v3/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
+vi.mock('@/mobile/screens/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
+vi.mock('@/mobile/screens/MTasksScreen', () => ({ MTasksScreen: () => <span>mobile tasks</span> }));
+vi.mock('@/mobile/screens/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
 // Capture the real combined route table, replacing only rendered pages with probes.
 import './router';
 

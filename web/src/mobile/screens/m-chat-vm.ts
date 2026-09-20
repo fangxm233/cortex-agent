@@ -14,7 +14,7 @@ import {
   type LiveSessionMessage,
   type PendingUserMessage,
 } from '@/features/workbench/transcript-vm';
-import { zhDivider } from '@/mobile/screens/mobile-session-vm';
+import { zhDivider } from '@/mobile/shared/mobile-session-vm';
 import type { SessionRunStatus } from '@/features/workbench/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';

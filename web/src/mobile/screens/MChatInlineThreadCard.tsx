@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTRPC } from '@/lib/trpc';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { threadPill } from '@/features/workbench/thread-card-proto';
-import { buildMobileStepper } from '@/mobile/screens/mobile-session-vm';
-import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
+import { buildMobileStepper } from '@/mobile/shared/mobile-session-vm';
+import { MobileThreadStepper } from '@/mobile/shared/MobileThreadStepper';
 
 export function MChatInlineThreadCard({ sessionId, subthreadsLabel, openLabel }: {
   sessionId: string;

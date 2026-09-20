@@ -647,7 +647,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MBudgetScreen.tsx",
+    "from": "src/mobile/screens/MBudgetScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -664,7 +664,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MChatInlineThreadCard.tsx",
+    "from": "src/mobile/screens/MChatInlineThreadCard.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -681,7 +681,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MChatScreen.tsx",
+    "from": "src/mobile/screens/MChatScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -698,7 +698,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MDaemonScreen.tsx",
+    "from": "src/mobile/screens/MDaemonScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -715,7 +715,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MHooksScreen.tsx",
+    "from": "src/mobile/screens/MHooksScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -732,7 +732,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MIssuesScreen.tsx",
+    "from": "src/mobile/screens/MIssuesScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -749,7 +749,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MMcpScreen.tsx",
+    "from": "src/mobile/screens/MMcpScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -766,7 +766,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MMemoryFileScreen.tsx",
+    "from": "src/mobile/screens/MMemoryFileScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -783,7 +783,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MMemoryScreen.tsx",
+    "from": "src/mobile/screens/MMemoryScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -800,7 +800,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MNotificationProvider.tsx",
+    "from": "src/mobile/screens/MNotificationProvider.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -817,7 +817,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MPlanReadScreen.tsx",
+    "from": "src/mobile/screens/MPlanReadScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -834,7 +834,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MPlatformScreen.tsx",
+    "from": "src/mobile/screens/MPlatformScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -851,7 +851,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MProjectScreen.tsx",
+    "from": "src/mobile/screens/MProjectScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -868,7 +868,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MRuntimeSettingsScreen.tsx",
+    "from": "src/mobile/screens/MRuntimeSettingsScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -885,7 +885,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MSessionListScreen.tsx",
+    "from": "src/mobile/screens/MSessionListScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -902,7 +902,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MSettingsScreen.tsx",
+    "from": "src/mobile/screens/MSettingsScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -919,7 +919,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MTaskDetailScreen.tsx",
+    "from": "src/mobile/screens/MTaskDetailScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -936,7 +936,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MTasksScreen.tsx",
+    "from": "src/mobile/screens/MTasksScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -953,7 +953,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/v3/MThreadsScreen.tsx",
+    "from": "src/mobile/screens/MThreadsScreen.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
