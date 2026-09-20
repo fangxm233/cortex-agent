@@ -95,5 +95,23 @@ agent-server/src/data/
 # Run-local campaign configs: a committed campaign plus the operator's own paths and ports
 benchmark/campaigns/.run-local-*.yaml
 
+# Campaign records of real runs: they name the operator's machines and absolute paths,
+# and nothing in the repository reads them
+benchmark/campaigns/results/
+benchmark/campaigns/terminal-bench-2.1-codex-xhigh-mounted-gate.yaml
+benchmark/campaigns/terminal-bench-2.1-full-xhigh-baselines.yaml
+benchmark/campaigns/terminal-bench-2.1-full-xhigh-baselines-r3.yaml
+benchmark/campaigns/terminal-bench-2.1-full-xhigh-cortex.yaml
+benchmark/campaigns/terminal-bench-2.1-full-xhigh-cortex-r3.yaml
+benchmark/campaigns/terminal-bench-2.1-full-xhigh-cortex-r3-refill.yaml
+benchmark/campaigns/terminal-bench-2.1-repair-gate.yaml
+benchmark/campaigns/terminal-bench-2.1-tmpdir-gate.yaml
+benchmark/campaigns/terminal-bench-2.1-verifier-environment-smoke.yaml
+benchmark/campaigns/zero-paid-external-corpus.yaml
+
+# Deploy config carrying the worker's real custom domain, and wrangler local state
+packages/deepseek-relay-worker/wrangler.local.toml
+packages/*/.wrangler/
+
 # Node module compile cache written by the test runner
 agent-server/node-compile-cache/
