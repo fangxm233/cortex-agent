@@ -4,6 +4,7 @@ compatibility_date = "2026-07-26"
 workers_dev = true
 preview_urls = false
 
-[[routes]]
-pattern = "deepseek-relay.fangxm.me"
-custom_domain = true
+# The custom domain lives in an untracked wrangler.local.toml (a copy of this file
+# plus a [[routes]] block), so the deployed hostname stays out of the repository:
+#   wrangler deploy -c wrangler.local.toml
+# Without it, `wrangler deploy` publishes to workers.dev only.

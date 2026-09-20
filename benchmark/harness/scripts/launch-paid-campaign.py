@@ -82,7 +82,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (  # noqa
 )
 
 LAUNCH_SCHEMA_VERSION = "cortex-bench-paid-launch/1"
-GATEWAY_PATH = Path("/home/fangxin/.aistatus/gateway.yaml")
+GATEWAY_PATH = Path("~/.aistatus/gateway.yaml")
 CODEX_AUTH_PATH = Path("~/.codex/auth.json")
 CREDENTIAL_RULE = "provider_credential"
 CODEX_AUTH_ORIGIN = "codex-auth"
@@ -438,7 +438,7 @@ def report(
 
 def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     config = load_campaign_config(arguments.config)
-    gateway_path = Path(arguments.gateway)
+    gateway_path = Path(arguments.gateway).expanduser()
     checkout = Path(arguments.checkout).resolve() if arguments.checkout else None
     environment = resolve_launch_environment(
         config,
