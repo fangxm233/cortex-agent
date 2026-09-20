@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
-import { buildThreadCard, type ProtoCard, type ProtoRow, type ProtoSub } from './thread-card-proto';
+import { buildThreadCard, type ThreadCardVm, type ThreadCardRow, type ThreadCardSub } from './inline-thread-card-vm';
 
 // Inline thread card — 1:1 from prototype.dc.html L180–246, bound to REAL threads.get (B1). This is
 // the single live-data surface of the center chat: it re-flows live via useThreadGetLiveSync as the
@@ -14,7 +14,7 @@ import { buildThreadCard, type ProtoCard, type ProtoRow, type ProtoSub } from '.
 
 const mono = "'IBM Plex Mono',monospace";
 
-function NodeCell({ row }: { row: ProtoRow }) {
+function NodeCell({ row }: { row: ThreadCardRow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {row.node === 'done' && (
@@ -68,7 +68,7 @@ function NodeCell({ row }: { row: ProtoRow }) {
   );
 }
 
-function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => void }) {
+function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () => void }) {
   return (
     <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px' }}>
@@ -143,7 +143,7 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
   );
 }
 
-function InlineCardHeader({ card, onOpen }: { card: ProtoCard; onOpen: () => void }) {
+function InlineCardHeader({ card, onOpen }: { card: ThreadCardVm; onOpen: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 13px', background: 'var(--proto-rail)', borderBottom: '1px solid var(--proto-line-2)' }}>
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.6">
@@ -152,14 +152,14 @@ function InlineCardHeader({ card, onOpen }: { card: ProtoCard; onOpen: () => voi
       </svg>
       <span style={{ font: `600 12px ${mono}`, color: 'var(--proto-ink)' }}>{card.name}</span>
       <span style={{ font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.id}</span>
-      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: card.pill.bg, color: card.pill.color }}>{card.pillText}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: card.pill.bg, color: card.pill.fg }}>{card.pillText}</span>
       <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.meta}</span>
       <span onClick={onOpen} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>Open →</span>
     </div>
   );
 }
 
-function InlineRow({ row, onOpenNested }: { row: ProtoRow; onOpenNested: () => void }) {
+function InlineRow({ row, onOpenNested }: { row: ThreadCardRow; onOpenNested: () => void }) {
   return (
     <Fragment>
       <NodeCell row={row} />
@@ -180,7 +180,7 @@ function InlineRow({ row, onOpenNested }: { row: ProtoRow; onOpenNested: () => v
   );
 }
 
-function InlineCardView({ card, onOpen }: { card: ProtoCard; onOpen: () => void }) {
+function InlineCardView({ card, onOpen }: { card: ThreadCardVm; onOpen: () => void }) {
   return (
     <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', borderRadius: 10, overflow: 'hidden' }}>
       <InlineCardHeader card={card} onOpen={onOpen} />
@@ -193,7 +193,7 @@ function InlineCardView({ card, onOpen }: { card: ProtoCard; onOpen: () => void 
   );
 }
 
-export function InlineThreadCardProto({ sessionId }: { sessionId: string }): JSX.Element | null {
+export function InlineThreadCard({ sessionId }: { sessionId: string }): JSX.Element | null {
   const { openThread } = useThreadDetailModal();
   const trpc = useTRPC();
   const list = useQuery({

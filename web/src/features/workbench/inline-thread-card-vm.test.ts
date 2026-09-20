@@ -4,7 +4,7 @@ import type {
   ThreadStepDetail,
   ThreadChildNode,
 } from '@cortex-agent/ui-contract';
-import { buildThreadCard } from './thread-card-proto';
+import { buildThreadCard } from './inline-thread-card-vm';
 
 function step(p: Partial<ThreadStepDetail> & { stepIndex: number }): ThreadStepDetail {
   return {

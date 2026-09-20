@@ -4,7 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream, type MessageEditCtx } from './MessageStream';
-import { InlineThreadCardProto } from './InlineThreadCardProto';
+import { InlineThreadCard } from './InlineThreadCard';
 import { Composer } from './Composer';
 import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionCompact } from './useSessionCompact';
@@ -240,7 +240,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         <MessageStream
           rows={rows}
           loading={!!sessionId && transcriptQuery.isPending}
-          inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
+          inlineThreadCard={sessionId ? <InlineThreadCard sessionId={sessionId} /> : undefined}
           interactionActions={interactionActions}
           edit={edit}
           streamKey={sessionId}

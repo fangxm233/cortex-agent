@@ -1,7 +1,7 @@
 // @ds-adherence-ignore -- mobile inline thread card, 1:1 from scheme.dc.html L2954-2973 (raw px/hex/
 // font/svg by design, §8.3; mobile palette is not in the light `proto.*` token set).
 import { Fragment } from 'react';
-import type { ProtoPill } from '@/features/workbench/thread-card-proto';
+import type { Pill } from '@/features/workbench/right-panel-vm';
 import type { MobileStepper, StepperNode } from './mobile-session-vm';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -58,7 +58,7 @@ export function MobileThreadStepper({
   onOpen,
 }: {
   card: MobileStepper;
-  pill: ProtoPill;
+  pill: Pill;
   subthreadsLabel: string;
   openLabel: string;
   onOpen: () => void;
@@ -90,7 +90,7 @@ export function MobileThreadStepper({
             padding: '2px 8px',
             borderRadius: 999,
             background: pill.bg,
-            color: pill.color,
+            color: pill.fg,
           }}
         >
           {card.pillText}

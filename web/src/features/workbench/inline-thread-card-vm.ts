@@ -1,4 +1,4 @@
-// Pure mapper: ThreadDetail (threads.get, B1) → the prototype inline-thread-card row model
+// Pure mapper: ThreadDetail (threads.get, B1) → the inline-thread-card row model
 // (prototype.dc.html L180–246). Frame-work-free so it is unit-tested in isolation (TDD). The card
 // is the ONE live-data surface in the center chat; it renders whatever the real DTO carries
 // (data-driven, not stage-name-string matched).
@@ -7,40 +7,18 @@ import type {
   ThreadDetail,
   ThreadStepDetail,
   ThreadChildNode,
-  ThreadInfo,
 } from '@cortex-agent/ui-contract';
 import { formatDurationShort, formatUsd } from '@/lib/format';
+import { threadPill, type Pill } from './right-panel-vm';
 
-export interface ProtoPill {
-  bg: string;
-  color: string;
-  text: string;
-}
-
-/** Thread status → the prototype status-pill pair + word (prototype pill(), L1838–1849). */
-export function threadPill(status: ThreadInfo['status']): ProtoPill {
-  switch (status) {
-    case 'running':
-      return { bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', text: 'Running' };
-    case 'waiting':
-      return { bg: 'var(--pill-waiting-bg)', color: 'var(--pill-waiting-fg)', text: 'Waiting' };
-    case 'completed':
-      return { bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', text: 'Done' };
-    case 'failed':
-      return { bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', text: 'Failed' };
-    default:
-      return { bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', text: 'Cancelled' };
-  }
-}
-
-export interface ProtoNested {
+export interface ThreadCardNested {
   name: string;
   level: string;
   running: boolean;
   meta: string;
 }
 
-export interface ProtoSub {
+export interface ThreadCardSub {
   name: string;
   level: string;
   chev: string;
@@ -54,10 +32,10 @@ export interface ProtoSub {
   hasLine: boolean;
   line: string;
   meta: string;
-  nested: ProtoNested | null;
+  nested: ThreadCardNested | null;
 }
 
-export interface ProtoRow {
+export interface ThreadCardRow {
   node: 'done' | 'running' | 'pending';
   hasTail: boolean;
   padB: string;
@@ -70,16 +48,16 @@ export interface ProtoRow {
   metaColor: string;
   chev: boolean;
   expanded: boolean;
-  subs: ProtoSub[];
+  subs: ThreadCardSub[];
 }
 
-export interface ProtoCard {
+export interface ThreadCardVm {
   id: string;
   name: string;
-  pill: ProtoPill;
+  pill: Pill;
   pillText: string;
   meta: string;
-  rows: ProtoRow[];
+  rows: ThreadCardRow[];
 }
 
 /** display level: root children = L2, grandchildren = L3 (prototype uses L2/L3). */
@@ -95,7 +73,7 @@ function stepMeta(step: ThreadStepDetail): string {
   return parts.join(' · ');
 }
 
-function mapNested(node: ThreadChildNode): ProtoNested | null {
+function mapNested(node: ThreadChildNode): ThreadCardNested | null {
   const first = node.children[0];
   if (!first) return null;
   return {
@@ -106,7 +84,7 @@ function mapNested(node: ThreadChildNode): ProtoNested | null {
   };
 }
 
-function mapSub(node: ThreadChildNode): ProtoSub {
+function mapSub(node: ThreadChildNode): ThreadCardSub {
   const running = node.status === 'running';
   const pill = threadPill(node.status);
   const nested = mapNested(node);
@@ -119,7 +97,7 @@ function mapSub(node: ThreadChildNode): ProtoSub {
     iconColor: running ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
     nameColor: running ? 'var(--proto-ink)' : 'var(--proto-muted)',
     pillBg: pill.bg,
-    pillColor: pill.color,
+    pillColor: pill.fg,
     pillText: running ? 'Running' : pill.text,
     hasLine: nested != null,
     line: node.activeAgent ?? '',
@@ -133,10 +111,10 @@ function mapSub(node: ThreadChildNode): ProtoSub {
  * running (active) step expands its children (subthreads). Completed rows collapse to one line with
  * a chevron; pending rows show the empty ring node.
  */
-export function buildThreadCard(detail: ThreadDetail): ProtoCard {
+export function buildThreadCard(detail: ThreadDetail): ThreadCardVm {
   const steps = detail.steps;
-  const rows: ProtoRow[] = steps.map((step, i) => {
-    const node: ProtoRow['node'] =
+  const rows: ThreadCardRow[] = steps.map((step, i) => {
+    const node: ThreadCardRow['node'] =
       step.status === 'completed' ? 'done' : step.status === 'running' ? 'running' : 'pending';
     const running = node === 'running';
     const done = node === 'done';

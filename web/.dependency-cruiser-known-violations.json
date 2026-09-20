@@ -494,7 +494,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/workbench/InlineThreadCardProto.tsx",
+    "from": "src/features/workbench/InlineThreadCard.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

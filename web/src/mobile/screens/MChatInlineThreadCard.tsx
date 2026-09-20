@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTRPC } from '@/lib/trpc';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
-import { threadPill } from '@/features/workbench/thread-card-proto';
+import { threadPill } from '@/features/workbench/right-panel-vm';
 import { buildMobileStepper } from '@/mobile/shared/mobile-session-vm';
 import { MobileThreadStepper } from '@/mobile/shared/MobileThreadStepper';
 

@@ -169,7 +169,7 @@ vi.mock('./useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
 vi.mock('./ChatHeader', () => ({ ChatHeader: () => null }));
-vi.mock('./InlineThreadCardProto', () => ({ InlineThreadCardProto: () => null }));
+vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
 vi.mock('./ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('./DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('./MessageStream', async () => {
