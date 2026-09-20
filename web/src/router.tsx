@@ -25,8 +25,8 @@ function devRoutes(): RouteObject[] {
     () => import('@/dev/base-demo/BaseDemoPage').then((m) => ({ default: m.BaseDemoPage })),
   );
   return [
-    { path: 'kit', element: <Suspense fallback={null}><KitPage /></Suspense> },
-    { path: 'base', element: <Suspense fallback={null}><BaseDemoPage /></Suspense> },
+    { path: 'kit', element: <Suspense fallback="loading /kit…"><KitPage /></Suspense> },
+    { path: 'base', element: <Suspense fallback="loading /base…"><BaseDemoPage /></Suspense> },
   ];
 }
 

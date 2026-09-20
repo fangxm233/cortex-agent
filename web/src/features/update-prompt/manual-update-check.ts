@@ -4,14 +4,11 @@
 // >>> If updated, update this header and parent CORTEX.md <<<
 
 import { isNativeCommandMissing, safeInvoke, type ChannelOutcome } from '@/lib/native-bridge';
-import { publishManualCheckResult } from '@/lib/manual-update-check-result';
+import { publishManualCheckResult, type ManualCheckReport } from '@/lib/manual-update-check-result';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';
 import { parseStagedUpdate, type StagedUpdate } from '@/features/hot-update/frontend-update';
 
-export interface UpdateCheckReport {
-  ui: ChannelOutcome<StagedUpdate>;
-  shell: ChannelOutcome<AppUpdateInfo>;
-}
+export type UpdateCheckReport = ManualCheckReport<StagedUpdate, AppUpdateInfo>;
 
 const listeners = new Set<() => void>();
 let inFlight: Promise<UpdateCheckReport> | null = null;

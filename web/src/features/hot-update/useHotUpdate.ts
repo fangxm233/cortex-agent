@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useUpdateGating } from '@/lib/useUpdateGating';
 import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
-import type { ChannelOutcome } from '@/lib/native-bridge';
 import {
   applyFrontendUpdate,
   getStagedUpdate,
@@ -28,7 +27,7 @@ function useHotUpdateSource(dismissed: MutableRefObject<boolean>) {
       else unlisten = cleanup;
     });
     void getStagedUpdate().then((update) => { if (update) accept(update); });
-    const offManual = subscribeManualCheckResult<{ ui: ChannelOutcome<StagedUpdate> }>(({ ui }) => {
+    const offManual = subscribeManualCheckResult<StagedUpdate>(({ ui }) => {
       if (!ui.update) return;
       dismissed.current = false;
       setPending(ui.update);

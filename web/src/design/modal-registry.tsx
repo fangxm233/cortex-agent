@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -42,17 +43,29 @@ export interface ModalRegistry {
   open: (kind: string, payload: unknown) => void;
   close: (kind: string) => void;
   subscribe: (listener: Listener) => () => void;
+  /** A host for `kind` is mounted; returns the detach. Only used to catch an `open()` nobody renders. */
+  attachHost: (kind: string) => () => void;
 }
+
+// A registry with no host for a kind swallows `open()` silently — on a chrome that simply does
+// not mount that overlay (mobile today) that is the intended no-op, but in the desktop shell it
+// means a modal was declared and never added to ShellModalHost. Say so in development; the test
+// runner mounts triggers without hosts on purpose, so stay quiet there.
+const WARN_ORPHAN_OPEN = import.meta.env.DEV && import.meta.env.MODE !== 'test';
 
 export function createModalRegistry(): ModalRegistry {
   const slots = new Map<string, Slot>();
   const listeners = new Set<Listener>();
+  const hosts = new Map<string, number>();
   const emit = (): void => {
     for (const listener of [...listeners]) listener();
   };
   return {
     slot: (kind) => slots.get(kind),
     open: (kind, payload) => {
+      if (WARN_ORPHAN_OPEN && !hosts.get(kind)) {
+        console.warn(`modal "${kind}" opened but nothing renders it — is its host in ShellModalHost?`);
+      }
       const previous = slots.get(kind);
       // Re-opening with the same payload is what `setOpen(true)` while open used to be: a no-op.
       if (previous && Object.is(previous.payload, payload)) return;
@@ -67,6 +80,10 @@ export function createModalRegistry(): ModalRegistry {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    attachHost: (kind) => {
+      hosts.set(kind, (hosts.get(kind) ?? 0) + 1);
+      return () => { hosts.set(kind, (hosts.get(kind) ?? 1) - 1); };
+    },
   };
 }
 
@@ -78,6 +95,7 @@ const INERT: ModalRegistry = {
   open: () => {},
   close: () => {},
   subscribe: () => () => {},
+  attachHost: () => () => {},
 };
 
 const ModalRegistryContext = createContext<ModalRegistry | null>(null);
@@ -154,6 +172,7 @@ export function defineModal<TPayload = void>(
     useModal(): ModalHandle<TPayload> {
       const registry = useRegistry();
       const actions = useActions(registry);
+      useEffect(() => registry.attachHost(kind), [registry]);
       const slot = useSyncExternalStore(
         registry.subscribe,
         useCallback(() => registry.slot(kind), [registry]),

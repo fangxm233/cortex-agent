@@ -158,6 +158,29 @@ describe('useScheduleEditorController', () => {
     expect(queryClient.getQueryState(['schedules.list'])?.isInvalidated).toBe(true);
   });
 
+  it('lets a save whose editor unmounted mid-flight land silently', async () => {
+    // The desktop host remounts the surface under a new key when the editor is opened again while
+    // one is already up; the first controller is gone before its save resolves and must not toast.
+    const gate = deferred<ScheduleInfo>();
+    adapter.add.mockReturnValue(gate.promise);
+    const { queryClient } = await mount();
+    act(() => controller?.openCreate({ projectId: 'nimbus' }));
+    act(() => controller?.onChange({ message: 'orphaned request' }));
+    let saving!: Promise<boolean>;
+    act(() => { saving = controller!.submit(); });
+    await vi.waitFor(() => expect(adapter.add).toHaveBeenCalledOnce());
+
+    act(() => { renderers.pop()?.unmount(); });
+    await act(async () => {
+      gate.resolve(schedule({ id: 'old-result' }));
+      expect(await saving).toBe(false);
+    });
+
+    expect(adapter.created).not.toHaveBeenCalled();
+    expect(adapter.error).not.toHaveBeenCalled();
+    expect(queryClient.getQueryState(['schedules.list'])?.isInvalidated).toBe(true);
+  });
+
   it('does not let an old error pollute an editor opened after close', async () => {
     const gate = deferred<ScheduleInfo>();
     adapter.add.mockReturnValue(gate.promise);

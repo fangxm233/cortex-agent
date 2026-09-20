@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -102,8 +102,19 @@ function useEditorState(initial?: ScheduleEditorRequest) {
   const [state, setState] = useState<EditorState | null>(() => seededEditorState(initial));
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  // The surface hosting this controller can unmount while a save is in flight — the desktop host
+  // remounts it under a new key when the editor is opened again, and the registry key can be
+  // dropped from outside. An unmounted editor is never current, so that save lands silently,
+  // exactly as one dismissed through `close()` does. (A flag rather than a generation bump so
+  // StrictMode's simulated unmount/remount leaves the seeded generation 0 valid.)
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const nextGeneration = useCallback(() => ++generation.current, []);
-  const isCurrent = useCallback((value: number) => generation.current === value, []);
+  const isCurrent = useCallback(
+    (value: number) => mounted.current && generation.current === value, []);
   const close = useCallback(() => {
     nextGeneration(); setState(null); setError(null);
   }, [nextGeneration]);
