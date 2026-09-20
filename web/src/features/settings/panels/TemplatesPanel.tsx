@@ -1,27 +1,24 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type {
   ThreadTemplateEntry,
   ThreadTemplateDetail,
   ThreadTemplateIssue,
 } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { SButton, SCard, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { useTemplatesController } from '@/features/settings/controllers/useTemplatesController';
 import { PluginAssignPanel } from './PluginAssignPanel';
 import {
   TEMPLATE_FILTER_KEYS,
   buildSaveArgs,
   countByFilter,
   deleteBlockedReason,
-  filterEntries,
   forksFromDefaults,
   formatBody,
   isDirty,
   needsRunningConfirm,
   parseEditor,
-  resolveSelection,
   saveGate,
   starterBody,
   validateName,
@@ -642,20 +639,96 @@ function Muted({ children, style }: { children: ReactNode; style?: CSSProperties
   return <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', lineHeight: 1.6, ...style }}>{children}</div>;
 }
 
+// ── view ──────────────────────────────────────────────────────────────────────────────────────
+
+export interface TemplatesPanelViewProps {
+  entries: readonly ThreadTemplateEntry[];
+  visible: readonly ThreadTemplateEntry[];
+  filter: TemplateFilterKey;
+  search: string;
+  selection: TemplateSelection | null;
+  detail: ThreadTemplateDetail | null;
+  creating: { kind: TemplateKind } | null;
+  draftName: string;
+  text: string;
+  loaded: string;
+  tab: Tab;
+  liveIssues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] } | null;
+  armedSave: boolean;
+  armedDelete: boolean;
+  busy: boolean;
+  onFilter: (key: TemplateFilterKey) => void;
+  onSearch: (value: string) => void;
+  onSelect: (selection: TemplateSelection) => void;
+  onStartCreate: (kind: TemplateKind) => void;
+  onDraftName: (value: string) => void;
+  onText: (value: string) => void;
+  onTab: (tab: Tab) => void;
+  onSave: () => void;
+  onRevert: () => void;
+  onValidate: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onCancelCreate: () => void;
+  onFormat: () => void;
+  onPluginDirtyChange?: (dirty: boolean) => void;
+  onPluginSaved?: () => void;
+}
+
+export function TemplatesPanelView(props: TemplatesPanelViewProps) {
+  return (
+    <div
+      data-settings-panel="templates"
+      style={{ marginTop: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch' }}>
+        <TemplateList
+          entries={props.entries}
+          visible={props.visible}
+          filter={props.filter}
+          search={props.search}
+          selection={props.selection}
+          onFilter={props.onFilter}
+          onSearch={props.onSearch}
+          onSelect={props.onSelect}
+          onStartCreate={props.onStartCreate}
+        />
+        <TemplateDetailPane
+          selection={props.selection}
+          detail={props.detail}
+          creating={props.creating}
+          draftName={props.draftName}
+          text={props.text}
+          loaded={props.loaded}
+          tab={props.tab}
+          liveIssues={props.liveIssues}
+          armedSave={props.armedSave}
+          armedDelete={props.armedDelete}
+          busy={props.busy}
+          onDraftName={props.onDraftName}
+          onText={props.onText}
+          onTab={props.onTab}
+          onSave={props.onSave}
+          onRevert={props.onRevert}
+          onValidate={props.onValidate}
+          onDelete={props.onDelete}
+          onDuplicate={props.onDuplicate}
+          onCancelCreate={props.onCancelCreate}
+          onPluginDirtyChange={props.onPluginDirtyChange}
+          onPluginSaved={props.onPluginSaved}
+          onFormat={props.onFormat}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── container ─────────────────────────────────────────────────────────────────────────────────
 
 export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const listQuery = useQuery(trpc.threadTemplates.get.queryOptions({}));
-  const entries = useMemo(() => listQuery.data ?? [], [listQuery.data]);
-
-  const [filter, setFilter] = useState<TemplateFilterKey>('all');
-  const [search, setSearch] = useState('');
-  const [requested, setRequested] = useState<TemplateSelection | null>(null);
   const [creating, setCreating] = useState<{ kind: TemplateKind } | null>(null);
   const [draftName, setDraftName] = useState('');
   const [tab, setTab] = useState<Tab>('body');
@@ -667,16 +740,23 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   const [createText, setCreateText] = useState('');
   const [pluginDirty, setPluginDirty] = useState(false);
 
-  const visible = useMemo(() => filterEntries(entries, filter, search), [entries, filter, search]);
-  const selection = creating ? null : resolveSelection(visible, requested);
-
-  const detailQuery = useQuery({
-    ...trpc.threadTemplates.detail.queryOptions(
-      selection ?? { kind: 'template' as const, name: '' },
-    ),
-    enabled: selection !== null,
+  const templates = useTemplatesController({
+    creating,
+    onValidated: (issues) => {
+      setLiveIssues(issues);
+      setTab('validation');
+    },
+    onSaved: () => {
+      setText(null);
+      setArmedSave(false);
+      setLiveIssues(null);
+      if (creating) setCreating(null);
+    },
+    onRemoved: () => {
+      setArmedDelete(false);
+    },
   });
-  const detail = selection ? (detailQuery.data ?? null) : null;
+  const { entries, visible, selection, detail } = templates;
 
   const loaded = creating ? createText : detail?.body ? formatBody(detail.body) : '';
   const currentText = creating ? createText : (text ?? loaded);
@@ -695,58 +775,6 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   // buffer has always been free to abandon.
   useEffect(() => { onDirtyChange?.(pluginDirty); }, [pluginDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
-
-  const invalidate = () => {
-    queryClient.invalidateQueries(trpc.threadTemplates.get.queryFilter({}));
-    if (selection) queryClient.invalidateQueries(trpc.threadTemplates.detail.queryFilter(selection));
-  };
-  const onWriteError = (error: { message: string; data?: unknown }) => {
-    const conflict = /changed on disk/i.test(error.message);
-    toast({ title: conflict ? L.ttToastConflict : `${L.ttToastWriteFailed}: ${error.message}`, tone: 'failed' });
-  };
-
-  const validate = useMutation(
-    trpc.threadTemplates.validate.mutationOptions({
-      onSuccess: (data) => {
-        setLiveIssues({ errors: data.errors, warnings: data.warnings });
-        setTab('validation');
-        toast({ title: data.ok ? L.ttToastValid : L.ttToastInvalid, tone: data.ok ? 'done' : 'failed' });
-      },
-      onError: onWriteError,
-    }),
-  );
-
-  const save = useMutation(
-    trpc.threadTemplates.save.mutationOptions({
-      onSuccess: (data, vars) => {
-        invalidate();
-        setText(null);
-        setArmedSave(false);
-        setLiveIssues(null);
-        if (creating) {
-          setCreating(null);
-          setRequested({ kind: vars.kind, name: vars.name });
-        }
-        toast({ title: L.ttToastSaved, tone: 'done' });
-        for (const warning of data.warnings) {
-          toast({ title: `${warning.path}: ${warning.message}`, tone: 'waiting' });
-        }
-      },
-      onError: onWriteError,
-    }),
-  );
-
-  const remove = useMutation(
-    trpc.threadTemplates.remove.mutationOptions({
-      onSuccess: () => {
-        invalidate();
-        setRequested(null);
-        setArmedDelete(false);
-        toast({ title: L.ttToastDeleted, tone: 'done' });
-      },
-      onError: onWriteError,
-    }),
-  );
 
   const startCreate = (kind: TemplateKind) => {
     setCreating({ kind });
@@ -775,7 +803,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       creating: creating !== null,
       baseHash: detail?.sha256 ?? null,
     });
-    if (args) save.mutate(args);
+    if (args) templates.save(args);
   };
 
   const onDelete = () => {
@@ -784,7 +812,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       setArmedDelete(true);
       return;
     }
-    remove.mutate(selection);
+    templates.remove(selection);
   };
 
   const onDuplicate = () => {
@@ -801,73 +829,61 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     else setText(value);
   };
 
-  const busy = save.isPending || remove.isPending || validate.isPending;
-
   return (
-    <div
-      data-settings-panel="templates"
-      style={{ marginTop: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
-    >
-      <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch' }}>
-        <TemplateList
-          entries={entries}
-          visible={visible}
-          filter={filter}
-          search={search}
-          selection={selection}
-          onFilter={setFilter}
-          onSearch={setSearch}
-          onSelect={(next) => {
-            setCreating(null);
-            setRequested(next);
-          }}
-          onStartCreate={startCreate}
-        />
-        <TemplateDetailPane
-          selection={selection}
-          detail={detail}
-          creating={creating}
-          draftName={draftName}
-          text={currentText}
-          loaded={loaded}
-          tab={tab}
-          liveIssues={liveIssues}
-          armedSave={armedSave}
-          armedDelete={armedDelete}
-          busy={busy}
-          onDraftName={setDraftName}
-          onText={setCurrentText}
-          onTab={setTab}
-          onSave={onSave}
-          onRevert={() => {
-            setText(null);
-            setLiveIssues(null);
-            setArmedSave(false);
-          }}
-          onValidate={() => {
-            if (!kind) return;
-            const parsed = parseEditor(currentText);
-            if (parsed.body === null) {
-              toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
-              return;
-            }
-            validate.mutate({ kind, name: name || 'draft', body: parsed.body });
-          }}
-          onDelete={onDelete}
-          onDuplicate={onDuplicate}
-          onCancelCreate={() => setCreating(null)}
-          onPluginDirtyChange={setPluginDirty}
-          onPluginSaved={invalidate}
-          onFormat={() => {
-            const parsed = parseEditor(currentText);
-            if (parsed.body === null) {
-              toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
-              return;
-            }
-            setCurrentText(formatBody(parsed.body));
-          }}
-        />
-      </div>
-    </div>
+    <TemplatesPanelView
+      entries={entries}
+      visible={visible}
+      filter={templates.filter}
+      search={templates.search}
+      selection={selection}
+      detail={detail}
+      creating={creating}
+      draftName={draftName}
+      text={currentText}
+      loaded={loaded}
+      tab={tab}
+      liveIssues={liveIssues}
+      armedSave={armedSave}
+      armedDelete={armedDelete}
+      busy={templates.busy}
+      onFilter={templates.setFilter}
+      onSearch={templates.setSearch}
+      onSelect={(next) => {
+        setCreating(null);
+        templates.select(next);
+      }}
+      onStartCreate={startCreate}
+      onDraftName={setDraftName}
+      onText={setCurrentText}
+      onTab={setTab}
+      onSave={onSave}
+      onRevert={() => {
+        setText(null);
+        setLiveIssues(null);
+        setArmedSave(false);
+      }}
+      onValidate={() => {
+        if (!kind) return;
+        const parsed = parseEditor(currentText);
+        if (parsed.body === null) {
+          toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
+          return;
+        }
+        templates.validate({ kind, name: name || 'draft', body: parsed.body });
+      }}
+      onDelete={onDelete}
+      onDuplicate={onDuplicate}
+      onCancelCreate={() => setCreating(null)}
+      onPluginDirtyChange={setPluginDirty}
+      onPluginSaved={templates.invalidate}
+      onFormat={() => {
+        const parsed = parseEditor(currentText);
+        if (parsed.body === null) {
+          toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
+          return;
+        }
+        setCurrentText(formatBody(parsed.body));
+      }}
+    />
   );
 }
