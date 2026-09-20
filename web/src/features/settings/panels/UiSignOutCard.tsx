@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
 import { probeUiSession, uiLogout } from '@/lib/ui-session';
-import { SCard } from './settings-ui';
+import { SCard } from '@/features/settings/ui/settings-ui';
 
 export function UiSignOutCard() {
   const L = useVocab();

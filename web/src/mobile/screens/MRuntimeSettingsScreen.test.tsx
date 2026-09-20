@@ -18,7 +18,7 @@ vi.mock('@/lib/trpc', () => ({
   useTRPC: () => ({ config: { get: { queryOptions: () => ({}) } } }),
 }));
 
-vi.mock('@/features/settings/runtime-settings-writer', () => ({
+vi.mock('@/features/settings/controllers/runtime-settings-writer', () => ({
   useRuntimeSettingWrite: () => ({
     pending: false,
     onSet: adapter.onSet,

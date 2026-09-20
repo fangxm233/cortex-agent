@@ -10,7 +10,7 @@ import {
   SSectionLabel,
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
-} from './settings-ui';
+} from '@/features/settings/ui/settings-ui';
 import {
   PROFILE_BACKENDS,
   THINKING_LEVELS,
@@ -21,8 +21,8 @@ import {
   type ProfileBackend,
   type ProfileFormErrors,
   type ProfileFormState,
-} from './profiles-panel-vm';
-import { useProfilesController, type ProfileFact } from './useProfilesController';
+} from '@/features/settings/vm/profiles-panel-vm';
+import { useProfilesController, type ProfileFact } from '@/features/settings/controllers/useProfilesController';
 
 // Profiles panel: the read-only table plus the default-profile picker it has always had, now with
 // the three writes the file itself allows — create, edit, delete an entry of the `profiles` map.

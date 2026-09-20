@@ -9,10 +9,10 @@ import { useVocab } from '@/i18n';
 import { apiBase } from '@/lib/desktop-config';
 import { PlatformConnectionFields } from './PlatformConnectionFields';
 import { PlatformRuntimeFields, type PlatformRuntimePatch } from './PlatformRuntimeFields';
-import { connectionPatch, hasConnectionChanges, FIELD_LABELS, type PlatformDraft } from './platform-settings-vm';
+import { connectionPatch, hasConnectionChanges, FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
 import { safeCredentialTransport } from '@/lib/sensitive-transport';
-import { usePlatformSettings, type PlatformWriteFeedback } from './usePlatformSettings';
-import './platform-settings.css';
+import { usePlatformSettings, type PlatformWriteFeedback } from '@/features/settings/controllers/usePlatformSettings';
+import '@/features/settings/ui/platform-settings.css';
 
 interface CardProps {
   platform: PlatformSettingsSnapshot; settings: ConfigSnapshot['settings'];

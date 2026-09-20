@@ -12,7 +12,7 @@ import {
   validateCustomProviderForm,
   type CustomProviderFormErrors,
   type CustomProviderFormState,
-} from './custom-provider-vm';
+} from '@/features/settings/vm/custom-provider-vm';
 
 export interface CustomProvidersController {
   providers: CustomProviderView[];

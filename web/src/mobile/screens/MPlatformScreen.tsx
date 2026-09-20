@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { PlatformPanel } from '@/features/settings/PlatformPanel';
+import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
 import { MSettingsCard, MSettingsPage } from './MSettingsControls';
 
 export function MPlatformScreen() {

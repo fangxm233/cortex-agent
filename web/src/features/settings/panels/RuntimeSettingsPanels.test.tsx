@@ -33,7 +33,7 @@ import {
   AdvancedPanelView,
   RuntimeSettingToggleRow,
 } from './RuntimeSettingsPanels';
-import { MAX_SESSION_RETENTION_DAYS } from './platform-env';
+import { MAX_SESSION_RETENTION_DAYS } from '@/features/settings/vm/platform-env';
 
 const settings: ConfigSettingEntry[] = [
   { key: 'turnNotify', value: false, source: 'file' },

@@ -4,20 +4,20 @@ import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } 
 import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
+import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 import {
   EmptyMessage, IssueList, MetaBlock, MetaSection,
   NOTICE, PILL,
   manifestSourceText, pluginKindText, pluginTitle, scopeNoticeText,
-} from './plugin-ui';
+} from '@/features/settings/ui/plugin-ui';
 import {
   PLUGIN_TABS, filterPlugins, pluginUsage, resolvePluginSelection,
   type PluginTab, type PluginUsage,
-} from './plugins-panel-vm';
-import { isCanonicalName } from './plugin-authoring-vm';
+} from '@/features/settings/vm/plugins-panel-vm';
+import { isCanonicalName } from '@/features/settings/vm/plugin-authoring-vm';
 import { PluginSkillsTab } from './PluginSkillsTab';
 import { PluginMcpTab } from './PluginMcpTab';
-import { usePluginAuthoring, type PluginAuthoringActions } from './usePluginAuthoring';
+import { usePluginAuthoring, type PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 232;

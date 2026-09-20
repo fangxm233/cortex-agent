@@ -11,10 +11,10 @@ import {
   type AccountStatusVm,
   type ClaudeAccountVm,
   type PiProviderVm,
-} from '@/features/settings/accounts-vm';
+} from '@/features/settings/vm/accounts-vm';
 import { CustomProvidersCard } from './CustomProvidersCard';
-import { useAccountsController } from './useAccountsController';
-import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
+import { useAccountsController } from '@/features/settings/controllers/useAccountsController';
+import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 

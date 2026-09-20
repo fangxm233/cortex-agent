@@ -19,7 +19,7 @@ import type {
   ClaudeAccountVm,
   MAccountsVm,
   PiProviderVm,
-} from '@/features/settings/accounts-vm';
+} from '@/features/settings/vm/accounts-vm';
 
 function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): string {
   if (authType === 'api_key') return L.authLoginApiKey;

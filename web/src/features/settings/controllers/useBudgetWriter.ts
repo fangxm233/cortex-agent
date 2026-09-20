@@ -6,7 +6,7 @@ import {
   budgetClearArgs,
   budgetSetArgs,
   type BudgetScopeId,
-} from './budget-vm';
+} from '@/features/settings/vm/budget-vm';
 
 export type BudgetWriterOperation = 'write' | 'clear';
 

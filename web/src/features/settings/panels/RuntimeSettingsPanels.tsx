@@ -4,7 +4,7 @@ import { CONTROL_HEIGHT, Select, relativeAge } from '@/design';
 import { useVocab } from '@/i18n';
 import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
-import { SCard, SCardHeader, Toggle } from './settings-ui';
+import { SCard, SCardHeader, Toggle } from '@/features/settings/ui/settings-ui';
 import { AppUpdateCard } from './AppUpdateCard';
 import { UiSignOutCard } from './UiSignOutCard';
 import {
@@ -28,11 +28,11 @@ import {
   type SettingsIndex,
   type WritableBooleanSettingKey,
   type WritableSettingKey,
-} from './platform-env';
+} from '@/features/settings/vm/platform-env';
 import {
   useRuntimeSettingWrite,
   type RuntimeSettingWriter,
-} from './runtime-settings-writer';
+} from '@/features/settings/controllers/runtime-settings-writer';
 
 type SettingSource = ConfigSettingEntry['source'];
 

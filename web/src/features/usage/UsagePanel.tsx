@@ -6,7 +6,7 @@ import {
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
   Toggle,
-} from '@/features/settings/settings-ui';
+} from '@/features/settings/ui/settings-ui';
 import { policyActionState, usePolicyThresholdDraft } from './usage-policy-controls';
 import { useUsage } from './useUsage';
 import {

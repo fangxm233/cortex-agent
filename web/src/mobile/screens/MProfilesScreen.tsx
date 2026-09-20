@@ -7,10 +7,10 @@ import {
   PROFILE_BACKENDS, THINKING_LEVELS, isProfileFormValid, profileFieldChoices,
   profileFieldErrorCopy, withCurrentValue,
   type ProfileBackend, type ProfileFormErrors, type ProfileFormState,
-} from '@/features/settings/profiles-panel-vm';
+} from '@/features/settings/vm/profiles-panel-vm';
 import {
   useProfilesController, type ProfilesController,
-} from '@/features/settings/useProfilesController';
+} from '@/features/settings/controllers/useProfilesController';
 import {
   MSettingsButton, MSettingsCard, MSettingsFeedback, MSettingsField,
   MSettingsPage, MSettingsRow, MSettingsSelect,

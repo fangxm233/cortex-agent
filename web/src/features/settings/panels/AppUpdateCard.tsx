@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';
-import { SButton, SCard, Toggle } from './settings-ui';
+import { SButton, SCard, Toggle } from '@/features/settings/ui/settings-ui';
 
 // Copy is local to this card rather than vocab: the whole section is APP-shell-only and Chinese,
 // mirroring features/app-update/app-update.ts.

@@ -16,7 +16,7 @@ vi.mock('@/i18n', async () => {
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ isError: true }) }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ config: { get: { queryOptions: () => ({}) } } }) }));
-vi.mock('@/features/settings/runtime-settings-writer', () => ({ useRuntimeSettingWrite: () => ({ pending: false }) }));
+vi.mock('@/features/settings/controllers/runtime-settings-writer', () => ({ useRuntimeSettingWrite: () => ({ pending: false }) }));
 import { startMobileNotifications } from '@/features/notifications/mobile-notifications';
 import { MNotificationsScreen } from './MRuntimeSettingsScreen';
 

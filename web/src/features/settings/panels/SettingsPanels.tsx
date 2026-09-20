@@ -5,7 +5,7 @@
 
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { SCard } from './settings-ui';
+import { SCard } from '@/features/settings/ui/settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 

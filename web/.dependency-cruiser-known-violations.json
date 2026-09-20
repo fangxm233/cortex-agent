@@ -290,7 +290,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/BudgetPanel.tsx",
+    "from": "src/features/settings/panels/BudgetPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -307,7 +307,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/HooksPanel.tsx",
+    "from": "src/features/settings/panels/HooksPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -324,7 +324,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/PluginAssignPanel.tsx",
+    "from": "src/features/settings/panels/PluginAssignPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -341,7 +341,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/PluginMcpTab.tsx",
+    "from": "src/features/settings/panels/PluginMcpTab.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -358,7 +358,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/PluginSkillsTab.tsx",
+    "from": "src/features/settings/panels/PluginSkillsTab.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -375,7 +375,24 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/settings/PluginsPanel.tsx",
+    "from": "src/features/settings/panels/PluginsPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/TemplatesPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -393,23 +410,6 @@
   {
     "type": "dependency",
     "from": "src/features/settings/SettingsModal.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/settings/TemplatesPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

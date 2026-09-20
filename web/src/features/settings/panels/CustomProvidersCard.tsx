@@ -8,8 +8,8 @@ import {
   isCustomProviderFormValid,
   type CustomProviderFormErrors,
   type CustomProviderFormState,
-} from './custom-provider-vm';
-import { useCustomProvidersController } from './useCustomProvidersController';
+} from '@/features/settings/vm/custom-provider-vm';
+import { useCustomProvidersController } from '@/features/settings/controllers/useCustomProvidersController';
 import {
   SButton,
   SCard,
@@ -18,7 +18,7 @@ import {
   SSectionLabel,
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
-} from './settings-ui';
+} from '@/features/settings/ui/settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 

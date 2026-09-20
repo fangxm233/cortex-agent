@@ -2,7 +2,7 @@
 // nothing is derived from copy or invented. The mobile surface renders the declaration exactly as the
 // server reports it; editing lives on desktop, so there is no draft/patch shape here.
 import type { HookDetail, HooksOverview } from '@cortex-agent/ui-contract';
-import { groupHooks, type HookNamespace } from '@/features/settings/hooks-panel-vm';
+import { groupHooks, type HookNamespace } from '@/features/settings/vm/hooks-panel-vm';
 
 /** Mobile copy and presentation cover every canonical namespace, including its future-event fallback. */
 export type MHookGroupKey = HookNamespace;

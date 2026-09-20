@@ -10,7 +10,7 @@ const harness = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@/features/settings/useBudgetWriter', () => ({
+vi.mock('@/features/settings/controllers/useBudgetWriter', () => ({
   useBudgetWriter: () => ({
     write: harness.write,
     clear: harness.clear,

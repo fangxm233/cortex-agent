@@ -12,11 +12,11 @@ import {
   hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
   type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
-} from '@/features/settings/platform-env';
+} from '@/features/settings/vm/platform-env';
 import {
   useRuntimeSettingWrite,
   type RuntimeSettingWriter,
-} from '@/features/settings/runtime-settings-writer';
+} from '@/features/settings/controllers/runtime-settings-writer';
 import {
   MSET_KEY, MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,

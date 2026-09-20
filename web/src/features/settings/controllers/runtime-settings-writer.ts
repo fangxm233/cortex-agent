@@ -4,9 +4,9 @@ import type { ConfigSetArgs } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import type { WritableBooleanSettingKey, WritableSettingKey } from './platform-env';
+import type { WritableBooleanSettingKey, WritableSettingKey } from '@/features/settings/vm/platform-env';
 
-export type { WritableBooleanSettingKey, WritableNumberSettingKey, WritableSettingKey } from './platform-env';
+export type { WritableBooleanSettingKey, WritableNumberSettingKey, WritableSettingKey } from '@/features/settings/vm/platform-env';
 
 export type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
 export type WritableSettingValue = boolean | number;

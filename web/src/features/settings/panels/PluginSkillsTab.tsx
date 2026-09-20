@@ -4,10 +4,10 @@ import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cor
 import { Modal, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
-import { EmptyMessage, NOTICE, PILL, ROW } from './plugin-ui';
-import { isCanonicalName } from './plugin-authoring-vm';
-import type { PluginAuthoringActions } from './usePluginAuthoring';
+import { SButton, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { EmptyMessage, NOTICE, PILL, ROW } from '@/features/settings/ui/plugin-ui';
+import { isCanonicalName } from '@/features/settings/vm/plugin-authoring-vm';
+import type { PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const EDITOR: CSSProperties = {

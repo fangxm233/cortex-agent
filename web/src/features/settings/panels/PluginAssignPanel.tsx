@@ -4,11 +4,11 @@ import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPl
 import { Modal, Select, useToast, type SelectOption } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { RadioDot, SButton, Toggle } from './settings-ui';
+import { RadioDot, SButton, Toggle } from '@/features/settings/ui/settings-ui';
 import {
   EmptyMessage, McpServerSummary, NOTICE, PILL, ROW, META_LABEL,
   pluginTitle, scopeNoticeText,
-} from './plugin-ui';
+} from '@/features/settings/ui/plugin-ui';
 import {
   buildPluginsAssignArgs,
   createPluginDraft,
@@ -25,7 +25,7 @@ import {
   togglePluginDraftId,
   type PluginAssignScope,
   type PluginsPanelDraft,
-} from './plugin-assign-vm';
+} from '@/features/settings/vm/plugin-assign-vm';
 
 const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
 const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };

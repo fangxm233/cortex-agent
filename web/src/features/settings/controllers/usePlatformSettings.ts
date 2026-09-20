@@ -7,7 +7,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { PlatformSettingsPatch } from '@cortex-agent/ui-contract';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
-import type { PlatformRuntimePatch } from './PlatformRuntimeFields';
+import type { PlatformRuntimePatch } from '@/features/settings/panels/PlatformRuntimeFields';
 
 export type PlatformWriteFeedback = 'saved' | 'runtimeSaved' | 'failed' | 'refreshFailed' | null;
 export function usePlatformSettings() {

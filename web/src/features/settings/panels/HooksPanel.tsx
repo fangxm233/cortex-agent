@@ -18,7 +18,7 @@ import {
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
   Toggle,
-} from './settings-ui';
+} from '@/features/settings/ui/settings-ui';
 import {
   HOOK_FILTER_KEYS,
   buildHookCreateArgs,
@@ -49,7 +49,7 @@ import {
   type HookFormState,
   type HookMountTarget,
   type HookResultMode,
-} from './hooks-panel-vm';
+} from '@/features/settings/vm/hooks-panel-vm';
 
 // Hooks panel (plan §5): master–detail inside the settings content pane, replacing the flat
 // read-only card. The value this adds over `cortex-hook` is making "will this hook actually fire?"

@@ -4,13 +4,13 @@ import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-cont
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
-import { EmptyMessage, NOTICE, ROW } from './plugin-ui';
+import { SButton, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { EmptyMessage, NOTICE, ROW } from '@/features/settings/ui/plugin-ui';
 import {
   draftsFromRead, emptyDraft, mcpDraftIssues, replaceDraft, sameMcpDrafts, toInput,
   type McpSecretRow, type McpServerDraft, type McpTransport,
-} from './plugin-authoring-vm';
-import type { PluginAuthoringActions } from './usePluginAuthoring';
+} from '@/features/settings/vm/plugin-authoring-vm';
+import type { PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const SECRET_ROW: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center' };

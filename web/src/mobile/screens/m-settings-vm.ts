@@ -1,7 +1,7 @@
 import type { ConfigSnapshot, ConfigProfileEntry, CostSummary } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
-import { budgetBarPct } from '@/features/settings/budget-vm';
-import { getSetting, hasAnyKey, indexSettings } from '@/features/settings/platform-env';
+import { budgetBarPct } from '@/features/settings/vm/budget-vm';
+import { getSetting, hasAnyKey, indexSettings } from '@/features/settings/vm/platform-env';
 
 export interface MSettingsVm {
   daemonHost: string | null;

@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { buildAccountsVm } from '@/features/settings/accounts-vm';
+import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
 import { MAccountsView } from './MAccountsView';
 
 const status: AuthStatusSnapshot = {

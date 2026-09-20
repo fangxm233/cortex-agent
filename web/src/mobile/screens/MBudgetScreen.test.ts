@@ -9,7 +9,7 @@ const adapter = vi.hoisted(() => ({
   pending: false,
 }));
 
-vi.mock('@/features/settings/useBudgetWriter', () => ({
+vi.mock('@/features/settings/controllers/useBudgetWriter', () => ({
   useBudgetWriter: () => ({
     write: adapter.write,
     clear: adapter.clear,

@@ -10,7 +10,7 @@ import {
   isCustomProviderFormValid,
   type CustomProviderFormErrors,
   type CustomProviderFormState,
-} from '@/features/settings/custom-provider-vm';
+} from '@/features/settings/vm/custom-provider-vm';
 
 const CONTROL_STYLE = {
   width: '100%',

@@ -5,7 +5,7 @@
 
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { FIELD_LABELS, type PlatformDraft } from './platform-settings-vm';
+import { FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
 
 interface FieldProps {
   field: PlatformFieldSnapshot;

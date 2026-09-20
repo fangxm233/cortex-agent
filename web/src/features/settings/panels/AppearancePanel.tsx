@@ -27,7 +27,7 @@ import {
   type PaletteControlsCopy,
   type Theme,
 } from '@/theme';
-import { SCard } from './settings-ui';
+import { SCard } from '@/features/settings/ui/settings-ui';
 
 // Device-local appearance controls persist through their providers with no daemon round-trip.
 

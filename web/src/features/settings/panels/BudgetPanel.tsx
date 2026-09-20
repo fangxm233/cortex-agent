@@ -4,7 +4,7 @@ import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
-import { SCard, SCardHeader, RadioDot, SButton, S_CONTROL_STYLE } from './settings-ui';
+import { SCard, SCardHeader, RadioDot, SButton, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 import {
   DAILY_CHIPS,
   MONTHLY_CHIPS,
@@ -17,8 +17,8 @@ import {
   isChipActive,
   formatBudgetUsd,
   budgetBarPct,
-} from './budget-vm';
-import { useBudgetWriter } from './useBudgetWriter';
+} from '@/features/settings/vm/budget-vm';
+import { useBudgetWriter } from '@/features/settings/controllers/useBudgetWriter';
 
 // Desktop Budget panel — a live-write settings surface. A scope selector switches between the
 // GLOBAL limits and a per-project override; both the daily and the monthly limit are editable in

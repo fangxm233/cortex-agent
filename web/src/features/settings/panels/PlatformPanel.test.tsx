@@ -8,7 +8,7 @@ import { expect, test, vi } from 'vitest';
 import type { ConfigSnapshot, PlatformSettingsSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { PlatformPanelView } from './PlatformPanel';
-import { connectionPatch } from './platform-settings-vm';
+import { connectionPatch } from '@/features/settings/vm/platform-settings-vm';
 
 const platform: PlatformSettingsSnapshot = {
   platform: 'feishu', enabled: true, runtimeEnabled: true, missing: [], pendingRestart: false,

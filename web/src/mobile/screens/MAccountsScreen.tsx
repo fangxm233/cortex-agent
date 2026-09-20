@@ -2,13 +2,13 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
-import { useAccountsController } from '@/features/settings/useAccountsController';
-import { useCustomProvidersController } from '@/features/settings/useCustomProvidersController';
+import { useAccountsController } from '@/features/settings/controllers/useAccountsController';
+import { useCustomProvidersController } from '@/features/settings/controllers/useCustomProvidersController';
 import { useVocab } from '@/i18n';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MAccountsView } from './MAccountsView';
 import { MCustomProviderSheet } from './MCustomProviderSheet';
-import { buildAccountsVm } from '@/features/settings/accounts-vm';
+import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
 
 const EMPTY_STATUS: AuthStatusSnapshot = {
   generatedAt: '',

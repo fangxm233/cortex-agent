@@ -151,7 +151,7 @@ async function readPluginData(): Promise<PluginsListReturn> {
 }
 
 import { PluginAssignPanel } from './PluginAssignPanel';
-import { SettingsModal } from './SettingsModal';
+import { SettingsModal } from '@/features/settings/SettingsModal';
 
 function plugin(id: string, over: Partial<UiPluginCatalogEntry> = {}): UiPluginCatalogEntry {
   return {

@@ -3,7 +3,7 @@ import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import type { AccountActionTarget } from './accounts-vm';
+import type { AccountActionTarget } from '@/features/settings/vm/accounts-vm';
 
 export interface AccountsController {
   status: AuthStatusSnapshot | undefined;

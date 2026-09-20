@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot, CustomProviderView } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { buildAccountsVm } from '@/features/settings/accounts-vm';
+import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
 import { MAccountsView } from './MAccountsView';
 
 // The editor itself is a bottom sheet, which needs a DOM to mount; its rules are covered by

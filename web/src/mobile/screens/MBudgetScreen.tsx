@@ -8,11 +8,11 @@ import { useTRPC } from '@/lib/trpc';
 import {
   budgetBarPct, buildBudgetDraft, formatBudgetUsd, hasOverride, pickScopeBudget,
   type BudgetScopeId,
-} from '@/features/settings/budget-vm';
+} from '@/features/settings/vm/budget-vm';
 import {
   useBudgetWriter,
   type BudgetWriterOperation,
-} from '@/features/settings/useBudgetWriter';
+} from '@/features/settings/controllers/useBudgetWriter';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
   MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage, MSettingsSelect,

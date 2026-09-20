@@ -3,7 +3,7 @@ import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import { useVocab } from '@/i18n';
-import { SCard, SCardHeader } from './settings-ui';
+import { SCard, SCardHeader } from '@/features/settings/ui/settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 const GRID = '110px 1fr 44px 120px 90px 96px';

@@ -8,7 +8,7 @@ import type {
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
-import { SButton, SCard, S_CONTROL_STYLE } from './settings-ui';
+import { SButton, SCard, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 import { PluginAssignPanel } from './PluginAssignPanel';
 import {
   TEMPLATE_FILTER_KEYS,
@@ -28,7 +28,7 @@ import {
   type TemplateFilterKey,
   type TemplateKind,
   type TemplateSelection,
-} from './templates-panel-vm';
+} from '@/features/settings/vm/templates-panel-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 232;

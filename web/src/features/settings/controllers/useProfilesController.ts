@@ -22,7 +22,7 @@ import {
   type ProfileBackend,
   type ProfileFormErrors,
   type ProfileFormState,
-} from './profiles-panel-vm';
+} from '@/features/settings/vm/profiles-panel-vm';
 
 /** The catalog changes only when a provider is logged in or gateway.yaml is edited. */
 const CATALOG_STALE_MS = 60_000;
