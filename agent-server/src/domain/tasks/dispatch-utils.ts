@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR } from '@core/utils.js';
+import { atomicWriteSync } from '@core/atomic-write.js';
 import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { createLogger } from '@core/log.js';
 import { createFileWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
@@ -106,6 +107,52 @@ function loadMachinesFromFile(failOnError = true): void {
  */
 function getMachineRegistry(): MachineRegistry {
   return _registry;
+}
+
+// --- Client-reported GPU count ---
+
+/** Above this a reported number is treated as garbage rather than a machine with that many GPUs. */
+const MAX_PLAUSIBLE_GPUS = 64;
+
+export type GpuCountUpdate = 'updated' | 'unchanged' | 'skipped';
+
+function isPlausibleGpuCount(value: number | null): value is number {
+  return typeof value === 'number' && Number.isInteger(value)
+    && value >= 0 && value <= MAX_PLAUSIBLE_GPUS;
+}
+
+/** Read-modify-write machines.json so every other field of every entry survives. Returns false —
+ *  leaving the file untouched — when it cannot be parsed or no longer holds the machine. */
+function persistGpuCount(machine: string, gpuCount: number): boolean {
+  try {
+    const parsed = JSON.parse(readFileSync(MACHINES_FILE, 'utf-8')) as MachineRegistry;
+    if (!parsed[machine]) return false;
+    parsed[machine].gpuCount = gpuCount;
+    atomicWriteSync(MACHINES_FILE, `${JSON.stringify(parsed, null, 2)}\n`);
+    return true;
+  } catch (e) {
+    log.error(`Failed to persist gpuCount for ${machine}: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * Reconcile a GPU count a client reported about itself into the registry and machines.json.
+ *
+ * `null` means the client could not probe (no nvidia-smi, driver down) — that is "unknown", not
+ * "zero GPUs", so the configured value stands and the machine is never silently dropped from GPU
+ * dispatch. Only machines already in the registry are touched: a client cannot register itself.
+ */
+function applyReportedGpuCount(machine: string, reported: number | null): GpuCountUpdate {
+  const entry = _registry[machine];
+  if (!entry || !isPlausibleGpuCount(reported)) return 'skipped';
+  if (entry.gpuCount === reported) return 'unchanged';
+  if (!persistGpuCount(machine, reported)) return 'skipped';
+  const previous = entry.gpuCount;
+  entry.gpuCount = reported;
+  log.info(`${machine}: gpuCount ${previous} → ${reported} (client-reported)`);
+  _adminNotifier?.(`${Icons.refresh} \`${machine}\` gpuCount ${previous} → ${reported} (reported by its client)`);
+  return 'updated';
 }
 
 /**
@@ -286,6 +333,7 @@ async function processAbortOutcome(
 export {
   getMachineRegistry,
   getLocalMachine,
+  applyReportedGpuCount,
   loadMachinesFromFile,
   startMachineRegistryWatcher,
   stopMachineRegistryWatcher,

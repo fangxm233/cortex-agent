@@ -132,7 +132,9 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 
 每个条目：
 - `cortexPath`（必需）— 该机器上的工作目录路径
-- `gpuCount`（必需）— GPU 数量（非 GPU 机器为 0）
+- `gpuCount`（必需）— GPU 数量（非 GPU 机器为 0）。每个 client 连接时会用 `nvidia-smi`
+  探测本机并上报数量，服务端发现与此处不同就直接写回本文件，因此过期的数字会在下次
+  连接时自我纠正。无法运行 `nvidia-smi` 的机器不上报，保留你在这里填的值。
 - `ssh`（可选）— SSH 连接的 `user@host`。如果省略，假设机器是本地的，不需要 SSH
 - `win`（可选）— 对 Windows 目标设为 `true`（更改 SSH 命令语法）
 - `clientCommand`（可选）— 服务器（通过 SSH）启动该机器上客户端所用的命令，默认为 `node "$HOME/.cortex/client/current/client.mjs"`（Linux）或 `node "%USERPROFILE%\.cortex\client\current\client.mjs"`（Windows）。当 `node` 不在该机器**非登录** SSH 的 PATH 上时需要覆盖它——最常见的是 `nvm` 安装：node 位于 `~/.nvm/...` 下。这种情况写绝对 node 路径，例如 `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`。服务器会用其 token 注入及 `nohup`/`echo $!`（Linux）或 `cmd.exe` 包裹的 WMI（Windows）启动机制来包裹这条命令。

@@ -11,6 +11,7 @@ import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
 import { isOpenStream, openReverseStream } from './reverse-stream.js';
 import { isOpenFileStream, openFileStream } from './file-stream.js';
 import { resolveServerUrl } from './server-url.js';
+import { detectGpuCount } from './gpu-detect.js';
 import { computeSelfBundleHash, handleUpdateMessage, defaultRespawn } from './self-update.js';
 
 const log = createLogger('cortex-client');
@@ -600,11 +601,14 @@ function connect() {
     reconnectDelay = 1000;
 
     const capabilities = detectCapabilities();
+    // null = could not probe; the server keeps its configured gpuCount instead of zeroing it.
+    const gpuCount = detectGpuCount();
     ws!.send(JSON.stringify({
       type: 'hello',
       device: DEVICE_NAME,
       platform: PLATFORM,
       capabilities,
+      gpuCount,
       bundleHash: BUNDLE_HASH,
     }));
 

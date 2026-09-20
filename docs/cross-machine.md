@@ -167,7 +167,11 @@ host:
 
 Each entry:
 - `cortexPath` (required) — the working directory path on that machine
-- `gpuCount` (required) — number of GPUs (0 for non-GPU machines)
+- `gpuCount` (required) — number of GPUs (0 for non-GPU machines). Each client
+  probes its own machine with `nvidia-smi` and reports the count when it connects;
+  the server writes a differing value straight back into this file, so a stale
+  number corrects itself on the next connection. A machine where `nvidia-smi`
+  cannot run reports nothing and keeps the value you set here.
 - `ssh` (optional) — `user@host` for SSH connections. If omitted, the machine
   is assumed to be local and no SSH is needed
 - `win` (optional) — set to `true` for Windows targets (changes the SSH

@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFile, spawn } from 'child_process';
-import { getMachineRegistry, type MachineEntry, type MachineRegistry } from '../tasks/dispatch-utils.js';
+import { getMachineRegistry, applyReportedGpuCount, type MachineEntry, type MachineRegistry } from '../tasks/dispatch-utils.js';
 import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/utils.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
@@ -69,6 +69,41 @@ function emitDisconnected(device: string, reason?: string): void {
   void emitCortexEvent('cortex:client.disconnected', payload).catch(() => {});
 }
 
+/**
+ * Take a device online from its hello frame. Returns the device name, or null when the frame was
+ * rejected (no name / a live connection already holds that name) — the socket is closed in that case.
+ *
+ * The frame also carries the machine's own GPU count, which is reconciled into machines.json here:
+ * a client knows its hardware, the registry only holds what someone typed. An absent or
+ * unparseable `gpuCount` is "unknown" and leaves the configured value alone.
+ */
+function registerHelloDevice(ws: WebSocket, msg: any): string | null {
+  const device: string | undefined = msg.device;
+  if (!device) {
+    ws.close(4001, 'Missing device name');
+    return null;
+  }
+  const existing = devices.get(device);
+  if (existing && existing.ws !== ws) {
+    log.info(`Device ${device} already connected, rejecting new connection`);
+    ws.close(4002, 'Device already connected');
+    return null;
+  }
+  const bundleHash = typeof msg.bundleHash === 'string' && msg.bundleHash ? msg.bundleHash : null;
+  const platform = msg.platform || 'unknown';
+  devices.set(device, {
+    device, platform, capabilities: msg.capabilities || [],
+    connectedAt: new Date(), lastHeartbeat: new Date(), bundleHash, ws,
+  });
+  log.info(`Device connected: ${device} (${platform})`);
+  void emitCortexEvent('cortex:client.connected', { device }).catch(() => {});
+  applyReportedGpuCount(device, typeof msg.gpuCount === 'number' ? msg.gpuCount : null);
+  try { updateHooks?.onHello(device, bundleHash); } catch (e) {
+    log.warn(`onHello hook failed for ${device}: ${(e as Error).message}`);
+  }
+  return device;
+}
+
 // --- Server lifecycle ---
 
 function startClientManager(port: number): void {
@@ -123,35 +158,7 @@ function startClientManager(port: number): void {
       }
 
       if (msg.type === 'hello') {
-        deviceName = msg.device;
-        if (!deviceName) {
-          ws.close(4001, 'Missing device name');
-          return;
-        }
-
-        // If a device with the same name is already connected, reject the new connection
-        const existing = devices.get(deviceName);
-        if (existing && existing.ws !== ws) {
-          log.info(`Device ${deviceName} already connected, rejecting new connection`);
-          ws.close(4002, 'Device already connected');
-          return;
-        }
-
-        const bundleHash = typeof msg.bundleHash === 'string' && msg.bundleHash ? msg.bundleHash : null;
-        devices.set(deviceName, {
-          device: deviceName,
-          platform: msg.platform || 'unknown',
-          capabilities: msg.capabilities || [],
-          connectedAt: new Date(),
-          lastHeartbeat: new Date(),
-          bundleHash,
-          ws,
-        });
-        log.info(`Device connected: ${deviceName} (${msg.platform || 'unknown'})`);
-        void emitCortexEvent('cortex:client.connected', { device: deviceName }).catch(() => {});
-        try { updateHooks?.onHello(deviceName, bundleHash); } catch (e) {
-          log.warn(`onHello hook failed for ${deviceName}: ${(e as Error).message}`);
-        }
+        deviceName = registerHelloDevice(ws, msg);
         return;
       }
 

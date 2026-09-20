@@ -515,3 +515,36 @@ test('sendCommand rejects pending commands when stopClientManager is called mid-
 
   try { ws.close(); } catch {}
 });
+
+test('a hello frame reconciles the reported GPU count into the machine registry', async (t) => {
+  const { CONFIG_DIR } = await import('../src/core/paths.js');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const registry = await import('../src/domain/tasks/dispatch-utils.js');
+
+  const machinesFile = path.join(CONFIG_DIR, 'machines.json');
+  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  await fs.writeFile(machinesFile, JSON.stringify({ 'gpu-device': { cortexPath: '/home/x', gpuCount: 0 } }));
+  registry.loadMachinesFromFile();
+
+  const port = await findEphemeralPort();
+  startClientManager(port);
+  t.onTestFinished(() => stopClientManager());
+
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', () => resolve());
+    ws.once('error', reject);
+  });
+
+  ws.send(JSON.stringify({
+    type: 'hello', device: 'gpu-device', platform: 'linux', capabilities: [], gpuCount: 3,
+  }));
+  await waitFor(() => registry.getMachineRegistry()['gpu-device']?.gpuCount === 3);
+
+  const onDisk = JSON.parse(await fs.readFile(machinesFile, 'utf-8'));
+  assert.equal(onDisk['gpu-device'].gpuCount, 3);
+
+  ws.close();
+  await waitFor(() => !isDeviceOnline('gpu-device'));
+});
