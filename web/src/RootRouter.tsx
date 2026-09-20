@@ -1,6 +1,6 @@
 import { RouterProvider } from 'react-router-dom';
 import { ToastViewport } from '@/design';
-import { useIsMobile } from '@/i18n';
+import { useIsMobile } from '@/lib/use-mobile-layout';
 import { router } from '@/router';
 
 // A single router owns history; ResponsiveRoute switches between the existing shells by layout.

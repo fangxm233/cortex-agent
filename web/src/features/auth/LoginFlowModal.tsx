@@ -15,8 +15,9 @@ import type {
   LoginFlowState,
 } from '@cortex-agent/ui-contract';
 import { Button, Modal, Select, type SelectOption } from '@/design';
-import { useIsMobile, useVocab, type Vocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
+import { useIsMobile } from '@/lib/use-mobile-layout';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import { MBottomSheet } from '@/mobile/ui/kit';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';

@@ -6,15 +6,6 @@ import { en, zh, type Vocab } from './vocab';
 
 export type Lang = 'en' | 'zh';
 
-// Browser layout boundary used by useMobileLayout; matches Tailwind's default `md` breakpoint.
-// Language is independent of the current layout.
-export const MOBILE_MAX_WIDTH = 767;
-
-/** Legacy width-to-language helper; not used for the active language or layout. */
-export function deriveLang(viewportWidth: number): Lang {
-  return viewportWidth <= MOBILE_MAX_WIDTH ? 'zh' : 'en';
-}
-
 export function pickVocab(lang: Lang): Vocab {
   return lang === 'zh' ? zh : en;
 }

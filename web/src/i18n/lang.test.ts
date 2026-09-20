@@ -1,12 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { deriveLang, MOBILE_MAX_WIDTH, readStoredLang, resolveInitialLang, storeLang } from './lang';
-
-describe('deriveLang (viewport → lang)', () => {
-  it('breakpoint boundary is inclusive on the mobile side', () => {
-    expect(deriveLang(MOBILE_MAX_WIDTH)).toBe('zh');
-    expect(deriveLang(MOBILE_MAX_WIDTH + 1)).toBe('en');
-  });
-});
+import { readStoredLang, resolveInitialLang, storeLang } from './lang';
 
 // The cache is a FIRST-PAINT guess only: the server's value (config.get → lang) overwrites it as
 // soon as it lands. See LangServerSync.test.tsx for that half.

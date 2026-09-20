@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useIsMobile } from '@/i18n';
+import { useIsMobile } from '@/lib/use-mobile-layout';
 import { matchMobileRoute, mobileRoutePath } from '@/mobile/mobile-route-manifest';
 
 /** Translate only when the current route belongs to the other layout. Unknown or desktop-only
