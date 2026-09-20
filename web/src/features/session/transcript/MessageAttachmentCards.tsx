@@ -8,7 +8,7 @@ import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
-import { useDock } from '@/features/dock/DockProvider';
+import { useDockIntake } from '@/design/dock-intake';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
 
@@ -204,7 +204,7 @@ function ViewHeader({ a, source, download, dock, expand, canPin }: {
 function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const dl = useDownloadFile();
   const { openDoc } = useDocViewer();
-  const dock = useDock();
+  const dock = useDockIntake();
   const hostRef = useRef<HTMLDivElement>(null);
   const visible = useNearViewport(hostRef);
   const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };

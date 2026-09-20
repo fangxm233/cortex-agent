@@ -5,8 +5,9 @@ import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { useDock } from '@/features/dock/DockProvider';
-import { isMarkdownName, type DocKind } from './doc-kind';
+import { useDockIntake } from '@/design/dock-intake';
+import { isMarkdownName } from './doc-kind';
+import type { DocItem } from './preview-item';
 import { HtmlBody } from './HtmlBody';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 
@@ -19,19 +20,12 @@ import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 // One instance is mounted per shell (AppShell / MobileShell) and opened via useDocViewer().openDoc(item).
 //
 // The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see
-// `features/dock`), the modal also offers ◧: the document leaves the modal and opens as a TAB in the
+// `features/dock`, reached through the `design/dock-intake` seam), the modal also offers ◧: the
+// document leaves the modal and opens as a TAB in the
 // dock beside the chat, and from then on `openDoc` opens (or focuses) a tab instead of a modal.
 
 const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024; // 2 MB — beyond this, prompt to download instead.
 const mono = "'IBM Plex Mono',monospace";
-
-export interface DocItem {
-  kind: DocKind;
-  name: string;
-  /** Workspace-relative `workspace/…` path → authenticated fetch. */
-  path: string;
-  mimeType?: string;
-}
 
 interface DocViewerContextValue {
   openDoc: (item: DocItem) => void;
@@ -446,7 +440,7 @@ const btnStyle: React.CSSProperties = {
 
 export function DocViewerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [item, setItem] = useState<DocItem | null>(null);
-  const dock = useDock();
+  const dock = useDockIntake();
   // While the dock is open, opening a document opens (or focuses) its tab — no modal.
   const openDoc = useCallback(
     (next: DocItem) => {

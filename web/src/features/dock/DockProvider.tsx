@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { DockIntakeProvider, type DockIntakeValue } from '@/design/dock-intake';
 import { createBrowserTab, isBlankWebTab } from '@/features/browser/browser-target';
 import {
   clampDockSplit,
@@ -34,7 +35,12 @@ import {
 // `canDock` / `active` are gated on a mounted host (`DockPane`, rendered only by the desktop
 // workbench frame) — so the ◧ button never appears, and the dock never swallows a preview, on a
 // surface that has nowhere to put it (mobile shell, thread detail route, …).
-// This module imports no viewer component, so MediaViewer / DocViewer can consume it without a cycle.
+//
+// `useDock()` is for the dock's own chrome and its host (DockPane, WorkbenchPage, the View menu).
+// Everything that opens INTO the dock — the two preview modals, the Web button, an agent view card
+// — goes through `design/dock-intake`, which this provider also supplies: those surfaces live in
+// features the dock renders bodies from, so pointing them at `features/dock` is what used to make
+// the dependency mutual.
 
 interface DockContextValue {
   /** A host is mounted → previews CAN be docked (the modals show their ◧ button). */
@@ -209,7 +215,25 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
     [hosts, open, state, split, openFile, openWeb, select, close, reorder, updateWeb, closeDock, toggleDock, setSplit, registerHost],
   );
 
-  return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
+  // The narrow surface, memoised on its own members: a divider drag changes `split` sixty times a
+  // second and must not re-render the preview modals, which do not read it.
+  const activeTab = value.activeTab;
+  const intake = useMemo<DockIntakeValue>(
+    () => ({
+      canDock: value.canDock,
+      active: value.active,
+      activeKind: activeTab?.kind ?? null,
+      openFile,
+      openWeb,
+    }),
+    [value.canDock, value.active, activeTab?.kind, openFile, openWeb],
+  );
+
+  return (
+    <DockContext.Provider value={value}>
+      <DockIntakeProvider value={intake}>{children}</DockIntakeProvider>
+    </DockContext.Provider>
+  );
 }
 
 export function useDock(): DockContextValue {

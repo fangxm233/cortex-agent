@@ -1,5 +1,3 @@
 [
-  "browser<->dock",
-  "dock<->media",
   "settings<->usage"
 ]

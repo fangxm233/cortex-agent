@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { PdfBody, TextBody } from '@/features/media/DocViewer';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { isMarkdownName } from '@/features/media/doc-kind';
-import type { MediaItem } from '@/features/media/MediaViewer';
+import type { MediaItem } from '@/features/media/preview-item';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaSrc } from '@/features/media/useMediaSrc';
 import { useZoom } from '@/features/media/useZoom';

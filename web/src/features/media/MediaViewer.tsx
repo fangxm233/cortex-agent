@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useBackDismiss } from '@/design/use-back-dismiss';
-import { useDock } from '@/features/dock/DockProvider';
+import { useDockIntake } from '@/design/dock-intake';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';
 import { useZoom } from './useZoom';
-import type { MediaKind } from './media-kind';
+import type { MediaItem } from './preview-item';
 
 // Shared full-screen media lightbox (modal) — the single previewer for every image/video surface on
 // web AND mobile: the composer's attachment preview, a sent user message's photo/video, and an
@@ -13,18 +13,10 @@ import type { MediaKind } from './media-kind';
 // and opened from anywhere via `useMediaViewer().openMedia(item)`.
 //
 // The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see
-// `features/dock`), the lightbox also offers ◧: the preview leaves the modal and opens as a TAB in
+// `features/dock`, reached through the `design/dock-intake` seam), the lightbox also offers ◧: the
+// preview leaves the modal and opens as a TAB in
 // the dock beside the chat, and from then on `openMedia` opens (or focuses) a tab instead of raising
 // this modal. Closing the dock (its ×) restores the modal mode.
-
-export interface MediaItem {
-  kind: MediaKind;
-  name: string;
-  /** Workspace-relative `workspace/…` path → authenticated blob fetch (sent messages / agent files). */
-  path?: string;
-  /** A ready object URL (a local composer File preview) — used directly, not fetched. */
-  url?: string;
-}
 
 interface MediaViewerContextValue {
   openMedia: (item: MediaItem) => void;
@@ -210,7 +202,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
 
 export function MediaViewerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [item, setItem] = useState<MediaItem | null>(null);
-  const dock = useDock();
+  const dock = useDockIntake();
   // While the dock is open, a preview click opens (or focuses) its tab — no modal.
   const openMedia = useCallback(
     (next: MediaItem) => {

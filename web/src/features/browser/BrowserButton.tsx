@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useDock } from '@/features/dock/DockProvider';
+import { useDockIntake } from '@/design/dock-intake';
 
 function buttonStyle(active: boolean): CSSProperties {
   return {
@@ -33,9 +33,9 @@ function GlobeIcon() {
  * blank web tab that is already open is focused instead of duplicated. The dock's × closes it.
  */
 export function BrowserButton(): JSX.Element | null {
-  const { canDock, active, activeTab, openWeb } = useDock();
+  const { canDock, active, activeKind, openWeb } = useDockIntake();
   if (!canDock) return null;
-  const showing = active && activeTab?.kind === 'web';
+  const showing = active && activeKind === 'web';
   return (
     <button
       type="button"
