@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type {
   HookDetail,
   HookScriptInfo,
   HooksTestReturn,
 } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
-import { Select, useToast } from '@/design';
+import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   MonoKV,
@@ -19,6 +17,7 @@ import {
   S_CONTROL_STYLE,
   Toggle,
 } from '@/features/settings/ui/settings-ui';
+import { useHooksController } from '@/features/settings/controllers/useHooksController';
 import {
   HOOK_FILTER_KEYS,
   buildHookCreateArgs,
@@ -39,13 +38,11 @@ import {
   legalResultsForEvent,
   matcherKindForEvent,
   reconcileResultForEvent,
-  resolveSelectedHookId,
   samplePayloadForEvent,
   validateHookForm,
   validateMatcherRegex,
   type HookFieldError,
   type HookFilterKey,
-  type HookFilterValue,
   type HookFormState,
   type HookMountTarget,
   type HookResultMode,
@@ -1119,36 +1116,11 @@ export function HooksPanelView(props: HooksPanelViewProps) {
     </div>
   );
 }
-
-// ── container: binds hooks.list + the hooks.* mutations ───────────────────────────────────────
-
-/**
- * The generated router input type narrows a matcherFilters value to `string | number | boolean`,
- * dropping the `null` that the zod schema, the `HookDetail` DTO and the loader all carry (the
- * schema's own `safeParse` accepts `{ k: null }`). Dropping null from the editor instead would
- * silently rewrite a legitimate `null` filter to the string `"null"` on the next save, so the value
- * is kept and the two shapes are reconciled here — the one place they meet.
- */
-type WireFilters = Record<string, string | number | boolean>;
-
-function toWireArgs<T extends { matcherFilters?: Record<string, HookFilterValue> }>(
-  args: T,
-): Omit<T, 'matcherFilters'> & { matcherFilters?: WireFilters } {
-  return args as Omit<T, 'matcherFilters'> & { matcherFilters?: WireFilters };
-}
+// ── container: the editor state, over useHooksController ──────────────────────────────────────
 
 export function HooksPanel() {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const listQuery = useQuery(trpc.hooks.list.queryOptions({}));
-  const hooks = useMemo(() => listQuery.data?.hooks ?? [], [listQuery.data]);
-
-  const [filter, setFilter] = useState<HookFilterKey>('all');
-  const [search, setSearch] = useState('');
-  const [requestedId, setRequestedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createDraft, setCreateDraft] = useState<HookFormState>(emptyHookForm);
   /** Non-null only while the user has actually typed something — otherwise the record is the truth. */
@@ -1158,9 +1130,17 @@ export function HooksPanel() {
   const [testPayload, setTestPayload] = useState('');
   const [testResult, setTestResult] = useState<HooksTestReturn | null>(null);
 
-  const visible = useMemo(() => filterHooks(hooks, filter, search), [hooks, filter, search]);
-  const selectedId = creating ? null : resolveSelectedHookId(hooks, visible, requestedId);
-  const selected = hooks.find((h) => h.id === selectedId) ?? null;
+  const hooksCtl = useHooksController({
+    creating,
+    onCreated: () => {
+      setCreating(false);
+      setCreateDraft(emptyHookForm());
+    },
+    onUpdated: () => setEdits(null),
+    onRemoved: () => setArmedDelete(false),
+    onTested: setTestResult,
+  });
+  const { hooks, selectedId, selected } = hooksCtl;
 
   // Selecting another hook drops the working copy and every transient affordance with it.
   useEffect(() => {
@@ -1170,73 +1150,13 @@ export function HooksPanel() {
     setTestResult(null);
   }, [selectedId]);
 
-  const invalidate = () => queryClient.invalidateQueries(trpc.hooks.list.queryFilter({}));
-  const onWriteError = (error: { message: string }) =>
-    toast({ title: `${L.hkToastWriteFailed}: ${error.message}`, tone: 'failed' });
-
-  const setEnabled = useMutation(
-    trpc.hooks.setEnabled.mutationOptions({
-      onSuccess: (data, vars) => {
-        invalidate();
-        toast({ title: vars.enabled ? L.hkToastEnabled : L.hkToastDisabled, tone: 'done' });
-        // A managed entry's enabled flag is restored by the next hook sync — the server says so.
-        if (data.warning !== null) toast({ title: data.warning, tone: 'waiting' });
-      },
-      onError: onWriteError,
-    }),
-  );
-  const create = useMutation(
-    trpc.hooks.create.mutationOptions({
-      onSuccess: (data) => {
-        invalidate();
-        toast({ title: `${L.hkToastCreated} · ${data.fileName}`, tone: 'done' });
-        setCreating(false);
-        setCreateDraft(emptyHookForm());
-        setRequestedId(data.id);
-      },
-      onError: onWriteError,
-    }),
-  );
-  const update = useMutation(
-    trpc.hooks.update.mutationOptions({
-      onSuccess: () => {
-        invalidate();
-        toast({ title: L.hkToastSaved, tone: 'done' });
-        setEdits(null);
-      },
-      onError: onWriteError,
-    }),
-  );
-  const remove = useMutation(
-    trpc.hooks.remove.mutationOptions({
-      onSuccess: () => {
-        invalidate();
-        toast({ title: L.hkToastDeleted, tone: 'done' });
-        setArmedDelete(false);
-        setRequestedId(null);
-      },
-      onError: onWriteError,
-    }),
-  );
-  // hooks.test only executes an already-mounted declaration; it changes no state, so it is the one
-  // mutation here that does not invalidate the list.
-  const runTest = useMutation(
-    trpc.hooks.test.mutationOptions({
-      onSuccess: (data) => setTestResult(data),
-      onError: (error) => {
-        setTestResult(null);
-        toast({ title: `${L.hkToastTestFailed}: ${error.message}`, tone: 'failed' });
-      },
-    }),
-  );
-
-  if (listQuery.isLoading) {
+  if (hooksCtl.isLoading) {
     return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.hkLoading}</div>;
   }
-  if (listQuery.isError) {
+  if (hooksCtl.isError) {
     return (
       <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-danger)' }}>
-        {L.hkLoadFailed} {listQuery.error.message}
+        {L.hkLoadFailed} {hooksCtl.errorMessage}
       </div>
     );
   }
@@ -1246,24 +1166,24 @@ export function HooksPanel() {
   return (
     <HooksPanelView
       hooks={hooks}
-      scripts={listQuery.data?.scripts ?? []}
-      hooksDir={listQuery.data?.hooksDir ?? ''}
-      filter={filter}
-      search={search}
+      scripts={hooksCtl.scripts}
+      hooksDir={hooksCtl.hooksDir}
+      filter={hooksCtl.filter}
+      search={hooksCtl.search}
       selectedId={selectedId}
       draft={draft}
       creating={creating}
       armedDelete={armedDelete}
-      saving={create.isPending || update.isPending || remove.isPending || setEnabled.isPending}
+      saving={hooksCtl.saving}
       testOpen={testOpen}
       testPayload={testPayload}
       testResult={testResult}
-      testPending={runTest.isPending}
-      onFilter={setFilter}
-      onSearch={setSearch}
+      testPending={hooksCtl.testPending}
+      onFilter={hooksCtl.setFilter}
+      onSearch={hooksCtl.setSearch}
       onSelect={(id) => {
         setCreating(false);
-        setRequestedId(id);
+        hooksCtl.select(id);
       }}
       onStartCreate={() => {
         setCreating(true);
@@ -1276,17 +1196,17 @@ export function HooksPanel() {
         setCreateDraft(emptyHookForm());
       }}
       onDraftChange={(next) => (creating ? setCreateDraft(next) : setEdits(next))}
-      onToggleEnabled={(target, next) => setEnabled.mutate({ id: target.id, enabled: next })}
+      onToggleEnabled={(target, next) => hooksCtl.setEnabled({ id: target.id, enabled: next })}
       onSave={() => {
         if (draft === null) return;
-        if (creating) create.mutate(toWireArgs(buildHookCreateArgs(draft)));
-        else update.mutate(toWireArgs(buildHookUpdateArgs(draft)));
+        if (creating) hooksCtl.create(buildHookCreateArgs(draft));
+        else hooksCtl.update(buildHookUpdateArgs(draft));
       }}
       onRevert={() => setEdits(null)}
       onArmDelete={() => setArmedDelete(true)}
       onCancelDelete={() => setArmedDelete(false)}
       onConfirmDelete={() => {
-        if (selected !== null) remove.mutate({ id: selected.id });
+        if (selected !== null) hooksCtl.remove({ id: selected.id });
       }}
       onOpenTest={() => {
         setTestOpen(true);
@@ -1299,7 +1219,7 @@ export function HooksPanel() {
       }}
       onTestPayloadChange={setTestPayload}
       onRunTest={() => {
-        if (selected !== null) runTest.mutate({ id: selected.id, payload: testPayload });
+        if (selected !== null) hooksCtl.runTest({ id: selected.id, payload: testPayload });
       }}
     />
   );
