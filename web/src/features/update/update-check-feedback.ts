@@ -5,7 +5,8 @@
 
 import type { ToastInput } from '@/design/Toast';
 import type { Vocab } from '@/i18n/vocab';
-import type { ChannelOutcome, UpdateCheckReport } from './manual-update-check';
+import type { ChannelOutcome } from '@/lib/native-bridge';
+import type { UpdateCheckReport } from './manual-update-check';
 
 function reasonText(reason: string | undefined, L: Vocab): string | undefined {
   const reasons: Record<string, string> = {

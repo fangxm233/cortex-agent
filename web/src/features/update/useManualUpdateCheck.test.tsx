@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishAppUpdate } from '@/features/app-update/app-update';
 import { useUpdatePrompt, type UpdatePrompt } from './useUpdatePrompt';
 import { useManualUpdateCheck } from './useManualUpdateCheck';
-import type { NativeCheckReport } from './manual-update-check';
+import type { NativeCheckReport } from '@/lib/native-bridge';
 
 const feedback = vi.hoisted(() => ({ toast: vi.fn(() => 'progress'), dismiss: vi.fn() }));
 // The server channel is server-backed (tRPC) and orthogonal to the shell/UI channels this file

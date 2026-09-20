@@ -3,23 +3,9 @@
 // pos:    Manual update adapter; never installs or owns prompts
 // >>> If updated, update this header and parent CORTEX.md <<<
 
-import { isNativeCommandMissing, safeInvoke } from '@/lib/native-bridge';
+import { isNativeCommandMissing, safeInvoke, type ChannelOutcome } from '@/lib/native-bridge';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';
 import { parseStagedUpdate, type StagedUpdate } from '@/features/hot-update/frontend-update';
-
-export interface ChannelOutcome<T> {
-  status: 'available' | 'current' | 'skipped' | 'error';
-  update?: T;
-  reason?: string;
-}
-
-/** Mirrors update_checks.rs, including nullable fields in serialized native payloads. */
-export interface NativeCheckReport {
-  ui: ChannelOutcome<{ version: string; fromVersion: string | null; size: number }>;
-  shell: ChannelOutcome<{
-    version: string; releaseUrl: string | null; notes: string | null; size: number; kind: string;
-  }>;
-}
 
 export interface UpdateCheckReport {
   ui: ChannelOutcome<StagedUpdate>;
