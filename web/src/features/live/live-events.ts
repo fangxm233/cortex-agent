@@ -60,8 +60,9 @@ export const SESSION_LIVE_EVENTS = [
  * receive these anyway.
  *
  * They therefore ride a small dedicated subscription owned by the open chat
- * (`workbench/useAssistantDeltaStream`), the same treatment `executions.log` already gets: id-scoped,
- * higher-volume, open only while the surface that renders it is.
+ * (`workbench/useAssistantDeltaStream`): id-scoped, higher-volume, open only while the surface that
+ * renders it is. The execution log drawer — the other high-volume surface — does not stream at all;
+ * it polls `executions.get` while the run is running.
  */
 export const ASSISTANT_DELTA_EVENTS = ['session.message.delta'] as const;
 

@@ -8,7 +8,8 @@ const config: Config = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   // Dark theme is driven by `data-theme="dark"` on <html> (set by src/theme + the no-flash script in
   // index.html), NOT by the OS media query — the theme is a persisted user choice. All token hexes
-  // below resolve to CSS variables (defined in src/index.css `:root` / `[data-theme='dark']`), so a
+  // below resolve to CSS variables (defined in public/theme.css `:root` / `[data-theme='dark']`,
+  // one file shared by the SPA and the native shell), so a
   // single attribute flip re-themes every token consumer. See design/ref/scheme-dark.dc.html.
   darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
@@ -179,9 +180,11 @@ const config: Config = {
           to: { opacity: '0', transform: 'scale(0.96)' },
         },
         // Prototype 1:1 animation set (§8.6 RA / task 6d21). Verbatim from the
-        // prototype `<style>` — also present as raw `@keyframes cx*` in index.css
-        // (the inline `animation:cx…` shorthand in the design depends on those
-        // global names); mirrored here for `animate-cx*` utility parity in RB.
+        // prototype `<style>`. Deliberately the same 16 names as the raw
+        // `@keyframes cx*` in index.css: BOTH copies are live. The ~60 inline
+        // `style={{ animation: 'cxpulse …' }}` call sites need the global ones
+        // (Tailwind never sees an inline style), and these back the handful of
+        // `animate-cx*` utility classes. Keep the two definitions identical.
         cxblink: { '0%,55%': { opacity: '1' }, '56%,100%': { opacity: '0' } },
         cxpulse: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.3' } },
         cxtoast: {

@@ -10,8 +10,9 @@ import type { AssistantDeltaEvent } from './transcript-vm';
 // only to a subscription that names their session — an app-wide, unscoped stream would take every
 // session's previews into its 256-slot server queue and drop-oldest the status / thread / task
 // events it exists to deliver (agent-server `domain/ui-service/subscribe.ts`, SESSION_SCOPED_ONLY).
-// This is the same treatment `executions.log` already gets: id-scoped, higher volume, and open only
-// while its surface is. Two connections on a loaded workbench, well inside the HTTP/1.1 per-origin
+// So this one is id-scoped and open only while the chat that renders it is — the other high-volume
+// surface, the execution log drawer, goes further and opens nothing at all (it polls
+// `executions.get`). Two connections on a loaded workbench, well inside the HTTP/1.1 per-origin
 // cap that the shared stream exists to protect.
 //
 // The handler is read through a ref, so a re-render never touches the connection; it re-opens only
