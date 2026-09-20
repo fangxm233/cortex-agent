@@ -4,10 +4,10 @@ Vite + React 18 SPA. tRPC client + TanStack Query + React Router + token-ised Ta
 Path alias `@/* → src/*`. One codebase, two chromes: desktop (`shell/`) and mobile
 (`mobile/`), sharing one body of features and one router.
 
-This file describes the **target** structure — the state after the 4-step cleanup.
-Steps 1, 2 and 3 have landed, so every row below is current; step 4 (the per-directory
-index files) does not change this table.
-The import rules below are enforced *today*, against the current tree.
+All four steps of the structural cleanup have landed, so this file describes the tree as
+it stands, not a target. The import rules below are enforced *today*: `depcruise` cruises
+696 modules / 1911 dependencies clean, over 56 frozen baseline entries, and the cycle
+checker sees 62 inter-feature edges with 1 allow-listed pair.
 
 ## Directories
 
@@ -25,7 +25,15 @@ The import rules below are enforced *today*, against the current tree.
 | `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, and the three composition files — `ShellProviders` (the set both chromes mount), `AppShell` (this chrome's own providers) and `ShellModals` (`ShellModalHost`, the one mount point for the global overlays). |
 | `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
 | `dev/` | DEV-only demo routes: `kit/` (every design primitive in every state, `/kit`) and `base-demo/` (the prototype specimen, `/base`). Registered by `router.tsx` only when `import.meta.env.DEV`, so they are absent from production bundles. |
-| root files | `router.tsx`, `RootRouter.tsx`, `responsive-route.tsx`, `providers.tsx`, `main.tsx`. |
+| root files | `main.tsx`, `providers.tsx`, `RootRouter.tsx`, `router.tsx`, `router-factory.ts`, `responsive-route.tsx`, plus `index.css` and `vite-env.d.ts`. One line each in `src/CORTEX.md`. |
+
+## Index files
+
+Every directory under `src/` carries a `CORTEX.md` listing its files and entry points.
+Start at **`src/CORTEX.md`**: it covers the root files, points at the eight top-level
+indexes (`lib` `design` `theme` `i18n` `features` `shell` `mobile` `dev`) and at the three
+large-feature sub-indexes (`features/session`, `features/workbench`, `features/settings`).
+This file stays the structure map and rulebook; the per-directory files are the file lists.
 
 ## Import direction
 
@@ -114,7 +122,16 @@ providers.tsx           query client · tRPC · theme · tooltip · toast · voc
 ```sh
 pnpm -C web depcruise    # boundary rules + feature cycles   (alias: pnpm -C web lint)
 pnpm -C web typecheck    # tsc --noEmit
-pnpm -C web test         # vitest run  (207 files / 1537 tests, ~6s)
+pnpm -C web test         # vitest run
+```
+
+What a clean tree currently prints:
+
+```
+✔ no dependency violations found (696 modules, 1911 dependencies cruised)
+‼ 56 known violations ignored. Run with --no-ignore-known to see them.
+✔ feature cycles: 1 known pair(s), 0 new. (62 inter-feature edges)
+Test Files  207 passed (207)      Tests  1537 passed (1537)      ~6s
 ```
 
 `build` runs `tsc --noEmit && pnpm run depcruise && vite build`, so the rules are enforced by
