@@ -5,7 +5,7 @@
 // (MPlanReadScreen) owns data + mutations. Honest gap: the `由 X 生成` source line has no entity
 // field → only the real row time is shown.
 import { useRef, useState } from 'react';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MC, MONO } from '@/mobile/ui/kit';
 import type { PlanCardModel } from '@/features/workbench/interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from '@/features/workbench/plan-read-vm';

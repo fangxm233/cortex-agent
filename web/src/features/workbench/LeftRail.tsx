@@ -27,7 +27,7 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
-import { useCommissionEnabled } from './CommissionOptIn';
+import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';

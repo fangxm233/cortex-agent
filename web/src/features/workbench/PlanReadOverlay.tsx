@@ -4,7 +4,7 @@
 // progress + markdown body + resident action bar / sealed stamp) into the desktop overlay chrome
 // (centered card over a scrim, like the approvals overlay). HONEST ADDITION — flagged, not 1:1.
 import { useEffect, useRef, useState } from 'react';
-import { ChatMarkdown } from './ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { PlanCardModel } from './interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from './plan-read-vm';
 import type { DIntCopy } from './InteractionCards';

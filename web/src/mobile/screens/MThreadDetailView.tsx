@@ -6,7 +6,7 @@
 // without tRPC. Reuses the kit chrome (MScreen/MMoreButton/MPill/statusPillTone/MDot/MC/MONO).
 import { useState, type ReactNode } from 'react';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ThreadStepChat } from '@/features/thread/ThreadStepChat';
 import type { MThreadDetailVm, MThreadStepVm, MThreadArtifactVm } from './m-thread-detail-vm';
 

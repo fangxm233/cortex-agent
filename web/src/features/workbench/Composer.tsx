@@ -24,7 +24,7 @@ import { SessionStatsModal } from './SessionStatsModal';
 import { sessionStatsView } from './session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
-import { browserStartupHint, browserStartupPending } from './browser-status';
+import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { TodoRail } from './TodoRail';
 import { WaitRail } from './WaitRail';
 import type { SessionWaitpoints } from './useSessionWaitpoints';
@@ -34,7 +34,7 @@ import {
 } from './ComposerActionRow';
 import {
   commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle,
-} from './CommissionOptIn';
+} from '@/features/commission/CommissionOptIn';
 import { SessionSelectorView, useSessionSelection } from './SessionSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';

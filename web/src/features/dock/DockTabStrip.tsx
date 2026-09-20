@@ -7,7 +7,7 @@ import {
   currentUrl,
   type BrowserTabChip,
 } from '@/features/browser/browser-target';
-import { attachmentFileExt } from '@/features/workbench/attachment-presentation';
+import { attachmentFileExt } from '@/features/attachments/attachment-presentation';
 import { dockTabLabel, isFileTab, type DockState, type DockTab } from './dock-tabs';
 
 // The strip is 50px tall so it lines up with the chat header across the divider, and its tabs sit

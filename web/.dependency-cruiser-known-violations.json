@@ -69,6 +69,23 @@
   },
   {
     "type": "dependency",
+    "from": "src/features/commission/CommissionOptIn.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
     "from": "src/features/execution/ExecutionDrawer.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
@@ -427,23 +444,6 @@
   {
     "type": "dependency",
     "from": "src/features/workbench/CenterChat.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/workbench/CommissionOptIn.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

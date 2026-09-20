@@ -19,7 +19,7 @@ import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
-import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
+import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
 import { buildProfileOptions, effectiveSelection, profileChange, selectionChipParts } from '@/features/workbench/selection-menu';
@@ -56,11 +56,11 @@ import {
 } from '@/features/workbench/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
-import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
+import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
 import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
   useSessionCommission,
-} from '@/features/workbench/CommissionOptIn';
+} from '@/features/commission/CommissionOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';

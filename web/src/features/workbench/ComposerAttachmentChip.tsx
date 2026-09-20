@@ -4,7 +4,7 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOf } from '@/features/media/doc-kind';
 import { mediaKindOf, type MediaKind } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
-import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from './attachment-presentation';
+import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
 import {
   attachmentMime, attachmentName, attachmentSize, attachmentType, type AttachmentUploadItem,
 } from '@/features/attachments/types';

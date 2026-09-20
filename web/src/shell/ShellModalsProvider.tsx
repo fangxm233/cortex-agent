@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { NewProjectModal } from '@/features/workbench/NewProjectModal';
+import { NewProjectModal } from '@/features/projects/NewProjectModal';
 import { DaemonStatusModal } from '@/features/daemon/DaemonStatusModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { AboutModal } from './AboutModal';

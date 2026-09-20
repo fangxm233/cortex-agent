@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
-import { DEFAULT_BROWSER_DEVICE } from './BrowserOptIn';
+import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,

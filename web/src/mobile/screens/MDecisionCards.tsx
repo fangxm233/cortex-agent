@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { useVocab, type Vocab } from '@/i18n';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { messageTimeLabel } from '@/features/workbench/transcript-vm';
 import { useDecisionActions, type DecisionActions } from '@/features/workbench/DecisionCards';
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from '@/features/workbench/decision-vm';

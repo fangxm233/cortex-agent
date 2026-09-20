@@ -2,9 +2,6 @@
   "browser<->dock",
   "commission<->workbench",
   "dock<->media",
-  "dock<->workbench",
-  "media<->workbench",
-  "memory<->workbench",
   "notes<->workbench",
   "settings<->usage",
   "thread<->workbench"

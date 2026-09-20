@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { canCreateProject, NP_BREADCRUMB, NP_PLACEHOLDER } from '@/features/projects/new-project';
-import { useCreateProject } from '@/features/projects/useCreateProject';
+import { canCreateProject, NP_BREADCRUMB, NP_PLACEHOLDER } from './new-project';
+import { useCreateProject } from './useCreateProject';
 
 // NEW PROJECT MODAL — 1:1 from prototype.dc.html L1407-1429 (+ backdrop L1291), task c551. Raw inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim per §8.3; submits through the REAL

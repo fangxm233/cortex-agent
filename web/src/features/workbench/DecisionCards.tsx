@@ -4,7 +4,7 @@ import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import type { Vocab } from '@/i18n';
-import { ChatMarkdown } from './ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { messageTimeLabel } from './transcript-vm';
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from './decision-vm';
 

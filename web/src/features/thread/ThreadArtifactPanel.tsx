@@ -1,5 +1,5 @@
 import { useVocab } from '@/i18n';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { DetailArtifact } from './thread-detail-vm';
 
 const DOC_ICON = (

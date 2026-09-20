@@ -10,7 +10,7 @@ import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDock } from '@/features/dock/DockProvider';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
-import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from './attachment-presentation';
+import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
 
 const mono = "'IBM Plex Mono',monospace";
 const stageFallback = 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)';

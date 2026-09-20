@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
-import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
+import { listForwardDevices, type ForwardDevice } from './forward';
 
 /** This host's own Chrome. Any other value names a device, whose Chrome is launched by its
  *  cortex-client and reached through the reverse channel (plan/embedded-browser.md §18). */

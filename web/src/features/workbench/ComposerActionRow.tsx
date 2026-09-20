@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } 
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from './composer-slash';
-import { useBrowserDeviceOptions, type BrowserDeviceOption } from './BrowserOptIn';
-import { useCommissionOptions, type CommissionOption } from './CommissionOptIn';
+import { useBrowserDeviceOptions, type BrowserDeviceOption } from '@/features/browser/BrowserOptIn';
+import { useCommissionOptions, type CommissionOption } from '@/features/commission/CommissionOptIn';
 
 const MONO = "'IBM Plex Mono',monospace";
 

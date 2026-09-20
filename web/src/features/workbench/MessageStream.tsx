@@ -7,7 +7,7 @@ import { buildNavMarks, sameNavRows, visibleNavRows } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
 import { SubagentBlock } from './SubagentBlock';
 import { SubagentTranscriptDetail } from './SubagentTranscriptDetail';
-import { ChatMarkdown } from './ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { AgentFileGroup, AttachmentCard } from './MessageAttachmentCards';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';

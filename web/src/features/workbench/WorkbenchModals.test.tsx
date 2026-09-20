@@ -42,7 +42,7 @@ vi.mock('@/i18n', () => ({
   }),
 }));
 
-import { NewProjectModal } from './NewProjectModal';
+import { NewProjectModal } from '@/features/projects/NewProjectModal';
 import { RunListModal } from './RunListModal';
 import { SessionIdModal } from './SessionIdModal';
 

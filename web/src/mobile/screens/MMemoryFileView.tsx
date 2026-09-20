@@ -6,7 +6,7 @@
 // `?path=` + binds `memory.file`. Renders the raw markdown via the shared `ChatMarkdown` (the same
 // renderer the 6b plan-read page uses). Git diff/blame is intentionally OMITTED here — the desktop 7b
 // viewer owns that richer view; on mobile this is a clean read.
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MDrillHeader, MC, MONO } from '@/mobile/ui/kit';
 
 export interface MMemoryFileCopy {

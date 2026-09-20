@@ -15,7 +15,7 @@
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLang } from '@/i18n';
-import { attachmentFileExt, attachmentTypeColor } from './attachment-presentation';
+import { attachmentFileExt, attachmentTypeColor } from '@/features/attachments/attachment-presentation';
 import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-nav';
 
 // A session's own table of contents. Every prompt the user sent is a tick on the left edge of the

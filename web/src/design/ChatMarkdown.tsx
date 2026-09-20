@@ -1,7 +1,7 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { parseBlocks, type Block, type InlineNode } from '@/features/memory/markdown';
+import { parseBlocks, type Block, type InlineNode } from '@/lib/markdown';
 
 const mono = "'IBM Plex Mono',monospace";
 type InlineRenderer = (node: InlineNode, key: number) => ReactNode;

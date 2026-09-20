@@ -3,7 +3,7 @@ import {
   type CSSProperties, type ReactNode, Fragment,
 } from 'react';
 import { useVocab } from '@/i18n';
-import { splitFrontmatter, parseBlocks, type InlineNode, type Block } from './markdown';
+import { splitFrontmatter, parseBlocks, type InlineNode, type Block } from '@/lib/markdown';
 
 /** Resolves a markdown image `src` to a displayable URL. Async because the bytes behind a Cortex
  *  image need an authenticated fetch — an `<img>` tag cannot carry the `x-cortex-token` header, so

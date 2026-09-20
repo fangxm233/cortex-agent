@@ -8,7 +8,7 @@ import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { onlineMachineCount, rightPanelBudget } from './right-panel-vm';
 import { groupThreads, type ThreadGroup } from './scope';
-import { useRecentNow } from './useRecentNow';
+import { useRecentNow } from '@/lib/useRecentNow';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';

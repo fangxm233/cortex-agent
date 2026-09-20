@@ -13,7 +13,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { useCommissionEnabled } from '@/features/workbench/CommissionOptIn';
+import { useCommissionEnabled } from './CommissionOptIn';
 import { CommissionBoardModal } from './CommissionBoardModal';
 
 export type CommissionModalAction = { type: 'open'; commissionId: string } | { type: 'close' };

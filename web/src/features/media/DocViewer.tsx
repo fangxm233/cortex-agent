@@ -4,7 +4,7 @@ import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';
-import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { useDock } from '@/features/dock/DockProvider';
 import { isMarkdownName, type DocKind } from './doc-kind';
 import { HtmlBody } from './HtmlBody';

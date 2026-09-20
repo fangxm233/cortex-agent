@@ -1,4 +1,4 @@
-import type { AttachmentMeta } from '@/features/attachments/types';
+import type { AttachmentMeta } from './types';
 import { formatBytes } from '@/lib/format';
 
 export function formatAttachmentSize(bytes: number): string {
