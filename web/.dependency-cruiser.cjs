@@ -8,6 +8,7 @@
 //   features/<name>/      → lib, foundation       L2  one feature = one dir
 //   shell/                → lib, foundation, features   L3  desktop chrome + providers
 //   mobile/               → lib, foundation, features   L3  the other chrome
+//   dev/                  → *                      L3  DEV-only demo routes, shipped to nobody
 //   router.tsx & co       → *                     L4  the only place both chromes meet
 //
 // The two chromes are siblings, not a stack: `features/` is the shared body, `shell/`
@@ -81,6 +82,18 @@ module.exports = {
         ...NOT_A_TEST,
       },
       to: { path: '^src/mobile/', ...COMMON_OPTS },
+    },
+    {
+      name: 'dev-only-from-router',
+      severity: 'error',
+      comment:
+        'dev/ holds DEV-only demo surfaces (/kit, /base). Only router.tsx may reach them, and '
+        + 'only from inside an `import.meta.env.DEV` branch, so the production bundle drops '
+        + 'them. Anything a demo page shows that the product also needs belongs in design/ or '
+        + 'features/ — importing dev/ from either would put a demo in the shipped graph. The '
+        + 'reverse direction is free: dev/ may import anything it wants to demonstrate.',
+      from: { path: '^src/(?!dev/|router\\.tsx)', ...NOT_A_TEST },
+      to: { path: '^src/dev/', ...COMMON_OPTS },
     },
     {
       name: 'components-not-direct-trpc',

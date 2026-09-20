@@ -22,7 +22,7 @@ The import rules below are enforced *today*, against the current tree.
 | `features/settings/` | **(planned sub-dirs)** `panels/` `controllers/` `vm/` — the split already exists by filename, not by directory. |
 | `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, modal providers. |
 | `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
-| `dev/` | **(planned)** DEV-only routes — today's `features/kit` + `features/base-demo`. |
+| `dev/` | DEV-only demo routes: `kit/` (every design primitive in every state, `/kit`) and `base-demo/` (the prototype specimen, `/base`). Registered by `router.tsx` only when `import.meta.env.DEV`, so they are absent from production bundles. |
 | root files | `router.tsx`, `RootRouter.tsx`, `responsive-route.tsx`, `providers.tsx`, `main.tsx`. |
 
 ## Import direction
@@ -49,10 +49,13 @@ Everything points **down**. The rules, as enforced in `.dependency-cruiser.cjs`:
 4. **`shell-not-to-mobile`** — the two chromes are siblings; neither imports the other.
 5. **`mobile-only-from-router`** — only `router.tsx`, `RootRouter.tsx` and `responsive-route.tsx`
    may import `mobile/` from outside it. Keeps the mobile tree movable as a unit.
-6. **`components-not-direct-trpc`** — no `.tsx` under `features/ mobile/ shell/` imports
+6. **`dev-only-from-router`** — nothing outside `dev/` imports `dev/`, except `router.tsx`.
+   The demo pages are not product code; the only edge into them is the DEV-gated one in the
+   router. `dev/` itself may import anything — it exists to show the rest of the tree off.
+7. **`components-not-direct-trpc`** — no `.tsx` under `features/ mobile/ shell/` imports
    `@/lib/trpc`. A component renders; it does not open a transport. Go through a
    `use*Resource` / `use*Controller` hook or a `*-vm` module.
-7. **`no-circular`** — no module-level import cycles.
+8. **`no-circular`** — no module-level import cycles.
 
 Plus a rule dependency-cruiser cannot express: **no bidirectional edges between two
 `features/<name>/` directories**, checked by `scripts/check-feature-cycles.mjs`. Two
