@@ -6,12 +6,13 @@ import { DocViewerProvider } from '@/features/media/DocViewer';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 
-// The providers BOTH chromes mount — one definition, still mounted once per chrome rather than
-// lifted into the root `providers.tsx`, which is what the headers of LiveEventsProvider and
-// ConnectionStatusProvider ask for: the stream belongs to the shell that is on screen.
+// The providers BOTH chromes mount — one definition, and still one mount per chrome rather than a
+// lift into the root `providers.tsx`. ConnectionStatusProvider's header records that per-shell
+// mount as deliberate; keeping it means a chrome swap (responsive-route) takes the stream down with
+// the chrome instead of leaving one up across both.
 //
 //   LiveEvents        the app's ONE SSE stream; outermost, because every live surface and the
-//                     connectivity badge read through it (features/live/CORTEX.md)
+//                     connectivity badge read through it
 //   ConnectionStatus  derived from that stream
 //   CurrentProject    the selected project, read by both chromes' navigation
 //   ModalRegistry     the open-overlay store (design/modal-registry). The desktop shell renders the

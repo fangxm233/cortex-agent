@@ -5,8 +5,8 @@ Path alias `@/* → src/*`. One codebase, two chromes: desktop (`shell/`) and mo
 (`mobile/`), sharing one body of features and one router.
 
 This file describes the **target** structure — the state after the 4-step cleanup.
-Steps 1 and 2 have landed, so every row below is current; step 3 (providers and the modal
-registry) and step 4 (the per-directory index files) do not change this table.
+Steps 1, 2 and 3 have landed, so every row below is current; step 4 (the per-directory
+index files) does not change this table.
 The import rules below are enforced *today*, against the current tree.
 
 ## Directories
@@ -14,7 +14,7 @@ The import rules below are enforced *today*, against the current tree.
 | Dir | What lives there |
 | --- | --- |
 | `lib/` | Bottom of the stack: platform shell (tauri/browser), tRPC transport, session, pure helpers. Knows nothing above it. |
-| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet, the mobile `MC`/`MONO` token tables and `ChatMarkdown` (text in, JSX out, over the parser in `lib/markdown.ts`). Context-free, and shared by both chromes. |
+| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet, the mobile `MC`/`MONO` token tables and `ChatMarkdown` (text in, JSX out, over the parser in `lib/markdown.ts`). Plus the two seams that have to sit below every feature to be usable by all of them: `modal-registry.tsx` (which global overlays are open) and `dock-intake.tsx` (what a surface hands to the dock). App-free — it names no feature at runtime — and shared by both chromes. |
 | `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. |
 | `i18n/` | Vocab tables + `LangProvider` / `useVocab`. |
 | `features/` | One directory per feature (33 today). The shared body both chromes render. |
@@ -22,7 +22,7 @@ The import rules below are enforced *today*, against the current tree.
 | `features/workbench/` | The desktop three-pane page only, since step 2 moved the shared core to `features/session/`: `rail/` `chat/` `composer/` `right-panel/`, with `WorkbenchPage.tsx` at the root (42 files). |
 | `features/settings/` | `panels/` `controllers/` `vm/` `ui/`, with `SettingsModal.tsx`, `SettingsProvider.tsx` and `settings-nav.ts` at the root (69 files) — the layering the filenames already implied, made structural in step 2. |
 | `features/update-prompt/` | The arbitration layer over the three update channels `server-update/` `app-update/` `hot-update/`: it imports all three, decides which single prompt the user sees, and owns the manual check. The channels import neither it nor each other — anything they need in common sits below them in `lib/` or `design/`. |
-| `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, modal providers. |
+| `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, and the three composition files — `ShellProviders` (the set both chromes mount), `AppShell` (this chrome's own providers) and `ShellModals` (`ShellModalHost`, the one mount point for the global overlays). |
 | `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
 | `dev/` | DEV-only demo routes: `kit/` (every design primitive in every state, `/kit`) and `base-demo/` (the prototype specimen, `/base`). Registered by `router.tsx` only when `import.meta.env.DEV`, so they are absent from production bundles. |
 | root files | `router.tsx`, `RootRouter.tsx`, `responsive-route.tsx`, `providers.tsx`, `main.tsx`. |
@@ -66,6 +66,35 @@ features importing each other are one feature, or one is missing a seam.
 Type-only imports are exempt from all of the above (runtime coupling is what we care
 about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
 
+## Providers
+
+Four layers, and only the first one is global:
+
+```
+providers.tsx           query client · tRPC · theme · tooltip · toast · vocab · login gate
+  └ ShellProviders      mounted by EACH chrome, never by the root: live stream · connection ·
+                        current project · modal registry · media viewer · doc viewer
+      └ per-chrome      AppShell adds the dock, selected session, navigation history, pane
+                        state and notes; MobileShell adds its two headless mounts
+          └ ShellModalHost   every global overlay, mounted once, off the registry
+```
+
+- **The shared set is mounted per chrome.** One definition (`shell/ShellProviders.tsx`), two
+  mounts, deliberately not lifted into `providers.tsx` (see `ConnectionStatusProvider`'s header):
+  a chrome swap takes the live stream down with the chrome rather than leaving one up across both.
+- **One registry, not a provider per modal.** `design/modal-registry.tsx` holds a
+  `Map<kind, payload>` in one `useSyncExternalStore` store. A feature declares its own typed key
+  with `defineModal<TPayload>(kind)` beside its modal and keeps its own hook (`useTaskModal()`,
+  `useSettings()`, …): triggers call `useModalActions()` (stable callbacks, no subscription), and
+  the ONE host that renders the modal calls `useModal()`. Opening one kind cannot re-render a
+  subscriber of another. A new overlay is a key plus a line in `shell/ShellModals.tsx`.
+- **`*Provider` means it provides context.** Something that only subscribes and renders is a
+  `*Mount` (`NotificationMount`, `UpdateMount` and the mobile pair); something that renders one
+  modal off a registry key is a `*Host`.
+- **The dock is outside the shared set**, because `MediaViewerProvider` and `DocViewerProvider`
+  read `design/dock-intake` — the five-member surface `features/dock` supplies to everything that
+  opens INTO it. `useDock()` itself is for the dock's own chrome, its host and the View menu.
+
 ## Conventions worth keeping
 
 - **`*-vm.ts`** (49 today) — pure view-model builders. No react, no tRPC, no I/O: snapshot in,
@@ -85,7 +114,7 @@ about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
 ```sh
 pnpm -C web depcruise    # boundary rules + feature cycles   (alias: pnpm -C web lint)
 pnpm -C web typecheck    # tsc --noEmit
-pnpm -C web test         # vitest run  (206 files / 1533 tests, ~6s)
+pnpm -C web test         # vitest run  (207 files / 1537 tests, ~6s)
 ```
 
 `build` runs `tsc --noEmit && pnpm run depcruise && vite build`, so the rules are enforced by
@@ -97,18 +126,18 @@ The rules were added to a tree that already violates them. Rather than weaken th
 remaining violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
 via `--ignore-known`. Step 1a took the file from 75 entries to 61; step 1b was pure
 restructuring and held it at 61 (regenerating it after the moves reproduces the same 61 edges
-under their new paths); step 2 moved a great deal and retired two entries, by giving
-`TemplatesPanel` and `HooksPanel` the controller every other panel has:
+under their new paths); step 2 retired two by giving `TemplatesPanel` and `HooksPanel` the
+controller every other panel has; step 3 retired three more with the dock seam, 59 -> 56:
 
 | Rule | Frozen | Was |
 | --- | --- | --- |
 | `components-not-direct-trpc` | 55 | 57 |
-| `no-circular` | 4 | 8 |
+| `no-circular` | 1 | 8 |
 | `features-not-to-mobile` | 0 | 4 |
 | `mobile-only-from-router` | 0 | 4 (the same 4 files) |
 | `lib-is-bottom` | 0 | 2 |
 
-Likewise `scripts/feature-cycles-allowlist.json` holds 3 known feature pairs, down from 11.
+Likewise `scripts/feature-cycles-allowlist.json` holds 1 known feature pair, down from 11.
 Step 1b removed `app-update<->update` and `hot-update<->update` by splitting the old `update/`
 into an `update-prompt/` layer above the channels and pushing what they shared into `lib/`
 and `design/`. Step 2 removed the six that ran through `workbench` — `commission`, `dock`,
