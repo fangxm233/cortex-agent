@@ -349,7 +349,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
-| `defaults/CORTEX.md` | `$CORTEX_HOME/CORTEX.md` | 从不 |
+| `defaults/AGENTS.md` | `$CORTEX_HOME/AGENTS.md` | 从不 |
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | 从不 |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不——这里只指 `$CORTEX_HOME/.claude/settings.json` 这个脚手架路径；任意仓库内的本地 `.claude/settings.json` 都不在 Cortex 的 copy/sync 回路里 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |

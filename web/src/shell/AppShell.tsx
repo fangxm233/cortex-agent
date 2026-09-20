@@ -31,7 +31,7 @@ import { ShellModalsProvider } from './ShellModalsProvider';
 // surface can open them without route navigation. DockProvider wraps both previewers: while the dock
 // is open (the tabbed pane beside the chat on the workbench) `openMedia`/`openDoc` open a tab in it
 // instead of raising their modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which
-// every live surface (and the connectivity badge) reads through — see features/live/CORTEX.md.
+// every live surface (and the connectivity badge) reads through — see features/live/AGENTS.md.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (

@@ -1,7 +1,7 @@
 // input:  config snapshots, localized copy and shared cards
 // output: platform identity primitives and MCP panel
 // pos:    Shared badges and read-only MCP settings
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

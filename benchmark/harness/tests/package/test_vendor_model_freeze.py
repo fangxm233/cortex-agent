@@ -1,7 +1,7 @@
 # input:  current vendor CLIs, campaign arms, loopback trial proxy
 # output: model transmission, native defaults, and drift refusals
 # pos:    Current CLI behavior against historical campaign models
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import json
 import os

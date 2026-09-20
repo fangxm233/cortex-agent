@@ -28,7 +28,6 @@ export const SHARED_POOL_FILES: string[] = [
   'tests/core/paths.test.ts',
   'tests/core/singleton-lock.test.ts',
   'tests/cortex-client-config.test.ts',
-  'tests/cortex-md-scanner.test.ts',
   'tests/domain/mcp/time-tool.test.ts',
   'tests/domain/system/doctor.test.ts',
   'tests/domain/tui-session/tui-session-service.test.ts',

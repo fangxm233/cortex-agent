@@ -10,7 +10,7 @@ from Slack. The approval flow is built on the hook-bridge (see
 ## The three blast-radius classes
 
 Cortex classifies every agent operation into one of three buckets. The
-classification lives in the root CORTEX.md "安全边界" (Safety Boundary) section
+classification lives in the root AGENTS.md "安全边界" (Safety Boundary) section
 and is the single source of truth. The judgment criterion is **behavioral
 impact**, not file category — fixing a typo in a skill file and adding a new
 workflow step to it are different classes of operation even though both touch
@@ -38,7 +38,7 @@ Operations that change system behavior, consume significant resources, or are
 hard to reverse. These are queued to PENDING_APPROVALS.md and blocked until
 you approve them.
 
-- Modify CORTEX.md or CLAUDE.local.md
+- Modify AGENTS.md or CLAUDE.local.md
 - New skills or skill behavioral changes (new triggers, new workflow steps,
   capability expansion)
 - Agent-server behavioral or architectural changes (new features, protocol
@@ -69,7 +69,7 @@ classifying an edge case:
 | Fix agent-server syntax error | Self-serve | Non-behavioral fix |
 | Add new guard logic to agent-server | Needs approval | Changes behavior |
 | Start GPU training within budget | Self-serve | Within budget, but GPU preflight required |
-| Modify CORTEX.md rules | Needs approval | System convention change |
+| Modify AGENTS.md rules | Needs approval | System convention change |
 
 ## How an operation reaches the queue
 
@@ -203,8 +203,8 @@ Approvals are logged in three places:
 
 ## Configuration
 
-The safety boundary classification lives in the root CORTEX.md at
-`~/.cortex/CORTEX.md`, which is where you edit it.
+The safety boundary classification lives in the root AGENTS.md at
+`~/.cortex/AGENTS.md`, which is where you edit it.
 
 The PENDING_APPROVALS.md file lives at `~/.cortex/context/PENDING_APPROVALS.md`.
 It is created automatically on first use.

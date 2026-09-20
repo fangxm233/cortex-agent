@@ -14,7 +14,7 @@ The knowledge root is `~/.cortex/context/`, structured as follows:
 
 ```
 context/
-├── CORTEX.md                    # Root index — entry point for finding anything
+├── AGENTS.md                    # Root index — entry point for finding anything
 ├── OVERVIEW.md                  # Global overview: one-line status per project + last scan date
 ├── decisions/                   # System-level design decisions (DR-NNNN-title.md)
 ├── ideas/                       # Incubating research directions
@@ -23,7 +23,7 @@ context/
 │   └── USER.md                  # Language, style, working habits (< 3KB)
 └── projects/                    # One subdirectory per active research project
     └── <project>/
-        ├── CORTEX.md            # Project-level index
+        ├── AGENTS.md            # Project-level index
         ├── mission.md           # Goal and success conditions
         ├── roadmap.md           # Milestones with testable checklist conditions
         ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
@@ -207,11 +207,38 @@ Each decision is one file named `NNNN-title.md`. Format follows the project deci
 
 The Dense Context system follows these operational conventions:
 
-1. **Every directory has a CORTEX.md index** — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget
-2. **Create file → update index** — when adding a new file to a directory, update that directory's CORTEX.md
+1. **Every directory has an AGENTS.md index** — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget
+2. **Create file → update index** — when adding a new file to a directory, update that directory's AGENTS.md
 3. **Overwrite vs. append** — STATUS.md overwrites (only current state); ISSUES.md appends then deletes; experiments/knowledge/patterns append and stay
 4. **Provenance is mandatory** — every factual claim must trace to a specific EXP-NNN, K-NNN, file:line, or inline calculation
 5. **Git as persistence** — all context updates are committed via git, incrementally after each logical work unit
+
+## Who Loads AGENTS.md
+
+`AGENTS.md` is the name both supported backends already look for, so most of the time Cortex does
+not inject anything — the backend does it.
+
+| Where the file sits | Claude Code | PI | Loaded by |
+|---|---|---|---|
+| An ancestor of the session working directory | yes | yes | the backend |
+| A subdirectory of the working directory, when a file there is read | yes | no | the backend on Claude, the `agents-md-injector` hook on PI |
+| Outside the working directory tree | no | no | the `agents-md-injector` hook |
+| `AGENTS.local.md`, anywhere | no | no | the `agents-md-injector` hook |
+| On a remote device, via `remote_read` / `remote_write` / `remote_edit` | no | no | the cortex-client scanner, injected as extra tool-result blocks |
+
+Sessions run in the Cortex home directory by default, so `~/.cortex/AGENTS.md` and every index
+under `context/` is an ancestor or a subdirectory of the working directory and arrives natively.
+The hook exists for the remaining rows, and it records what the backend already loaded in a shared
+per-session cache so the same rules are never delivered twice.
+
+Two consequences worth knowing:
+
+- **A `CLAUDE.md` anywhere in the ancestor chain switches Claude's `AGENTS.md` fallback off
+  completely** — it is an all-or-nothing choice governed by the `claude-md-or-agents-md` setting,
+  not a per-directory merge. The hook detects this and resumes injecting so no rules are lost, but
+  mixing the two names in one tree is still best avoided.
+- **Neither backend reads a `.local` variant.** `AGENTS.local.md` is a Cortex-only convention for
+  machine-specific rules, delivered by the hook and kept out of git.
 
 ## Fresh Session Test
 

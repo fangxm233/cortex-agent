@@ -1,7 +1,7 @@
 // input:  zod and platform credential field definitions
 // output: platform configuration contract and safe patch schema
 // pos:    Browser-safe platform settings boundary
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { z } from 'zod';
 

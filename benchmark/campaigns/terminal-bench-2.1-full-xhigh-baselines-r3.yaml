@@ -125,7 +125,7 @@ arms:
       max_output_tokens: 131072
 
 
-# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# `open`, matching every campaign whose scores these are compared against. See campaigns/AGENTS.md
 # for what that costs a score.
 network:
   mode: open

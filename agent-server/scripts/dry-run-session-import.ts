@@ -8,7 +8,7 @@
 // pos:    Dev tool (agent-server/scripts). Touches ONLY the store dir passed in; never the live
 //         daemon or its stores. Run from agent-server/ so tsx resolves the @-path aliases:
 //           node --import tsx scripts/dry-run-session-import.ts <store-dir>
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

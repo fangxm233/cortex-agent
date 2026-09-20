@@ -3,7 +3,7 @@
 // pos:    Browser-mode gate in front of everything that talks to the server. Native shells (desktop
 //         and mobile) carry the token in their own request headers and are passed straight through,
 //         so this file is inert for them.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';

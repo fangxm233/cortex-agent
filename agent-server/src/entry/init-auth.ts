@@ -1,7 +1,7 @@
 // input:  auth snapshots, login CLI and terminal choices
 // output: localized init authentication choices, usable backends and cancellation
 // pos:    Small shared init provider onboarding coordinator
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { defaultLoginDeps, LoginCliError, runAuthLoginCli, type LoginCliDeps } from './auth-login-cli.js';
 import { t } from '@core/i18n.js';
 import type { AuthStatusSnapshot } from '@domain/auth/auth-status.js';

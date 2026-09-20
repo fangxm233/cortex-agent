@@ -1,7 +1,7 @@
 // input:  Persisted connection, Android service lifecycle
 // output: Permission-gated remoteMessaging foreground owner
 // pos:    Native background notification service entry point
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import android.app.Service

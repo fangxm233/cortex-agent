@@ -1,7 +1,7 @@
 // input:  the vocabulary and a submit callback
 // output: the browser token-login screen
 // pos:    Shown by UiAuthGate when this browser holds no session yet
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useState, type FormEvent } from 'react';
 import { Button, Card } from '@/design';

@@ -1,7 +1,7 @@
 // input:  platform writer hook and mocked direct tRPC client
 // output: serialization, redacted feedback and refresh-failure tests
 // pos:    Tests credential writes without mutation-cache retention
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { act, create } from 'react-test-renderer';
 import { beforeEach, expect, test, vi } from 'vitest';

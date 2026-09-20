@@ -1,7 +1,7 @@
 // input:  plugin catalog, settings and plugin directories
 // output: normalized plugin entries and effective scopes
 // pos:    Shared plugin helpers for UI service
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import fs from 'node:fs';
 import { getSettings } from '@core/settings.js';

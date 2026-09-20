@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { CortexMDInjector } from '../src/domain/memory/cortex-md-injector.js';
+import { AgentsMDInjector } from '../src/domain/memory/agents-md-injector.js';
 
 async function withCacheDir<T>(fn: (cacheDir: string) => Promise<T>): Promise<T> {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'cmd-inj-'));
@@ -13,8 +13,8 @@ async function withCacheDir<T>(fn: (cacheDir: string) => Promise<T>): Promise<T>
 
 test('first call produces blocks, second call with same mtime produces none', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    const entry = { path: '/r/CORTEX.md', content: 'hello', mtimeMs: 1000 };
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    const entry = { path: '/r/AGENTS.md', content: 'hello', mtimeMs: 1000 };
     const b1 = inj.buildBlocks('lab', [entry]);
     assert.strictEqual(b1.length, 1);
     assert.strictEqual(b1[0].type, 'text');
@@ -26,9 +26,9 @@ test('first call produces blocks, second call with same mtime produces none', as
 
 test('updated mtime triggers re-injection', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'v1', mtimeMs: 1000 }]);
-    const b2 = inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'v2', mtimeMs: 2000 }]);
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'v1', mtimeMs: 1000 }]);
+    const b2 = inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'v2', mtimeMs: 2000 }]);
     assert.strictEqual(b2.length, 1);
     assert.ok(b2[0].text.includes('v2'));
   });
@@ -36,21 +36,21 @@ test('updated mtime triggers re-injection', async () => {
 
 test('cache persists across injector instances for same sessionId (resume)', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj1 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
-    inj1.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 }]);
+    const inj1 = new AgentsMDInjector({ sessionId: 'abc', cacheDir });
+    inj1.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 }]);
     const cacheFile = path.join(cacheDir, 'abc.json');
     assert.ok(fs.existsSync(cacheFile), 'cache file written to disk');
-    const inj2 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
-    const b = inj2.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 }]);
+    const inj2 = new AgentsMDInjector({ sessionId: 'abc', cacheDir });
+    const b = inj2.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 }]);
     assert.strictEqual(b.length, 0, 'dedup survives process restart within same session');
   });
 });
 
 test('already-constructed injectors reload shared cache before each update', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj1 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
-    const inj2 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
-    const entry = { path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 };
+    const inj1 = new AgentsMDInjector({ sessionId: 'abc', cacheDir });
+    const inj2 = new AgentsMDInjector({ sessionId: 'abc', cacheDir });
+    const entry = { path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 };
 
     assert.strictEqual(inj1.buildBlocks('lab', [entry]).length, 1);
     assert.strictEqual(
@@ -63,9 +63,9 @@ test('already-constructed injectors reload shared cache before each update', asy
 
 test('entry deviceId unifies aliases for the same physical device', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 'abc', cacheDir });
+    const inj = new AgentsMDInjector({ sessionId: 'abc', cacheDir });
     const entry = {
-      path: '/r/CORTEX.md',
+      path: '/r/AGENTS.md',
       content: 'x',
       mtimeMs: 1000,
       deviceId: 'physical-host',
@@ -82,11 +82,11 @@ test('entry deviceId unifies aliases for the same physical device', async () => 
 
 test('different sessionIds have independent caches', async () => {
   await withCacheDir(async (cacheDir) => {
-    const injA = new CortexMDInjector({ sessionId: 'sA', cacheDir });
-    injA.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 }]);
-    const injB = new CortexMDInjector({ sessionId: 'sB', cacheDir });
-    const b = injB.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 }]);
-    assert.strictEqual(b.length, 1, 'new session must see CORTEX.md even if another session already saw it');
+    const injA = new AgentsMDInjector({ sessionId: 'sA', cacheDir });
+    injA.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 }]);
+    const injB = new AgentsMDInjector({ sessionId: 'sB', cacheDir });
+    const b = injB.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 }]);
+    assert.strictEqual(b.length, 1, 'new session must see AGENTS.md even if another session already saw it');
     assert.ok(fs.existsSync(path.join(cacheDir, 'sA.json')));
     assert.ok(fs.existsSync(path.join(cacheDir, 'sB.json')));
   });
@@ -97,8 +97,8 @@ test('missing sessionId (and no env var) → in-memory only, no file written', a
     const prev = process.env.CORTEX_SESSION_ID;
     delete process.env.CORTEX_SESSION_ID;
     try {
-      const inj = new CortexMDInjector({ cacheDir });
-      inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
+      const inj = new AgentsMDInjector({ cacheDir });
+      inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1 }]);
       const files = await fs.promises.readdir(cacheDir);
       assert.deepStrictEqual(files, [], 'no cache file created without sessionId');
     } finally {
@@ -109,8 +109,8 @@ test('missing sessionId (and no env var) → in-memory only, no file written', a
 
 test('invalid sessionId (contains /) → in-memory only', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: '../evil', cacheDir });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
+    const inj = new AgentsMDInjector({ sessionId: '../evil', cacheDir });
+    inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1 }]);
     const files = await fs.promises.readdir(cacheDir);
     assert.deepStrictEqual(files, [], 'path-injection sessionId rejected');
   });
@@ -121,8 +121,8 @@ test('env var CORTEX_SESSION_ID is used when sessionId option is not provided', 
     const prev = process.env.CORTEX_SESSION_ID;
     process.env.CORTEX_SESSION_ID = 'envsess';
     try {
-      const inj = new CortexMDInjector({ cacheDir });
-      inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
+      const inj = new AgentsMDInjector({ cacheDir });
+      inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1 }]);
       assert.ok(fs.existsSync(path.join(cacheDir, 'envsess.json')));
     } finally {
       if (prev === undefined) delete process.env.CORTEX_SESSION_ID;
@@ -134,30 +134,30 @@ test('env var CORTEX_SESSION_ID is used when sessionId option is not provided', 
 test('corrupt cache file falls back to empty cache', async () => {
   await withCacheDir(async (cacheDir) => {
     await fs.promises.writeFile(path.join(cacheDir, 's1.json'), 'not json at all');
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    const b = inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    const b = inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1 }]);
     assert.strictEqual(b.length, 1, 'corrupt cache does not block injection');
   });
 });
 
 test('multiple entries with mixed seen/unseen state — only unseen injected', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    inj.buildBlocks('lab', [{ path: '/a/CORTEX.md', content: 'a', mtimeMs: 1 }]);
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    inj.buildBlocks('lab', [{ path: '/a/AGENTS.md', content: 'a', mtimeMs: 1 }]);
     const b = inj.buildBlocks('lab', [
-      { path: '/a/CORTEX.md', content: 'a', mtimeMs: 1 },    // dedup
-      { path: '/b/CORTEX.md', content: 'b', mtimeMs: 2 },    // new
+      { path: '/a/AGENTS.md', content: 'a', mtimeMs: 1 },    // dedup
+      { path: '/b/AGENTS.md', content: 'b', mtimeMs: 2 },    // new
     ]);
     assert.strictEqual(b.length, 1);
-    assert.ok(b[0].text.includes('/b/CORTEX.md'));
+    assert.ok(b[0].text.includes('/b/AGENTS.md'));
   });
 });
 
 test('atomic write leaves no .tmp files behind after normal writes', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1 }]);
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 2 }]);
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 1 }]);
+    inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'x', mtimeMs: 2 }]);
     const files = await fs.promises.readdir(cacheDir);
     assert.ok(files.includes('s1.json'));
     assert.ok(!files.some(f => f.endsWith('.tmp')), `no stray tmp file, got ${files.join(',')}`);
@@ -174,7 +174,7 @@ test('stale session cache files are removed on startup (TTL)', async () => {
     const fresh = path.join(cacheDir, 'fresh.json');
     await fs.promises.writeFile(fresh, '{}');
 
-    new CortexMDInjector({ sessionId: 'new', cacheDir });
+    new AgentsMDInjector({ sessionId: 'new', cacheDir });
     assert.ok(!fs.existsSync(stale), 'stale cache removed');
     assert.ok(fs.existsSync(fresh), 'fresh cache preserved');
   });
@@ -182,9 +182,9 @@ test('stale session cache files are removed on startup (TTL)', async () => {
 
 test('markOnlyPaths: entry updates cache but emits no block', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    const entry = { path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 };
-    const b1 = inj.buildBlocks('lab', [entry], new Set(['/r/CORTEX.md']));
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    const entry = { path: '/r/AGENTS.md', content: 'x', mtimeMs: 1000 };
+    const b1 = inj.buildBlocks('lab', [entry], new Set(['/r/AGENTS.md']));
     assert.strictEqual(b1.length, 0, 'mark-only entry emits no block');
     const b2 = inj.buildBlocks('lab', [entry]);
     assert.strictEqual(b2.length, 0, 'mark-only updated cache → subsequent normal call is cache hit');
@@ -193,14 +193,14 @@ test('markOnlyPaths: entry updates cache but emits no block', async () => {
 
 test('markOnlyPaths: non-target entries in same call still emit normally', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
     const b = inj.buildBlocks(
       'lab',
       [
-        { path: '/r/CORTEX.md', content: 'target', mtimeMs: 1 },
-        { path: '/CORTEX.md', content: 'ancestor', mtimeMs: 2 },
+        { path: '/r/AGENTS.md', content: 'target', mtimeMs: 1 },
+        { path: '/AGENTS.md', content: 'ancestor', mtimeMs: 2 },
       ],
-      new Set(['/r/CORTEX.md']),
+      new Set(['/r/AGENTS.md']),
     );
     assert.strictEqual(b.length, 1);
     assert.ok(b[0].text.includes('ancestor'));
@@ -210,11 +210,11 @@ test('markOnlyPaths: non-target entries in same call still emit normally', async
 
 test('markOnlyPaths: bump mtime on marked entry re-invalidates and marks again', async () => {
   await withCacheDir(async (cacheDir) => {
-    const inj = new CortexMDInjector({ sessionId: 's1', cacheDir });
-    inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'v1', mtimeMs: 1 }], new Set(['/r/CORTEX.md']));
-    const b = inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'v2', mtimeMs: 2 }], new Set(['/r/CORTEX.md']));
+    const inj = new AgentsMDInjector({ sessionId: 's1', cacheDir });
+    inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'v1', mtimeMs: 1 }], new Set(['/r/AGENTS.md']));
+    const b = inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'v2', mtimeMs: 2 }], new Set(['/r/AGENTS.md']));
     assert.strictEqual(b.length, 0, 'new mtime still mark-only — still suppressed');
-    const b2 = inj.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'v2', mtimeMs: 2 }]);
+    const b2 = inj.buildBlocks('lab', [{ path: '/r/AGENTS.md', content: 'v2', mtimeMs: 2 }]);
     assert.strictEqual(b2.length, 0, 'cache now reflects v2 mtime');
   });
 });

@@ -3,7 +3,7 @@
 // pos:    Settings → Advanced. Renders nothing off-shell (plain browser / ui-http): there is no app
 //         shell to update there, so the switch would promise something the page cannot do. An older
 //         shell that lacks the commands stays hidden for the same reason.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';

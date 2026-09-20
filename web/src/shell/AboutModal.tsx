@@ -1,7 +1,7 @@
 // input:  Modal, vocabulary, build stamp and native navigation
 // output: AboutModal with brand, versions and external links
 // pos:    Accessible About Cortex dialog
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
 import { Modal, ModalClose } from '@/design/Modal';
 import { useVocab } from '@/i18n';

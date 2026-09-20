@@ -1,7 +1,7 @@
 // input:  Scoped state, presenter, tRPC transport
 // output: Reconciled running count, pending alerts and turn completions
 // pos:    Background snapshot and SSE coordination
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.json.JSONArray

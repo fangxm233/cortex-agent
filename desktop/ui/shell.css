@@ -1,7 +1,7 @@
 /* input:  shared theme tokens, native setup markup, title-bar caption mode, Android safe-area inset
    output: unified connection and installation appearance with an app-drawn title bar
    pos:    Settings-style chrome for native onboarding
-   >>> Once updated, update this header and the parent CORTEX.md <<< */
+   >>> Once updated, update this header and the parent AGENTS.md <<< */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }

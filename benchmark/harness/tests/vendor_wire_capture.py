@@ -1,7 +1,7 @@
 # input:  current host Claude CLI, bwrap/strace, loopback namespace
 # output: redacted wire capture with executed CLI version and hash
 # pos:    Isolated capture support for current Claude compatibility
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import ipaddress
 import json

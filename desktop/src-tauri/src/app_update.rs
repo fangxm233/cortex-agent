@@ -1,7 +1,7 @@
 // input:  Shell manifests, download store, platform installers
 // output: Typed check outcomes and verified installable shell assets
 // pos:    App shell update selection, preparation and installation
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 //
 // Server side: agent-server `platform/ui-http/app-update.ts` serves /api/app-update/manifest.json —
 // the newest GitHub release carrying native app assets, CAPPED at the server's own version, so this

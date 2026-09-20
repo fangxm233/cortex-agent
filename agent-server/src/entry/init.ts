@@ -1336,16 +1336,16 @@ function safeCopyDir(srcDir: string, dstDir: string, force: boolean): void {
 
 function copyDefaults(paths: InitPaths, force: boolean): void {
   // Scaffold files — never overwrite (user-customized content)
-  safeCopy(path.join(DEFAULTS_DIR, 'CORTEX.md'), path.join(paths.DATA_DIR, 'CORTEX.md'), false, 'CORTEX.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'AGENTS.md'), path.join(paths.DATA_DIR, 'AGENTS.md'), false, 'AGENTS.md');
   safeCopy(path.join(DEFAULTS_DIR, 'gitignore'), path.join(paths.DATA_DIR, '.gitignore'), false, '.gitignore');
   safeCopy(path.join(DEFAULTS_DIR, '.claude', 'settings.json'), path.join(paths.DATA_DIR, '.claude', 'settings.json'), false, '.claude/settings.json');
 
   // Context scaffold files — never overwrite
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'CORTEX.md'), false, 'context/CORTEX.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'projects', 'CORTEX.md'), path.join(paths.PROJECTS_DIR, 'CORTEX.md'), false, 'context/projects/CORTEX.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'scans', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'scans', 'CORTEX.md'), false, 'context/scans/CORTEX.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'CORTEX.md'), false, 'context/ideas/CORTEX.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'user', 'CORTEX.md'), false, 'context/user/CORTEX.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'AGENTS.md'), false, 'context/AGENTS.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'projects', 'AGENTS.md'), path.join(paths.PROJECTS_DIR, 'AGENTS.md'), false, 'context/projects/AGENTS.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'scans', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'scans', 'AGENTS.md'), false, 'context/scans/AGENTS.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'AGENTS.md'), false, 'context/ideas/AGENTS.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'user', 'AGENTS.md'), false, 'context/user/AGENTS.md');
 
   // Config defaults — budget overwrites only with --force;
   // thread-templates are merged per-file (new agents/templates/shells added, existing preserved)

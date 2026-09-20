@@ -1,7 +1,7 @@
 // input:  JUnit and alert reconciliation state
 // output: Dedupe, partial failure and resolution regression tests
 // pos:    Pure owner-scoped alert transition tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.junit.Assert.*

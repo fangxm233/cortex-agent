@@ -107,7 +107,7 @@ L5  entry/         → 所有层（组合根）
 | `executions/` | `store/execution-repo.ts` 的薄重导出，带锁释放副作用：每个终止转换自动释放任务锁 |
 | `costs/` | 费用追踪、网关管理、按提供商感知的速率限制 |
 | `scheduling/` | 持久化调度引擎与 settings-backed 内置任务控制器。`Scheduler` 热重载用户调度；内置任务派发、归档和记忆索引任务拥有 daemon 计时器 |
-| `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。CORTEX.md 扫描和注入 |
+| `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。AGENTS.md 扫描和注入 |
 | `monitor/` | GPU 和磁盘资源监控 |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端部署，通过 npm update 的热重载 |
 | `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O、auto-thread 逻辑 |

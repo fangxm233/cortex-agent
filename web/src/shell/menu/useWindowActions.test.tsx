@@ -1,7 +1,7 @@
 // input:  window hook, deterministic native calls and key events
 // output: full screen and Escape regression tests
 // pos:    Observable window actions regression checks
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';

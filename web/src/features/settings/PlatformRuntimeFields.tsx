@@ -1,7 +1,7 @@
 // input:  runtime settings snapshot and serialized setting writer
 // output: notification routing editor and Web Feishu skill switch
 // pos:    Runtime controls embedded in platform cards
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';

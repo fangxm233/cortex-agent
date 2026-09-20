@@ -1,7 +1,7 @@
 // input:  local connection metadata, setup process utilities
 // output: guarded Claude Code status/install IPC and setup-log events
 // pos:    Explicit local Claude Code installation for provider setup
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 use super::process::{npm_bin, probe_output, resolve_cli_bin, run_streaming};
 use crate::{AppState, ConnectionConfig, ConnectionMode};

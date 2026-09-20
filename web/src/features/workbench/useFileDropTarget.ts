@@ -1,7 +1,7 @@
 // input:  DOM drop target and file callback
 // output: File-drag state and drop-to-callback wiring
 // pos:    Desktop chat file-drop target hook
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import {
   useEffect, useRef, useState,
   type Dispatch, type MutableRefObject, type RefObject, type SetStateAction,

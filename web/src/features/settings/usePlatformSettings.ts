@@ -1,7 +1,7 @@
 // input:  direct tRPC client and config query cache
 // output: serialized platform/runtime writes and safe feedback
 // pos:    Shared write owner without credential mutation caching
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';

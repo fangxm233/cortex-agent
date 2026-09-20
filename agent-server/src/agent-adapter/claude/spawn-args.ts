@@ -455,6 +455,10 @@ export function buildClaudeEnv(
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
   // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
+  // Declared, not inferred: hooks branch on which backend loaded the AGENTS.md chain natively
+  // (agents-md-injector.mjs), and "absent means Claude" would silently mis-handle any future
+  // spawn path that forgets to set it. PI states itself in agent-adapter/pi/session-options.ts.
+  env.CORTEX_BACKEND = 'claude';
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);

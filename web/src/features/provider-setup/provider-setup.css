@@ -1,7 +1,7 @@
 /* input:  shared proto theme tokens and provider setup markup
    output: scoped styles matching desktop/ui/shell.css
    pos:    Installation-wizard appearance for the provider step
-   >>> Once updated, update this header and the parent CORTEX.md <<< */
+   >>> Once updated, update this header and the parent AGENTS.md <<< */
 .provider-setup {
   height: 100%; display: flex; flex-direction: column;
   background: var(--proto-alt); color: var(--proto-ink);

@@ -5,7 +5,7 @@ import { buildMMemoryVm } from './m-memory-vm';
 
 const NOW = new Date('2026-07-15T12:00:00Z').getTime();
 
-// Neutral fixtures (守则11): project 'atlas', files NOTES.md/CORTEX.md, dirs experiments/knowledge —
+// Neutral fixtures (守则11): project 'atlas', files NOTES.md/AGENTS.md, dirs experiments/knowledge —
 // NOT the scheme's EXP-023/PAT-007 mocks.
 function facts(p: Partial<MemoryTree> = {}): MemoryTreeFacts {
   return deriveMemoryTreeFacts({
@@ -28,7 +28,7 @@ describe('buildMMemoryVm', () => {
     const vm = buildMMemoryVm(
       facts({
         files: [
-          { name: 'CORTEX.md', sizeBytes: 1, modifiedAt: new Date(NOW).toISOString() },
+          { name: 'AGENTS.md', sizeBytes: 1, modifiedAt: new Date(NOW).toISOString() },
           { name: 'NOTES.md', sizeBytes: 1, modifiedAt: new Date(NOW).toISOString() },
         ],
         dirs: [

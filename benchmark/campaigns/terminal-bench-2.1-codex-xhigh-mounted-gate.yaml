@@ -139,7 +139,7 @@ arms:
       deadline_seconds: 1800
       max_output_tokens: 65536
 
-# `open`, matching the campaigns whose scores this one is compared against. See campaigns/CORTEX.md
+# `open`, matching the campaigns whose scores this one is compared against. See campaigns/AGENTS.md
 # for what that costs a score.
 network:
   mode: open

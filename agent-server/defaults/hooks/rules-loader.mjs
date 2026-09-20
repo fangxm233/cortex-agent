@@ -5,7 +5,7 @@
 // pos:    Read/Grep hook — check if file path matches scoped rules in ~/.cortex/rules/
 //         On match, return rule content for Claude (additionalContext) and PI (content mutation) injection
 //         Session-level dedup: each rule injected at most once per session (on first match)
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';

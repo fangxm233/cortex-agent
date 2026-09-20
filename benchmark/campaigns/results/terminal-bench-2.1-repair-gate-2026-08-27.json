@@ -22,7 +22,7 @@
       "fingerprint": "2e6bbbed88dd97985c15e0153c61de63fb4b7976604b8b3998a8c57264558995",
       "sha256": "1c8794e2832a3aa065c429c15b9298115b735f9a0145bdf6147d55c1f663e059"
     },
-    "note": "Both artifacts were built in a throwaway git worktree on the second host, because the primary checkout carried another worker's uncommitted change inside the npm provenance scope. The worktree's scoped fingerprints are byte-identical to the benchmark host's, which is what makes the transfer sound; see benchmark/harness/CORTEX.md on cross-host fingerprints."
+    "note": "Both artifacts were built in a throwaway git worktree on the second host, because the primary checkout carried another worker's uncommitted change inside the npm provenance scope. The worktree's scoped fingerprints are byte-identical to the benchmark host's, which is what makes the transfer sound; see benchmark/harness/AGENTS.md on cross-host fingerprints."
   },
   "campaign": "tb21-repair-gate",
   "state": "completed",

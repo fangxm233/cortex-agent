@@ -1,7 +1,7 @@
 // input:  raw environment and runtime setting policy shapes
 // output: settings types, defaults, parsers and validators
 // pos:    Browser-safe runtime settings contract
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export interface ProviderRateLimitWindowPolicyOverride {
   type: string;

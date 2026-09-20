@@ -119,7 +119,7 @@ arms:
 # and mounts it anyway is scored on a verifier that silently lost its per-task dependencies --
 # `campaign_config._validate_offline_only_runtimes` refuses that combination. Nothing here needs
 # the open internet: the upstream is a loopback fixture reached through the trial proxy, which an
-# empty `filtered` block always admits. See campaigns/CORTEX.md for what each mode means.
+# empty `filtered` block always admits. See campaigns/AGENTS.md for what each mode means.
 network:
   mode: filtered
 

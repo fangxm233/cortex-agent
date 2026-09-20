@@ -1,7 +1,7 @@
 // input:  platform setup and runtime setting language requirements
 // output: English and Chinese platform settings copy
 // pos:    Shared desktop/mobile platform vocabulary
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export const platformEn = {
   psIntro: 'Connect messaging apps and choose where their capabilities are available.',

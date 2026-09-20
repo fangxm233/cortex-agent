@@ -1,7 +1,7 @@
 // input:  desktop connection and typed native bridge
 // output: guarded Claude commands and filtered install logs
 // pos:    Local desktop onboarding installation adapter
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { isDesktopShell, readDesktopConfig } from '@/lib/desktop-config';
 import { hasNativeCapability, safeInvoke } from '@/lib/native-bridge';
 import type { ClaudeStatus } from './provider-setup';

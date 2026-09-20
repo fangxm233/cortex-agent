@@ -3,7 +3,7 @@
 //         ledger API (getConversation / beginTurn / rollbackTo / …) while the registry owns the data.
 // pos:    Compatibility surface for turn-history callers; NO storage of its own (no JSON file — the
 //         registry journal is the only store)
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 //
 // The ledger no longer has a JSON file. Every method maps onto the registry's channel-keyed
 // conversation header + turn history, most under a single `registry.batch(...)` critical section so a

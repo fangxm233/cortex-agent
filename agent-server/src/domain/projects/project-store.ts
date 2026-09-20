@@ -148,7 +148,7 @@ export class ProjectStore {
 
   /**
    * Create a new user project directory under PROJECTS_DIR with a standard scaffold
-   * (STATUS.md + CORTEX.md + TASKS.yaml). Validates the name (rejects path traversal, separators,
+   * (STATUS.md + AGENTS.md + TASKS.yaml). Validates the name (rejects path traversal, separators,
    * empty/whitespace, leading-dot, and the reserved 'general'). Never overwrites an
    * existing project directory — returns an `already-exists` error instead.
    */
@@ -209,10 +209,10 @@ export class ProjectStore {
   }
 
   /** Create a project directory and write the standard scaffold files. */
-  private scaffoldProject(dir: string, statusContent: string, cortexContent: string): void {
+  private scaffoldProject(dir: string, statusContent: string, indexContent: string): void {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'STATUS.md'), statusContent, 'utf8');
-    fs.writeFileSync(path.join(dir, 'CORTEX.md'), cortexContent, 'utf8');
+    fs.writeFileSync(path.join(dir, 'AGENTS.md'), indexContent, 'utf8');
     this.ensureTasksFile(dir);
   }
 

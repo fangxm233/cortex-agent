@@ -100,7 +100,7 @@ arms:
 
 
 
-# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# `open`, matching every campaign whose scores these are compared against. See campaigns/AGENTS.md
 # for what that costs a score.
 network:
   mode: open

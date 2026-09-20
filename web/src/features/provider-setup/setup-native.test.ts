@@ -1,7 +1,7 @@
 // input:  native setup adapter and fake Tauri globals
 // output: native install guard and fixed-command regressions
 // pos:    Local-only Claude installation boundary tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, expect, it, vi } from 'vitest';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
 afterEach(() => vi.unstubAllGlobals());

@@ -365,7 +365,7 @@ plain text) to stdout. The scripts shipped with Cortex are:
 | `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records memory-file accesses to `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects scoped rules from `$CORTEX_HOME/rules/` when a matching path is read, once per session per rule |
 | `session-activity-tracker.mjs` | `agent:post-tool`, `Read\|Edit\|Write\|Skill` | Appends activity records to `logs/session-activity/<session_id>.jsonl` |
-| `cortex-md-injector.mjs` | `agent:post-tool` (`Read\|Edit`) and `agent:session-start` | Injects the CORTEX.md ancestor chain into agent context, deduplicated per session |
+| `agents-md-injector.mjs` | `agent:post-tool` (`Read\|Edit`) and `agent:session-start` | Injects the AGENTS.md ancestor chain into agent context, deduplicated per session |
 | `task-status-check.mjs` | `cortex:thread.end`, `{"source": "task-dispatch"}` | Checks whether a dispatched task was left in an unresolved state and asks the thread to close it out |
 | `new-session-hook.mjs` | `cortex:session.new` | Recalls valuable information from the closing session and writes it to the context files |
 | `post-task-hook.mjs` | Template `onEnd` hooks | Prompts the target agent to compound what it learned and commit |

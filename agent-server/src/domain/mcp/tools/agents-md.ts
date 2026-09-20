@@ -1,21 +1,21 @@
-import { getDefaultCortexInjector, type CortexMDEntry } from '../../memory/cortex-md-injector.js';
+import { getDefaultAgentsInjector, type AgentsMDEntry } from '../../memory/agents-md-injector.js';
 
-export { type CortexMDEntry };
+export { type AgentsMDEntry };
 
-/** Build text content blocks for the CORTEX.md chain returned by cortex-client.
- *  Dedup by (device:path) mtime via CortexMDInjector — each CORTEX.md is injected
+/** Build text content blocks for the AGENTS.md chain returned by cortex-client.
+ *  Dedup by (device:path) mtime via AgentsMDInjector — each AGENTS.md is injected
  *  at most once per MCP process, and the cache is disk-backed so restarts
  *  don't re-flood the agent with the same instructions.
  *
  *  If `targetFilePath` is supplied and equals one of the chain entries (i.e. the
- *  tool is reading/writing/editing a CORTEX.md itself), that entry is marked as
+ *  tool is reading/writing/editing an AGENTS.md itself), that entry is marked as
  *  seen in the cache but its block is suppressed — the agent already receives
  *  the content as the primary tool response, so re-injecting would just double
  *  it. Subsequent reads of sibling files in the same dir will then hit the
  *  cache and also skip, matching the normal dedup behavior. */
-export function cortexMDContentBlocks(
+export function agentsMDContentBlocks(
   device: string,
-  entries: CortexMDEntry[] | undefined,
+  entries: AgentsMDEntry[] | undefined,
   targetFilePath?: string,
 ): Array<{ type: 'text'; text: string }> {
   if (!entries || entries.length === 0) return [];
@@ -24,7 +24,7 @@ export function cortexMDContentBlocks(
     const matched = entries.filter(e => pathsEqualForMarking(e.path, targetFilePath));
     if (matched.length > 0) markOnly = new Set(matched.map(e => e.path));
   }
-  return getDefaultCortexInjector().buildBlocks(device, entries, markOnly);
+  return getDefaultAgentsInjector().buildBlocks(device, entries, markOnly);
 }
 
 /** Tolerant path equality for matching tool `file_path` against scanner-produced

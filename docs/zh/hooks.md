@@ -227,7 +227,7 @@ bus 如何处理 stdout 取决于 `result`：
 | `memory-ref-tracker.mjs` | `agent:post-tool`，`Read\|Grep` | 把内存文件访问记录到 `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`，`Read\|Grep` | 读到匹配路径时注入 `$CORTEX_HOME/rules/` 下的限定规则，每条规则每会话一次 |
 | `session-activity-tracker.mjs` | `agent:post-tool`，`Read\|Edit\|Write\|Skill` | 把活动记录追加到 `logs/session-activity/<session_id>.jsonl` |
-| `cortex-md-injector.mjs` | `agent:post-tool`（`Read\|Edit`）与 `agent:session-start` | 把 CORTEX.md 祖先链注入智能体上下文，并按会话去重 |
+| `agents-md-injector.mjs` | `agent:post-tool`（`Read\|Edit`）与 `agent:session-start` | 把 AGENTS.md 祖先链注入智能体上下文，并按会话去重 |
 | `task-status-check.mjs` | `cortex:thread.end`，`{"source": "task-dispatch"}` | 检查被分发的任务是否停留在未决状态，并要求线程收尾 |
 | `new-session-hook.mjs` | `cortex:session.new` | 从即将关闭的会话中回忆有价值的信息并写入上下文文件 |
 | `post-task-hook.mjs` | 模板的 `onEnd` 钩子 | 提示目标智能体沉淀所学并提交 |

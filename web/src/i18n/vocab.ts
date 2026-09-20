@@ -1,7 +1,7 @@
 // input:  base, feature, platform, update-check and browser-login copy
 // output: merged bilingual vocabulary and Vocab type
 // pos:    Web vocabulary composition root
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { windowActionsEn, windowActionsZh } from './window-actions-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';

@@ -1,7 +1,7 @@
 # input:  PATH vendor CLIs, subprocess, Linux network namespaces
 # output: current CLI identities and loopback-only test execution
 # pos:    Shared support for current vendor CLI compatibility tests
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import hashlib
 import os

@@ -2,19 +2,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-export interface CortexMDEntry {
+export interface AgentsMDEntry {
   path: string;
   content: string;
   mtimeMs: number;
   deviceId?: string;
 }
 
-const CORTEX_MD_NAMES = ['CORTEX.md', 'CORTEX.local.md'];
+const AGENTS_MD_NAMES = ['AGENTS.md', 'AGENTS.local.md'];
 const DEVICE_ID = os.hostname();
 const MAX_FILE_SIZE = 200 * 1024;
 const MAX_DEPTH = 20;
 
-function tryReadEntry(filePath: string): CortexMDEntry | null {
+function tryReadEntry(filePath: string): AgentsMDEntry | null {
   try {
     const stat = fs.statSync(filePath, { throwIfNoEntry: false });
     if (!stat || !stat.isFile()) return null;
@@ -26,8 +26,8 @@ function tryReadEntry(filePath: string): CortexMDEntry | null {
   }
 }
 
-export function scanCortexMDChain(targetFilePath: string): CortexMDEntry[] {
-  const entries: CortexMDEntry[] = [];
+export function scanAgentsMDChain(targetFilePath: string): AgentsMDEntry[] {
+  const entries: AgentsMDEntry[] = [];
   const seen = new Set<string>();
 
   let dir: string;
@@ -38,7 +38,7 @@ export function scanCortexMDChain(targetFilePath: string): CortexMDEntry[] {
   }
 
   for (let depth = 0; depth < MAX_DEPTH; depth++) {
-    for (const name of CORTEX_MD_NAMES) {
+    for (const name of AGENTS_MD_NAMES) {
       const p = path.join(dir, name);
       if (seen.has(p)) continue;
       seen.add(p);
@@ -54,10 +54,10 @@ export function scanCortexMDChain(targetFilePath: string): CortexMDEntry[] {
     const cortexHome = process.env.CORTEX_HOME
       ? path.resolve(process.env.CORTEX_HOME)
       : path.join(os.homedir(), '.cortex');
-    const homeCortex = path.join(cortexHome, 'CORTEX.md');
-    if (!seen.has(homeCortex)) {
-      seen.add(homeCortex);
-      const entry = tryReadEntry(homeCortex);
+    const homeAgents = path.join(cortexHome, 'AGENTS.md');
+    if (!seen.has(homeAgents)) {
+      seen.add(homeAgents);
+      const entry = tryReadEntry(homeAgents);
       if (entry) entries.push(entry);
     }
   } catch {

@@ -1,7 +1,7 @@
 // input:  redacted config, API destination and shared platform writer
 // output: functional responsive Platform settings panel
 // pos:    Desktop/mobile platform setup and runtime settings
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ConfigSnapshot, PlatformSettingsSnapshot, PlatformSettingsPatch } from '@cortex-agent/ui-contract';

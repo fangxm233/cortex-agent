@@ -1,33 +1,45 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.8.7  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
+// @cortex-hook-version 2026.9.15  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
 // input:  stdin JSON — Claude Code hook event or PI hook-bridge payload; or runHook(payload, env)
 // output: { hookSpecificOutput: { hookEventName, additionalContext, matched } }
 //         Exported `runHook` is the in-process entry point: the PI hook bridge calls it directly
 //         instead of spawning this file, so every path here takes its scope from the `env`
 //         argument rather than process.env (one daemon process serves many sessions).
-// pos:    Inject CORTEX.md / CORTEX.local.md ancestor chain into agent context
+// pos:    Inject the AGENTS.md / AGENTS.local.md ancestor chain that THE BACKEND DOES NOT LOAD.
+//         Both backends load AGENTS.md natively now, so this hook only covers their blind spots
+//         (see backendLoadsNatively below for the measured matrix):
+//           · paths outside the session cwd tree  — neither backend loads these
+//           · AGENTS.local.md, anywhere           — neither backend has a `.local` name
+//           · descendants of cwd, on PI           — PI walks cwd→root only, never downward
+//         Anything the backend already loaded is recorded in the dedup cache WITHOUT being
+//         injected, so the agent never receives the same rules twice.
 //         2-event dispatch:
 //           PostToolUse (Read|Edit) — from tool_input.file_path/path
 //           SessionStart (startup|resume|clear|compact) — from payload.cwd
 //         Shared per-session cache with remote MCP injection under tmp/cortexmd-cache
 //           — stable session + physical host + path + mtime dedup across tool families
 //           — only files actually injected are marked seen; truncated files stay eligible
-//         markOnlyPaths: exact CORTEX.md tool target → cache update only, no duplicate
+//         markOnlyPaths: exact AGENTS.md tool target → cache update only, no duplicate
 //         Total length guard at 9,500 chars; files that overflow the budget are turned into an
 //           explicit "Read EACH of these files now" instruction instead of a silent drop
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync,
   renameSync, rmSync, statSync, writeFileSync,
 } from 'fs';
-import { join, resolve, dirname, basename } from 'path';
+import { join, resolve, dirname, basename, sep } from 'path';
 import { homedir, hostname } from 'os';
 import { fileURLToPath } from 'url';
 
 const HOSTNAME = hostname();
 const HOST_ID = HOSTNAME.toLowerCase();
-const CORTEX_MD_NAMES = ['CORTEX.md', 'CORTEX.local.md'];
+const AGENTS_MD_NAMES = ['AGENTS.md', 'AGENTS.local.md'];
+/** Names neither backend loads on its own — always ours to inject. */
+const LOCAL_ONLY_NAMES = new Set(['AGENTS.local.md']);
+/** Claude's AGENTS.md fallback is all-or-nothing: a single CLAUDE.md anywhere in the cwd
+ *  ancestor chain makes it load THAT family and ignore every AGENTS.md. */
+const CLAUDE_MD_NAMES = ['CLAUDE.md', 'CLAUDE.local.md', join('.claude', 'CLAUDE.md')];
 const MAX_FILE_SIZE = 200 * 1024;
 const MAX_DEPTH = 20;
 const MAX_CONTEXT_CHARS = 9500;
@@ -40,7 +52,7 @@ const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
 function hookPaths(env) {
   const home = env.CORTEX_HOME ? resolve(env.CORTEX_HOME) : join(homedir(), '.cortex');
   return {
-    homeFallback: join(home, 'CORTEX.md'),
+    homeFallback: join(home, 'AGENTS.md'),
     cacheDir: join(home, 'tmp', 'cortexmd-cache'),
   };
 }
@@ -59,32 +71,34 @@ function tryReadEntry(filePath) {
   }
 }
 
+/** The directory an ancestor walk should start from: the path itself when it is a directory,
+ *  otherwise its parent (also the right answer for a path that does not exist). */
+function startDir(targetFilePath) {
+  const resolved = resolve(targetFilePath);
+  try {
+    const st = statSync(resolved, { throwIfNoEntry: false });
+    return (st && st.isDirectory()) ? resolved : dirname(resolved);
+  } catch {
+    return dirname(resolved);
+  }
+}
+
 /** Walk from the directory containing `targetFilePath` up to the filesystem root,
- *  collecting CORTEX.md and CORTEX.local.md at each level. Also appends the
- *  home fallback at ~/.cortex/CORTEX.md if present. Returns leaf→root order.
- *  If targetFilePath is a directory, scan that directory and its ancestors.
- *  If it is a file (or does not exist), scan its parent directory and ancestors. */
+ *  collecting AGENTS.md and AGENTS.local.md at each level. Also appends the
+ *  home fallback at ~/.cortex/AGENTS.md if present. Returns leaf→root order. */
 function scanChain(targetFilePath, paths) {
   const entries = [];
   const seen = new Set();
 
-  let resolved;
+  let dir;
   try {
-    resolved = resolve(targetFilePath);
+    dir = startDir(targetFilePath);
   } catch {
     return entries;
   }
 
-  let dir;
-  try {
-    const st = statSync(resolved, { throwIfNoEntry: false });
-    dir = (st && st.isDirectory()) ? resolved : dirname(resolved);
-  } catch {
-    dir = dirname(resolved);
-  }
-
   for (let depth = 0; depth < MAX_DEPTH; depth++) {
-    for (const name of CORTEX_MD_NAMES) {
+    for (const name of AGENTS_MD_NAMES) {
       const p = join(dir, name);
       if (seen.has(p)) continue;
       seen.add(p);
@@ -104,6 +118,66 @@ function scanChain(targetFilePath, paths) {
   }
 
   return entries;
+}
+
+// ── backend coverage ──
+//
+// Measured against Claude Code 2.1.278 and pi (@earendil-works/pi-coding-agent):
+//
+//   memory file location            | Claude | PI  | ours?
+//   --------------------------------+--------+-----+-------
+//   ancestor of cwd (incl. cwd)     |  yes   | yes |  no
+//   descendant of cwd, read by tool |  yes   | no  |  PI only
+//   outside the cwd tree            |  no    | no  |  both
+//   *.local.md, anywhere            |  no    | no  |  both
+//
+// Claude resolves its fallback through the `claude-md-or-agents-md` setting, whose default
+// loads AGENTS.md ONLY when no CLAUDE.md exists in the chain — hence the guard below. PI
+// reads ["AGENTS.md","AGENTS.MD","CLAUDE.md","CLAUDE.MD"] per directory, cwd→root, and never
+// descends, so on PI this hook is the only thing that delivers a project's own index file.
+
+/** True when a CLAUDE.md-family file sits in the cwd ancestor chain, which switches Claude off
+ *  the AGENTS.md fallback entirely. Cheap: same walk shape as scanChain, existence checks only. */
+function claudeMdInChain(cwd) {
+  let dir;
+  try {
+    dir = startDir(cwd);
+  } catch {
+    return false;
+  }
+  for (let depth = 0; depth < MAX_DEPTH; depth++) {
+    for (const name of CLAUDE_MD_NAMES) {
+      try {
+        if (existsSync(join(dir, name))) return true;
+      } catch { /* unreadable — treat as absent */ }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
+}
+
+function isAncestorOrSelf(dir, cwd) {
+  return dir === cwd || cwd.startsWith(dir.endsWith(sep) ? dir : dir + sep);
+}
+
+function isUnder(dir, cwd) {
+  return dir === cwd || dir.startsWith(cwd.endsWith(sep) ? cwd : cwd + sep);
+}
+
+/**
+ * Whether the backend has already put this entry in the agent's context on its own.
+ * Such entries are marked in the dedup cache but never injected — that is the whole point of
+ * this hook after both backends gained native AGENTS.md support.
+ */
+function backendLoadsNatively(entry, cwd, backend, claudeUsesAgentsMd) {
+  if (LOCAL_ONLY_NAMES.has(basename(entry.path))) return false;
+  if (!cwd) return false;
+  const dir = dirname(entry.path);
+  if (backend === 'pi') return isAncestorOrSelf(dir, cwd);
+  if (!claudeUsesAgentsMd) return false;
+  return isAncestorOrSelf(dir, cwd) || isUnder(dir, cwd);
 }
 
 // ── cache helpers ──
@@ -186,7 +260,7 @@ function buildContext(entries) {
   // Walk entries in original order (leaf→root), inlining each as a block until the char
   // budget is exhausted. Once exhausted, the remaining entries are NOT inlined — instead
   // they are turned into an explicit read-instruction below, so their rules are never
-  // silently dropped (e.g. a root-level CORTEX.local.md carrying dev/safety rules).
+  // silently dropped (e.g. a root-level AGENTS.local.md carrying dev/safety rules).
   const includedBlocks = [];
   const includedPaths = [];
   const truncated = [];
@@ -194,7 +268,7 @@ function buildContext(entries) {
   let budgetExhausted = false;
 
   for (const e of entries) {
-    const block = `<system-reminder>\nAuto-loaded CORTEX.md from ${HOSTNAME}:${e.path} (ancestor of accessed path). These instructions apply to files under this directory.\n\n${e.content}\n</system-reminder>`;
+    const block = `<system-reminder>\nAuto-loaded AGENTS.md from ${HOSTNAME}:${e.path} (ancestor of accessed path, outside the session working directory). These instructions apply to files under this directory.\n\n${e.content}\n</system-reminder>`;
     if (budgetExhausted || totalLen + block.length > MAX_CONTEXT_CHARS) {
       budgetExhausted = true; // match prior behavior: stop inlining at the first overflow
       truncated.push(e);
@@ -212,7 +286,7 @@ function buildContext(entries) {
   if (truncated.length > 0) {
     const list = truncated.map(e => `- ${e.path}`).join('\n');
     parts.push(
-      `<system-reminder>\n⚠️ ${truncated.length} CORTEX rule file(s) were too large to inline here. ` +
+      `<system-reminder>\n⚠️ ${truncated.length} AGENTS rule file(s) were too large to inline here. ` +
       `Read EACH of the following files now to load their rules before proceeding:\n${list}\n</system-reminder>`
     );
   }
@@ -227,6 +301,10 @@ function buildContext(entries) {
  * Run the hook against one payload and one session environment.
  * Returns the hook output object, or null when this event injects nothing.
  * Pure of process state apart from the filesystem, so the PI bridge can call it in-process.
+ *
+ * SessionStart is deliberately mark-only in the common case: the backend has just loaded the
+ * cwd ancestor chain itself, so recording those paths in the shared cache is what stops the
+ * first PostToolUse from injecting them a second time.
  */
 export function runHook(payload, env = process.env) {
   const paths = hookPaths(env);
@@ -236,6 +314,10 @@ export function runHook(payload, env = process.env) {
   const sessionId = stableSessionId && SESSION_ID_RE.test(stableSessionId)
     ? stableSessionId
     : payload.session_id;
+  // Default to PI, the backend with the SMALLER native coverage. Guessing "claude" for an
+  // undeclared spawn would make us skip descendants of cwd that PI never loads — a silent loss of
+  // rules. Guessing "pi" only risks injecting something Claude already had: wasteful, never wrong.
+  const backend = env.CORTEX_BACKEND?.trim() === 'claude' ? 'claude' : 'pi';
 
   let scanRoot = null;
   if (hookEventName === 'PostToolUse') {
@@ -250,13 +332,22 @@ export function runHook(payload, env = process.env) {
   const entries = scanChain(scanRoot, paths);
   if (entries.length === 0) return null;
 
+  const cwd = typeof payload.cwd === 'string' && payload.cwd ? resolve(payload.cwd) : null;
+  const claudeUsesAgentsMd = backend === 'claude' && cwd ? !claudeMdInChain(cwd) : false;
+
   const lock = acquireLock(sessionId, paths);
   try {
     const cache = loadCache(sessionId, paths);
+
+    // Paths whose mtime we record without injecting: the file the tool just returned in full,
+    // plus everything the backend loaded on its own.
     const markOnlyPaths = new Set();
     if (hookEventName === 'PostToolUse') {
       const targetPath = resolve(payload.tool_input?.file_path || payload.tool_input?.path || '');
-      if (CORTEX_MD_NAMES.includes(basename(targetPath))) markOnlyPaths.add(targetPath);
+      if (AGENTS_MD_NAMES.includes(basename(targetPath))) markOnlyPaths.add(targetPath);
+    }
+    for (const entry of entries) {
+      if (backendLoadsNatively(entry, cwd, backend, claudeUsesAgentsMd)) markOnlyPaths.add(entry.path);
     }
 
     let changed = false;

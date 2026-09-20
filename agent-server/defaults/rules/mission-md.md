@@ -45,4 +45,4 @@ The project's "constitution": defines goals and success conditions. It is the ba
 
 ## Modification Process
 
-For major re-orientations: update STATUS / roadmap / project CORTEX.md in the same pass to avoid context inconsistency.
+For major re-orientations: update STATUS / roadmap / project AGENTS.md in the same pass to avoid context inconsistency.

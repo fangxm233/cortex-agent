@@ -1,7 +1,7 @@
 # input:  pathlib, shell templates, temporary builder trees
 # output: fake build tools and bounded staged-verifier assertions
 # pos:    Local tool fixtures for runtime image builder tests
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import os
 import shlex

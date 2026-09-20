@@ -1,7 +1,7 @@
 // input:  typed native bridge and update payload parsers
 // output: single-flight manual checks and result subscriptions
 // pos:    Manual update adapter; never installs or owns prompts
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 import { isNativeCommandMissing, safeInvoke } from '@/lib/native-bridge';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';

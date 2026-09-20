@@ -1,7 +1,7 @@
 // input:  browser token-login states
 // output: bilingual copy for the login screen and the sign-out control
 // pos:    Browser token-login vocabulary chunk
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 export const uiAuthEn = {
   uiLoginTitle: 'Sign in to Cortex',

@@ -1,7 +1,7 @@
 // input:  JUnit, execution snapshots and session state
 // output: Turn-completion decision, dedupe and retry regression tests
 // pos:    Pure background completion detection tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.junit.Assert.*

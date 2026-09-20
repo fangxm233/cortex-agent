@@ -1,7 +1,7 @@
 // input:  Zod, settings specs and UI operation unions
 // output: UI input validation schemas and operation maps
 // pos:    Runtime validation source for UI contract
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { platformSettingsInput } from '@core/platform-settings-spec.js';
 export { platformSettingsInput } from '@core/platform-settings-spec.js';

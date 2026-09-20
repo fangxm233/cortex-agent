@@ -1,7 +1,7 @@
 // input:  stored language, theme, translated native markup, injected title-bar mode
 // output: CortexShell language helpers and the app-drawn setup title bar
 // pos:    Shared interaction chrome for native setup pages
-// >>> Once updated, update this header and the parent CORTEX.md <<<
+// >>> Once updated, update this header and the parent AGENTS.md <<<
 (function () {
   'use strict';
   var el = function (id) { return document.getElementById(id); };

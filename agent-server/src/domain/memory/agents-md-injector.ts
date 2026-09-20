@@ -2,18 +2,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { WORKSPACE_DIR } from '@core/utils.js';
 
-export interface CortexMDEntry {
+export interface AgentsMDEntry {
   path: string;
   content: string;
   mtimeMs: number;
   deviceId?: string;
 }
 
-export interface CortexMDBlock {
+export interface AgentsMDBlock {
   type: 'text';
   text: string;
 }
 
+// Directory name predates the AGENTS.md rename and is deliberately unchanged: it is shared
+// with the local agents-md-injector hook, and renaming it would orphan every live session's
+// dedup state at once, re-injecting every rule file already in context.
 const DEFAULT_CACHE_DIR = path.join(WORKSPACE_DIR, 'cortexmd-cache');
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LOCK_WAIT_MS = 250;
@@ -90,12 +93,12 @@ function releaseLock(lockFile: string, descriptor: number): void {
   try { fs.rmSync(lockFile, { force: true }); } catch { /* ignore */ }
 }
 
-function cacheKey(device: string, entry: CortexMDEntry): string {
+function cacheKey(device: string, entry: AgentsMDEntry): string {
   const physicalDevice = entry.deviceId?.trim() || device;
   return `${physicalDevice.toLowerCase()}:${entry.path}`;
 }
 
-export interface CortexMDInjectorOptions {
+export interface AgentsMDInjectorOptions {
   sessionId?: string;
   cacheDir?: string;
   cacheFile?: string | null;
@@ -106,11 +109,11 @@ interface CacheResult<T> {
   changed: boolean;
 }
 
-export class CortexMDInjector {
+export class AgentsMDInjector {
   private readonly memoryCache = new Map<string, number>();
   private readonly cacheFile: string | null;
 
-  constructor(options: CortexMDInjectorOptions = {}) {
+  constructor(options: AgentsMDInjectorOptions = {}) {
     const cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
     this.cacheFile = options.cacheFile !== undefined
       ? options.cacheFile
@@ -133,10 +136,10 @@ export class CortexMDInjector {
     }
   }
 
-  buildBlocks(device: string, entries: CortexMDEntry[], markOnlyPaths?: Set<string>): CortexMDBlock[] {
+  buildBlocks(device: string, entries: AgentsMDEntry[], markOnlyPaths?: Set<string>): AgentsMDBlock[] {
     if (!entries || entries.length === 0) return [];
     return this.transact((cache) => {
-      const blocks: CortexMDBlock[] = [];
+      const blocks: AgentsMDBlock[] = [];
       let changed = false;
       for (const entry of entries) {
         const key = cacheKey(device, entry);
@@ -150,9 +153,9 @@ export class CortexMDInjector {
     });
   }
 
-  private formatBlock(device: string, entry: CortexMDEntry): string {
+  private formatBlock(device: string, entry: AgentsMDEntry): string {
     return `<system-reminder>\n` +
-      `Auto-loaded CORTEX.md from ${device}:${entry.path} ` +
+      `Auto-loaded AGENTS.md from ${device}:${entry.path} ` +
       `(ancestor of accessed path on remote device). ` +
       `These instructions apply to files under this directory on that device.\n\n` +
       entry.content +
@@ -160,9 +163,9 @@ export class CortexMDInjector {
   }
 }
 
-let defaultCortexInjector: CortexMDInjector | null = null;
+let defaultAgentsInjector: AgentsMDInjector | null = null;
 
-export function getDefaultCortexInjector(): CortexMDInjector {
-  if (!defaultCortexInjector) defaultCortexInjector = new CortexMDInjector();
-  return defaultCortexInjector;
+export function getDefaultAgentsInjector(): AgentsMDInjector {
+  if (!defaultAgentsInjector) defaultAgentsInjector = new AgentsMDInjector();
+  return defaultAgentsInjector;
 }

@@ -1,7 +1,7 @@
 /* input: platform settings form markup and theme tokens */
 /* output: responsive, keyboard-accessible platform cards */
 /* pos: shared desktop/mobile platform editor styling */
-/* >>> Once updated, update this header and parent CORTEX.md <<< */
+/* >>> Once updated, update this header and parent AGENTS.md <<< */
 
 .ps-panel { color: var(--proto-ink); font-size: 13px; max-width: 960px; }
 .ps-intro { color: var(--proto-muted-2); line-height: 1.6; margin: 8px 0 18px; }

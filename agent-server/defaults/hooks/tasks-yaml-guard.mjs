@@ -5,7 +5,7 @@
 // pos:    PreToolUse hook — intercepts Edit/Write on **/TASKS.yaml, checks project lock
 //         allow when current process holds the lock; deny + helpful message otherwise
 //         Owner identity: process.env.CORTEX_EXECUTION_ID ?? manual:<user>:<pid>
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, existsSync } from 'fs';
 import { basename, resolve } from 'path';

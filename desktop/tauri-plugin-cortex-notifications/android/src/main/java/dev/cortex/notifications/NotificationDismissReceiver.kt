@@ -1,7 +1,7 @@
 // input:  App-owned notification dismissal PendingIntents
 // output: Removed issued routes without clearing pending dedupe
 // pos:    Explicit dismissal lifecycle for ordinary notifications
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import android.content.BroadcastReceiver

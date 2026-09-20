@@ -1,7 +1,7 @@
 // Framework-free mapping from the real threads.get DTO into presentation slots.
 
 // Data-driven, not stage-name-string matched: the active step
-// surfaces whatever children the DTO carries. Flagged gaps (see features/thread/CORTEX.md):
+// surfaces whatever children the DTO carries. Flagged gaps (see features/thread/AGENTS.md):
 //   - crumb ancestor NAMES ride the drill trail (threads.get has no parent chain) → real, no new scope;
 //   - the AGENT feed is `agentFlow.lastOutput` only (no per-agent tool-call trace in the DTO — Stage 4);
 //   - artifact text is present only when the detail modal requests it explicitly.

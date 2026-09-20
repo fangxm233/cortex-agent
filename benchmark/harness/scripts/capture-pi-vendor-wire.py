@@ -2,7 +2,7 @@
 # input:  installed PI CLI and a Linux user/network namespace
 # output: actual PI version/entrypoint hash and redacted wire capture
 # pos:    Offline capture command for current PI compatibility
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import argparse
 import hashlib

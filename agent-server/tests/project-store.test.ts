@@ -191,7 +191,7 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
   const generalDir = path.join(baseDir, 'general');
   assert.ok(fs.existsSync(generalDir));
   assert.ok(fs.existsSync(path.join(generalDir, 'STATUS.md')));
-  assert.ok(fs.existsSync(path.join(generalDir, 'CORTEX.md')));
+  assert.ok(fs.existsSync(path.join(generalDir, 'AGENTS.md')));
   assert.equal(fs.readFileSync(path.join(generalDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
 
   const statusContent = fs.readFileSync(path.join(generalDir, 'STATUS.md'), 'utf8');
@@ -229,7 +229,7 @@ test('ProjectStore - scaffolding does not overwrite existing general', async (t)
 
 // ── createProject ──
 
-test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md + TASKS.yaml and returns project', async (t) => {
+test('ProjectStore - createProject creates dir + STATUS.md + AGENTS.md + TASKS.yaml and returns project', async (t) => {
   const { baseDir, cleanup } = makeTempProjectsDir();
   t.onTestFinished(cleanup);
 
@@ -246,7 +246,7 @@ test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md + TASKS.y
   const projectDir = path.join(baseDir, 'nimbus');
   assert.ok(fs.existsSync(projectDir));
   assert.ok(fs.existsSync(path.join(projectDir, 'STATUS.md')));
-  assert.ok(fs.existsSync(path.join(projectDir, 'CORTEX.md')));
+  assert.ok(fs.existsSync(path.join(projectDir, 'AGENTS.md')));
   assert.equal(fs.readFileSync(path.join(projectDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
   const status = fs.readFileSync(path.join(projectDir, 'STATUS.md'), 'utf8');
   assert.ok(status.includes('# nimbus'));

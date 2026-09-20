@@ -524,7 +524,7 @@ server on every startup:
 
 | Source | Destination | Overwrite behavior |
 |---|---|---|
-| `defaults/CORTEX.md` | `$CORTEX_HOME/CORTEX.md` | Never |
+| `defaults/AGENTS.md` | `$CORTEX_HOME/AGENTS.md` | Never |
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | Never |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never — this applies only to the `$CORTEX_HOME/.claude/settings.json` scaffolded path; arbitrary repository-local `.claude/settings.json` files are outside Cortex's copy/sync loop |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |

@@ -1,7 +1,7 @@
 // input:  auth status, config profiles and onboarding ports
 // output: auth-type readiness model and ProviderSetupController
 // pos:    Secret-free provider onboarding coordination
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { AuthAccountStatus, AuthStatusSnapshot, ConfigProfileEntry, ConfigProfiles } from '@cortex-agent/ui-contract';
 
 export interface ClaudeStatus { installed: boolean; version: string | null }

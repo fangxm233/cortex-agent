@@ -1,7 +1,7 @@
 // input:  App-private storage, connection and action ledger
 // output: Durable connection state, completion ownership and generation gate
 // pos:    Shared plugin and service state owner
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import android.content.Context

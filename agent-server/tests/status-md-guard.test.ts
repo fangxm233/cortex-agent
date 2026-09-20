@@ -171,8 +171,8 @@ test('guard denies an ISSUES.md write whose result exceeds 80 lines', () => {
   }
 });
 
-test('guard denies a project CORTEX.md write whose result exceeds 120 lines', () => {
-  const { dir, filePath } = mkProjectFile('CORTEX.md');
+test('guard denies a project AGENTS.md write whose result exceeds 120 lines', () => {
+  const { dir, filePath } = mkProjectFile('AGENTS.md');
   try {
     const decision = runHook({
       tool_name: 'Write',
@@ -181,14 +181,14 @@ test('guard denies a project CORTEX.md write whose result exceeds 120 lines', ()
     });
     assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
     assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /120 lines/);
-    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /cortex-md\.md/);
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /agents-md\.md/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('guard denies a CORTEX.md write whose result exceeds 8KB even at few lines', () => {
-  const { dir, filePath } = mkProjectFile('CORTEX.md');
+test('guard denies a AGENTS.md write whose result exceeds 8KB even at few lines', () => {
+  const { dir, filePath } = mkProjectFile('AGENTS.md');
   try {
     const decision = runHook({
       tool_name: 'Write',
@@ -202,8 +202,8 @@ test('guard denies a CORTEX.md write whose result exceeds 8KB even at few lines'
   }
 });
 
-test('guard allows a 100-line CORTEX.md (over STATUS cap, under CORTEX cap)', () => {
-  const { dir, filePath } = mkProjectFile('CORTEX.md');
+test('guard allows a 100-line AGENTS.md (over STATUS cap, under CORTEX cap)', () => {
+  const { dir, filePath } = mkProjectFile('AGENTS.md');
   try {
     const decision = runHook({
       tool_name: 'Write',
@@ -216,8 +216,8 @@ test('guard allows a 100-line CORTEX.md (over STATUS cap, under CORTEX cap)', ()
   }
 });
 
-test('guard covers nested CORTEX.md under a project subdirectory', () => {
-  const { dir, filePath } = mkProjectFile('CORTEX.md', 'knowledge');
+test('guard covers nested AGENTS.md under a project subdirectory', () => {
+  const { dir, filePath } = mkProjectFile('AGENTS.md', 'knowledge');
   try {
     const decision = runHook({
       tool_name: 'Write',
@@ -230,12 +230,12 @@ test('guard covers nested CORTEX.md under a project subdirectory', () => {
   }
 });
 
-test('guard ignores CORTEX.md outside a context tree', () => {
+test('guard ignores AGENTS.md outside a context tree', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-guard-'));
   try {
     const decision = runHook({
       tool_name: 'Write',
-      tool_input: { file_path: path.join(dir, 'CORTEX.md'), content: lines(500) },
+      tool_input: { file_path: path.join(dir, 'AGENTS.md'), content: lines(500) },
       cwd: dir,
     });
     assert.equal(decision, null);

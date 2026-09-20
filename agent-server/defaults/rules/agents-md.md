@@ -1,15 +1,15 @@
 ---
 paths:
-  - "context/**/CORTEX.md"
+  - "context/**/AGENTS.md"
 ---
 
-# CORTEX.md Index Convention
+# AGENTS.md Index Convention
 
-Directory index + entry map. Auto-injected into agent context by cortex-md-injector (**truncated at 9500 characters**) — the byte count IS the injection budget. It answers "what is here, where to look", not "what the content is": each line exists so an agent knows where to read, not as a substitute for reading.
+Directory index + entry map. Loaded into the context of every agent that works in this directory — by the backend itself (Claude Code and PI both read `AGENTS.md` natively) and, for paths outside the session working directory, by the `agents-md-injector` hook. The byte count IS the context cost, paid on every session that touches the directory. It answers "what is here, where to look", not "what the content is": each line exists so an agent knows where to read, not as a substitute for reading.
 
 ## Hard Constraints
 
-- **Hard cap: 120 lines AND 8KB** (enforced by guard hook; content past the truncation line never gets injected — pure waste).
+- **Hard cap: 120 lines AND 8KB** (enforced by guard hook). The hook path truncates at 9,500 characters, so content past that line is never injected at all — pure waste.
 - **Each index line <=200 characters**: one sentence of purpose + pointer.
 - **One line per atomic directory**: experiments/, knowledge/, patterns/, decisions/ each take a single line in the index, pointing at their auto-generated index.md (or the directory itself). **Never enumerate per-entry summaries** — summaries already live in the atomic files' frontmatter and index.md; copies in the index are pure redundancy.
 

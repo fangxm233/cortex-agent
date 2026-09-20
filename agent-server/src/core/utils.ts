@@ -91,7 +91,7 @@ function todayISO(): string {
  * List subdirectories of PROJECTS_DIR that look like project folders.
  *
  * Filters out:
- *   - non-directories (e.g. top-level files like CORTEX.md, AGENTS.md that
+ *   - non-directories (e.g. top-level files like AGENTS.md, AGENTS.md that
  *     some users keep next to their projects/ tree)
  *   - dotfiles (.git, .obsidian, etc.)
  *

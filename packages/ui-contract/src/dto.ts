@@ -1,7 +1,7 @@
 // input:  built UI service and cost declarations
 // output: browser-safe UI DTO type exports
 // pos:    Shared server/client DTO boundary
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export type {
   // Result envelope

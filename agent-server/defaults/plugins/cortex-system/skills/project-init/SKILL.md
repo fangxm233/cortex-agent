@@ -34,7 +34,7 @@ Inspect the project's code and resources. If multiple machines host parts of the
 
 Create the project directory and files under `context/projects/<project-name>/`:
 
-### CORTEX.md (required) — Project index
+### AGENTS.md (required) — Project index
 
 This is the entry point for future sessions. Must include:
 - One-line project description
@@ -129,13 +129,13 @@ Skip for projects already in late-stage delivery. Create only when the project h
 
 ## Step 3: Update Indexes
 
-1. Add the project to `context/projects/CORTEX.md` project list table
+1. Add the project to `context/projects/AGENTS.md` project list table
 2. Add the project to `context/OVERVIEW.md`
 
 ## Step 4: Commit
 
 ```
-git add context/projects/<project-name>/ context/projects/CORTEX.md context/OVERVIEW.md
+git add context/projects/<project-name>/ context/projects/AGENTS.md context/OVERVIEW.md
 git commit -m "project-init: add <project-name> (<brief description>)"
 ```
 
@@ -150,7 +150,7 @@ Output a structured summary:
 ## Principles
 
 - **Read the README and core docs first** — understanding the project is prerequisite to useful context files
-- CORTEX.md is the most important file — it's the entry point for all future sessions
+- AGENTS.md is the most important file — it's the entry point for all future sessions
 - Location map must be exhaustive — every relevant path on every machine
 - Auto-generated content is clearly marked — the user owns the final version
 - mission.md is a draft until the user confirms

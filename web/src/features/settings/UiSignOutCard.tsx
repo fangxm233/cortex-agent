@@ -2,7 +2,7 @@
 // output: a browser-only "sign out of this browser" card
 // pos:    Settings → Advanced. Renders nothing in a native shell (their credential lives in the OS
 //         keychain and is managed by the connect flow) or on a server with token login switched off.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';

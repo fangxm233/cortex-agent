@@ -3,7 +3,7 @@
 // input:  stdin { channel, sessionId, sessionName, trigger, timestampIso } + env CORTEX_HOOK_*
 // output: stdout — prompt to inject into the closing session (empty stdout = skip)
 // pos:    !new pre-close memory flush hook — recall valuable user and project info from the session, write to corresponding context files
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { execSync } from 'child_process';
 

@@ -76,7 +76,7 @@ export interface StepMigration {
 }
 
 // ── Marker-block helpers (text migrations) ─────────────────────
-// Text migrations edit human-owned markdown (system prompts, CORTEX.md) without
+// Text migrations edit human-owned markdown (system prompts, AGENTS.md) without
 // clobbering user customizations: a versioned, marker-delimited block is upserted
 // (replaced in place if present, appended otherwise). Bumping the block version token
 // makes a future migration replace an older block cleanly.
@@ -85,7 +85,7 @@ const DOCS_BLOCK_VERSION = 'v1';
 const DOCS_MARKER_START = `<!-- cortex:docs ${DOCS_BLOCK_VERSION} -->`;
 const DOCS_MARKER_END = '<!-- /cortex:docs -->';
 
-/** The canonical Cortex-docs block inserted into system prompts and CORTEX.md. */
+/** The canonical Cortex-docs block inserted into system prompts and AGENTS.md. */
 const DOCS_BLOCK = [
   DOCS_MARKER_START,
   '# Cortex documentation',
@@ -311,7 +311,7 @@ const migrations: Migration[] = [
       return out;
     },
   },
-  // M4: Inject the Cortex usage-docs block into the user's system prompts and CORTEX.md.
+  // M4: Inject the Cortex usage-docs block into the user's system prompts and AGENTS.md.
   // These are user-owned copies seeded at `cortex init` with force=false, so editing the
   // shipped defaults only reaches new installs — existing installs need this migration to
   // pick up the docs URL. Uses upsertMarkerBlock (text format) so the block is inserted
@@ -319,7 +319,7 @@ const migrations: Migration[] = [
   // and fresh installs (whose seeded files already carry the block from defaults) match the
   // existing-block branch and are left unchanged. New files skip gracefully via ENOENT.
   ...[
-    'CORTEX.md',
+    'AGENTS.md',
     'prompts/systemPrompts/direct.md',
     'prompts/systemPrompts/web.md',
     'prompts/systemPrompts/web-opus-4-6.md',
@@ -495,7 +495,96 @@ const stepMigrations: StepMigration[] = [
       await fs.unlink(source);
     },
   },
+  // S3: rename every CORTEX.md / CORTEX.local.md in the data dir to AGENTS.md / AGENTS.local.md.
+  // Claude Code and PI both load AGENTS.md natively now, so the memory file adopts the name the
+  // backends already look for instead of one only Cortex knew about. Without this an upgraded
+  // install keeps a tree full of CORTEX.md that nothing reads.
+  //
+  // Skips `tmp/` (scratch workspaces and checked-out clones, not ours to rewrite) and
+  // `data/plugin-runtime/` (regenerated plugin snapshots). Never clobbers: where a destination
+  // already exists both files are left in place and the collision is logged, so a hand-made
+  // AGENTS.md always wins over the file we would have renamed onto it.
+  {
+    key: 'sentinel:agents-md-rename',
+    version: '2026.9.15',
+    run: async ({ dataDir }) => { await renameMemoryFilesToAgentsMd(dataDir); },
+  },
 ];
+
+// ── AGENTS.md rename (S3) ──────────────────────────────────────
+
+const MEMORY_FILE_RENAMES: ReadonlyArray<readonly [string, string]> = [
+  ['CORTEX.md', 'AGENTS.md'],
+  ['CORTEX.local.md', 'AGENTS.local.md'],
+];
+
+/** Directory names never descended into during the rename walk. `tmp` holds scratch workspaces
+ *  (including whole git clones with their own memory files) and `data/plugin-runtime` holds
+ *  regenerated snapshots — rewriting either would be noise at best and destructive at worst. */
+const RENAME_SKIP_DIRS = new Set(['tmp', 'node_modules', '.git', 'plugin-runtime']);
+
+/** Remove a symlink whose target no longer exists, so it cannot block a rename onto its name.
+ *  Older installs carry `AGENTS.md -> CLAUDE.md` symlinks left by a long-undone experiment. */
+async function clearDanglingLink(candidate: string): Promise<boolean> {
+  try {
+    const link = await fs.lstat(candidate);
+    if (!link.isSymbolicLink()) return false;
+    try {
+      await fs.stat(candidate); // resolves → target exists → a real file, leave it
+      return false;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+      await fs.unlink(candidate);
+      log.info(`Removed dangling memory-file symlink: ${candidate}`);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+}
+
+export async function renameMemoryFilesToAgentsMd(dataDir: string): Promise<number> {
+  let renamed = 0;
+
+  const walk = async (dir: string): Promise<void> => {
+    let dirents: import('node:fs').Dirent[];
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // unreadable directory — nothing to migrate here
+    }
+
+    for (const [from, to] of MEMORY_FILE_RENAMES) {
+      if (!dirents.some((entry) => entry.name === from && entry.isFile())) continue;
+      const source = path.join(dir, from);
+      const destination = path.join(dir, to);
+      await clearDanglingLink(destination);
+      try {
+        await fs.lstat(destination);
+        log.warn(`Both ${from} and ${to} exist in ${dir}; leaving both untouched`);
+        continue;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') continue;
+      }
+      try {
+        await fs.rename(source, destination);
+        renamed += 1;
+      } catch (error) {
+        log.warn(`Could not rename ${source} → ${to}: ${(error as Error).message}`);
+      }
+    }
+
+    for (const entry of dirents) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      if (RENAME_SKIP_DIRS.has(entry.name)) continue;
+      await walk(path.join(dir, entry.name));
+    }
+  };
+
+  await walk(dataDir);
+  if (renamed > 0) log.info(`Renamed ${renamed} memory file(s) to the AGENTS.md convention`);
+  return renamed;
+}
 
 // ── Versions file I/O ──────────────────────────────────────────
 
@@ -959,15 +1048,26 @@ export async function migrateAistatusConfigLocation(
 
 /** The managed assets of hooks Cortex used to ship and no longer does, as `config/hooks` entry
  *  file → the `id` that entry must still carry to be considered ours. */
-const RETIRED_HOOK_ENTRIES: ReadonlyArray<readonly [string, string]> = [
-  ['03-ask-user-question-hook.json', 'ask-user-question-hook'],
-  ['04-exit-plan-mode-hook.json', 'exit-plan-mode-hook'],
-  ['09-permission-request-auto-allow.json', 'permission-request-auto-allow'],
-];
+interface RetiredHook {
+  /** `config/hooks` entry filename. */
+  readonly file: string;
+  /** The `id` that entry must still carry to be considered ours rather than repurposed. */
+  readonly id: string;
+  /** Script this entry ran, when it had one. Several entries may name the same script. */
+  readonly script?: string;
+}
 
-/** Scripts belonging to a retired entry, deleted alongside it. A retired entry that ran an inline
- *  `run.command` (the permission auto-allow) has no script and is simply absent here. */
-const RETIRED_HOOK_SCRIPTS = ['ask-user-question-hook.mjs', 'exit-plan-mode-hook.mjs'];
+const RETIRED_HOOK_ENTRIES: readonly RetiredHook[] = [
+  { file: '03-ask-user-question-hook.json', id: 'ask-user-question-hook', script: 'ask-user-question-hook.mjs' },
+  { file: '04-exit-plan-mode-hook.json', id: 'exit-plan-mode-hook', script: 'exit-plan-mode-hook.mjs' },
+  // Ran an inline `run.command`, so there is no script to chase.
+  { file: '09-permission-request-auto-allow.json', id: 'permission-request-auto-allow' },
+  // Renamed, not deleted: the same hook now ships as `agents-md-injector` under 08/10. Sync only
+  // ever adds and upgrades, so without these two rows an upgraded install would run the old
+  // CORTEX.md-named copy alongside the new one and inject every rule file twice.
+  { file: '08-cortex-md-injector-post-tool.json', id: 'cortex-md-injector-post-tool', script: 'cortex-md-injector.mjs' },
+  { file: '10-cortex-md-injector-session-start.json', id: 'cortex-md-injector-session-start', script: 'cortex-md-injector.mjs' },
+];
 
 async function removeIfPresent(filePath: string, label: string): Promise<boolean> {
   try {
@@ -994,25 +1094,47 @@ async function isShippedRetiredEntry(filePath: string, id: string): Promise<bool
   }
 }
 
+/** True once every entry that ran `script` is gone from the registry. A surviving file under one
+ *  of those names means the user repurposed it, so the script may still be in use and stays. */
+async function isRetiredScriptOrphaned(registryDir: string, script: string): Promise<boolean> {
+  for (const retired of RETIRED_HOOK_ENTRIES) {
+    if (retired.script !== script) continue;
+    try {
+      await fs.stat(path.join(registryDir, retired.file));
+      return false; // Some entry under that name is still there.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Delete hooks Cortex no longer ships from an existing install.
  *
- * All three current members were unreachable by construction rather than merely unused. The
+ * The first three members were unreachable by construction rather than merely unused. The
  * AskUserQuestion / ExitPlanMode bridge hooks matched native tools that headless `-p` strips from
  * the session whatever `--tools` lists (plan approval and questions now run through the
  * interaction-bridge MCP tools against the same webhook endpoints), and the PermissionRequest
  * auto-allow matched an event Claude never emits under the `bypassPermissions` mode every Cortex
- * spawn runs in. `syncManagedHooks` only adds and upgrades files, so without this the dead entries
- * would linger in every upgraded registry. Idempotent, and a no-op once the files are gone.
+ * spawn runs in. The last two are a rename: the CORTEX.md injector became the AGENTS.md injector
+ * under new filenames, and leaving the old pair deployed would double every injection.
+ * `syncManagedHooks` only adds and upgrades files, so without this the dead entries would linger
+ * in every upgraded registry. Idempotent, and a no-op once the files are gone.
+ *
+ * Entries go first and scripts second: two entries can share one script, so a script is only
+ * orphaned once every entry that ran it is gone.
  */
 export async function removeRetiredDefaultHooks(dataDir: string): Promise<void> {
   const registryDir = path.join(dataDir, 'config', 'hooks');
-  for (const [file, id] of RETIRED_HOOK_ENTRIES) {
-    const entryPath = path.join(registryDir, file);
-    if (!await isShippedRetiredEntry(entryPath, id)) continue;
-    if (await removeIfPresent(entryPath, 'hook entry')) {
-      const script = RETIRED_HOOK_SCRIPTS.find((name) => id === name.replace(/\.mjs$/, ''));
-      if (script) await removeIfPresent(path.join(dataDir, 'hooks', script), 'hook script');
-    }
+  for (const retired of RETIRED_HOOK_ENTRIES) {
+    const entryPath = path.join(registryDir, retired.file);
+    if (!await isShippedRetiredEntry(entryPath, retired.id)) continue;
+    await removeIfPresent(entryPath, 'hook entry');
+  }
+  const scripts = new Set(RETIRED_HOOK_ENTRIES.flatMap((r) => (r.script ? [r.script] : [])));
+  for (const script of scripts) {
+    if (!await isRetiredScriptOrphaned(registryDir, script)) continue;
+    await removeIfPresent(path.join(dataDir, 'hooks', script), 'hook script');
   }
 }

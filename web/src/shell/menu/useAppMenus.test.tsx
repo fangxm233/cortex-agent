@@ -1,7 +1,7 @@
 // input:  actual menu hook, provider mocks and native transport
 // output: menu removal, separator and update busy regressions
 // pos:    Shared desktop menu hook specification
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,7 +1,7 @@
 // input:  config root, platform settings, hook registry, live locale and its source
 // output: config snapshot with redacted platform fields and the active UI/server language
 // pos:    Config snapshot reader
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import fs from 'node:fs/promises';
 import { readPlatformSettings } from '../platform-settings.js';

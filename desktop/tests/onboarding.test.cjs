@@ -1,7 +1,7 @@
 // input:  standalone setup controller and native command fixtures
 // output: PI-only setup, provider handoff and retry contract tests
 // pos:    Focused native onboarding behavior checks
-// >>> Once updated, update this header and the parent CORTEX.md <<<
+// >>> Once updated, update this header and the parent AGENTS.md <<<
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');

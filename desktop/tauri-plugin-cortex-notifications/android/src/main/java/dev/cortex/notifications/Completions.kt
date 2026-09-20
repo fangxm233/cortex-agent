@@ -1,7 +1,7 @@
 // input:  Completed execution rows, direct session snapshot, detail lookup
 // output: Announceable turn completions and decided execution ids
 // pos:    Pure turn-completion decision and dedupe
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 internal data class ExecutionRow(val id: String, val sessionId: String?, val finishedAt: String)

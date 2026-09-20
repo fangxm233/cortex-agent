@@ -3,7 +3,7 @@
 // pos:    Browser-mode authentication seam. The token is posted ONCE and exchanged for an HttpOnly
 //         cookie the page can never read; every later tRPC/SSE/file request rides that cookie
 //         automatically, which is why nothing else in the SPA needs to know about it.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export const UI_SESSION_PATH = '/api/ui/session';
 export const UI_LOGIN_PATH = '/api/ui/login';

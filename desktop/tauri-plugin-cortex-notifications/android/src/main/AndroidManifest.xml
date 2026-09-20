@@ -1,7 +1,7 @@
 <!-- input: Android notification and foreground service permissions -->
 <!-- output: Private remoteMessaging service registration -->
 <!-- pos: Native notification library manifest -->
-<!-- >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<< -->
+<!-- >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

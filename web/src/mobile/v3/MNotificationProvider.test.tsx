@@ -1,7 +1,7 @@
 // input:  mocked feed, native actions, server targets and router
 // output: routing, completion ownership, on-screen sync and cleanup tests
 // pos:    Mobile notification adapter regression tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

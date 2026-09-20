@@ -3,7 +3,7 @@
 //         (records + channel bindings + per-CHANNEL conversation header & turn history;
 //          events: put/patch/delete-*/bind/unbind/turn/conversation)
 // pos:    Low-level journal I/O for session registry state — the single owner of session identity
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';

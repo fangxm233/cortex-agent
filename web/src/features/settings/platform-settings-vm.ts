@@ -1,7 +1,7 @@
 // input:  redacted platform snapshots, drafts and API URL
 // output: patch construction, field labels and transport policy
 // pos:    Pure shared platform editor model
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { PlatformSettingsSnapshot, PlatformSettingsPatch, PlatformFieldKey } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';

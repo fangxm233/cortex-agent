@@ -1,7 +1,7 @@
 // input:  config queries, panels and login handoff
 // output: settings navigation and dirty-form protection
 // pos:    Desktop settings modal and section router
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';

@@ -1,7 +1,7 @@
 // input:  Android Gradle plugin, Kotlin, Tauri Android
 // output: Native notification library and JVM unit tests
 // pos:    Android notification library build
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -9,7 +9,7 @@ plugins {
 
 // Android's resource merger rejects folder indexes as drawable files.
 val notificationResources = tasks.register<Sync>("prepareNotificationResources") {
-    from("src/main/res") { exclude("**/CORTEX.md") }
+    from("src/main/res") { exclude("**/AGENTS.md") }
     into(layout.buildDirectory.dir("generated/cortexNotificationRes"))
 }
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(notificationResources) }

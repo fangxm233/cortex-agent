@@ -2,7 +2,7 @@ import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
 import { relTimeZh } from '@/mobile/ui/format';
 
 export interface MMemoryFileRow {
-  /** Real filename (e.g. CORTEX.md). */
+  /** Real filename (e.g. AGENTS.md). */
   name: string;
   /** Real project-root-relative path used to open the file (`memory.file` path arg). */
   path: string;
@@ -13,7 +13,7 @@ export interface MMemoryFileRow {
 export interface MMemoryDirCard {
   /** Real dir name WITHOUT trailing slash (the view appends `/`). */
   name: string;
-  /** Real `*.md` entry count (excludes index.md / CORTEX.md — see MemoryDirEntry). */
+  /** Real `*.md` entry count (excludes index.md / AGENTS.md — see MemoryDirEntry). */
   entryCount: number;
   /** The dir's real file entries (accordion body), each openable via its `path`. */
   entries: MMemoryFileRow[];

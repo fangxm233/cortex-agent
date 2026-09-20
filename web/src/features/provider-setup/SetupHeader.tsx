@@ -1,7 +1,7 @@
 // input:  language/theme controls and native window actions
 // output: onboarding brand header matching the native setup screens
 // pos:    Shared-looking chrome for the provider setup step
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useLang, useSetLang, useVocab } from '@/i18n';
 import { useToggleTheme } from '@/theme';
 import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';

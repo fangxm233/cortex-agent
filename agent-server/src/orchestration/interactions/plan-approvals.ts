@@ -1,7 +1,7 @@
 // input:  EventBus
 // output: PendingPlan type and PlanApprovals state
 // pos:    Tracks request-keyed plan approvals
-// >>> If updated, update this header and folder CORTEX.md <<<
+// >>> If updated, update this header and folder AGENTS.md <<<
 
 import type { EventBus } from '@events/index.js';
 

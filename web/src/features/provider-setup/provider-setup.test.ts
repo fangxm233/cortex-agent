@@ -1,7 +1,7 @@
 // input:  onboarding controller, auth and profile fixtures
 // output: auth-type readiness and refresh regression tests
 // pos:    Provider setup behavior specification
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { ProviderSetupController, readyProfiles, orderedProviders } from './provider-setup';

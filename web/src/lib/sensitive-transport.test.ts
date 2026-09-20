@@ -1,7 +1,7 @@
 // input:  credential transport policy and mocked fetch
 // output: HTTPS, loopback and native remote transport regressions
 // pos:    Verify platform secrets never use remote plaintext HTTP
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { afterEach, expect, test, vi } from 'vitest';
 import { credentialSafeFetch, safeCredentialTransport } from './sensitive-transport';

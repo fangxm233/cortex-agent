@@ -1,7 +1,7 @@
 // input:  domain, platform, auth and runtime setting types
 // output: canonical UI DTOs and operation signatures
 // pos:    Transport-neutral UI service contract
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { PlatformSettingsPatch, PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
 export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
@@ -2192,10 +2192,10 @@ export interface MemoryFileEntry {
 
 export interface MemoryDirEntry {
   name: string;
-  /** Number of `*.md` entry files, excluding the auto-generated `index.md` and `CORTEX.md`. */
+  /** Number of `*.md` entry files, excluding the auto-generated `index.md` and `AGENTS.md`. */
   entryCount: number;
   /**
-   * The dir's `*.md` entry files (same filter as `entryCount` — excludes `index.md` / `CORTEX.md`),
+   * The dir's `*.md` entry files (same filter as `entryCount` — excludes `index.md` / `AGENTS.md`),
    * sorted by name. Lets a client enumerate + open the files under each memory dir (mobile 1j
    * accordion) without a second round-trip. `entryCount === entries.length`.
    */

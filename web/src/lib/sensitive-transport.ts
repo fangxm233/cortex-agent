@@ -1,7 +1,7 @@
 // input: actual API URL and browser location
 // output: credential transport policy and guarded fetch
 // pos: transport safeguard for platform credential submissions
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 /** Evaluate the actual API destination, not the webview's local asset origin. */
 export function safeCredentialTransport(serverUrl: string, pageUrl: string): boolean {

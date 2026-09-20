@@ -1,7 +1,7 @@
 // input:  redacted fields, local drafts and credential transport state
 // output: accessible write-only credential fields and clear controls
 // pos:    Shared platform connection form fields
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
