@@ -5,7 +5,7 @@ import type {
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
-import { formatUsd } from '@/lib/format';
+import { formatDurationShort, formatUsd } from '@/lib/format';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
@@ -68,19 +68,10 @@ export function rightPanelBudget(
   return { todayLabel, limitLabel: formatCost(dailyLimit), percent };
 }
 
-/** Compact clock: "45s" / "1m" / "3m 27s" / "39m", rounding fractional seconds. */
-export function formatDurationS(s: number): string {
-  const total = Math.round(s);
-  if (total < 60) return `${total}s`;
-  const m = Math.floor(total / 60);
-  const sec = total % 60;
-  return sec === 0 ? `${m}m` : `${m}m ${sec}s`;
-}
-
 /** Collapsed step meta "39m · $2.10" (duration then cost); omits null parts. */
 export function stepMeta(step: ThreadStepDetail): string {
   const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatDurationS(step.durationS));
+  if (step.durationS != null) parts.push(formatDurationShort(step.durationS));
   if (step.costUsd != null) parts.push(formatCost(step.costUsd));
   return parts.join(' · ');
 }

@@ -9,7 +9,7 @@ import type {
   ThreadChildNode,
   ThreadInfo,
 } from '@cortex-agent/ui-contract';
-import { formatUsd } from '@/lib/format';
+import { formatDurationShort, formatUsd } from '@/lib/format';
 
 export interface ProtoPill {
   bg: string;
@@ -82,14 +82,6 @@ export interface ProtoCard {
   rows: ProtoRow[];
 }
 
-function formatDuration(durationS: number): string {
-  const total = Math.round(durationS);
-  if (total < 60) return `${total}s`;
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return s === 0 ? `${m}m` : `${m}m ${s}s`;
-}
-
 /** display level: root children = L2, grandchildren = L3 (prototype uses L2/L3). */
 function childLevel(depth: number): string {
   return 'L' + (depth + 2);
@@ -98,7 +90,7 @@ function childLevel(depth: number): string {
 /** collapsed step meta: "3m · $0.04" from real duration/cost (both optional). */
 function stepMeta(step: ThreadStepDetail): string {
   const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatDuration(step.durationS));
+  if (step.durationS != null) parts.push(formatDurationShort(step.durationS));
   if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
   return parts.join(' · ');
 }

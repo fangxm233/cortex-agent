@@ -24,3 +24,16 @@ export function formatBytes(bytes: number, options: FormatBytesOptions = {}): st
   const amount = trimTrailingZeros ? String(Number(fixed)) : fixed;
   return `${amount} ${BYTE_UNITS[unitIndex]}`;
 }
+
+/**
+ * Compact duration from a second count: `45s` / `3m` / `3m 27s`. Fractional seconds are rounded,
+ * a whole minute drops the seconds part, and minutes never roll into hours (a 2h step reads
+ * `120m`) — that is the contract the thread/step meta lines were each reimplementing.
+ */
+export function formatDurationShort(seconds: number): string {
+  const total = Math.round(seconds);
+  if (total < 60) return `${total}s`;
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return s === 0 ? `${m}m` : `${m}m ${s}s`;
+}
