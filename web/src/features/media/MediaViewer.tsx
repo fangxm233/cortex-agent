@@ -9,7 +9,7 @@ import type { MediaItem } from './preview-item';
 // Shared full-screen media lightbox (modal) — the single previewer for every image/video surface on
 // web AND mobile: the composer's attachment preview, a sent user message's photo/video, and an
 // agent-sent image/video. Opening a preview NEVER opens a new browser tab; it raises this in-app modal
-// (scrim + centered media + close/download). One instance is mounted per shell (AppShell / MobileShell)
+// (scrim + centered media + close/download). One instance is mounted per shell (ShellProviders)
 // and opened from anywhere via `useMediaViewer().openMedia(item)`.
 //
 // The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see

@@ -7,13 +7,9 @@ import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
-import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
+import { ShellProviders } from '@/shell/ShellProviders';
 import { MNotificationProvider } from './screens/MNotificationProvider';
 import { MUpdateProvider } from './screens/MUpdateProvider';
-import { MediaViewerProvider } from '@/features/media/MediaViewer';
-import { DocViewerProvider } from '@/features/media/DocViewer';
-import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
-import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { useViewportHeight } from './use-viewport-height';
 
 const shellStyle: CSSProperties = {
@@ -54,21 +50,15 @@ function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
   );
 }
 
+// The shared set (shell/ShellProviders) plus this chrome's two headless adapters. No dock: nothing
+// on a phone can host one, so the preview viewers stay in modal mode.
 function MobileProviders({ children }: { children: ReactNode }) {
   return (
-    <LiveEventsProvider>
-      <ConnectionStatusProvider>
-        <CurrentProjectProvider>
-          <MediaViewerProvider>
-            <DocViewerProvider>
-              {children}
-              <MNotificationProvider />
-              <MUpdateProvider />
-            </DocViewerProvider>
-          </MediaViewerProvider>
-        </CurrentProjectProvider>
-      </ConnectionStatusProvider>
-    </LiveEventsProvider>
+    <ShellProviders>
+      {children}
+      <MNotificationProvider />
+      <MUpdateProvider />
+    </ShellProviders>
   );
 }
 

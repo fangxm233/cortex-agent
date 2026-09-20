@@ -17,7 +17,7 @@ import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 // - text/markdown: fetched as text, rendered as Markdown (.md) or a monospace <pre>.
 // - pdf: pdf.js renders each page to a <canvas> (reliable in webkit2gtk / Android System WebView, which
 //   have NO built-in PDF viewer — an <iframe src=blob:pdf> would silently blank there).
-// One instance is mounted per shell (AppShell / MobileShell) and opened via useDocViewer().openDoc(item).
+// One instance is mounted per shell (ShellProviders) and opened via useDocViewer().openDoc(item).
 //
 // The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see
 // `features/dock`, reached through the `design/dock-intake` seam), the modal also offers ◧: the

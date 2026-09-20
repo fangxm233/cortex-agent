@@ -12,8 +12,9 @@ import { deriveConnectionStatus, type ConnectionStatus } from './connection-stat
 // the same transitions, and its `hasConnected` latch (pure `applyConnState`) distinguishes the first
 // approach from a post-drop retry exactly as the old local ref did.
 //
-// Mounted once per shell (`shell/AppShell` desktop · `mobile/MobileShell` mobile) INSIDE
-// LiveEventsProvider, so both surfaces read the live status via `useConnectionStatus()`.
+// Mounted once per shell — `shell/ShellProviders`, which `shell/AppShell` and `mobile/MobileShell`
+// each render — INSIDE LiveEventsProvider, so both surfaces read the live status via
+// `useConnectionStatus()`.
 
 const ConnectionStatusContext = createContext<ConnectionStatus>('connecting');
 

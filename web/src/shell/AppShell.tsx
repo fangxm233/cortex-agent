@@ -1,17 +1,12 @@
 import { Outlet } from 'react-router-dom';
-import { ModalRegistryProvider } from '@/design/modal-registry';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
 import { useCommandPalette } from '@/features/command-palette/useCommandPalette';
-import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/session/state/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 import { UpdateProvider } from '@/features/update-prompt/UpdateProvider';
-import { MediaViewerProvider } from '@/features/media/MediaViewer';
-import { DocViewerProvider } from '@/features/media/DocViewer';
 import { DockProvider } from '@/features/dock/DockProvider';
-import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
-import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
+import { ShellProviders } from './ShellProviders';
 import { PaneStateProvider } from './PaneStateProvider';
 import { NavigationHistoryProvider } from './NavigationHistoryProvider';
 import { ShellModalHost } from './ShellModals';
@@ -22,26 +17,29 @@ import { ShellModalHost } from './ShellModals';
 // LeftRail was removed (superseded). The global ⌘K command palette (design 6c) and every
 // always-available overlay — the execution log drawer, thread detail, Settings, New-schedule,
 // approvals, … — stay mounted here so any surface can open them without route navigation. The
-// overlays no longer bring a provider each: they share one ModalRegistryProvider and are rendered
-// by ShellModalHost. DockProvider wraps both previewers: while the dock is open (the tabbed pane
-// beside the chat on the workbench) `openMedia`/`openDoc` open a tab in it instead of raising their
-// modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which every live
-// surface (and the connectivity badge) reads through — see features/live/CORTEX.md.
+// overlays share one registry (ShellProviders' ModalRegistry) and are rendered by ShellModalHost.
+//
+// Three layers, outside in:
+//   DockProvider     desktop-only, and OUTSIDE the shared set because it supplies the dock intake
+//                    the two preview viewers read: while the dock is open (the tabbed pane beside
+//                    the chat on the workbench) `openMedia`/`openDoc` open a tab in it instead of
+//                    raising their modal.
+//   ShellProviders   the set both chromes mount — live stream, connection, current project, the
+//                    modal registry and the two viewers.
+//   the rest         desktop-only state: selected session, navigation history, pane layout, notes.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
-    <LiveEventsProvider><ConnectionStatusProvider>
-      <CurrentProjectProvider><ModalRegistryProvider>
+    <DockProvider>
+      <ShellProviders>
         <SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><NotesProvider>
-          <DockProvider><MediaViewerProvider><DocViewerProvider>
-            <Outlet />
-            <CommandPalette open={open} onOpenChange={setOpen} />
-            <NotificationProvider />
-            <UpdateProvider />
-            <ShellModalHost />
-          </DocViewerProvider></MediaViewerProvider></DockProvider>
+          <Outlet />
+          <CommandPalette open={open} onOpenChange={setOpen} />
+          <NotificationProvider />
+          <UpdateProvider />
+          <ShellModalHost />
         </NotesProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider>
-      </ModalRegistryProvider></CurrentProjectProvider>
-    </ConnectionStatusProvider></LiveEventsProvider>
+      </ShellProviders>
+    </DockProvider>
   );
 }
