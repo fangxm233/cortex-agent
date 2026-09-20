@@ -13,7 +13,7 @@ The import rules below are enforced *today*, against the current tree.
 | Dir | What lives there |
 | --- | --- |
 | `lib/` | Bottom of the stack: platform shell (tauri/browser), tRPC transport, session, pure helpers. Knows nothing above it. |
-| `design/` | Desktop primitive kit — Button, Modal, Toast, Select, tone/degraded tokens. Context-free. |
+| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet and the mobile `MC`/`MONO` token tables. Context-free, and shared by both chromes. |
 | `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. |
 | `i18n/` | Vocab tables + `LangProvider` / `useVocab`. |
 | `features/` | One directory per feature (33 today). The shared body both chromes render. |
@@ -88,16 +88,16 @@ CI — the release workflows run `pnpm --filter '@cortex-agent/web...' run build
 ## The baseline, and why it may only shrink
 
 The rules were added to a tree that already violates them. Rather than weaken the rules, the
-75 existing violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
-via `--ignore-known`:
+remaining violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
+via `--ignore-known`. Step 1a took the file from 75 entries to 61:
 
-| Rule | Frozen |
-| --- | --- |
-| `components-not-direct-trpc` | 57 |
-| `no-circular` | 8 |
-| `features-not-to-mobile` | 4 |
-| `mobile-only-from-router` | 4 (the same 4 files) |
-| `lib-is-bottom` | 2 |
+| Rule | Frozen | Was |
+| --- | --- | --- |
+| `components-not-direct-trpc` | 57 | 57 |
+| `no-circular` | 4 | 8 |
+| `features-not-to-mobile` | 0 | 4 |
+| `mobile-only-from-router` | 0 | 4 (the same 4 files) |
+| `lib-is-bottom` | 0 | 2 |
 
 Likewise `scripts/feature-cycles-allowlist.json` holds 11 known feature pairs.
 
