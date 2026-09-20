@@ -145,6 +145,12 @@ export function scheduledRunTitle(
   return n == null ? null : `${schedule.message} · run #${n}`;
 }
 
+/** Session ids behind the run list's「mark all read」: this row's unread runs, nothing else —
+ *  the button clears exactly what the list is showing a dot for. */
+export function unreadRunIds(row: ScheduleRow): string[] {
+  return row.runs.filter((r) => r.unread).map((r) => r.sessionId);
+}
+
 /** Collapsed-header「m 未读」/ mobile clock badge: unread ROWS (schedules), not unread runs. */
 export function unreadScheduleCount(rows: ScheduleRow[]): number {
   return rows.filter((r) => r.unread).length;

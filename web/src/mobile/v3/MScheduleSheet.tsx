@@ -3,6 +3,7 @@ import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { MBottomSheet } from '@/mobile/ui/kit';
 import { scheduleRowAction, type ScheduleRow } from '@/features/workbench/schedule-rail';
+import { useMarkManyRead } from '@/features/workbench/useMarkSessionRead';
 import {
   useScheduleEditorController,
   type ScheduleEditorController,
@@ -26,6 +27,9 @@ interface MScheduleSheetViewProps {
   onOpenSession: (sessionId: string) => void;
   onClose: () => void;
   now?: number;
+  /** Clears the unread dots of the runs level without opening any run. */
+  onMarkAllRead?: (sessionIds: string[]) => void;
+  markAllPending?: boolean;
 }
 
 interface MScheduleSheetProps {
@@ -81,16 +85,19 @@ function currentRunsRow(rows: ScheduleRow[], level: SheetLevel): ScheduleRow | n
   return rows.find((row) => row.scheduleId === level.scheduleId) ?? null;
 }
 
-function RunsSheetLevel({ row, copy, now, back, onOpenSession, openEditor }: {
+function RunsSheetLevel({ row, copy, now, back, onOpenSession, openEditor, onMarkAllRead,
+  markAllPending }: {
   row: ScheduleRow; copy: MScheduleSheetCopy; now: number; back: () => void;
   onOpenSession: (sessionId: string) => void;
   openEditor: ReturnType<typeof useSheetLevel>['openEditor'];
+  onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
 }) {
   const onEdit = row.schedule
     ? () => openEditor(row.schedule!, { kind: 'runs', scheduleId: row.scheduleId })
     : undefined;
   return <RunsLevel row={row} copy={copy} now={now} onBack={back}
-    onOpenRun={onOpenSession} onEdit={onEdit} />;
+    onOpenRun={onOpenSession} onEdit={onEdit} onMarkAllRead={onMarkAllRead}
+    markAllPending={markAllPending} />;
 }
 
 function editorLevelContent(level: SheetLevel, editor: ScheduleEditorController,
@@ -104,7 +111,7 @@ function editorLevelContent(level: SheetLevel, editor: ScheduleEditorController,
 }
 
 function SheetLevelContent({ rows, copy, editor, level, runsRow, now, back,
-  onOpenSession, onRow, openEditor, submit }: MScheduleSheetViewProps & {
+  onOpenSession, onRow, openEditor, submit, onMarkAllRead, markAllPending }: MScheduleSheetViewProps & {
   level: SheetLevel; runsRow: ScheduleRow | null; now: number; back: () => void;
   onRow: (row: ScheduleRow) => void; openEditor: ReturnType<typeof useSheetLevel>['openEditor'];
   submit: () => void;
@@ -112,7 +119,8 @@ function SheetLevelContent({ rows, copy, editor, level, runsRow, now, back,
   const editorContent = editorLevelContent(level, editor, submit, back);
   if (editorContent) return editorContent;
   if (runsRow) return <RunsSheetLevel row={runsRow} copy={copy} now={now} back={back}
-    onOpenSession={onOpenSession} openEditor={openEditor} />;
+    onOpenSession={onOpenSession} openEditor={openEditor} onMarkAllRead={onMarkAllRead}
+    markAllPending={markAllPending} />;
   return <ListLevel rows={rows} copy={copy} now={now} onRow={onRow} />;
 }
 
@@ -136,6 +144,7 @@ export function MScheduleSheetView(props: MScheduleSheetViewProps) {
 export function MScheduleSheet(props: MScheduleSheetProps) {
   const copy = useVocab();
   const { toast } = useToast();
+  const markMany = useMarkManyRead();
   const editor = useScheduleEditorController({
     onCreated: () => toast({ title: copy.scToastCreated, tone: 'done' }),
     onUpdated: () => toast({ title: copy.scToastUpdated, tone: 'done' }),
@@ -144,5 +153,6 @@ export function MScheduleSheet(props: MScheduleSheetProps) {
       description: error.message, tone: 'failed',
     }),
   });
-  return <MScheduleSheetView {...props} editor={editor} />;
+  return <MScheduleSheetView {...props} editor={editor} onMarkAllRead={markMany.markManyRead}
+    markAllPending={markMany.pending} />;
 }

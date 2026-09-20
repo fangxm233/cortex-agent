@@ -40,6 +40,7 @@ function run(p: Partial<SessionInfo> = {}): SessionInfo {
 const copy: MScheduleSheetCopy = {
   title: 'Scheduled', countUnit: '{n}', once: 'once', paused: 'paused', nextIn: 'next in {d}',
   allRuns: 'all {n} runs', runListHint: 'tap a run', edit: 'Edit schedule',
+  markAllRead: 'mark {n} read',
 };
 
 function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
@@ -68,12 +69,13 @@ function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
   };
 }
 
-function mount(rows: ReturnType<typeof buildScheduleRows>, editor: ScheduleEditorController, onClose = vi.fn()) {
+function mount(rows: ReturnType<typeof buildScheduleRows>, editor: ScheduleEditorController,
+  onClose = vi.fn(), extra: { onMarkAllRead?: (ids: string[]) => void } = {}) {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
       <LangProvider>
-        <MScheduleSheetView rows={rows} copy={copy} editor={editor} onOpenSession={vi.fn()} onClose={onClose} now={Date.now()} />
+        <MScheduleSheetView rows={rows} copy={copy} editor={editor} onOpenSession={vi.fn()} onClose={onClose} now={Date.now()} {...extra} />
       </LangProvider>,
     );
   });
@@ -131,6 +133,23 @@ describe('MScheduleSheetView', () => {
     expect(editor.close).toHaveBeenCalledOnce();
     expect(editor.openEdit).toHaveBeenCalledTimes(2);
     expect(renderer.root.findAllByProps({ 'data-mobile-schedule-editor': true })).toHaveLength(1);
+  });
+
+  it('marks the unread runs read from the runs level without opening any of them', () => {
+    const real = schedule({ id: 'repeat-1', type: 'daily', time: '07:30' });
+    const rows = buildScheduleRows([real], [
+      run({ sessionId: 'run-1', unread: true }),
+      run({ sessionId: 'run-2', createdAt: '2030-01-01T09:00:00.000Z',
+        lastUsedAt: '2030-01-01T09:00:00.000Z' }),
+    ], Date.now());
+    const onMarkAllRead = vi.fn();
+    const { renderer } = mount(rows, editorFor(real), vi.fn(), { onMarkAllRead });
+
+    act(() => renderer.root.findByProps({ 'data-schedule-row': 'repeat-1' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-action': 'mark-all-read' }).props.onClick());
+
+    expect(onMarkAllRead).toHaveBeenCalledWith(['run-1']);
+    expect(renderer.root.findAllByProps({ 'data-run-row': 'run-1' })).toHaveLength(1);
   });
 
   it('opens the run-level manage action as an editor and back returns only to runs', () => {

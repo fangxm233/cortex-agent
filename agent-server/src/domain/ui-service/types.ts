@@ -163,6 +163,7 @@ export type MutateOp =
   | 'sessions.setCommission'
   | 'sessions.createAndSend'
   | 'sessions.markRead'
+  | 'sessions.markManyRead'
   | 'sessions.answerQuestion'
   | 'sessions.respondPlan'
   | 'sessions.respondDecision'
@@ -509,6 +510,18 @@ export interface SessionsCompactArgs {
 
 export interface SessionsMarkReadArgs {
   sessionId: string;
+}
+
+/** Batch form of markRead: the client hands over the exact sessions it is showing as unread (the
+ *  run list's「mark all read」), so the server never has to re-derive the set. */
+export interface SessionsMarkManyReadArgs {
+  sessionIds: string[];
+}
+
+export interface SessionsMarkManyReadReturn {
+  /** How many of the requested sessions were stamped — ids that no longer resolve (purged runs)
+   *  are skipped rather than failing the batch. */
+  marked: number;
 }
 
 export interface SessionsSetProfileArgs {
@@ -2636,6 +2649,7 @@ export interface MutateArgsMap {
   'sessions.setCommission': SessionsSetCommissionArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
   'sessions.markRead': SessionsMarkReadArgs;
+  'sessions.markManyRead': SessionsMarkManyReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
   'sessions.respondPlan': SessionsRespondPlanArgs;
   'sessions.respondDecision': SessionsRespondDecisionArgs;
@@ -2713,6 +2727,7 @@ export interface MutateReturnMap {
   'sessions.setCommission': SessionsSetCommissionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
+  'sessions.markManyRead': SessionsMarkManyReadReturn;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
   'sessions.respondPlan': SessionsInteractionMutateReturn;
   'sessions.respondDecision': SessionsRespondDecisionReturn;

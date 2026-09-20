@@ -220,6 +220,11 @@ export const sessionsMarkReadInput = z.object({
   sessionId: z.string(),
 });
 
+// Bounded batch: the run list of one schedule, never "every session on the box".
+export const sessionsMarkManyReadInput = z.object({
+  sessionIds: z.array(z.string()).min(1).max(500),
+});
+
 export const sessionsSetProfileInput = z.object({
   sessionId: z.string(),
   profileName: z.string().min(1),
@@ -901,6 +906,7 @@ export const mutateInputSchemas = {
   'sessions.setCommission': sessionsSetCommissionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.markRead': sessionsMarkReadInput,
+  'sessions.markManyRead': sessionsMarkManyReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,
   'sessions.respondPlan': sessionsRespondPlanInput,
   'sessions.respondDecision': sessionsRespondDecisionInput,

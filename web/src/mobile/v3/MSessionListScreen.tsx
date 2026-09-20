@@ -33,6 +33,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
     allRuns: 'all {n} runs',
     runListHint: 'tap a run → opens that session',
     edit: 'Edit schedule',
+    markAllRead: 'mark {n} read',
   },
   zh: {
     title: 'Scheduled',
@@ -43,6 +44,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
     allRuns: '全部 {n} runs',
     runListHint: '点击任意 run → 打开该次会话',
     edit: '编辑调度',
+    markAllRead: '{n} 条标记已读',
   },
 };
 

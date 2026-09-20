@@ -4,6 +4,7 @@ import {
   buildScheduleRows,
   runOrdinals,
   scheduleRowAction,
+  unreadRunIds,
   unreadScheduleCount,
 } from './schedule-rail';
 
@@ -210,5 +211,29 @@ describe('unreadScheduleCount', () => {
       now,
     );
     expect(unreadScheduleCount(rows)).toBe(1);
+  });
+});
+
+describe('unreadRunIds', () => {
+  it('returns this row\'s unread runs only, in list order', () => {
+    const [rowA] = buildScheduleRows(
+      [mkSched({ id: 'a', message: 'a' })],
+      [
+        mkRun({ sessionId: 'a1', scheduleId: 'a', unread: true }),
+        mkRun({ sessionId: 'a2', scheduleId: 'a', createdAt: '2026-07-06T08:00:00.000Z' }),
+        mkRun({ sessionId: 'a3', scheduleId: 'a', createdAt: '2026-07-06T09:00:00.000Z', unread: true }),
+      ],
+      now,
+    );
+    expect(unreadRunIds(rowA)).toEqual(['a3', 'a1']);
+  });
+
+  it('is empty when every run is read', () => {
+    const [rowA] = buildScheduleRows(
+      [mkSched({ id: 'a', message: 'a' })],
+      [mkRun({ sessionId: 'a1', scheduleId: 'a' })],
+      now,
+    );
+    expect(unreadRunIds(rowA)).toEqual([]);
   });
 });

@@ -14,6 +14,8 @@ import type {
   SessionsCompactArgs,
   SessionsCompactReturn,
   SessionsMarkReadArgs,
+  SessionsMarkManyReadArgs,
+  SessionsMarkManyReadReturn,
   SessionsCancelReturn,
   SessionsSetProfileArgs,
   SessionsSetProfileReturn,
@@ -230,6 +232,23 @@ export async function handleMarkReadSession(
   }
   await deps.sessionStore.markRead?.(args.sessionId);
   return { ok: true, data: undefined };
+}
+
+/** Batch mark-read behind the run list's「mark all read」. Deliberately forgiving: a session that
+ *  no longer resolves (purged run, stale client list) is skipped instead of failing the batch —
+ *  the user asked to clear what they see, and a half-stale list must still clear. */
+export async function handleMarkManyReadSessions(
+  deps: UiServiceDeps,
+  args: SessionsMarkManyReadArgs,
+): Promise<Result<SessionsMarkManyReadReturn>> {
+  let marked = 0;
+  for (const sessionId of new Set(args.sessionIds)) {
+    const session = await deps.sessionStore.getById(sessionId);
+    if (!session) continue;
+    await deps.sessionStore.markRead?.(sessionId);
+    marked += 1;
+  }
+  return { ok: true, data: { marked } };
 }
 
 // Create a fresh session AND send the first message in one atomic operation. Used by the workbench

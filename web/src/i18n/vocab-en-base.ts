@@ -270,6 +270,7 @@ export const enBase = {
   wbSchedNextRun: 'next in {d}',
   wbSchedPausedPill: 'paused',
   wbSchedRunListHint: 'click a run → opens that session in the chat pane',
+  wbSchedMarkAllRead: 'mark {n} read',
   wbSchedReplyHint: 'Replying converts this run into a normal session — it moves into the timeline; the schedule\'s next run is unaffected',
 
   // ── project folder tree (left rail) ──

@@ -37,6 +37,7 @@ vi.mock('@/i18n', () => ({
     wbBackendUuid: 'Backend UUID', wbSessionId: 'Session ID', wbCopied: 'Copied',
     wbCopy: 'Copy', wbSchedPausedPill: 'paused', wbSchedNextRun: 'next {d}',
     wbSchedManage: 'manage ↗', wbAllRuns: '{n} runs', wbSchedRunListHint: 'Select a run',
+    wbSchedMarkAllRead: 'mark {n} read',
     wbSessionStats: 'Session stats', wbSessionStatsHint: 'Totals for the whole conversation.',
   }),
 }));
@@ -123,5 +124,22 @@ describe('RunListModal shared shell', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(onOpenRun).toHaveBeenCalledWith('run-1');
     expect(onManage).toHaveBeenCalledOnce();
+  });
+
+  it('offers mark-all-read for the unread runs only, and hides it once nothing is unread', () => {
+    const onMarkAllRead = vi.fn();
+    const unreadRow = {
+      ...row(),
+      runs: [{ ...run('run-1'), unread: true }, run('run-2')],
+      unread: true,
+    } as ScheduleRow;
+    const tree = render(<RunListModal row={unreadRow} selectedSessionId={null}
+      onOpenRun={vi.fn()} onMarkAllRead={onMarkAllRead} onClose={vi.fn()} />);
+    act(() => tree.root.findByProps({ 'data-action': 'run-list-mark-read' }).props.onClick());
+    expect(onMarkAllRead).toHaveBeenCalledWith(['run-1']);
+
+    const readTree = render(<RunListModal row={row()} selectedSessionId={null}
+      onOpenRun={vi.fn()} onMarkAllRead={onMarkAllRead} onClose={vi.fn()} />);
+    expect(readTree.root.findAllByProps({ 'data-action': 'run-list-mark-read' })).toHaveLength(0);
   });
 });

@@ -54,3 +54,31 @@ export function useMarkSessionRead(sessionId: string, activitySignal: unknown): 
     // activitySignal re-arms the debounce on live events while viewing.
   }, [sessionId, activitySignal]);
 }
+
+/**
+ * Unread tracking, explicit form: stamp a whole set of sessions read in one round trip
+ * (`sessions.markManyRead`) without opening any of them. Backs the run list's「mark all read」,
+ * where a repeating schedule has piled up runs the user does not intend to read one by one.
+ * Invalidates sessions.list on success so the dots clear in the rail and the run list at once.
+ */
+export function useMarkManyRead(): {
+  markManyRead: (sessionIds: string[]) => void;
+  pending: boolean;
+} {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const markMany = useMutation(
+    trpc.sessions.markManyRead.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+      },
+    }),
+  );
+  return {
+    markManyRead: (sessionIds: string[]) => {
+      if (sessionIds.length === 0) return;
+      markMany.mutate({ sessionIds });
+    },
+    pending: markMany.isPending,
+  };
+}

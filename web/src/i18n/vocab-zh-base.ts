@@ -268,6 +268,7 @@ export const zhBase = {
   wbSchedNextRun: '{d} 后运行',
   wbSchedPausedPill: '已暂停',
   wbSchedRunListHint: '点击任意 run → chat 栏打开该次 session',
+  wbSchedMarkAllRead: '{n} 条标记已读',
   wbSchedReplyHint: '发送后提取为普通 session：移入时间线；schedule 的下次 run 不受影响',
 
   // ── 项目文件夹树（左栏）──

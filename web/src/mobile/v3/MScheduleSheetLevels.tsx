@@ -1,5 +1,5 @@
 import { MC, MONO } from '@/mobile/ui/kit';
-import { runOrdinals, scheduleSubline, type ScheduleRow } from '@/features/workbench/schedule-rail';
+import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/workbench/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/workbench/scheduled-chat';
 import { sessionStamp } from '@/features/workbench/session-groups';
 import { formatUsd } from '@/lib/format';
@@ -13,6 +13,7 @@ export interface MScheduleSheetCopy {
   allRuns: string;
   runListHint: string;
   edit: string;
+  markAllRead: string;
 }
 
 function ClockIcon({ size, color }: { size: number; color: string }) {
@@ -220,9 +221,28 @@ function RunsList({ row, now, onOpenRun }: {
   );
 }
 
-function RunsFooter({ row, copy, onEdit }: {
-  row: ScheduleRow; copy: MScheduleSheetCopy; onEdit?: () => void;
+/** Takes the hint's slot while this schedule still has unread runs — clearing them beats
+ *  re-reading a static hint. */
+function MarkAllReadAction({ unreadIds, copy, pending, onMarkAllRead }: {
+  unreadIds: string[]; copy: MScheduleSheetCopy; pending: boolean;
+  onMarkAllRead: (sessionIds: string[]) => void;
 }) {
+  return (
+    <button type="button" data-action="mark-all-read" disabled={pending}
+      onClick={() => onMarkAllRead(unreadIds)}
+      style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: MC.run,
+        fontSize: 11.5, fontWeight: 600, cursor: pending ? 'default' : 'pointer',
+        opacity: pending ? 0.5 : 1, padding: 0 }}>
+      {copy.markAllRead.replace('{n}', String(unreadIds.length))}
+    </button>
+  );
+}
+
+function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }: {
+  row: ScheduleRow; copy: MScheduleSheetCopy; onEdit?: () => void;
+  onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
+}) {
+  const unreadIds = unreadRunIds(row);
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: '10px 4px 0', gap: 10 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>
@@ -231,16 +251,23 @@ function RunsFooter({ row, copy, onEdit }: {
       {onEdit && <button type="button" data-action="edit-schedule" onClick={onEdit}
         style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 11.5,
           fontWeight: 600, cursor: 'pointer' }}>{copy.edit}</button>}
-      <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
-        {copy.runListHint}
-      </span>
+      {onMarkAllRead && unreadIds.length > 0 ? (
+        <MarkAllReadAction unreadIds={unreadIds} copy={copy} pending={markAllPending}
+          onMarkAllRead={onMarkAllRead} />
+      ) : (
+        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+          {copy.runListHint}
+        </span>
+      )}
     </div>
   );
 }
 
-export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit }: {
+export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit, onMarkAllRead,
+  markAllPending }: {
   row: ScheduleRow; copy: MScheduleSheetCopy; now: number; onBack: () => void;
   onOpenRun: (sessionId: string) => void; onEdit?: () => void;
+  onMarkAllRead?: (sessionIds: string[]) => void; markAllPending?: boolean;
 }) {
   return (
     <>
@@ -248,7 +275,8 @@ export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit }: {
       {/* Column captions are design constants (mono uppercase in both languages), not copy. */}
       <RunsCaptions />
       <RunsList row={row} now={now} onOpenRun={onOpenRun} />
-      <RunsFooter row={row} copy={copy} onEdit={onEdit} />
+      <RunsFooter row={row} copy={copy} onEdit={onEdit} onMarkAllRead={onMarkAllRead}
+        markAllPending={markAllPending} />
     </>
   );
 }

@@ -32,6 +32,7 @@ import { useSelectedSession } from './SelectedSessionProvider';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
+import { useMarkManyRead } from './useMarkSessionRead';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
@@ -230,6 +231,7 @@ export function LeftRail(): JSX.Element {
   // The flag lives in state (not storage) so a reload lands back on the honest activity order.
   const [dragged, setDragged] = useState(false);
   const [runModalId, setRunModalId] = useState<string | null>(null);
+  const markMany = useMarkManyRead();
   const [hover, setHover] = useState<string | null>(null);
 
   const toggleId = (
@@ -725,6 +727,8 @@ export function LeftRail(): JSX.Element {
                 }
               : undefined
           }
+          onMarkAllRead={markMany.markManyRead}
+          markAllPending={markMany.pending}
           onClose={() => setRunModalId(null)}
         />
       )}

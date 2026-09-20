@@ -1,6 +1,6 @@
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { runOrdinals, type ScheduleRow } from './schedule-rail';
+import { runOrdinals, unreadRunIds, type ScheduleRow } from './schedule-rail';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
@@ -24,17 +24,23 @@ export function RunListModal({
   selectedSessionId,
   onOpenRun,
   onManage,
+  onMarkAllRead,
+  markAllPending = false,
   onClose,
 }: {
   row: ScheduleRow;
   selectedSessionId: string | null;
   onOpenRun: (sessionId: string) => void;
   onManage?: () => void;
+  /** Clears the unread dots for the runs listed here, without opening any of them. */
+  onMarkAllRead?: (sessionIds: string[]) => void;
+  markAllPending?: boolean;
   onClose: () => void;
 }): JSX.Element {
   const L = useVocab();
   const now = Date.now();
   const ordinals = runOrdinals(row.runs);
+  const unreadIds = unreadRunIds(row);
   const sched = row.schedule;
   const delta = sched ? nextRunDelta(sched.nextRun, now) : null;
   const sub = sched
@@ -135,7 +141,24 @@ export function RunListModal({
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted-2)' }}>
             {L.wbAllRuns.replace('{n}', String(row.runs.length))}
           </span>
-          <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{L.wbSchedRunListHint}</span>
+          {onMarkAllRead && unreadIds.length > 0 ? (
+            <span
+              data-action="run-list-mark-read"
+              onClick={() => { if (!markAllPending) onMarkAllRead(unreadIds); }}
+              style={{
+                marginLeft: 'auto',
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: 'var(--proto-accent)',
+                cursor: markAllPending ? 'default' : 'pointer',
+                opacity: markAllPending ? 0.5 : 1,
+              }}
+            >
+              {L.wbSchedMarkAllRead.replace('{n}', String(unreadIds.length))}
+            </span>
+          ) : (
+            <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{L.wbSchedRunListHint}</span>
+          )}
         </div>
     </Modal>
   );
