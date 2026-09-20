@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
 import { useCommandPalette } from '@/features/command-palette/useCommandPalette';
-import { ExecutionLogDrawerProvider } from '@/features/execution/ExecutionLogDrawerProvider';
+import { ExecutionDrawerProvider } from '@/features/execution/ExecutionDrawerProvider';
 import { ScheduleModalProvider } from '@/features/schedule/ScheduleModalProvider';
 import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
 import { SettingsProvider } from '@/features/settings/SettingsProvider';
@@ -37,7 +37,7 @@ export function AppShell() {
   return (
     <LiveEventsProvider><ConnectionStatusProvider>
       <CurrentProjectProvider><SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><ShellModalsProvider><NotesProvider>
-        <ExecutionLogDrawerProvider><ScheduleModalProvider>
+        <ExecutionDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
             <ThreadDetailModalProvider><TaskModalProvider><CommissionBoardModalProvider><DockProvider>
               <MediaViewerProvider><DocViewerProvider>
@@ -48,7 +48,7 @@ export function AppShell() {
               </DocViewerProvider></MediaViewerProvider>
             </DockProvider></CommissionBoardModalProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
-        </ScheduleModalProvider></ExecutionLogDrawerProvider>
+        </ScheduleModalProvider></ExecutionDrawerProvider>
       </NotesProvider></ShellModalsProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider></CurrentProjectProvider>
     </ConnectionStatusProvider></LiveEventsProvider>
   );

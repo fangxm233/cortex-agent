@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
+import { useExecutionDrawer } from '@/features/execution/ExecutionDrawerProvider';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
 import { useIssues } from '@/features/issues/IssuesProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
@@ -76,7 +76,7 @@ export function OverviewView(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { open: openExecutionLog } = useExecutionLogDrawer();
+  const { open: openExecutionDrawer } = useExecutionDrawer();
   const { open: openScheduleModal, openEdit: openScheduleEditor } = useScheduleModal();
   const { open: openIssues } = useIssues();
   const notes = useNotes();
@@ -616,7 +616,7 @@ export function OverviewView(): JSX.Element {
                   </span>
                 </span>
                 <span
-                  onClick={() => openExecutionLog(x.id)}
+                  onClick={() => openExecutionDrawer(x.id)}
                   style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                 >
                   {L.ovLogs}

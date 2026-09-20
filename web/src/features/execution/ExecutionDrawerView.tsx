@@ -5,9 +5,9 @@ import { useVocab } from '@/i18n';
 // L1544–1560) — hooks-free so it is render-testable and screenshottable in isolation. Exact inline
 // styles/px/hex/font from the prototype (the dark palette is not in the light proto.* tokens; raw
 // values are faithful per §8.3, matching the LeftRail/RightPanel precedent). Data wiring
-// (executions.get / executions.cancel) lives in ExecutionLogDrawer's DrawerBody.
+// (executions.get / executions.cancel) lives in ExecutionDrawer's DrawerBody.
 
-export interface LogDrawerViewProps {
+export interface ExecutionDrawerViewProps {
   title: string;
   pill: string | null;
   meta: string;
@@ -54,7 +54,7 @@ const FOOTER_STYLE: CSSProperties = {
   borderTop: '1px solid var(--log-border)',
 };
 
-export function LogDrawerView({
+export function ExecutionDrawerView({
   title,
   pill,
   meta,
@@ -63,7 +63,7 @@ export function LogDrawerView({
   killDisabled,
   onKill,
   onClose,
-}: LogDrawerViewProps) {
+}: ExecutionDrawerViewProps) {
   const L = useVocab();
   return (
     <>

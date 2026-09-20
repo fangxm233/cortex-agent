@@ -58,8 +58,8 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('@/features/execution/ExecutionLogDrawerProvider', () => ({
-  useExecutionLogDrawer: () => ({ open: vi.fn() }),
+vi.mock('@/features/execution/ExecutionDrawerProvider', () => ({
+  useExecutionDrawer: () => ({ open: vi.fn() }),
 }));
 
 vi.mock('@/features/schedule/ScheduleModalProvider', () => ({
