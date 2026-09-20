@@ -16,10 +16,11 @@ The import rules below are enforced *today*, against the current tree.
 | `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet and the mobile `MC`/`MONO` token tables. Context-free, and shared by both chromes. |
 | `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. |
 | `i18n/` | Vocab tables + `LangProvider` / `useVocab`. |
-| `features/` | One directory per feature (33 today). The shared body both chromes render. |
+| `features/` | One directory per feature (32 today). The shared body both chromes render. |
 | `features/session/` | **(planned)** the session/thread domain currently spread across `thread/`, `commission/`, parts of `workbench/`. |
 | `features/workbench/` | **(planned sub-dirs)** `rail/` `chat/` `composer/` `right-panel/` — it is the biggest feature and flat today. |
 | `features/settings/` | **(planned sub-dirs)** `panels/` `controllers/` `vm/` — the split already exists by filename, not by directory. |
+| `features/update-prompt/` | The arbitration layer over the three update channels `server-update/` `app-update/` `hot-update/`: it imports all three, decides which single prompt the user sees, and owns the manual check. The channels import neither it nor each other — anything they need in common sits below them in `lib/` or `design/`. |
 | `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, modal providers. |
 | `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
 | `dev/` | DEV-only demo routes: `kit/` (every design primitive in every state, `/kit`) and `base-demo/` (the prototype specimen, `/base`). Registered by `router.tsx` only when `import.meta.env.DEV`, so they are absent from production bundles. |
@@ -82,7 +83,7 @@ about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
 ```sh
 pnpm -C web depcruise    # boundary rules + feature cycles   (alias: pnpm -C web lint)
 pnpm -C web typecheck    # tsc --noEmit
-pnpm -C web test         # vitest run  (205 files / 1534 tests, ~6s)
+pnpm -C web test         # vitest run  (206 files / 1533 tests, ~6s)
 ```
 
 `build` runs `tsc --noEmit && pnpm run depcruise && vite build`, so the rules are enforced by
@@ -92,7 +93,9 @@ CI — the release workflows run `pnpm --filter '@cortex-agent/web...' run build
 
 The rules were added to a tree that already violates them. Rather than weaken the rules, the
 remaining violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
-via `--ignore-known`. Step 1a took the file from 75 entries to 61:
+via `--ignore-known`. Step 1a took the file from 75 entries to 61; step 1b was pure
+restructuring and held it at 61 (regenerating it after the moves reproduces the same 61 edges
+under their new paths):
 
 | Rule | Frozen | Was |
 | --- | --- | --- |
@@ -102,7 +105,10 @@ via `--ignore-known`. Step 1a took the file from 75 entries to 61:
 | `mobile-only-from-router` | 0 | 4 (the same 4 files) |
 | `lib-is-bottom` | 0 | 2 |
 
-Likewise `scripts/feature-cycles-allowlist.json` holds 11 known feature pairs.
+Likewise `scripts/feature-cycles-allowlist.json` holds 9 known feature pairs, down from 11:
+step 1b removed `app-update<->update` and `hot-update<->update` by splitting the old `update/`
+into an `update-prompt/` layer above the channels and pushing what they shared into `lib/`
+and `design/`.
 
 **Both files are ratchets.** A new violation fails the build and must be fixed, not appended.
 Regenerating the baseline to absorb one defeats the entire file. Removing entries as the

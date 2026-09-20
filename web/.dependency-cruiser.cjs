@@ -37,8 +37,10 @@ module.exports = {
       comment:
         'lib/ is the bottom of the stack: platform shell (tauri/browser), transport, pure '
         + 'helpers. It must know nothing about the app above it — not a feature, not a chrome, '
-        + 'not even the vocab. Known offenders: native-bridge → features/update, '
-        + 'use-mobile-layout → i18n/lang (for a width constant that belongs in lib).',
+        + 'not even the vocab. The pull is always the same shape: a lib module wants one '
+        + 'constant or one callback that today lives in a feature. Both go the other way — the '
+        + 'constant moves down into lib (use-mobile-layout owns MOBILE_MAX_WIDTH), the callback '
+        + 'becomes a subscription the feature registers (manual-update-check-result.ts).',
       from: { path: '^src/lib/', ...NOT_A_TEST },
       to: { path: '^src/(features|mobile|shell|i18n|design|theme)/', ...COMMON_OPTS },
     },
