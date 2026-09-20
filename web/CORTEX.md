@@ -5,7 +5,8 @@ Path alias `@/* → src/*`. One codebase, two chromes: desktop (`shell/`) and mo
 (`mobile/`), sharing one body of features and one router.
 
 This file describes the **target** structure — the state after the 4-step cleanup.
-Rows and notes marked **(planned)** do not exist yet; everything else is current.
+Steps 1 and 2 have landed, so every row below is current; step 3 (providers and the modal
+registry) and step 4 (the per-directory index files) do not change this table.
 The import rules below are enforced *today*, against the current tree.
 
 ## Directories
@@ -13,13 +14,13 @@ The import rules below are enforced *today*, against the current tree.
 | Dir | What lives there |
 | --- | --- |
 | `lib/` | Bottom of the stack: platform shell (tauri/browser), tRPC transport, session, pure helpers. Knows nothing above it. |
-| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet and the mobile `MC`/`MONO` token tables. Context-free, and shared by both chromes. |
+| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet, the mobile `MC`/`MONO` token tables and `ChatMarkdown` (text in, JSX out, over the parser in `lib/markdown.ts`). Context-free, and shared by both chromes. |
 | `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. |
 | `i18n/` | Vocab tables + `LangProvider` / `useVocab`. |
-| `features/` | One directory per feature (32 today). The shared body both chromes render. |
-| `features/session/` | **(planned)** the session/thread domain currently spread across `thread/`, `commission/`, parts of `workbench/`. |
-| `features/workbench/` | **(planned sub-dirs)** `rail/` `chat/` `composer/` `right-panel/` — it is the biggest feature and flat today. |
-| `features/settings/` | **(planned sub-dirs)** `panels/` `controllers/` `vm/` — the split already exists by filename, not by directory. |
+| `features/` | One directory per feature (33 today). The shared body both chromes render. |
+| `features/session/` | The session/chat core both chromes render, lifted out of `workbench/` in step 2: `transcript/` `interaction/` `composer/` `list/` `live/` `rail/` `state/` (88 files). It imports no chrome and no page — everything above it points down into it. |
+| `features/workbench/` | The desktop three-pane page only, since step 2 moved the shared core to `features/session/`: `rail/` `chat/` `composer/` `right-panel/`, with `WorkbenchPage.tsx` at the root (42 files). |
+| `features/settings/` | `panels/` `controllers/` `vm/` `ui/`, with `SettingsModal.tsx`, `SettingsProvider.tsx` and `settings-nav.ts` at the root (69 files) — the layering the filenames already implied, made structural in step 2. |
 | `features/update-prompt/` | The arbitration layer over the three update channels `server-update/` `app-update/` `hot-update/`: it imports all three, decides which single prompt the user sees, and owns the manual check. The channels import neither it nor each other — anything they need in common sits below them in `lib/` or `design/`. |
 | `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, modal providers. |
 | `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
@@ -67,14 +68,15 @@ about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
 
 ## Conventions worth keeping
 
-- **`*-vm.ts`** (48 today) — pure view-model builders. No react, no tRPC, no I/O: snapshot in,
+- **`*-vm.ts`** (49 today) — pure view-model builders. No react, no tRPC, no I/O: snapshot in,
   render-ready object out. These are where the unit tests are, and they are cheap to write
   because they are pure. New display logic goes here first.
 - **`use*Resource` / `use*Controller`** — the only place tRPC queries and mutations live.
   A controller owns the query keys, the invalidations and the optimistic updates for one panel.
 - **Container / View split** — `mobile/screens` is the reference: `MAccountsScreen.tsx` holds the
   controllers and navigation, `MAccountsView.tsx` is presentational and takes props (21 pairs).
-  `features/settings` does the same thing with `XPanel.tsx` + `x-vm.ts`.
+  `features/settings` does the same thing with `panels/XPanel.tsx` (`XPanelView` on pure props
+  beside its container) + `vm/x-vm.ts` + `controllers/useXController.ts`.
 - **One SSE stream** — `features/live` owns the single `EventSource`. Nothing else opens one;
   consumers subscribe to `LiveEventsProvider`.
 
@@ -95,20 +97,27 @@ The rules were added to a tree that already violates them. Rather than weaken th
 remaining violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
 via `--ignore-known`. Step 1a took the file from 75 entries to 61; step 1b was pure
 restructuring and held it at 61 (regenerating it after the moves reproduces the same 61 edges
-under their new paths):
+under their new paths); step 2 moved a great deal and retired two entries, by giving
+`TemplatesPanel` and `HooksPanel` the controller every other panel has:
 
 | Rule | Frozen | Was |
 | --- | --- | --- |
-| `components-not-direct-trpc` | 57 | 57 |
+| `components-not-direct-trpc` | 55 | 57 |
 | `no-circular` | 4 | 8 |
 | `features-not-to-mobile` | 0 | 4 |
 | `mobile-only-from-router` | 0 | 4 (the same 4 files) |
 | `lib-is-bottom` | 0 | 2 |
 
-Likewise `scripts/feature-cycles-allowlist.json` holds 9 known feature pairs, down from 11:
-step 1b removed `app-update<->update` and `hot-update<->update` by splitting the old `update/`
+Likewise `scripts/feature-cycles-allowlist.json` holds 3 known feature pairs, down from 11.
+Step 1b removed `app-update<->update` and `hot-update<->update` by splitting the old `update/`
 into an `update-prompt/` layer above the channels and pushing what they shared into `lib/`
-and `design/`.
+and `design/`. Step 2 removed the six that ran through `workbench` — `commission`, `dock`,
+`media`, `memory`, `notes` and `thread` — by moving the shared module down rather than
+re-exporting it: the session core to `features/session/`, `ChatMarkdown` and the markdown
+parser to `design/` and `lib/`, and `attachment-presentation`, `CommissionOptIn`,
+`BrowserOptIn`/`browser-status` and `NewProjectModal` to the features that own them. What is
+left — `browser<->dock`, `dock<->media`, `settings<->usage` — never involved `workbench`; the
+first two are both the same seam, `useDock()`, and belong to the provider question in step 3.
 
 **Both files are ratchets.** A new violation fails the build and must be fixed, not appended.
 Regenerating the baseline to absorb one defeats the entire file. Removing entries as the
