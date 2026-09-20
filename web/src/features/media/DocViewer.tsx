@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
-import { useBackDismiss } from '@/mobile/use-back-dismiss';
+import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';

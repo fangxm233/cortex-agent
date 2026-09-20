@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldFlingClose } from './kit';
+import { shouldFlingClose } from './BottomSheet';
 
 describe('shouldFlingClose', () => {
   it('closes after crossing the distance threshold', () => {

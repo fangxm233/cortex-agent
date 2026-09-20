@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useBackDismiss } from '@/mobile/use-back-dismiss';
+import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDock } from '@/features/dock/DockProvider';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';

@@ -2,7 +2,8 @@ import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { Popover } from '@/design/Popover';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MBottomSheet } from '@/design';
+import { MC, MONO } from '@/design/mobile-tokens';
 import type { Lang } from '@/i18n';
 import type { RateLimitProviderView, RateLimitView } from './rate-limit-vm';
 

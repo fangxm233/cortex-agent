@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
-import { MC, MONO } from './mobile-theme';
+import { MC, MONO } from '@/design/mobile-tokens';
 
 export function composerLineCount(value: string): number {
   return value === '' ? 1 : value.split('\n').length;

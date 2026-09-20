@@ -56,8 +56,8 @@ module.exports = {
       severity: 'error',
       comment:
         'features/ is shared by both chromes, so it may not depend on one of them. A feature '
-        + 'reaching for @/mobile/ui/kit or @/mobile/use-back-dismiss is asking for a primitive '
-        + 'that should live in design/ instead.',
+        + 'reaching into @/mobile for a primitive — a sheet, a token table, a dismiss hook — '
+        + 'is asking for something that should live in design/ instead.',
       from: { path: '^src/features/', ...NOT_A_TEST },
       to: { path: '^src/mobile/', ...COMMON_OPTS },
     },
