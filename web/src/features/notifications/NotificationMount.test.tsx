@@ -44,7 +44,7 @@ vi.mock('./useNotificationFeed', () => ({
   },
 }));
 
-import { NotificationProvider } from './NotificationProvider';
+import { NotificationMount } from './NotificationMount';
 
 function item(overrides: Partial<NotificationItem> = {}): NotificationItem {
   return {
@@ -64,7 +64,7 @@ beforeEach(() => {
   harness.navigate.mockReset();
   harness.setSelectedSession.mockReset();
   harness.setCurrentProject.mockReset();
-  act(() => { mounted = create(<NotificationProvider />); });
+  act(() => { mounted = create(<NotificationMount />); });
 });
 
 afterEach(() => {
@@ -72,14 +72,14 @@ afterEach(() => {
   mounted = null;
 });
 
-describe('NotificationProvider', () => {
+describe('NotificationMount', () => {
   it('injects only the selected workbench session as open', () => {
     expect(harness.feedOptions?.externalDelivery).toBeUndefined();
     expect(harness.feedOptions?.isSessionOpen('open-session')).toBe(true);
     expect(harness.feedOptions?.isSessionOpen('other')).toBe(false);
 
     harness.pathname = '/settings';
-    act(() => { mounted?.update(<NotificationProvider />); });
+    act(() => { mounted?.update(<NotificationMount />); });
     expect(harness.feedOptions?.isSessionOpen('open-session')).toBe(false);
   });
 

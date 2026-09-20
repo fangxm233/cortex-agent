@@ -2,7 +2,8 @@ import { useUpdatePrompt } from '@/features/update-prompt/useUpdatePrompt';
 import { MAppUpdateDialog } from './MAppUpdateDialog';
 import { MHotUpdateDialog } from './MHotUpdateDialog';
 
-export function MUpdateProvider() {
+/** The mobile chrome's mount point for the update prompt — no context, just this chrome's dialogs. */
+export function MUpdateMount() {
   const prompt = useUpdatePrompt();
   if (!prompt) return null;
   // The server self-update dialog is a desktop/web-shell surface; a phone that only ever opens

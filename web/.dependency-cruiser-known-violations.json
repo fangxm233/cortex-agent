@@ -766,7 +766,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/mobile/screens/MNotificationProvider.tsx",
+    "from": "src/mobile/screens/MNotificationMount.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [

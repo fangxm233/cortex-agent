@@ -4,7 +4,9 @@ import { ServerUpdateDialog } from '@/features/server-update/ServerUpdateDialog'
 import { useSilentUpdateNotice } from './useSilentUpdateNotice';
 import { useUpdatePrompt } from './useUpdatePrompt';
 
-export function UpdateProvider() {
+/** Renders whichever single update prompt the arbitration layer picked, and nothing when there is
+ *  none. It provides no context — it is the desktop shell's mount point for this feature's UI. */
+export function UpdateMount() {
   const prompt = useUpdatePrompt();
   // Silent updates never reach `prompt`; a toast is their whole notification.
   useSilentUpdateNotice();

@@ -10,13 +10,13 @@ vi.mock('./MHotUpdateDialog', () => ({
   MHotUpdateDialog: (props: any) => <dialog data-update-dialog="hot" data-version={props.update.version} />,
 }));
 
-import { MUpdateProvider } from './MUpdateProvider';
+import { MUpdateMount } from './MUpdateMount';
 
 let renderer: ReactTestRenderer;
 function render(): void {
   act(() => {
-    if (renderer) renderer.update(<MUpdateProvider />);
-    else renderer = create(<MUpdateProvider />);
+    if (renderer) renderer.update(<MUpdateMount />);
+    else renderer = create(<MUpdateMount />);
   });
 }
 
@@ -25,7 +25,7 @@ beforeEach(() => {
   renderer = undefined as unknown as ReactTestRenderer;
 });
 
-describe('MUpdateProvider', () => {
+describe('MUpdateMount', () => {
   it('renders the selected app or hot prompt, never both', () => {
     harness.prompt = {
       kind: 'app', update: { version: '2026.8.1', kind: 'apk' }, busy: false,

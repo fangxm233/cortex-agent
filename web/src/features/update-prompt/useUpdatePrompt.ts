@@ -39,7 +39,7 @@ export function useUpdatePrompt(): UpdatePrompt {
     };
   }
   if (checking) return null;
-  // A silent update is not a prompt: the shell installs it on quit, and UpdateProvider has already
+  // A silent update is not a prompt: the shell installs it on quit, and UpdateMount has already
   // said so with a toast. Falling through lets the hot-update prompt keep its turn.
   if (app.update && app.update.apply !== 'silent') {
     return {

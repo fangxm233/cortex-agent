@@ -79,7 +79,7 @@ function useNativeVisibleSession(): void {
   }, [sessionId]);
 }
 
-export function MNotificationProvider() {
+export function MNotificationMount() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { setCurrentProject } = useCurrentProject();

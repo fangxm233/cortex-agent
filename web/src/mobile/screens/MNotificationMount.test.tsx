@@ -40,7 +40,7 @@ vi.mock('@/features/notifications/os-notify', () => ({
   onOsNotificationAction: async (callback: OsActionHandler) => { h.action = callback; return h.cleanup; },
 }));
 vi.mock('./MNotificationToaster', () => ({ MNotificationBanners: () => null }));
-import { MNotificationProvider } from './MNotificationProvider';
+import { MNotificationMount } from './MNotificationMount';
 
 function item(): NotificationItem {
   return { id: 'n1', level: 'info', title: 'Inbox', meta: 'Done', ts: '', sessionId: 's1', projectId: 'atlas' };
@@ -55,7 +55,7 @@ beforeEach(async () => {
   h.approvals.mockResolvedValue([{ id: 'apr/2?', projectId: 'other-project' }]);
   h.owned.mockReturnValue(false);
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
-  await act(async () => { mounted = create(<MNotificationProvider />); });
+  await act(async () => { mounted = create(<MNotificationMount />); });
 });
 afterEach(() => { act(() => mounted.unmount()); vi.unstubAllGlobals(); });
 
@@ -65,7 +65,7 @@ describe('mobile notification delivery', () => {
     expect(h.feed?.isSessionOpen('s1')).toBe(false);
     const pendingDeliveryPredicate = h.feed?.isSessionOpen;
     h.pathname = '/m/session/s1';
-    act(() => mounted.update(<MNotificationProvider />));
+    act(() => mounted.update(<MNotificationMount />));
     expect(h.feed?.isSessionOpen('s1')).toBe(true);
     expect(pendingDeliveryPredicate?.('s1')).toBe(true);
     vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden' }));
@@ -124,7 +124,7 @@ describe('mobile notification delivery', () => {
   it('tells the native service which session is on screen and clears it when hidden', () => {
     expect(h.visible).toHaveBeenLastCalledWith(null);
     h.pathname = '/m/session/s%2F2%3F%23';
-    act(() => mounted.update(<MNotificationProvider />));
+    act(() => mounted.update(<MNotificationMount />));
     expect(h.visible).toHaveBeenLastCalledWith('s/2?#');
     act(() => {
       (document as unknown as { visibilityState: string }).visibilityState = 'hidden';

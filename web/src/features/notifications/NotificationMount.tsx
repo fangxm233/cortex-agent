@@ -9,7 +9,7 @@ import type { NotificationItem } from './notification-vm';
 
 /** Subscribes the desktop shell to the live notification feed and pushes each item onto the shared
  *  bubble queue. Renders nothing — `ToastViewport` (design) is the one stack on screen. */
-export function NotificationProvider() {
+export function NotificationMount() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();

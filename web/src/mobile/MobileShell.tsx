@@ -8,8 +8,8 @@ import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
 import { ShellProviders } from '@/shell/ShellProviders';
-import { MNotificationProvider } from './screens/MNotificationProvider';
-import { MUpdateProvider } from './screens/MUpdateProvider';
+import { MNotificationMount } from './screens/MNotificationMount';
+import { MUpdateMount } from './screens/MUpdateMount';
 import { useViewportHeight } from './use-viewport-height';
 
 const shellStyle: CSSProperties = {
@@ -56,8 +56,8 @@ function MobileProviders({ children }: { children: ReactNode }) {
   return (
     <ShellProviders>
       {children}
-      <MNotificationProvider />
-      <MUpdateProvider />
+      <MNotificationMount />
+      <MUpdateMount />
     </ShellProviders>
   );
 }

@@ -2,8 +2,8 @@ import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
 import { useCommandPalette } from '@/features/command-palette/useCommandPalette';
 import { SelectedSessionProvider } from '@/features/session/state/SelectedSessionProvider';
-import { NotificationProvider } from '@/features/notifications/NotificationProvider';
-import { UpdateProvider } from '@/features/update-prompt/UpdateProvider';
+import { NotificationMount } from '@/features/notifications/NotificationMount';
+import { UpdateMount } from '@/features/update-prompt/UpdateMount';
 import { DockProvider } from '@/features/dock/DockProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
 import { ShellProviders } from './ShellProviders';
@@ -35,8 +35,8 @@ export function AppShell() {
         <SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><NotesProvider>
           <Outlet />
           <CommandPalette open={open} onOpenChange={setOpen} />
-          <NotificationProvider />
-          <UpdateProvider />
+          <NotificationMount />
+          <UpdateMount />
           <ShellModalHost />
         </NotesProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider>
       </ShellProviders>
