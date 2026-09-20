@@ -61,7 +61,7 @@ project: nimbus
 summary: "从 573 个产物中初步提取对象注册表"
 tags: [registry, data-analysis, milestone-2.2]
 status: valid
-executor: Cortex-lab2
+executor: Cortex-hub
 links: [PAT-002]
 refs: 2
 last-ref: "2026-04-16T03:12:21.074Z"

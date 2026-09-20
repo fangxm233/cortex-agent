@@ -18,7 +18,7 @@
 | `template` | string | 是 | 分发时使用的线程模板名称（如 `coder-review`） |
 | `plan` | string | 否 | 设计文档的路径 |
 | `depends-on` | string[] | 否 | 此任务依赖的任务 ID 列表 |
-| `gpu` | string \| null | 否 | 目标机器名称（如 `lab2`） |
+| `gpu` | string \| null | 否 | 目标机器名称（如 `hub`） |
 | `gpu-count` | number | 否 | 所需 GPU 数量（默认：1） |
 | `blocked-by` | string \| null | 否 | 外部阻塞原因（自由文本） |
 | `claimed-by` | string \| null | 否 | 认领此任务的智能体标识符 |
@@ -52,7 +52,7 @@ YAML 键使用 kebab-case（`done-when`、`depends-on`、`claimed-by` 等），�
   priority: high
   status: open
   template: experiment-runner
-  gpu: lab2
+  gpu: hub
   gpu-count: 1
 ```
 

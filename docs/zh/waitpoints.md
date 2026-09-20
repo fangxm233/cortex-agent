@@ -31,8 +31,8 @@ agent                          你的任务                      Cortex
 
 ```
 wait_create({
-  label: "arm2 训练",
-  intent: "lab-ksu 上那个 33k 步的 run；落地后把 loss 曲线和 arm6 对比",
+  label: "夜间训练",
+  intent: "cluster 上那个 33k 步的 run；落地后把 loss 曲线和 baseline 对比",
 })
 ```
 
@@ -72,7 +72,7 @@ curl -sS -XPOST http://127.0.0.1:3001/webhook/signal \
 
 ## 在别的机器上 {#on-another-machine}
 
-守护进程的 webhook 只监听回环，所以 lab 机器上的任务打不到它。给 `wait_create` 传 `device: "<名字>"`，
+守护进程的 webhook 只监听回环，所以 trainer 机器上的任务打不到它。给 `wait_create` 传 `device: "<名字>"`，
 在设备上落一个文件即可——守护进程会顺着设备已经握着的那条连接来取，一个 sweep 周期内（默认 30s）：
 
 ```bash

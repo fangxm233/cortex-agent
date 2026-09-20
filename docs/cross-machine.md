@@ -12,11 +12,11 @@ The agent-server process (which runs the LLM orchestration, Slack bot, and
 scheduling) may not be on the machine with the GPUs or the project files. A
 typical setup:
 
-- `lab2` — the agent-server host (GPU training, simulation, the Cortex
+- `hub` — the agent-server host (GPU training, simulation, the Cortex
   daemon itself)
-- `lab` — a dedicated training box on the LAN with its own GPU
-- `lab-ksu` — a remote training cluster accessed via an STCP tunnel
-- `my-pc` — a Windows workstation for Unity, VR, and documentation
+- `trainer` — a dedicated training box on the LAN with its own GPU
+- `cluster` — a remote training cluster accessed via an STCP tunnel
+- `desk` — a Windows workstation for Unity, VR, and documentation
 
 Each remote machine runs `cortex-client`, which connects to the agent-server
 and executes commands on that machine's behalf. The agent sees all machines as
@@ -29,16 +29,16 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 
 ```
 ┌─────────────────────────────────┐
-│  Agent-Server (lab2)            │
+│  Agent-Server (hub)             │
 │                                 │
 │  client-manager.ts              │
 │  ┌───────────────────────────┐  │
 │  │ WebSocketServer :3002     │  │
 │  │ devices Map<name, ws>     │  │
-│  │ - lab2 (local)            │  │
-│  │ - lab (remote, SSH)       │  │
-│  │ - lab-ksu (remote, STCP)  │  │
-│  │ - my-pc (remote, Win/SSH) │  │
+│  │ - hub (local)             │  │
+│  │ - trainer (remote, SSH)   │  │
+│  │ - cluster (remote, STCP)  │  │
+│  │ - desk (remote, Win/SSH)  │  │
 │  └───────────────────────────┘  │
 │                                 │
 │  MCP core-server                │
@@ -51,8 +51,8 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
          │ (port 3002)            │ (port 22)
 ┌────────┴────────┐    ┌──────────┴──────────┐
 │ cortex-client   │    │ cortex-client        │
-│ (lab2, local)   │    │ (lab, remote)        │
-│ ws://127.0.0.1  │    │ ws://10.18.108.245   │
+│ (hub, local)    │    │ (trainer, remote)    │
+│ ws://127.0.0.1  │    │ ws://192.0.2.10      │
 └─────────────────┘    └─────────────────────┘
 ```
 
@@ -95,7 +95,7 @@ It does not start the client or create a device-side service:
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
-  --host user@machine --device-name lab --server-host 10.18.108.245
+  --host user@machine --device-name trainer --server-host 192.0.2.10
 ```
 
 Bootstrap is also the rescue path when a device's managed install is broken
@@ -110,9 +110,9 @@ Create `~/.cortex/config/cortex-client.json` on the remote machine:
 
 ```json
 {
-  "serverHost": "10.18.108.245",
+  "serverHost": "192.0.2.10",
   "serverPort": 3002,
-  "deviceName": "lab"
+  "deviceName": "trainer"
 }
 ```
 
@@ -142,25 +142,25 @@ host:
 
 ```json
 {
-  "lab2": {
-    "cortexPath": "/home/fangxin/Cortex",
+  "hub": {
+    "cortexPath": "/home/user/Cortex",
     "gpuCount": 2
   },
-  "lab": {
-    "cortexPath": "/home/fangxm/Cortex",
+  "trainer": {
+    "cortexPath": "/home/user/Cortex",
     "gpuCount": 1,
-    "ssh": "fangxm@10.18.108.245"
+    "ssh": "user@192.0.2.10"
   },
-  "my-pc": {
+  "desk": {
     "cortexPath": "D:\\Projects\\Cortex",
     "gpuCount": 0,
-    "ssh": "fangxm@rdp.fangxm.me",
+    "ssh": "user@desk.example.com",
     "win": true
   },
-  "lab-ksu": {
-    "cortexPath": "/home/xinmin",
+  "cluster": {
+    "cortexPath": "/home/user",
     "gpuCount": 4,
-    "ssh": "xinmin@lab-ksu"
+    "ssh": "user@cluster.example.com"
   }
 }
 ```
@@ -208,7 +208,7 @@ port 3002. Several options exist depending on the network layout.
 The simplest case. Use the server's LAN IP as `serverHost`:
 
 ```json
-{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "lab" }
+{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "trainer" }
 ```
 
 If the connection fails, check the server's firewall:
@@ -223,7 +223,7 @@ Tailscale assigns each machine a stable CGNAT IP (`100.x.y.z`) regardless of
 physical network. The client connects to the server's Tailscale IP:
 
 ```json
-{ "serverHost": "100.87.154.62", "serverPort": 3002, "deviceName": "lab-ksu" }
+{ "serverHost": "100.64.12.34", "serverPort": 3002, "deviceName": "cluster" }
 ```
 
 To find the server's Tailscale IP:
@@ -252,7 +252,7 @@ ingress:
 The client then dials the tunnel over wss/443:
 
 ```json
-{ "serverUrl": "wss://cortex.example.com", "deviceName": "my-pc", "clientToken": "<token>" }
+{ "serverUrl": "wss://cortex.example.com", "deviceName": "desk", "clientToken": "<token>" }
 ```
 
 Both sides connect outbound to Cloudflare's edge, so neither needs a public IP
@@ -325,12 +325,12 @@ running bundle (sha256 over the bundle files in order); the
 server compares it against the desired bundle to decide whether to push an
 update:
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
+{ "type": "hello", "device": "trainer", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **Heartbeat** (every 5 seconds):
 ```json
-{ "type": "heartbeat", "device": "lab", "timestamp": 1716154200000 }
+{ "type": "heartbeat", "device": "trainer", "timestamp": 1716154200000 }
 ```
 
 **Command result** (in response to a server command):
@@ -340,7 +340,7 @@ update:
 
 **Update result** (in response to a server `update` push):
 ```json
-{ "type": "update-result", "device": "lab", "hash": "cebdfcd6…", "ok": true }
+{ "type": "update-result", "device": "trainer", "hash": "cebdfcd6…", "ok": true }
 ```
 
 ### Server → Client
@@ -353,7 +353,7 @@ update:
 Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`, `file.stat`.
 
 **Open file stream** (sent when the server wants a whole file off the device,
-e.g. `send_file device="lab"`). Like `open-stream`, it is answered on a new
+e.g. `send_file device="trainer"`). Like `open-stream`, it is answered on a new
 outbound socket rather than on this one, so a large transfer neither blocks
 commands nor has to be base64'd through the control channel:
 ```json
@@ -402,9 +402,9 @@ lifecycle:
    PID in `~/.cortex/data/client-pids.json` so it can check if the process is
    still alive before attempting a restart.
 
-5. **Command routing** — when the agent calls `remote_bash({ device: "lab",
+5. **Command routing** — when the agent calls `remote_bash({ device: "trainer",
    ... })`, the MCP server sends an HTTP request to `client-manager`, which
-   looks up the WebSocket connection for `lab` in its devices map and sends
+   looks up the WebSocket connection for `trainer` in its devices map and sends
    the command. Only online devices receive commands — if the target device
    is offline, the tool call returns an error.
 
@@ -483,7 +483,7 @@ stream. Paths must be absolute.
 back over the reverse channel, then delivered as an ordinary attachment:
 
 ```js
-send_file({ device: "lab", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+send_file({ device: "trainer", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
 ```
 
 The server refuses before transferring anything if the device is offline, the
@@ -520,7 +520,7 @@ has to be installed there.
 From within an agent session, check which devices are online:
 
 ```
-remote_bash({ device: "lab", command: "hostname" })
+remote_bash({ device: "trainer", command: "hostname" })
 ```
 
 The agent-server's Slack integration also supports the `!devices` command,

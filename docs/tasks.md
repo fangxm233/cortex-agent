@@ -17,7 +17,7 @@ Each project's `TASKS.yaml` contains a flat list of tasks. Each task has the fol
 | `template` | string | Yes | Thread template name used when dispatching (e.g., `coder-review`) |
 | `plan` | string | No | Path to a design document |
 | `depends-on` | string[] | No | List of task IDs this task depends on |
-| `gpu` | string \| null | No | Target machine name (e.g., `lab2`) |
+| `gpu` | string \| null | No | Target machine name (e.g., `hub`) |
 | `gpu-count` | number | No | Number of GPUs required (default: 1) |
 | `blocked-by` | string \| null | No | External blocking reason (free text) |
 | `claimed-by` | string \| null | No | Agent identifier that claimed the task |
@@ -51,7 +51,7 @@ YAML keys use kebab-case (`done-when`, `depends-on`, `claimed-by`, etc.) which a
   priority: high
   status: open
   template: experiment-runner
-  gpu: lab2
+  gpu: hub
   gpu-count: 1
 ```
 

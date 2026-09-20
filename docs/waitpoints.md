@@ -35,8 +35,8 @@ It returns the id, the secret, and ready-to-paste lines. You never compose those
 
 ```
 wait_create({
-  label: "arm2 training",
-  intent: "the 33k-step run on lab-ksu; when it lands, compare the loss curve against arm6",
+  label: "nightly training",
+  intent: "the 33k-step run on cluster; when it lands, compare the loss curve against the baseline",
 })
 ```
 
@@ -80,7 +80,7 @@ when it is over.
 
 ## On another machine
 
-The daemon's webhook listens on loopback only, so a job on a lab box cannot call it. Pass
+The daemon's webhook listens on loopback only, so a job on a trainer box cannot call it. Pass
 `device: "<name>"` to `wait_create` and drop a file instead — the daemon collects it over the
 connection the device already holds open, within a sweep tick (30s by default):
 

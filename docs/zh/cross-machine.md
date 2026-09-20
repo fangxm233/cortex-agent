@@ -7,10 +7,10 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 
 运行 LLM 编排、Slack 机器人和调度的 agent-server 进程可能不在具有 GPU 或项目文件的机器上。一个典型的设置：
 
-- `lab2` — agent-server 主机（GPU 训练、仿真、Cortex 守护进程本身）
-- `lab` — 局域网上的专用训练机器，有自己的 GPU
-- `lab-ksu` — 通过 STCP 隧道访问的远程训练集群
-- `my-pc` — 用于 Unity、VR 和文档的 Windows 工作站
+- `hub` — agent-server 主机（GPU 训练、仿真、Cortex 守护进程本身）
+- `trainer` — 局域网上的专用训练机器，有自己的 GPU
+- `cluster` — 通过 STCP 隧道访问的远程训练集群
+- `desk` — 用于 Unity、VR 和文档的 Windows 工作站
 
 每个远程机器运行 `cortex-client`，它连接 agent-server 并代表该机器执行命令。智能体将所有机器视为一个扁平的资源池，并选择每次工具调用目标哪个设备。
 
@@ -20,16 +20,16 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 
 ```
 ┌─────────────────────────────────┐
-│  Agent-Server (lab2)            │
+│  Agent-Server (hub)             │
 │                                 │
 │  client-manager.ts              │
 │  ┌───────────────────────────┐  │
 │  │ WebSocketServer :3002     │  │
 │  │ 设备 Map<name, ws>        │  │
-│  │ - lab2 (本地)             │  │
-│  │ - lab (远程, SSH)         │  │
-│  │ - lab-ksu (远程, STCP)    │  │
-│  │ - my-pc (远程, Win/SSH)   │  │
+│  │ - hub (本地)              │  │
+│  │ - trainer (远程, SSH)     │  │
+│  │ - cluster (远程, STCP)    │  │
+│  │ - desk (远程, Win/SSH)    │  │
 │  └───────────────────────────┘  │
 │                                 │
 │  MCP core-server                │
@@ -42,8 +42,8 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
          │ (端口 3002)            │ (端口 22)
 ┌────────┴────────┐    ┌──────────┴──────────┐
 │ cortex-client   │    │ cortex-client        │
-│ (lab2, 本地)    │    │ (lab, 远程)          │
-│ ws://127.0.0.1  │    │ ws://10.18.108.245   │
+│ (hub, 本地)     │    │ (trainer, 远程)      │
+│ ws://127.0.0.1  │    │ ws://192.0.2.10      │
 └─────────────────┘    └─────────────────────┘
 ```
 
@@ -76,7 +76,7 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
-  --host user@machine --device-name lab --server-host 10.18.108.245
+  --host user@machine --device-name trainer --server-host 192.0.2.10
 ```
 
 当设备的托管安装损坏或被清空时，bootstrap 也是救援路径。先在 server 的 `machines.json` 注册设备，运行 bootstrap，再启动或重启 agent-server。Client 的启动与恢复由 server 独占管理；不要在 client 设备上创建 systemd、launchd、计划任务、tmux 或 screen 自启动项。
@@ -87,9 +87,9 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 
 ```json
 {
-  "serverHost": "10.18.108.245",
+  "serverHost": "192.0.2.10",
   "serverPort": 3002,
-  "deviceName": "lab"
+  "deviceName": "trainer"
 }
 ```
 
@@ -107,25 +107,25 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 
 ```json
 {
-  "lab2": {
-    "cortexPath": "/home/fangxin/Cortex",
+  "hub": {
+    "cortexPath": "/home/user/Cortex",
     "gpuCount": 2
   },
-  "lab": {
-    "cortexPath": "/home/fangxm/Cortex",
+  "trainer": {
+    "cortexPath": "/home/user/Cortex",
     "gpuCount": 1,
-    "ssh": "fangxm@10.18.108.245"
+    "ssh": "user@192.0.2.10"
   },
-  "my-pc": {
+  "desk": {
     "cortexPath": "D:\\Projects\\Cortex",
     "gpuCount": 0,
-    "ssh": "fangxm@rdp.fangxm.me",
+    "ssh": "user@desk.example.com",
     "win": true
   },
-  "lab-ksu": {
-    "cortexPath": "/home/xinmin",
+  "cluster": {
+    "cortexPath": "/home/user",
     "gpuCount": 4,
-    "ssh": "xinmin@lab-ksu"
+    "ssh": "user@cluster.example.com"
   }
 }
 ```
@@ -152,7 +152,7 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 最简单的情况。使用服务器的 LAN IP 作为 `serverHost`：
 
 ```json
-{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "lab" }
+{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "trainer" }
 ```
 
 如果连接失败，检查服务器的防火墙：
@@ -166,7 +166,7 @@ sudo ufw allow 3002
 Tailscale 为每台机器分配一个稳定的 CGNAT IP（`100.x.y.z`），无论物理网络如何。客户端连接到服务器的 Tailscale IP：
 
 ```json
-{ "serverHost": "100.87.154.62", "serverPort": 3002, "deviceName": "lab-ksu" }
+{ "serverHost": "100.64.12.34", "serverPort": 3002, "deviceName": "cluster" }
 ```
 
 查找服务器的 Tailscale IP：
@@ -191,7 +191,7 @@ ingress:
 然后客户端通过 wss/443 拨号连隧道：
 
 ```json
-{ "serverUrl": "wss://cortex.example.com", "deviceName": "my-pc", "clientToken": "<token>" }
+{ "serverUrl": "wss://cortex.example.com", "deviceName": "desk", "clientToken": "<token>" }
 ```
 
 两端都是向 Cloudflare 边缘拨出，所以谁都不需要公网 IP 或端口转发，WebSocket 升级也会透明地穿过隧道。
@@ -244,12 +244,12 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 **Hello**（连接时立即发送）。`bundleHash` 标识客户端正在运行的 bundle（按顺序对 bundle 各文件求 sha256）；服务器用它与期望 bundle 对比，决定是否推送更新：
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
+{ "type": "hello", "device": "trainer", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **心跳**（每 5 秒）：
 ```json
-{ "type": "heartbeat", "device": "lab", "timestamp": 1716154200000 }
+{ "type": "heartbeat", "device": "trainer", "timestamp": 1716154200000 }
 ```
 
 **命令结果**（响应服务器命令）：
@@ -259,7 +259,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 **更新结果**（响应服务器的 `update` 推送）：
 ```json
-{ "type": "update-result", "device": "lab", "hash": "cebdfcd6…", "ok": true }
+{ "type": "update-result", "device": "trainer", "hash": "cebdfcd6…", "ok": true }
 ```
 
 ### 服务器 → 客户端 {#server-client}
@@ -271,7 +271,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`file.stat`。
 
-**打开文件流**（服务器需要把设备上的整个文件取回时发送，例如 `send_file device="lab"`）。与 `open-stream` 一样，它由一条新的出站 socket 回应而不是走这条控制通道，因此大文件传输既不会阻塞命令，也不必 base64 塞进控制通道：
+**打开文件流**（服务器需要把设备上的整个文件取回时发送，例如 `send_file device="trainer"`）。与 `open-stream` 一样，它由一条新的出站 socket 回应而不是走这条控制通道，因此大文件传输既不会阻塞命令，也不必 base64 塞进控制通道：
 ```json
 { "type": "open-file-stream", "streamId": "9f3c…", "path": "/home/x/report.csv" }
 ```
@@ -301,7 +301,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 
 4. **PID 追踪** — 对于通过 SSH 启动的客户端，服务器在 `~/.cortex/data/client-pids.json` 中记录远程 PID，以便在尝试重启前检查进程是否仍然存活。
 
-5. **命令路由** — 当智能体调用 `remote_bash({ device: "lab", ... })` 时，MCP 服务器向 `client-manager` 发送 HTTP 请求，后者在其设备映射中查找 `lab` 的 WebSocket 连接并发送命令。仅在线设备接收命令——如果目标设备离线，工具调用返回错误。
+5. **命令路由** — 当智能体调用 `remote_bash({ device: "trainer", ... })` 时，MCP 服务器向 `client-manager` 发送 HTTP 请求，后者在其设备映射中查找 `trainer` 的 WebSocket 连接并发送命令。仅在线设备接收命令——如果目标设备离线，工具调用返回错误。
 
 ## 客户端更新 {#client-updates}
 
@@ -341,7 +341,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 `send_file`（以及 `slack_send_file` / `feishu_send_file`）都接受可选的 `device`。带上它时，路径在该设备上读取，字节通过反向通道流回服务器，然后作为普通附件送达：
 
 ```js
-send_file({ device: "lab", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+send_file({ device: "trainer", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
 ```
 
 设备不在线、路径不是可读文件、或超过 200 MB 上限时，服务器在传输任何字节之前就拒绝；传输提前结束也会被判为失败，而不是交付一个被截断的文件。客户端版本过旧的设备不会上报 `file-stream` 能力，会收到明确的拒绝消息，并在下一次[客户端更新](#client-updates)后获得该能力。
@@ -366,7 +366,7 @@ Cortex 不在设备上启动、托管或接管任何进程。照你平常的方�
 在智能体会话中，检查哪些设备在线：
 
 ```
-remote_bash({ device: "lab", command: "hostname" })
+remote_bash({ device: "trainer", command: "hostname" })
 ```
 
 agent-server 的 Slack 集成也支持 `!devices` 命令，列出所有注册的机器及其在线/离线状态。
