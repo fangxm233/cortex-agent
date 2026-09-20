@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
-import { useCommissionBoard } from './CommissionBoardModalProvider';
+import { useCommissionBoard } from './useCommissionBoard';
 
 const mono = "'IBM Plex Mono',monospace";
 

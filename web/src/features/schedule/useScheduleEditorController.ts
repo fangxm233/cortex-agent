@@ -23,6 +23,12 @@ interface EditorState {
   generation: number;
 }
 
+/** What a caller hands over when it opens the editor: a blank form for a project, or a schedule
+ *  to edit. Seeds the controller's state so the modal renders filled in on its first frame. */
+export type ScheduleEditorRequest =
+  | { mode: 'create'; projectId: string | null }
+  | { mode: 'edit'; schedule: ScheduleInfo };
+
 export interface ScheduleEditorControllerOptions {
   onCreated?: () => void;
   onUpdated?: () => void;
@@ -82,8 +88,18 @@ async function saveEditorState(state: EditorState, actions: SaveActions): Promis
   }
 }
 
-function useEditorState() {
-  const [state, setState] = useState<EditorState | null>(null);
+// Generation 0 is the seeded state's own generation: the ref starts there too, so a save started
+// straight after mount is still `isCurrent` until an open/close bumps it.
+function seededEditorState(request?: ScheduleEditorRequest): EditorState | null {
+  if (!request) return null;
+  if (request.mode === 'edit') {
+    return { mode: 'edit', form: formFromSchedule(request.schedule), schedule: request.schedule, generation: 0 };
+  }
+  return { mode: 'create', form: defaultScheduleForm(request.projectId), schedule: null, generation: 0 };
+}
+
+function useEditorState(initial?: ScheduleEditorRequest) {
+  const [state, setState] = useState<EditorState | null>(() => seededEditorState(initial));
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
   const nextGeneration = useCallback(() => ++generation.current, []);
@@ -182,8 +198,9 @@ function editorView(state: EditorState | null) {
 
 export function useScheduleEditorController(
   options: ScheduleEditorControllerOptions = {},
+  initial?: ScheduleEditorRequest,
 ): ScheduleEditorController {
-  const editor = useEditorState();
+  const editor = useEditorState(initial);
   const view = editorView(editor.state);
   const resources = useScheduleResources(view.form);
   const submit = useScheduleSubmit(editor.state, resources, editor, options);

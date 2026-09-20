@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { scheduleRowAction, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { RunListModal } from './RunListModal';
-import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
+import { useScheduleModal } from '@/features/schedule/useScheduleModal';
 import { projectIndexFromKey } from '@/features/session/list/left-rail-projects';
 import {
   buildRailTree,
@@ -22,10 +22,10 @@ import {
   type RailSortMode,
 } from './rail-order';
 import { NewProjectIcon, RailTree, SearchIcon } from './RailTree';
-import { useApprovals } from '@/features/approvals/ApprovalsProvider';
-import { useSettings } from '@/features/settings/SettingsProvider';
+import { useApprovals } from '@/features/approvals/useApprovals';
+import { useSettings } from '@/features/settings/useSettings';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
+import { useCommissionBoard } from '@/features/commission/useCommissionBoard';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -39,7 +39,7 @@ import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { usePaneState } from '@/shell/PaneStateProvider';
-import { useShellModals } from '@/shell/ShellModalsProvider';
+import { useShellModals } from '@/shell/useShellModals';
 
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;

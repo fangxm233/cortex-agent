@@ -1,30 +1,24 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { createContext, useContext, useReducer, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
+import { defineModal } from '@/design/modal-registry';
 import { useVocab } from '@/i18n';
 import { ThreadDetailView } from './ThreadDetailView';
 import { useThreadDetailController } from './useThreadDetailController';
 
-export type ThreadDetailModalAction =
-  | { type: 'open'; threadId: string }
-  | { type: 'close' };
-
-export function nextThreadDetailModalId(
-  _current: string | null,
-  action: ThreadDetailModalAction,
-): string | null {
-  return action.type === 'open' ? action.threadId : null;
-}
+// Presentational thread cards render outside any shell in isolated tests, so a missing registry is
+// inert here rather than fatal — the same no-op default the context this replaced carried.
+const threadDetailModal = defineModal<string>('thread-detail', { requireProvider: false });
 
 interface ThreadDetailModalContextValue {
   openThread: (threadId: string) => void;
   closeThread: () => void;
 }
 
-const ThreadDetailModalContext = createContext<ThreadDetailModalContextValue>({
-  openThread: () => {},
-  closeThread: () => {},
-});
+export function useThreadDetailModal(): ThreadDetailModalContextValue {
+  const { open, close } = threadDetailModal.useModalActions();
+  return useMemo(() => ({ openThread: open, closeThread: close }), [open, close]);
+}
 
 function ModalMessage({ children, failed }: { children: ReactNode; failed?: boolean }) {
   return (
@@ -93,18 +87,8 @@ function ThreadDetailModal({ threadId, onClose, onOpenThread }: {
   );
 }
 
-export function ThreadDetailModalProvider({ children }: { children: ReactNode }) {
-  const [threadId, dispatch] = useReducer(nextThreadDetailModalId, null);
-  const openThread = (id: string) => dispatch({ type: 'open', threadId: id });
-  const closeThread = () => dispatch({ type: 'close' });
-  return (
-    <ThreadDetailModalContext.Provider value={{ openThread, closeThread }}>
-      {children}
-      {threadId && <ThreadDetailModal threadId={threadId} onClose={closeThread} onOpenThread={openThread} />}
-    </ThreadDetailModalContext.Provider>
-  );
-}
-
-export function useThreadDetailModal(): ThreadDetailModalContextValue {
-  return useContext(ThreadDetailModalContext);
+export function ThreadDetailModalHost(): JSX.Element | null {
+  const { payload, open, close } = threadDetailModal.useModal();
+  if (!payload) return null;
+  return <ThreadDetailModal threadId={payload} onClose={close} onOpenThread={open} />;
 }

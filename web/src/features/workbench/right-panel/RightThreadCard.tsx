@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { useTaskModal } from '@/features/tasks/TaskModalProvider';
+import { useTaskModal } from '@/features/tasks/useTaskModal';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import {

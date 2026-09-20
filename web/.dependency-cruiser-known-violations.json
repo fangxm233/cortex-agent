@@ -52,7 +52,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/commission/CommissionBoardModalProvider.tsx",
+    "from": "src/features/commission/CommissionOptIn.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -69,7 +69,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/commission/CommissionOptIn.tsx",
+    "from": "src/features/commission/useCommissionBoard.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -426,7 +426,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/tasks/TaskModalProvider.tsx",
+    "from": "src/features/tasks/TasksPanel.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -443,7 +443,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/tasks/TasksPanel.tsx",
+    "from": "src/features/tasks/useTaskModal.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",
     "dependencyTypes": [
@@ -1059,8 +1059,8 @@
   {
     "type": "cycle",
     "from": "src/shell/menu/useAppMenus.ts",
-    "to": "src/shell/ShellModalsProvider.tsx",
-    "unresolvedTo": "../ShellModalsProvider",
+    "to": "src/shell/useShellModals.tsx",
+    "unresolvedTo": "../useShellModals",
     "dependencyTypes": [
       "local",
       "import"
@@ -1071,7 +1071,7 @@
     },
     "cycle": [
       {
-        "name": "src/shell/ShellModalsProvider.tsx",
+        "name": "src/shell/useShellModals.tsx",
         "dependencyTypes": [
           "local",
           "import"

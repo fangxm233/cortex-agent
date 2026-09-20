@@ -1,13 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useReducer,
-  type ReactNode,
-} from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
+import { defineModal } from '@/design/modal-registry';
 import { useTRPC } from '@/lib/trpc';
 import { TaskModal } from './TaskModal';
 
@@ -16,25 +10,20 @@ export interface TaskModalRef {
   taskId: string;
 }
 
-export type TaskModalAction =
-  | { type: 'open'; projectId: string; taskId: string }
-  | { type: 'close' };
-
-export function nextTaskModalRef(
-  _current: TaskModalRef | null,
-  action: TaskModalAction,
-): TaskModalRef | null {
-  return action.type === 'open'
-    ? { projectId: action.projectId, taskId: action.taskId }
-    : null;
-}
+const taskModal = defineModal<TaskModalRef>('task-detail');
 
 interface TaskModalContextValue {
   openTask: (projectId: string, taskId: string) => void;
   closeTask: () => void;
 }
 
-const TaskModalContext = createContext<TaskModalContextValue | null>(null);
+export function useTaskModal(): TaskModalContextValue {
+  const { open, close } = taskModal.useModalActions();
+  return useMemo(() => ({
+    openTask: (projectId: string, taskId: string) => open({ projectId, taskId }),
+    closeTask: close,
+  }), [open, close]);
+}
 
 function useTaskModalActions(onClose: () => void) {
   const trpc = useTRPC();
@@ -72,23 +61,8 @@ function TaskModalController({ selection, onClose }: {
     onComplete={actions.completeTask} onUnblock={actions.unblockTask} />;
 }
 
-export function TaskModalProvider({ children }: { children: ReactNode }) {
-  const [selection, dispatch] = useReducer(nextTaskModalRef, null);
-  const openTask = useCallback((projectId: string, taskId: string) => {
-    dispatch({ type: 'open', projectId, taskId });
-  }, []);
-  const closeTask = useCallback(() => dispatch({ type: 'close' }), []);
-  const value = useMemo(() => ({ openTask, closeTask }), [openTask, closeTask]);
-  return (
-    <TaskModalContext.Provider value={value}>
-      {children}
-      {selection && <TaskModalController selection={selection} onClose={closeTask} />}
-    </TaskModalContext.Provider>
-  );
-}
-
-export function useTaskModal(): TaskModalContextValue {
-  const context = useContext(TaskModalContext);
-  if (!context) throw new Error('useTaskModal must be used within a TaskModalProvider');
-  return context;
+export function TaskModalHost(): JSX.Element | null {
+  const { payload, close } = taskModal.useModal();
+  if (!payload) return null;
+  return <TaskModalController selection={payload} onClose={close} />;
 }

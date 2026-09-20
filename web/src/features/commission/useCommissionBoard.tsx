@@ -1,14 +1,8 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useReducer,
-  type ReactNode,
-} from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { defineModal } from '@/design/modal-registry';
 import { useTRPC } from '@/lib/trpc';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
@@ -16,21 +10,17 @@ import { useSelectedSession } from '@/features/session/state/SelectedSessionProv
 import { useCommissionEnabled } from './CommissionOptIn';
 import { CommissionBoardModal } from './CommissionBoardModal';
 
-export type CommissionModalAction = { type: 'open'; commissionId: string } | { type: 'close' };
-
-export function nextCommissionRef(
-  _current: string | null,
-  action: CommissionModalAction,
-): string | null {
-  return action.type === 'open' ? action.commissionId : null;
-}
+const commissionBoardModal = defineModal<string>('commission-board');
 
 interface CommissionBoardContextValue {
   openCommission: (commissionId: string) => void;
   closeCommission: () => void;
 }
 
-const CommissionBoardContext = createContext<CommissionBoardContextValue | null>(null);
+export function useCommissionBoard(): CommissionBoardContextValue {
+  const { open, close } = commissionBoardModal.useModalActions();
+  return useMemo(() => ({ openCommission: open, closeCommission: close }), [open, close]);
+}
 
 /** Ledger and contract are plain project files, so they ride the existing `memory.file` query
  *  rather than a commission-specific text endpoint. A missing file is a normal state (the ledger is
@@ -119,26 +109,8 @@ function CommissionBoardController({ commissionId, onClose }: {
   );
 }
 
-export function CommissionBoardModalProvider({ children }: { children: ReactNode }) {
-  const [commissionId, dispatch] = useReducer(nextCommissionRef, null);
-  const openCommission = useCallback((id: string) => dispatch({ type: 'open', commissionId: id }), []);
-  const closeCommission = useCallback(() => dispatch({ type: 'close' }), []);
-  const value = useMemo(
-    () => ({ openCommission, closeCommission }),
-    [openCommission, closeCommission],
-  );
-  return (
-    <CommissionBoardContext.Provider value={value}>
-      {children}
-      {commissionId && (
-        <CommissionBoardController commissionId={commissionId} onClose={closeCommission} />
-      )}
-    </CommissionBoardContext.Provider>
-  );
-}
-
-export function useCommissionBoard(): CommissionBoardContextValue {
-  const context = useContext(CommissionBoardContext);
-  if (!context) throw new Error('useCommissionBoard must be used within a CommissionBoardModalProvider');
-  return context;
+export function CommissionBoardModalHost(): JSX.Element | null {
+  const { payload, close } = commissionBoardModal.useModal();
+  if (!payload) return null;
+  return <CommissionBoardController commissionId={payload} onClose={close} />;
 }

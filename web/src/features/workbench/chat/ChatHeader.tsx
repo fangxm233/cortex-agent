@@ -4,7 +4,7 @@ import { SessionIdModal } from './SessionIdModal';
 import { NotesButton } from '@/features/notes/NotesButton';
 import { BrowserButton } from '@/features/browser/BrowserButton';
 import { useNotes } from '@/features/notes/NotesProvider';
-import { useShellModals } from '@/shell/ShellModalsProvider';
+import { useShellModals } from '@/shell/useShellModals';
 
 const MONO = "'IBM Plex Mono',monospace";
 

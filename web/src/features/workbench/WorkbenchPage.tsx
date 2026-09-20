@@ -3,7 +3,7 @@ import { useDock } from '@/features/dock/DockProvider';
 import { LeftRail } from '@/features/workbench/rail/LeftRail';
 import { CenterChat } from '@/features/workbench/chat/CenterChat';
 import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
-import { useSettings } from '@/features/settings/SettingsProvider';
+import { useSettings } from '@/features/settings/useSettings';
 import { AppFrame } from '@/shell/AppFrame';
 
 // Workbench app-shell frame — 1:1 from prototype.dc.html L39 (Stage-R RB, task f528). The outer
