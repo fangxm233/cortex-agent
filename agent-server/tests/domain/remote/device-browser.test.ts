@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const sendCommand = vi.fn();
-const getOnlineDevices = vi.fn(() => [{ device: 'my-pc', platform: 'win32' }]);
+const getOnlineDevices = vi.fn(() => [{ device: 'desk', platform: 'win32' }]);
 const openDevicePort = vi.fn(async (device: string, port: number) => ({
   device, remoteHost: '127.0.0.1', remotePort: port, localPort: port - 10000,
 }));
@@ -65,18 +65,18 @@ describe('parseChromePort', () => {
 describe('acquireDeviceBrowser', () => {
   it('launches, maps the port, and hands back a plain local endpoint', async () => {
     deviceReports(54964, true);
-    const b = await acquireDeviceBrowser('my-pc');
+    const b = await acquireDeviceBrowser('desk');
     // Everything downstream must be unable to tell this from the server's own browser.
     expect(b.cdpEndpoint).toBe('http://127.0.0.1:44964');
     expect(b.remotePort).toBe(54964);
-    expect(openDevicePort).toHaveBeenCalledWith('my-pc', 54964);
+    expect(openDevicePort).toHaveBeenCalledWith('desk', 54964);
   });
 
   it('reuses a live browser without relaunching', async () => {
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
     const calls = sendCommand.mock.calls.length;
-    const b = await acquireDeviceBrowser('my-pc');
+    const b = await acquireDeviceBrowser('desk');
     expect(b.cdpEndpoint).toBe('http://127.0.0.1:44964');
     expect(sendCommand.mock.calls.length).toBe(calls); // verified over HTTP, not re-launched
     expect(deviceBrowserStatus()[0].refs).toBe(2);
@@ -90,61 +90,61 @@ describe('acquireDeviceBrowser', () => {
       .mockResolvedValueOnce({ stdout: '', exitCode: 0 })         // stop orphan and clear port file
       .mockResolvedValueOnce({ stdout: '54964\n', exitCode: 0 }); // relaunched, live
     alive.add(54964 - 10000);
-    const b = await acquireDeviceBrowser('my-pc');
+    const b = await acquireDeviceBrowser('desk');
     expect(b.remotePort).toBe(54964);
-    expect(closeDevicePort).toHaveBeenCalledWith('my-pc', 49170);
+    expect(closeDevicePort).toHaveBeenCalledWith('desk', 49170);
     expect(sendCommand.mock.calls[1][1].params.command).toContain('Stop-Process');
     expect(sendCommand.mock.calls[1][1].params.command).toContain('Stop-ScheduledTask');
   });
 
   it('gives up after one retry rather than looping', async () => {
     deviceReports(54964, false);
-    await expect(acquireDeviceBrowser('my-pc')).rejects.toThrow(/unreachable/);
+    await expect(acquireDeviceBrowser('desk')).rejects.toThrow(/unreachable/);
     expect(deviceBrowserStatus()).toEqual([]);
   });
 
   it('relaunches when a previously mapped browser stops answering', async () => {
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
-    releaseDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
+    releaseDeviceBrowser('desk');
     // The device rebooted, or the human quit Chrome; from here those look identical.
     alive.clear();
     sendCommand.mockReset().mockResolvedValue({ stdout: '55555\n', exitCode: 0 });
     alive.add(55555 - 10000);
-    const b = await acquireDeviceBrowser('my-pc');
+    const b = await acquireDeviceBrowser('desk');
     expect(b.remotePort).toBe(55555);
-    expect(closeDevicePort).toHaveBeenCalledWith('my-pc', 54964);
+    expect(closeDevicePort).toHaveBeenCalledWith('desk', 54964);
   });
 
   it('surfaces a device that has no Chrome', async () => {
     sendCommand.mockResolvedValue({ stdout: '', stderr: 'chrome-not-found', exitCode: 3 });
-    await expect(acquireDeviceBrowser('my-pc')).rejects.toThrow('chrome-not-found');
+    await expect(acquireDeviceBrowser('desk')).rejects.toThrow('chrome-not-found');
   });
 });
 
 describe('release and reclaim', () => {
   it('keeps the browser while any turn still holds it', async () => {
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
-    await acquireDeviceBrowser('my-pc');
-    releaseDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
+    await acquireDeviceBrowser('desk');
+    releaseDeviceBrowser('desk');
     expect(deviceBrowserStatus()[0].refs).toBe(1);
   });
 
   it('never drops below zero on an unbalanced release', async () => {
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
-    releaseDeviceBrowser('my-pc');
-    releaseDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
+    releaseDeviceBrowser('desk');
+    releaseDeviceBrowser('desk');
     expect(deviceBrowserStatus()[0].refs).toBe(0);
   });
 
   it('stops Chrome and drops the mapping on an explicit stop', async () => {
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
-    await stopDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
+    await stopDeviceBrowser('desk');
     expect(deviceBrowserStatus()).toEqual([]);
-    expect(closeDevicePort).toHaveBeenCalledWith('my-pc', 54964);
+    expect(closeDevicePort).toHaveBeenCalledWith('desk', 54964);
     expect(sendCommand.mock.calls.at(-1)?.[1].params.command).toContain('Stop-Process');
   });
 
@@ -152,7 +152,7 @@ describe('release and reclaim', () => {
     // A Chrome on someone else's machine is not ours to kill on our way out, and the next acquire
     // re-verifies anyway.
     deviceReports(54964, true);
-    await acquireDeviceBrowser('my-pc');
+    await acquireDeviceBrowser('desk');
     const calls = sendCommand.mock.calls.length;
     forgetDeviceBrowsers();
     expect(deviceBrowserStatus()).toEqual([]);

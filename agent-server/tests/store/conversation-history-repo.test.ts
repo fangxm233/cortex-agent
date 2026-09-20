@@ -11,17 +11,17 @@ import { ConversationHistoryRepo, toolDeviceForHistory } from '../../src/store/c
 const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
 
 test('remote tool device metadata is derived narrowly and round-trips', async () => {
-  assert.equal(toolDeviceForHistory('remote_bash', { device: 'lab2', command: 'pwd' }), 'lab2');
+  assert.equal(toolDeviceForHistory('remote_bash', { device: 'hub', command: 'pwd' }), 'hub');
   assert.equal(toolDeviceForHistory('mcp__cortex__remote_read', { device: 'gpu', file_path: '/x' }), 'gpu');
-  assert.equal(toolDeviceForHistory('Bash', { device: 'lab2', command: 'pwd' }), undefined);
+  assert.equal(toolDeviceForHistory('Bash', { device: 'hub', command: 'pwd' }), undefined);
   assert.equal(toolDeviceForHistory('remote_grep', { device: '  ' }), undefined);
 
   const repo = new ConversationHistoryRepo();
   await repo.appendTool('sess-remote-device', {
-    toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'lab2',
+    toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'hub',
   });
   const history = await repo.getHistory('sess-remote-device');
-  assert.equal(history?.events[0].toolDevice, 'lab2');
+  assert.equal(history?.events[0].toolDevice, 'hub');
 });
 
 test('DEBUG prompt and tool metadata round-trip without replacing the compact transcript fields', async () => {

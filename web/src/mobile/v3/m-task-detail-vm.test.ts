@@ -27,7 +27,7 @@ function dispatch(over: Partial<TaskDispatchRecord>): TaskDispatchRecord {
     executionId: 'exec_1',
     type: 'dispatch',
     status: 'running',
-    machine: 'app-lab2',
+    machine: 'app-hub',
     threadId: 'thr_nimbus',
     startedAt: '2026-07-15T11:18:00Z',
     finishedAt: null,

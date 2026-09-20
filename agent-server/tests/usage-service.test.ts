@@ -231,18 +231,18 @@ describe('UsageService', () => {
 
     assert.deepEqual(providers, ['anthropic']);
     assert.ok(!providers.includes('deepseek'));
-    assert.ok(!providers.includes('qwen-ksu'));
+    assert.ok(!providers.includes('qwen-local'));
   });
 
   test('a provider that stops being used is dropped from the table', async () => {
     const store = new MemoryUsageStore([
-      usage('qwen-ksu', 'unsupported', { billing: 'api', spend: { today: 0, month: 0 } }),
+      usage('qwen-local', 'unsupported', { billing: 'api', spend: { today: 0, month: 0 } }),
     ]);
     const { service } = serviceWith({ store, fetch: gatewayFetch([], []) });
 
     const providers = (await service.collect()).map((record) => record.provider);
 
-    assert.ok(!providers.includes('qwen-ksu'));
+    assert.ok(!providers.includes('qwen-local'));
   });
 
   // ── billing split ────────────────────────────────────────────

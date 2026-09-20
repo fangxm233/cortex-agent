@@ -42,11 +42,11 @@ test('recorder preserves remote device metadata in history and live publish', as
   const published: PersistedTranscriptEvent[] = [];
   const rec = createStepTranscriptRecorder(writer, 'track-remote', (ev) => published.push(ev));
 
-  rec.recordTool('remote_bash', { device: 'lab2', command: 'pwd' });
+  rec.recordTool('remote_bash', { device: 'hub', command: 'pwd' });
   await rec.settle();
 
-  assert.equal(calls[0].arg.toolDevice, 'lab2');
-  assert.equal(published[0].toolDevice, 'lab2');
+  assert.equal(calls[0].arg.toolDevice, 'hub');
+  assert.equal(published[0].toolDevice, 'hub');
 });
 
 test('DEBUG recorder preserves the complete step prompt, tool input, result, and update ordering', async (t) => {

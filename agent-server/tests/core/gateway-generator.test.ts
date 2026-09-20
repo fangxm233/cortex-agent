@@ -219,7 +219,7 @@ test('readGatewayYaml: parses nested endpoint→mode tree + reserved top keys', 
     '  plan:',
     '    base_url: https://api.anthropic.com',
     '    auth_style: bearer',
-    '  qwen-ksu:',
+    '  qwen-local:',
     '    base_url: http://127.0.0.1:8100',
     '    auth_style: anthropic',
     '    keys:',
@@ -234,7 +234,7 @@ test('readGatewayYaml: parses nested endpoint→mode tree + reserved top keys', 
   assert.equal(parsed.top.mode, 'plan');
   assert.equal(parsed.top.max_body_size_mb, 64);
   assert.equal(parsed.endpoints.anthropic.plan.base_url, 'https://api.anthropic.com');
-  assert.deepEqual(parsed.endpoints.anthropic['qwen-ksu'].keys, ['dummy']);
+  assert.deepEqual(parsed.endpoints.anthropic['qwen-local'].keys, ['dummy']);
   assert.equal(parsed.endpoints.deepseek.deepseek.auth_style, 'openai');
 });
 
@@ -262,7 +262,7 @@ function existingWithCustoms(): ParsedGateway {
       anthropic: {
         plan: { base_url: 'https://OLD.anthropic', auth_style: 'bearer' },
         anthropic: { base_url: 'https://relay.example/anthropic', auth_style: 'anthropic', keys: ['sk-relay'] },
-        'qwen-ksu': { base_url: 'http://127.0.0.1:8100', auth_style: 'anthropic', keys: ['dummy'] },
+        'qwen-local': { base_url: 'http://127.0.0.1:8100', auth_style: 'anthropic', keys: ['dummy'] },
       },
       deepseek: {
         deepseek: { base_url: 'https://relay.example/', auth_style: 'openai', keys: ['sk-relay'] },
@@ -289,20 +289,20 @@ test('mergeGatewayConfig: add-only — preserves existing pairs (incl. customize
   assert.equal(result.endpoints.anthropic.plan.base_url, 'https://OLD.anthropic');
   // hand-added customs preserved
   assert.deepEqual(result.endpoints.anthropic.anthropic.keys, ['sk-relay']);
-  assert.deepEqual(result.endpoints.anthropic['qwen-ksu'].keys, ['dummy']);
+  assert.deepEqual(result.endpoints.anthropic['qwen-local'].keys, ['dummy']);
   // brand-new discovered pair added
   assert.equal(result.endpoints.openai.openai.base_url, 'https://api.openai.com/v1');
 
-  // droppedFromDiscovery flags existing modes NOT in this discovery (relay anthropic + qwen-ksu),
+  // droppedFromDiscovery flags existing modes NOT in this discovery (relay anthropic + qwen-local),
   // but NOT deepseek (rediscovered) and NOT anthropic/plan (claude builtin).
   const dropped = result.droppedFromDiscovery.map((d) => `${d.mode}/${d.endpoint}`).sort();
-  assert.deepEqual(dropped, ['anthropic/anthropic', 'qwen-ksu/anthropic']);
+  assert.deepEqual(dropped, ['anthropic/anthropic', 'qwen-local/anthropic']);
 });
 
 test('mergeGatewayConfig: empty discovery keeps all previous PI modes (transient pi failure)', () => {
   const result = mergeGatewayConfig([], existingWithCustoms());
   assert.ok(result.endpoints.deepseek.deepseek, 'deepseek survived empty discovery');
-  assert.ok(result.endpoints.anthropic['qwen-ksu'], 'qwen-ksu survived empty discovery');
+  assert.ok(result.endpoints.anthropic['qwen-local'], 'qwen-local survived empty discovery');
 });
 
 test('mergeGatewayConfig: existing=null equals pure discovery map', () => {
@@ -363,12 +363,12 @@ test('validateProfilesAgainstGateway: flags pi profile with missing gateway mode
   const dir = tmpDir();
   writeProfiles(dir, {
     plan: { model: 'm', backend: 'claude', mode: 'plan' },
-    'deepseek-flash': { model: 'm', backend: 'pi', mode: 'qwen-ksu', provider: 'deepseek' },
+    'deepseek-flash': { model: 'm', backend: 'pi', mode: 'qwen-local', provider: 'deepseek' },
   });
   const issues = validateProfilesAgainstGateway(GW, dir);
   assert.equal(issues.length, 1);
   assert.equal(issues[0].profile, 'deepseek-flash');
-  assert.match(issues[0].reason, /qwen-ksu/);
+  assert.match(issues[0].reason, /qwen-local/);
 });
 
 test('validateProfilesAgainstGateway: passes when all modes exist', () => {

@@ -107,14 +107,14 @@ describe('assistantTurnCopyTargets', () => {
 
 describe('buildTranscriptRows', () => {
   it('qualifies fetched and live remote tools with their device', () => {
-    expect(toolCallLabel('remote_bash', 'lab2')).toBe('bash:lab2');
+    expect(toolCallLabel('remote_bash', 'hub')).toBe('bash:hub');
     expect(toolCallLabel('mcp__cortex__remote_read', 'gpu')).toBe('read:gpu');
     expect(toolCallLabel('remote_write')).toBe('remote_write');
-    expect(toolCallLabel('Bash', 'lab2')).toBe('Bash');
+    expect(toolCallLabel('Bash', 'hub')).toBe('Bash');
 
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [{
-        type: 'tool', text: null, toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'lab2',
+        type: 'tool', text: null, toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'hub',
         ts: T, elapsedMs: null,
       }] }]),
       [{
@@ -124,7 +124,7 @@ describe('buildTranscriptRows', () => {
     );
 
     expect(rows.find((row) => row.kind === 'tools')).toMatchObject({
-      calls: [{ kind: 'bash:lab2' }, { kind: 'grep:gpu' }],
+      calls: [{ kind: 'bash:hub' }, { kind: 'grep:gpu' }],
     });
   });
 

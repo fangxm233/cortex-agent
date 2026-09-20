@@ -59,7 +59,7 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
     publishSessionMessage({ sessionId: 'sess-1', channel: 'C1', role: 'assistant', text: 'hi there' });
     publishSessionMessage({
       sessionId: 'sess-1', channel: 'C1', role: 'tool', text: '',
-      toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'lab2',
+      toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'hub',
     });
   } finally {
     setOrchestrationRuntime({ bus: prev });
@@ -74,7 +74,7 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   assert.ok(typeof seen[0].ts === 'string');
   assert.equal(seen[1].role, 'tool');
   assert.equal(seen[1].toolName, 'remote_read');
-  assert.equal(seen[1].toolDevice, 'lab2');
+  assert.equal(seen[1].toolDevice, 'hub');
 });
 
 test('publishSessionMessage is a no-op when no bus is wired', () => {

@@ -114,18 +114,18 @@ describe('waitRailViewModel', () => {
 
   it('carries the signal log through verbatim, as data', () => {
     const vm = waitRailViewModel([wp({
-      signals: [{ at: T0, status: 'progress', member: 'arm2', message: 'epoch 3', source: 'device:lab-ksu' }],
+      signals: [{ at: T0, status: 'progress', member: 'arm2', message: 'epoch 3', source: 'device:cluster' }],
     })], T0, 'en');
     const s = vm!.rows[0].signals[0];
     expect(s.status).toBe('progress');
     expect(s.who).toBe('arm2');
     expect(s.message).toBe('epoch 3');
-    expect(s.source).toBe('device:lab-ksu');
+    expect(s.source).toBe('device:cluster');
   });
 
   it('names the device a remote signal is expected from', () => {
-    const vm = waitRailViewModel([wp({ emitFrom: { kind: 'device', device: 'lab-ksu' } })], T0, 'en');
-    expect(vm!.rows[0].device).toBe('lab-ksu');
+    const vm = waitRailViewModel([wp({ emitFrom: { kind: 'device', device: 'cluster' } })], T0, 'en');
+    expect(vm!.rows[0].device).toBe('cluster');
     expect(waitRailViewModel([wp()], T0, 'en')!.rows[0].device).toBeNull();
   });
 });

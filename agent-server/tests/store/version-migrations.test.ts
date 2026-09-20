@@ -674,7 +674,7 @@ function legacyRow(provider: string, extra: Record<string, unknown> = {}): Recor
 test('provider usage migration drops rows that never carried an observation', async () => {
   const rows = await migrateProviderUsage(_testIdx++, [
     // The reported ghost: fabricated by the old hardcoded provider table.
-    legacyRow('qwen-ksu', { spend: { today: 0, month: 0 } }),
+    legacyRow('qwen-local', { spend: { today: 0, month: 0 } }),
     // A quota row that never received a reading is equally uninformative.
     legacyRow('openai-codex', { freshness: 'stale' }),
     legacyRow('deepseek', { spend: { today: 0.31, month: 0.31 } }),

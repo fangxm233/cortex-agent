@@ -12,7 +12,7 @@ export interface ClientConnectEnv {
 /**
  * Resolve the WebSocket URL the cortex-client dials.
  *
- * A full ``CORTEX_SERVER_URL`` (e.g. ``wss://cortex.fangxm.me``) takes
+ * A full ``CORTEX_SERVER_URL`` (e.g. ``wss://cortex.example.com``) takes
  * precedence so the client can reach the agent-server through a Cloudflare
  * Tunnel over 443/TLS. Otherwise it falls back to ``ws://<host>:<port>`` for
  * direct/LAN reach.

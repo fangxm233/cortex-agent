@@ -29,7 +29,7 @@ describe('parseStreamId', () => {
 
 describe('requestStream / claimStream', () => {
   it('pairs a callback with the request that minted it', async () => {
-    const req = requestStream('my-pc', '127.0.0.1', 9222);
+    const req = requestStream('desk', '127.0.0.1', 9222);
     expect(req.message).toEqual({ type: 'open-stream', streamId: req.id, host: '127.0.0.1', port: 9222 });
     const ws = fakeWs();
     expect(claimStream(req.id, ws)).toBe(true);
@@ -38,7 +38,7 @@ describe('requestStream / claimStream', () => {
   });
 
   it('refuses a second claim on the same id', async () => {
-    const req = requestStream('my-pc', '127.0.0.1', 9222);
+    const req = requestStream('desk', '127.0.0.1', 9222);
     claimStream(req.id, fakeWs());
     // A replayed callback must not be paired with anything.
     expect(claimStream(req.id, fakeWs())).toBe(false);
@@ -52,7 +52,7 @@ describe('requestStream / claimStream', () => {
   it('rejects every pending stream when the device disconnects', async () => {
     const a = requestStream('lab', '127.0.0.1', 6006);
     const b = requestStream('lab', '127.0.0.1', 8888);
-    const other = requestStream('my-pc', '127.0.0.1', 9222);
+    const other = requestStream('desk', '127.0.0.1', 9222);
     expect(cancelStreamsFor('lab')).toBe(2);
     await expect(a.socket).rejects.toThrow(/disconnected/);
     await expect(b.socket).rejects.toThrow(/disconnected/);

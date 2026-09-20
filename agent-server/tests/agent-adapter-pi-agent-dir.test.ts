@@ -158,9 +158,9 @@ test('writeProvidersConfig: explicit per-override compat merges over the static 
 // when PI has no direct credentials (gateway injects managed keys).
 
 test('buildProviderOverrides: unions discovered providers with the current provider', () => {
-  const out = buildProviderOverrides(['deepseek', 'qwen-ksu'], 'anthropic', null);
+  const out = buildProviderOverrides(['deepseek', 'qwen-local'], 'anthropic', null);
   const names = out.map(o => o.name).sort();
-  assert.deepEqual(names, ['anthropic', 'deepseek', 'qwen-ksu']);
+  assert.deepEqual(names, ['anthropic', 'deepseek', 'qwen-local']);
 });
 
 test('buildProviderOverrides: does not duplicate when current provider is already discovered', () => {

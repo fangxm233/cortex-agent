@@ -911,7 +911,7 @@ test('buildClaudeEnv — defaults MCP calls to the shared 30m30s deadline', () =
 });
 
 test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override DISABLE_AUTO_MEMORY', () => {
-  const env = buildClaudeEnv('C1', 'sid-1', null, null, 'http://127.0.0.1:9880/m/qwen-ksu/anthropic', {
+  const env = buildClaudeEnv('C1', 'sid-1', null, null, 'http://127.0.0.1:9880/m/qwen-local/anthropic', {
     CLAUDE_CODE_ATTRIBUTION_HEADER: '0',
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
   });
@@ -919,7 +919,7 @@ test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override 
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, '1');
   // Other Cortex defaults remain intact
   assert.equal(env.CLAUDE_CODE_DISABLE_AUTO_MEMORY, '1');
-  assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/qwen-ksu/anthropic');
+  assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/qwen-local/anthropic');
 });
 
 // --- buildClaudeEnv unsetEnv (plan mode must be able to DELETE a key, not just set it) ---

@@ -34,19 +34,19 @@ const mockTasks: Record<string, any> = {
 const mockExecutions = [
   {
     id: 'exec_done1_a', kind: 'dispatch', status: 'completed', project: 'atlas',
-    thread: { threadId: 'thr_a' }, dispatch: { taskId: 'done1', machine: 'server-nvidia' },
+    thread: { threadId: 'thr_a' }, dispatch: { taskId: 'done1', machine: 'gpu-host' },
     runtime: { startedAt: iso(t0), updatedAt: iso(t0 + 10000), endedAt: iso(t0 + 10000) },
     metrics: { costUsd: 0.02 }, text: { finalOutput: 'first attempt output', error: null },
   },
   {
     id: 'exec_done1_b', kind: 'dispatch', status: 'failed', project: 'atlas',
-    thread: { threadId: 'thr_b' }, dispatch: { taskId: 'done1', machine: 'lab-ksu' },
+    thread: { threadId: 'thr_b' }, dispatch: { taskId: 'done1', machine: 'cluster' },
     runtime: { startedAt: iso(t0 + 20000), updatedAt: iso(t0 + 25000), endedAt: iso(t0 + 25000) },
     metrics: { costUsd: 0.01 }, text: { finalOutput: null, error: 'boom' },
   },
   {
     id: 'exec_done1_c', kind: 'dispatch', status: 'completed', project: 'atlas',
-    thread: { threadId: 'thr_c' }, dispatch: { taskId: 'done1', machine: 'server-nvidia' },
+    thread: { threadId: 'thr_c' }, dispatch: { taskId: 'done1', machine: 'gpu-host' },
     runtime: { startedAt: iso(t0 + 80000), updatedAt: iso(t0 + 90000), endedAt: iso(t0 + 90000) },
     metrics: { costUsd: 0.05 }, text: { finalOutput: 'final merged output', error: null },
   },
@@ -110,7 +110,7 @@ test('tasks.verification: dispatch history is the full per-task join, newest fir
   const c = r.dispatches[0];
   assert.equal(c.type, 'dispatch');
   assert.equal(c.status, 'completed');
-  assert.equal(c.machine, 'server-nvidia');
+  assert.equal(c.machine, 'gpu-host');
   assert.equal(c.threadId, 'thr_c');
   assert.equal(c.durationMs, 10000);
   assert.equal(c.cost, 0.05);

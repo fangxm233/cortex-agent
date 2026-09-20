@@ -530,14 +530,14 @@ test('post-result continuation routes tool calls to the transcript too', async (
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   await run.deliver('skip the rest', false);
 
-  await run.backgroundToolUse('remote_bash', { device: 'lab2', command: 'echo hi' });
+  await run.backgroundToolUse('remote_bash', { device: 'hub', command: 'echo hi' });
 
   const toolRows = r.history.filter((h) => h.kind === 'tool');
   assert.equal(toolRows.length, 1);
   assert.equal(toolRows[0].toolName, 'remote_bash');
-  assert.equal(toolRows[0].toolDevice, 'lab2');
+  assert.equal(toolRows[0].toolDevice, 'hub');
   assert.ok(r.published.some((p) => p.role === 'tool'
-    && p.toolName === 'remote_bash' && p.toolDevice === 'lab2'));
+    && p.toolName === 'remote_bash' && p.toolDevice === 'hub'));
 });
 
 test('busy gate is released exactly once even if ack and continuation result both fire', async () => {

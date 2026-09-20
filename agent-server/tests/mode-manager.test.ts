@@ -27,9 +27,9 @@ test('resolveModeEnv(non-plan custom mode) keeps API key when gateway healthy', 
   const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
   process.env.ANTHROPIC_API_KEY = 'sk-test-custom';
-  const route = modeManager.resolveModeEnv('qwen-ksu');
+  const route = modeManager.resolveModeEnv('qwen-local');
 
-  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-ksu/anthropic`,
+  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-local/anthropic`,
     'custom mode should encode mode in URL path');
   assert.equal(route.ANTHROPIC_API_KEY, 'sk-test-custom',
     'non-plan modes should keep the API key — only plan mode requires the OAuth bearer path');
@@ -168,9 +168,9 @@ test('resolveModeEnv(api) keeps the saved key on the gateway route', async (t) =
 test('resolveModeEnv(custom mode) uses the placeholder key and encodes metadata', async (t) => {
   const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
-  const modeEnv = modeManager.resolveModeEnv('qwen-ksu', { project: 'cortex-self' });
+  const modeEnv = modeManager.resolveModeEnv('qwen-local', { project: 'cortex-self' });
 
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-ksu/project=cortex-self/anthropic`,
+  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-local/project=cortex-self/anthropic`,
     'metadata must be encoded into the per-request mode URL');
   assert.equal(modeEnv.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER,
     'with no saved key the gateway route still needs a placeholder to start Claude Code');

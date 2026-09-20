@@ -30,7 +30,7 @@ const TASKLIST_MARKER = '#--tasklist--#';
  *
  * `MSYS_NO_PATHCONV=1` is required because commands reach a Windows device through git-bash, which
  * rewrites the `/FO` switch into a filesystem path (`C:/Program Files/Git/FO`) and makes tasklist
- * fail. Verified on my-pc.
+ * fail. Verified on a Windows device.
  */
 export const WINDOWS_LISTENER_COMMAND =
   `netstat -ano; echo '${TASKLIST_MARKER}'; MSYS_NO_PATHCONV=1 tasklist /FO CSV /NH`;

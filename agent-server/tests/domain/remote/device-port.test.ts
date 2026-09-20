@@ -55,9 +55,9 @@ afterEach(() => {
 describe('openDevicePort', () => {
   it('binds a loopback port and reports the mapping', async () => {
     captureControl();
-    const info = await openDevicePort('my-pc', 9222);
+    const info = await openDevicePort('desk', 9222);
     expect(info.localPort).toBeGreaterThan(0);
-    expect(info.device).toBe('my-pc');
+    expect(info.device).toBe('desk');
     expect(info.remoteHost).toBe('127.0.0.1');
     expect(listDevicePorts()).toHaveLength(1);
   });
@@ -66,16 +66,16 @@ describe('openDevicePort', () => {
     captureControl();
     // Two callers (an agent turn and a UI panel) can ask independently; the second must not leak
     // a second listener.
-    const a = await openDevicePort('my-pc', 9222);
-    const b = await openDevicePort('my-pc', 9222);
+    const a = await openDevicePort('desk', 9222);
+    const b = await openDevicePort('desk', 9222);
     expect(b.localPort).toBe(a.localPort);
     expect(listDevicePorts()).toHaveLength(1);
   });
 
   it('keeps separate mappings for separate remote ports', async () => {
     captureControl();
-    const a = await openDevicePort('my-pc', 9222);
-    const b = await openDevicePort('my-pc', 6006);
+    const a = await openDevicePort('desk', 9222);
+    const b = await openDevicePort('desk', 6006);
     expect(b.localPort).not.toBe(a.localPort);
     expect(listDevicePorts()).toHaveLength(2);
   });
@@ -84,7 +84,7 @@ describe('openDevicePort', () => {
 describe('connection handshake', () => {
   it('asks the device to open a stream to the mapped target', async () => {
     const sent = captureControl();
-    const info = await openDevicePort('my-pc', 6006);
+    const info = await openDevicePort('desk', 6006);
     const client = await connect(info.localPort);
 
     const msg = (await until(() => sent[0])).message;
@@ -97,7 +97,7 @@ describe('connection handshake', () => {
 
   it('pipes bytes both ways once the device dials back', async () => {
     const sent = captureControl();
-    const info = await openDevicePort('my-pc', 6006);
+    const info = await openDevicePort('desk', 6006);
     const client = await connect(info.localPort);
     const received: Buffer[] = [];
     client.on('data', (c: Buffer) => received.push(c));
@@ -118,7 +118,7 @@ describe('connection handshake', () => {
 
   it('holds bytes written before the device dials back', async () => {
     const sent = captureControl();
-    const info = await openDevicePort('my-pc', 6006);
+    const info = await openDevicePort('desk', 6006);
     const client = await connect(info.localPort);
     // The consumer writes immediately on connect; the device needs a round trip to answer. Nothing
     // may be dropped in that window.
@@ -133,8 +133,8 @@ describe('connection handshake', () => {
   });
 
   it('drops the connection when the device is offline', async () => {
-    _setControlSenderForTesting(() => { throw new Error('Device "my-pc" is not online'); });
-    const info = await openDevicePort('my-pc', 6006);
+    _setControlSenderForTesting(() => { throw new Error('Device "desk" is not online'); });
+    const info = await openDevicePort('desk', 6006);
     const client = await connect(info.localPort);
     // A mapping outlives a device reboot on purpose, so the failure has to surface per connection.
     await new Promise<void>((resolve) => client.once('close', () => resolve()));
@@ -143,7 +143,7 @@ describe('connection handshake', () => {
 
   it('closes the callback socket when the consumer hung up first', async () => {
     const sent = captureControl();
-    const info = await openDevicePort('my-pc', 6006);
+    const info = await openDevicePort('desk', 6006);
     const client = await connect(info.localPort);
     const msg = (await until(() => sent[0])).message;
     client.destroy();
@@ -159,18 +159,18 @@ describe('connection handshake', () => {
 describe('teardown', () => {
   it('closes the listener and refuses new connections', async () => {
     captureControl();
-    const info = await openDevicePort('my-pc', 9222);
-    expect(closeDevicePort('my-pc', 9222)).toBe(true);
+    const info = await openDevicePort('desk', 9222);
+    expect(closeDevicePort('desk', 9222)).toBe(true);
     expect(listDevicePorts()).toHaveLength(0);
     await expect(connect(info.localPort)).rejects.toThrow();
   });
 
   it('closes every mapping for one device only', async () => {
     captureControl();
-    await openDevicePort('my-pc', 9222);
-    await openDevicePort('my-pc', 6006);
+    await openDevicePort('desk', 9222);
+    await openDevicePort('desk', 6006);
     await openDevicePort('server', 6006);
-    expect(closeDevicePortsFor('my-pc')).toBe(2);
+    expect(closeDevicePortsFor('desk')).toBe(2);
     expect(listDevicePorts().map((p) => p.device)).toEqual(['server']);
   });
 });

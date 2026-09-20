@@ -83,13 +83,13 @@ test('ensureAuthTokens only generates the missing token', (t) => {
 test('ensureAuthTokens appends to an existing .env preserving prior content and newline', (t) => {
   const envPath = tmpEnvPath(t);
   // Pre-seed a file WITHOUT a trailing newline to exercise the newline guard.
-  writeFileSync(envPath, '# Cortex Configuration\nCORTEX_MACHINE=lab2');
+  writeFileSync(envPath, '# Cortex Configuration\nCORTEX_MACHINE=hub');
   const env: Record<string, string | undefined> = {};
   ensureAuthTokens({ envPath, env });
   const written = readFileSync(envPath, 'utf-8');
   // Prior content preserved.
-  assert.match(written, /CORTEX_MACHINE=lab2/);
-  // The appended key starts on its own line (no concatenation onto lab2).
+  assert.match(written, /CORTEX_MACHINE=hub/);
+  // The appended key starts on its own line (no concatenation onto hub).
   assert.doesNotMatch(written, /lab2CORTEX_/);
   assert.match(written, /\nCORTEX_CLIENT_TOKEN=/);
 });

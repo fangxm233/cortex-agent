@@ -44,7 +44,7 @@ describe('normalizeBrowserUrl', () => {
 
 describe('previewOriginConflict — the pane security boundary', () => {
   const APP = 'cortexui://localhost';
-  const API = 'https://app-lab2.fangxm.me';
+  const API = 'https://app-hub.example.com';
 
   it('allows a forwarded loopback target', () => {
     expect(previewOriginConflict('http://127.0.0.1:5173/', [APP, API])).toBe(false);
@@ -55,8 +55,8 @@ describe('previewOriginConflict — the pane security boundary', () => {
   });
 
   it('refuses the API origin (frame could ride the Access cookie in browser mode)', () => {
-    expect(previewOriginConflict('https://app-lab2.fangxm.me/trpc/x', [APP, API])).toBe(true);
-    expect(previewOriginConflict('https://app-lab2.fangxm.me/', [API])).toBe(true);
+    expect(previewOriginConflict('https://app-hub.example.com/trpc/x', [APP, API])).toBe(true);
+    expect(previewOriginConflict('https://app-hub.example.com/', [API])).toBe(true);
   });
 
   it('treats a different port on the same host as a different origin', () => {

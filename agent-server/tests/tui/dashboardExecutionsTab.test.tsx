@@ -21,7 +21,7 @@ const EXECUTIONS_DATA = [
     id: 'exec-1',
     type: 'local',
     status: 'running',
-    machine: 'lab2',
+    machine: 'hub',
     durationMs: 45200,
     cost: 0.1234,
     startedAt: '2026-05-27T10:00:00Z',

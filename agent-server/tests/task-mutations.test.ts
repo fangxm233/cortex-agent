@@ -345,11 +345,11 @@ test('bulkAddTasks stores GPU fields when provided', () => {
   const { tasksPathFor, cleanup } = makeRepo({ [proj]: 'tasks:\n  - id: "1111"\n    text: A\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n' });
   try {
     const result = bulkAddTasks(proj, [
-      { key: 'g', text: 'GPU task', template: 'coder-review', gpu: 'lab2', 'gpu-count': 2 },
+      { key: 'g', text: 'GPU task', template: 'coder-review', gpu: 'hub', 'gpu-count': 2 },
     ]);
     assert.equal(result.success, true);
     const content = readFile(tasksPathFor(proj));
-    assert.match(content, /gpu:\s*lab2/);
+    assert.match(content, /gpu:\s*hub/);
     assert.match(content, /gpu-count:\s*2/);
   } finally { cleanup(); }
 });

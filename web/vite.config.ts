@@ -39,7 +39,7 @@ export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
   },
-  // Cap test workers: vitest defaults to one worker per CPU core (72 on lab2),
+  // Cap test workers: vitest defaults to one worker per CPU core (72 on a big box),
   // which saturates the box and causes load-induced flakes. Mirror the
   // agent-server cap (CORTEX_TEST_CONCURRENCY, default 16).
   test: {

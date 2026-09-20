@@ -40,11 +40,11 @@ describe('device port routes', () => {
 
   it('lists online devices without their transport details', async () => {
     listDevices.mockReturnValue([
-      { device: 'my-pc', platform: 'win32', capabilities: ['bash'], ws: {} } as any,
+      { device: 'desk', platform: 'win32', capabilities: ['bash'], ws: {} } as any,
     ]);
     const { res, out } = fakeRes();
     await routes[DEVICES_PATH](fakeReq('GET', DEVICES_PATH), res);
-    expect(out.body.data.devices).toEqual([{ device: 'my-pc', platform: 'win32' }]);
+    expect(out.body.data.devices).toEqual([{ device: 'desk', platform: 'win32' }]);
   });
 
   it('refuses a port listing without a device', async () => {
@@ -57,7 +57,7 @@ describe('device port routes', () => {
   it('parses ss output from the device', async () => {
     runOnDevice.mockResolvedValue('LISTEN 0 511 127.0.0.1:6006 0.0.0.0:* users:(("python",pid=9,fd=3))\n');
     const { res, out } = fakeRes();
-    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=my-pc`), res);
+    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=desk`), res);
     expect(out.body.data.ports).toEqual([{ port: 6006, address: '127.0.0.1', process: 'python' }]);
   });
 
@@ -66,33 +66,33 @@ describe('device port routes', () => {
       .mockResolvedValueOnce('')
       .mockResolvedValueOnce('LISTEN 0 4096 *:3005 *:*\n');
     const { res, out } = fakeRes();
-    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=my-pc`), res);
+    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=desk`), res);
     expect(out.body.data.ports).toEqual([{ port: 3005, address: '*', process: null }]);
   });
 
   it('reports an empty list when the device cannot answer', async () => {
     // A device without `ss` (every Windows box) is a normal setup, not a failure to show the user.
-    runOnDevice.mockRejectedValue(new Error('Device "my-pc" is not online'));
+    runOnDevice.mockRejectedValue(new Error('Device "desk" is not online'));
     const { res, out } = fakeRes();
-    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=my-pc`), res);
+    await routes[DEVICE_PORTS_PATH](fakeReq('GET', `${DEVICE_PORTS_PATH}?device=desk`), res);
     expect(out.status).toBe(200);
     expect(out.body.data.ports).toEqual([]);
   });
 
   it('maps a device port and returns the local one', async () => {
-    openDevicePort.mockResolvedValue({ device: 'my-pc', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 });
+    openDevicePort.mockResolvedValue({ device: 'desk', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 });
     const { res, out } = fakeRes();
-    await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'my-pc', port: 6006 }), res);
+    await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'desk', port: 6006 }), res);
     expect(out.status).toBe(200);
     expect(out.body.data.localPort).toBe(41234);
-    expect(openDevicePort).toHaveBeenCalledWith('my-pc', 6006);
+    expect(openDevicePort).toHaveBeenCalledWith('desk', 6006);
   });
 
   it('refuses privileged and malformed ports', async () => {
     // Same floor as the local forward — mapping 22 by accident is worse than the inconvenience.
     for (const port of [22, 0, 70000, 'x']) {
       const { res, out } = fakeRes();
-      await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'my-pc', port }), res);
+      await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'desk', port }), res);
       expect(out.status).toBe(400);
     }
     expect(openDevicePort).not.toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('device port routes', () => {
   it('surfaces an open failure rather than pretending it worked', async () => {
     openDevicePort.mockRejectedValue(new Error('too many device ports open (32)'));
     const { res, out } = fakeRes();
-    await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'my-pc', port: 6006 }), res);
+    await routes[DEVICE_PORT_OPEN_PATH](fakeReq('POST', DEVICE_PORT_OPEN_PATH, { device: 'desk', port: 6006 }), res);
     expect(out.status).toBe(500);
     expect(out.body.error).toContain('too many');
   });

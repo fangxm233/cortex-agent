@@ -4,7 +4,7 @@ import {
   MACOS_LISTENER_COMMAND, PROC_LISTENER_COMMAND, WINDOWS_LISTENER_COMMAND,
 } from '@platform/ui-http/listening-ports.js';
 
-// Captured verbatim from `my-pc` (Windows 11, code page 65001).
+// Captured verbatim from `desk` (Windows 11, code page 65001).
 const NETSTAT = `
 Active Connections
 

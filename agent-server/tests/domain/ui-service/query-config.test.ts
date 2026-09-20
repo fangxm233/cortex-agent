@@ -33,7 +33,7 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
   await fs.writeFile(
     path.join(configDir, 'machines.json'),
     JSON.stringify({
-      lab2: { cortexPath: '/x', gpuCount: 2 },
+      hub: { cortexPath: '/x', gpuCount: 2 },
       lab: { cortexPath: '/y', gpuCount: 1, ssh: 'user@host', win: false },
     }),
   );
@@ -145,9 +145,9 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
     },
   ]);
 
-  const lab2 = snap.machines.find((m) => m.name === 'lab2');
+  const hub = snap.machines.find((m) => m.name === 'hub');
   const lab = snap.machines.find((m) => m.name === 'lab');
-  assert.deepEqual(lab2, { name: 'lab2', cortexPath: '/x', gpuCount: 2, ssh: false, win: false });
+  assert.deepEqual(hub, { name: 'hub', cortexPath: '/x', gpuCount: 2, ssh: false, win: false });
   assert.equal(lab!.ssh, true, 'ssh should be a presence flag (true), never the raw user@host');
   const serialized = JSON.stringify(snap);
   assert.ok(!serialized.includes('user@host'), 'raw ssh string leaked into snapshot');

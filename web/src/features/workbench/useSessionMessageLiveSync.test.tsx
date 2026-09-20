@@ -137,12 +137,12 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
         type: 'session.message',
         payload: {
           sessionId: 's1', role: 'tool', text: '', toolName: 'remote_bash', toolInput: 'pwd',
-          toolDevice: 'lab2', ts: '2026-08-01T01:00:00.000Z',
+          toolDevice: 'hub', ts: '2026-08-01T01:00:00.000Z',
         },
       });
     });
 
-    expect(observed?.getMessageSnapshot().liveTail[0].toolDevice).toBe('lab2');
+    expect(observed?.getMessageSnapshot().liveTail[0].toolDevice).toBe('hub');
   });
 
   it('carries complete subagent spawn metadata onto a live anchor row', () => {

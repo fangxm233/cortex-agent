@@ -9,18 +9,18 @@ import {
 test('resolveServerUrl prefers a full CORTEX_SERVER_URL (tunnel route)', () => {
   assert.equal(
     resolveServerUrl({
-      CORTEX_SERVER_URL: 'wss://cortex.fangxm.me',
+      CORTEX_SERVER_URL: 'wss://cortex.example.com',
       CORTEX_SERVER_HOST: 'ignored',
       CORTEX_SERVER_PORT: '1',
     }),
-    'wss://cortex.fangxm.me',
+    'wss://cortex.example.com',
   );
 });
 
 test('resolveServerUrl falls back to ws://host:port', () => {
   assert.equal(
-    resolveServerUrl({ CORTEX_SERVER_HOST: 'lab2', CORTEX_SERVER_PORT: '3002' }),
-    'ws://lab2:3002',
+    resolveServerUrl({ CORTEX_SERVER_HOST: 'hub', CORTEX_SERVER_PORT: '3002' }),
+    'ws://hub:3002',
   );
 });
 

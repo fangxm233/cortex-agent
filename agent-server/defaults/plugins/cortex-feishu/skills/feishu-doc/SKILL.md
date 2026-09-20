@@ -51,7 +51,7 @@ lark-cli auth status
 ```
 
 Notes:
-- Cortex runs on **lab2**; install/run there. `lark-cli` stores credentials in the
+- Cortex runs on the **agent-server host**; install/run there. `lark-cli` stores credentials in the
   OS keychain (falls back to a local file on headless Linux).
 - `config init` is non-interactive via `--app-id <id> --app-secret-stdin` and refuses
   only inside OpenClaw/Hermes agent workspaces (Cortex is neither).

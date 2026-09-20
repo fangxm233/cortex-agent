@@ -179,7 +179,7 @@ test('manager shutdown emits a failing disconnected hook without changing teardo
 //     via PATH, so the Windows spawn command must wrap with `cmd.exe /c`.
 //     Without the wrapper, WMI returns ReturnValue=9 (Path Not Found) and an empty
 //     ProcessId, which serializes to "" over SSH and the server logs
-//     `Failed to parse PID for <device>: ""`. Observed live on my-pc 2026-05-14 → 17.
+//     `Failed to parse PID for <device>: ""`. Observed live on desk 2026-05-14 → 17.
 // --- WS upgrade auth: the server rejects connections without a valid bearer token ---
 
 test('WS handshake rejects a connection with no x-cortex-token header', async (t) => {
@@ -261,7 +261,7 @@ test('buildRemoteSpawnCommand wraps the Windows launch with cmd.exe /c', () => {
 // loads the login profile so nvm puts node + cortex-client on PATH) while keeping the
 // nohup/echo-$! (Linux) and cmd.exe-wrap WMI (Windows) machinery + token injection intact.
 test('buildRemoteSpawnCommand uses reg.clientCommand over the default on Linux', () => {
-  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/nvidia', gpuCount: 8, ssh: 'nvidia@server-nvidia', clientCommand: 'bash -lc my-client' }, 'sektok123');
+  const cmd = buildRemoteSpawnCommand({ cortexPath: '/home/nvidia', gpuCount: 8, ssh: 'nvidia@gpu-host', clientCommand: 'bash -lc my-client' }, 'sektok123');
   assert.match(cmd, /CORTEX_CLIENT_TOKEN='sektok123'/);
   assert.match(cmd, /nohup bash -lc my-client > \/dev\/null 2>&1 & echo \$!/);
   assert.doesNotMatch(cmd, /client\.mjs/); // managed default must be replaced
@@ -279,8 +279,8 @@ test('buildRemoteSpawnCommand falls back to the managed default when clientComma
 });
 
 // --- Regression: when SSH spawn returns an unparseable PID (the live failure mode
-//     on my-pc), `startRemoteClient` previously only logged a WARN and returned —
-//     no retry was scheduled. Combined with the WMI bug above, this caused my-pc to
+//     on desk), `startRemoteClient` previously only logged a WARN and returned —
+//     no retry was scheduled. Combined with the WMI bug above, this caused desk to
 //     stay silently offline for 3 days. Fix: always schedule a retry on spawn failure.
 test('an already-online SSH-routed client still adopts its managed tunnel', async (t) => {
   const port = await findEphemeralPort();

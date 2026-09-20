@@ -36,7 +36,7 @@ export interface WaitpointSignal {
   member?: string | null;
   message?: string | null;
   data?: unknown;
-  /** Free-form provenance for the notice, e.g. `http`, `spool`, `device:lab-ksu`. */
+  /** Free-form provenance for the notice, e.g. `http`, `spool`, `device:cluster`. */
   source: string;
   /** Idempotency key. A second signal carrying a key already present is dropped as a duplicate. */
   dedupeKey?: string | null;

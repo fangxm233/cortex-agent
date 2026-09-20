@@ -266,7 +266,7 @@ describe('mobile chat run status priority', () => {
       ...SESSION,
       running: true,
       backgroundRunning: true,
-      browser: { device: 'my-pc' },
+      browser: { device: 'desk' },
       numTurns: 2,
     }];
     harness.liveState = {
@@ -283,7 +283,7 @@ describe('mobile chat run status priority', () => {
       ...SESSION,
       running: true,
       backgroundRunning: true,
-      browser: { device: 'my-pc' },
+      browser: { device: 'desk' },
       numTurns: 1,
     }];
     harness.liveState = {

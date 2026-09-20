@@ -78,7 +78,7 @@ describe('WebBody', () => {
 
   it('keeps the original device port visible while opening its mapped URL', async () => {
     let resolveMapping!: (value: { device: string; remoteHost: string; remotePort: number; localPort: number }) => void;
-    forwardMocks.listForwardDevices.mockResolvedValue([{ device: 'my-pc', platform: 'win32' }]);
+    forwardMocks.listForwardDevices.mockResolvedValue([{ device: 'desk', platform: 'win32' }]);
     forwardMocks.listDeviceRemotePorts.mockResolvedValue([{ port: 6006, address: '127.0.0.1', process: 'vite' }]);
     forwardMocks.openDeviceForward.mockReturnValue(new Promise((resolve) => { resolveMapping = resolve; }));
     forwardMocks.startForward.mockResolvedValue({ remotePort: 41234, localPort: 41235, url: 'http://127.0.0.1:41235/' });
@@ -87,14 +87,14 @@ describe('WebBody', () => {
     act(() => { renderer = create(<Harness />); });
     act(() => renderer.root.findByProps({ title: 'Ports listening on the server or a connected device' }).props.onClick());
     await settle();
-    const deviceButton = renderer.root.findAllByType('button').find((node) => nodeText(node) === 'my-pc');
+    const deviceButton = renderer.root.findAllByType('button').find((node) => nodeText(node) === 'desk');
     act(() => deviceButton!.props.onClick());
     await settle();
     const portButton = renderer.root.findAllByType('button').find((node) => nodeText(node).startsWith('6006'));
     act(() => portButton!.props.onClick());
 
     await act(async () => {
-      resolveMapping({ device: 'my-pc', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 });
+      resolveMapping({ device: 'desk', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41234 });
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -105,7 +105,7 @@ describe('WebBody', () => {
 
   it('ignores an older forward that finishes after a newer operation', async () => {
     const resolvers: Array<(value: { device: string; remoteHost: string; remotePort: number; localPort: number }) => void> = [];
-    forwardMocks.listForwardDevices.mockResolvedValue([{ device: 'my-pc', platform: 'win32' }]);
+    forwardMocks.listForwardDevices.mockResolvedValue([{ device: 'desk', platform: 'win32' }]);
     forwardMocks.listDeviceRemotePorts.mockResolvedValue([{ port: 6006, address: '127.0.0.1', process: 'vite' }]);
     forwardMocks.openDeviceForward.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve); }));
     forwardMocks.startForward.mockImplementation(async (port: number) => ({
@@ -119,7 +119,7 @@ describe('WebBody', () => {
     const openPicker = async (): Promise<void> => {
       act(() => renderer.root.findByProps({ title: 'Ports listening on the server or a connected device' }).props.onClick());
       await settle();
-      const device = renderer.root.findAllByType('button').find((node) => nodeText(node) === 'my-pc');
+      const device = renderer.root.findAllByType('button').find((node) => nodeText(node) === 'desk');
       if (device) {
         act(() => device.props.onClick());
         await settle();
@@ -131,14 +131,14 @@ describe('WebBody', () => {
     await openPicker();
     await openPicker();
     await act(async () => {
-      resolvers[1]!({ device: 'my-pc', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 42000 });
+      resolvers[1]!({ device: 'desk', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 42000 });
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(input(renderer).props.value).toBe('http://127.0.0.1:42001/');
 
     await act(async () => {
-      resolvers[0]!({ device: 'my-pc', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41000 });
+      resolvers[0]!({ device: 'desk', remoteHost: '127.0.0.1', remotePort: 6006, localPort: 41000 });
       await Promise.resolve();
       await Promise.resolve();
     });

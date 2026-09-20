@@ -233,8 +233,8 @@ mod tests {
     #[test]
     fn builds_ws_urls_for_both_schemes() {
         assert_eq!(
-            forward_ws_url("https://app-lab2.fangxm.me", 5173).unwrap(),
-            "wss://app-lab2.fangxm.me/forward?port=5173"
+            forward_ws_url("https://app-hub.example.com", 5173).unwrap(),
+            "wss://app-hub.example.com/forward?port=5173"
         );
         assert_eq!(
             forward_ws_url("http://127.0.0.1:3005/", 6080).unwrap(),

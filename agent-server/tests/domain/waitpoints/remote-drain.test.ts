@@ -50,7 +50,7 @@ function harness(opts: { devices?: string[]; online?: (d: string) => boolean } =
     repo, service, ingest, sent, commands, deviceFiles,
     deps: {
       ingest,
-      listDeviceTargets: async () => opts.devices ?? ['lab-ksu'],
+      listDeviceTargets: async () => opts.devices ?? ['cluster'],
       isDeviceOnline: opts.online ?? (() => true),
       runBash: async (device, command) => {
         commands.push({ device, command });
@@ -93,7 +93,7 @@ test('an empty device returns nothing rather than an empty-named entry', () => {
 test('a device signal is applied, wakes the session, and is then cleared from the device', async () => {
   const h = harness();
   const { waitpoint, secret } = await createWaitpoint(
-    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'lab-ksu' } },
+    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
   h.deviceFiles.set('123.json', JSON.stringify({ id: waitpoint.id, secret, status: 'ok', message: 'exit=0' }));
@@ -111,7 +111,7 @@ test('a device signal is applied, wakes the session, and is then cleared from th
 test('read happens before remove, so a crash between them replays instead of losing the signal', async () => {
   const h = harness();
   const { waitpoint, secret } = await createWaitpoint(
-    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'lab-ksu' } },
+    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
   const body = JSON.stringify({ id: waitpoint.id, secret, status: 'ok' });
@@ -146,7 +146,7 @@ test('offline devices are skipped and their files keep until they reconnect', as
 test('a malformed or unauthorised entry is left on the device and does not stop the batch', async () => {
   const h = harness();
   const { waitpoint, secret } = await createWaitpoint(
-    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'lab-ksu' } },
+    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
   h.deviceFiles.set('broken.json', '{not json');
@@ -165,9 +165,9 @@ test('an unknown waitpoint is cleared rather than left to be re-read forever', a
 });
 
 test('a device failing outright does not stop the other devices in the same pass', async () => {
-  const h = harness({ devices: ['broken-box', 'lab-ksu'] });
+  const h = harness({ devices: ['broken-box', 'cluster'] });
   const { waitpoint, secret } = await createWaitpoint(
-    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'lab-ksu' } },
+    { label: 'arm2', intent: 'training', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
   h.deviceFiles.set('123.json', JSON.stringify({ id: waitpoint.id, secret, status: 'ok' }));
@@ -183,10 +183,10 @@ test('a device failing outright does not stop the other devices in the same pass
 });
 
 test('every named device is checked for liveness before any command is sent', async () => {
-  const h = harness({ devices: ['lab-ksu', 'brev-1'] });
+  const h = harness({ devices: ['cluster', 'brev-1'] });
   const seen: string[] = [];
   await drainDeviceSpools({ ...h.deps, isDeviceOnline: (d) => { seen.push(d); return false; } });
-  assert.deepEqual(seen, ['lab-ksu', 'brev-1']);
+  assert.deepEqual(seen, ['cluster', 'brev-1']);
   assert.equal(h.commands.length, 0);
 });
 
@@ -194,10 +194,10 @@ test('the device list is derived from armed waitpoints, not from the device regi
   const h = harness();
   await createWaitpoint({ label: 'local', intent: 'x', owner: owner() }, h.service);
   await createWaitpoint(
-    { label: 'remote', intent: 'x', owner: owner(), emitFrom: { kind: 'device', device: 'lab-ksu' } },
+    { label: 'remote', intent: 'x', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
   const armed = await h.repo.listArmed();
   const devices = [...new Set(armed.flatMap((wp) => (wp.emitFrom.kind === 'device' ? [wp.emitFrom.device] : [])))];
-  assert.deepEqual(devices, ['lab-ksu'], 'a local waitpoint must never cause a device round trip');
+  assert.deepEqual(devices, ['cluster'], 'a local waitpoint must never cause a device round trip');
 });
