@@ -1,6 +1,6 @@
 import { AppUpdateDialog } from '@/features/app-update/AppUpdateDialog';
 import { HotUpdateDialog } from '@/features/hot-update/HotUpdateDialog';
-import { ServerUpdateDialog } from './ServerUpdateDialog';
+import { ServerUpdateDialog } from '@/features/server-update/ServerUpdateDialog';
 import { useSilentUpdateNotice } from './useSilentUpdateNotice';
 import { useUpdatePrompt } from './useUpdatePrompt';
 

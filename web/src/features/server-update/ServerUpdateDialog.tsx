@@ -1,5 +1,5 @@
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
-import { DesktopUpdateFrame } from './DesktopUpdateFrame';
+import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 
 // Copy is local to this dialog, the way app-update/app-update.ts keeps its own strings: these
 // sentences describe one flow and are never reused, so a shared vocab entry would only add a hop.

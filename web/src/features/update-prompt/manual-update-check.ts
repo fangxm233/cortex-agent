@@ -4,6 +4,7 @@
 // >>> If updated, update this header and parent CORTEX.md <<<
 
 import { isNativeCommandMissing, safeInvoke, type ChannelOutcome } from '@/lib/native-bridge';
+import { publishManualCheckResult } from '@/lib/manual-update-check-result';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';
 import { parseStagedUpdate, type StagedUpdate } from '@/features/hot-update/frontend-update';
 
@@ -12,19 +13,13 @@ export interface UpdateCheckReport {
   shell: ChannelOutcome<AppUpdateInfo>;
 }
 
-type ResultListener = (report: UpdateCheckReport) => void;
 const listeners = new Set<() => void>();
-const resultListeners = new Set<ResultListener>();
 let inFlight: Promise<UpdateCheckReport> | null = null;
 
 export const getManualCheckBusy = () => inFlight !== null;
 export function subscribeManualCheck(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
-}
-export function subscribeManualCheckResult(listener: ResultListener): () => void {
-  resultListeners.add(listener);
-  return () => { resultListeners.delete(listener); };
 }
 
 function failedReport(reason: string): UpdateCheckReport {
@@ -63,8 +58,9 @@ async function requestReport(): Promise<UpdateCheckReport> {
 export function checkForUpdates(): Promise<UpdateCheckReport> {
   if (inFlight) return inFlight;
   inFlight = requestReport().then((report) => {
-    // Re-open even previously dismissed prepared updates through the existing sources.
-    for (const listener of resultListeners) listener(report);
+    // Re-open even previously dismissed prepared updates through the existing sources. The channels
+    // hear this through @/lib/manual-update-check-result, so none of them imports this module.
+    publishManualCheckResult(report);
     return report;
   }).finally(() => {
     inFlight = null;

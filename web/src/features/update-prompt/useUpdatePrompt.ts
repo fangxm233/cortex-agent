@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { getManualCheckBusy, subscribeManualCheck } from './manual-update-check';
-import { useServerUpdate } from './useServerUpdate';
+import { useServerUpdate } from '@/features/server-update/useServerUpdate';
 import { useAppUpdate } from '@/features/app-update/useAppUpdate';
 import { useHotUpdate } from '@/features/hot-update/useHotUpdate';
+import { useShellRecheckCascade } from './useShellRecheckCascade';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import type { AppUpdateInfo } from '@/features/app-update/app-update';
 import type { StagedUpdate } from '@/features/hot-update/frontend-update';
@@ -23,6 +24,8 @@ export type UpdatePrompt =
 
 export function useUpdatePrompt(): UpdatePrompt {
   const server = useServerUpdate();
+  // The server's version is the ceiling for the other two, so its restart is the cue to re-ask them.
+  useShellRecheckCascade(server.status.state);
   const app = useAppUpdate();
   const hot = useHotUpdate();
   const checking = useSyncExternalStore(subscribeManualCheck, getManualCheckBusy);

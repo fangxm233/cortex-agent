@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const harness = vi.hoisted(() => ({ prompt: null as any }));
-vi.mock('@/features/update/useUpdatePrompt', () => ({ useUpdatePrompt: () => harness.prompt }));
+vi.mock('@/features/update-prompt/useUpdatePrompt', () => ({ useUpdatePrompt: () => harness.prompt }));
 vi.mock('./MAppUpdateDialog', () => ({
   MAppUpdateDialog: (props: any) => <dialog data-update-dialog="app" data-version={props.update.version} />,
 }));

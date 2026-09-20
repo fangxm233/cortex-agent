@@ -7,7 +7,7 @@ const harness = vi.hoisted(() => ({
   hot: null as any,
 }));
 
-vi.mock('./useServerUpdate', () => ({
+vi.mock('@/features/server-update/useServerUpdate', () => ({
   useServerUpdate: () => {
     return harness.server;
   },

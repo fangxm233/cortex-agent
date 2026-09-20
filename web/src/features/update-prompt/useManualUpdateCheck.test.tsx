@@ -13,7 +13,7 @@ import type { NativeCheckReport } from '@/lib/native-bridge';
 const feedback = vi.hoisted(() => ({ toast: vi.fn(() => 'progress'), dismiss: vi.fn() }));
 // The server channel is server-backed (tRPC) and orthogonal to the shell/UI channels this file
 // specifies; stub it idle so the priority assertions below are about app vs hot only.
-vi.mock('./useServerUpdate', () => ({
+vi.mock('@/features/server-update/useServerUpdate', () => ({
   useServerUpdate: () => ({
     status: { available: null, state: 'idle' }, visible: false, busy: false,
     apply: vi.fn(), skip: vi.fn(), dismiss: vi.fn(),

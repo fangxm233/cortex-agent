@@ -9,7 +9,7 @@ import { IssuesProvider } from '@/features/issues/IssuesProvider';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
-import { UpdateProvider } from '@/features/update/UpdateProvider';
+import { UpdateProvider } from '@/features/update-prompt/UpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { DockProvider } from '@/features/dock/DockProvider';

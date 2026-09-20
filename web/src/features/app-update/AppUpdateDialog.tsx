@@ -1,4 +1,4 @@
-import { DesktopUpdateFrame } from '@/features/update/DesktopUpdateFrame';
+import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 import {
   appUpdateSummaryLine,
   installCtaLabel,

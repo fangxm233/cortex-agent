@@ -1,10 +1,8 @@
 [
-  "app-update<->update",
   "browser<->dock",
   "commission<->workbench",
   "dock<->media",
   "dock<->workbench",
-  "hot-update<->update",
   "media<->workbench",
   "memory<->workbench",
   "notes<->workbench",

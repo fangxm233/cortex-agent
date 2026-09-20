@@ -4,9 +4,8 @@
 // >>> If updated, update this header and parent CORTEX.md <<<
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  checkForUpdates, getManualCheckBusy, subscribeManualCheckResult,
-} from './manual-update-check';
+import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
+import { checkForUpdates, getManualCheckBusy } from './manual-update-check';
 
 const current = { ui: { status: 'current' }, shell: { status: 'current' } };
 afterEach(() => vi.unstubAllGlobals());

@@ -12,7 +12,7 @@ import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
 import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
-import { useManualUpdateCheck } from '@/features/update/useManualUpdateCheck';
+import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
 import { usePaneState } from '../PaneStateProvider';
 import { useShellModals } from '../ShellModalsProvider';
 import { useWindowActions, type WindowActions } from './useWindowActions';

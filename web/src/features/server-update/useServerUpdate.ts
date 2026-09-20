@@ -1,13 +1,12 @@
 // input:  system.updateStatus / applyUpdate / skipUpdate over tRPC
-// output: the server self-update prompt state plus the shell re-check cascade
+// output: the server self-update prompt state
 // pos:    Server-backed half of the unified update prompt; owns no shell state
 // >>> If updated, update this header and parent CORTEX.md <<<
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { checkForUpdates } from './manual-update-check';
 
 const IDLE: SystemUpdateStatus = { available: null, state: 'idle' };
 
@@ -31,25 +30,6 @@ export interface ServerUpdate {
   dismiss: () => void;
 }
 
-/**
- * The app shell's update manifest is capped at the server's version, so a new release only becomes
- * visible to the shell once the server is already running it. Re-check the moment the server comes
- * back from `restarting` — without this the shell would not notice for up to 24h and the "one
- * confirmation" promise would quietly become "one confirmation, then wait a day".
- */
-export function useShellRecheckCascade(state: SystemUpdateStatus['state']): void {
-  const wasRestarting = useRef(false);
-  useEffect(() => {
-    if (state === 'restarting') {
-      wasRestarting.current = true;
-      return;
-    }
-    if (!wasRestarting.current) return;
-    wasRestarting.current = false;
-    void checkForUpdates();
-  }, [state]);
-}
-
 export function useServerUpdate(): ServerUpdate {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -70,8 +50,6 @@ export function useServerUpdate(): ServerUpdate {
   const skipMutation = useMutation(trpc.system.skipUpdate.mutationOptions({ onSettled: invalidate }));
   const { mutate: applyMutate } = applyMutation;
   const { mutate: skipMutate } = skipMutation;
-
-  useShellRecheckCascade(status.state);
 
   const apply = useCallback(() => { applyMutate({}); }, [applyMutate]);
   const skip = useCallback(() => { skipMutate({}); }, [skipMutate]);

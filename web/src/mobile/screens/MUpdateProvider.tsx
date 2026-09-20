@@ -1,4 +1,4 @@
-import { useUpdatePrompt } from '@/features/update/useUpdatePrompt';
+import { useUpdatePrompt } from '@/features/update-prompt/useUpdatePrompt';
 import { MAppUpdateDialog } from './MAppUpdateDialog';
 import { MHotUpdateDialog } from './MHotUpdateDialog';
 
