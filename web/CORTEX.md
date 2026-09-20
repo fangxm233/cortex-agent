@@ -1,39 +1,27 @@
 # web/ — Cortex Web UI
 
 Vite + React 18 SPA. tRPC client + TanStack Query + React Router + token-ised Tailwind.
-Path alias `@/* → src/*`. One codebase, two chromes: desktop (`shell/`) and mobile
-(`mobile/`), sharing one body of features and one router.
-
-All four steps of the structural cleanup have landed, so this file describes the tree as
-it stands, not a target. The import rules below are enforced *today*: `depcruise` cruises
-696 modules / 1911 dependencies clean, over 56 frozen baseline entries, and the cycle
-checker sees 62 inter-feature edges with 1 allow-listed pair.
+Path alias `@/* → src/*`. One codebase, two chromes — desktop (`shell/`) and mobile
+(`mobile/`) — over one router and one shared body of `features/`. This file is the structure
+map and the rulebook; per-directory file lists live in `src/**/CORTEX.md` (start at `src/CORTEX.md`).
 
 ## Directories
 
-| Dir | What lives there |
-| --- | --- |
-| `lib/` | Bottom of the stack: platform shell (tauri/browser), tRPC transport, session, pure helpers. Knows nothing above it. |
-| `design/` | The primitive kit — Button, Modal, Toast, Select, tone/degraded tokens, the bottom sheet, the mobile `MC`/`MONO` token tables and `ChatMarkdown` (text in, JSX out, over the parser in `lib/markdown.ts`). Plus the two seams that have to sit below every feature to be usable by all of them: `modal-registry.tsx` (which global overlays are open) and `dock-intake.tsx` (what a surface hands to the dock). App-free — it names no feature at runtime — and shared by both chromes. |
-| `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. |
-| `i18n/` | Vocab tables + `LangProvider` / `useVocab`. |
-| `features/` | One directory per feature (33 today). The shared body both chromes render. |
-| `features/session/` | The session/chat core both chromes render, lifted out of `workbench/` in step 2: `transcript/` `interaction/` `composer/` `list/` `live/` `rail/` `state/` (88 files). It imports no chrome and no page — everything above it points down into it. |
-| `features/workbench/` | The desktop three-pane page only, since step 2 moved the shared core to `features/session/`: `rail/` `chat/` `composer/` `right-panel/`, with `WorkbenchPage.tsx` at the root (42 files). |
-| `features/settings/` | `panels/` `controllers/` `vm/` `ui/`, with `SettingsModal.tsx`, `SettingsProvider.tsx` and `settings-nav.ts` at the root (69 files) — the layering the filenames already implied, made structural in step 2. |
-| `features/update-prompt/` | The arbitration layer over the three update channels `server-update/` `app-update/` `hot-update/`: it imports all three, decides which single prompt the user sees, and owns the manual check. The channels import neither it nor each other — anything they need in common sits below them in `lib/` or `design/`. |
-| `shell/` | Desktop chrome: `AppFrame`, `TopBar`, panes, menus, and the three composition files — `ShellProviders` (the set both chromes mount), `AppShell` (this chrome's own providers) and `ShellModals` (`ShellModalHost`, the one mount point for the global overlays). |
-| `mobile/` | Mobile chrome: `screens/` = the screen container/view pairs, `shared/` = view-models and widgets used across screens, `ui/` = the mobile kit. |
-| `dev/` | DEV-only demo routes: `kit/` (every design primitive in every state, `/kit`) and `base-demo/` (the prototype specimen, `/base`). Registered by `router.tsx` only when `import.meta.env.DEV`, so they are absent from production bundles. |
-| root files | `main.tsx`, `providers.tsx`, `RootRouter.tsx`, `router.tsx`, `router-factory.ts`, `responsive-route.tsx`, plus `index.css` and `vite-env.d.ts`. One line each in `src/CORTEX.md`. |
-
-## Index files
-
-Every directory under `src/` carries a `CORTEX.md` listing its files and entry points.
-Start at **`src/CORTEX.md`**: it covers the root files, points at the eight top-level
-indexes (`lib` `design` `theme` `i18n` `features` `shell` `mobile` `dev`) and at the three
-large-feature sub-indexes (`features/session`, `features/workbench`, `features/settings`).
-This file stays the structure map and rulebook; the per-directory files are the file lists.
+| Dir | What lives there | Index |
+| --- | --- | --- |
+| `lib/` | Bottom of the stack: platform shell (tauri/browser), tRPC transport, session, pure helpers. Knows nothing above it. | `src/lib/CORTEX.md` |
+| `design/` | Primitive kit (Button, Modal, Toast, Select, BottomSheet, tones, `ChatMarkdown`, mobile token tables) + the two app-free seams every feature may use: `modal-registry.tsx`, `dock-intake.tsx`. | `src/design/CORTEX.md` |
+| `theme/` | Runtime appearance: palette, accent, `ThemeProvider`. | `src/theme/CORTEX.md` |
+| `i18n/` | Vocab tables + `LangProvider` / `useVocab`. | `src/i18n/CORTEX.md` |
+| `features/` | One directory per feature (33). The shared body both chromes render. | `src/features/CORTEX.md` |
+| `features/session/` | The session/chat core both chromes render: `transcript/ interaction/ composer/ list/ live/ rail/ state/`. Imports no chrome and no page. | `…/session/CORTEX.md` |
+| `features/workbench/` | The desktop three-pane page only: `rail/ chat/ composer/ right-panel/` + `WorkbenchPage.tsx`. | `…/workbench/CORTEX.md` |
+| `features/settings/` | `panels/ controllers/ vm/ ui/` + `SettingsModal.tsx`, `SettingsProvider.tsx`, `settings-nav.ts`. | `…/settings/CORTEX.md` |
+| `features/update-prompt/` | Arbitration over the three update channels `server-update/ app-update/ hot-update/`; the channels import neither it nor each other. | — |
+| `shell/` | Desktop chrome: frame, top bar, menus; `ShellProviders` (the set both chromes mount), `AppShell`, `ShellModals` (`ShellModalHost`). | `src/shell/CORTEX.md` |
+| `mobile/` | Mobile chrome: `screens/` (Screen/View/vm triplets), `shared/`, `ui/` (mobile kit). | `src/mobile/CORTEX.md` |
+| `dev/` | DEV-only demo routes `/kit`, `/base`; registered by `router.tsx` only when `import.meta.env.DEV`. | `src/dev/CORTEX.md` |
+| root files | `main.tsx providers.tsx RootRouter.tsx router.tsx router-factory.ts responsive-route.tsx index.css` | `src/CORTEX.md` |
 
 ## Import direction
 
@@ -47,127 +35,72 @@ This file stays the structure map and rulebook; the per-directory files are the 
                               lib/                             ← platform + transport
 ```
 
-Everything points **down**. The rules, as enforced in `.dependency-cruiser.cjs`:
+Everything points **down**. Enforced by `.dependency-cruiser.cjs` (`pnpm -C web depcruise`):
 
-1. **`lib-is-bottom`** — `lib/` imports nothing from `features/ mobile/ shell/ i18n/ design/ theme/`.
-   It is the floor: transport and platform, no app knowledge, not even vocab.
-2. **`foundation-not-to-app`** — `design/ theme/ i18n/` never import `features/ mobile/ shell/`.
-   They are imported *by* the app; importing back puts every feature in the Button's graph.
-3. **`features-not-to-mobile`** — `features/` never imports `mobile/`. A feature is shared by
-   both chromes, so it cannot depend on one. Anything it wants from `mobile/ui` is really a
-   primitive and belongs in `design/`.
-4. **`shell-not-to-mobile`** — the two chromes are siblings; neither imports the other.
-5. **`mobile-only-from-router`** — only `router.tsx`, `RootRouter.tsx` and `responsive-route.tsx`
-   may import `mobile/` from outside it. Keeps the mobile tree movable as a unit.
-6. **`dev-only-from-router`** — nothing outside `dev/` imports `dev/`, except `router.tsx`.
-   The demo pages are not product code; the only edge into them is the DEV-gated one in the
-   router. `dev/` itself may import anything — it exists to show the rest of the tree off.
-7. **`components-not-direct-trpc`** — no `.tsx` under `features/ mobile/ shell/` imports
-   `@/lib/trpc`. A component renders; it does not open a transport. Go through a
-   `use*Resource` / `use*Controller` hook or a `*-vm` module.
-8. **`no-circular`** — no module-level import cycles.
+1. `lib-is-bottom` — `lib/` imports nothing from `features/ mobile/ shell/ i18n/ design/ theme/`.
+2. `foundation-not-to-app` — `design/ theme/ i18n/` never import `features/ mobile/ shell/`.
+3. `features-not-to-mobile` — a feature is shared by both chromes; anything it wants from
+   `mobile/ui` is a primitive and belongs in `design/`.
+4. `shell-not-to-mobile` — the two chromes are siblings.
+5. `mobile-only-from-router` — only the three router files import `mobile/` from outside it.
+6. `dev-only-from-router` — nothing imports `dev/` except `router.tsx`; `dev/` may import anything.
+7. `components-not-direct-trpc` — no `.tsx` under `features/ mobile/ shell/` imports `@/lib/trpc`;
+   go through a `use*Resource` / `use*Controller` hook or a `*-vm` module.
+8. `no-circular` — no module-level import cycles.
 
-Plus a rule dependency-cruiser cannot express: **no bidirectional edges between two
-`features/<name>/` directories**, checked by `scripts/check-feature-cycles.mjs`. Two
-features importing each other are one feature, or one is missing a seam.
-
-Type-only imports are exempt from all of the above (runtime coupling is what we care
-about), and so are `*.test.ts(x)` files — a test may import whatever it needs.
+Plus, via `scripts/check-feature-cycles.mjs`: **no bidirectional edges between two
+`features/<name>/` directories**. Two features importing each other are one feature, or one is
+missing a seam. Type-only imports and `*.test.ts(x)` files are exempt from everything above.
 
 ## Providers
-
-Four layers, and only the first one is global:
 
 ```
 providers.tsx           query client · tRPC · theme · tooltip · toast · vocab · login gate
   └ ShellProviders      mounted by EACH chrome, never by the root: live stream · connection ·
                         current project · modal registry · media viewer · doc viewer
-      └ per-chrome      AppShell adds the dock, selected session, navigation history, pane
-                        state and notes; MobileShell adds its two headless mounts
+      └ per-chrome      AppShell adds dock, selected session, navigation history, pane state,
+                        notes; MobileShell adds its two headless mounts
           └ ShellModalHost   every global overlay, mounted once, off the registry
 ```
 
-- **The shared set is mounted per chrome.** One definition (`shell/ShellProviders.tsx`), two
-  mounts, deliberately not lifted into `providers.tsx` (see `ConnectionStatusProvider`'s header):
-  a chrome swap takes the live stream down with the chrome rather than leaving one up across both.
-- **One registry, not a provider per modal.** `design/modal-registry.tsx` holds a
-  `Map<kind, payload>` in one `useSyncExternalStore` store. A feature declares its own typed key
+- The shared set has one definition (`shell/ShellProviders.tsx`) and two mounts; it is
+  deliberately not lifted into `providers.tsx` so a chrome swap takes the live stream with it.
+- **One modal registry, not a provider per modal.** `design/modal-registry.tsx` keeps a
+  `Map<kind, payload>` in one `useSyncExternalStore` store. A feature declares its typed key
   with `defineModal<TPayload>(kind)` beside its modal and keeps its own hook (`useTaskModal()`,
-  `useSettings()`, …): triggers call `useModalActions()` (stable callbacks, no subscription), and
-  the ONE host that renders the modal calls `useModal()`. Opening one kind cannot re-render a
-  subscriber of another. A new overlay is a key plus a line in `shell/ShellModals.tsx`.
-- **`*Provider` means it provides context.** Something that only subscribes and renders is a
-  `*Mount` (`NotificationMount`, `UpdateMount` and the mobile pair); something that renders one
-  modal off a registry key is a `*Host`.
-- **The dock is outside the shared set**, because `MediaViewerProvider` and `DocViewerProvider`
-  read `design/dock-intake` — the five-member surface `features/dock` supplies to everything that
-  opens INTO it. `useDock()` itself is for the dock's own chrome, its host and the View menu.
+  `useSettings()`, …): triggers call `useModalActions()` (stable, no subscription); the ONE host
+  that renders the modal calls `useModal()`. A new overlay = a key + a line in `shell/ShellModals.tsx`.
+- Naming: `*Provider` provides context; `*Mount` only subscribes and renders
+  (`NotificationMount`, `UpdateMount` + mobile pair); `*Host` renders one modal off a registry key.
+- The dock sits outside the shared set: `MediaViewerProvider`/`DocViewerProvider` read
+  `design/dock-intake`, the surface `features/dock` supplies to everything that opens INTO it.
 
-## Conventions worth keeping
+## Conventions
 
-- **`*-vm.ts`** (49 today) — pure view-model builders. No react, no tRPC, no I/O: snapshot in,
-  render-ready object out. These are where the unit tests are, and they are cheap to write
-  because they are pure. New display logic goes here first.
+- **`*-vm.ts`** — pure view-model builders: no react, no tRPC, no I/O. Where the unit tests are.
 - **`use*Resource` / `use*Controller`** — the only place tRPC queries and mutations live.
-  A controller owns the query keys, the invalidations and the optimistic updates for one panel.
-- **Container / View split** — `mobile/screens` is the reference: `MAccountsScreen.tsx` holds the
-  controllers and navigation, `MAccountsView.tsx` is presentational and takes props (21 pairs).
-  `features/settings` does the same thing with `panels/XPanel.tsx` (`XPanelView` on pure props
-  beside its container) + `vm/x-vm.ts` + `controllers/useXController.ts`.
-- **One SSE stream** — `features/live` owns the single `EventSource`. Nothing else opens one;
-  consumers subscribe to `LiveEventsProvider`.
+- **Container / View split** — `panels/XPanel.tsx` exports `XPanelView` (pure props) beside its
+  container; `mobile/screens/MXScreen.tsx` + `MXView.tsx` likewise. `PluginsPanel` is the model.
+- **One SSE stream** — `features/live` owns the single `EventSource`; consumers subscribe to it.
 
 ## Running the checks
 
 ```sh
 pnpm -C web depcruise    # boundary rules + feature cycles   (alias: pnpm -C web lint)
 pnpm -C web typecheck    # tsc --noEmit
-pnpm -C web test         # vitest run
+pnpm -C web test         # vitest run  (~6s)
 ```
 
-What a clean tree currently prints:
+`build` runs `tsc --noEmit && pnpm run depcruise && vite build`, so the release workflows
+(`pnpm --filter '@cortex-agent/web...' run build`) enforce the rules.
 
-```
-✔ no dependency violations found (696 modules, 1911 dependencies cruised)
-‼ 56 known violations ignored. Run with --no-ignore-known to see them.
-✔ feature cycles: 1 known pair(s), 0 new. (62 inter-feature edges)
-Test Files  207 passed (207)      Tests  1537 passed (1537)      ~6s
-```
+## The baseline is a ratchet
 
-`build` runs `tsc --noEmit && pnpm run depcruise && vite build`, so the rules are enforced by
-CI — the release workflows run `pnpm --filter '@cortex-agent/web...' run build`.
+The rules were added to a tree that already violated them. The remaining violations are frozen
+in `.dependency-cruiser-known-violations.json` (skipped via `--ignore-known`) and
+`scripts/feature-cycles-allowlist.json`. **Both may only shrink**: a new violation fails the
+build and must be fixed, not appended; regenerating the baseline to absorb one defeats the file;
+the cycle checker errors on stale allow-list entries so the list cannot outlive its cycles.
 
-## The baseline, and why it may only shrink
-
-The rules were added to a tree that already violates them. Rather than weaken the rules, the
-remaining violations are frozen in `.dependency-cruiser-known-violations.json` and skipped
-via `--ignore-known`. Step 1a took the file from 75 entries to 61; step 1b was pure
-restructuring and held it at 61 (regenerating it after the moves reproduces the same 61 edges
-under their new paths); step 2 retired two by giving `TemplatesPanel` and `HooksPanel` the
-controller every other panel has; step 3 retired three more with the dock seam, 59 -> 56:
-
-| Rule | Frozen | Was |
-| --- | --- | --- |
-| `components-not-direct-trpc` | 55 | 57 |
-| `no-circular` | 1 | 8 |
-| `features-not-to-mobile` | 0 | 4 |
-| `mobile-only-from-router` | 0 | 4 (the same 4 files) |
-| `lib-is-bottom` | 0 | 2 |
-
-Likewise `scripts/feature-cycles-allowlist.json` holds 1 known feature pair, down from 11.
-Step 1b removed `app-update<->update` and `hot-update<->update` by splitting the old `update/`
-into an `update-prompt/` layer above the channels and pushing what they shared into `lib/`
-and `design/`. Step 2 removed the six that ran through `workbench` — `commission`, `dock`,
-`media`, `memory`, `notes` and `thread` — by moving the shared module down rather than
-re-exporting it: the session core to `features/session/`, `ChatMarkdown` and the markdown
-parser to `design/` and `lib/`, and `attachment-presentation`, `CommissionOptIn`,
-`BrowserOptIn`/`browser-status` and `NewProjectModal` to the features that own them. What is
-left — `browser<->dock`, `dock<->media`, `settings<->usage` — never involved `workbench`; the
-first two are both the same seam, `useDock()`, and belong to the provider question in step 3.
-
-**Both files are ratchets.** A new violation fails the build and must be fixed, not appended.
-Regenerating the baseline to absorb one defeats the entire file. Removing entries as the
-violations are fixed is the point — and the cycle checker *errors on stale allow-list entries*
-precisely so the list cannot outlive the cycles it was written for.
-
-To see what is still outstanding: `pnpm -C web exec depcruise src --validate --no-ignore-known`.
+Outstanding: `components-not-direct-trpc` 55 · `no-circular` 1 · feature pairs 1 (`settings↔usage`).
+List them: `pnpm -C web exec depcruise src --validate --no-ignore-known`.
