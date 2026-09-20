@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { canGoBack, canGoForward, recordEntry, sameEntry, type NavEntry, type NavStack } from './navigation-history';
 
 // Browser-style history over what the user actually navigates. React Router's own history only sees

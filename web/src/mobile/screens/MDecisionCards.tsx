@@ -3,9 +3,9 @@ import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract
 import { MC, MONO } from '@/mobile/ui/kit';
 import { useVocab, type Vocab } from '@/i18n';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { messageTimeLabel } from '@/features/workbench/transcript-vm';
-import { useDecisionActions, type DecisionActions } from '@/features/workbench/DecisionCards';
-import { decisionStatus, buildDecisionMessage, type DecisionStatus } from '@/features/workbench/decision-vm';
+import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
+import { useDecisionActions, type DecisionActions } from '@/features/session/interaction/DecisionCards';
+import { decisionStatus, buildDecisionMessage, type DecisionStatus } from '@/features/session/interaction/decision-vm';
 
 // Mobile twin of the desktop DecisionCards: same vocabulary, same pure rules (decision-vm), same
 // mutation hook — only the chrome differs (tap the row to expand; full-width action buttons).

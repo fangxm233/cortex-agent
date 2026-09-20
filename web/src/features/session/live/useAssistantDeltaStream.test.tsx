@@ -4,7 +4,7 @@
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AssistantDeltaEvent } from './transcript-vm';
+import type { AssistantDeltaEvent } from '@/features/session/transcript/transcript-vm';
 
 interface SubHandlers {
   onConnectionStateChange?: (s: { state: string }) => void;

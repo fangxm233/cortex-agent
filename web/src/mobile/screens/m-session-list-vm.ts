@@ -2,7 +2,7 @@
 // `sessions.list` (origin='direct', scoped to the current project) into day-grouped rows. Reuses the
 // desktop `groupSessions` bucketing so mobile + desktop agree on TODAY/YESTERDAY/EARLIER.
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { groupSessions, type SessionGroupLabel } from '@/features/workbench/session-groups';
+import { groupSessions, type SessionGroupLabel } from '@/features/session/list/session-groups';
 import { relTimeZh } from '@/mobile/ui/format';
 
 export interface MSessionRow {

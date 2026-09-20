@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { projectInitials } from '@/features/workbench/session-groups';
+import { projectInitials } from '@/features/session/list/session-groups';
 import {
   awaitingInputCountByProject,
   unreadCountByProject,
-} from '@/features/workbench/project-menu';
-import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
-import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
-import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
+} from '@/features/session/list/project-menu';
+import { lastActivityByProject } from '@/features/session/list/left-rail-projects';
+import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
+import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import { threadCountsForProject, buildProjectSwitchRows, pendingApprovalCounts } from './m-project-vm';

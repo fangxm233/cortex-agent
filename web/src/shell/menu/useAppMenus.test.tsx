@@ -17,7 +17,7 @@ vi.mock('@/design/Toast', () => ({ useToastOptional: () => null }));
 vi.mock('@/features/settings/SettingsProvider', () => ({ useSettings: () => ({ open: vi.fn() }) }));
 vi.mock('@/features/schedule/ScheduleModalProvider', () => ({ useScheduleModal: () => ({ open: vi.fn() }) }));
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({ useCurrentProject: () => ({ currentProjectId: null }) }));
-vi.mock('@/features/workbench/SelectedSessionProvider', () => ({
+vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
   useSelectedSession: () => ({ selectedSessionId: null, setSelectedSession: vi.fn() }),
 }));
 vi.mock('@/features/dock/DockProvider', () => ({ useDock: () => ({ open: true, canDock: true, toggleDock: vi.fn() }) }));

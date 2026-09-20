@@ -1,7 +1,7 @@
 import { MC, MONO } from '@/mobile/ui/kit';
-import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/workbench/schedule-rail';
-import { cadenceLabel, nextRunDelta } from '@/features/workbench/scheduled-chat';
-import { sessionStamp } from '@/features/workbench/session-groups';
+import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
+import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
+import { sessionStamp } from '@/features/session/list/session-groups';
 import { formatUsd } from '@/lib/format';
 
 export interface MScheduleSheetCopy {

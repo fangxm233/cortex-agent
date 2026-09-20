@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
 import { applyDelivered, buildTranscriptRows, type LiveSessionMessage, type PendingUserMessage } from './transcript-vm';
-import { mergeRestoredDraft } from './composer-draft';
+import { mergeRestoredDraft } from '@/features/session/composer/composer-draft';
 import {
   acceptOptimisticUserMessage,
   createOptimisticUserMessage,

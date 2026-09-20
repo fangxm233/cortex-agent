@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { MBottomSheet } from '@/mobile/ui/kit';
-import { scheduleRowAction, type ScheduleRow } from '@/features/workbench/schedule-rail';
-import { useMarkManyRead } from '@/features/workbench/useMarkSessionRead';
+import { scheduleRowAction, type ScheduleRow } from '@/features/session/list/schedule-rail';
+import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import {
   useScheduleEditorController,
   type ScheduleEditorController,

@@ -1,6 +1,6 @@
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import type { SessionStatsRow } from './session-stats';
+import type { SessionStatsRow } from '@/features/session/list/session-stats';
 
 // SESSION STATS MODAL — opened from the composer status line's totals segment. Spells out what the
 // one-line summary compresses: how many runs, how many agent turns, how long the agent actually

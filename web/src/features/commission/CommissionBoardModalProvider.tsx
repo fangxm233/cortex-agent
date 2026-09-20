@@ -12,7 +12,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useCommissionEnabled } from './CommissionOptIn';
 import { CommissionBoardModal } from './CommissionBoardModal';
 

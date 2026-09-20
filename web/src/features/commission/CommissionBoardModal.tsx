@@ -3,7 +3,7 @@ import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cort
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { MarkdownView } from '@/features/memory/MarkdownView';
-import { DecisionCardGroup } from '@/features/workbench/DecisionCards';
+import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { fetchCommissionAssetObjectUrl } from './commission-assets';
 
 const mono = "'IBM Plex Mono',monospace";

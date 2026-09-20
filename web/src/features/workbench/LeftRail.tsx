@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { scheduleRowAction, type ScheduleRow } from './schedule-rail';
+import { scheduleRowAction, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { RunListModal } from './RunListModal';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
-import { projectIndexFromKey } from './left-rail-projects';
+import { projectIndexFromKey } from '@/features/session/list/left-rail-projects';
 import {
   buildRailTree,
   projectOfSession,
@@ -28,11 +28,11 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
-import { useSelectedSession } from './SelectedSessionProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
-import { useSessionsLiveSync } from './useSessionsLiveSync';
-import { useMarkManyRead } from './useMarkSessionRead';
+import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
+import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';

@@ -16,15 +16,15 @@
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
-import { useRevealedText } from '@/features/workbench/useRevealedText';
-import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
-import { ChatNotice } from '@/features/workbench/ChatNotice';
-import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
+import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
+import { useRevealedText } from '@/features/session/transcript/useRevealedText';
+import { useToolCallOverflow } from '@/features/session/transcript/useToolCallOverflow';
+import { ChatNotice } from '@/features/session/transcript/ChatNotice';
+import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { useVocab } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/workbench/transcript-vm';
-import { modelLabel } from '@/features/workbench/model-label';
-import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { modelLabel } from '@/features/session/composer/model-label';
+import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { toolChips } from '@/mobile/shared/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';

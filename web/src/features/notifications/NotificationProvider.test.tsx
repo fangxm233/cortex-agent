@@ -27,7 +27,7 @@ vi.mock('@/design', () => ({
   }),
 }));
 
-vi.mock('@/features/workbench/SelectedSessionProvider', () => ({
+vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
   useSelectedSession: () => ({
     selectedSessionId: harness.selectedSessionId,
     setSelectedSession: harness.setSelectedSession,

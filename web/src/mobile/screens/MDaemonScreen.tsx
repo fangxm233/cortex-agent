@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { threadScopeFilter } from '@/features/workbench/scope';
+import { threadScopeFilter } from '@/features/session/composer/scope';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { isNativeShell } from '@/lib/desktop-config';

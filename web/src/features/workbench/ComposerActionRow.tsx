@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
-import type { SlashSuggestion } from './composer-slash';
+import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { useBrowserDeviceOptions, type BrowserDeviceOption } from '@/features/browser/BrowserOptIn';
 import { useCommissionOptions, type CommissionOption } from '@/features/commission/CommissionOptIn';
 

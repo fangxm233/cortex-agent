@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type {
   ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
-} from './selection-menu';
+} from '@/features/session/list/selection-menu';
 
 // The composer's engine picker, anchored above or below its position:relative chip.
 //

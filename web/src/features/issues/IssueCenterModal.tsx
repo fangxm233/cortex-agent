@@ -6,9 +6,9 @@ import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { DRAFT_SENTINEL } from '@/features/workbench/selected-session';
-import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
+import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
 import { defaultSelectedId, toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
 
 // Issues modal (design sec-24 24b), isomorphic to the approval center 7a overlay: backdrop +

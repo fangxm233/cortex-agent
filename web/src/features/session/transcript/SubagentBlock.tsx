@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
-import { modelLabel } from './model-label';
+import { modelLabel } from '@/features/session/composer/model-label';
 
 const mono = "'IBM Plex Mono',monospace";
 

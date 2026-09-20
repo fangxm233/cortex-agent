@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
-import type { ThreadGroup } from '@/features/workbench/scope';
+import type { ThreadGroup } from '@/features/session/composer/scope';
 import {
   pipelineSteps,
   runningMeta,

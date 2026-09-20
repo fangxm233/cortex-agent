@@ -1,7 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import type { ScheduleRow } from './schedule-rail';
+import type { ScheduleRow } from '@/features/session/list/schedule-rail';
 
 const harness = vi.hoisted(() => ({
   modalProps: null as any,

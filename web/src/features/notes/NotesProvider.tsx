@@ -10,7 +10,7 @@ import {
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 import { useLang } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { NOTES_COPY, type NotesCopy } from './notes-copy';
 import { buildNotesVm, isNotesShortcut, type NotesVm } from './notes-vm';
 import { useNotesResource } from './useNotesResource';

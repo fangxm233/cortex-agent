@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
-import type { ToolCall } from './chat-content';
+import type { ToolCall } from '@/features/session/composer/chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { toolCallOverflowText } from './tool-call-overflow';
 import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflow';

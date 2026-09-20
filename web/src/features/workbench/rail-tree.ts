@@ -1,16 +1,16 @@
 import type {
   CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo,
 } from '@cortex-agent/ui-contract';
-import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from './schedule-rail';
+import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
-import { lastActivityByProject, relativeAge, sortProjectsByActivity } from './left-rail-projects';
+import { lastActivityByProject, relativeAge, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import {
   awaitingInputCountByProject,
   projectAttentionBadge,
   runningCountByProject,
   unreadCountByProject,
   type ProjectAttentionBadgeTone,
-} from './project-menu';
+} from '@/features/session/list/project-menu';
 import { resolveRailOrder, type RailSortMode } from './rail-order';
 
 // The rail is ONE flat list of project folders — every project is present, none is folded away

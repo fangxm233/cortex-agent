@@ -1,9 +1,9 @@
 import type {
   ConfigProfileEntry, ModelCatalogRoute, ModelCatalogSnapshot, SessionSelectionOverride,
 } from '@cortex-agent/ui-contract';
-import { modelLabel } from './model-label';
+import { modelLabel } from '@/features/session/composer/model-label';
 import { buildProfileOptions, currentBackendOf, type ProfileOption } from './profile-menu';
-import type { SelectionChange } from './selected-session';
+import type { SelectionChange } from '@/features/session/state/selected-session';
 
 /** The gateway endpoint every claude profile leaves through — the server's own constant. */
 const CLAUDE_ENDPOINT = 'anthropic';

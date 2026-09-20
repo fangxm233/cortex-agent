@@ -5,7 +5,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import type { Vocab } from '@/i18n';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
-import { messageTimeLabel } from './transcript-vm';
+import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from './decision-vm';
 
 const mono = "'IBM Plex Mono',monospace";

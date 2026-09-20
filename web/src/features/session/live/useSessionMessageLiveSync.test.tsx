@@ -47,7 +47,7 @@ vi.mock('./useAssistantDeltaStream', () => ({
 }));
 
 import { useSessionMessageLiveSync, type SessionLiveState } from './useSessionMessageLiveSync';
-import { registerActiveSubagentTranscript } from './SubagentTranscriptDetail';
+import { registerActiveSubagentTranscript } from '@/features/session/transcript/SubagentTranscriptDetail';
 
 const FULL_TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [] };
 const COMPACT_TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [], subagentSummaries: [] };

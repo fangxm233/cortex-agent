@@ -4,7 +4,7 @@ import { useNotesResource } from '@/features/notes/useNotesResource';
 import { useLang } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
-import { prefillProjectDraft } from '@/features/workbench/composer-draft';
+import { prefillProjectDraft } from '@/features/session/composer/composer-draft';
 import { MNotesView } from './MNotesView';
 import { buildMNotesVm } from './m-notes-vm';
 

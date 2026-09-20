@@ -6,16 +6,16 @@ import {
   groupModelOptions, modeChange, modelChange, profileChange, selectionChipParts, selectionRootRows,
   thinkingChange, visibleModelOptions, visibleProfileOptions,
   type EffectiveSelection, type SelectionRootRow,
-} from '@/features/workbench/selection-menu';
-import type { SelectionChange } from '@/features/workbench/selected-session';
+} from '@/features/session/list/selection-menu';
+import type { SelectionChange } from '@/features/session/state/selected-session';
 import {
   buildTranscriptRows,
   type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
-} from '@/features/workbench/transcript-vm';
+} from '@/features/session/transcript/transcript-vm';
 import { zhDivider } from '@/mobile/shared/mobile-session-vm';
-import type { SessionRunStatus } from '@/features/workbench/session-run-status';
+import type { SessionRunStatus } from '@/features/session/list/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';
 

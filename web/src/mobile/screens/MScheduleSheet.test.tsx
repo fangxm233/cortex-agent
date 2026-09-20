@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { buildScheduleRows } from '@/features/workbench/schedule-rail';
+import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import type { ScheduleEditorController } from '@/features/schedule/useScheduleEditorController';
 
 vi.mock('@/mobile/ui/kit', async () => ({

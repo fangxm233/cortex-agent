@@ -1,5 +1,5 @@
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
-import type { ToolCallOverflowLayout } from '@/features/workbench/tool-call-overflow';
+import type { ToolCallOverflowLayout } from '@/features/session/transcript/tool-call-overflow';
 import { formatUsd } from '@/lib/format';
 
 function hhmm(d: Date): string {

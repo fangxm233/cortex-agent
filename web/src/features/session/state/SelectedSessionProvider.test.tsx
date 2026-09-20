@@ -17,7 +17,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
 vi.mock('@/features/projects/useProjectSessions', () => ({
   useProjectSessions: () => ({ data: [] }),
 }));
-vi.mock('./composer-draft', () => ({ prefillProjectDraft: vi.fn() }));
+vi.mock('@/features/session/composer/composer-draft', () => ({ prefillProjectDraft: vi.fn() }));
 
 function mount() {
   let api!: ReturnType<typeof useSelectedSession>;

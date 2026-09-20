@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { SlashSuggestion } from '@/features/workbench/composer-slash';
-import { TodoRail } from '@/features/workbench/TodoRail';
-import { WaitRail } from '@/features/workbench/WaitRail';
+import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
+import { TodoRail } from '@/features/session/rail/TodoRail';
+import { WaitRail } from '@/features/session/rail/WaitRail';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';

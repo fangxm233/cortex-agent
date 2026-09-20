@@ -4,16 +4,16 @@ import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
 import type { SessionContextUsage, SessionTranscript, TodoSnapshot } from '@cortex-agent/ui-contract';
-import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } from './transcript-vm';
+import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } from '@/features/session/transcript/transcript-vm';
 import {
   resolveRunning, resolveBackgroundRunning, initialAssistantPreviewState,
   applyAssistantPreviewDelta, finalizeAssistantPreview,
   applyDelivered, reconcilePendingUserMessages,
-} from './transcript-vm';
-import { contextUsageFromLivePayload, resolveContextUsage } from './context-usage';
-import { resolveTodos, todoSnapshotFromLivePayload } from './todo-vm';
+} from '@/features/session/transcript/transcript-vm';
+import { contextUsageFromLivePayload, resolveContextUsage } from '@/features/session/composer/context-usage';
+import { resolveTodos, todoSnapshotFromLivePayload } from '@/features/session/rail/todo-vm';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
-import { activeSubagentTranscriptIds } from './SubagentTranscriptDetail';
+import { activeSubagentTranscriptIds } from '@/features/session/transcript/SubagentTranscriptDetail';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
 // stream (`features/live/LiveEventsProvider`) scoped to `sessionId` — the scope filter reproduces the

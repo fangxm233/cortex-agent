@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTRPCClient } from '@/lib/trpc';
 import { ASSISTANT_DELTA_EVENTS, liveRetryDelayMs } from '@/features/live/live-events';
-import type { AssistantDeltaEvent } from './transcript-vm';
+import type { AssistantDeltaEvent } from '@/features/session/transcript/transcript-vm';
 
 // Token-level assistant streaming: a small SSE subscription carrying `session.message.delta` for ONE
 // session, opened only by the surface that renders a live preview (the open chat).

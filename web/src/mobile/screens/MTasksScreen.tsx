@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { projectInitials } from '@/features/workbench/session-groups';
+import { projectInitials } from '@/features/session/list/session-groups';
 import { useTasksLiveSync } from '@/features/tasks/useTasksLiveSync';
 import { groupTasks } from '@/features/tasks/group-tasks';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';

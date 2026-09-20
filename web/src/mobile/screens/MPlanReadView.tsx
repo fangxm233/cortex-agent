@@ -7,8 +7,8 @@
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MC, MONO } from '@/mobile/ui/kit';
-import type { PlanCardModel } from '@/features/workbench/interaction-vm';
-import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from '@/features/workbench/plan-read-vm';
+import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
+import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from '@/features/session/interaction/plan-read-vm';
 
 export interface MPlanReadCopy {
   lang: 'zh' | 'en';

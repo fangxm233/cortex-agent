@@ -1,6 +1,6 @@
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { buildSessionIdRows } from './session-id';
+import { buildSessionIdRows } from '@/features/session/list/session-id';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 // SESSION ID MODAL — opened from the ChatHeader ⋯ menu (会话ID). Shows the two identifiers a session

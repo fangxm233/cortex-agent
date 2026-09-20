@@ -8,26 +8,26 @@ import { useLang, useVocab } from '@/i18n';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
-} from './composer-slash';
+} from '@/features/session/composer/composer-slash';
 import { formatCost } from './right-panel-vm';
-import { useSelectedSession } from './SelectedSessionProvider';
-import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from './selected-session';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from '@/features/session/state/selected-session';
 import {
   attachmentSendAllowed, completedAttachmentMetas, type AttachmentMeta,
 } from '@/features/attachments/types';
 import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
 import {
   draftStorageKey, loadDraft, saveDraft, clearDraft, mergeRestoredDraft, type ComposerDraft,
-} from './composer-draft';
+} from '@/features/session/composer/composer-draft';
 import { ComposerStatusLine } from './ComposerStatusLine';
 import { SessionStatsModal } from './SessionStatsModal';
-import { sessionStatsView } from './session-stats';
+import { sessionStatsView } from '@/features/session/list/session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
-import { TodoRail } from './TodoRail';
-import { WaitRail } from './WaitRail';
-import type { SessionWaitpoints } from './useSessionWaitpoints';
+import { TodoRail } from '@/features/session/rail/TodoRail';
+import { WaitRail } from '@/features/session/rail/WaitRail';
+import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
@@ -36,10 +36,10 @@ import {
   commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle,
 } from '@/features/commission/CommissionOptIn';
 import { SessionSelectorView, useSessionSelection } from './SessionSelector';
-import type { ContextCompactAction } from './ContextUsageControl';
+import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
-import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
-import { deriveSessionRunStatus } from './session-run-status';
+import { runOptimisticMutation, type OptimisticUserMessage } from '@/features/session/transcript/optimistic-message';
+import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
 import { DraftProjectSelector } from './DraftProjectSelector';
 import { useFileDropTarget } from './useFileDropTarget';
 

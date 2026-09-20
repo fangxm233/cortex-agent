@@ -9,10 +9,10 @@ import {
   selectionChipParts, selectionRootRows, thinkingChange, visibleModelOptions, visibleProfileOptions,
   type EffectiveSelection, type ModeOption, type ModelOption, type ProfileOption,
   type SelectionRootRow, type ThinkingOption,
-} from './selection-menu';
+} from '@/features/session/list/selection-menu';
 import { SelectionMenu, type SelectionPane } from './SelectionMenu';
-import { useSelectedSession } from './SelectedSessionProvider';
-import { resolveTransitionSelection, type SelectionChange } from './selected-session';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { resolveTransitionSelection, type SelectionChange } from '@/features/session/state/selected-session';
 
 // The composer's engine chip: what the NEXT turn will run, and the one place to change it.
 //

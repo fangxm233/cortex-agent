@@ -4,7 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import type {
   ContextCompactAction,
   ContextCompactDisabledReason,
-} from './ContextUsageControl';
+} from '@/features/session/composer/ContextUsageControl';
 
 interface SessionCompactOptions {
   running: boolean;

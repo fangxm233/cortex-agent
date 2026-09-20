@@ -13,7 +13,7 @@ import {
   type PendingCreatedSession,
   type SelectionChange,
 } from './selected-session';
-import { prefillProjectDraft } from './composer-draft';
+import { prefillProjectDraft } from '@/features/session/composer/composer-draft';
 
 // Cross-pane "selected session" state. A single source of truth for which session the center chat
 // shows, written by the LeftRail session rows (+ the "+ New session" control) and read by CenterChat.

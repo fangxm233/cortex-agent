@@ -8,9 +8,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { findInteraction, planCardModel } from '@/features/workbench/interaction-vm';
-import { useInteractionActions } from '@/features/workbench/useInteractionActions';
-import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
+import { findInteraction, planCardModel } from '@/features/session/interaction/interaction-vm';
+import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
+import { useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { MPlanReadView, M_PLAN_READ_COPY } from './MPlanReadView';
 

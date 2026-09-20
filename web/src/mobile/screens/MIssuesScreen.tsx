@@ -13,7 +13,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
+import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
 import { buildIssuePrompt, defaultSelectedId, toIssueDetail } from '@/features/issues/issues-vm';
 import { MIssuesView, type MIssuesCopy } from './MIssuesView';
 

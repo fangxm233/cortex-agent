@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { messageTimeLabel, type ChatRow } from '@/features/workbench/transcript-vm';
+import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, MSG_MENU_SAFE_BOTTOM, MSG_MENU_SAFE_TOP } from './m-chat-vm';
 import type { MChatEditCopy, MMsgMenu } from './MChatView.types';

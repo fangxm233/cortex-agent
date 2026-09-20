@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { noticeTone } from './ChatNotice';
+import { noticeTone } from '@/features/session/transcript/ChatNotice';
 import {
   type AskCardModel,
   type PlanCardModel,

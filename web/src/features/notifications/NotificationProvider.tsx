@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useNotificationFeed } from './useNotificationFeed';
 import { notificationToast } from './publish-notification';

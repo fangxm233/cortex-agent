@@ -8,12 +8,12 @@
 //     attribution = 全局 (legacy/system entries), bucketed by pendingApprovalCounts.
 // GAP (never fabricated): phase/milestone (Phase 2 · M2.3) have no DTO source → omitted.
 import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
-import { projectInitials } from '@/features/workbench/session-groups';
-import { sortProjectsByActivity } from '@/features/workbench/left-rail-projects';
+import { projectInitials } from '@/features/session/list/session-groups';
+import { sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import {
   projectAttentionBadge,
   type ProjectAttentionBadgeTone,
-} from '@/features/workbench/project-menu';
+} from '@/features/session/list/project-menu';
 
 const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
-import type { SlashSuggestion } from '@/features/workbench/composer-slash';
-import type { SessionWaitpoints } from '@/features/workbench/useSessionWaitpoints';
-import type { ContextCompactAction } from '@/features/workbench/ContextUsageControl';
-import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/workbench/interaction-vm';
-import type { ChatRow } from '@/features/workbench/transcript-vm';
-import type { SessionStatsRow } from '@/features/workbench/session-stats';
-import type { TodoRailLanguage } from '@/features/workbench/TodoRail';
+import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
+import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
+import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
+import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/session/interaction/interaction-vm';
+import type { ChatRow } from '@/features/session/transcript/transcript-vm';
+import type { SessionStatsRow } from '@/features/session/list/session-stats';
+import type { TodoRailLanguage } from '@/features/session/rail/TodoRail';
 import type { MIntCopy } from './MInteractionCards';
 import type {
   ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,

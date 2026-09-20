@@ -1,7 +1,7 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { AttachmentMeta, AttachmentUploadItem } from '@/features/attachments/types';
 import { completedAttachmentMetas } from '@/features/attachments/types';
-import { loadDraft, saveDraft } from '@/features/workbench/composer-draft';
+import { loadDraft, saveDraft } from '@/features/session/composer/composer-draft';
 
 interface DraftEffectParams {
   draftKey: string | null;

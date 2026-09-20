@@ -66,7 +66,7 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('./SelectedSessionProvider', () => ({
+vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
   useSelectedSession: () => ({
     draftSelection: harness.draftSelection,
     setDraftSelection: harness.setDraftSelection,

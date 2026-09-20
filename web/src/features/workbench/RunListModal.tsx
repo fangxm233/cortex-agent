@@ -1,8 +1,8 @@
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { runOrdinals, unreadRunIds, type ScheduleRow } from './schedule-rail';
-import { cadenceLabel, nextRunDelta } from './scheduled-chat';
-import { sessionStamp } from './session-groups';
+import { runOrdinals, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
+import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
+import { sessionStamp } from '@/features/session/list/session-groups';
 import { formatUsd } from '@/lib/format';
 
 const mono = "'IBM Plex Mono',monospace";

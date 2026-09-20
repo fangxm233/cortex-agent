@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
-import type { LiveSessionMessage, PendingUserMessage } from '@/features/workbench/transcript-vm';
+import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const harness = vi.hoisted(() => ({
   projectId: 'atlas',
@@ -117,7 +117,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
   useCurrentProject: () => ({ currentProjectId: harness.projectId }),
 }));
 
-vi.mock('@/features/workbench/useSessionMessageLiveSync', () => ({
+vi.mock('@/features/session/live/useSessionMessageLiveSync', () => ({
   useSessionMessageLiveSync: (...args: any[]) => {
     harness.liveSyncArgs = args;
     return {
@@ -130,7 +130,7 @@ vi.mock('@/features/workbench/useSessionMessageLiveSync', () => ({
   },
 }));
 
-vi.mock('@/features/workbench/useSessionCompact', () => ({
+vi.mock('@/features/session/live/useSessionCompact', () => ({
   useSessionCompact: () => ({
     onCompact: harness.compact,
     pending: false,
@@ -140,8 +140,8 @@ vi.mock('@/features/workbench/useSessionCompact', () => ({
     disabledReason: null,
   }),
 }));
-vi.mock('@/features/workbench/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
-vi.mock('@/features/workbench/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
+vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
+vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/thread/useThreadGetLiveSync', () => ({ useThreadGetLiveSync: () => {} }));
 vi.mock('@/features/attachments/useAttachmentUploads', () => ({
   useAttachmentUploads: () => ({

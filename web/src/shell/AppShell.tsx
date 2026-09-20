@@ -7,7 +7,7 @@ import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
 import { SettingsProvider } from '@/features/settings/SettingsProvider';
 import { IssuesProvider } from '@/features/issues/IssuesProvider';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
-import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
+import { SelectedSessionProvider } from '@/features/session/state/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 import { UpdateProvider } from '@/features/update-prompt/UpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';

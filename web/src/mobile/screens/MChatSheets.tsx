@@ -1,10 +1,10 @@
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
-import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
-import { buildSessionIdRows } from '@/features/workbench/session-id';
-import type { SessionStatsRow } from '@/features/workbench/session-stats';
+import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
+import { buildSessionIdRows } from '@/features/session/list/session-id';
+import type { SessionStatsRow } from '@/features/session/list/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { useState, type ReactNode } from 'react';
-import type { SelectionRootRow } from '@/features/workbench/selection-menu';
+import type { SelectionRootRow } from '@/features/session/list/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';

@@ -1,5 +1,5 @@
 import type { SessionTotals } from '@cortex-agent/ui-contract';
-import { formatElapsed } from './transcript-vm';
+import { formatElapsed } from '@/features/session/transcript/transcript-vm';
 import { formatUsd } from '@/lib/format';
 
 // The composer status line has always answered "what is happening right now": the CURRENT turn's

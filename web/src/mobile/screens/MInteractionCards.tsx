@@ -6,9 +6,9 @@ import {
   type AskAnswerState,
   currentQuestionIndex,
   formatTtl,
-} from '@/features/workbench/interaction-vm';
-import { useTtlSeconds } from '@/features/workbench/useInteractionTtl';
-import { noticeTone } from '@/features/workbench/ChatNotice';
+} from '@/features/session/interaction/interaction-vm';
+import { useTtlSeconds } from '@/features/session/interaction/useInteractionTtl';
+import { noticeTone } from '@/features/session/transcript/ChatNotice';
 
 export interface MIntCopy {
   askPill: string;

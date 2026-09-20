@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { ChatRows } from '@/features/workbench/MessageStream';
-import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
-import { buildTranscriptRows, formatDividerFromVocab } from '@/features/workbench/transcript-vm';
+import { ChatRows } from '@/features/session/transcript/MessageStream';
+import { useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
+import { buildTranscriptRows, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
 
 // Per-step chat for the thread-detail pipeline. Each step runs an agent in its own session
 // (ThreadStepDetail.sessionId), so its full conversation — assistant markdown + collapsed tool-call

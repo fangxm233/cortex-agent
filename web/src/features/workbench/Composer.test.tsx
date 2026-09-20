@@ -51,7 +51,7 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('./SelectedSessionProvider', async () => {
+vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
   const React = await import('react');
   // The draft's commission choice lives in the provider (a rail row or the board can open a draft
   // already armed with one), so the mock holds real state: the capsule reads back what the ＋ menu

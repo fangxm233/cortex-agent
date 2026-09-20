@@ -134,7 +134,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-import { ChatNotice } from '@/features/workbench/ChatNotice';
+import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { LoginFlowModal, type LoginFlowModalProps } from './LoginFlowModal';
 import { LoginFlowProvider } from './LoginFlowProvider';
 

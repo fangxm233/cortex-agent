@@ -3,7 +3,7 @@ import { useVocab } from '@/i18n';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
 import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
 import type { RailSortMode } from './rail-order';
-import { scheduleSubline, type ScheduleRow } from './schedule-rail';
+import { scheduleSubline, type ScheduleRow } from '@/features/session/list/schedule-rail';
 
 const mono = "'IBM Plex Mono',monospace";
 

@@ -1,8 +1,5 @@
 [
   "browser<->dock",
-  "commission<->workbench",
   "dock<->media",
-  "notes<->workbench",
-  "settings<->usage",
-  "thread<->workbench"
+  "settings<->usage"
 ]

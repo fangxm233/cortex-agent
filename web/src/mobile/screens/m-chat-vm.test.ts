@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
-import { effectiveSelection } from '@/features/workbench/selection-menu';
+import { effectiveSelection } from '@/features/session/list/selection-menu';
 import {
   interactionHeaderStatus,
   effectiveProfileName,

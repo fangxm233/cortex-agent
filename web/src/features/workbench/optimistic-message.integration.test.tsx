@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
-import type { LiveSessionMessage, PendingUserMessage } from './transcript-vm';
+import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const harness = vi.hoisted(() => ({
   projectId: 'atlas',
@@ -124,7 +124,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
   }),
 }));
 
-vi.mock('./SelectedSessionProvider', async () => {
+vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
   const React = await import('react');
   const publishSelection = (sessionId: string) => {
     harness.selectCreatedSession(sessionId);
@@ -153,7 +153,7 @@ vi.mock('./SelectedSessionProvider', async () => {
   };
 });
 
-vi.mock('./useSessionMessageLiveSync', () => ({
+vi.mock('@/features/session/live/useSessionMessageLiveSync', () => ({
   useSessionMessageLiveSync: () => ({
     ...harness.liveState,
     getMessageSnapshot: () => ({
@@ -163,16 +163,16 @@ vi.mock('./useSessionMessageLiveSync', () => ({
   }),
 }));
 
-vi.mock('./useSessionCompact', () => ({ useSessionCompact: () => ({ compact: vi.fn() }) }));
-vi.mock('./useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
-vi.mock('./useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
+vi.mock('@/features/session/live/useSessionCompact', () => ({ useSessionCompact: () => ({ compact: vi.fn() }) }));
+vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
+vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
 vi.mock('./ChatHeader', () => ({ ChatHeader: () => null }));
 vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
-vi.mock('./ContextUsageControl', () => ({ ContextUsageControl: () => null }));
+vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('./DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
-vi.mock('./MessageStream', async () => {
+vi.mock('@/features/session/transcript/MessageStream', async () => {
   const React = await import('react');
   return {
     MessageStream: ({ rows }: { rows: Array<{ kind: string; text?: string }> }) => React.createElement(

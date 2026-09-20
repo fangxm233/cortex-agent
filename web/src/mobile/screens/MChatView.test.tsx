@@ -39,7 +39,7 @@ vi.mock('@/lib/trpc', () => ({
 }));
 
 import { LangProvider } from '@/i18n';
-import type { ChatRow } from '@/features/workbench/transcript-vm';
+import type { ChatRow } from '@/features/session/transcript/transcript-vm';
 import { MChatStream, MChatView, type MChatCopy } from './MChatView';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 

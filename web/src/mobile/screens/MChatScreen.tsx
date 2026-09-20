@@ -10,27 +10,27 @@ import {
   currentTurnElapsedMs,
   formatElapsed,
   rewindStats,
-} from '@/features/workbench/transcript-vm';
-import { scheduledRunTitle } from '@/features/workbench/schedule-rail';
-import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
-import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
-import { useSessionWaitpoints } from '@/features/workbench/useSessionWaitpoints';
-import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
-import { useInteractionActions } from '@/features/workbench/useInteractionActions';
-import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
-import { useSessionCompact } from '@/features/workbench/useSessionCompact';
+} from '@/features/session/transcript/transcript-vm';
+import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
+import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
+import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
+import { useSessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
+import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
+import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
+import { useMarkSessionRead } from '@/features/session/live/useMarkSessionRead';
+import { useSessionCompact } from '@/features/session/live/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
-import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
-import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
-import { buildProfileOptions, effectiveSelection, profileChange, selectionChipParts } from '@/features/workbench/selection-menu';
+import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
+import { sessionSpanMs, sessionStatsView } from '@/features/session/list/session-stats';
+import { buildProfileOptions, effectiveSelection, profileChange, selectionChipParts } from '@/features/session/list/selection-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
-} from '@/features/workbench/composer-slash';
+} from '@/features/session/composer/composer-slash';
 import {
   applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionSelection, seedDraftSelection,
   type DraftSelection, type PendingCreatedSession, type SelectionChange,
-} from '@/features/workbench/selected-session';
+} from '@/features/session/state/selected-session';
 
 import {
   draftStorageKey,
@@ -39,7 +39,7 @@ import {
   clearDraft,
   mergeRestoredDraft,
   type ComposerDraft,
-} from '@/features/workbench/composer-draft';
+} from '@/features/session/composer/composer-draft';
 import {
   askCardModel,
   planCardModel,
@@ -53,7 +53,7 @@ import {
   type AskAnswerState,
   type AskCardModel,
   type PlanCardModel,
-} from '@/features/workbench/interaction-vm';
+} from '@/features/session/interaction/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
