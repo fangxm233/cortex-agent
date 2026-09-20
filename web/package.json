@@ -9,8 +9,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && pnpm run depcruise && vite build",
     "typecheck": "tsc --noEmit",
+    "depcruise": "depcruise src --validate --ignore-known && node scripts/check-feature-cycles.mjs",
+    "lint": "pnpm run depcruise",
     "preview": "vite preview",
     "test": "vitest run"
   },
@@ -43,6 +45,7 @@
     "@types/react-test-renderer": "18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "dependency-cruiser": "^17.3.10",
     "postcss": "^8.4.49",
     "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.17",
