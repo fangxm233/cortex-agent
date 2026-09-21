@@ -34,7 +34,10 @@ export interface RebuildStepState {
   endedAt: string | null;
 }
 
-export type RebuildStatus = 'running' | 'succeeded' | 'aborted';
+/** `deferred` is a pipeline that built successfully and then stopped short of touching the running
+ *  process because app.ts was mid-turn: the install replaces the files that process loaded and the
+ *  restart kills it, so both wait for idle. The whole pipeline runs again from the top then. */
+export type RebuildStatus = 'running' | 'succeeded' | 'aborted' | 'deferred';
 
 export interface RebuildProgress {
   status: RebuildStatus;
@@ -46,7 +49,8 @@ export interface RebuildProgress {
   startedAt: string;
   updatedAt: string;
   endedAt: string | null;
-  /** Why it aborted, in the same words the operator notice uses. Null unless aborted. */
+  /** Why it ended the way it did — the operator notice's words for an abort, what is still owed for
+   *  a deferral. Null while running and for a plain success. */
   detail: string | null;
   /** The supervisor that owns this record. Lets a reader discard a record left `running` by a
    *  daemon that is no longer alive. */
@@ -117,7 +121,7 @@ export function finishRebuildStep(
  *  "waiting" for a pipeline that has stopped. */
 export function settleRebuildProgress(
   progress: RebuildProgress,
-  status: Extract<RebuildStatus, 'succeeded' | 'aborted'>,
+  status: Extract<RebuildStatus, 'succeeded' | 'aborted' | 'deferred'>,
   detail: string | null = null,
   now: () => Date = () => new Date(),
 ): RebuildProgress {

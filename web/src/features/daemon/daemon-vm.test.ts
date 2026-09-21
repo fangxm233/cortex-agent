@@ -5,7 +5,7 @@ import type {
   SystemDaemonStatus,
 } from '@cortex-agent/ui-contract';
 import { describe, expect, it } from 'vitest';
-import { buildDaemonVm } from './daemon-vm';
+import { buildDaemonVm, rebuildStatusTone } from './daemon-vm';
 
 function process(status: DaemonProcessInfo['status']): DaemonProcessInfo {
   return {
@@ -130,5 +130,25 @@ describe('buildDaemonVm', () => {
     expect(rebuild.elapsed).toBe('4.8s');
     expect(rebuild.steps[1]).toMatchObject({ status: 'failed', tone: 'failed', detail: 'exit 2' });
     expect(rebuild.steps[2]).toMatchObject({ status: 'skipped', tone: 'cancelled', duration: null });
+  });
+
+  it('draws a deferred pipeline as waiting, not as a failure — it built and is waiting for idle', () => {
+    const deferred: DaemonRebuildProgress = {
+      ...runningRebuild(),
+      status: 'deferred',
+      current: null,
+      steps: [
+        step('server', 'done', { from: 0, to: 4_000 }),
+        step('ui-contract', 'done', { from: 4_000, to: 5_000 }),
+        step('web', 'done', { from: 5_000, to: 9_000 }),
+        step('install', 'skipped'),
+        step('restart', 'skipped'),
+      ],
+      endedAt: new Date(T0 + 9_000).toISOString(),
+      detail: 'Build finished; install and restart wait for app.ts to go idle.',
+    };
+    const rebuild = buildDaemonVm(status(deferred), T0 + 60_000).rebuild!;
+    expect(rebuild).toMatchObject({ status: 'deferred', running: false, completed: 3, total: 5 });
+    expect(rebuildStatusTone(rebuild.status)).toBe('waiting');
   });
 });

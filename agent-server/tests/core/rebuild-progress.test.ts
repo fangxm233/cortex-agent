@@ -78,6 +78,18 @@ test('settling abandons pending steps instead of leaving them looking queued', (
   assert.deepEqual(settled.steps.map((s) => s.status), ['failed', 'skipped', 'skipped', 'skipped']);
 });
 
+test('a deferral settles without failing anything — it built, it just did not land', () => {
+  const clock = fakeClock();
+  const built = finishRebuildStep(startRebuildStep(plan(), 'server', clock), 'server', 'done', null, clock);
+  const deferred = settleRebuildProgress(
+    built, 'deferred', 'Build finished; install and restart wait for app.ts to go idle.', clock,
+  );
+
+  assert.equal(deferred.status, 'deferred');
+  assert.deepEqual(deferred.steps.map((s) => s.status), ['done', 'skipped', 'skipped', 'skipped']);
+  assert.match(deferred.detail!, /wait for app\.ts to go idle/);
+});
+
 test('a record survives a write/read round trip', () => {
   const file = tmpFile();
   const progress = startRebuildStep(plan(), 'web');

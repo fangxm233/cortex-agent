@@ -151,7 +151,7 @@ L5  entry/         → 所有层（组合根）
 | 文件 | 用途 |
 |------|---------|
 | `app.ts` | **组合根**。连接 EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher。处理 SIGTERM 优雅关闭 |
-| `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大）。发布逐步骤的重建进度，并在重建期间拒绝新 turn（见下文） |
+| `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大）。发布逐步骤的重建进度，在 install/restart 之前等 app 空闲，并在这个窗口内拒绝新 turn（见下文） |
 | `daemon-notice.ts` | 下行 IPC 的 app 侧：把 `rebuild-aborted` 变成系统通知、把 `rebuild-hold` 变成准入侧的 hold，并在监督器断开连接时解除 hold |
 | `cli.ts` | `cortex` CLI 入口点。调度到：`init`、`start`、`daemon`、`restart`、`task`、`config`、`setup-gateway` |
 | `init.ts` | 交互式首次初始化 |
@@ -170,15 +170,24 @@ L5  entry/         → 所有层（组合根）
 文件：流水线的最后一个动作就是替换掉那个本该保存这份状态的进程，所以内存里的任何东西都无法告诉新的
 `app.js`，把它带到世上的那次重建做了什么。`system.daemonStatus` 读取这条记录、daemon 页面渲染它，
 重建进行中时每秒轮询一次。`daemonPid` 不属于当前存活监督器的 `running` 记录会被丢弃，而不是永远
-显示下去；终态记录则会保留，这样"上次重建在 `web` 失败"在重启之后依然读得到。
+显示下去；终态记录则会保留，这样"上次重建在 `web` 失败"在重启之后依然读得到。终态有三种：
+`succeeded`、`aborted`、`deferred`。
 
-**在 app 即将被替换时不再开新 turn。** 每次阶段变化，监督器都会通过 fork IPC 下发
-`rebuild-hold`，准入侧（`agent-runner.ts`、`thread-executor.ts`）会在 tracking、入队、turn 中注入
-之前就拒绝 —— 此刻启动的 turn 会被片刻之后的 SIGTERM 变成孤儿，它拉起的后端 CLI 还在往没人读的管道
-里写。人如果正在打字，会在原频道收到一条说明当前阶段的回复；而没人在等的 callback 或系统消息，则会
-变成一条 warning 级系统通知，点明被丢掉的是什么。普通的 `.restart` 同样在 hold 覆盖范围内，包括
-"app 正忙、重启被推迟"这条路径。hold 带一个五分钟租约，由每条阶段消息续期，因此中途死掉的监督器不会
-把 app 永久静音；IPC `disconnect` 则会立即解除它。
+**流水线里危险的那一半会等 app 空闲。** 构建步骤只读仓库、写 `dist/`；而 `install` 会覆盖运行中
+`app.js` 加载的那些文件，`restart` 直接杀掉它。所以 busy/idle 会检查两次：构建之前一次，构建之后
+再一次 —— 构建长达数分钟，这期间完全可能有 turn 正当地开始了。第二道门发现子进程 busy 时，会把触发
+原因存进 `pendingRebuild`、把记录发布为 `deferred`，等下一次 idle 转换再从头跑一遍整条流水线 ——
+等真实工作做完，而不是拒绝它，因为被拒绝的 turn 并不等于被延迟的 turn（waitpoint 唤醒或后台 agent
+的结果会直接丢失）。
+
+**只在进程被替换的那几秒里不开新 turn。** 进入 `install` 或 `restart`（以及有排队中的重启）时，
+监督器会通过 fork IPC 下发 `rebuild-hold`，准入侧（`agent-runner.ts`、`thread-executor.ts`）会在
+tracking、入队、turn 中注入之前就拒绝：此刻启动的 turn 会被片刻之后的 SIGTERM 变成孤儿，它拉起的
+后端 CLI 还在往没人读的管道里写。覆盖范围是刻意收窄的 —— 绝不包含构建阶段 —— 所以它能拦到的只有
+落在"idle 检查与 SIGTERM 之间那一个 tick"里的消息。人如果正在打字，会在原频道收到一条说明当前阶段的
+回复；而没人在等的 callback 或系统消息，则会变成一条 warning 级系统通知，点明被丢掉的是什么。hold
+带一个五分钟租约，由每条阶段消息续期，因此中途死掉的监督器不会把 app 永久静音；IPC `disconnect`
+则会立即解除它。
 
 ## LLM 后端适配器 {#llm-backend-adapter}
 

@@ -70,6 +70,8 @@ export function rebuildStepTone(status: DaemonRebuildStepStatus): Tone {
 export function rebuildStatusTone(status: DaemonRebuildStatus): Tone {
   if (status === 'running') return 'running';
   if (status === 'succeeded') return 'done';
+  // A deferral is not a failure: it built, and it is waiting for the app to finish a turn.
+  if (status === 'deferred') return 'waiting';
   return 'failed';
 }
 

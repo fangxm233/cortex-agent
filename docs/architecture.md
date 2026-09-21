@@ -163,7 +163,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | File | Purpose |
 |------|---------|
 | `app.ts` | **Composition root**. Wires EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown |
-| `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress and holds new turns while rebuilding (see below) |
+| `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress, waits for an idle app before install/restart, and holds new turns across that window (see below) |
 | `daemon-notice.ts` | The app side of the downward IPC: turns `rebuild-aborted` into a system notice and `rebuild-hold` into the admission hold, and lifts the hold if the supervisor disconnects |
 | `cli.ts` | `cortex` CLI entry point. Dispatches to: `init`, `start`, `daemon`, `restart`, `task`, `config`, `setup-gateway` |
 | `init.ts` | Interactive first-time initialization |
@@ -184,17 +184,28 @@ process that would have held that state, so nothing in memory can tell the new `
 rebuild it was born from did. `system.daemonStatus` reads the record and the daemon page renders it,
 polling once per second while a rebuild runs. A `running` record whose `daemonPid` is not the live
 supervisor is dropped rather than shown forever; a terminal record is kept, so "the last rebuild
-failed at `web`" is still readable after the restart.
+failed at `web`" is still readable after the restart. The terminal statuses are `succeeded`,
+`aborted`, and `deferred`.
 
-**No new turns while the app is about to be replaced.** On every phase change the supervisor sends
-`rebuild-hold` down the fork IPC, and admission (`agent-runner.ts`, `thread-executor.ts`) refuses
-before tracking, queueing, or mid-turn injection — a turn started now is orphaned by the SIGTERM a
-moment later, with its backend CLI left writing into a pipe no one reads. A person who typed gets an
-in-channel reply naming the current phase; a callback or system message nobody is waiting on becomes
-a warning-level system notice naming what was dropped. The hold also covers a plain `.restart`,
-including the deferred path where the restart waits for a busy app. It carries a five-minute lease
-renewed by each phase message, so a supervisor that dies mid-pipeline cannot mute the app forever,
-and an IPC `disconnect` lifts it immediately.
+**The dangerous half of the pipeline waits for an idle app.** The build steps read the repo and
+write `dist/`; the `install` step overwrites the files the running `app.js` loaded and `restart`
+kills it. So busy/idle is checked twice: once before the build, and again after it, because a build
+takes minutes and a turn can legitimately have started meanwhile. A busy child at the second gate
+parks the trigger in `pendingRebuild`, publishes the record as `deferred`, and the whole pipeline
+runs again on the next idle transition — real work is waited for, not refused, because a refused
+turn is not a delayed turn (a waitpoint wake or a background agent's result would be dropped
+outright).
+
+**No new turns in the seconds the process is being replaced.** Entering `install` or `restart` — or
+queueing a restart — makes the supervisor send `rebuild-hold` down the fork IPC, and admission
+(`agent-runner.ts`, `thread-executor.ts`) refuses before tracking, queueing, or mid-turn injection:
+a turn started now is orphaned by the SIGTERM a moment later, with its backend CLI left writing into
+a pipe no one reads. The scope is deliberately narrow — never the build — so the only messages it
+can catch are those landing in the tick-level race between the idle check and the SIGTERM. A person
+who typed gets an in-channel reply naming the current phase; a callback or system message nobody is
+waiting on becomes a warning-level system notice naming what was dropped. The hold carries a
+five-minute lease renewed by each phase message, so a supervisor that dies mid-pipeline cannot mute
+the app forever, and an IPC `disconnect` lifts it immediately.
 
 ## LLM Backend Adapter
 
