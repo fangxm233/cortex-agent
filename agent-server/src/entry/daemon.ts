@@ -565,16 +565,21 @@ function setRebuildProgress(next: RebuildProgress): void {
   holdChildTurns(next.status === 'running' || queuedRestart, next.current ?? (queuedRestart ? 'restart' : null), next.reason);
 }
 
-/** The steps this checkout will actually run, in order. Mirrors `planRebuildSteps` for the build
- *  half — a package that is absent is never published as pending — and appends the two phases the
- *  build planner does not own. */
+/** The steps a checkout will actually run, in order. Derived from `planRebuildSteps` so the build
+ *  half cannot drift — a package that is absent is never published as pending — plus the two phases
+ *  the build planner does not own. */
+export function planRebuildStepNames(dirs: Parameters<typeof planRebuildSteps>[0]): RebuildStepName[] {
+  const names = planRebuildSteps(dirs).map((step) => step.label as RebuildStepName);
+  return [...names, 'install', 'restart'];
+}
+
+/** `planRebuildStepNames` for this process's checkout. */
 function plannedProgressSteps(): RebuildStepName[] {
-  const names: RebuildStepName[] = planRebuildSteps({
+  return planRebuildStepNames({
     repoDir: CORTEX_REPO,
     uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
     webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
-  }).map((step) => step.label as RebuildStepName);
-  return [...names, 'install', 'restart'];
+  });
 }
 
 /** The pipeline's last step, with the progress record closed out according to what restart() did. */

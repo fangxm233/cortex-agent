@@ -42,6 +42,7 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `log.ts` | `createLogger(tag)` — console + daily-rolling file sink with 14-day retention |
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |
 | `status-format.ts` | Pure formatting: `computeElapsed`, `formatMetricsSuffix`, `buildSessionTag`, `buildUserProcessingMessage` |
+| `rebuild-progress.ts` | The hot-rebuild progress record the supervisor publishes to `daemon-rebuild.json`: pure step transitions (`planRebuildProgress`, `startRebuildStep`, `finishRebuildStep`, `settleRebuildProgress`) plus a read that never throws |
 | `task-parser.ts` | Task interface definition, YAML parsing/serialization with kebab↔snake_case key mapping, `scanAllTasks`, `scanAvailableTasks`, `filterTasks`, `getTaskStats` |
 | `run-registry.ts` | `RunRegistry` — the single in-memory index of the executions that are live right now, keyed by executionId and indexed by thread and channel. Publishes the `agent.*` lifecycle events to the EventBus |
 | `session-holds.ts` | `SessionHolds` — the other half of "is this session busy": a turn that ended while background work continues, with per-owner handles, supersede and stop |
@@ -110,6 +111,7 @@ The thickest layer. Contains 23 subdirectories, each encapsulating a domain conc
 | `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules; built-in task dispatch, archive, and memory-index jobs own daemon timers |
 | `memory/` | Memory/index management. `memory-index-regen.ts` rebuilds index.md from YAML frontmatter. File watcher for context changes. AGENTS.md scanning and injection |
 | `monitor/` | GPU and disk resource monitoring |
+| `system/` | Host-level concerns: doctor checks, update state and prompts, system notices and their history, and `rebuild-hold.ts` — the supervisor-pushed "no new turns" state consulted by admission |
 | `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |
 | `threads/` | Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O, auto-thread logic |
 | `mcp/` | MCP server implementation. 16 Cortex MCP tools across 8 tool modules (see [mcp.md](./mcp.md)) |
@@ -161,11 +163,38 @@ layer) is detailed in [hooks.md](./hooks.md).
 | File | Purpose |
 |------|---------|
 | `app.ts` | **Composition root**. Wires EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown |
-| `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max) |
+| `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress and holds new turns while rebuilding (see below) |
+| `daemon-notice.ts` | The app side of the downward IPC: turns `rebuild-aborted` into a system notice and `rebuild-hold` into the admission hold, and lifts the hold if the supervisor disconnects |
 | `cli.ts` | `cortex` CLI entry point. Dispatches to: `init`, `start`, `daemon`, `restart`, `task`, `config`, `setup-gateway` |
 | `init.ts` | Interactive first-time initialization |
 | `startup-helpers.ts` | Cleanup logs, ensure MCP config |
 | `startup-notify.ts` | Send startup DM to admin channel |
+
+### Hot Rebuild: Published Progress and the Turn Hold
+
+With `CORTEX_REPO` set, a source change makes the supervisor rebuild the packages, reinstall itself,
+and replace the app process. Two mechanisms make that visible and safe.
+
+**Progress lives in a file, not in memory.** Before step one the pipeline writes its whole plan to
+`$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (`server`, `ui-contract`, `web`,
+then `install` and `restart`), which one is in flight, and how each ended (`done`, `failed`,
+`skipped`), with the `install` step recording whether it took the fast staged-rename path or
+`npm pack` + `npm install -g`. A file is the only option: the pipeline's last act replaces the very
+process that would have held that state, so nothing in memory can tell the new `app.js` what the
+rebuild it was born from did. `system.daemonStatus` reads the record and the daemon page renders it,
+polling once per second while a rebuild runs. A `running` record whose `daemonPid` is not the live
+supervisor is dropped rather than shown forever; a terminal record is kept, so "the last rebuild
+failed at `web`" is still readable after the restart.
+
+**No new turns while the app is about to be replaced.** On every phase change the supervisor sends
+`rebuild-hold` down the fork IPC, and admission (`agent-runner.ts`, `thread-executor.ts`) refuses
+before tracking, queueing, or mid-turn injection — a turn started now is orphaned by the SIGTERM a
+moment later, with its backend CLI left writing into a pipe no one reads. A person who typed gets an
+in-channel reply naming the current phase; a callback or system message nobody is waiting on becomes
+a warning-level system notice naming what was dropped. The hold also covers a plain `.restart`,
+including the deferred path where the restart waits for a busy app. It carries a five-minute lease
+renewed by each phase message, so a supervisor that dies mid-pipeline cannot mute the app forever,
+and an IPC `disconnect` lifts it immediately.
 
 ## LLM Backend Adapter
 
@@ -242,6 +271,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
 | `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |
 | `executions.json` | Unified execution registry |
+| `daemon-rebuild.json` | The supervisor's published hot-rebuild record: plan, per-step status and timings, and the terminal outcome of the last rebuild |
 | `config/thread-templates/` | Agent definitions and orchestration templates — one JSON file per entity under `agents/`, `templates/`, `shells/` |
 | `threads.json` | Active and historical thread state |
 | `tasks/` | Project task queues (TASKS.yaml per project) |

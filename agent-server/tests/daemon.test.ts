@@ -4,6 +4,7 @@ import { test } from 'vitest';
 import { AGENT_SERVER_DIR } from './module-loader.js';
 import {
   planRebuildSteps,
+  planRebuildStepNames,
 } from '../src/entry/daemon.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -88,6 +89,27 @@ test('planRebuildSteps omits workspace packages that are absent', () => {
     planRebuildSteps({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null })
       .map(s => s.label),
     ['server'],
+  );
+});
+
+// --- Published progress plan ---
+//
+// The daemon page renders "n of total steps", so the published plan must be the same list the
+// pipeline will actually walk. Deriving it from planRebuildSteps is what keeps the two in step; the
+// install and restart phases are appended because the build planner does not own them.
+
+test('planRebuildStepNames publishes the build steps it will run, then install and restart', () => {
+  assert.deepEqual(
+    planRebuildStepNames({
+      repoDir: '/repo/agent-server',
+      uiContractDir: '/repo/packages/ui-contract',
+      webDir: '/repo/web',
+    }),
+    ['server', 'ui-contract', 'web', 'install', 'restart'],
+  );
+  assert.deepEqual(
+    planRebuildStepNames({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null }),
+    ['server', 'install', 'restart'],
   );
 });
 
