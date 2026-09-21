@@ -19,6 +19,8 @@ import type {
   SessionsCancelReturn,
   SessionsSetProfileArgs,
   SessionsSetProfileReturn,
+  SessionsSetAgentArgs,
+  SessionsSetAgentReturn,
   SessionsSetSelectionArgs,
   SessionsSetSelectionReturn,
   SessionsSetCommissionArgs,
@@ -270,6 +272,10 @@ export async function handleCreateAndSend(
   const { sessionId, channel } = await deps.createDirectSession({
     projectId: args.projectId,
     profileName: args.profileName ?? null,
+    // The draft composer's environment choice, applied at creation for the same reason as the
+    // selection below: the agent decides the spawned process's prompt and tool surface, and there
+    // is no session to `setAgent` on before the first turn.
+    agentName: args.agentName ?? null,
     // The draft composer's model/thinking choice, applied at creation so the FIRST turn already
     // runs it — there is no session to `setSelection` on before this call. A composer that sends
     // none is stating the empty selection ("follow the profile"), not staying silent: this is the
@@ -328,6 +334,46 @@ export async function handleSetProfile(
     };
   }
   return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
+}
+
+// Switch the session's agent — its execution environment — under the shared agent-switch rule (the
+// same `switchChannelAgent` the Slack/Feishu `!agent` command uses, injected as `switchSessionAgent`).
+// The error mapping is `handleSetProfile`'s, for the same reasons:
+//   • unknown-agent              → invalid-args
+//   • cross-backend-live-session → conflict (an agent pinning a profile on the other backend is a
+//                                  backend move; a live conversation can't be resumed there)
+// A null `agentName` clears the selection: the session follows the global default again.
+export async function handleSetAgent(
+  deps: UiServiceDeps,
+  args: SessionsSetAgentArgs,
+): Promise<Result<SessionsSetAgentReturn>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  if (!deps.switchSessionAgent) {
+    return { ok: false, code: 'not-available', message: 'Agent selection is not available' };
+  }
+  const name = args.agentName ?? null;
+  const res = await deps.switchSessionAgent({ channel: session.channel, name });
+  if (!res.ok) {
+    if (res.reason === 'unknown-agent') {
+      return { ok: false, code: 'invalid-args', message: `Unknown agent: ${String(name)}` };
+    }
+    return {
+      ok: false,
+      code: 'backend-locked', // maps to CONFLICT in the tRPC layer
+      message: `Can't switch to "${String(name)}" (${res.targetBackend}) — this conversation runs on ${res.currentBackend}. Start a new session to change backend.`,
+    };
+  }
+  return {
+    ok: true,
+    data: {
+      agentName: res.agentName,
+      profileName: res.effectiveProfile,
+      backendChanged: res.backendChanged,
+    },
+  };
 }
 
 // Change what the session's next turn runs — its profile, its model, its PI provider, its thinking

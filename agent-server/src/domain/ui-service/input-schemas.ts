@@ -230,6 +230,16 @@ export const sessionsSetProfileInput = z.object({
   profileName: z.string().min(1),
 });
 
+// sessions.setAgent — which agent template (execution environment) the session runs as. "Follow the
+// global default again" is sayable two ways, `null` and absent, because the browser client cannot
+// say the first one: this project compiles without strictNullChecks, so the `| null` of an INFERRED
+// schema type is stripped from the emitted declaration the web typechecks against. Both forms mean
+// the same thing to the handler.
+export const sessionsSetAgentInput = z.object({
+  sessionId: z.string(),
+  agentName: z.string().min(1).nullable().optional(),
+});
+
 /** What a session runs on top of its profile. Stated WHOLE, never patched: a field the object does
  *  not carry is a field that follows the profile, so "go back to the profile's model" needs no null
  *  (which the typed tRPC client cannot express through an optional input anyway). */
@@ -284,6 +294,7 @@ export const sessionsRewindInput = z.object({
 export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
+  agentName: z.string().min(1).optional(),
   selection: sessionSelectionInput.optional(),
   browser: sessionBrowserInput.nullish(),
   commission: sessionCommissionInput.nullish(),
@@ -902,6 +913,7 @@ export const mutateInputSchemas = {
   'sessions.cancel': sessionsCancelInput,
   'sessions.compact': sessionsCompactInput,
   'sessions.setProfile': sessionsSetProfileInput,
+  'sessions.setAgent': sessionsSetAgentInput,
   'sessions.setSelection': sessionsSetSelectionInput,
   'sessions.setCommission': sessionsSetCommissionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,

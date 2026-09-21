@@ -149,6 +149,43 @@ export function conversationRunPolicy(
   };
 }
 
+/** The agent a conversation falls back to when nothing anywhere names one. */
+const FALLBACK_AGENT = 'main';
+
+/**
+ * Which agent — which execution environment — a conversation turn opens under.
+ *
+ * The chain is the profile chain's twin: the session's own choice (what the composer set, or what
+ * `!agent` recorded on the session), then the channel's selection, then the global default, then
+ * `main`. `getDefaultAgent(channel)` already folds the middle two together.
+ *
+ * A candidate that no longer resolves is SKIPPED rather than fatal: an agent renamed or deleted
+ * since it was persisted must not kill every turn of the session that named it, exactly as an
+ * unknown channel profile falls back instead of throwing (see the run-config resolution below).
+ */
+export function resolveConversationAgent(
+  candidates: ReadonlyArray<string | null | undefined>,
+  resolve: (name: string) => AgentSlotConfig | null = resolveAgentSlotConfigByName,
+): { agentName: string; agentConfig: AgentSlotConfig } {
+  for (const name of [...candidates, FALLBACK_AGENT]) {
+    if (!name) continue;
+    const agentConfig = resolve(name);
+    if (agentConfig) return { agentName: name, agentConfig };
+  }
+  throw new Error(`Unknown default agent: ${FALLBACK_AGENT}`);
+}
+
+/** The agent recorded on the session record, if any. Best-effort: a registry read that fails leaves
+ *  the channel's selection to answer, which is the same thing a session with no choice of its own
+ *  would produce. */
+async function sessionAgentName(sessionId: string): Promise<string | null> {
+  try {
+    return (await sessionStore.getById(sessionId))?.agentName ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** The delivery key for a session's current commission binding, or null outside the mode. Bound
  *  wins over drafting: finalize clears the draft, and the two are never both meaningful. */
 export function commissionBindingKey(
@@ -229,9 +266,10 @@ export async function prepareConversationRequest(
   opts: PrepareConversationRequestOptions,
 ): Promise<PreparedRequest> {
   const { sessionId, backendSessionId, sessionName, projectId } = opts.ids;
-  const defaultAgentName = getDefaultAgent() || 'main';
-  const agentConfig = resolveAgentSlotConfigByName(defaultAgentName);
-  if (!agentConfig) throw new Error(`Unknown default agent: ${defaultAgentName}`);
+  const { agentConfig } = resolveConversationAgent([
+    await sessionAgentName(sessionId),
+    getDefaultAgent(opts.channel),
+  ]);
 
   // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.

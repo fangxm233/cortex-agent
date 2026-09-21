@@ -21,6 +21,10 @@ import {
 } from '../src/agent-adapter/claude/mcp-config.js';
 import { buildHooksSettings } from '../src/agent-adapter/claude/hooks-builder.js';
 import {
+  buildFullConfig, buildThreadConfig, materializeMcpToolAllowlistConfigs,
+} from '../src/core/config-generator.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
+import {
   DEFAULT_TOOLS,
   subagentBridgeTools,
   EMPTY_MCP_CONFIG,
@@ -446,6 +450,59 @@ test('loadFeishuMcp selects Feishu tools without adding another config', () => {
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-feishu', loadFeishuMcp: true,
   }).includes('cortex-feishu'));
+});
+
+// A minimal-surface agent names the tools it would LIKE — delivery plus the one interaction the
+// user can answer. Which of them exist depends on the surface it happens to run on, and a spawn
+// must narrow the list rather than refuse: an allowlist is an upper bound, not a requirement.
+const MINIMAL_DELIVERY_SURFACE = ['send_file', 'send_view', 'cortex_ask_user'];
+
+/** The allowlist actually materialized for one spawn's composed bundles. */
+function materializedAllowlist(options: ClaudeSpawnOptions, sourceConfig: object): string[] {
+  const root = fs.mkdtempSync(path.join(tmpdir(), 'surface-allowlist-'));
+  const configPath = path.join(root, 'source.json');
+  fs.writeFileSync(configPath, JSON.stringify(sourceConfig));
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [configPath], options.mcpToolAllowlist, path.join(root, 'generated'),
+    resolveClaudeMcpBundles(options),
+  );
+  const config = JSON.parse(fs.readFileSync(generated, 'utf8'));
+  return JSON.parse(config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV]);
+}
+
+test('a minimal-surface agent spawns on web, on Slack and on a thread step alike', () => {
+  const base = {
+    tools: 'Read,Write,Edit', needsResume: false, mcpToolAllowlist: MINIMAL_DELIVERY_SURFACE,
+  } as const;
+
+  // Web: the whole delivery surface exists, so the whole list survives.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-web', isUserInitiated: true, loadWebMcp: true },
+      buildFullConfig('/test'),
+    ),
+    ['cortex_ask_user', 'send_file', 'send_view'],
+  );
+
+  // Slack: `send_file`/`send_view` live in the web bundle, which a Slack session does not compose.
+  // The agent still runs there — with the bridge tool and without the two it cannot have.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-slack', isUserInitiated: true, loadSlackMcp: true },
+      buildFullConfig('/test'),
+    ),
+    ['cortex_ask_user'],
+  );
+
+  // A thread step composes neither the bridge nor the web bundle: nothing on the list exists, and
+  // the spawn is an ordinary spawn with an empty MCP surface rather than a crash.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-step', mcpComposition: 'thread-control' },
+      buildThreadConfig('/test'),
+    ),
+    [],
+  );
 });
 
 test('loadWebMcp selects Web tools without adding another config', () => {

@@ -91,7 +91,8 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
   });
 });
 
-test('materialization refuses an allowlist name outside the composed server union', () => {
+test('materialization refuses an allowlist name that exists in no bundle at all', () => {
+  // Typo protection, and only that: nothing would ever register under `task_sttaus`, on any surface.
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
   const threadPath = path.join(root, 'thread.json');
   writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
@@ -100,6 +101,24 @@ test('materialization refuses an allowlist name outside the composed server unio
       [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'),
     ),
     /Unknown MCP tool.*task_sttaus/,
+  );
+});
+
+test('an allowlist is an upper bound: a real tool this spawn does not compose is dropped', () => {
+  // `send_file` is a real tool of the `cortex-web` bundle. A thread step composes no such bundle,
+  // so the tool is simply absent there — which must narrow the materialized list, not refuse the
+  // spawn. Refusing would turn an agent's delivery preference into a rule about which surfaces it
+  // is allowed to run on.
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const threadPath = path.join(root, 'thread.json');
+  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [threadPath], ['thread_wait', 'send_file'], path.join(root, 'generated'),
+  );
+  const config = JSON.parse(readFileSync(generated, 'utf8'));
+  assert.equal(
+    config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV],
+    JSON.stringify(['thread_wait']),
   );
 });
 

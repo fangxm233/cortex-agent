@@ -419,8 +419,11 @@ agents in the same pipeline to use different backends. See
 In a direct conversation the profile is the **base**, not the whole answer.
 The Web composer's engine chip opens a picker whose sections are profile,
 model, thinking level and — where the endpoint bills more than one way —
-route. Everything below the profile is stored as a per-session override on
-top of whatever profile the session runs. The override is applied in one
+route. (Its `agent` row is the other axis entirely — the session's execution
+environment rather than its engine; see
+[configuration.md](./configuration.md#choosing-an-agent-per-conversation).)
+Everything below the profile is stored as a per-session override on top of
+whatever profile the session runs. The override is applied in one
 place (`effectiveProfile`), so the profile still supplies the backend,
 `extraEnv` and the fallback chain; only `model`, `provider`, `thinking` and
 `mode` can be replaced. Each picker section has a "follow profile" row that

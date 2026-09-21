@@ -10,6 +10,7 @@
 
 export * from './config.js';
 export * from './profile-switch.js';
+export * from './agent-switch.js';
 export * from './model-selection.js';
 export { resolveRateLimitProvider } from './provider-run-lifecycle.js';
 export {

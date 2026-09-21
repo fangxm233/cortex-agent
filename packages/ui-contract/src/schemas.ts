@@ -9,6 +9,7 @@ export {
   sessionsSendInput,
   sessionsCompactInput,
   sessionsSetProfileInput,
+  sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsSetCommissionInput,
   threadsListInput,

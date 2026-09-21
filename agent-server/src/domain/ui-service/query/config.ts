@@ -22,6 +22,7 @@ import type {
   ConfigMachine,
   ConfigMcp,
   ConfigThreadTemplates,
+  ConfigAgentEntry,
   ConfigEnvEntry,
   ConfigSettingEntry,
 } from '../types.js';
@@ -35,6 +36,22 @@ async function readJson(file: string): Promise<any | null> {
   } catch {
     return null;
   }
+}
+
+/** The agent templates, read as documents rather than filenames: a picker has to say what each
+ *  environment is for and which profile it pins. Read from the same directory the bare listing
+ *  comes from, so the snapshot stays hermetic to `configDir`; a malformed file is skipped rather
+ *  than failing the whole snapshot. */
+async function readAgentEntries(dir: string, names: readonly string[]): Promise<ConfigAgentEntry[]> {
+  const entries = await Promise.all(names.map(async (name): Promise<ConfigAgentEntry | null> => {
+    const raw = await readJson(path.join(dir, `${name}.json`));
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const doc = raw as Record<string, unknown>;
+    const profile = typeof doc.profile === 'string' && doc.profile ? doc.profile : '__active__';
+    const description = typeof doc.description === 'string' && doc.description ? doc.description : undefined;
+    return { name, profile, ...(description ? { description } : {}) };
+  }));
+  return entries.filter((entry): entry is ConfigAgentEntry => entry !== null);
 }
 
 async function listJsonBasenames(dir: string): Promise<string[]> {
@@ -194,7 +211,9 @@ export async function readConfigSnapshot(
   return {
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
-    mcp: parseMcp(mcp), threadTemplates, hooks, env, settings,
+    mcp: parseMcp(mcp), threadTemplates,
+    agents: await readAgentEntries(path.join(tt, 'agents'), agents),
+    hooks, env, settings,
     ...(lang ? { lang } : {}),
   };
 }

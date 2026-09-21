@@ -135,6 +135,25 @@ function materializedConfigPath(
   return path.join(outputDir, `mcp-composition-${digest}.json`);
 }
 
+/**
+ * An allowlist is an UPPER BOUND on this spawn's MCP surface, not a list of tools the spawn must
+ * have. The two failure modes it has to tell apart:
+ *
+ * - a name that exists NOWHERE in {@link MCP_TOOLS_BY_SERVER} is a typo, and typos are worth
+ *   failing on — nothing would ever register under that name, on any surface.
+ * - a name that exists globally but belongs to a bundle this spawn does not compose is simply
+ *   absent HERE. `send_file` lives in `cortex-web`, so an agent that names it runs with it on a
+ *   web session and without it on Slack; that is what a surface means. Dropping the name is the
+ *   whole behaviour — throwing would make an agent definition a statement about which surfaces it
+ *   may be used on, which is not what an allowlist is for.
+ */
+function narrowAllowlistToSurface(
+  canonical: readonly string[], selectedTools: ReadonlySet<string>,
+): string[] {
+  validateMcpToolAllowlist(canonical);
+  return canonical.filter(name => selectedTools.has(name));
+}
+
 export function materializeMcpToolAllowlistConfigs(
   configPaths: readonly string[], allowlist: readonly string[] | undefined,
   outputDir = path.join(CONFIG_DIR, 'mcp-tool-gates'),
@@ -142,11 +161,12 @@ export function materializeMcpToolAllowlistConfigs(
 ): string[] {
   if (allowlist === undefined) return [...configPaths];
   const documents = configPaths.map(readMcpConfig);
-  const canonical = canonicalizeMcpToolAllowlist(allowlist);
   const selectedTools = selectedBundles
     ? new Set(selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []))
     : knownToolsIn(documents);
-  validateMcpToolAllowlist(canonical, selectedTools);
+  const canonical = narrowAllowlistToSurface(
+    canonicalizeMcpToolAllowlist(allowlist), selectedTools,
+  );
   const encoded = JSON.stringify(canonical);
   const materialized = mergedMcpConfig(documents, encoded, selectedBundles);
   mkdirSync(outputDir, { recursive: true, mode: 0o700 });

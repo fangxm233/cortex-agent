@@ -82,7 +82,7 @@ export type SessionRegistryData = Record<string, Session>;
 export type SessionRegistryRepoOptions = SessionRegistryJournalOptions;
 
 type UpdateFields = Partial<Pick<Session,
-  'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId' | 'contextUsage' | 'browser'
+  'lastUsedAt' | 'label' | 'profileName' | 'agentName' | 'backendSessionId' | 'contextUsage' | 'browser'
 >> & { sessionId?: never };
 
 export interface RegisterSessionOpts {
@@ -94,6 +94,7 @@ export interface RegisterSessionOpts {
   projectId?: string;
   label?: string | null;
   profileName?: string | null;
+  agentName?: string | null;
   backendSessionId?: string | null;
   scheduleId?: string | null;
   browser?: SessionBrowserOption | null;
@@ -206,6 +207,7 @@ export class SessionRegistryRepo {
       lastUsedAt: now,
       label: trimLabel(opts.label),
       profileName: opts.profileName ?? null,
+      agentName: opts.agentName ?? null,
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
       browser: opts.browser ?? null,
@@ -238,6 +240,7 @@ export class SessionRegistryRepo {
       lastUsedAt: updates.lastUsedAt ?? current.lastUsedAt,
       label: updates.label !== undefined ? trimLabel(updates.label) : current.label,
       profileName: updates.profileName !== undefined ? updates.profileName : current.profileName,
+      agentName: updates.agentName !== undefined ? updates.agentName : current.agentName,
       backendSessionId: updates.backendSessionId !== undefined
         ? updates.backendSessionId
         : current.backendSessionId,

@@ -237,9 +237,35 @@ fallback 链。**agent 模板**（`config/thread-templates/agents/<name>.json`�
 Cortex 插件、会话拿到哪个 MCP 面以及面里的哪些工具、是否加载环境规则与生命周期 hook、
 是否注入项目块，以及后端的 skill 层到底加不加载。
 
-`!profile <name>` 只换模型，不动环境。`!agent <name>` 设置默认 agent（`!agent off`
-清除），不动模型：钉了 `"profile": "__active__"` 的 agent 跟随当前 channel 解析出来的
-配置，而指定了具体 profile 的 agent 则在自己的会话里覆盖 channel。
+`!profile <name>` 只换模型不动环境；`!agent <name>` 只换环境不动模型。钉了
+`"profile": "__active__"` 的 agent 跟随所在对话当前解析出的 profile；指定了具体 profile
+的 agent 则以 override 的形式在运行路径上生效——它不会改写对话自己的 profile，所以之后
+`!agent reset` 时模型仍停在原处。
+
+### 按对话选 agent {#choosing-an-agent-per-conversation}
+
+agent 的选择方式与 profile 相同：按对话选，下面垫着一个全局默认。
+
+| 命令 | 作用 |
+|---|---|
+| `!agent` | 显示本对话的 agent、它回退到的全局默认，以及可选列表——Slack 与飞书上是按钮 |
+| `!agent <name>` | 让**本对话**从下一轮起跑在 `<name>` 里 |
+| `!agent reset` | 把本对话交还给全局默认。`clear`、`off`、`none`、`disable` 同义 |
+| `!agent global <name>` | 设置全局默认：所有没自己选过的对话跑哪个 |
+| `!agent global off` | 清除全局默认，回到 `main` |
+
+所有不带前缀的形式都只作用于当前对话；只有显式的 `global` 前缀才会动全局默认。
+
+Web 与桌面端里，同一个选择就是输入框的引擎选择器：`agent` 一行列出本机声明的模板，位于
+模型各行之上，最上面的 `default` 表示“跟随全局默认”。新对话里的选择随第一条消息一起提交；
+进行中的对话立即生效，从下一轮开始。
+
+一轮对话按这条链解析自己的 agent：会话自己的 agent → 所在对话的 → 全局默认 → `main`。
+
+切换遵循与 `!profile` 相同的规则：有历史的对话不能换 backend，所以钉在另一个 backend 的
+profile 上的 agent 会被拒绝，并说明它需要哪个 backend。尚无对话轮次的会话可以任选。同一
+backend 内切换在下一轮生效，历史保留——也就是说模型会看到自己在上一个环境里产生的那几轮；
+不希望如此就 `!new`。
 
 ### 最小工具面 {#a-minimal-surface}
 
@@ -267,10 +293,11 @@ Cortex 插件、会话拿到哪个 MCP 面以及面里的哪些工具、是否�
 工具：`send_file` 和 `send_view` 负责交付，`cortex_ask_user` 负责发问。用它开的会话被
 问到自己能看到什么时，报的是三个工具、零个 skill。
 
-`mcpToolAllowlist` 里的名字必须来自该会话实际加载的 bundle，写了不在其中的名字会直接拒绝
-spawn，而不是悄悄忽略。两个交付工具属于浏览器与 app 面，`cortex_ask_user` 属于用户发起的
-会话，所以这份 allowlist 适配的是浏览器、桌面和移动端会话；Slack、飞书会话或 thread step
-需要按自己加载的工具另写一份（`slack_send_file`、`feishu_send_file`）。
+`mcpToolAllowlist` 是上界，不是要求。它把会话的 MCP 面收窄到所列的名字；某个名字在这次
+spawn 的 surface 上本来就不存在，那它在那里就只是不存在而已。所以同一份列表到处都能用：
+这个 `creative` 在 Web 与桌面端保留三个工具，在 Slack 与飞书只剩 `cortex_ask_user`（它们
+的文件交付是另一个工具，本列表没写），在 thread step 上一个都没有——它不组装面向用户的桥。
+而一个在本机任何 bundle 里都不存在的名字仍然会让 spawn 失败：那是拼写错误，不是 surface。
 
 ### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
 

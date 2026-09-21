@@ -50,13 +50,17 @@ function newAgentSlot(config: AgentSlotConfig): AgentSlot {
   };
 }
 
-function buildTemplateSlots(templateName: string): { agentSlots: Record<AgentSlotId, AgentSlot>; entryAgent: AgentSlotId; entryStage: string | null } {
+// `channel` reaches every `__active__` resolution below, and MUST: the slot map is keyed by the
+// resolved names, and the per-step resolution re-derives them from the thread's own channel. Were
+// creation to resolve globally and the step per channel, the two would name different agents and
+// `resolveNextStep` would find no slot at all.
+function buildTemplateSlots(templateName: string, channel: string): { agentSlots: Record<AgentSlotId, AgentSlot>; entryAgent: AgentSlotId; entryStage: string | null } {
   const template = getTemplate(templateName);
   if (!template) throw new Error(`Unknown thread template: ${templateName}`);
-  const entryAgent = resolveActiveAgentName(template.entryAgent);
+  const entryAgent = resolveActiveAgentName(template.entryAgent, channel);
   const agentSlots: Record<AgentSlotId, AgentSlot> = {};
   let entryConfig: AgentSlotConfig | null = null;
-  for (const config of resolveTemplateAgents(template)) {
+  for (const config of resolveTemplateAgents(template, channel)) {
     agentSlots[config.slotId] = newAgentSlot(config);
     if (config.slotId === entryAgent) entryConfig = config;
   }
@@ -64,8 +68,8 @@ function buildTemplateSlots(templateName: string): { agentSlots: Record<AgentSlo
   return { agentSlots, entryAgent, entryStage };
 }
 
-function buildAdHocSlots(agentName: string): { agentSlots: Record<AgentSlotId, AgentSlot>; entryAgent: AgentSlotId; entryStage: string | null } {
-  const agentConfig = resolveAgentSlotConfigByName(agentName);
+function buildAdHocSlots(agentName: string, channel: string): { agentSlots: Record<AgentSlotId, AgentSlot>; entryAgent: AgentSlotId; entryStage: string | null } {
+  const agentConfig = resolveAgentSlotConfigByName(agentName, channel);
   if (!agentConfig) throw new Error(`Unknown agent: ${agentName}`);
   return {
     agentSlots: { [agentConfig.slotId]: newAgentSlot(agentConfig) },
@@ -159,8 +163,8 @@ export function createThread(channel: string, options: {
     throw new Error('createThread requires either templateName or agentName');
   }
   const { agentSlots, entryAgent, entryStage } = isTemplate
-    ? buildTemplateSlots(options.templateName!)
-    : buildAdHocSlots(options.agentName!);
+    ? buildTemplateSlots(options.templateName!, channel)
+    : buildAdHocSlots(options.agentName!, channel);
   const metadata = resolveThreadEvidenceMetadata(options.metadata, id => threadStore.get(id));
   const id = threadStore.generateId();
   const { workspacePath, artifactPath: workspaceArtifact } = createWorkspace(id);
@@ -223,7 +227,7 @@ function upsertAgentSlot(thread: ThreadRecord, config: AgentSlotConfig): void {
 export async function addAgentToThread(threadId: string, agentName: string, userMessage?: string | null): Promise<ThreadRecord> {
   const thread = threadStore.get(threadId);
   if (!thread) throw new Error(`Thread not found: ${threadId}`);
-  const agentConfig = resolveAgentSlotConfigByName(agentName);
+  const agentConfig = resolveAgentSlotConfigByName(agentName, thread.channel);
   if (!agentConfig) throw new Error(`Unknown agent: ${agentName}`);
 
   ensureThreadWorkspace(thread);
@@ -251,7 +255,7 @@ interface NextStepInfo {
 }
 
 function resolveAdHocNextStep(thread: ThreadRecord): NextStepInfo | null {
-  const agentConfig = resolveAgentSlotConfigByName(thread.activeAgent);
+  const agentConfig = resolveAgentSlotConfigByName(thread.activeAgent, thread.channel);
   if (!agentConfig) return null;
   const stage = resolveStageName(agentConfig, thread.activeStage);
   return { agentSlotId: thread.activeAgent, agentConfig, isFirstStep: thread.steps.length === 0, stage };
@@ -260,9 +264,9 @@ function resolveAdHocNextStep(thread: ThreadRecord): NextStepInfo | null {
 function resolveTemplateNextStep(thread: ThreadRecord): NextStepInfo | null {
   const template = getTemplate(thread.templateName!);
   if (!template) return null;
-  const resolvedAgents = resolveTemplateAgents(template);
+  const resolvedAgents = resolveTemplateAgents(template, thread.channel);
   const isFirstStep = thread.steps.length === 0;
-  const target = isFirstStep ? resolveActiveAgentName(template.entryAgent) : thread.activeAgent;
+  const target = isFirstStep ? resolveActiveAgentName(template.entryAgent, thread.channel) : thread.activeAgent;
   const agentConfig = resolvedAgents.find(a => a.slotId === target);
   if (!agentConfig) return null;
   const explicit = isFirstStep ? (template.entryStage || null) : thread.activeStage;

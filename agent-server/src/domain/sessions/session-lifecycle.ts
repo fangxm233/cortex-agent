@@ -1,7 +1,9 @@
 import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { applyChannelSelection, setActiveProfile } from '@domain/agents/index.js';
+import {
+  applyChannelSelection, setActiveProfile, setDefaultAgent, setSelectionDefaultAgent,
+} from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
@@ -14,7 +16,8 @@ export interface SessionRegistryWriter {
   registerSession(name: string, opts: {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
-    label?: string | null; profileName?: string | null; browser?: SessionBrowserOption | null;
+    label?: string | null; profileName?: string | null; agentName?: string | null;
+    browser?: SessionBrowserOption | null;
     commissionId?: string | null; commissionDraft?: string | null;
   }): Promise<void>;
 }
@@ -30,6 +33,9 @@ export interface RegisterNamedSessionOpts {
   origin?: SessionOrigin;
   label?: string | null;
   profileName?: string | null;
+  /** The agent template the session runs as; null/absent means it follows the channel's selection
+   *  and, beneath that, the global default. */
+  agentName?: string | null;
   /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
   /** Commission membership, fixed at creation (DR-0037 v2). */
@@ -57,6 +63,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     projectId: opts.projectId,
     label: opts.label ?? null,
     profileName: opts.profileName ?? null,
+    agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
     commissionId: commission?.commissionId ?? opts.commissionId ?? null,
     commissionDraft: commission?.commissionDraft ?? opts.commissionDraft ?? null,
@@ -87,7 +94,7 @@ export interface CreateDirectSessionDeps {
 export async function createDirectSession(
   deps: CreateDirectSessionDeps,
   opts: {
-    projectId: string; sessionId?: string; profileName?: string | null;
+    projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null;
     selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
     browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
   },
@@ -125,6 +132,15 @@ export async function createDirectSession(
     });
   }
 
+  // The environment the session opens in, written to the channel BEFORE the first turn is routed
+  // (the run path resolves the agent per turn from the session record, then this map). No switch
+  // rule is needed: a channel minted here has no history, so the cross-backend guard the rule
+  // exists for has nothing to refuse.
+  if (opts.agentName) setDefaultAgent(opts.agentName, channel);
+  // Seeded on the same condition as the selection above: `selection` present is what marks a
+  // composer behind this call, and a composer that named no agent stated the default.
+  if (opts.selection) setSelectionDefaultAgent(opts.agentName ?? null);
+
   // settings.commissionEnabled is the feature's kill switch (on by default since DR-0037 v4).
   // Refuse here rather than downgrade: a caller that asked for a commission and silently got an
   // ordinary session would only discover it much later. This is the server-side backstop for every
@@ -143,6 +159,7 @@ export async function createDirectSession(
     projectId: opts.projectId,
     origin: 'direct',
     profileName: opts.profileName ?? null,
+    agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
     commissionFor: opts.commission
       ? (name) => resolveCommissionCreate(opts.projectId, name, opts.commission!)

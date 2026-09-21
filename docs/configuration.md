@@ -296,11 +296,44 @@ session gets and which tools inside it, whether the ambient rules and the
 lifecycle hooks load, whether the project block is injected, and whether the
 backend's skill layer loads at all.
 
-`!profile <name>` changes the model and leaves the environment alone.
-`!agent <name>` sets the default agent (`!agent off` clears it) and leaves the
-model alone: an agent that pins `"profile": "__active__"` runs on whatever the
-channel currently resolves to, while an agent naming a profile overrides the
-channel for its own sessions.
+`!profile <name>` changes the model and leaves the environment alone; `!agent
+<name>` changes the environment and leaves the model alone. An agent that pins
+`"profile": "__active__"` runs on whatever its conversation currently resolves
+to; one that names a profile runs on that profile, as an override along the run
+path — it never rewrites the conversation's own profile, so a later `!agent
+reset` leaves the model exactly where it was.
+
+### Choosing an agent per conversation
+
+The agent is chosen the way the profile is: per conversation, over a host-wide
+default.
+
+| Command | What it does |
+|---|---|
+| `!agent` | Shows this conversation's agent, the host-wide default it falls back to, and the list to pick from — as buttons on Slack and Feishu |
+| `!agent <name>` | Runs THIS conversation in `<name>`, from its next turn |
+| `!agent reset` | Hands this conversation back to the host-wide default. `clear`, `off`, `none` and `disable` say the same thing |
+| `!agent global <name>` | Sets the host-wide default: what every conversation that has not chosen one runs |
+| `!agent global off` | Clears the host-wide default, leaving `main` |
+
+Every bare form is scoped to the conversation it is typed in; the host-wide
+default moves only behind the explicit `global` prefix.
+
+In the Web app and the desktop client the same choice is the composer's engine
+picker: its `agent` row lists the templates this host declares, above the model
+rows and under a `default` row meaning "follow the host-wide default". A pick on
+a new conversation travels with its first message; on a live one it applies at
+once and takes effect on the next turn.
+
+A turn resolves its agent through this chain: the session's own agent, then the
+conversation's, then the host-wide default, then `main`.
+
+Switching obeys the same rule `!profile` does — a conversation with history may
+not change backend, so an agent pinning a profile on the other backend is
+refused and says which backend it would have needed. A conversation with no
+turns yet may take any agent. Within one backend the switch lands on the next
+turn and the history stays, which means the model sees turns it produced in the
+previous environment; `!new` if that is not what you want.
 
 ### A minimal surface
 
@@ -329,12 +362,14 @@ block, and an MCP surface of exactly three tools: `send_file` and `send_view` to
 deliver, `cortex_ask_user` to ask. A session opened under it reports three tools
 and zero skills when asked what it can see.
 
-`mcpToolAllowlist` names tools from the bundles a session actually loads, and a
-name outside them refuses the spawn rather than silently ignoring it. The two
-delivery tools belong to the browser and app surface and `cortex_ask_user` to a
-user-initiated session, so this particular allowlist fits browser, desktop and
-mobile sessions; a Slack or Feishu session, or a thread step, needs one written
-against the tools it loads (`slack_send_file`, `feishu_send_file`).
+`mcpToolAllowlist` is an upper bound, not a requirement. It narrows a session's
+MCP surface to the names it lists; a name the session does not compose on the
+surface it opened on is simply absent there. One list therefore runs everywhere:
+this `creative` keeps all three tools in the Web and desktop app, only
+`cortex_ask_user` on Slack and Feishu (their file delivery is a tool of its own,
+which this list does not name), and nothing at all on a thread step, which
+composes no user-facing bridge. A name that exists in no bundle on the host is
+still refused at spawn — that is a typo, not a surface.
 
 ### Skills outside `pluginDirs`
 

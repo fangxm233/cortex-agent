@@ -24,6 +24,7 @@ import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.j
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import {
   conversationRunPolicy,
+  resolveConversationAgent,
   resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-request.js';
@@ -125,6 +126,35 @@ test('skills and settingSources travel from the agent to the policy verbatim', (
   assert.equal(policyFor({ skills: false }).skills, false);
   assert.deepEqual(policyFor({ settingSources: [] }).settingSources, []);
   assert.deepEqual(policyFor({ settingSources: ['project'] }).settingSources, ['project']);
+});
+
+// ── which agent a turn opens as ─────────────────────────────────────────────
+
+test('the agent chain is session, then channel, then global, then main', () => {
+  const known = new Set(['main', 'nimbus', 'orchard']);
+  const resolve = (name: string) => (known.has(name) ? makeAgentConfig({ slotId: name }) : null);
+  const pick = (candidates: Array<string | null>) =>
+    resolveConversationAgent(candidates, resolve).agentName;
+
+  // The session's own choice beats everything below it.
+  assert.equal(pick(['nimbus', 'orchard']), 'nimbus');
+  // No session choice → the channel's (which getDefaultAgent already folded with the global).
+  assert.equal(pick([null, 'orchard']), 'orchard');
+  // Nothing anywhere → the floor.
+  assert.equal(pick([null, null]), 'main');
+});
+
+test('an agent that no longer exists falls through instead of killing the turn', () => {
+  // A session recorded `retired` and the template was deleted since. The channel's choice answers.
+  const resolve = (name: string) => (name === 'orchard' ? makeAgentConfig({ slotId: name }) : null);
+  assert.equal(resolveConversationAgent(['retired', 'orchard'], resolve).agentName, 'orchard');
+});
+
+test('a host where even main is unresolvable fails loudly', () => {
+  assert.throws(
+    () => resolveConversationAgent(['nimbus'], () => null),
+    /Unknown default agent: main/,
+  );
 });
 
 test('an agent with projectContext:false gets no [Session Project] block', () => {

@@ -183,6 +183,8 @@
 
 覆盖字段：`promptTemplate`、`directive`、`systemPrompt`、`persistSession`、`claudeAgent`、`outputStyle`、`tools`、`pluginDirs`、`mcpToolAllowlist`，以及环境字段 `loadRules`、`disableHooks`、`skills`、`settingSources`、`projectContext`。`delegable` 不可覆盖——它描述智能体本身是什么，而不是某个模板怎么跑它。
 
+保留名 `"__active__"` 代表“当前在用的那个智能体”，而不是某个固定的。它**按 channel 解析**：跑在一个自己选过 agent 的对话上的 thread（`!agent <name>`，或输入框的选择器——见 [configuration.md](./configuration.md#choosing-an-agent-per-conversation)）就跑那个 agent，其次回退到全局默认，再回退到 `main`。创建 thread 时读一次 channel，之后每一步再读，所以这样填充的槽位会跟着 thread 所属的对话走，和它的 profile 一样。
+
 ### Shell 模板 {#shell-templates}
 
 若多个管道共享同一转换图、仅在由哪些智能体担任角色上不同，可将其一次性定义为一个 **shell**——即一个参数化转换图，以纯 JSON 存于 `shells/<name>.json`——并由 `templates/` 中轻量的 **shell 绑定**引用。

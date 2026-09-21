@@ -159,6 +159,7 @@ export type MutateOp =
   | 'sessions.cancel'
   | 'sessions.compact'
   | 'sessions.setProfile'
+  | 'sessions.setAgent'
   | 'sessions.setSelection'
   | 'sessions.setCommission'
   | 'sessions.createAndSend'
@@ -530,6 +531,14 @@ export interface SessionsSetProfileArgs {
   profileName: string;
 }
 
+export interface SessionsSetAgentArgs {
+  sessionId: string;
+  /** The agent template to run this session as — its execution environment. `null` (or an absent
+   *  field, which the browser client sends instead — see `sessionsSetAgentInput`) hands the session
+   *  back to the global default agent. */
+  agentName?: string | null;
+}
+
 /** The part of a session's engine selection that came from the user rather than from its profile.
  *  Every field is optional: a session may override only its thinking level, only its model, or any
  *  mix. Backend is never here — it belongs to the profile (and a live conversation cannot change it). */
@@ -645,6 +654,9 @@ export interface SessionsCreateAndSendArgs {
   projectId: string;
   /** The profile to create the session with. Omitted → system default. */
   profileName?: string;
+  /** The agent template — the environment — the new session runs as. Omitted → whatever the
+   *  global default agent is. Applied at creation, so the first turn already runs in it. */
+  agentName?: string;
   /** The model / provider / thinking the draft composer had selected on top of that profile.
    *  Omitted (or empty) → the profile's own values: this call always comes from a composer, so
    *  "nothing overridden" is a statement ("run the profile as declared"), not silence, and is
@@ -915,6 +927,10 @@ export interface SessionInfo {
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
+  /** The agent template the session runs as — its environment (prompt, tools, skills, rules), the
+   *  other half of "what will the next turn be". Null when the session follows its channel's
+   *  selection and, beneath that, the global default. Kept in sync by the agent-switch rule. */
+  agentName?: string | null;
   /** What the user selected on top of that profile (model / provider / thinking), or null when the
    *  session runs its profile as declared. The composer needs both halves to show what the next turn
    *  will actually run; the profile alone would lie whenever a model was picked. */
@@ -1573,6 +1589,15 @@ export interface ConfigThreadTemplates {
   shells: string[];
 }
 
+/** One agent template as a picker needs it: what it is for, and which profile it pins (or
+ *  `__active__` — it runs whatever the conversation's own profile resolves to). Richer than
+ *  {@link ConfigThreadTemplates.agents}, which is the bare file listing the config editor uses. */
+export interface ConfigAgentEntry {
+  name: string;
+  description?: string;
+  profile: string;
+}
+
 export interface ConfigEnvEntry {
   key: string;
   present: boolean;
@@ -1713,6 +1738,9 @@ export interface HooksTestReturn {
  *  nobody has picked anything yet — the composer then falls back to the default profile. */
 export interface ConfigSelectionDefault extends SessionSelectionOverride {
   profileName?: string;
+  /** The agent the last composer pick ran as — a draft opens in the environment the previous
+   *  conversation was working in, the same way it opens on its profile. */
+  agentName?: string;
 }
 
 export interface ConfigSnapshot {
@@ -1722,6 +1750,9 @@ export interface ConfigSnapshot {
   machines: ConfigMachine[];
   mcp: ConfigMcp | null;
   threadTemplates: ConfigThreadTemplates;
+  /** The agent templates a composer may pick from, with what each one is and pins. Always emitted
+   *  by current servers; optional while clients and servers roll independently. */
+  agents?: ConfigAgentEntry[];
   hooks: ConfigHook[];
   env: ConfigEnvEntry[];
   /** Always emitted by current servers; optional while clients and servers roll independently. */
@@ -2469,6 +2500,16 @@ export interface SessionsSetProfileReturn {
   backendChanged: boolean;
 }
 
+export interface SessionsSetAgentReturn {
+  /** The agent now selected for the session; null when it follows the global default again. */
+  agentName: string | null;
+  /** The profile that agent will run under — its own when it pins one, the channel's otherwise.
+   *  For display: the switch never writes the channel's profile. */
+  profileName: string;
+  /** True when the switch moved to a different backend (only possible on a session with no history). */
+  backendChanged: boolean;
+}
+
 /** What the session will run on its next turn, after the change — effective values, so the client
  *  can render the chip without re-deriving the profile/override layering. */
 export interface SessionsSetSelectionReturn {
@@ -2645,6 +2686,7 @@ export interface MutateArgsMap {
   'sessions.cancel': SessionsCancelArgs;
   'sessions.compact': SessionsCompactArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
+  'sessions.setAgent': SessionsSetAgentArgs;
   'sessions.setSelection': SessionsSetSelectionArgs;
   'sessions.setCommission': SessionsSetCommissionArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
@@ -2723,6 +2765,7 @@ export interface MutateReturnMap {
   'sessions.cancel': SessionsCancelReturn;
   'sessions.compact': SessionsCompactReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
+  'sessions.setAgent': SessionsSetAgentReturn;
   'sessions.setSelection': SessionsSetSelectionReturn;
   'sessions.setCommission': SessionsSetCommissionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
@@ -2904,7 +2947,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
@@ -2933,6 +2976,22 @@ export interface UiServiceDeps {
     targetBackend: string;
     backendChanged: boolean;
     reason?: 'unknown-profile' | 'cross-backend-live-session';
+  }>;
+  /**
+   * Switch the agent — the execution environment — a session's channel runs, under the shared
+   * agent-switch rule (the same `switchChannelAgent` the Slack/Feishu `!agent` command uses). A
+   * null name clears the channel's selection. Wired in the entry layer (app.ts) for the same reason
+   * as the profile switch above: the ui-service domain never imports domain/agents.
+   */
+  switchSessionAgent?: (opts: { channel: string; name: string | null }) => Promise<{
+    ok: boolean;
+    agentName: string | null;
+    /** The profile the agent will run under, for display. */
+    effectiveProfile: string;
+    backendChanged: boolean;
+    reason?: 'unknown-agent' | 'cross-backend-live-session';
+    currentBackend?: string;
+    targetBackend?: string;
   }>;
   /**
    * Apply a session's engine selection (profile and/or model / provider / thinking) under the

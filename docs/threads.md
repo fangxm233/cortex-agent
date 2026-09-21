@@ -182,6 +182,8 @@ Templates reference agents either by name (as a string) or with per-template ove
 
 Override fields: `promptTemplate`, `directive`, `systemPrompt`, `persistSession`, `claudeAgent`, `outputStyle`, `tools`, `pluginDirs`, `mcpToolAllowlist`, and the environment fields `loadRules`, `disableHooks`, `skills`, `settingSources`, `projectContext`. `delegable` is not overridable — it describes what the agent is, not how one template runs it.
 
+The reserved name `"__active__"` stands for whichever agent is in force rather than a fixed one. It resolves **per channel**: a thread running on a conversation that chose its own agent (`!agent <name>`, or the composer's picker — see [configuration.md](./configuration.md#choosing-an-agent-per-conversation)) runs that agent, falling back to the host-wide default and then to `main`. The channel is read at thread creation and again at every step, so a slot filled this way follows the conversation the thread belongs to, the same way its profile does.
+
 ### Shell Templates
 
 Pipelines that share the same transition graph and differ only in which agents fill the roles are defined once as a **shell** — a parameterized transition graph stored as pure JSON in `shells/<name>.json` — and referenced by lightweight **shell bindings** in `templates/`.

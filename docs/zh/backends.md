@@ -224,7 +224,7 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 ## 按会话选择模型、思考档位与计费路由 {#per-session-model-thinking-level-and-route}
 
-在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该 endpoint 有不止一种计费方式时——计费路由。profile 以下的选择都作为**按会话生效的覆盖值**叠在该会话所用的 profile 之上。覆盖只在一个地方生效（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 决定，能被替换的只有 `model`、`provider`、`thinking` 和 `mode`。每一段都带一行「跟随 profile」，用来把该字段交还给 profile。
+在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该 endpoint 有不止一种计费方式时——计费路由。（其中的 `agent` 一行属于另一条轴——会话的执行环境而非引擎，见 [configuration.md](./configuration.md#choosing-an-agent-per-conversation)。）profile 以下的选择都作为**按会话生效的覆盖值**叠在该会话所用的 profile 之上。覆盖只在一个地方生效（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 决定，能被替换的只有 `model`、`provider`、`thinking` 和 `mode`。每一段都带一行「跟随 profile」，用来把该字段交还给 profile。
 
 选择器受两条规则约束，两条都由服务端强制执行，客户端只是提前把结果画出来：
 
