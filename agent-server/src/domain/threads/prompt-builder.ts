@@ -26,7 +26,8 @@ export function resolveActiveAgentName(name: string): string {
 
 type AgentOverrides = Partial<Pick<AgentSlotConfig,
   'promptTemplate' | 'directive' | 'systemPrompt' | 'persistSession' |
-  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist'>>;
+  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist' |
+  'loadRules' | 'disableHooks' | 'skills' | 'settingSources' | 'projectContext'>>;
 
 function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (typeof ref === 'string') return {};
@@ -42,6 +43,11 @@ function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (ref.mcpToolAllowlist != null) {
     o.mcpToolAllowlist = canonicalizeMcpToolAllowlist(ref.mcpToolAllowlist);
   }
+  if (ref.loadRules != null) o.loadRules = ref.loadRules;
+  if (ref.disableHooks != null) o.disableHooks = ref.disableHooks;
+  if (ref.skills != null) o.skills = ref.skills;
+  if (ref.settingSources != null) o.settingSources = ref.settingSources;
+  if (ref.projectContext != null) o.projectContext = ref.projectContext;
   return o;
 }
 
@@ -67,6 +73,11 @@ export function resolveAgentSlotConfig(ref: TemplateAgentRef): AgentSlotConfig |
     mcpToolAllowlist: overrides.mcpToolAllowlist
       ?? (agentDef.mcpToolAllowlist
         ? canonicalizeMcpToolAllowlist(agentDef.mcpToolAllowlist) : undefined),
+    loadRules: overrides.loadRules ?? agentDef.loadRules,
+    disableHooks: overrides.disableHooks ?? agentDef.disableHooks,
+    skills: overrides.skills ?? agentDef.skills,
+    settingSources: overrides.settingSources ?? agentDef.settingSources,
+    projectContext: overrides.projectContext ?? agentDef.projectContext,
     stages: agentDef.stages,
     entryStage: agentDef.entryStage,
   };

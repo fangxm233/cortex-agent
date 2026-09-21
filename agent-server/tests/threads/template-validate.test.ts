@@ -16,6 +16,7 @@ import {
   withCandidate,
   rawRegistryFromDir,
   dependentTemplates,
+  agentRefOverrideSchema,
   type RawRegistry,
 } from '../../src/domain/threads/template-validate.js';
 
@@ -117,6 +118,48 @@ describe('valid entities', () => {
     assert.deepEqual(result.warnings, [], messages(result.warnings));
   });
 
+  // A field the schema does not know becomes an "unrecognised field" warning, so a clean result
+  // here is what proves the environment block reached the schema and not just the TS interface.
+  test('an agent declaring the whole execution environment is clean', () => {
+    const body = {
+      ...flatAgent('creative'),
+      mcpComposition: 'direct',
+      mcpToolAllowlist: ['send_file', 'send_view', 'cortex_ask_user'],
+      loadRules: false,
+      disableHooks: true,
+      skills: false,
+      settingSources: [],
+      projectContext: false,
+      delegable: true,
+    };
+    const result = validateEntity('agent', 'creative', body, baseRegistry());
+    assert.deepEqual(result.errors, [], messages(result.errors));
+    assert.deepEqual(result.warnings, [], messages(result.warnings));
+  });
+
+  test('a template ref overrides the environment fields, minus delegable', () => {
+    const tpl = {
+      ...FULL_TEMPLATE,
+      agents: [
+        {
+          ref: 'coder',
+          loadRules: false,
+          disableHooks: true,
+          skills: false,
+          settingSources: ['project'],
+          projectContext: false,
+        },
+        'coder-reviewer',
+      ],
+    };
+    const result = validateEntity('template', 'coder-review', tpl, baseRegistry());
+    assert.deepEqual(result.errors, [], messages(result.errors));
+
+    // `delegable` decides what an agent IS, not how one template runs it, so the ref drops it.
+    const parsed = agentRefOverrideSchema.parse({ ref: 'coder', skills: false, delegable: true });
+    assert.deepEqual(parsed, { ref: 'coder', skills: false });
+  });
+
   test('__active__ is a valid agent slot and entryAgent', () => {
     const reg = baseRegistry();
     const tpl = {
@@ -210,6 +253,12 @@ describe('errors', () => {
   test('maxTotalSteps must be a positive integer', () => {
     const result = validateEntity('template', 'coder-review', { ...FULL_TEMPLATE, maxTotalSteps: 0 }, baseRegistry());
     assert.ok(result.errors.some((e) => e.path === 'maxTotalSteps'), messages(result.errors));
+  });
+
+  test('settingSources only accepts the three setting files Claude Code reads', () => {
+    const body = { ...flatAgent('creative'), settingSources: ['user', 'global'] };
+    const result = validateEntity('agent', 'creative', body, baseRegistry());
+    assert.ok(result.errors.some((e) => e.path === 'settingSources[1]'), messages(result.errors));
   });
 
   test('an unknown shell is an error', () => {

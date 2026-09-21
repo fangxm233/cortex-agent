@@ -283,6 +283,70 @@ or `pi`. `claudeBackend` must be `print` or `tui` if specified.
 `thinking`, if specified, must be a value from the entry's backend value
 set (see the fields table). Unknown fields are silently ignored.
 
+## Agents vs profiles
+
+Two entities decide how a session runs, and they change independently.
+
+A **profile** is model routing: backend, model, mode, thinking level, extra
+environment, and the fallback chain. An **agent template**
+(`config/thread-templates/agents/<name>.json`, fields in
+[threads.md](./threads.md#agent-definitions)) is the execution environment: the
+system prompt, the tool list, which Cortex plugins load, which MCP surface the
+session gets and which tools inside it, whether the ambient rules and the
+lifecycle hooks load, whether the project block is injected, and whether the
+backend's skill layer loads at all.
+
+`!profile <name>` changes the model and leaves the environment alone.
+`!agent <name>` sets the default agent (`!agent off` clears it) and leaves the
+model alone: an agent that pins `"profile": "__active__"` runs on whatever the
+channel currently resolves to, while an agent naming a profile overrides the
+channel for its own sessions.
+
+### A minimal surface
+
+The shipped `creative` agent is the smallest environment Cortex ships — writing,
+image prompts, naming and copy, with the operational context stripped out:
+
+```json
+{
+  "name": "creative",
+  "profile": "__active__",
+  "systemPrompt": "file:creative.md",
+  "tools": "Read,Write,Edit",
+  "pluginDirs": [],
+  "skills": false,
+  "settingSources": [],
+  "mcpComposition": "direct",
+  "mcpToolAllowlist": ["send_file", "send_view", "cortex_ask_user"],
+  "loadRules": false,
+  "disableHooks": true,
+  "projectContext": false
+}
+```
+
+Three built-in tools, no Cortex plugins, no ambient rules, no hooks, no project
+block, and an MCP surface of exactly three tools: `send_file` and `send_view` to
+deliver, `cortex_ask_user` to ask. A session opened under it reports three tools
+and zero skills when asked what it can see.
+
+`mcpToolAllowlist` names tools from the bundles a session actually loads, and a
+name outside them refuses the spawn rather than silently ignoring it. The two
+delivery tools belong to the browser and app surface and `cortex_ask_user` to a
+user-initiated session, so this particular allowlist fits browser, desktop and
+mobile sessions; a Slack or Feishu session, or a thread step, needs one written
+against the tools it loads (`slack_send_file`, `feishu_send_file`).
+
+### Skills outside `pluginDirs`
+
+`pluginDirs` is not the whole skill layer. Claude Code loads its own on every
+spawn no matter what Cortex passes: the plugins enabled in
+`~/.claude/settings.json`, anything under `~/.claude/skills/`, and the CLI's
+built-in skills. Two agent fields reach them. `settingSources: []` stops the
+setting files being read at all, which removes the enabled plugins' skills;
+`skills: false` removes the layer outright, built-ins included, and takes the
+`Skill` tool with it. An agent that sets both sees no skills and no slash
+commands.
+
 ## config/settings.json
 
 Located at `$CORTEX_HOME/config/settings.json`. This file holds the **runtime

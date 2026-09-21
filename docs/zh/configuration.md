@@ -227,6 +227,59 @@ $CORTEX_HOME/
 
 配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
 
+## Agent 与 profile {#agents-vs-profiles}
+
+决定一次会话怎么跑的是两个实体，它们各自独立变化。
+
+**profile** 管模型路由：backend、model、mode、thinking 级别、额外环境变量和
+fallback 链。**agent 模板**（`config/thread-templates/agents/<name>.json`，字段见
+[threads.md](./threads.md#agent-definitions)）管执行环境：系统提示、工具列表、加载哪些
+Cortex 插件、会话拿到哪个 MCP 面以及面里的哪些工具、是否加载环境规则与生命周期 hook、
+是否注入项目块，以及后端的 skill 层到底加不加载。
+
+`!profile <name>` 只换模型，不动环境。`!agent <name>` 设置默认 agent（`!agent off`
+清除），不动模型：钉了 `"profile": "__active__"` 的 agent 跟随当前 channel 解析出来的
+配置，而指定了具体 profile 的 agent 则在自己的会话里覆盖 channel。
+
+### 最小工具面 {#a-minimal-surface}
+
+随包提供的 `creative` 是 Cortex 内置最小的环境——写作、图像提示词、起名、文案，运营性
+上下文全部剥掉：
+
+```json
+{
+  "name": "creative",
+  "profile": "__active__",
+  "systemPrompt": "file:creative.md",
+  "tools": "Read,Write,Edit",
+  "pluginDirs": [],
+  "skills": false,
+  "settingSources": [],
+  "mcpComposition": "direct",
+  "mcpToolAllowlist": ["send_file", "send_view", "cortex_ask_user"],
+  "loadRules": false,
+  "disableHooks": true,
+  "projectContext": false
+}
+```
+
+三个内置工具，没有 Cortex 插件、没有环境规则、没有 hook、没有项目块，MCP 面正好三个
+工具：`send_file` 和 `send_view` 负责交付，`cortex_ask_user` 负责发问。用它开的会话被
+问到自己能看到什么时，报的是三个工具、零个 skill。
+
+`mcpToolAllowlist` 里的名字必须来自该会话实际加载的 bundle，写了不在其中的名字会直接拒绝
+spawn，而不是悄悄忽略。两个交付工具属于浏览器与 app 面，`cortex_ask_user` 属于用户发起的
+会话，所以这份 allowlist 适配的是浏览器、桌面和移动端会话；Slack、飞书会话或 thread step
+需要按自己加载的工具另写一份（`slack_send_file`、`feishu_send_file`）。
+
+### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
+
+`pluginDirs` 并不是 skill 层的全部。无论 Cortex 传什么，Claude Code 每次 spawn 都会加载
+它自己的那一份：`~/.claude/settings.json` 里启用的 plugin、`~/.claude/skills/` 下的内容，
+以及 CLI 的内置 skill。有两个 agent 字段能够到它们。`settingSources: []` 让设置文件根本
+不被读取，于是启用的 plugin 带来的 skill 随之消失；`skills: false` 直接移除整层，内置的
+也不剩，连 `Skill` 工具一起拿掉。两个都设的 agent 看到的是零 skill、零斜杠命令。
+
 ## config/settings.json
 
 位于 `$CORTEX_HOME/config/settings.json`。该文件保存服务器的**运行时行为设置**：这些开关与上限过去是环境变量，改动必须重启守护进程才生效。现在改这个文件无需重启。

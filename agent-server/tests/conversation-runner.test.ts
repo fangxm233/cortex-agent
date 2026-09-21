@@ -23,9 +23,11 @@ import assert from 'node:assert/strict';
 import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import {
+  conversationRunPolicy,
   resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-request.js';
+import { DIRECT_RUN_POLICY } from '../src/domain/runs/builders.js';
 // The hold gate moved with the hold decision itself: `conversation-runner.ts` is gone and the Turn
 // owns "can this run produce a background continuation" (orchestration/turn/turn.ts).
 import { supportsBackgroundContinuation } from '../src/orchestration/turn/turn.js';
@@ -91,6 +93,49 @@ test('conversation prompt injects a project block naming the project id and cont
   assert.ok(prompt.indexOf('tactile-vr') < prompt.indexOf('hello'));
   assert.ok(prompt.endsWith('hello'), 'user message stays last');
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
+});
+
+// ── The agent template owns the execution environment ───────────────────────
+
+function policyFor(overrides: Partial<AgentSlotConfig>) {
+  return conversationRunPolicy(makeAgentConfig(overrides), { channel: 'web:abc123' });
+}
+
+test('an agent that declares no environment reproduces the shared direct-run policy', () => {
+  const policy = policyFor({});
+  assert.equal(policy.hooks, DIRECT_RUN_POLICY.hooks);
+  assert.equal(policy.loadRules, DIRECT_RUN_POLICY.loadRules);
+  assert.equal(policy.mcpComposition, DIRECT_RUN_POLICY.mcpComposition);
+  assert.equal(policy.captureTranscripts, DIRECT_RUN_POLICY.captureTranscripts);
+  // Absent means "whatever the backend loads on its own" and must not be defaulted to a value.
+  assert.equal(policy.skills, undefined);
+  assert.equal(policy.settingSources, undefined);
+});
+
+test('disableHooks, loadRules and mcpComposition on the agent reach the conversation policy', () => {
+  assert.equal(policyFor({ disableHooks: true }).hooks, false);
+  assert.equal(policyFor({ disableHooks: false }).hooks, true);
+  assert.equal(policyFor({ loadRules: false }).loadRules, false);
+  // The conversation surface's default survives an agent that states nothing.
+  assert.equal(policyFor({ mcpComposition: 'none' }).mcpComposition, 'none');
+  assert.equal(policyFor({}).mcpComposition, 'direct');
+});
+
+test('skills and settingSources travel from the agent to the policy verbatim', () => {
+  assert.equal(policyFor({ skills: false }).skills, false);
+  assert.deepEqual(policyFor({ settingSources: [] }).settingSources, []);
+  assert.deepEqual(policyFor({ settingSources: ['project'] }).settingSources, ['project']);
+});
+
+test('an agent with projectContext:false gets no [Session Project] block', () => {
+  const args = {
+    channel: 'web:abc123',
+    projectId: 'proj-a',
+    isFreshSession: true,
+    store: makeStore([userProject]),
+  };
+  assert.deepEqual(resolveConversationProject(args), { id: 'proj-a', contextDir: '/ctx/projects/proj-a' });
+  assert.equal(resolveConversationProject({ ...args, projectContext: false }), null);
 });
 
 // ── resolveConversationProject gating ───────────────────────────────────────

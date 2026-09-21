@@ -507,8 +507,12 @@ export function buildThreadRunRequest(
     policy: {
       background: stepBackgroundPolicy(),
       recordCost: true,
-      hooks: ctx.template?.disableHooks !== true,
-      loadRules: true,
+      // Both levels can switch hooks off and neither can switch the other's decision back on:
+      // the template speaks for the pipeline, the agent for its own environment.
+      hooks: ctx.template?.disableHooks !== true && agentConfig.disableHooks !== true,
+      loadRules: agentConfig.loadRules ?? true,
+      skills: agentConfig.skills,
+      settingSources: agentConfig.settingSources,
       mcpComposition: resolvedComposition,
       // Legacy thread surface selector: true only when the agent declared no explicit composition.
       useCoreMcp: mcpComposition === undefined,

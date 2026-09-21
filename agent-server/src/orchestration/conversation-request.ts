@@ -28,6 +28,7 @@ import {
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
+import type { AgentSlotConfig } from '@core/types/thread-types.js';
 import {
   buildPrompt as buildAgentPrompt, formatAttachmentFailures,
 } from '../agent-adapter/normalize/prompt-builder.js';
@@ -102,19 +103,50 @@ function conversationBackgroundPolicy(channel: string): 'hold' | 'none' {
  * in history) of a Web UI direct session (`web:` channel — the only path where the user explicitly
  * binds the session to a project at create time), and only for real user projects (the `general`
  * umbrella carries no signal). Unknown/deleted project ids inject nothing rather than a dead path.
+ * An agent with `projectContext: false` opts out of the block entirely — "record your findings in
+ * the project" is operational noise in an environment built for something else.
  */
 export function resolveConversationProject(args: {
   channel: string;
   projectId: string;
   isFreshSession: boolean;
+  projectContext?: boolean;
   store?: Pick<typeof projectStore, 'get'>;
 }): { id: string; contextDir: string } | null {
   const store = args.store ?? projectStore;
+  if (args.projectContext === false) return null;
   if (!args.isFreshSession) return null;
   if (!args.channel.startsWith('web:')) return null;
   const project: Project | undefined = store.get(args.projectId);
   if (!project || project.kind === 'general') return null;
   return { id: project.id, contextDir: project.contextDir };
+}
+
+/**
+ * The policy one conversation turn opens under: the shared direct-run policy, the surface's own
+ * background intent, and the execution-environment fields the agent template declares.
+ *
+ * Every environment default equals what {@link DIRECT_RUN_POLICY} already said, so an agent that
+ * declares none of them produces that constant field for field — which is why adding the fields
+ * changed no existing session. `skills` and `settingSources` stay `undefined` rather than being
+ * defaulted here: absent means "whatever the backend loads on its own", and only the agent that
+ * opts out has an opinion.
+ */
+export function conversationRunPolicy(
+  agentConfig: AgentSlotConfig,
+  opts: { channel: string; browserCdpEndpoint?: string | null },
+): RunRequest['policy'] {
+  return {
+    ...DIRECT_RUN_POLICY,
+    background: conversationBackgroundPolicy(opts.channel),
+    hooks: agentConfig.disableHooks !== true,
+    loadRules: agentConfig.loadRules !== false,
+    skills: agentConfig.skills,
+    settingSources: agentConfig.settingSources,
+    mcpComposition: agentConfig.mcpComposition ?? 'direct',
+    mcpToolAllowlist: agentConfig.mcpToolAllowlist,
+    browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
+  };
 }
 
 /** The delivery key for a session's current commission binding, or null outside the mode. Bound
@@ -204,8 +236,12 @@ export async function prepareConversationRequest(
   // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
   const isFreshSession = backendSessionId === null;
-  // A thread-free conversation runs on the direct MCP surface — there is no thread to control.
-  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: 'direct' });
+  // A thread-free conversation runs on the direct MCP surface — there is no thread to control —
+  // unless the agent declared a narrower one, which it owns on every path it runs.
+  const policy = conversationRunPolicy(agentConfig, {
+    channel: opts.channel, browserCdpEndpoint: opts.browserCdpEndpoint,
+  });
+  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition });
 
   // A plain conversation turn is thread-free: no artifact, no previous step, no control-plane
   // preamble. Everything it does carry is a first-turn ambient block, and the two prompt-shaping
@@ -214,7 +250,12 @@ export async function prepareConversationRequest(
     userContext: userProfileBlock(isFreshSession),
     // Web UI direct sessions are bound to a project at create time; tell the agent which one
     // on the session's first turn (see resolveConversationProject for the exact gating).
-    project: resolveConversationProject({ channel: opts.channel, projectId, isFreshSession }),
+    project: resolveConversationProject({
+      channel: opts.channel,
+      projectId,
+      isFreshSession,
+      projectContext: agentConfig.projectContext,
+    }),
     // Commission sessions additionally get the contract + ledger index + protocol block, once per
     // binding rather than once per session (see resolveConversationCommission).
     commission: await resolveConversationCommission(sessionId, { isFreshSession }),
@@ -274,15 +315,7 @@ export async function prepareConversationRequest(
       commissionMode: opts.commissionMode ?? false,
       scheduleTaskId: opts.scheduleTaskId ?? null,
     },
-    // The three fields that differ from the shared direct-run policy; every field NOT named here
-    // is provably the `DIRECT_RUN_POLICY` value (background:'none' → this path's surface intent,
-    // and browserCdpEndpoint:null → the session's opted-in Chrome, are the two it overrides).
-    policy: {
-      ...DIRECT_RUN_POLICY,
-      background: conversationBackgroundPolicy(opts.channel),
-      mcpToolAllowlist: agentConfig.mcpToolAllowlist,
-      browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
-    },
+    policy,
   };
 
   return { request, backendPrompt };

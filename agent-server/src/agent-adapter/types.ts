@@ -79,7 +79,11 @@ export interface EngineSpec {
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
          context?: CortexContextEnv };
   route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };
-  flags: { disableHooks?: boolean; streamDeltas?: boolean; captureTranscripts?: boolean;
+  /** `disableSkills` covers the whole skill layer, including the user-level plugins and skills
+   *  Cortex never passed in (`--plugin-dir` only ever added its own); `settingSources` narrows
+   *  which setting files the backend may read at all. */
+  flags: { disableHooks?: boolean; disableSkills?: boolean; settingSources?: string[];
+           streamDeltas?: boolean; captureTranscripts?: boolean;
            preserveUnreportedAccounting?: boolean; isUserInitiated: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
   extraOption?: Record<string, string>;

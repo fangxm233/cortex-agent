@@ -76,6 +76,12 @@ Each file under `agents/` defines one agent — an independent entity with its o
 | `outputStyle` | string? | Claude Code output style |
 | `tools` | string? | Comma-separated tool list (overrides defaults). `Agent` is ignored: Cortex strips it everywhere in favour of the MCP `agent` tool — see [backends.md](./backends.md#subagents) |
 | `pluginDirs` | string[]? | Plugin directories to load (`--plugin-dir` flags) |
+| `loadRules` | boolean? | Default `true`. Prepend the ambient rules from `rules/` to the session. `false` leaves the agent with its own prompt and nothing else |
+| `disableHooks` | boolean? | Default `false`. `true` runs the agent with no lifecycle hooks. A template carries a field of the same name for its whole pipeline; the two are ANDed, so neither level can switch the other's decision back on |
+| `skills` | boolean? | Default `true`. `false` drops the backend's whole skill layer: on Claude Code `--disable-slash-commands`, which also removes the skills Cortex never supplied (see [Skills outside `pluginDirs`](./configuration.md#skills-outside-plugindirs)); on PI the session is handed no skill roots |
+| `settingSources` | `("user"\|"project"\|"local")[]?` | Which Claude Code setting files the session may load (`--setting-sources`). Absent keeps the CLI's default set; `[]` loads none |
+| `projectContext` | boolean? | Default `true`. Whether a session bound to a project receives the `[Session Project]` block on its first turn |
+| `delegable` | boolean? | Default `false`. Marks the agent as a delegation target. Accepted and validated today; no code path reads it yet |
 
 ### Multi-Stage Agents
 
@@ -174,7 +180,7 @@ Templates reference agents either by name (as a string) or with per-template ove
 ]
 ```
 
-Override fields: `promptTemplate`, `directive`, `systemPrompt`, `persistSession`, `claudeAgent`, `outputStyle`, `tools`, `pluginDirs`.
+Override fields: `promptTemplate`, `directive`, `systemPrompt`, `persistSession`, `claudeAgent`, `outputStyle`, `tools`, `pluginDirs`, `mcpToolAllowlist`, and the environment fields `loadRules`, `disableHooks`, `skills`, `settingSources`, `projectContext`. `delegable` is not overridable — it describes what the agent is, not how one template runs it.
 
 ### Shell Templates
 

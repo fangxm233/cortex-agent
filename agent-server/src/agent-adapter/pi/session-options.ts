@@ -225,7 +225,11 @@ export function buildSessionRequest(
     thinking: thinkingLevel(spec),
     systemPrompt: spec.prompt.system || null,
     appendSystemPrompt: promptValues(spec.prompt.append),
-    skillPaths: [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
+    // PI has no skill layer of its own to switch off: its skills are exactly the roots handed to
+    // it here, so an agent that wants none gets none by handing it nothing.
+    skillPaths: spec.flags.disableSkills
+      ? []
+      : [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
     disableHooks: spec.flags.disableHooks === true,
     reportsProviderQuota: !!spec.route.gatewayBaseUrl,
     pluginMcpServers: pluginMcpServers(spec, composition, marker),

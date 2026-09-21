@@ -76,7 +76,8 @@ const cases: Case[] = [
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
       flags: {
-        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
+        streamDeltas: undefined, captureTranscripts: undefined,
         preserveUnreportedAccounting: undefined, isUserInitiated: false,
       },
       context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
@@ -134,7 +135,8 @@ const cases: Case[] = [
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
       flags: {
-        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
+        streamDeltas: undefined, captureTranscripts: undefined,
         preserveUnreportedAccounting: undefined, isUserInitiated: false,
       },
       context: { channel: 'thread-fixture', callbackSource: undefined, scheduleTaskId: undefined },
@@ -188,7 +190,8 @@ const cases: Case[] = [
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: 'http://127.0.0.1:9880', gatewayPath: '/m/pi-mode/deepseek' },
       flags: {
-        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
+        streamDeltas: undefined, captureTranscripts: undefined,
         preserveUnreportedAccounting: undefined, isUserInitiated: false,
       },
       context: { channel: 'pi-channel', callbackSource: undefined, scheduleTaskId: undefined },
@@ -250,7 +253,8 @@ const cases: Case[] = [
       },
       route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
       flags: {
-        disableHooks: true, streamDeltas: false, captureTranscripts: false,
+        disableHooks: true, disableSkills: undefined, settingSources: undefined,
+        streamDeltas: false, captureTranscripts: false,
         preserveUnreportedAccounting: true, isUserInitiated: false,
       },
       context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
@@ -321,7 +325,8 @@ const cases: Case[] = [
         gatewayPath: undefined,
       },
       flags: {
-        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
+        streamDeltas: undefined, captureTranscripts: undefined,
         preserveUnreportedAccounting: undefined, isUserInitiated: true,
       },
       context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
@@ -368,7 +373,7 @@ test('engineIdentity is independent of object key order', () => {
     backend: { ...base.backend },
     extraOption: base.extraOption,
     context: { scheduleTaskId: base.context.scheduleTaskId, callbackSource: base.context.callbackSource, channel: base.context.channel },
-    flags: { isUserInitiated: base.flags.isUserInitiated, preserveUnreportedAccounting: base.flags.preserveUnreportedAccounting, captureTranscripts: base.flags.captureTranscripts, streamDeltas: base.flags.streamDeltas, disableHooks: base.flags.disableHooks },
+    flags: { isUserInitiated: base.flags.isUserInitiated, preserveUnreportedAccounting: base.flags.preserveUnreportedAccounting, captureTranscripts: base.flags.captureTranscripts, streamDeltas: base.flags.streamDeltas, settingSources: base.flags.settingSources, disableSkills: base.flags.disableSkills, disableHooks: base.flags.disableHooks },
     route: { gatewayPath: base.route.gatewayPath, gatewayBaseUrl: base.route.gatewayBaseUrl, anthropicBaseUrl: base.route.anthropicBaseUrl },
     env: { context: base.env.context ? {
       taskGeneration: base.env.context.taskGeneration, taskProject: base.env.context.taskProject,

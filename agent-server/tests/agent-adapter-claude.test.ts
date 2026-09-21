@@ -279,6 +279,37 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
   assert.deepEqual(args, expected);
 });
 
+test('buildSpawnArgs minimal-surface agent — skills off and no setting sources', () => {
+  const args = buildSpawnArgs({
+    tools: 'Read,Write,Edit',
+    needsResume: false,
+    sessionId: 'uuid-creative',
+    disableSkills: true,
+    settingSources: [],
+  });
+  // `--plugin-dir` only ever added Cortex's own plugins; the user's enabled plugins, ~/.claude/skills
+  // and the CLI built-ins are reachable from these two flags alone.
+  assert.ok(args.includes('--disable-slash-commands'));
+  const sources = args.indexOf('--setting-sources');
+  assert.ok(sources >= 0, '--setting-sources must be present');
+  assert.equal(args[sources + 1], '', 'an empty list is passed as the empty value, which loads none');
+});
+
+test('buildSpawnArgs joins the declared setting sources and omits both flags by default', () => {
+  const sourced = buildSpawnArgs({
+    tools: null, needsResume: false, sessionId: 'uuid-sources', settingSources: ['user', 'project'],
+  });
+  assert.deepEqual(
+    sourced.slice(sourced.indexOf('--setting-sources'), sourced.indexOf('--setting-sources') + 2),
+    ['--setting-sources', 'user,project'],
+  );
+  assert.ok(!sourced.includes('--disable-slash-commands'));
+
+  const plain = buildSpawnArgs({ tools: null, needsResume: false, sessionId: 'uuid-plain' });
+  assert.ok(!plain.includes('--setting-sources'));
+  assert.ok(!plain.includes('--disable-slash-commands'));
+});
+
 test('claudeSupplementalMcpConfigJson converts stdio, streamable-http, and sse servers to Claude JSON', () => {
   const text = claudeSupplementalMcpConfigJson(conversionMcpServers());
   assert.deepEqual(JSON.parse(text), expectedConversionConfig());
