@@ -3,6 +3,7 @@ import {
   buildDaemonVm as buildSharedDaemonVm,
   daemonStatusTone,
   type DaemonProcessVm,
+  type DaemonRebuildVm,
   type DaemonVm,
 } from '@/features/daemon/daemon-vm';
 import { relTimeZh } from '@/mobile/ui/format';
@@ -42,6 +43,9 @@ export interface MDaemonVm {
   lastRestart: MDaemonRestart | null;
   /** Recent activity mapped from `executions.list` (may be empty — honest). */
   events: MDaemonEvent[];
+  /** The supervisor's hot rebuild — in flight, or the last one it finished. Null on a plain install
+   *  (nothing ever rebuilds) and while no record exists yet. Shared with the desktop modal. */
+  rebuild: DaemonRebuildVm | null;
 }
 
 const MAX_EVENTS = 5;
@@ -78,7 +82,7 @@ export function buildDaemonVm(input: {
   ok: boolean; daemon?: SystemDaemonStatus | null; now?: number;
 }): MDaemonVm {
   const now = input.now ?? Date.now();
-  const facts = buildSharedDaemonVm(input.daemon);
+  const facts = buildSharedDaemonVm(input.daemon, now);
   return {
     ok: input.ok,
     threadCount: input.threads.length,
@@ -86,5 +90,6 @@ export function buildDaemonVm(input: {
     processes: fallbackProcesses(facts, input.ok),
     lastRestart: restartEvent(facts, now),
     events: mapEvents(input.executions, now),
+    rebuild: facts.rebuild,
   };
 }

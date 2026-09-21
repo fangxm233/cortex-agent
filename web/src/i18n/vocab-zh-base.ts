@@ -361,6 +361,7 @@ export const zhBase = {
   dmRestartFailed: '重启失败',
   dmDisconnect: '断开连接',
   dmDisconnectDesc: '清除已保存的服务器与令牌，返回登录页',
+  dmRebuild: '热重建',
 
   rpNoActiveThreads: '暂无活跃线程',
   rpNoActiveThreadsHint: '运行中和等待中的线程将显示在此处。',

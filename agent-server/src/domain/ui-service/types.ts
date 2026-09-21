@@ -2349,6 +2349,21 @@ export type NoteInfo = ProjectNote;
 // Daemon + child (app.js) process status. Read from daemon.pid / daemon-child.pid
 // under STORE_DIR; liveness checked via process.kill(pid, 0); uptime from /proc.
 // All nullable fields are honest (no /proc on non-Linux, stale PID, etc.).
+// The rebuild record is the supervisor's own publication (core/rebuild-progress.ts) — this layer
+// renames it for the UI but does not restate its shape, so the two cannot drift.
+
+import type {
+  RebuildProgress as DaemonRebuildProgress,
+  RebuildStepState as DaemonRebuildStep,
+  RebuildStepName as DaemonRebuildStepName,
+  RebuildStepStatus as DaemonRebuildStepStatus,
+  RebuildStatus as DaemonRebuildStatus,
+} from '@core/rebuild-progress.js';
+
+export type {
+  DaemonRebuildProgress, DaemonRebuildStep, DaemonRebuildStepName,
+  DaemonRebuildStepStatus, DaemonRebuildStatus,
+};
 
 export interface DaemonProcessInfo {
   name: string;
@@ -2363,6 +2378,10 @@ export interface DaemonProcessInfo {
 export interface SystemDaemonStatus {
   processes: DaemonProcessInfo[];
   lastRestart: { at: string | null; reason: string | null };
+  /** The supervisor's hot-rebuild pipeline: the run in flight, or the last one it finished. Null
+   *  when no rebuild has run (production installs never rebuild) or when the record belongs to a
+   *  supervisor that is no longer alive. */
+  rebuild: DaemonRebuildProgress | null;
 }
 
 // ── system.notices DTO ────────────────────────────────────────────

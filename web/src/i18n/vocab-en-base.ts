@@ -365,6 +365,7 @@ export const enBase = {
   dmRestartFailed: 'Restart failed',
   dmDisconnect: 'Disconnect',
   dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
+  dmRebuild: 'rebuild',
 
   rpNoActiveThreads: 'No active threads',
   rpNoActiveThreadsHint: 'Running and waiting threads will appear here.',

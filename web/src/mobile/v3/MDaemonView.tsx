@@ -2,6 +2,8 @@
 import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
+import { rebuildStatusTone, type DaemonRebuildVm } from '@/features/daemon/daemon-vm';
+import type { Tone } from '@/design/tone';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
@@ -24,6 +26,12 @@ export interface MDaemonCopy {
   recentTitle: string;
   recentGap: string;
   recentEmpty: string;
+  /** Rebuild card title (e.g. 热重建). */
+  rebuildTitle: string;
+  /** Step counter under the title: how many planned steps are finished. */
+  rebuildProgress: (done: number, total: number) => string;
+  /** Label for the line carrying what triggered the rebuild. */
+  rebuildTriggerLabel: string;
   status: Record<ExecutionInfo['status'], string>;
   softRestart: string;
   forceKill: string;
@@ -41,10 +49,59 @@ export interface MDaemonCopy {
 export type RestartState = 'idle' | 'pending' | 'success' | 'error';
 
 // Dot color stays mobile-specific while status semantics come from the canonical daemon tone.
-function dotColor(tone: MDaemonProcess['tone']): string {
+function dotColor(tone: Tone): string {
   if (tone === 'done') return MC.done;
   if (tone === 'failed') return MC.fail;
+  if (tone === 'running') return MC.run;
   return MC.grayInk;
+}
+
+// ── Rebuild card: the supervisor's pipeline, one row per planned step ──────────
+function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemonCopy }) {
+  return (
+    <MCard padding={0} style={{ overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 13px',
+          borderBottom: `1px solid ${MC.divider}`,
+        }}
+      >
+        <MDot color={dotColor(rebuildStatusTone(rebuild.status))} pulse={rebuild.running} />
+        <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.rebuildTitle}</span>
+        <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
+          {copy.rebuildProgress(rebuild.completed, rebuild.total)} · {rebuild.elapsed}
+        </span>
+        <span style={{ marginLeft: 'auto' }}>
+          <MPill tone={rebuildStatusTone(rebuild.status)}>{rebuild.status}</MPill>
+        </span>
+      </div>
+      <div
+        style={{
+          padding: '9px 13px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          font: `400 10px/1.4 ${MONO}`,
+        }}
+      >
+        {rebuild.steps.map((step) => (
+          <div key={step.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MDot color={dotColor(step.tone)} size={5} pulse={step.status === 'running'} />
+            <span style={{ color: step.status === 'pending' ? MC.faint : MC.sub }}>{step.name}</span>
+            {step.detail && <span style={{ color: MC.faint }}>({step.detail})</span>}
+            <span style={{ marginLeft: 'auto', color: MC.faint }}>{step.duration ?? copy.dash}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '0 13px 10px', font: `400 9px ${MONO}`, color: MC.faint, wordBreak: 'break-word' }}>
+        {copy.rebuildTriggerLabel} {rebuild.reason}
+        {rebuild.detail ? ` · ${rebuild.detail}` : ''}
+      </div>
+    </MCard>
+  );
 }
 
 // ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime/extras sub-line ──
@@ -264,6 +321,9 @@ export function MDaemonView({
             <span>{copy.schedules(vm.scheduleCount)}</span>
           </div>
         </MCard>
+
+        {/* Hot rebuild — the supervisor's own pipeline (absent on a plain install) */}
+        {vm.rebuild && <RebuildCard rebuild={vm.rebuild} copy={copy} />}
 
         {/* Recent activity — repurposed from executions.list; honestly NOT the daemon event log (GAP) */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>

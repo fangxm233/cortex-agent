@@ -7,9 +7,13 @@ import { getActiveHandle } from '@domain/threads/runner.js';
 import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { threadStore } from '@store/thread-repo.js';
 import { type ThreadExecCtx, downloadFiles, bufferUserMessage } from './thread-input.js';
+import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
+import { createLogger } from '@core/log.js';
 import type { AttachmentFailure } from './routing/file-handler.js';
 
 export type { ThreadExecCtx };
+
+const log = createLogger('thread-executor');
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
@@ -29,6 +33,17 @@ export class ThreadExecutor {
 
   async route(ctx: ThreadExecCtx): Promise<void> {
     const { message, channel, adapter } = ctx;
+
+    // Same admission rule as the direct path (agent-runner): while the supervisor is rebuilding or
+    // replacing this process, starting a thread step only produces a step that the SIGTERM marks
+    // `failed` a moment later. Refuse it where the person can see why.
+    if (isRebuildHeld()) {
+      log.info(`Refusing thread routing on ${channel}: supervisor rebuild in progress`);
+      await refuseTurnForRebuild({
+        adapter, channel, text: ctx.agentMessage || '', interactive: true,
+      });
+      return;
+    }
 
     // Phase 6: buffer user messages when the thread is running a step,
     // so they're included in the next step's prompt instead of being lost.

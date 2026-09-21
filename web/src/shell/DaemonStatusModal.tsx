@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Tone } from '@/design/tone';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
+import { rebuildStatusTone } from '@/features/daemon/daemon-vm';
 import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
@@ -20,12 +21,16 @@ export interface DaemonStatusModalProps {
 function toneColor(tone: Tone): string {
   if (tone === 'done') return 'var(--proto-success)';
   if (tone === 'failed') return 'var(--proto-danger)';
+  if (tone === 'running') return 'var(--pill-running-fg)';
+  if (tone === 'waiting') return 'var(--pill-waiting-fg)';
   return 'var(--pill-cancelled-fg)';
 }
 
 function toneBg(tone: Tone): string {
   if (tone === 'done') return 'var(--proto-success-bg)';
   if (tone === 'failed') return 'var(--proto-danger-bg)';
+  if (tone === 'running') return 'var(--pill-running-bg)';
+  if (tone === 'waiting') return 'var(--pill-waiting-bg)';
   return 'var(--pill-cancelled-bg)';
 }
 
@@ -33,7 +38,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
   const L = useVocab();
   const [confirmHard, setConfirmHard] = useState(false);
   const daemon = useDaemonResource({ enabled: open });
-  const { processes, lastRestart } = daemon.facts;
+  const { processes, lastRestart, rebuild } = daemon.facts;
 
   useEffect(() => {
     if (daemon.restartState === 'success' || daemon.restartState === 'error') setConfirmHard(false);
@@ -255,6 +260,79 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               </div>
             );
           })}
+
+          {rebuild && (
+            <div
+              style={{
+                border: '1px solid var(--proto-line)',
+                borderRadius: 10,
+                padding: '11px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: toneColor(rebuildStatusTone(rebuild.status)),
+                    flex: 'none',
+                  }}
+                />
+                <span style={{ font: "600 12px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
+                  {L.dmRebuild}
+                </span>
+                <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
+                  {rebuild.completed}/{rebuild.total} · {rebuild.elapsed}
+                </span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: toneBg(rebuildStatusTone(rebuild.status)),
+                    color: toneColor(rebuildStatusTone(rebuild.status)),
+                  }}
+                >
+                  {rebuild.status}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  marginTop: 8,
+                  font: "400 10px 'IBM Plex Mono',monospace",
+                  flexWrap: 'wrap',
+                }}
+              >
+                {rebuild.steps.map((step) => (
+                  <span key={step.name} style={{ color: toneColor(step.tone) }}>
+                    {step.status === 'running' ? '▸' : step.status === 'pending' ? '·' : '●'} {step.name}
+                    {step.duration ? (
+                      <span style={{ color: 'var(--proto-muted-3)' }}> {step.duration}</span>
+                    ) : null}
+                    {step.detail ? (
+                      <span style={{ color: 'var(--proto-muted-3)' }}> ({step.detail})</span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  font: "400 9.5px 'IBM Plex Mono',monospace",
+                  color: 'var(--proto-faint)',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {L.dmReason}: {rebuild.reason}
+                {rebuild.detail ? ` · ${rebuild.detail}` : ''}
+              </div>
+            </div>
+          )}
 
           {lastRestart?.at && (
             <div

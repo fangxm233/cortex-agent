@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   SystemDaemonStatus,
@@ -7,6 +8,9 @@ import { useTRPC } from '@/lib/trpc';
 import { buildDaemonVm, type DaemonVm } from './daemon-vm';
 
 const STATUS_REFRESH_MS = 5_000;
+/** While the supervisor is mid-rebuild the page is a progress view, and a 5s poll would show two or
+ *  three frames of a pipeline that takes twenty seconds. Dropped back as soon as it settles. */
+const REBUILD_REFRESH_MS = 1_000;
 
 export type DaemonRestartState = 'idle' | 'pending' | 'success' | 'error';
 
@@ -43,11 +47,18 @@ export function useDaemonResource(options: UseDaemonResourceOptions = {}): Daemo
   const queryClient = useQueryClient();
   const enabled = options.enabled ?? true;
   const statusOptions = trpc.system.daemonStatus.queryOptions({});
+  // Kept in state rather than read off `status.data` in the same call: the interval has to be decided
+  // before the query runs, so what speeds it up is the rebuild the previous frame saw.
+  const [rebuilding, setRebuilding] = useState(false);
   const status = useQuery({
     ...statusOptions,
     enabled,
-    refetchInterval: enabled ? STATUS_REFRESH_MS : false,
+    refetchInterval: enabled ? (rebuilding ? REBUILD_REFRESH_MS : STATUS_REFRESH_MS) : false,
   });
+  const rebuildStatus = status.data?.rebuild?.status ?? null;
+  useEffect(() => {
+    setRebuilding(rebuildStatus === 'running');
+  }, [rebuildStatus]);
   const restart = useMutation(trpc.system.restart.mutationOptions({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: statusOptions.queryKey, exact: true });

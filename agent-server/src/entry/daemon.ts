@@ -9,6 +9,16 @@
  *   { type: 'rebuild-aborted', text } — pipeline stopped early; app.ts broadcasts it as an
  *   error-level system notice. The daemon has no platform adapter, so this is its only
  *   way to reach the operator.
+ *   { type: 'rebuild-hold', hold, phase, reason } — admission control. While `hold` is true the
+ *   app refuses to START new turns, because this process is being rebuilt or replaced and a turn
+ *   spawned now is orphaned by the SIGTERM. Re-sent on every phase change: the app's hold expires
+ *   on its own, so a daemon that dies mid-pipeline fails open instead of muting the app forever.
+ *
+ * Rebuild progress:
+ *   The pipeline publishes its plan and each step transition to STORE_DIR/daemon-rebuild.json
+ *   (core/rebuild-progress.ts), which `system.daemonStatus` reads for the daemon page. It is a file
+ *   and not in-app state on purpose: the pipeline's last act replaces the process that would have
+ *   held it, so only a file can tell the new app what the rebuild it was born from did.
  *
  * Restart serialization:
  *   Only ONE restart cycle (stop → start) runs at a time. Concurrent requests
@@ -59,6 +69,15 @@ import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-
 import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/utils.js';
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
+import {
+  finishRebuildStep,
+  planRebuildProgress,
+  settleRebuildProgress,
+  startRebuildStep,
+  writeRebuildProgress,
+  type RebuildProgress,
+  type RebuildStepName,
+} from '@core/rebuild-progress.js';
 
 // Load .env BEFORE reading any CORTEX_* env vars below. Mirrors app.ts §61 — the
 // daemon needs CORTEX_REPO (and potentially other vars) from .env, not just from
@@ -113,6 +132,12 @@ let restarting = false;         // true while restart() stop→start cycle is in
 let rebuilding = false;         // true while runRebuildPipeline() is running
 let nextRestartReason: string | null = null; // forwarded to next child via CORTEX_RESTART_REASON
 let watchMonitors: WatchMonitor[] = [];
+let rebuildProgress: RebuildProgress | null = null; // published pipeline state (file + child IPC)
+
+/** What the supervisor may push down the fork IPC channel. Consumed by entry/daemon-notice.ts. */
+type DaemonToChildMessage =
+  | { type: 'rebuild-aborted'; text: string }
+  | { type: 'rebuild-hold'; hold: boolean; phase: string | null; reason: string | null };
 
 // Daemon logs are written by the centralized logger (src/core/log.ts)
 // — console + daily-rotating file output in DATA_DIR/logs/.
@@ -250,19 +275,31 @@ function stopChild() {
   });
 }
 
-async function restart(reason) {
+/**
+ * Stop the child and start a fresh one. Resolves once the replacement has been forked.
+ *
+ * Returns 'deferred' when the cycle did not run: the child was mid-request, or another cycle owns
+ * the stop→start, and `pendingRestart` now carries the reason to the next idle transition. Callers
+ * that report progress need that distinction — a deferred restart leaves the OLD process serving.
+ *
+ * The child is told to hold new turns before anything else happens, including on the deferred
+ * paths: a restart that is waiting for idle wants the child to drain, not to take more work.
+ */
+async function restart(reason): Promise<'restarted' | 'deferred'> {
   // Defer if child is busy processing a request
   if (childBusy) {
     log.info(`Restart deferred (app.ts is busy): ${reason}`);
     pendingRestart = reason;
-    return;
+    holdChildTurns(true, 'restart', reason);
+    return 'deferred';
   }
 
   // Serialize: only one stop→start cycle at a time
   if (restarting) {
     log.info(`Restart deferred (already restarting): ${reason}`);
     pendingRestart = reason;
-    return;
+    holdChildTurns(true, 'restart', reason);
+    return 'deferred';
   }
 
   cancelPendingTimers();
@@ -270,6 +307,10 @@ async function restart(reason) {
   log.info(`Restarting: ${reason}`);
   backoff = BACKOFF_INITIAL;
   restarting = true;
+  // The window this closes is the one that orphaned a turn on 2026-09-21: app.ts reported idle, the
+  // daemon began the stop, and a message landing in the same tick spawned a CLI whose stdout owner
+  // died a moment later. Between this line and SIGTERM the child admits nothing new.
+  holdChildTurns(true, 'restart', reason);
 
   await stopChild();
   restarting = false;
@@ -283,6 +324,7 @@ async function restart(reason) {
 
   nextRestartReason = reason;
   startChild();
+  return 'restarted';
 }
 
 // --- File Watching ---
@@ -497,15 +539,81 @@ export function buildRebuildAbortNotice(p: { step: string; detail: string; reaso
 }
 
 /** Push a message down the fork IPC channel. Best-effort: the child may be mid-exit. */
-function notifyChild(msg: { type: string; text: string }): void {
+function notifyChild(msg: DaemonToChildMessage): void {
   if (!child || !child.connected) return;
   try { child.send(msg); } catch { /* child went away — the log line still records it */ }
 }
 
-/** Single exit point for every pipeline abort: log it AND tell the operator. */
+/** Tell the child to stop admitting new turns (or to resume). Sent on every phase change so the
+ *  child's hold, which expires on its own, keeps being renewed for as long as the pipeline runs.
+ *  A turn admitted after this point would be spawned into a process that is about to be SIGTERMed:
+ *  its CLI child outlives the app that owns its stdout, so the answer is written to a pipe nobody
+ *  is reading and the turn never completes. */
+function holdChildTurns(hold: boolean, phase: string | null, reason: string | null): void {
+  notifyChild({ type: 'rebuild-hold', hold, phase, reason });
+}
+
+/** Publish pipeline state: keep it in memory, on disk for `system.daemonStatus`, and in the child's
+ *  turn gate. One function so a phase can never reach one reader and not the others.
+ *
+ *  The hold outlives a terminal record when a restart is still queued (`pendingRestart`): the build
+ *  is over, but the process the turn would run in is still going to be replaced. */
+function setRebuildProgress(next: RebuildProgress): void {
+  rebuildProgress = next;
+  writeRebuildProgress(next);
+  const queuedRestart = pendingRestart !== null;
+  holdChildTurns(next.status === 'running' || queuedRestart, next.current ?? (queuedRestart ? 'restart' : null), next.reason);
+}
+
+/** The steps this checkout will actually run, in order. Mirrors `planRebuildSteps` for the build
+ *  half — a package that is absent is never published as pending — and appends the two phases the
+ *  build planner does not own. */
+function plannedProgressSteps(): RebuildStepName[] {
+  const names: RebuildStepName[] = planRebuildSteps({
+    repoDir: CORTEX_REPO,
+    uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
+    webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
+  }).map((step) => step.label as RebuildStepName);
+  return [...names, 'install', 'restart'];
+}
+
+/** The pipeline's last step, with the progress record closed out according to what restart() did. */
+async function restartForRebuild(reason: string): Promise<void> {
+  updateRebuildProgress((progress) => startRebuildStep(progress, 'restart'));
+  const outcome = await restart(`src rebuild: ${reason}`);
+  updateRebuildProgress((progress) => (outcome === 'restarted'
+    ? settleRebuildProgress(finishRebuildStep(progress, 'restart', 'done'), 'succeeded')
+    : settleRebuildProgress(
+      finishRebuildStep(progress, 'restart', 'skipped', 'deferred: app.ts busy'),
+      'succeeded',
+      'Build and install succeeded; the restart is queued until app.ts goes idle.',
+    )));
+}
+
+/** Advance the published progress, if a pipeline is being tracked at all. */
+function updateRebuildProgress(patch: (progress: RebuildProgress) => RebuildProgress): void {
+  if (!rebuildProgress) return;
+  setRebuildProgress(patch(rebuildProgress));
+}
+
+/** Map an abort's step label onto the published step vocabulary. `tgz cleanup` and `pack` are
+ *  phases of the same install step from the reader's point of view. */
+function progressStepFor(label: string): RebuildStepName | null {
+  if (label === 'server' || label === 'ui-contract' || label === 'web' || label === 'install') return label;
+  if (label === 'pack' || label === 'tgz cleanup') return 'install';
+  return null;
+}
+
+/** Single exit point for every pipeline abort: log it, mark the step failed, tell the operator. */
 function abortRebuild(step: string, detail: string, reason: string): void {
   const text = buildRebuildAbortNotice({ step, detail, reason });
   log.error(text);
+  const failed = progressStepFor(step);
+  updateRebuildProgress((progress) => settleRebuildProgress(
+    failed ? finishRebuildStep(progress, failed, 'failed', detail) : progress,
+    'aborted',
+    text,
+  ));
   notifyChild({ type: 'rebuild-aborted', text });
 }
 
@@ -521,11 +629,14 @@ async function runBuildSteps(reason: string): Promise<boolean> {
   }
 
   for (const step of steps) {
+    const tracked = progressStepFor(step.label);
+    if (tracked) updateRebuildProgress((progress) => startRebuildStep(progress, tracked));
     const code = await spawnAsync(step.cmd, step.args, { cwd: step.cwd });
     if (code !== 0) {
       abortRebuild(step.label, `exit ${code}`, reason);
       return false;
     }
+    if (tracked) updateRebuildProgress((progress) => finishRebuildStep(progress, tracked, 'done'));
   }
   return true;
 }
@@ -616,6 +727,14 @@ async function runRebuildPipeline(reason: string) {
   rebuilding = true;
   try {
     log.info(`Rebuild pipeline starting: ${reason}`);
+    // Publishing the plan before the first step is what makes the progress honest: the reader gets
+    // the total up front, and the child's turn gate closes now rather than at the restart — the
+    // window this closes is the whole build, not just the SIGTERM.
+    setRebuildProgress(planRebuildProgress({
+      reason,
+      names: plannedProgressSteps(),
+      daemonPid: process.pid,
+    }));
 
     // Step 1: build the workspace packages in dependency order (server → ui-contract → web).
     if (!await runBuildSteps(reason)) return;
@@ -624,10 +743,12 @@ async function runRebuildPipeline(reason: string) {
     // install root is equivalent to reinstalling — and skips rewriting the ~40k-file vendored
     // closure that `npm install -g` rm -rf's and re-extracts on every rebuild.
     const started = Date.now();
+    updateRebuildProgress((progress) => startRebuildStep(progress, 'install'));
     const synced = tryFastInstall();
     if (synced) {
       log.info(`Fast install: ${synced.join(', ')} in ${Date.now() - started}ms — restarting app.ts`);
-      restart(`src rebuild: ${reason}`);
+      updateRebuildProgress((progress) => finishRebuildStep(progress, 'install', 'done', 'fast'));
+      await restartForRebuild(reason);
       return;
     }
 
@@ -643,14 +764,21 @@ async function runRebuildPipeline(reason: string) {
       abortRebuild('install', `exit ${installCode}`, reason);
       return;
     }
+    updateRebuildProgress((progress) => finishRebuildStep(progress, 'install', 'done', 'pack + install -g'));
 
     // Step 5: restart app.ts. This reuses the busy/idle gate inside restart() —
     // if a request snuck in between the busy-check above and now, restart() will
     // re-defer to pendingRestart. Either way, the new app.js boots from the freshly
     // installed dist/.
     log.info(`Rebuild succeeded — restarting app.ts`);
-    restart(`src rebuild: ${reason}`);
+    await restartForRebuild(reason);
   } finally {
+    // An aborted pipeline already settled its own record; a run that reached here still `running`
+    // never restarted the child either, so releasing the hold is the honest close.
+    if (rebuildProgress?.status === 'running') {
+      setRebuildProgress(settleRebuildProgress(rebuildProgress, 'aborted', 'pipeline ended without restarting app.ts'));
+    }
+    rebuildProgress = null;
     rebuilding = false;
     // If src changed again while we were rebuilding, pick that up now.
     if (pendingRebuild) {

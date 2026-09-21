@@ -35,6 +35,7 @@ import {
   downloadFiles as downloadPlatformFiles, inboundAttachmentKey, type InboundFiles,
 } from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
+import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
 
 const log = createLogger('agent-runner');
 
@@ -90,6 +91,21 @@ export class AgentRunner {
     loadPlatformFiles: PlatformFileLoader,
   ): Promise<boolean> {
     const { message, channel, adapter } = ctx;
+    // The supervisor is rebuilding or replacing this process (entry/daemon-notice.ts pushes the
+    // hold). A turn admitted now spawns a backend CLI whose stdout owner is about to be SIGTERMed:
+    // the CLI finishes, writes into a pipe nobody reads, and the turn hangs at "processing" forever
+    // (2026-09-21). Refused first, before anything is tracked, marked, leased or injected — a
+    // message folded into a turn that is about to die is lost just as thoroughly.
+    if (isRebuildHeld()) {
+      log.info(`Refusing turn on ${channel}: supervisor rebuild in progress`);
+      await refuseTurnForRebuild({
+        adapter,
+        channel,
+        text: ctx.userMessage || '',
+        interactive: message.senderId !== SYNTHETIC_CALLBACK_SENDER && !message.systemOrigin,
+      });
+      return false;
+    }
     // DR-0016 top-level fallback: if this channel has a pending human-escalated subtask question,
     // consume this message as the answer and short-circuit normal turn handling. Scope is narrow —
     // the backstop is disarmed unless this exact channel is awaiting a human reply, and it is armed
