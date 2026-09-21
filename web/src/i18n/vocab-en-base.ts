@@ -173,6 +173,12 @@ export const enBase = {
   wbModel: 'model',
   wbThinking: 'thinking',
   wbRoute: 'route',
+  // The environment axis: which agent template a conversation runs in (prompt, tools, skills).
+  wbAgent: 'agent',
+  wbAgentDefault: 'default',
+  wbAgentFollowDefault: 'follow the host default',
+  /** Why an agent row is greyed: its profile runs on `{backend}`, and a live session may not move. */
+  wbAgentCrossBackend: 'new conversation only · {backend}',
   wbFollowProfile: 'follow profile',
   wbFollowAll: 'follow the profile for everything',
   wbFilterModels: 'filter…',

@@ -35,6 +35,12 @@ export interface MChatCopy {
   profileSubtitle: string;
   profileCurrent: string;
   profileFooter: string;
+  /** The environment section: heading, the "follow the host default" row and its sub-label, and
+   *  the `{backend}` template for an agent only a new conversation could take. */
+  selectionAgent: string;
+  selectionAgentDefault: string;
+  selectionAgentFollow: string;
+  selectionAgentCrossBackend: string;
   /** Section headings and the "follow the profile" row of the engine sheet. */
   selectionModel: string;
   selectionThinking: string;

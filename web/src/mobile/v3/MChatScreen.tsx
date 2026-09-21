@@ -28,7 +28,8 @@ import {
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from '@/features/workbench/composer-slash';
 import {
-  applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionSelection, seedDraftSelection,
+  applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionAgent, resolveTransitionSelection,
+  seedDraftSelection,
   type DraftSelection, type PendingCreatedSession, type SelectionChange,
 } from '@/features/workbench/selected-session';
 
@@ -105,6 +106,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: '仅本会话 · 热更新',
     profileCurrent: '当前',
     profileFooter: '切换仅影响本会话后续 turn · 运行中线程不受影响 · 全局默认在设置',
+    selectionAgent: 'agent',
+    selectionAgentDefault: '默认',
+    selectionAgentFollow: '跟随全局默认',
+    selectionAgentCrossBackend: '仅限新对话 · {backend}',
     selectionModel: '模型',
     selectionThinking: '思考强度',
     selectionMode: '计费路由',
@@ -141,6 +146,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: 'This session · hot-swap',
     profileCurrent: 'current',
     profileFooter: 'Applies to this session’s next turns only · running threads unaffected · global default in Settings',
+    selectionAgent: 'agent',
+    selectionAgentDefault: 'default',
+    selectionAgentFollow: 'follow the host default',
+    selectionAgentCrossBackend: 'new conversation only · {backend}',
     selectionModel: 'model',
     selectionThinking: 'thinking',
     selectionMode: 'route',
@@ -334,14 +343,15 @@ export function MChatScreen(): JSX.Element {
   // last engine chosen on this host, profile included. Without it a mobile draft stayed at
   // `profileName: null` and the created session had no profile of its own to come back to.
   useEffect(() => {
-    if (!isDraft || draftSelection.profileName || draftSelection.override) return;
+    if (!isDraft || draftSelection.profileName || draftSelection.override || draftSelection.agentName) return;
     const snapshot = configQuery.data?.profiles;
     if (!snapshot) return;
     const seeded = seedDraftSelection(
       configQuery.data?.selectionDefault, snapshot.profiles, snapshot.defaultProfile,
     );
     if (seeded) setDraftSelection(seeded);
-  }, [isDraft, draftSelection.profileName, draftSelection.override, configQuery.data]);
+  }, [isDraft, draftSelection.profileName, draftSelection.override, draftSelection.agentName,
+    configQuery.data]);
   // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
   // spawns, so a live session can report it but never change it.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
@@ -379,6 +389,11 @@ export function MChatScreen(): JSX.Element {
     defaultProfile,
   );
   const selectionOverride = isDraft ? draftSelection.override : transition.override;
+  // The environment axis, resolved the same way: the row answers for itself once it exists.
+  const agents = configQuery.data?.agents ?? [];
+  const agentName = (isDraft
+    ? draftSelection.agentName
+    : resolveTransitionAgent(active?.agentName, pendingCreatedSession, sessionId)) ?? null;
   // The profile is the base; the session's own model/thinking choice sits on top of it. One shared
   // resolver with the desktop composer, so the two surfaces cannot disagree about what will run.
   const effective = effectiveSelection(profiles, effectiveProfile, selectionOverride);
@@ -403,6 +418,11 @@ export function MChatScreen(): JSX.Element {
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
   const setSelectionMut = useMutation(
     trpc.sessions.setSelection.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
+    }),
+  );
+  const setAgentMut = useMutation(
+    trpc.sessions.setAgent.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
     }),
   );
@@ -634,6 +654,7 @@ export function MChatScreen(): JSX.Element {
             projectId: currentProjectId ?? 'general',
             profileName: draftSelection.profileName ?? undefined,
             ...(draftSelection.override ? { selection: draftSelection.override } : {}),
+            ...(draftSelection.agentName ? { agentName: draftSelection.agentName } : {}),
             text: t,
             draftUploadId: sent.draftUploadId,
             ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
@@ -654,6 +675,7 @@ export function MChatScreen(): JSX.Element {
           sessionId: data.sessionId,
           profileName: draftSelection.profileName,
           override: draftSelection.override,
+          agentName: draftSelection.agentName ?? null,
         });
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         navigate(`/m/session/${data.sessionId}`, { replace: true });
@@ -687,8 +709,17 @@ export function MChatScreen(): JSX.Element {
     if (isDraft) {
       setDraftSelection((prev) => applyDraftSelection(prev, change));
       note();
-    } else if (sessionId) {
-      setSelectionMut.mutate({ sessionId, ...change }, { onSuccess: note });
+      return;
+    }
+    if (!sessionId) return;
+    // Two axes, two endpoints — the server keeps the environment and the engine apart, and so must
+    // the client. `undefined` is how "follow the host default" is said over the wire.
+    const { agentName: pickedAgent, ...engine } = change;
+    if (pickedAgent !== undefined) {
+      setAgentMut.mutate({ sessionId, agentName: pickedAgent ?? undefined }, { onSuccess: note });
+    }
+    if (Object.keys(engine).length > 0) {
+      setSelectionMut.mutate({ sessionId, ...engine }, { onSuccess: note });
     }
   }
 
@@ -900,8 +931,14 @@ export function MChatScreen(): JSX.Element {
                 override: selectionOverride,
                 hasHistory,
                 defaultProfile,
+                agents,
+                agentName,
                 copy: {
                   profile: copy.profileTitle,
+                  agent: copy.selectionAgent,
+                  agentDefault: copy.selectionAgentDefault,
+                  agentFollowDefault: copy.selectionAgentFollow,
+                  agentCrossBackend: copy.selectionAgentCrossBackend,
                   model: copy.selectionModel,
                   thinking: copy.selectionThinking,
                   mode: copy.selectionMode,

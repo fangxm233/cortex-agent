@@ -120,8 +120,9 @@ function SelectionRow({ row, last, copy, onPick }: {
   return (
     <div
       data-selection-row={row.id}
-      onClick={() => onPick(row)}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}
+      data-disabled={row.disabled ? 'true' : undefined}
+      onClick={() => { if (!row.disabled) onPick(row); }}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer', opacity: row.disabled ? 0.45 : 1 }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>

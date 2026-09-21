@@ -258,6 +258,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           isDraft={isDraft}
           currentProfile={active?.profileName ?? null}
           currentOverride={active?.selectionOverride ?? null}
+          currentAgent={active?.agentName}
           sessionBrowser={active?.browser ?? null}
           sessionCommission={sessionCommission}
           hasHistory={hasHistory}

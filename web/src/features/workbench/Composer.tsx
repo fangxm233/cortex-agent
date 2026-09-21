@@ -73,6 +73,7 @@ export function Composer({
   sessionCommission = null,
   currentProfile,
   currentOverride = null,
+  currentAgent = null,
   hasHistory,
   draftSelection = EMPTY_DRAFT_SELECTION,
   draftReloadToken = 0,
@@ -121,6 +122,8 @@ export function Composer({
   currentProfile: string | null;
   /** The session's model/thinking choice on top of that profile, from its sessions.list row. */
   currentOverride?: SessionSelectionOverride | null;
+  /** The agent it runs in, from that same row. Null = it follows the host's default. */
+  currentAgent?: string | null;
   hasHistory: boolean;
   /** The draft's engine choice (profile + model/provider/thinking), carried into createAndSend. */
   draftSelection?: DraftSelection;
@@ -156,7 +159,7 @@ export function Composer({
     draftCommission: commissionChoice, setDraftCommission: setCommissionChoice,
   } = useSelectedSession();
   const engineSelection = useSessionSelection({
-    sessionId, currentProfile, currentOverride, hasHistory, isDraft,
+    sessionId, currentProfile, currentOverride, currentAgent, hasHistory, isDraft,
   });
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
   // creation-time choice, not a session setting.
@@ -427,6 +430,7 @@ export function Composer({
         ? createAndSendMut.mutateAsync({
             projectId, profileName: draftSelection.profileName ?? undefined,
             ...(draftSelection.override ? { selection: draftSelection.override } : {}),
+            ...(draftSelection.agentName ? { agentName: draftSelection.agentName } : {}),
             text,
             ...(browserDevice ? { browser: { device: browserDevice } } : {}),
             ...(commissionEnabled && commissionRequestOf(commissionChoice)

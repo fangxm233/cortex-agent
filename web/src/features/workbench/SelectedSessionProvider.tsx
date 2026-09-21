@@ -98,14 +98,15 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   // the draft is never left in the "no profile named" state the server has to guess about. Only
   // while nothing has been picked for this draft yet; a user choice is never overwritten.
   useEffect(() => {
-    if (!isDraft || draftSelection.profileName || draftSelection.override) return;
+    if (!isDraft || draftSelection.profileName || draftSelection.override || draftSelection.agentName) return;
     const profilesSnapshot = configQuery.data?.profiles;
     if (!profilesSnapshot) return;
     const seeded = seedDraftSelection(
       configQuery.data?.selectionDefault, profilesSnapshot.profiles, profilesSnapshot.defaultProfile,
     );
     if (seeded) setDraftSelectionState(seeded);
-  }, [isDraft, draftSelection.profileName, draftSelection.override, configQuery.data]);
+  }, [isDraft, draftSelection.profileName, draftSelection.override, draftSelection.agentName,
+    configQuery.data]);
 
   const setDraftSelection = useCallback((change: SelectionChange) => {
     setDraftSelectionState((current) => applyDraftSelection(current, change));
@@ -121,7 +122,10 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   }, []);
   const selectCreatedSession = useCallback((id: string) => {
     setPendingCreatedSession({
-      sessionId: id, profileName: draftSelection.profileName, override: draftSelection.override,
+      sessionId: id,
+      profileName: draftSelection.profileName,
+      override: draftSelection.override,
+      agentName: draftSelection.agentName ?? null,
     });
     setDraftCommission(null);
     setOverride(id);

@@ -12,6 +12,7 @@ const harness = vi.hoisted(() => ({
   createAndSendMutateAsync: vi.fn(),
   cancelMutate: vi.fn(),
   setSelectionMutate: vi.fn(),
+  setAgentMutate: vi.fn(),
   compact: vi.fn(),
   sendPending: false,
   createAndSendPending: false,
@@ -42,6 +43,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
               { name: 'ds', model: 'glm-5', backend: 'pi', provider: 'zai' },
             ],
           },
+          agents: [
+            { name: 'main', description: 'the default environment', profile: '__active__' },
+            { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+          ],
         },
         isPending: false,
       };
@@ -73,6 +78,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       }
       if (options.__kind === 'sessions.cancel') return { mutate: harness.cancelMutate, isPending: false };
       if (options.__kind === 'sessions.setSelection') return { mutate: harness.setSelectionMutate, isPending: false };
+      if (options.__kind === 'sessions.setAgent') return { mutate: harness.setAgentMutate, isPending: false };
       return { mutate: vi.fn(), isPending: false };
     },
     useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
@@ -93,6 +99,7 @@ vi.mock('@/lib/trpc', () => ({
         send: mutation('sessions.send'),
         createAndSend: mutation('sessions.createAndSend'),
         setSelection: mutation('sessions.setSelection'),
+        setAgent: mutation('sessions.setAgent'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
       },
@@ -245,6 +252,7 @@ beforeEach(() => {
   harness.createAndSendMutateAsync.mockReset();
   harness.cancelMutate.mockReset();
   harness.setSelectionMutate.mockReset();
+  harness.setAgentMutate.mockReset();
   harness.compact.mockReset();
   harness.sendPending = false;
   harness.createAndSendPending = false;
@@ -568,5 +576,21 @@ describe('mobile engine picker', () => {
       profileName: 'ds',
       selection: { model: 'glm-5', provider: 'zai' },
     });
+  });
+  it('an agent pick goes to sessions.setAgent, and a draft keeps it for its creation', () => {
+    mounted = mountChat();
+    tap(mounted, 'agent:nimbus');
+    expect(harness.setAgentMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', agentName: 'nimbus' });
+    expect(harness.setSelectionMutate).not.toHaveBeenCalled();
+
+    harness.routeParam = 'new';
+    harness.sessions = [];
+    harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
+    mounted = mountChat();
+    tap(mounted, 'agent:nimbus');
+    expect(harness.setAgentMutate).toHaveBeenCalledOnce();
+
+    typeAndSend(mounted, 'first turn');
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({ agentName: 'nimbus' });
   });
 });

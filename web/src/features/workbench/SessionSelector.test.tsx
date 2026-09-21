@@ -11,6 +11,7 @@ const harness = vi.hoisted(() => ({
   draftSelection: { profileName: null as string | null, override: null as Record<string, string> | null },
   setDraftSelection: vi.fn(),
   setSelection: vi.fn(),
+  setAgent: vi.fn(),
   invalidateQueries: vi.fn(),
 }));
 
@@ -44,10 +45,18 @@ vi.mock('@tanstack/react-query', () => ({
             { name: 'gpt-execute', model: 'gpt-5.4', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
           ],
         },
+        agents: [
+          { name: 'main', description: 'the default environment', profile: '__active__' },
+          { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+          { name: 'atlas', description: 'pinned to the other backend', profile: 'gpt-execute' },
+        ],
       },
     };
   },
-  useMutation: () => ({ mutate: harness.setSelection }),
+  // The two axes leave through two endpoints, so the mock has to tell them apart.
+  useMutation: (options: any) => ({
+    mutate: options?.__kind === 'sessions.setAgent' ? harness.setAgent : harness.setSelection,
+  }),
   useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
 }));
 
@@ -60,7 +69,8 @@ vi.mock('@/lib/trpc', () => ({
       catalog: { queryOptions: () => ({ __kind: 'models.catalog' }) },
     },
     sessions: {
-      setSelection: { mutationOptions: () => ({}) },
+      setSelection: { mutationOptions: () => ({ __kind: 'sessions.setSelection' }) },
+      setAgent: { mutationOptions: () => ({ __kind: 'sessions.setAgent' }) },
       list: { queryFilter: () => ({}) },
     },
   }),
@@ -81,6 +91,7 @@ function mount(props: {
   currentProfile: string | null;
   hasHistory: boolean;
   currentOverride?: Record<string, string> | null;
+  currentAgent?: string | null;
 }): ReactTestRenderer {
   return create(
     <LangProvider>
@@ -116,7 +127,7 @@ function click(renderer: ReactTestRenderer, row: string): void {
 function pick(renderer: ReactTestRenderer, row: string): void {
   open(renderer);
   const pane = row.split(':')[0];
-  if (pane === 'model' || pane === 'thinking' || pane === 'mode') drill(renderer, pane);
+  if (pane === 'model' || pane === 'thinking' || pane === 'mode' || pane === 'agent') drill(renderer, pane);
   click(renderer, row);
 }
 
@@ -124,6 +135,7 @@ beforeEach(() => {
   harness.draftSelection = { profileName: null, override: null };
   harness.setDraftSelection.mockReset();
   harness.setSelection.mockReset();
+  harness.setAgent.mockReset();
   harness.invalidateQueries.mockReset();
   vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
@@ -220,5 +232,50 @@ describe('SessionSelector', () => {
     expect(harness.setSelection).toHaveBeenCalledWith({
       sessionId: 's1', selection: { model: 'claude-sonnet-4-6', thinking: 'low' },
     });
+  });
+  // ── the environment axis ──────────────────────────────────────────────────────────────────────
+  // An agent pick goes to `sessions.setAgent` and NOWHERE else: the server keeps the environment
+  // and the engine apart, and a pick that also restated the selection would undo that.
+
+  it('sends an agent pick to sessions.setAgent, leaving the engine alone', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:nimbus');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: 'nimbus' });
+    expect(harness.setSelection).not.toHaveBeenCalled();
+  });
+
+  it('hands the conversation back to the host default with an absent name', () => {
+    const renderer = mount({
+      isDraft: false, currentProfile: 'plan', hasHistory: true, currentAgent: 'nimbus',
+    });
+    pick(renderer, 'agent:default');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: undefined });
+  });
+
+  it('a session already following the default has nothing to take back', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:default');
+    expect(harness.setAgent).not.toHaveBeenCalled();
+  });
+
+  it('a draft keeps its agent locally, to be created with', () => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    pick(renderer, 'agent:nimbus');
+    expect(harness.setDraftSelection).toHaveBeenCalledWith({ agentName: 'nimbus' });
+    expect(harness.setAgent).not.toHaveBeenCalled();
+  });
+
+  it('an agent pinned to the other backend is drawn, but a live conversation cannot take it', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:atlas');
+    expect(harness.setAgent).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-selection-row': 'agent:atlas' }).props['data-disabled'])
+      .toBe('true');
+  });
+
+  it('a fresh conversation may still take it — there is no backend to be locked to yet', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
+    pick(renderer, 'agent:atlas');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: 'atlas' });
   });
 });

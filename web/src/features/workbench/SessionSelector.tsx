@@ -4,21 +4,25 @@ import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import {
-  buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange,
-  currentBackendOf, effectiveSelection, groupModelOptions, modeChange, modelChange, profileChange,
-  selectionChipParts, selectionRootRows, thinkingChange, visibleModelOptions, visibleProfileOptions,
-  type EffectiveSelection, type ModeOption, type ModelOption, type ProfileOption,
+  agentChange, agentRootRow, buildAgentOptions, buildModeOptions, buildModelOptions,
+  buildProfileOptions, buildThinkingOptions, clearAllChange, currentBackendOf, effectiveSelection,
+  groupModelOptions, modeChange, modelChange, profileChange, selectionChipParts, selectionRootRows,
+  thinkingChange, visibleModelOptions, visibleProfileOptions,
+  type AgentOption, type EffectiveSelection, type ModeOption, type ModelOption, type ProfileOption,
   type SelectionRootRow, type ThinkingOption,
 } from './selection-menu';
 import { SelectionMenu, type SelectionPane } from './SelectionMenu';
 import { useSelectedSession } from './SelectedSessionProvider';
-import { resolveTransitionSelection, type SelectionChange } from './selected-session';
+import {
+  resolveTransitionAgent, resolveTransitionSelection, type SelectionChange,
+} from './selected-session';
 
 // The composer's engine chip: what the NEXT turn will run, and the one place to change it.
 //
 // A draft has no session to write to, so its choice lives in the workbench's draft state and rides
-// along with `sessions.createAndSend`. A live session goes through `sessions.setSelection`, which is
-// the single server-side rule — this component's disabling is a preview of it, never a substitute.
+// along with `sessions.createAndSend`. A live session goes through `sessions.setSelection` for the
+// engine and `sessions.setAgent` for the environment, each the single server-side rule for its own
+// axis — this component's disabling is a preview of them, never a substitute.
 
 const CHIP_FONT = "500 11.5px 'IBM Plex Mono',monospace";
 
@@ -26,6 +30,8 @@ interface SessionSelectorProps {
   sessionId: string;
   currentProfile: string | null;
   currentOverride: SessionSelectionOverride | null;
+  /** The session's own agent, from its `sessions.list` row. Null = it follows the host default. */
+  currentAgent?: string | null;
   hasHistory: boolean;
   isDraft: boolean;
 }
@@ -53,12 +59,18 @@ export interface SessionSelection {
   thinkingOptions: ThinkingOption[];
   /** The billing lanes of the endpoint this selection leaves through; empty when there is no choice. */
   modeOptions: ModeOption[];
+  /** The environments this host declares, with the ones a live conversation cannot take marked. */
+  agentOptions: AgentOption[];
+  /** The agent this conversation runs in; null = whatever the host's default is. */
+  agentName: string | null;
   /** The profile's own values, for the menu's "follow the profile" rows. */
   profileModel: string | null;
   profileThinking: string | null;
   profileMode: string | null;
   modelsReady: boolean;
   pickProfile: (name: string) => void;
+  /** `null` hands the conversation back to the host's default agent. */
+  pickAgent: (name: string | null) => void;
   pickModel: (option: ModelOption | null) => void;
   pickThinking: (level: string | null) => void;
   pickMode: (mode: string | null) => void;
@@ -111,6 +123,9 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
   const profileName = (props.isDraft ? draftSelection.profileName : transition.profileName)
     ?? defaultProfile ?? profiles[0]?.name ?? '—';
   const override = props.isDraft ? draftSelection.override : transition.override;
+  const agentName = (props.isDraft
+    ? draftSelection.agentName
+    : resolveTransitionAgent(props.currentAgent, pendingCreatedSession, props.sessionId)) ?? null;
 
   const effective = useMemo(
     () => effectiveSelection(profiles, profileName, override),
@@ -136,32 +151,62 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
   );
   const thinkingOptions = useMemo(() => buildThinkingOptions(catalog, effective), [catalog, effective]);
   const modeOptions = useMemo(() => buildModeOptions(catalog, effective), [catalog, effective]);
+  const agents = config.data?.agents ?? [];
+  const agentOptions = useMemo(
+    () => buildAgentOptions(agents, profiles, {
+      agentName, currentBackend: effective.backend, hasHistory,
+    }),
+    [agents, profiles, agentName, effective.backend, hasHistory],
+  );
   const L = useVocab();
   const rootRows = useMemo(
-    () => selectionRootRows(
-      effective,
-      { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute },
-      { hasThinking: thinkingOptions.length > 0, hasModes: modeOptions.length > 0 },
-    ),
-    [effective, L, thinkingOptions.length, modeOptions.length],
+    () => [
+      ...[agentRootRow(agents, agentName, {
+        label: L.wbAgent, followingDefault: L.wbAgentDefault,
+      })].filter((row): row is SelectionRootRow => row !== null),
+      ...selectionRootRows(
+        effective,
+        { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute },
+        { hasThinking: thinkingOptions.length > 0, hasModes: modeOptions.length > 0 },
+      ),
+    ],
+    [agents, agentName, effective, L, thinkingOptions.length, modeOptions.length],
   );
   const profileEntry = profiles.find((entry) => entry.name === profileName) ?? null;
 
+  const refreshSessions = (): void => {
+    void queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+  };
   const mutation = useMutation(trpc.sessions.setSelection.mutationOptions({
-    onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
+    onSuccess: refreshSessions,
+  }));
+  const agentMutation = useMutation(trpc.sessions.setAgent.mutationOptions({
+    onSuccess: refreshSessions,
   }));
 
   // One shape for both destinations: the draft keeps it locally, a live session sends it. The
   // selection is always stated WHOLE — a field it does not carry follows the profile again.
+  //
+  // A live session sends the two axes to two endpoints, because the server keeps them apart:
+  // `sessions.setAgent` swaps the environment without touching the profile, and `setSelection`
+  // restates the engine without touching the agent.
   const apply = (change: SelectionChange): void => {
-    if (props.isDraft) setDraftSelection(change);
-    else if (props.sessionId) mutation.mutate({ sessionId: props.sessionId, ...change });
+    if (props.isDraft) { setDraftSelection(change); return; }
+    if (!props.sessionId) return;
+    const { agentName: pickedAgent, ...engine } = change;
+    if (pickedAgent !== undefined) {
+      // `undefined` rather than `null`: the two say the same thing to the server, and only the
+      // first one survives the generated client's types (see `sessionsSetAgentInput`).
+      agentMutation.mutate({ sessionId: props.sessionId, agentName: pickedAgent ?? undefined });
+    }
+    if (Object.keys(engine).length > 0) mutation.mutate({ sessionId: props.sessionId, ...engine });
   };
 
   const applyIf = (change: SelectionChange | null): void => { if (change) apply(change); };
   const pickProfile = (name: string): void => applyIf(
     profileChange(visibleProfiles.options, effective, name),
   );
+  const pickAgent = (name: string | null): void => applyIf(agentChange(agentOptions, agentName, name));
   const pickModel = (option: ModelOption | null): void => applyIf(modelChange(effective, override, option));
   const pickThinking = (level: string | null): void => applyIf(thinkingChange(effective, override, level));
   const pickMode = (mode: string | null): void => applyIf(modeChange(effective, override, mode));
@@ -182,6 +227,8 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
     rootRows,
     thinkingOptions,
     modeOptions,
+    agentOptions,
+    agentName,
     profileModel: profileEntry?.model ?? null,
     profileThinking: profileEntry?.thinking ?? null,
     profileMode: profileEntry?.mode ?? null,
@@ -189,6 +236,7 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
     // rather than presenting a half-list as the whole truth.
     modelsReady: !(catalogQuery.data?.piPending ?? false),
     pickProfile,
+    pickAgent,
     pickModel,
     pickThinking,
     pickMode,
@@ -215,7 +263,12 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
   return (
     <span
       data-chip="selection"
-      title={`${L.wbProfile} · ${selection.effective.profileName}`}
+      // Both axes in the tooltip: the chip has room for the model only, and "which agent am I
+      // talking to" is not answerable anywhere else on this screen.
+      title={[
+        `${L.wbProfile} · ${selection.effective.profileName}`,
+        selection.agentName ? `${L.wbAgent} · ${selection.agentName}` : null,
+      ].filter(Boolean).join('\n')}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
@@ -244,6 +297,8 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
           hiddenModelsNoProfile={selection.hiddenModelsNoProfile}
           thinking={selection.thinkingOptions}
           modes={selection.modeOptions}
+          agents={selection.agentOptions}
+          agentOverridden={selection.agentName !== null}
           rootRows={selection.rootRows}
           profileModel={selection.profileModel}
           profileThinking={selection.profileThinking}
@@ -256,6 +311,7 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
           pane={pane}
           setPane={setPane}
           onPickProfile={(name) => { close(); selection.pickProfile(name); }}
+          onPickAgent={(name) => { backToRoot(); selection.pickAgent(name); }}
           onPickModel={(option) => { backToRoot(); selection.pickModel(option); }}
           onPickThinking={(level) => { backToRoot(); selection.pickThinking(level); }}
           onPickMode={(mode) => { backToRoot(); selection.pickMode(mode); }}

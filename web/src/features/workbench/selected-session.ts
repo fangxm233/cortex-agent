@@ -13,26 +13,33 @@ import type {
 export const DRAFT_SENTINEL = '__draft__';
 
 /** What the session's own list row will eventually say, held across the gap in which it does not
- *  exist yet. Both halves travel together: a session created with an overridden model would
+ *  exist yet. All of it travels together: a session created with an overridden model would
  *  otherwise flash its profile's model until `sessions.list` caught up. */
 export interface PendingCreatedSession {
   sessionId: string;
   profileName: string | null;
   override: SessionSelectionOverride | null;
+  /** The environment it was created in; null means it follows the host's default agent. */
+  agentName: string | null;
 }
 
 /** The composer's engine choice while there is no session to write it to. `profileName` null means
- *  "the configured default"; `override` null means "run that profile as declared". */
+ *  "the configured default"; `override` null means "run that profile as declared". `agentName` is
+ *  the other axis — the environment (prompt, tools, skills) — and is absent until picked. */
 export interface DraftSelection {
   profileName: string | null;
   override: SessionSelectionOverride | null;
+  agentName?: string | null;
 }
 
-/** A change from the picker, in the same shape `sessions.setSelection` takes: an optional profile
- *  plus, optionally, the WHOLE selection to run on top of it. */
+/** A change from the picker. Model-axis fields go to `sessions.setSelection` in this exact shape:
+ *  an optional profile plus, optionally, the WHOLE selection to run on top of it. `agentName` is
+ *  the environment axis and travels alone, to `sessions.setAgent`. */
 export interface SelectionChange {
   profileName?: string;
   selection?: SessionSelectionOverride;
+  /** The agent to run in; `null` hands the conversation back to the host's default. */
+  agentName?: string | null;
 }
 
 export const EMPTY_DRAFT_SELECTION: DraftSelection = { profileName: null, override: null };
@@ -43,10 +50,16 @@ export function applyDraftSelection(current: DraftSelection, change: SelectionCh
   const stated = change.selection;
   const kept = change.profileName ? null : current.override;
   const override = stated && Object.keys(stated).length > 0 ? { ...stated } : stated ? null : kept;
-  return {
+  const next: DraftSelection = {
     profileName: change.profileName ?? current.profileName,
     override,
   };
+  // The environment is the other axis: naming a profile must not disturb it, and naming an agent
+  // must not disturb the model. `null` is a statement ("follow the default"), so only a change that
+  // says nothing at all about the agent leaves the draft's own pick alone.
+  const agentName = change.agentName !== undefined ? change.agentName : current.agentName;
+  if (agentName !== undefined) next.agentName = agentName;
+  return next;
 }
 
 /**
@@ -79,8 +92,15 @@ export function seedDraftSelection(
     if (seed.mode) override.mode = seed.mode;
   }
   const hasOverride = Object.keys(override).length > 0;
-  if (!profileName && !hasOverride) return null;
-  return { profileName, override: hasOverride ? override : null };
+  // The agent rides along on its own: it is not hung on a profile's backend, so a substitute
+  // profile is no reason to forget which environment the user last worked in.
+  const agentName = seed?.agentName ?? null;
+  if (!profileName && !hasOverride && !agentName) return null;
+  return {
+    profileName,
+    override: hasOverride ? override : null,
+    ...(agentName ? { agentName } : {}),
+  };
 }
 
 // The ⌘N predicate that used to live here moved into the menu accelerator registry
@@ -128,6 +148,19 @@ export function resolveSelectedSessionId(
  *  the user picked on top of it. Reading a null `profileName` as "nothing known yet" and dropping
  *  the override with it is what used to make such a session forget its own pick the moment
  *  `sessions.list` answered. */
+/** The same transition for the environment axis. A row that exists answers for itself — `null`
+ *  there means "follows the host default", which is a statement, not a missing value — and only an
+ *  absent row (`undefined`) falls back to what the draft was created with. */
+export function resolveTransitionAgent(
+  rowAgent: string | null | undefined,
+  pendingCreated: PendingCreatedSession | null,
+  sessionId: string | null | undefined,
+): string | null {
+  if (rowAgent !== undefined) return rowAgent;
+  const pending = sessionId && pendingCreated?.sessionId === sessionId ? pendingCreated : null;
+  return pending?.agentName ?? null;
+}
+
 export function resolveTransitionSelection(
   row: { profileName: string | null | undefined; override: SessionSelectionOverride | null | undefined },
   pendingCreated: PendingCreatedSession | null,

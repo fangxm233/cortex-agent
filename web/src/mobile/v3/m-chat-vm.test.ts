@@ -60,6 +60,8 @@ describe('buildSelectionSheet', () => {
   };
   const copy = {
     profile: 'Profile', model: 'model', thinking: 'thinking', mode: 'route',
+    agent: 'agent', agentDefault: 'default', agentFollowDefault: 'follow the host default',
+    agentCrossBackend: 'new conversation only · {backend}',
     followProfile: 'follow profile', followAll: 'follow the profile for everything',
     hiddenModels: '{n} more models run on {backend}',
     hiddenProfiles: '{n} more profiles run on {backend}',

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
+import type {
+  ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot,
+} from '@cortex-agent/ui-contract';
 import {
-  buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange, effectiveSelection,
-  groupModelOptions, modelChange, profileChange, profileForModel, thinkingChange,
-  visibleModelOptions, visibleProfileOptions,
+  agentChange, agentRootRow, buildAgentOptions, buildModelOptions, buildProfileOptions,
+  buildThinkingOptions, clearAllChange, effectiveSelection, groupModelOptions, modelChange,
+  profileChange, profileForModel, thinkingChange, visibleModelOptions, visibleProfileOptions,
 } from './selection-menu';
 
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
@@ -278,5 +280,97 @@ describe('the change a pick produces', () => {
     // Nothing on top of it — the row has nothing left to do.
     const plain = effectiveSelection(profiles, 'opus', null);
     expect(profileChange(profileOptions, plain, 'opus')).toBeNull();
+  });
+});
+
+// ── the environment axis ────────────────────────────────────────────────────────────────────────
+// An agent is the conversation's environment; the only thing it shares with the model rows is the
+// backend, which is why the live-conversation rule is the same one and nothing else is.
+
+describe('agent options', () => {
+  const agents: ConfigAgentEntry[] = [
+    { name: 'main', description: 'the default environment', profile: '__active__' },
+    { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+    { name: 'orchard', description: 'pinned to a claude profile', profile: 'sonnet' },
+    { name: 'atlas', description: 'pinned to a PI profile', profile: 'ds' },
+    { name: 'relic', description: 'pins a profile this host no longer has', profile: 'gone' },
+  ];
+  const build = (over: Partial<Parameters<typeof buildAgentOptions>[2]> = {}) => buildAgentOptions(
+    agents, profiles, { agentName: 'main', currentBackend: 'claude', hasHistory: false, ...over },
+  );
+  const byName = (name: string, over = {}) => build(over).find((option) => option.name === name)!;
+
+  it('an agent that pins nothing runs on the conversation\'s own backend', () => {
+    expect(byName('nimbus')).toEqual({
+      name: 'nimbus', description: 'a clean room', profile: null,
+      backend: 'claude', active: false, disabled: false,
+    });
+  });
+
+  it('an agent carries the backend of the profile it pins', () => {
+    expect(byName('atlas').backend).toBe('pi');
+    expect(byName('orchard').backend).toBe('claude');
+  });
+
+  it('a live conversation may not take an agent pinned to the other backend', () => {
+    expect(byName('atlas', { hasHistory: true }).disabled).toBe(true);
+    expect(byName('orchard', { hasHistory: true }).disabled).toBe(false);
+    // Fresh, the same agent is a plain choice — there is no backend to be locked to yet.
+    expect(byName('atlas').disabled).toBe(false);
+  });
+
+  it('a pinned profile this host has lost is not read as a backend move', () => {
+    // The server resolves it; refusing it here would hide an agent for a reason nobody can act on.
+    expect(byName('relic', { hasHistory: true })).toMatchObject({ backend: 'claude', disabled: false });
+  });
+
+  it('marks the one the conversation is running in', () => {
+    expect(byName('main').active).toBe(true);
+    expect(byName('main', { agentName: null }).active).toBe(false);
+  });
+});
+
+describe('agentChange', () => {
+  const agents: ConfigAgentEntry[] = [
+    { name: 'main', profile: '__active__' },
+    { name: 'nimbus', profile: '__active__' },
+    { name: 'atlas', profile: 'ds' },
+  ];
+  const options = (over: Partial<Parameters<typeof buildAgentOptions>[2]> = {}) => buildAgentOptions(
+    agents, profiles, { agentName: 'main', currentBackend: 'claude', hasHistory: false, ...over },
+  );
+
+  it('names the agent and nothing else — the engine is not restated', () => {
+    expect(agentChange(options(), 'main', 'nimbus')).toEqual({ agentName: 'nimbus' });
+  });
+
+  it('the "default" row hands the conversation back, and only while it has something to hand back', () => {
+    expect(agentChange(options(), 'main', null)).toEqual({ agentName: null });
+    expect(agentChange(options({ agentName: null }), null, null)).toBeNull();
+  });
+
+  it('a row that is already running, unknown, or unavailable does nothing', () => {
+    expect(agentChange(options(), 'main', 'main')).toBeNull();
+    expect(agentChange(options(), 'main', 'ghost')).toBeNull();
+    expect(agentChange(options({ hasHistory: true }), 'main', 'atlas')).toBeNull();
+  });
+});
+
+describe('agentRootRow', () => {
+  const agents: ConfigAgentEntry[] = [{ name: 'main', profile: '__active__' }];
+  const copy = { label: 'agent', followingDefault: 'default' };
+
+  it('names the session\'s own agent, and marks that it chose one', () => {
+    expect(agentRootRow(agents, 'nimbus', copy))
+      .toEqual({ key: 'agent', label: 'agent', value: 'nimbus', overridden: true });
+  });
+
+  it('reads as the default when the session named none', () => {
+    expect(agentRootRow(agents, null, copy))
+      .toEqual({ key: 'agent', label: 'agent', value: 'default', overridden: false });
+  });
+
+  it('a host with no agent templates gets no row at all', () => {
+    expect(agentRootRow([], null, copy)).toBeNull();
   });
 });
