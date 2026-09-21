@@ -297,6 +297,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action defaults to `tools platform-tools`, and the legacy `tools`
+          # package no longer exists in the SDK repository: sdkmanager exits 1 on
+          # "Failed to find package 'tools'" and takes the whole job with it. The
+          # next step installs everything this build actually needs anyway.
+          packages: platform-tools
 
       - name: Install Android NDK and build tools
         shell: bash
