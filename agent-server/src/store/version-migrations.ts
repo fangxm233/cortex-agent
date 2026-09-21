@@ -509,6 +509,17 @@ const stepMigrations: StepMigration[] = [
     version: '2026.9.15',
     run: async ({ dataDir }) => { await renameMemoryFilesToAgentsMd(dataDir); },
   },
+  // S4: the same rename, for the rule file that describes the convention. `rules/` is seeded by
+  // `init` with copy-if-missing and never re-synced, so an upgraded install keeps `cortex-md.md`
+  // with its `context/**/CORTEX.md` glob — a glob that now matches nothing, leaving the index size
+  // limit silently unenforced — while `status-md-guard.mjs` points `ruleFile` at `rules/agents-md.md`,
+  // which does not exist. S3 cannot cover this: it renames files *named* CORTEX.md, and this one is
+  // not. Rule files are hand-edited, so the repair is a token substitution rather than a reinstall.
+  {
+    key: 'sentinel:agents-md-rules-rename',
+    version: '2026.9.15',
+    run: async ({ dataDir }) => { await renameIndexRuleFile(dataDir); },
+  },
 ];
 
 // ── AGENTS.md rename (S3) ──────────────────────────────────────
@@ -584,6 +595,71 @@ export async function renameMemoryFilesToAgentsMd(dataDir: string): Promise<numb
   await walk(dataDir);
   if (renamed > 0) log.info(`Renamed ${renamed} memory file(s) to the AGENTS.md convention`);
   return renamed;
+}
+
+// ── Index rule file rename (S4) ────────────────────────────────
+
+const INDEX_RULE_FROM = 'cortex-md.md';
+const INDEX_RULE_TO = 'agents-md.md';
+
+/** Rewrite only the two filename tokens the AGENTS.md rename invalidated: `CORTEX.md`, which is the
+ *  index rule's glob and prose subject, and `cortex-md.md`, which is how sibling rules cite it.
+ *  Anything else in a hand-edited rule file is left exactly as the user wrote it. */
+function retargetRuleText(text: string): string {
+  return text.replaceAll('CORTEX.md', 'AGENTS.md').replaceAll(INDEX_RULE_FROM, INDEX_RULE_TO);
+}
+
+/** Rename `rules/cortex-md.md` → `rules/agents-md.md` and repair references to it across `rules/`.
+ *  Returns the number of rule files whose content changed. Never clobbers an existing
+ *  `agents-md.md`; a no-op on a fresh install, where `init` seeded the new name already. */
+export async function renameIndexRuleFile(dataDir: string): Promise<number> {
+  const rulesDir = path.join(dataDir, 'rules');
+  const source = path.join(rulesDir, INDEX_RULE_FROM);
+  const destination = path.join(rulesDir, INDEX_RULE_TO);
+
+  try {
+    await fs.stat(source);
+    let occupied = true;
+    try {
+      await fs.lstat(destination);
+    } catch (error) {
+      occupied = (error as NodeJS.ErrnoException).code !== 'ENOENT';
+    }
+    if (occupied) {
+      log.warn(`Both ${INDEX_RULE_FROM} and ${INDEX_RULE_TO} exist in ${rulesDir}; leaving both untouched`);
+    } else {
+      await fs.rename(source, destination);
+      log.info(`Renamed ${source} → ${INDEX_RULE_TO}`);
+    }
+  } catch {
+    // No old rule file: fresh install, or this step already ran.
+  }
+
+  let entries: string[];
+  try {
+    entries = await fs.readdir(rulesDir);
+  } catch {
+    return 0; // no rules dir — nothing to repair
+  }
+
+  let changed = 0;
+  for (const entry of entries) {
+    if (!entry.endsWith('.md')) continue;
+    const file = path.join(rulesDir, entry);
+    let text: string;
+    try {
+      text = await fs.readFile(file, 'utf8');
+    } catch {
+      continue; // unreadable or a directory — skip
+    }
+    const next = retargetRuleText(text);
+    if (next === text) continue;
+    await atomicWrite(file, next);
+    changed += 1;
+  }
+
+  if (changed > 0) log.info(`Retargeted ${changed} rule file(s) to the AGENTS.md convention`);
+  return changed;
 }
 
 // ── Versions file I/O ──────────────────────────────────────────

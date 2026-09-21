@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.22-2
+// @cortex-hook-version 2026.9.15-2
 // input:  stdin JSON — Claude Code PostToolUse event or PI hook-bridge payload
 // output: { matched: [...], hookSpecificOutput: { additionalContext: "..." } }
 // pos:    Read/Grep hook — check if file path matches scoped rules in ~/.cortex/rules/

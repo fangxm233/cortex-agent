@@ -1,14 +1,15 @@
 // input:  synthetic data dirs holding CORTEX.md / CORTEX.local.md at various depths
-// output: assertions on renaming, skip dirs, collision safety, dangling-link cleanup, idempotence
-// pos:    Covers migration S3, which moves an existing install onto the AGENTS.md name the
-//         backends load natively
+// output: assertions on renaming, skip dirs, collision safety, dangling-link cleanup, idempotence,
+//         plus the S4 rule-file rename and its reference repair
+// pos:    Covers migrations S3 and S4, which move an existing install onto the AGENTS.md name
+//         the backends load natively — the memory files, then the rule describing them
 // >>> Once updated, update this header and parent AGENTS.md <<<
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
-import { renameMemoryFilesToAgentsMd } from '../../src/store/version-migrations.js';
+import { renameIndexRuleFile, renameMemoryFilesToAgentsMd } from '../../src/store/version-migrations.js';
 
 async function setup(t: { onTestFinished(callback: () => Promise<void>): void }): Promise<string> {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agents-md-rename-'));
@@ -92,4 +93,65 @@ test('is idempotent — a second run renames nothing', async (t) => {
 
   assert.equal(await renameMemoryFilesToAgentsMd(dataDir), 1);
   assert.equal(await renameMemoryFilesToAgentsMd(dataDir), 0);
+});
+
+// ── S4: the rule file describing the convention ────────────────
+
+test('renames the index rule file and retargets the glob inside it', async (t) => {
+  const dataDir = await setup(t);
+  await write(
+    path.join(dataDir, 'rules', 'cortex-md.md'),
+    '---\nglobs:\n  - "context/**/CORTEX.md"\n---\n# CORTEX.md 索引规范\n',
+  );
+
+  assert.equal(await renameIndexRuleFile(dataDir), 1);
+
+  const moved = await fs.readFile(path.join(dataDir, 'rules', 'agents-md.md'), 'utf8');
+  assert.match(moved, /context\/\*\*\/AGENTS\.md/);
+  assert.match(moved, /# AGENTS\.md 索引规范/);
+  assert.equal(await exists(path.join(dataDir, 'rules', 'cortex-md.md')), false);
+});
+
+test('repairs sibling rules that cite the old rule file by name', async (t) => {
+  const dataDir = await setup(t);
+  await write(path.join(dataDir, 'rules', 'cortex-md.md'), 'glob: context/**/CORTEX.md');
+  await write(path.join(dataDir, 'rules', 'meta-conventions.md'), '更新该目录的 CORTEX.md 索引（规范见 cortex-md.md）。');
+  await write(path.join(dataDir, 'rules', 'unrelated.md'), 'no mention here');
+
+  await renameIndexRuleFile(dataDir);
+
+  const meta = await fs.readFile(path.join(dataDir, 'rules', 'meta-conventions.md'), 'utf8');
+  assert.equal(meta, '更新该目录的 AGENTS.md 索引（规范见 agents-md.md）。');
+  assert.equal(await fs.readFile(path.join(dataDir, 'rules', 'unrelated.md'), 'utf8'), 'no mention here');
+});
+
+test('never clobbers an agents-md.md that is already there', async (t) => {
+  const dataDir = await setup(t);
+  await write(path.join(dataDir, 'rules', 'cortex-md.md'), 'old');
+  await write(path.join(dataDir, 'rules', 'agents-md.md'), 'hand-written');
+
+  await renameIndexRuleFile(dataDir);
+
+  assert.equal(await fs.readFile(path.join(dataDir, 'rules', 'agents-md.md'), 'utf8'), 'hand-written');
+  assert.equal(await fs.readFile(path.join(dataDir, 'rules', 'cortex-md.md'), 'utf8'), 'old');
+});
+
+test('is a no-op on a fresh install, where init seeded the new name', async (t) => {
+  const dataDir = await setup(t);
+  await write(path.join(dataDir, 'rules', 'agents-md.md'), 'glob: context/**/AGENTS.md');
+
+  assert.equal(await renameIndexRuleFile(dataDir), 0);
+});
+
+test('running twice changes nothing the second time', async (t) => {
+  const dataDir = await setup(t);
+  await write(path.join(dataDir, 'rules', 'cortex-md.md'), 'glob: context/**/CORTEX.md');
+
+  assert.equal(await renameIndexRuleFile(dataDir), 1);
+  assert.equal(await renameIndexRuleFile(dataDir), 0);
+});
+
+test('tolerates an install with no rules directory at all', async (t) => {
+  const dataDir = await setup(t);
+  assert.equal(await renameIndexRuleFile(dataDir), 0);
 });

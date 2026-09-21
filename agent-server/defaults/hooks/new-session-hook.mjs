@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.22-2
+// @cortex-hook-version 2026.9.15-2
 // input:  stdin { channel, sessionId, sessionName, trigger, timestampIso } + env CORTEX_HOOK_*
 // output: stdout — prompt to inject into the closing session (empty stdout = skip)
 // pos:    !new pre-close memory flush hook — recall valuable user and project info from the session, write to corresponding context files

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.8.2
+// @cortex-hook-version 2026.9.15
 // input:  stdin JSON — Claude Code PreToolUse event payload
 // output: stdout JSON — { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason }, systemMessage? }
 // pos:    PreToolUse hook — intercepts Edit/Write on size-capped context files and

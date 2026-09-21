@@ -1,5 +1,5 @@
 // input:  node:http and Cortex hook environment
-// output: askUser helper @cortex-hook-version 2026.8.23
+// output: askUser helper @cortex-hook-version 2026.9.15
 // pos:    Hook script interaction client
 // >>> If updated, update this header and the folder AGENTS.md <<<
 
