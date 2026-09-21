@@ -3,7 +3,7 @@ import type {
   SessionTranscript,
 } from '@cortex-agent/ui-contract';
 import {
-  agentChange, agentRootRow, buildAgentOptions, buildModeOptions, buildModelOptions,
+  agentChange, agentRowSub, buildAgentOptions, buildModeOptions, buildModelOptions,
   buildProfileOptions, buildThinkingOptions, clearAllChange, groupModelOptions, modeChange,
   modelChange, profileChange, selectionChipParts, selectionRootRows, thinkingChange,
   visibleModelOptions, visibleProfileOptions,
@@ -184,7 +184,7 @@ export interface SelectionSheetRow {
 }
 
 export interface SelectionSheetSection {
-  key: 'profile' | 'agent' | 'model' | 'thinking' | 'mode';
+  key: 'profile' | 'model' | 'thinking' | 'mode';
   title: string;
   rows: SelectionSheetRow[];
   /** One line accounting for the rows that were NOT drawn, when any were held back. */
@@ -202,12 +202,6 @@ export interface SelectionSheetVM {
 
 export interface SelectionSheetCopy {
   profile: string;
-  /** The environment axis: heading, the "follow the host default" row and its sub-label, and the
-   *  `{backend}` template for an agent this conversation cannot take. */
-  agent: string;
-  agentDefault: string;
-  agentFollowDefault: string;
-  agentCrossBackend: string;
   model: string;
   thinking: string;
   /** Heading of the billing-route section — only shown when the endpoint declares more than one. */
@@ -239,6 +233,9 @@ function joinNotes(...notes: Array<string | null>): string | undefined {
  * back. Nothing unpickable is drawn; a footer says how many rows were held back and why.
  * Every row carries the change it produces, so the screen never re-derives the rule — it is the same
  * shared arithmetic the desktop menu runs (features/workbench/selection-menu).
+ *
+ * The ENVIRONMENT is not in here: which agent the conversation runs in is its own axis, with its own
+ * chip and its own sheet (`buildAgentSheet`), the way the desktop composer splits them.
  */
 export function buildSelectionSheet(input: {
   profiles: ConfigProfileEntry[];
@@ -247,14 +244,9 @@ export function buildSelectionSheet(input: {
   override: SessionSelectionOverride | null;
   hasHistory: boolean;
   defaultProfile: string | null;
-  /** The environments this host declares, and the one this conversation runs in. */
-  agents?: ConfigAgentEntry[];
-  agentName?: string | null;
   copy: SelectionSheetCopy;
 }): SelectionSheetVM {
   const { profiles, catalog, effective, override, hasHistory, defaultProfile, copy } = input;
-  const agents = input.agents ?? [];
-  const agentName = input.agentName ?? null;
   const profileEntry = profiles.find((entry) => entry.name === effective.profileName) ?? null;
 
   const profileOptions = visibleProfileOptions(buildProfileOptions(profiles, effective.profileName, {
@@ -267,32 +259,6 @@ export function buildSelectionSheet(input: {
     current: option.active,
     change: profileChange(profileOptions.options, effective, option.name),
   }));
-
-  // The environment pane. Its rows are DRAWN even when unavailable, unlike the model list: there
-  // are a handful of agents, and naming the one this conversation would need a fresh session for is
-  // more useful than a count.
-  const agentOptions = buildAgentOptions(agents, profiles, {
-    agentName, currentBackend: effective.backend, hasHistory,
-  });
-  const agentRows: SelectionSheetRow[] = agents.length === 0 ? [] : [
-    {
-      id: 'agent:default',
-      label: copy.agentDefault,
-      sub: copy.agentFollowDefault,
-      current: agentName === null,
-      change: agentChange(agentOptions, agentName, null),
-    },
-    ...agentOptions.map((option): SelectionSheetRow => ({
-      id: `agent:${option.name}`,
-      label: option.name,
-      sub: option.disabled
-        ? copy.agentCrossBackend.replace('{backend}', option.backend)
-        : [option.profile, option.description].filter(Boolean).join(' · ') || null,
-      current: option.active,
-      change: agentChange(agentOptions, agentName, option.name),
-      ...(option.disabled ? { disabled: true } : {}),
-    })),
-  ];
 
   const modelOptions = visibleModelOptions(
     buildModelOptions(catalog, profiles, effective, { hasHistory, defaultProfile }),
@@ -364,7 +330,6 @@ export function buildSelectionSheet(input: {
   return {
     sections: [
       { key: 'profile', title: copy.profile, rows: profileRows, ...(profileFooter ? { footer: profileFooter } : {}) },
-      ...(agentRows.length > 0 ? [{ key: 'agent' as const, title: copy.agent, rows: agentRows }] : []),
       { key: 'model', title: copy.model, rows: modelRows, ...(modelFooter ? { footer: modelFooter } : {}) },
       ...(thinkingRows.length > 0
         ? [{ key: 'thinking' as const, title: copy.thinking, rows: thinkingRows }]
@@ -373,20 +338,63 @@ export function buildSelectionSheet(input: {
         ? [{ key: 'mode' as const, title: copy.mode, rows: modeRows }]
         : []),
     ],
-    rootRows: [
-      ...[agentRootRow(agents, agentName, {
-        label: copy.agent, followingDefault: copy.agentDefault,
-      })].filter((row): row is SelectionRootRow => row !== null),
-      ...selectionRootRows(
-        effective,
-        { model: copy.model, thinking: copy.thinking, mode: copy.mode },
-        { hasThinking: thinkingRows.length > 0, hasModes: modeRows.length > 0 },
-      ),
-    ],
+    rootRows: selectionRootRows(
+      effective,
+      { model: copy.model, thinking: copy.thinking, mode: copy.mode },
+      { hasThinking: thinkingRows.length > 0, hasModes: modeRows.length > 0 },
+    ),
     clearRow: clear
       ? { id: 'selection:clear', label: copy.followAll, sub: null, current: false, change: clear }
       : null,
   };
+}
+
+export interface AgentSheetCopy {
+  /** The row that hands the conversation back to the host's default, and what that means. */
+  agentDefault: string;
+  agentFollowDefault: string;
+  /** `{backend}` template for an agent only a new conversation could take. */
+  agentCrossBackend: string;
+}
+
+/**
+ * The environment sheet: one flat list, because an agent is a whole answer with nothing to refine
+ * underneath it — a "follow the host default" row, then every template this host declares.
+ *
+ * Unlike the model list this one DRAWS what it cannot offer: a live conversation may not change
+ * backend, so an agent pinning the other backend's profile is greyed with the backend named rather
+ * than folded into a count. There are a handful of environments, and "exists, but needs a new
+ * conversation" is the answer a user can act on. Same arithmetic as the desktop menu, so a tap and
+ * a click cannot mean different things.
+ */
+export function buildAgentSheet(input: {
+  agents: ConfigAgentEntry[];
+  profiles: ConfigProfileEntry[];
+  /** The agent this conversation runs in; null = whatever the host's default is. */
+  agentName: string | null;
+  currentBackend: string;
+  hasHistory: boolean;
+  copy: AgentSheetCopy;
+}): SelectionSheetRow[] {
+  const { agents, profiles, agentName, currentBackend, hasHistory, copy } = input;
+  const options = buildAgentOptions(agents, profiles, { agentName, currentBackend, hasHistory });
+  return [
+    {
+      id: 'agent:default',
+      label: copy.agentDefault,
+      sub: copy.agentFollowDefault,
+      current: agentName === null,
+      change: agentChange(options, agentName, null),
+    },
+    ...options.map((option): SelectionSheetRow => ({
+      id: `agent:${option.name}`,
+      label: option.name,
+      sub: agentRowSub(option, copy.agentCrossBackend),
+      current: option.active,
+      change: agentChange(options, agentName, option.name),
+      ...(option.disabled ? { disabled: true } : {}),
+    })),
+  ];
 }
 
 // ── 7a long-press action overlay placement ──

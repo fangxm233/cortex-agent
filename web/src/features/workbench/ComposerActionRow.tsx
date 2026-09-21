@@ -467,17 +467,23 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
 
 /**
  * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commission /
- * commands) sits left, with the mode capsules beside it once a browser or commission is on;
+ * commands) sits left, with the mode capsules beside it once a browser or commission is on; agent,
  * profile, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
+ *
+ * The right cluster reads outside-in: WHERE the turn runs (the environment), then WHAT runs it (the
+ * engine), then how much room is left, then send.
  */
-export function ComposerActionRow({ browser, commission, onAttach, onCommands, selectionControl, contextControl, sendControl }: {
+export function ComposerActionRow({ browser, commission, onAttach, onCommands, agentControl, selectionControl, contextControl, sendControl }: {
   /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
   browser: ComposerBrowserControl | null;
   /** null hides the commission row — a live session outside the mode has nothing to show. */
   commission: ComposerCommissionControl | null;
   onAttach: () => void;
   onCommands: () => void;
+  /** The environment chip (which agent the conversation runs in). Draws nothing of its own on a
+   *  host with fewer than two agents — a list of one is not a choice. */
+  agentControl?: ReactNode;
   /** The engine chip (profile + model + thinking). */
   selectionControl: ReactNode;
   contextControl?: ReactNode;
@@ -489,6 +495,7 @@ export function ComposerActionRow({ browser, commission, onAttach, onCommands, s
       {browser && <ComposerBrowserChip browser={browser} />}
       {commission && <ComposerCommissionChip commission={commission} />}
       <span style={{ marginLeft: 'auto' }} />
+      {agentControl}
       {selectionControl}
       {contextControl}
       {sendControl}

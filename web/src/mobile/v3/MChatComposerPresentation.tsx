@@ -120,6 +120,43 @@ function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | 
   );
 }
 
+/** The environment capsule, immediately left of the engine one: where the turn runs, before what
+ *  runs it. It names the agent outright — the environment decides whether the session has the
+ *  skills and rules for the job at all, which is worth a glance rather than a sheet visit. Muted
+ *  while the conversation is only following the host's default, so a name it chose for itself reads
+ *  differently from a name it merely fell back to. It also yields width first: of the two capsules
+ *  the model is the one that must stay legible on a phone. */
+function AgentChip({ axis, label, followingDefault, onClick }: {
+  /** What the capsule IS, for the screen reader — the name alone would not say. */
+  axis: string;
+  label: string;
+  followingDefault: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      data-chip="agent"
+      data-agent-following-default={followingDefault ? 'true' : 'false'}
+      aria-label={`${axis} · ${label}`}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', flex: '0 3 auto', minWidth: 0, overflow: 'hidden',
+        border: `1.5px solid ${followingDefault ? MC.hairline : MC.runBorder}`,
+        background: MC.card, borderRadius: 999, height: 34, padding: '0 11px',
+        boxSizing: 'border-box', cursor: 'pointer',
+      }}
+    >
+      <span style={{
+        minWidth: 0, font: `600 11.5px ${MONO}`, color: followingDefault ? MC.muted : MC.run,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
 /** The pennant mark a commission carries everywhere in the UI — rail, board, banner, capsule. */
 function CommissionIcon(): JSX.Element {
   return (
@@ -193,7 +230,19 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
  *  width it took was width the engine chip needed once browser/commission keys joined the row. */
 export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element | null {
   if (props.editing || props.rejectBar) return null;
-  return <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />;
+  return (
+    <>
+      {props.agentChip && props.onOpenAgent ? (
+        <AgentChip
+          axis={props.copy.selectionAgent}
+          label={props.agentChip.label}
+          followingDefault={props.agentChip.followingDefault}
+          onClick={props.onOpenAgent}
+        />
+      ) : null}
+      <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />
+    </>
+  );
 }
 
 export function MobileSlashMenu({ suggestions, onPick }: {

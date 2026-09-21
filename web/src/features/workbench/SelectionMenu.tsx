@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type {
-  AgentOption, ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
+  ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
 } from './selection-menu';
+import {
+  Divider, MenuCard, MenuRow, MONO as mono, Note, rowBackground, SectionTitle, type HoverProps,
+} from './MenuChrome';
 
 // The composer's engine picker, anchored above or below its position:relative chip.
 //
@@ -13,84 +16,17 @@ import type {
 // rows drill into a pane of their own: model, thinking level, and the endpoint's billing route where
 // it offers more than one (`buildModeOptions` returns nothing when it does not, and the row goes).
 //
-// Nothing unpickable is drawn, with one deliberate exception. A live conversation cannot change
-// backend, so the other backend's models are not offered at all — one footer line reports how many
-// were held back and why, which is the whole of what the greyed-out rows used to say. The agent
-// pane keeps its greyed rows: there are a handful of environments, and naming the one that needs a
-// fresh conversation is worth more than counting it.
-
-const mono = "'IBM Plex Mono',monospace";
+// It is the PROFILE and its refinements, and nothing else. Which environment the conversation runs
+// in is a separate axis with a chip and a menu of its own (AgentMenu), because an agent is not one
+// more thing a profile can be overridden with.
+//
+// Nothing unpickable is drawn here: a live conversation cannot change backend, so the other
+// backend's models are not offered at all — one footer line reports how many were held back and
+// why, which is the whole of what a screen of greyed-out rows used to say. (The agent menu is the
+// list short enough to do the opposite, and says so itself.)
 
 /** Above this many rows, a pane earns a filter box — a claude endpoint alone lists 17 ids. */
 const FILTER_THRESHOLD = 10;
-
-function SectionTitle({ text }: { text: string }): JSX.Element {
-  return (
-    <div style={{
-      font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-      color: 'var(--proto-muted-3)', padding: '6px 8px 3px',
-    }}>
-      {text}
-    </div>
-  );
-}
-
-function Note({ text }: { text: string }): JSX.Element {
-  return (
-    <div style={{
-      font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', padding: '5px 8px 6px', lineHeight: 1.5,
-    }}>
-      {text}
-    </div>
-  );
-}
-
-function Divider(): JSX.Element {
-  return <div style={{ height: 1, background: 'var(--proto-line)', margin: '5px 0' }} />;
-}
-
-interface HoverProps {
-  hover: string | null;
-  setHover: (value: string | null) => void;
-}
-
-function rowBackground(id: string, hover: string | null, active: boolean): string {
-  if (hover === id) return 'var(--proto-gray)';
-  return active ? 'var(--proto-accent-bg)' : 'transparent';
-}
-
-function Row({
-  id, label, sub, active, disabled = false, onPick, hover, setHover,
-}: {
-  id: string;
-  label: string;
-  sub?: string | null;
-  active: boolean;
-  /** Drawn but not clickable — see the agent pane, the one list short enough to say why. */
-  disabled?: boolean;
-  onPick: () => void;
-} & HoverProps): JSX.Element {
-  return (
-    <div
-      onMouseEnter={() => setHover(disabled ? null : id)}
-      onMouseLeave={() => setHover(hover === id ? null : hover)}
-      onClick={(event) => { event.stopPropagation(); if (!disabled) onPick(); }}
-      data-selection-row={id}
-      data-disabled={disabled ? 'true' : undefined}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px',
-        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1,
-        background: rowBackground(id, hover, active),
-      }}
-    >
-      <span style={{ font: `600 10px ${mono}`, color: 'var(--proto-ink)' }}>{label}</span>
-      {sub ? <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{sub}</span> : null}
-      {active && (
-        <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
-      )}
-    </div>
-  );
-}
 
 /** A collapsed override on the root: label, the value in force, and a dot when that value is the
  *  session's own choice rather than the profile's. */
@@ -158,7 +94,7 @@ function BackRow({ title, onBack, hover, setHover }: {
   );
 }
 
-export type SelectionPane = 'root' | 'agent' | 'model' | 'thinking' | 'mode';
+export type SelectionPane = 'root' | 'model' | 'thinking' | 'mode';
 
 export interface SelectionMenuProps {
   /** Already filtered to what this conversation can move to. */
@@ -171,10 +107,6 @@ export interface SelectionMenuProps {
   hiddenModelsBackend: string | null;
   hiddenModelsNoProfile: number;
   thinking: ThinkingOption[];
-  /** The environments this host declares. Empty = the agent row is not drawn at all. */
-  agents: AgentOption[];
-  /** True when the session named an agent of its own rather than following the host default. */
-  agentOverridden: boolean;
   /** The billing lanes of the endpoint the session currently leaves through. Empty = no choice. */
   modes: ModeOption[];
   /** The collapsed override rows of the root, in order. */
@@ -194,8 +126,6 @@ export interface SelectionMenuProps {
   pane: SelectionPane;
   setPane: (pane: SelectionPane) => void;
   onPickProfile: (name: string) => void;
-  /** `null` hands the conversation back to the host's default agent. */
-  onPickAgent: (name: string | null) => void;
   onPickModel: (option: ModelOption | null) => void;
   onPickThinking: (level: string | null) => void;
   onPickMode: (mode: string | null) => void;
@@ -217,7 +147,7 @@ function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
     <>
       <SectionTitle text={L.wbProfile} />
       {props.profiles.map((option) => (
-        <Row
+        <MenuRow
           key={`profile:${option.name}`}
           id={`profile:${option.name}`}
           label={option.name}
@@ -235,7 +165,7 @@ function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
       {props.anyOverridden && (
         <>
           <Divider />
-          <Row
+          <MenuRow
             id="selection:clear"
             label={L.wbFollowAll}
             active={false}
@@ -287,7 +217,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
           />
         </div>
       )}
-      <Row
+      <MenuRow
         id="model:follow"
         label={L.wbFollowProfile}
         sub={props.profileModel}
@@ -303,7 +233,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
             {group.group}
           </div>
           {group.options.map((option) => (
-            <Row
+            <MenuRow
               key={`model:${option.backend}:${option.provider ?? ''}:${option.id}`}
               id={`model:${option.backend}:${option.provider ?? ''}:${option.id}`}
               label={option.id}
@@ -321,46 +251,12 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
   );
 }
 
-/** The environments. The one pane that DRAWS what it cannot offer: a handful of agents is not a
- *  screenful of models, and "creative exists, but you need a new conversation for it" is worth more
- *  than a footer counting rows the user never saw. */
-function AgentPane({ props, shared }: { props: SelectionMenuProps; shared: HoverProps }): JSX.Element {
-  const L = useVocab();
-  return (
-    <>
-      <BackRow title={L.wbAgent} onBack={() => props.setPane('root')} {...shared} />
-      <Row
-        id="agent:default"
-        label={L.wbAgentDefault}
-        sub={L.wbAgentFollowDefault}
-        active={!props.agentOverridden}
-        onPick={() => props.onPickAgent(null)}
-        {...shared}
-      />
-      {props.agents.map((option) => (
-        <Row
-          key={`agent:${option.name}`}
-          id={`agent:${option.name}`}
-          label={option.name}
-          sub={option.disabled
-            ? L.wbAgentCrossBackend.replace('{backend}', option.backend)
-            : [option.profile, option.description].filter(Boolean).join(' · ') || null}
-          active={option.active}
-          disabled={option.disabled}
-          onPick={() => props.onPickAgent(option.name)}
-          {...shared}
-        />
-      ))}
-    </>
-  );
-}
-
 function ThinkingPane({ props, shared }: { props: SelectionMenuProps; shared: HoverProps }): JSX.Element {
   const L = useVocab();
   return (
     <>
       <BackRow title={L.wbThinking} onBack={() => props.setPane('root')} {...shared} />
-      <Row
+      <MenuRow
         id="thinking:follow"
         label={L.wbFollowProfile}
         sub={props.profileThinking}
@@ -369,7 +265,7 @@ function ThinkingPane({ props, shared }: { props: SelectionMenuProps; shared: Ho
         {...shared}
       />
       {props.thinking.map((option) => (
-        <Row
+        <MenuRow
           key={`thinking:${option.level}`}
           id={`thinking:${option.level}`}
           label={option.level}
@@ -387,7 +283,7 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
   return (
     <>
       <BackRow title={L.wbRoute} onBack={() => props.setPane('root')} {...shared} />
-      <Row
+      <MenuRow
         id="mode:follow"
         label={L.wbFollowProfile}
         sub={props.profileMode}
@@ -396,7 +292,7 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
         {...shared}
       />
       {props.modes.map((option) => (
-        <Row
+        <MenuRow
           key={`mode:${option.mode}`}
           id={`mode:${option.mode}`}
           label={option.mode}
@@ -412,31 +308,14 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
 export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   const shared = { hover, setHover };
-  const { pane, placement = 'above', align = 'right' } = props;
+  const { pane, placement, align } = props;
 
   return (
-    <div
-      data-menu="selection"
-      data-selection-level={pane}
-      style={{
-        position: 'absolute',
-        ...(align === 'right' ? { right: 0 } : { left: 0 }),
-        ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
-        background: 'var(--proto-card)',
-        border: '1px solid var(--proto-line)',
-        borderRadius: 8,
-        boxShadow: 'var(--shadow-menu)',
-        zIndex: 59,
-        minWidth: 244,
-        maxHeight: 420,
-        overflowY: 'auto',
-      }}
-    >
+    <MenuCard kind="selection" level={pane} placement={placement} align={align}>
       {pane === 'root' && <RootPane props={props} shared={shared} />}
-      {pane === 'agent' && <AgentPane props={props} shared={shared} />}
       {pane === 'model' && <ModelPane props={props} shared={shared} />}
       {pane === 'thinking' && <ThinkingPane props={props} shared={shared} />}
       {pane === 'mode' && <ModePane props={props} shared={shared} />}
-    </div>
+    </MenuCard>
   );
 }

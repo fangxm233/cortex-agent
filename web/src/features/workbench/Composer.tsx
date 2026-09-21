@@ -35,7 +35,7 @@ import {
 import {
   commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle,
 } from './CommissionOptIn';
-import { SessionSelectorView, useSessionSelection } from './SessionSelector';
+import { AgentSelectorView, SessionSelectorView, useSessionSelection } from './SessionSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
@@ -647,7 +647,7 @@ export function Composer({
                   }}
                 />
 
-                {/* Toolbar: ＋ menu left; profile, context ring and Send/Stop right.
+                {/* Toolbar: ＋ menu left; agent, profile, context ring and Send/Stop right.
                     Send is ALWAYS rendered. While a turn is running the composer still sends —
                     the server injects the text into the live turn rather than queuing it behind
                     that turn. Showing send as the secondary action next to Stop makes the
@@ -663,6 +663,7 @@ export function Composer({
                   commission={commissionControl}
                   onAttach={() => fileInputRef.current?.click()}
                   onCommands={() => { setComposer('/'); setSlashOpen(true); }}
+                  agentControl={<AgentSelectorView selection={engineSelection} />}
                   selectionControl={<SessionSelectorView selection={engineSelection} />}
                   contextControl={contextControl}
                   sendControl={(

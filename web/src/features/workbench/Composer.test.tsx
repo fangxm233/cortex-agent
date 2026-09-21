@@ -85,6 +85,7 @@ vi.mock('./SessionSelector', async () => {
       pickProfile: harness.pickProfile, pickModel: vi.fn(), pickThinking: vi.fn(),
     }),
     SessionSelectorView: () => React.createElement('selection-chip'),
+    AgentSelectorView: () => React.createElement('agent-chip'),
   };
 });
 

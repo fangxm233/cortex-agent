@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
+import type {
+  ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript,
+} from '@cortex-agent/ui-contract';
 import { effectiveSelection } from '@/features/workbench/selection-menu';
 import {
   interactionHeaderStatus,
   effectiveProfileName,
+  buildAgentSheet,
   buildSelectionSheet,
   buildMobileChatRows,
 } from './m-chat-vm';
@@ -60,8 +63,6 @@ describe('buildSelectionSheet', () => {
   };
   const copy = {
     profile: 'Profile', model: 'model', thinking: 'thinking', mode: 'route',
-    agent: 'agent', agentDefault: 'default', agentFollowDefault: 'follow the host default',
-    agentCrossBackend: 'new conversation only · {backend}',
     followProfile: 'follow profile', followAll: 'follow the profile for everything',
     hiddenModels: '{n} more models run on {backend}',
     hiddenProfiles: '{n} more profiles run on {backend}',
@@ -168,6 +169,68 @@ describe('buildSelectionSheet', () => {
     const { sections } = sheet({ catalog: null });
     expect(sections.map((section) => section.key)).toEqual(['profile', 'model']);
     expect(sections[1].rows.map((row) => row.id)).toEqual(['model:follow']);
+  });
+
+  it('carries no environment at all — the agent is a sheet of its own', () => {
+    const { sections, rootRows } = sheet();
+    expect(sections.map((section) => section.key)).not.toContain('agent');
+    expect(sections.flatMap((section) => section.rows).map((row) => row.id))
+      .not.toContain('agent:default');
+    expect(rootRows.map((row) => row.key)).toEqual(['model', 'thinking', 'mode']);
+  });
+});
+
+// ── the environment sheet ──────────────────────────────────────────────────────────────────────
+// One flat list, and the one list that draws what it cannot offer: a handful of environments is
+// not a screenful of models, so an agent that needs a new conversation is named rather than counted.
+
+describe('buildAgentSheet', () => {
+  const agents: ConfigAgentEntry[] = [
+    { name: 'main', description: 'the default environment', profile: '__active__' },
+    { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+    { name: 'atlas', description: 'pinned to the other backend', profile: 'deep' },
+  ];
+  const copy = {
+    agentDefault: 'default',
+    agentFollowDefault: 'follow the host default',
+    agentCrossBackend: 'new conversation only · {backend}',
+  };
+  const rows = (over: Partial<Parameters<typeof buildAgentSheet>[0]> = {}) => buildAgentSheet({
+    agents, profiles, agentName: null, currentBackend: 'claude', hasHistory: false, copy, ...over,
+  });
+
+  it('leads with the row that hands the conversation back to the host default', () => {
+    const [first] = rows({ agentName: 'nimbus' });
+    expect(first).toEqual({
+      id: 'agent:default',
+      label: 'default',
+      sub: 'follow the host default',
+      current: false,
+      change: { agentName: null },
+    });
+    // Nothing to hand back when it is already following: the row is drawn, but inert.
+    expect(rows()[0]).toMatchObject({ current: true, change: null });
+  });
+
+  it('names each environment, what it pins and what it is for', () => {
+    expect(rows().find((row) => row.id === 'agent:nimbus')).toEqual({
+      id: 'agent:nimbus',
+      label: 'nimbus',
+      sub: 'a clean room',
+      current: false,
+      change: { agentName: 'nimbus' },
+    });
+    expect(rows().find((row) => row.id === 'agent:atlas')?.sub).toBe('deep · pinned to the other backend');
+  });
+
+  it('draws the one a live conversation cannot take, and says which backend it needed', () => {
+    const row = rows({ hasHistory: true }).find((entry) => entry.id === 'agent:atlas');
+    expect(row).toMatchObject({ disabled: true, sub: 'new conversation only · pi', change: null });
+  });
+
+  it('ticks the one the conversation is running in, and offers it no change', () => {
+    const row = rows({ agentName: 'nimbus' }).find((entry) => entry.id === 'agent:nimbus');
+    expect(row).toMatchObject({ current: true, change: null });
   });
 });
 

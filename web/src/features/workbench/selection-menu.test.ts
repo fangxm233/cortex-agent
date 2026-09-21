@@ -3,9 +3,10 @@ import type {
   ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot,
 } from '@cortex-agent/ui-contract';
 import {
-  agentChange, agentRootRow, buildAgentOptions, buildModelOptions, buildProfileOptions,
-  buildThinkingOptions, clearAllChange, effectiveSelection, groupModelOptions, modelChange,
-  profileChange, profileForModel, thinkingChange, visibleModelOptions, visibleProfileOptions,
+  agentChange, agentChipParts, buildAgentOptions, buildModelOptions, buildProfileOptions,
+  buildThinkingOptions, clearAllChange, effectiveSelection, groupModelOptions, hasAgentChoice,
+  modelChange, profileChange, profileForModel, thinkingChange, visibleModelOptions,
+  visibleProfileOptions,
 } from './selection-menu';
 
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
@@ -356,21 +357,47 @@ describe('agentChange', () => {
   });
 });
 
-describe('agentRootRow', () => {
-  const agents: ConfigAgentEntry[] = [{ name: 'main', profile: '__active__' }];
-  const copy = { label: 'agent', followingDefault: 'default' };
+describe('agentChipParts', () => {
+  const agents: ConfigAgentEntry[] = [
+    { name: 'main', description: 'the default environment', profile: '__active__' },
+    { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+  ];
+  const options = (agentName: string | null, list = agents) => buildAgentOptions(
+    list, profiles, { agentName, currentBackend: 'claude', hasHistory: false },
+  );
 
-  it('names the session\'s own agent, and marks that it chose one', () => {
-    expect(agentRootRow(agents, 'nimbus', copy))
-      .toEqual({ key: 'agent', label: 'agent', value: 'nimbus', overridden: true });
+  it('names the session\'s own agent, and says it chose one', () => {
+    expect(agentChipParts(options('nimbus'), 'nimbus')).toEqual({
+      name: 'nimbus', description: 'a clean room', followingDefault: false,
+    });
   });
 
-  it('reads as the default when the session named none', () => {
-    expect(agentRootRow(agents, null, copy))
-      .toEqual({ key: 'agent', label: 'agent', value: 'default', overridden: false });
+  it('names the fallback a session that chose nothing will land in', () => {
+    // config.get carries the agent list but not the host's default; `main` is the last link of the
+    // server's own chain, so it is the one link a client can name honestly.
+    expect(agentChipParts(options(null), null)).toEqual({
+      name: 'main', description: 'the default environment', followingDefault: true,
+    });
   });
 
-  it('a host with no agent templates gets no row at all', () => {
-    expect(agentRootRow([], null, copy)).toBeNull();
+  it('names nothing at all when even the fallback is not declared', () => {
+    const noMain = agents.filter((agent) => agent.name !== 'main');
+    expect(agentChipParts(options(null, noMain), null)).toEqual({
+      name: null, description: null, followingDefault: true,
+    });
+  });
+
+  it('an agent the host no longer declares still names itself, without a description', () => {
+    expect(agentChipParts(options('ghost'), 'ghost')).toEqual({
+      name: 'ghost', description: null, followingDefault: false,
+    });
+  });
+});
+
+describe('hasAgentChoice', () => {
+  it('is a choice only from two agents up — one is a fact, none is not even a list', () => {
+    expect(hasAgentChoice([])).toBe(false);
+    expect(hasAgentChoice([{ name: 'main' }])).toBe(false);
+    expect(hasAgentChoice([{ name: 'main' }, { name: 'nimbus' }])).toBe(true);
   });
 });

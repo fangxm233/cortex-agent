@@ -20,10 +20,12 @@ const CLAUDE_ENDPOINT = 'anthropic';
 // on the other backend is reached by moving to a profile that runs it, which a live conversation
 // cannot do (same rule as the profile switch; the server enforces it either way).
 //
-// The AGENT rows here are a second axis, not part of that rule: an agent owns the conversation's
+// The AGENT arithmetic here belongs to a second axis, not to that rule, and it feeds a control of
+// its own (AgentMenu) rather than a row of the engine picker: an agent owns the conversation's
 // environment (prompt, tools, skills), a profile owns its model, and the server keeps the two
 // apart (domain/agents/agent-switch.ts). They meet only at the backend, which is why the one rule
-// they share is the live-conversation one.
+// they share is the live-conversation one. It lives in this file all the same, so that the two
+// axes cannot disagree about which backend a conversation is on.
 
 export type { ProfileOption };
 export { buildProfileOptions, currentBackendOf };
@@ -235,6 +237,17 @@ export function buildModeOptions(
  *  server's own sentinel (`domain/threads/prompt-builder`). */
 const FOLLOW_ACTIVE_PROFILE = '__active__';
 
+/** The agent a conversation lands in when nothing anywhere names one — the server's last link
+ *  (`orchestration/conversation-request`, FALLBACK_AGENT). */
+const FALLBACK_AGENT = 'main';
+
+/** Is there an environment to CHOOSE? One agent is a fact, not a choice, and none is not even a
+ *  list — either way the composer draws no agent control at all. Shared so the two surfaces cannot
+ *  disagree about when the chip exists. */
+export function hasAgentChoice(agents: readonly unknown[]): boolean {
+  return agents.length > 1;
+}
+
 /**
  * The agent list, with the same live-conversation rule the profile list obeys. An agent that pins
  * no profile runs on the current backend by definition, so it is always pickable; one that pins a
@@ -261,6 +274,47 @@ export function buildAgentOptions(
       disabled: opts.hasHistory && backend !== opts.currentBackend,
     };
   });
+}
+
+/** The second line of an agent row: why it is unavailable when it is, else what it pins and what it
+ *  is for. Shared, so a row means the same thing under a tap and under a click. */
+export function agentRowSub(option: AgentOption, crossBackend: string): string | null {
+  if (option.disabled) return crossBackend.replace('{backend}', option.backend);
+  return [option.profile, option.description].filter(Boolean).join(' · ') || null;
+}
+
+/** What the agent chip reads. */
+export interface AgentChipParts {
+  /** The environment named on the chip: the conversation's own agent, or the one it falls back to.
+   *  Null when neither can be named here — the chip then says "default" and nothing more. */
+  name: string | null;
+  /** What that environment is for, for the tooltip. */
+  description: string | null;
+  /** True when the session named no agent of its own, so the chip is reporting the fallback rather
+   *  than a choice. Drawn muted, the way the engine chip is while nothing overrides its profile. */
+  followingDefault: boolean;
+}
+
+/**
+ * The agent chip's text, shared by both surfaces.
+ *
+ * A session that named an agent is easy. One that did not runs whatever the host's default is, and
+ * `config.get` carries the agent LIST but not that default: the server resolves it at turn time
+ * (the session's agent, then the channel's, then the host-wide default, then `main` — see
+ * `orchestration/conversation-request`). The only link of that chain visible from here is the last
+ * one, so the chip names `main` where the host declares it and falls back to the plain "default"
+ * copy where it does not — never a guess at which agent some other conversation picked.
+ */
+export function agentChipParts(options: AgentOption[], agentName: string | null): AgentChipParts {
+  const name = agentName
+    ?? options.find((option) => option.name === FALLBACK_AGENT)?.name
+    ?? null;
+  const option = options.find((candidate) => candidate.name === name) ?? null;
+  return {
+    name,
+    description: option?.description ?? null,
+    followingDefault: agentName === null,
+  };
 }
 
 /** Chip text, in one place because desktop and mobile must not disagree about it. `main` is the
@@ -429,33 +483,13 @@ export function visibleProfileOptions(options: ProfileOption[]): {
 /** One collapsed override on the picker's root: what it is, what it is currently worth, and whether
  *  that value is the session's own choice or just what the profile says. */
 export interface SelectionRootRow {
-  key: 'agent' | 'model' | 'thinking' | 'mode';
+  key: 'model' | 'thinking' | 'mode';
   label: string;
   value: string;
   overridden: boolean;
 }
 
 const NO_VALUE = '—';
-
-/**
- * The root's AGENT row. It sits above the override rows because it answers a different question —
- * which environment the conversation runs in, not which engine runs it — and it is "overridden"
- * in the same sense they are: the session named an agent of its own rather than taking the host's
- * default. No row at all on a host that declares no agent templates.
- */
-export function agentRootRow(
-  agents: ConfigAgentEntry[],
-  agentName: string | null,
-  copy: { label: string; followingDefault: string },
-): SelectionRootRow | null {
-  if (agents.length === 0) return null;
-  return {
-    key: 'agent',
-    label: copy.label,
-    value: agentName ?? copy.followingDefault,
-    overridden: agentName !== null,
-  };
-}
 
 /**
  * The root's collapsed rows — the effective value, never "follow profile", so the next turn's engine

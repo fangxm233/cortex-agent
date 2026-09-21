@@ -34,11 +34,11 @@ import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MCh
 import {
   AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
 } from './MChatComposerPresentation';
-import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+export { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 export { AttachMenu } from './MChatComposerPresentation';
 export { EditBar, MsgActionMenu } from './MChatMessageActions';
 export type {
@@ -751,6 +751,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       )}
       {props.selectionSheet && (
         <SelectionSheet vm={props.selectionSheet.vm} pending={props.selectionSheet.pending} copy={copy} onClose={props.selectionSheet.onClose} onPick={props.selectionSheet.onPick} />
+      )}
+      {props.agentSheet && (
+        <AgentSheet rows={props.agentSheet.rows} title={props.agentSheet.title} copy={copy} onClose={props.agentSheet.onClose} onPick={props.agentSheet.onPick} />
       )}
       {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
         <ContextUsageSheet

@@ -3,9 +3,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/workbench/transcript-vm';
 
+const ALL_AGENTS = [
+  { name: 'main', description: 'the default environment', profile: '__active__' },
+  { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+];
+
 const harness = vi.hoisted(() => ({
   projectId: 'atlas',
   routeParam: 's1' as string,
+  // What the HOST declares: the environment capsule exists only where there is a choice.
+  agents: [] as Array<{ name: string; description?: string; profile: string }>,
   sessions: [] as any[],
   transcripts: {} as Record<string, any>,
   sendMutateAsync: vi.fn(),
@@ -43,10 +50,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
               { name: 'ds', model: 'glm-5', backend: 'pi', provider: 'zai' },
             ],
           },
-          agents: [
-            { name: 'main', description: 'the default environment', profile: '__active__' },
-            { name: 'nimbus', description: 'a clean room', profile: '__active__' },
-          ],
+          agents: harness.agents,
         },
         isPending: false,
       };
@@ -179,6 +183,9 @@ vi.mock('./MChatView', async () => {
         selectionChipSub: props.selectionChipSub,
         onOpenSelection: props.onOpenSelection,
         selectionSheet: props.selectionSheet,
+        agentChip: props.agentChip,
+        onOpenAgent: props.onOpenAgent,
+        agentSheet: props.agentSheet,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -246,6 +253,7 @@ let mounted: ReactTestRenderer | null = null;
 beforeEach(() => {
   harness.projectId = 'atlas';
   harness.routeParam = 's1';
+  harness.agents = ALL_AGENTS;
   harness.sessions = [SESSION];
   harness.transcripts = { s1: emptyTranscript('s1') };
   harness.sendMutateAsync.mockReset();
@@ -524,6 +532,19 @@ function openSelection(renderer: ReactTestRenderer) {
   return view(renderer).props.selectionSheet;
 }
 
+/** The environment has a capsule and a sheet of its own, beside the engine's. */
+function openAgent(renderer: ReactTestRenderer) {
+  act(() => { view(renderer).props.onOpenAgent(); });
+  return view(renderer).props.agentSheet;
+}
+
+function tapAgent(renderer: ReactTestRenderer, rowId: string): void {
+  const sheet = openAgent(renderer);
+  const row = sheet.rows.find((entry: any) => entry.id === rowId);
+  if (!row) throw new Error(`no such agent row: ${rowId}`);
+  act(() => { sheet.onPick(row); });
+}
+
 /** The sheet's own navigation is MChatSheets' business; from the screen's side a tap is just the row
  *  it hands back, wherever that row was drawn. */
 function tap(renderer: ReactTestRenderer, rowId: string): void {
@@ -577,9 +598,19 @@ describe('mobile engine picker', () => {
       selection: { model: 'glm-5', provider: 'zai' },
     });
   });
+  it('carries no environment — the agent left the engine sheet for one of its own', () => {
+    mounted = mountChat();
+    const sheet = openSelection(mounted);
+    expect(sheet.vm.sections.map((section: any) => section.key)).not.toContain('agent');
+    expect(sheet.vm.sections.flatMap((section: any) => section.rows).map((row: any) => row.id))
+      .not.toContain('agent:default');
+  });
+});
+
+describe('mobile environment picker', () => {
   it('an agent pick goes to sessions.setAgent, and a draft keeps it for its creation', () => {
     mounted = mountChat();
-    tap(mounted, 'agent:nimbus');
+    tapAgent(mounted, 'agent:nimbus');
     expect(harness.setAgentMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', agentName: 'nimbus' });
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
 
@@ -587,10 +618,22 @@ describe('mobile engine picker', () => {
     harness.sessions = [];
     harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
     mounted = mountChat();
-    tap(mounted, 'agent:nimbus');
+    tapAgent(mounted, 'agent:nimbus');
     expect(harness.setAgentMutate).toHaveBeenCalledOnce();
 
     typeAndSend(mounted, 'first turn');
     expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({ agentName: 'nimbus' });
+  });
+
+  it('the capsule names the fallback a session following the host default will run', () => {
+    mounted = mountChat();
+    expect(view(mounted).props.agentChip).toEqual({ label: 'main', followingDefault: true });
+  });
+
+  it('no capsule, and no sheet to open, where there is nothing to choose', () => {
+    harness.agents = [{ name: 'main', description: 'the default environment', profile: '__active__' }];
+    mounted = mountChat();
+    expect(view(mounted).props.agentChip).toBeNull();
+    expect(openAgent(mounted)).toBeUndefined();
   });
 });

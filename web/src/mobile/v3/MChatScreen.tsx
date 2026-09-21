@@ -22,7 +22,10 @@ import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
-import { buildProfileOptions, effectiveSelection, profileChange, selectionChipParts } from '@/features/workbench/selection-menu';
+import {
+  agentChipParts, buildAgentOptions, buildProfileOptions, effectiveSelection, hasAgentChoice,
+  profileChange, selectionChipParts,
+} from '@/features/workbench/selection-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
@@ -72,6 +75,7 @@ import {
   interactionHeaderStatus,
   effectiveProfileName,
   selectionChipLabel,
+  buildAgentSheet,
   buildSelectionSheet,
   type SelectionSheetRow,
   type PendingAttachmentVM,
@@ -335,6 +339,8 @@ export function MChatScreen(): JSX.Element {
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
   const [selectionOpen, setSelectionOpen] = useState(false);
+  // The environment is its own axis, so it is its own sheet — opened from its own capsule.
+  const [agentOpen, setAgentOpen] = useState(false);
   // Only fetched once the sheet is opened: on a cold PI host the catalog costs a provider scan, and
   // the chip itself reads the profile. See domain/ui-service/query/models.
   const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: selectionOpen }));
@@ -402,6 +408,13 @@ export function MChatScreen(): JSX.Element {
   const profileOptions = buildProfileOptions(profiles, effectiveProfile, {
     currentBackend: effective.backend, hasHistory,
   });
+  // What the environment capsule says, through the same arithmetic the desktop chip runs.
+  const agentChip = agentChipParts(
+    buildAgentOptions(agents, profiles, {
+      agentName, currentBackend: effective.backend, hasHistory,
+    }),
+    agentName,
+  );
 
   useEffect(() => {
     if (!pendingCreatedSession) return;
@@ -905,6 +918,10 @@ export function MChatScreen(): JSX.Element {
           onPick: (value: string | null) => { setDraftCommission(value); setCommissionSheetOpen(false); },
         } : undefined}
         onOpenSelection={() => setSelectionOpen(true)}
+        agentChip={hasAgentChoice(agents)
+          ? { label: agentChip.name ?? copy.selectionAgentDefault, followingDefault: agentChip.followingDefault }
+          : null}
+        onOpenAgent={() => setAgentOpen(true)}
         contextUsage={contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}
         contextUsageLang={lang}
@@ -931,14 +948,8 @@ export function MChatScreen(): JSX.Element {
                 override: selectionOverride,
                 hasHistory,
                 defaultProfile,
-                agents,
-                agentName,
                 copy: {
                   profile: copy.profileTitle,
-                  agent: copy.selectionAgent,
-                  agentDefault: copy.selectionAgentDefault,
-                  agentFollowDefault: copy.selectionAgentFollow,
-                  agentCrossBackend: copy.selectionAgentCrossBackend,
                   model: copy.selectionModel,
                   thinking: copy.selectionThinking,
                   mode: copy.selectionMode,
@@ -951,6 +962,27 @@ export function MChatScreen(): JSX.Element {
               }),
               pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),
               onClose: () => setSelectionOpen(false),
+              onPick: onPickSelection,
+            }
+            : undefined
+        }
+        agentSheet={
+          agentOpen && hasAgentChoice(agents)
+            ? {
+              rows: buildAgentSheet({
+                agents,
+                profiles,
+                agentName,
+                currentBackend: effective.backend,
+                hasHistory,
+                copy: {
+                  agentDefault: copy.selectionAgentDefault,
+                  agentFollowDefault: copy.selectionAgentFollow,
+                  agentCrossBackend: copy.selectionAgentCrossBackend,
+                },
+              }),
+              title: copy.selectionAgent,
+              onClose: () => setAgentOpen(false),
               onPick: onPickSelection,
             }
             : undefined

@@ -35,7 +35,7 @@ export interface MChatCopy {
   profileSubtitle: string;
   profileCurrent: string;
   profileFooter: string;
-  /** The environment section: heading, the "follow the host default" row and its sub-label, and
+  /** The environment sheet: its title, the "follow the host default" row and its sub-label, and
    *  the `{backend}` template for an agent only a new conversation could take. */
   selectionAgent: string;
   selectionAgentDefault: string;
@@ -170,6 +170,16 @@ export interface MChatViewProps {
    *  width. Null when the selection has no level. */
   selectionChipSub?: string | null;
   onOpenSelection: () => void;
+  /** The environment capsule: the agent this conversation runs in, or — `followingDefault` — the
+   *  one it falls back to. Absent on a host with fewer than two agents: nothing to choose. */
+  agentChip?: { label: string; followingDefault: boolean } | null;
+  onOpenAgent?: () => void;
+  agentSheet?: {
+    rows: SelectionSheetRow[];
+    title: string;
+    onClose: () => void;
+    onPick: (row: SelectionSheetRow) => void;
+  };
   browserDevice?: string | null;
   onOpenBrowser?: () => void;
   browserSheet?: { items: BrowserSheetItem[]; title: string; onClose: () => void; onPick: (device: string | null) => void };

@@ -235,6 +235,38 @@ export function SelectionSheet({ vm, copy, pending, onClose, onPick }: {
   );
 }
 
+/** The environment sheet: which agent — which prompt, tools, skills and rules — this conversation
+ *  runs in. One flat list, so a tap is the whole visit and the sheet closes behind it. Drawn only
+ *  where there is something to choose between; the screen decides that, the same `> 1 agent` rule
+ *  the desktop chip obeys.
+ *  Its rows come from `buildAgentSheet` — the desktop menu's arithmetic. */
+export function AgentSheet({ rows, title, copy, onClose, onPick }: {
+  rows: SelectionSheetRow[];
+  title: string;
+  copy: MChatCopy;
+  onClose: () => void;
+  onPick: (row: SelectionSheetRow) => void;
+}): JSX.Element {
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div data-mobile-agent-sheet="true">
+        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{title}</div>
+        <SheetCard>
+          {rows.map((row, index) => (
+            <SelectionRow
+              key={row.id}
+              row={row}
+              last={index === rows.length - 1}
+              copy={copy}
+              onPick={(picked) => { onClose(); onPick(picked); }}
+            />
+          ))}
+        </SheetCard>
+      </div>
+    </MBottomSheet>
+  );
+}
+
 /** One creation-time option (a browser device, a commission). `attr` is the test/selector hook, kept
  *  per-surface so the two sheets stay individually addressable while sharing this markup. */
 function OptionRow({ item, attr, last, current, onPick }: {

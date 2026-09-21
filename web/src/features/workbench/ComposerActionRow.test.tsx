@@ -57,6 +57,7 @@ describe('ComposerSlashMenu', () => {
 function renderRow(
   browser: ComposerBrowserControl | null,
   commission: ComposerCommissionControl | null = null,
+  agentControl: JSX.Element | null = null,
 ) {
   const onAttach = vi.fn();
   const onCommands = vi.fn();
@@ -71,6 +72,7 @@ function renderRow(
             commission={commission}
             onAttach={onAttach}
             onCommands={onCommands}
+            agentControl={agentControl}
             selectionControl={<span data-chip="selection">claude-opus-5 · high</span>}
             sendControl={<button type="button" data-action="send" />}
           />
@@ -117,6 +119,25 @@ describe('ComposerActionRow ＋ menu', () => {
     const row = renderer.root.findByProps({ 'data-plus-item': 'browser' });
     expect(row.props['data-editable']).toBe('false');
     expect(row.props.onClick).toBeUndefined();
+  });
+});
+
+describe('ComposerActionRow right cluster', () => {
+
+  it('seats the environment before the engine — where the turn runs, then what runs it', () => {
+    const { renderer } = renderRow(null, null, <span data-chip="agent">creative</span>);
+    const chips = renderer.root.findAllByProps({ 'data-composer-actions': true })[0]
+      .findAllByType('span')
+      .map((node) => node.props['data-chip'])
+      .filter((chip) => chip === 'agent' || chip === 'selection');
+    expect(chips).toEqual(['agent', 'selection']);
+  });
+
+  it('leaves the row as it was when the host offers no environment to pick', () => {
+    // The chip decides that for itself (SessionSelector.test); the row only has to survive it.
+    const { renderer } = renderRow(null);
+    expect(renderer.root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-chip': 'selection' })).toHaveLength(1);
   });
 });
 

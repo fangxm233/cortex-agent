@@ -319,11 +319,16 @@ default.
 Every bare form is scoped to the conversation it is typed in; the host-wide
 default moves only behind the explicit `global` prefix.
 
-In the Web app and the desktop client the same choice is the composer's engine
-picker: its `agent` row lists the templates this host declares, above the model
-rows and under a `default` row meaning "follow the host-wide default". A pick on
-a new conversation travels with its first message; on a live one it applies at
-once and takes effect on the next turn.
+In the Web app and the desktop client the same choice is the composer's own
+control: a chip of its own, immediately left of the engine chip — where the turn
+runs, before what runs it. It names the agent the conversation is in, or, when
+the conversation has picked none, the host-wide default it falls back to, drawn
+muted so a choice reads differently from a fallback. Clicking it opens one flat
+list: a `default` row meaning "follow the host-wide default", then every template
+this host declares, each with what it is for and the profile it pins. A host
+declaring a single agent shows no chip — there is nothing to choose between. A
+pick on a new conversation travels with its first message; on a live one it
+applies at once and takes effect on the next turn.
 
 A turn resolves its agent through this chain: the session's own agent, then the
 conversation's, then the host-wide default, then `main`.

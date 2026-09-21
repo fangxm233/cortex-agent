@@ -4,20 +4,27 @@ import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import {
-  agentChange, agentRootRow, buildAgentOptions, buildModeOptions, buildModelOptions,
+  agentChange, agentChipParts, buildAgentOptions, buildModeOptions, buildModelOptions,
   buildProfileOptions, buildThinkingOptions, clearAllChange, currentBackendOf, effectiveSelection,
-  groupModelOptions, modeChange, modelChange, profileChange, selectionChipParts, selectionRootRows,
-  thinkingChange, visibleModelOptions, visibleProfileOptions,
+  groupModelOptions, hasAgentChoice, modeChange, modelChange, profileChange, selectionChipParts,
+  selectionRootRows, thinkingChange, visibleModelOptions, visibleProfileOptions,
   type AgentOption, type EffectiveSelection, type ModeOption, type ModelOption, type ProfileOption,
   type SelectionRootRow, type ThinkingOption,
 } from './selection-menu';
+import { AgentMenu } from './AgentMenu';
 import { SelectionMenu, type SelectionPane } from './SelectionMenu';
 import { useSelectedSession } from './SelectedSessionProvider';
 import {
   resolveTransitionAgent, resolveTransitionSelection, type SelectionChange,
 } from './selected-session';
 
-// The composer's engine chip: what the NEXT turn will run, and the one place to change it.
+// The composer's two chips: what the NEXT turn will run, and the two places to change it.
+//
+// They are two axes, so they are two controls. The ENGINE chip carries the profile and what the
+// session overrode on top of it; the AGENT chip carries the environment the conversation runs in —
+// prompt, tools, skills, rules. One hook feeds both, because the environment's own rule is written
+// in the engine's terms (an agent pinning the other backend's profile is a backend move, which a
+// live conversation may not make) and the two must read the same backend to agree about it.
 //
 // A draft has no session to write to, so its choice lives in the workbench's draft state and rides
 // along with `sessions.createAndSend`. A live session goes through `sessions.setSelection` for the
@@ -41,6 +48,10 @@ export interface SessionSelection {
    *  cold PI host costs a provider scan. Nobody pays for a picker they never open. */
   open: boolean;
   setOpen: (open: boolean) => void;
+  /** The agent menu's open state, held here beside the engine menu's so that opening either one
+   *  closes the other — the two chips are neighbours and their cards would otherwise overlap. */
+  agentOpen: boolean;
+  setAgentOpen: (open: boolean) => void;
   /** Which level the menu is showing. Lives here so Escape can retreat one level before closing,
    *  and so closing always leaves it back at the root. */
   pane: SelectionPane;
@@ -99,12 +110,18 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
   const queryClient = useQueryClient();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const [open, setOpenState] = useState(false);
+  const [agentOpen, setAgentOpenState] = useState(false);
   const [pane, setPane] = useState<SelectionPane>('root');
   // A picker always reopens at the root — reopening on whatever pane was last visited would hide
   // the profile list behind a level nobody asked for.
   const setOpen = (next: boolean): void => {
     setOpenState(next);
     if (!next) setPane('root');
+    if (next) setAgentOpenState(false);
+  };
+  const setAgentOpen = (next: boolean): void => {
+    setAgentOpenState(next);
+    if (next) setOpen(false);
   };
   // Only asked for once the picker is actually opened; a cold PI host pays the scan once there (see
   // domain/ui-service/query/models). The chip itself reads the profile, so it needs none of this.
@@ -160,17 +177,12 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
   );
   const L = useVocab();
   const rootRows = useMemo(
-    () => [
-      ...[agentRootRow(agents, agentName, {
-        label: L.wbAgent, followingDefault: L.wbAgentDefault,
-      })].filter((row): row is SelectionRootRow => row !== null),
-      ...selectionRootRows(
-        effective,
-        { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute },
-        { hasThinking: thinkingOptions.length > 0, hasModes: modeOptions.length > 0 },
-      ),
-    ],
-    [agents, agentName, effective, L, thinkingOptions.length, modeOptions.length],
+    () => selectionRootRows(
+      effective,
+      { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute },
+      { hasThinking: thinkingOptions.length > 0, hasModes: modeOptions.length > 0 },
+    ),
+    [effective, L, thinkingOptions.length, modeOptions.length],
   );
   const profileEntry = profiles.find((entry) => entry.name === profileName) ?? null;
 
@@ -214,6 +226,8 @@ export function useSessionSelection(props: SessionSelectorProps): SessionSelecti
   return {
     open,
     setOpen,
+    agentOpen,
+    setAgentOpen,
     pane,
     setPane,
     effective,
@@ -263,12 +277,9 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
   return (
     <span
       data-chip="selection"
-      // Both axes in the tooltip: the chip has room for the model only, and "which agent am I
-      // talking to" is not answerable anywhere else on this screen.
-      title={[
-        `${L.wbProfile} · ${selection.effective.profileName}`,
-        selection.agentName ? `${L.wbAgent} · ${selection.agentName}` : null,
-      ].filter(Boolean).join('\n')}
+      // The profile, because the chip itself has room for the model only. The environment is the
+      // agent chip's business, one place to the left.
+      title={`${L.wbProfile} · ${selection.effective.profileName}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
@@ -297,8 +308,6 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
           hiddenModelsNoProfile={selection.hiddenModelsNoProfile}
           thinking={selection.thinkingOptions}
           modes={selection.modeOptions}
-          agents={selection.agentOptions}
-          agentOverridden={selection.agentName !== null}
           rootRows={selection.rootRows}
           profileModel={selection.profileModel}
           profileThinking={selection.profileThinking}
@@ -311,13 +320,74 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
           pane={pane}
           setPane={setPane}
           onPickProfile={(name) => { close(); selection.pickProfile(name); }}
-          onPickAgent={(name) => { backToRoot(); selection.pickAgent(name); }}
           onPickModel={(option) => { backToRoot(); selection.pickModel(option); }}
           onPickThinking={(level) => { backToRoot(); selection.pickThinking(level); }}
           onPickMode={(mode) => { backToRoot(); selection.pickMode(mode); }}
           onClearAll={() => { close(); selection.clearAll(); }}
           placement="above"
           align="right"
+        />
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * The composer's environment chip, to the LEFT of the engine one: where the conversation runs,
+ * before what runs it.
+ *
+ * It says the agent's name outright rather than hiding it in a tooltip, because the environment is
+ * what decides whether the session has the skills and rules for the job at all — a fact worth a
+ * glance, not a hover. Following the host's default is drawn muted, the same way the engine chip is
+ * muted while nothing overrides its profile; the name shown then is what the conversation falls
+ * back to, not a choice anyone made.
+ *
+ * Nothing is drawn on a host with fewer than two agents: a list of one is not a choice.
+ */
+export function AgentSelectorView({ selection }: { selection: SessionSelection }): JSX.Element | null {
+  const L = useVocab();
+  const { agentOpen: open, setAgentOpen: setOpen } = selection;
+  const [hover, setHover] = useState(false);
+  // One level, so Escape has nothing to retreat through: it closes, the way a click outside does.
+  const close = () => setOpen(false);
+  useDismissMenu(open, close, close);
+  const parts = agentChipParts(selection.agentOptions, selection.agentName);
+  if (!hasAgentChoice(selection.agentOptions)) return null;
+  const label = parts.name ?? L.wbAgentDefault;
+  const lit = hover || !parts.followingDefault;
+
+  return (
+    <span
+      data-chip="agent"
+      data-agent-following-default={parts.followingDefault ? 'true' : 'false'}
+      title={[
+        `${L.wbAgent} · ${label}`,
+        parts.followingDefault ? L.wbAgentFollowDefault : null,
+        parts.description,
+      ].filter(Boolean).join('\n')}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
+      style={{
+        position: 'relative', font: CHIP_FONT,
+        border: `1.5px solid ${lit ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
+        color: lit ? 'var(--proto-accent)' : 'var(--proto-muted)',
+        padding: '0 12px', height: 30, borderRadius: 999, boxSizing: 'border-box', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 180,
+      }}
+    >
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
+      {open ? (
+        <AgentMenu
+          agents={selection.agentOptions}
+          overridden={!parts.followingDefault}
+          // One level, so a pick is the whole visit — the menu closes behind it, the way naming a
+          // profile closes the engine one.
+          onPick={(name) => { close(); selection.pickAgent(name); }}
+          placement="above"
+          align="left"
         />
       ) : null}
     </span>
