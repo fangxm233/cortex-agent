@@ -1,8 +1,8 @@
 // input:  selection-menu, tRPC, session selection, vocab
 // output: SessionSelector views and selection controls
-// pos:    Session model/profile chips with keyboard menu access
+// pos:    Session chips with keyboard dismissal focus restoration
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -267,8 +267,15 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
   const L = useVocab();
   const [hover, setHover] = useState(false);
   const { open, setOpen, pane, setPane } = selection;
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const close = () => setOpen(false);
-  const escape = () => { if (pane === 'root') close(); else setPane('root'); };
+  const escape = () => {
+    if (pane !== 'root') { setPane('root'); return; }
+    close();
+    // The focused menu row is about to unmount. Only Escape returns focus; a click
+    // outside must keep its destination, and picks retain their existing semantics.
+    triggerRef.current?.focus({ preventScroll: true });
+  };
   useDismissMenu(open, escape, close);
   // A pick inside a sub-pane returns to the root with the picker still open: model and thinking
   // level are usually chosen together, and the root now shows what the change amounted to. Naming a
@@ -288,6 +295,7 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
       <button
         type="button"
         data-chip="selection"
+        ref={triggerRef}
         className={MENU_FOCUS}
         aria-expanded={open}
         // The chip shows the model; its tooltip names the profile.

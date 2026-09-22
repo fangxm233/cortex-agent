@@ -104,8 +104,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | session-run-status.ts | model | Build session run status state |
 | session-stats.ts | model | Build session stats state |
 | SessionIdModal.tsx | view | Display and copy IDs on shared glass surface |
-| SessionSelector.test.tsx | test | Test selection changes and keyboard trigger |
-| SessionSelector.tsx | view | Render keyboard-accessible session selector |
+| SessionSelector.test.tsx | test | Test selection and Escape-only focus restoration |
+| SessionSelector.tsx | view | Render session selector with Escape focus return |
 | SessionStatsModal.tsx | view | Render session totals on shared glass surface |
 | SubagentBlock.test.tsx | test | Test subagent block |
 | SubagentBlock.tsx | view | Render material card with opaque sticky header |

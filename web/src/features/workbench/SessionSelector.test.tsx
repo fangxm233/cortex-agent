@@ -1,5 +1,5 @@
 // input:  SessionSelector, React test renderer, mocked session API
-// output: Session selection and keyboard trigger regression tests
+// output: Selection and Escape-only focus restoration tests
 // pos:    Session chip semantics, dismissal and selection coverage
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -203,6 +203,32 @@ describe('SessionSelector', () => {
     open(renderer);
     act(() => { target.dispatchEvent(new Event('click')); });
     expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('restores the actual trigger only on root Escape, not outside clicks or profile picks', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const trigger = { focus: vi.fn() };
+    const renderer = create(<LangProvider><Composer isDraft currentProfile={null} hasHistory={false} /></LangProvider>, {
+      createNodeMock: (node) => node.props['data-chip'] === 'selection' ? trigger : null,
+    });
+    open(renderer);
+    // Focus has left the trigger for a menu row; dismissal must use the retained DOM ref,
+    // not document.activeElement (which disappears with the menu).
+    vi.stubGlobal('document', { activeElement: { dataset: { selectionRow: 'profile:plan' } } });
+    act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    expect(trigger.focus).toHaveBeenCalledWith({ preventScroll: true });
+    trigger.focus.mockClear();
+    open(renderer);
+    act(() => { target.dispatchEvent(new Event('click')); });
+    expect(trigger.focus).not.toHaveBeenCalled();
+    open(renderer);
+    click(renderer, 'profile:execute');
+    expect(harness.setDraftSelection).toHaveBeenCalledWith({ profileName: 'execute' });
+    expect(trigger.focus).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
