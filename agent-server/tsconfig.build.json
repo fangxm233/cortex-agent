@@ -26,7 +26,17 @@
     "rootDir": "src",
     "declaration": true,
     "noEmit": false,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    // Incremental emit for the hot-reload pipeline. The win here is modest — 11s cold vs ~9.8s for
+    // a one-file change — because the floor is program construction: parse + bind over 3184 files
+    // costs 2.6s before any checking starts, and one edit to a file the tRPC router type reaches
+    // still re-checks most of the program. Re-measure before trading correctness for more.
+    // The cache MUST live inside outDir. tsc trusts the buildinfo over the filesystem — delete a
+    // file from dist/ with the cache still valid and it is simply never re-emitted (verified) —
+    // so the cache has to share the output's lifetime: `rm -rf dist` then takes the cache with it
+    // and forces a full rebuild. Excluded from the published tarball via package.json `files`.
+    "incremental": true,
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

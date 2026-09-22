@@ -17,6 +17,7 @@
   },
   "files": [
     "dist/",
+    "!dist/.tsbuildinfo",
     "defaults/",
     "web/dist/",
     "bundled-dependencies/",

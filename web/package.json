@@ -9,7 +9,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "//build": "Typecheck and bundle run concurrently, not in sequence: vite build does not typecheck, so the two share no inputs and `&&` only served to add their times together. Both exit codes are captured and OR'd, because a bare `wait` reports success even when a job failed — which would let a type error through the daemon's rebuild pipeline silently. A failed typecheck can now leave a bundle in dist/, but the non-zero exit aborts the pipeline before it is installed.",
+    "build": "tsc --noEmit & tscpid=$!; vite build & vitepid=$!; wait $tscpid; tscrc=$?; wait $vitepid; viterc=$?; exit $((tscrc||viterc))",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run"
