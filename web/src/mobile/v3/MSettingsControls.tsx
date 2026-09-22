@@ -1,6 +1,6 @@
 // input:  react, mobile kit, shared settings styles
 // output: Mobile Settings frames, cards, rows and form controls
-// pos:    Settings-only mobile presentation primitives
+// pos:    Mobile settings material frames and form controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
@@ -31,7 +31,7 @@ export function MSettingsGroupLabel({ children }: { children: ReactNode }) {
 }
 
 export function MSettingsSurfaceCard(props: ComponentProps<typeof MCard>) {
-  return <MCard {...props} radius={12} style={{ ...props.style, boxShadow: 'none', overflow: 'visible' }} />;
+  return <MCard {...props} radius={12} style={{ ...props.style, overflow: 'visible' }} />;
 }
 
 export function MSettingsSheet(props: ComponentProps<typeof MBottomSheet>) {
@@ -101,7 +101,8 @@ export function MSettingsButton(props: { children: ReactNode; onClick: () => voi
     <button type="button" onClick={props.onClick} disabled={props.disabled}
       className="mobile-settings-button"
       style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 8,
-        background: props.danger ? MC.failBg : MC.runBg, color: props.danger ? MC.fail : MC.run,
+        background: props.danger ? MC.failBg : MC.runBg, backgroundImage: 'var(--material-sheen)',
+        boxShadow: 'var(--material-control-shadow)', color: props.danger ? MC.fail : MC.run,
         fontSize: 13, fontWeight: 600, padding: '8px 12px', opacity: props.disabled ? 0.5 : 1 }}>
       {props.children}
     </button>
@@ -109,7 +110,7 @@ export function MSettingsButton(props: { children: ReactNode; onClick: () => voi
 }
 
 const FIELD: CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${MC.hairline}`,
-  borderRadius: 8, minHeight: 44, background: MC.card, color: MC.ink, padding: '8px 12px', fontSize: 16, fontFamily: 'inherit' };
+  borderRadius: 8, minHeight: 44, background: 'var(--material-inset-bg)', color: MC.ink, padding: '8px 12px', fontSize: 16, fontFamily: 'inherit' };
 
 interface MSettingsControlFeedback {
   label: string;

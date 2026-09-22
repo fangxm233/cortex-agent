@@ -79,7 +79,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notification-routing.ts | utility | Validate notification targets and routes |
 | MNotificationToaster.tsx | view | Render notification toasts and banners |
 | mobile-chat-presentation.test.tsx | test | Guard chat input sizes and sealed card styling |
-| mobile-presentation.test.tsx | test | Guard mobile readability and surface styling |
+| mobile-presentation.test.tsx | test | Guard mobile materials and scroll clearance |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |
 | MPlanReadView.tsx | view | Render plans and approval controls |
@@ -101,7 +101,7 @@ Mobile screens, readable presentation views and native service adapters.
 | MSessionListView.tsx | view | Render readable mobile date-group session cards |
 | m-session-list-vm.test.ts | test | Test session status and grouping |
 | m-session-list-vm.ts | model | Build session status lines and groups |
-| MSettingsControls.tsx | UI | Provide mobile settings frames and controls |
+| MSettingsControls.tsx | UI | Provide settings material frames and controls |
 | MSettingsControls.test.tsx | test | Check mobile settings scope and controls |
 | MSettingsScreen.tsx | screen | Connect settings overview data and navigation |
 | MSettingsView.test.tsx | test | Test mobile settings navigation parity |

@@ -1,6 +1,6 @@
 // input:  React renderer, mobile kit and presentation views
 // output: Mobile readability and surface regression tests
-// pos:    Guard mobile typography, status cards and clearance
+// pos:    Guard mobile materials, typography and clearance
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
@@ -22,7 +22,11 @@ describe('mobile presentation', () => {
     const label = tree.root.findByType(MGroupLabel).findByType('div');
     expect(label.props.style).toMatchObject({ fontSize: 11, color: MC.muted });
     expect(tree.root.findByType(MPill).findByType('span').props.style.fontSize).toBe(11);
+    expect(tree.root.findByType(MCard).findByType('div').props.style).toMatchObject({
+      background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
+    });
     expect(tree.root.findByType(MCard).findByType('div').props.style.backdropFilter).toBeUndefined();
+    expect(MC.card).toBe('var(--m-card)');
     tree.unmount();
   });
 

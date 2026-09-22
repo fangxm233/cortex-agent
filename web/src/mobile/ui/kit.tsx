@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: Mobile UI primitives
-// pos:    Mobile frames, cards, labels and sheets
+// pos:    Mobile frames, material cards, controls and sheets
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { statusTone, type Tone } from '@/design/tone';
@@ -53,7 +53,7 @@ export function MScreen({
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        // No fill: the screen IS the mesh ground the shell painted. Cards inside stay opaque.
+        // No fill: the screen shares the shell's mesh; cards choose their own material.
         background: 'transparent',
         ...style,
       }}
@@ -185,7 +185,8 @@ export function MMoreButton({ onClick }: { onClick?: () => void }) {
         width: 44,
         height: 44,
         borderRadius: '50%',
-        background: MC.card,
+        background: 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         border: `1px solid ${MC.hairline}`,
         display: 'flex',
         alignItems: 'center',
@@ -233,12 +234,9 @@ export function MScrollBody({
   );
 }
 
-// ── MCard — opaque rounded surface ────────────────────────────────────────────
-// The fill stays OPAQUE (`--m-card`) rather than translucent glass, which is the one deliberate
-// break from the desktop skin: a card is the unit that repeats down a long mobile list, and one
-// translucent card stacked over the next reads as a smudge. A container that wraps a whole section
-// (the 会话 day group) is a different shape — it has only the ground behind it, so it takes
-// `--glass-2`, which composites without a `backdrop-filter` and stays cheap inside a scroller.
+// ── MCard — lightweight material, with no per-card backdrop sampling ──────────
+// Scrolling lists use a translucent fill and sheen, not blur. Reading and sticky
+// occlusion surfaces keep MC.card explicitly; changing that token would leak text.
 export type CardTone = 'default' | 'blue' | 'amber' | 'fail';
 const CARD_BORDER: Record<CardTone, string> = {
   default: MC.cardBorder,
@@ -265,7 +263,8 @@ export function MCard({
     <div
       onClick={onClick}
       style={{
-        background: MC.card,
+        background: 'var(--material-card-bg)',
+        boxShadow: 'var(--material-card-shadow)',
         border: `1px solid ${CARD_BORDER[tone]}`,
         borderRadius: radius,
         padding,
@@ -300,6 +299,7 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
         padding: '2px 8px',
         borderRadius: 'var(--r-pill)',
         background: c.bg,
+        backgroundImage: 'var(--material-sheen)',
         color: c.fg,
         flex: 'none',
         whiteSpace: 'nowrap',
@@ -376,7 +376,7 @@ export function MSegmented<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div style={{ display: 'flex', background: MC.hairline, borderRadius: 'var(--r-control)', padding: 2 }}>
+    <div style={{ display: 'flex', background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', padding: 2 }}>
       {options.map((o) => {
         const active = o.id === value;
         return (
@@ -391,11 +391,11 @@ export function MSegmented<T extends string>({
               fontSize: 11.5,
               fontWeight: 600,
               color: active ? MC.ink : MC.muted,
-              background: active ? MC.card : 'transparent',
+              background: active ? 'var(--material-control-bg)' : 'transparent',
               borderRadius: 'var(--r-chip)',
               padding: '4px 12px',
               minHeight: 44,
-              boxShadow: active ? 'var(--shadow-segment)' : undefined,
+              boxShadow: active ? 'var(--material-control-shadow)' : undefined,
             }}
           >
             {o.label}
@@ -545,15 +545,12 @@ export function MBottomSheet({
           left: 0,
           right: 0,
           bottom: 0,
-          // Blur #2 of the three (see MC's blur budget): a bottom sheet is a single overlay that
-          // holds still once it has settled — the list inside it scrolls, the sheet does not. The
-          // fill is the denser `--glass-2`, as on the desktop Drawer: this sheet covers real
-          // content rather than the smooth ground, so the thinner pane alpha would read as noise.
-          background: 'var(--glass-2)',
+          // One backdrop sample for the settled sheet, never for its scrolling rows.
+          background: 'var(--material-overlay-bg)',
           backdropFilter: 'var(--glass-filter)',
           WebkitBackdropFilter: 'var(--glass-filter)',
           borderRadius: 'var(--r-float) var(--r-float) 0 0',
-          boxShadow: 'var(--shadow-sheet)',
+          boxShadow: 'var(--material-overlay-shadow)',
           padding: '8px 14px 36px',
           paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
           boxSizing: 'border-box',
