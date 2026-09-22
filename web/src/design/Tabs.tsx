@@ -1,6 +1,6 @@
 // input:  Radix Tabs, React, shared focus-visible styles
 // output: Tabs, TabsRoot, TabsList, Tab, TabPanel, tab types
-// pos:    Keyboard-navigable tabs with readable inactive labels
+// pos:    Keyboard tabs with a lightly textured active state
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixTabs from '@radix-ui/react-tabs';
@@ -27,7 +27,8 @@ const LIST_CLASS = 'flex items-center gap-0.5g border-b border-card';
 const TRIGGER_CLASS =
   'rounded-t-[var(--r-control)] px-2g py-1g text-ui font-medium text-proto-muted transition-colors ' +
   'hover:text-state-ink ' +
-  'data-[state=active]:bg-pill-running-bg data-[state=active]:text-pill-running-fg';
+  'data-[state=active]:bg-pill-running-bg data-[state=active]:text-pill-running-fg ' +
+  'data-[state=active]:bg-[image:var(--material-sheen)]';
 
 export function Tabs({ items, defaultValue, className }: TabsProps) {
   return (

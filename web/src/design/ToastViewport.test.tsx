@@ -1,3 +1,8 @@
+// input:  Toast provider, viewport, react-test-renderer, Vitest
+// output: Notification material, timer and interaction checks
+// pos:    Guard toast shell extraction and notification lifecycle
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider, useToast, type ToastInput } from './Toast';
@@ -49,6 +54,30 @@ afterEach(() => {
 });
 
 describe('ToastViewport', () => {
+  it('keeps material actions unfiltered and prevents them from activating the body', () => {
+    const onActivate = vi.fn(), onClick = vi.fn(), stopPropagation = vi.fn();
+    push({ title: 'Ready', onActivate, actions: [{ label: 'Open', onClick }] });
+    const action = byLabel(tree, 'Open')[0];
+    expect(bubbles(tree)[0].props.className).toContain('[background:var(--material-overlay-bg)]');
+    expect(action.props.className).toContain('[background:var(--material-control-bg)]');
+    expect(action.props.className).not.toContain('backdrop-filter');
+    act(() => action.props.onClick({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('expands overflow without changing the notification order', () => {
+    for (let i = 0; i < 4; i++) push({ title: `Notice ${i}`, duration: Infinity });
+    expect(bubbles(tree)).toHaveLength(3);
+    const more = tree.root.findAllByType('button').find(node => node.props.className.includes('pointer-events-auto'))!;
+    expect(more.props.className).toContain('[background:var(--material-overlay-bg)]');
+    act(() => more.props.onClick());
+    expect(bubbles(tree)).toHaveLength(4);
+    const titles = tree.root.findAllByType('span').filter(node => node.props.className.includes('truncate'));
+    expect(titles.map(node => node.children[0])).toEqual(['Notice 0', 'Notice 1', 'Notice 2', 'Notice 3']);
+  });
+
   it('auto-dismisses after the item duration and maps tone to level', () => {
     push({ title: 'Saved', tone: 'done', duration: 5000 });
     expect(bubbles(tree)).toHaveLength(1);

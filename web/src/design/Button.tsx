@@ -1,6 +1,6 @@
 // input:  React, theme tokens, shared focus-visible styles
 // output: Button, ButtonProps, ButtonVariant, ButtonSize
-// pos:    Theme-aware action buttons with semantic foregrounds
+// pos:    Unblurred material actions with semantic foregrounds
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
@@ -18,10 +18,10 @@ export type ButtonSize = 'sm' | 'md';
 // ambiguous and Tailwind compiles it to a shadow *color* instead. The hinted form also keeps the
 // box-shadow composed with Tailwind shadows; keyboard focus uses the shared solid outline.
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-state-run text-[var(--accent-fg)] shadow-[shadow:var(--accent-glow)] hover:bg-proto-accent-strong',
-  secondary: 'border border-proto-faint bg-surface-card text-state-ink hover:bg-surface-canvas-alt',
+  primary: 'bg-state-run bg-[image:var(--material-sheen)] text-[var(--accent-fg)] shadow-[shadow:var(--accent-glow)] hover:bg-proto-accent-strong',
+  secondary: 'border border-proto-faint [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink hover:[background:var(--material-inset-bg)]',
   ghost: 'text-proto-ink-2 hover:bg-surface-canvas-alt',
-  danger: 'bg-state-fail text-[var(--ink-solid-fg)] hover:bg-state-fail/90',
+  danger: 'bg-state-fail bg-[image:var(--material-sheen)] text-[var(--ink-solid-fg)] hover:bg-state-fail/90',
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {

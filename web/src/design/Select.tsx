@@ -1,6 +1,6 @@
 // input:  Radix Select, React, shared focus-visible styles
 // output: Select, SelectProps, SelectOption
-// pos:    Keyboard-visible select trigger and readable option list
+// pos:    Unblurred select controls and a glass option overlay
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixSelect from '@radix-ui/react-select';
@@ -40,13 +40,12 @@ export interface SelectProps<T extends SelectValue>
 const TRIGGER_CLASS =
   'inline-flex items-center justify-between gap-1g text-left disabled:cursor-not-allowed';
 
-// The popup is a floating glass sheet. It is the ONE surface here that blurs: the menu itself holds
-// still, while the rows in its viewport scroll unfiltered over the blur it has already produced.
-// Putting the filter on ITEM_CLASS instead would re-read the backdrop on every scroll frame.
+// Only the popup blurs; rows and triggers remain unfiltered. Even a stationary popup can
+// resample a changing backdrop, so do not multiply that work by filtering individual rows.
 const CONTENT_CLASS =
-  'z-[100] overflow-hidden rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  'z-[100] overflow-hidden rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'font-mono text-[12px] text-proto-ink shadow-[shadow:var(--shadow-float)] ' +
+  'font-mono text-[12px] text-proto-ink shadow-[shadow:var(--material-overlay-shadow)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
@@ -71,7 +70,10 @@ const DENSITY_FONT: CSSProperties = {
 const DENSITY_STYLE: Record<SelectDensity, CSSProperties> = {
   // `--r-chip`, not `--r-control`: at this height the trigger is a chip, and the control radius
   // would clamp to a full pill and stop reading as a box with a value in it.
-  compact: { ...DENSITY_FONT, padding: '2px 7px', borderRadius: 'var(--r-chip)' },
+  compact: {
+    ...DENSITY_FONT, padding: '2px 7px', borderRadius: 'var(--r-chip)',
+    background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)',
+  },
   bare: {},
 };
 

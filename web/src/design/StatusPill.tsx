@@ -1,3 +1,8 @@
+// input:  Status tones, semantic color pairs and material sheen
+// output: StatusPill, StatusPillProps
+// pos:    Semantic status labels with restrained surface texture
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { statusTone, type Tone } from './tone';
 
 // Token-driven status pill (design §5 pill palette). No hard-coded hex — the
@@ -13,7 +18,8 @@ const TONE_CLASS: Record<Tone, string> = {
 };
 
 const BASE =
-  'inline-flex items-center rounded-[var(--r-pill)] px-1g py-0.5g font-mono text-ui leading-none';
+  'inline-flex items-center rounded-[var(--r-pill)] px-1g py-0.5g font-mono text-ui leading-none ' +
+  'bg-[image:var(--material-sheen)]';
 
 export interface StatusPillProps {
   /** Explicit tone; takes precedence over `status`. */

@@ -1,6 +1,6 @@
 // input:  Design primitives, react-test-renderer, Vitest
-// output: Semantic foreground and feedback presentation checks
-// pos:    Guard readable feedback and unfiltered drawer bodies
+// output: Semantic foreground, material and feedback checks
+// pos:    Guard material roles, readable ink and unfiltered bodies
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { create } from 'react-test-renderer';
@@ -15,6 +15,8 @@ vi.mock('@radix-ui/react-dialog', () => {
 });
 
 import { Button } from './Button';
+import { Card } from './Card';
+import { StatusPill } from './StatusPill';
 import { DegradedState } from './DegradedState';
 import { Drawer } from './Drawer';
 import { EmptyState } from './EmptyState';
@@ -32,6 +34,29 @@ describe('Shared presentation', () => {
     expect(classes(danger)).toContain('text-[var(--ink-solid-fg)]');
     expect(classes(primary)).not.toContain('outline-none');
     expect(primary.props.type).toBe('button');
+  });
+
+  it('defaults cards to unblurred material and keeps an opaque reading opt-in', () => {
+    const glass = create(<Card padded>Details</Card>).root.findByType('div');
+    const opaque = create(<Card variant="opaque" padded>Read</Card>).root.findByType('div');
+    expect(classes(glass)).toContain('[background:var(--material-card-bg)]');
+    expect(classes(glass)).toContain('shadow-[shadow:var(--material-card-shadow)]');
+    expect(classes(glass)).not.toContain('backdrop-filter');
+    expect(classes(opaque)).toContain('bg-surface-card');
+    expect(classes(opaque)).not.toContain('material-card-bg');
+    for (const node of [glass, opaque]) expect(classes(node)).toContain('p-2g');
+  });
+
+  it('textures controls without boxing ghost actions or changing status color pairs', () => {
+    const secondary = create(<Button>Cancel</Button>).root.findByType('button');
+    const ghost = create(<Button variant="ghost">More</Button>).root.findByType('button');
+    const pill = create(<StatusPill tone="failed" label="Failed" />).root.findByType('span');
+    expect(classes(secondary)).toContain('[background:var(--material-control-bg)]');
+    expect(classes(secondary)).not.toContain('backdrop-filter');
+    expect(classes(ghost)).not.toContain('material-');
+    expect(classes(pill)).toContain('bg-pill-failed-bg text-pill-failed-fg');
+    expect(classes(pill)).toContain('bg-[image:var(--material-sheen)]');
+    expect(classes(pill)).not.toMatch(/shadow|backdrop-filter/);
   });
 
   it('keeps empty-state guidance opaque and actions intact', () => {
@@ -59,6 +84,10 @@ describe('Shared presentation', () => {
     expect(part('Root').props.onOpenChange).toBe(onOpenChange);
     expect(part('Root').props.open).toBe(true);
     expect(classes(part('Content'))).toContain('left-0');
+    expect(classes(part('Content'))).toContain('[background:var(--material-overlay-bg)]');
+    expect(classes(part('Content'))).toContain('z-50');
+    expect(classes(part('Overlay'))).toContain('z-40');
+    expect(classes(part('Overlay'))).toContain('[backdrop-filter:var(--material-scrim-filter)]');
     expect(classes(part('Content'))).toContain('[backdrop-filter:var(--glass-filter)]');
     expect(classes(part('Close'))).not.toContain('outline-none');
     const body = root.findAllByType('div').find(node => classes(node).includes('overflow-y-auto'))!;

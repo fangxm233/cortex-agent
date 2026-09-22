@@ -4,7 +4,7 @@ SPA entry, responsive routing, providers and global presentation styles.
 
 | filename | role | function |
 |---|---|---|
-| index.css | style | Define scrollbars, focus, base styles and motion |
+| index.css | style | Define base styles, palette material and focus |
 | main.tsx | entry | Mount the application |
 | providers.tsx | provider | Compose application-wide providers |
 | responsive-route.test.tsx | test | Test responsive route selection |

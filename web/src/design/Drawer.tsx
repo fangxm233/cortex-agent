@@ -1,6 +1,6 @@
 // input:  Radix Dialog, React, shared focus-visible styles
 // output: Drawer, DrawerClose, DrawerProps, DrawerSide
-// pos:    Accessible side sheets with readable body and close control
+// pos:    Accessible material sheets with unfiltered reading bodies
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -8,7 +8,8 @@ import type { ReactNode } from 'react';
 
 // Radix owns focus trapping, dismissal, scroll locking and focus restoration.
 const OVERLAY_CLASS =
-  'fixed inset-0 z-40 bg-state-ink/40 ' +
+  'fixed inset-0 z-40 bg-[var(--overlay-scrim)] ' +
+  '[backdrop-filter:var(--material-scrim-filter)] [-webkit-backdrop-filter:var(--material-scrim-filter)] ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out ' +
   'motion-reduce:animate-none';
 
@@ -17,12 +18,12 @@ const SIDE_CLASS = {
   left: 'left-0 data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left',
 } as const;
 
-// Only the stationary sheet blurs; the scrolling body and its cards stay unfiltered.
+// The sheet uses the full glass filter; the scrim is lighter and the body stays unfiltered.
 const CONTENT_CLASS =
   'fixed inset-y-0 z-50 flex h-full w-[92vw] max-w-md flex-col gap-2g ' +
-  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  'rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'p-3g shadow-[shadow:var(--shadow-float)] focus:outline-none motion-reduce:animate-none ';
+  'p-3g shadow-[shadow:var(--material-overlay-shadow)] focus:outline-none motion-reduce:animate-none ';
 
 const CLOSE_CLASS =
   '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-proto-muted transition-colors ' +

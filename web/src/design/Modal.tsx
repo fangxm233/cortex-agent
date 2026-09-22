@@ -1,6 +1,6 @@
 // input:  Radix Dialog, React, shared focus-visible styles
 // output: Modal, ModalClose, modal styling helpers
-// pos:    Accessible dialogs with readable standard chrome
+// pos:    Accessible material dialogs with opt-in bare chrome
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -10,23 +10,22 @@ import type { CSSProperties, ReactNode } from 'react';
 // chrome modes. Standard retains the token-styled shell; bare only removes visible design chrome so
 // approved prototype shells can keep their exact inline appearance without giving up dialog semantics.
 //
-// The standard panel is a floating glass sheet: `--glass-2` over its own `backdrop-filter`, lifted
-// by `--shadow-float`, whose hairline ring replaces the border it used to carry. This is the one
-// element in the file that may blur — it is a single overlay that holds still while the body
-// scrolls inside it, so the backdrop is sampled once per open rather than once per scroll frame.
+// The standard sheet uses overlay material and blur; its scrolling body stays unfiltered.
+// A stationary sheet can still resample a changing backdrop. The scrim uses a lighter filter.
 // `bare` is deliberately left unfiltered: its whole contract is that the call site owns the look.
 
 const OVERLAY_BASE_CLASS =
-  'fixed inset-0 bg-state-ink/40 ' +
+  'fixed inset-0 bg-[var(--overlay-scrim)] ' +
+  '[backdrop-filter:var(--material-scrim-filter)] [-webkit-backdrop-filter:var(--material-scrim-filter)] ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out ' +
   'motion-reduce:animate-none ';
 
 const CONTENT_BASE_CLASS =
   'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ' +
   'flex max-h-[85vh] w-[90vw] flex-col gap-2g ' +
-  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  'rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'p-3g shadow-[shadow:var(--shadow-float)] ' +
+  'p-3g shadow-[shadow:var(--material-overlay-shadow)] ' +
   'focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out ' +
   'motion-reduce:animate-none ';
