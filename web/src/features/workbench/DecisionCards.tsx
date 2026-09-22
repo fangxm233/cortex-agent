@@ -1,3 +1,8 @@
+// input:  DecisionItem, transcript mutations, ChatMarkdown
+// output: DecisionCard, DecisionCardGroup, useDecisionActions
+// pos:    Expandable decision records and response controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
@@ -9,6 +14,7 @@ import { messageTimeLabel } from './transcript-vm';
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from './decision-vm';
 
 const mono = "'IBM Plex Mono',monospace";
+const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-proto-accent';
 
 // Decision cards (send_decision) — the agent announced choices it made on the user's behalf.
 // Non-blocking by design: the card is a record first, an entry point second. Approve only writes
@@ -57,7 +63,7 @@ function actionLabel(kind: DecisionActionKind, L: Vocab): string {
 
 function DecBadge({ L }: { L: Vocab }): JSX.Element {
   return (
-    <span style={{ font: `700 8px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+    <span style={{ font: `600 11px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
       {L.wbDecBadge}
     </span>
   );
@@ -65,7 +71,7 @@ function DecBadge({ L }: { L: Vocab }): JSX.Element {
 
 function Chip({ chip }: { chip: { label: string; fg: string; bg: string } }): JSX.Element {
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: '2.5px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>
       {chip.label}
     </span>
   );
@@ -78,7 +84,7 @@ type Mode = 'view' | 'explain' | 'revise';
 function Section({ label, text }: { label: string; text: string }): JSX.Element {
   return (
     <div style={{ marginTop: 13 }}>
-      <div style={{ font: `600 10px ${mono}`, letterSpacing: '.05em', color: 'var(--proto-muted-3)', paddingBottom: 4 }}>{label}</div>
+      <div style={{ font: `600 11px ${mono}`, letterSpacing: '.02em', color: 'var(--proto-muted)', paddingBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--proto-ink-2)' }}>
         <ChatMarkdown text={text} />
       </div>
@@ -90,7 +96,7 @@ function Section({ label, text }: { label: string; text: string }): JSX.Element 
 function Caret({ open }: { open: boolean }): JSX.Element {
   return (
     <span
-      style={{ width: 12, height: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .16s ease' }}
+      style={{ width: 12, height: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-muted)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .16s ease' }}
     >
       <svg width={7} height={10} viewBox="0 0 7 10" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="M1.5 1 5.5 5l-4 4" />
@@ -135,19 +141,21 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
   };
 
   return (
-    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)' , boxSizing: 'border-box' }}>
       {/* Header toggles disclosure; response actions live only in the expanded body. */}
-      <div
-        role="button"
+      <button
+        type="button"
+        className={focusClass}
+        aria-expanded={open}
         data-decision-toggle={d.id}
         onClick={toggle}
-        style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 38, padding: '6px 11px', boxSizing: 'border-box', cursor: 'pointer' }}
+        style={{ width: '100%', textAlign: 'left', borderRadius: 'var(--r-card)', display: 'flex', alignItems: 'center', gap: 9, minHeight: 38, padding: '6px 11px', boxSizing: 'border-box', cursor: 'pointer' }}
       >
         <DecBadge L={L} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
         {chip && <Chip chip={chip} />}
         <Caret open={open} />
-      </div>
+      </button>
 
       {/* body — 背景 → 决策 → 理由, the action log when non-empty, then the response row */}
       {open && (
@@ -156,13 +164,13 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
           <Section label={L.wbDecDecision} text={d.decision} />
           <Section label={L.wbDecReasoning} text={d.reasoning} />
           {d.actions.length > 0 && (
-            <div style={{ marginTop: 14, border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 'var(--r-card)', padding: '10px 13px' }}>
-              <div style={{ font: `600 10px ${mono}`, letterSpacing: '.05em', color: 'var(--proto-muted-3)', paddingBottom: 6 }}>{L.wbDecLog}</div>
+            <div style={{ marginTop: 14, border: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)', borderRadius: 'var(--r-card)' , padding: '10px 13px' }}>
+              <div style={{ font: `600 11px ${mono}`, letterSpacing: '.02em', color: 'var(--proto-muted)', paddingBottom: 6 }}>{L.wbDecLog}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {d.actions.map((a, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12, lineHeight: 1.5 }}>
-                    <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', flex: 'none' }}>{messageTimeLabel(a.ts) ?? ''}</span>
-                    <span style={{ fontWeight: 600, color: a.action === 'approve' ? 'var(--proto-success)' : 'var(--proto-muted-2)', flex: 'none' }}>{actionLabel(a.action, L)}</span>
+                    <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , flex: 'none' }}>{messageTimeLabel(a.ts) ?? ''}</span>
+                    <span style={{ fontWeight: 600, color: a.action === 'approve' ? 'var(--proto-success)' : 'var(--proto-muted)' , flex: 'none' }}>{actionLabel(a.action, L)}</span>
                     {a.message && <span style={{ color: 'var(--proto-muted)', overflowWrap: 'anywhere', minWidth: 0 }}>{a.message}</span>}
                   </div>
                 ))}
@@ -172,60 +180,71 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
 
           {actions && (
             <div style={{ marginTop: 13 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                 {approved ? (
                   <span style={{ height: 30, borderRadius: 'var(--r-control)', background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, padding: '0 14px' }}>
                     ✓ {L.wbDecApproved}
                   </span>
                 ) : (
-                  <span
-                    role="button"
+                  <button
+                    type="button"
+                    className={focusClass}
+                    disabled={busy}
                     onClick={approve}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 14px', color: 'var(--ink-solid-fg)', background: busy ? 'var(--proto-faint)' : 'var(--proto-ink)', cursor: busy ? 'not-allowed' : 'pointer', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 14px', color: busy ? 'var(--proto-muted)' : 'var(--ink-solid-fg)', background: busy ? 'var(--proto-gray)' : 'var(--proto-ink)' , cursor: busy ? 'not-allowed' : 'pointer', flex: 'none' }}
                   >
                     ✓ {L.wbDecApprove}
-                  </span>
+                  </button>
                 )}
-                <span
-                  role="button"
+                <button
+                  type="button"
+                  className={focusClass}
+                  aria-pressed={mode === 'explain'}
                   onClick={() => into('explain')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--proto-card)' , color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecExplain}
-                </span>
-                <span
-                  role="button"
+                </button>
+                <button
+                  type="button"
+                  className={focusClass}
+                  aria-pressed={mode === 'revise'}
                   onClick={() => into('revise')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--proto-card)' , color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecRevise}
-                </span>
+                </button>
                 <span style={{ flex: 1 }} />
-                <span
-                  role="button"
+                <button
+                  type="button"
+                  className={focusClass}
                   onClick={collapse}
-                  style={{ fontSize: 12, fontWeight: 500, color: 'var(--proto-muted-2)', padding: '6px 10px', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 500, color: 'var(--proto-muted)', padding: '6px 10px', borderRadius: 'var(--r-control)' , cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecCollapse}
-                </span>
+                </button>
               </div>
               {mode !== 'view' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 9, alignItems: 'flex-end' }}>
                   <textarea
+                    className={focusClass}
+                    aria-label={mode === 'explain' ? L.wbDecExplain : L.wbDecRevise}
                     autoFocus
                     rows={2}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--proto-card)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
-                  <span
-                    role="button"
+                  <button
+                    type="button"
+                    className={focusClass}
+                    disabled={!canSend}
                     onClick={send}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: 'var(--ink-solid-fg)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-faint)', cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: canSend ? 'var(--ink-solid-fg)' : 'var(--proto-muted)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-gray)' , cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none' }}
                   >
                     {L.wbDecSend}
-                  </span>
+                  </button>
                 </div>
               )}
             </div>

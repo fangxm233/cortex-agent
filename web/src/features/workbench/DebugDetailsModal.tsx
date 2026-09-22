@@ -1,3 +1,8 @@
+// input:  React, Modal, vocabulary
+// output: DebugDetailsModal, DebugInspectButton, value helpers
+// pos:    Readable session and tool debug inspection
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { MouseEvent } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
@@ -37,10 +42,10 @@ function DebugBlock({ label, status, count, children }: {
   const L = useVocab();
   return (
     <section className="flex flex-col gap-1g">
-      <div className="flex items-center gap-1g font-mono text-[10px] font-semibold tracking-[.06em] text-proto-muted">
+      <div className="flex items-center gap-1g font-mono text-[11px] font-semibold tracking-[.06em] text-proto-muted">
         <span>{label}</span>
-        {status ? <span className="rounded border border-proto-line-2 bg-proto-alt px-1g py-[1px] text-[9px]">{status}</span> : null}
-        {count !== undefined ? <span className="ml-auto font-normal tracking-normal text-proto-faint">{count} {L.wbDebugCharacters}</span> : null}
+        {status ? <span className="rounded border border-proto-line-2 bg-proto-alt px-1g py-[1px] text-[11px]">{status}</span> : null}
+        {count !== undefined ? <span className="ml-auto font-normal tracking-normal text-proto-muted">{count} {L.wbDebugCharacters}</span> : null}
       </div>
       <pre className="max-h-[38vh] overflow-auto whitespace-pre-wrap break-words rounded-card border border-proto-line-2 bg-proto-alt p-2g font-mono text-[11px] leading-relaxed text-proto-ink-2">{children}</pre>
     </section>
@@ -74,7 +79,7 @@ export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'def
 }): JSX.Element {
   const L = useVocab();
   const label = L.wbDebugInspect;
-  const sizeClass = compact ? 'h-[18px] min-w-[22px] px-[4px] text-[8px]' : 'h-[24px] min-w-[28px] px-[5px] text-[9px]';
+  const sizeClass = compact ? 'h-[22px] min-w-[24px] px-[4px] text-[11px]' : 'h-[24px] min-w-[28px] px-[5px] text-[11px]';
   const hoverClass = hoverGroup === 'tool-call'
     ? 'group-hover/tool-call:pointer-events-auto group-hover/tool-call:opacity-100'
     : 'group-hover:pointer-events-auto group-hover:opacity-100';
@@ -84,7 +89,7 @@ export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'def
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`pointer-events-none ${sizeClass} rounded-[var(--r-chip)] bg-[var(--glass-2)] shadow-[shadow:var(--shadow-card-subtle),0_0_0_1px_var(--proto-line-2)] font-mono text-proto-muted opacity-0 transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent/30 ${className}`}
+      className={`pointer-events-none ${sizeClass} rounded-[var(--r-chip)] bg-proto-card border border-proto-line-2 font-mono text-proto-muted opacity-0 transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent ${className}`}
     >
       {'{ }'}
     </button>
@@ -99,6 +104,7 @@ export function DebugDetailsModal({ detail, onClose }: { detail: DebugDetail | n
       title={title}
       open={detail !== null}
       size={DEBUG_MODAL_SIZE}
+      bodyStyle={{ background: 'var(--proto-card)', borderRadius: 'var(--r-card)', padding: 12 }}
       layer="nested"
       onOpenChange={(open) => { if (!open) onClose(); }}
     >

@@ -1,3 +1,8 @@
+// input:  Workbench dialogs, React renderer, modal test harness
+// output: Dialog shell, dismissal and action regression tests
+// pos:    Workbench modal presentation integration coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -45,6 +50,7 @@ vi.mock('@/i18n', () => ({
 import { NewProjectModal } from './NewProjectModal';
 import { RunListModal } from './RunListModal';
 import { SessionIdModal } from './SessionIdModal';
+import { SessionStatsModal } from './SessionStatsModal';
 
 function render(node: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
@@ -76,6 +82,23 @@ beforeEach(() => {
   harness.copyCalls.length = 0;
 });
 
+describe('glass modal presentation', () => {
+  it.each([
+    <NewProjectModal onClose={vi.fn()} />,
+    <SessionIdModal cortexId="cortex-7" backendUuid="uuid-7" onClose={vi.fn()} />,
+    <SessionStatsModal rows={[]} onClose={vi.fn()} />,
+    <RunListModal row={row()} selectedSessionId={null} onOpenRun={vi.fn()} onClose={vi.fn()} />,
+  ])('keeps a bounded glass shell and native close control', (node) => {
+    const tree = render(node);
+    expect(harness.modalProps.chrome).toBe('bare');
+    expect(harness.modalProps.contentStyle).toMatchObject({
+      background: 'var(--glass-2)', backdropFilter: 'var(--glass-filter)',
+      boxShadow: 'var(--shadow-float)', maxWidth: 'calc(100vw - 40px)',
+    });
+    expect(tree.root.findByProps({ 'aria-label': 'Close' }).type).toBe('button');
+  });
+});
+
 describe('NewProjectModal shared shell', () => {
   it('uses controlled bare chrome and keeps Enter submission', () => {
     const onClose = vi.fn();
@@ -99,7 +122,7 @@ describe('SessionIdModal shared shell', () => {
     act(() => harness.modalProps.onOpenChange(false));
     expect(onClose).toHaveBeenCalledOnce();
 
-    const copy = tree.root.findAllByType('span').find((node) => node.children.includes('Copy'))!;
+    const copy = tree.root.findAllByType('button').find((node) => node.children.includes('Copy'))!;
     act(() => copy.props.onClick());
     expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId']]);
   });

@@ -1,3 +1,8 @@
+// input:  Modal, session ID rows, clipboard feedback
+// output: SessionIdModal
+// pos:    Session identifier display and copy dialog
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';
@@ -52,40 +57,47 @@ export function SessionIdModal({
         transform: 'translate(-50%,-50%)',
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 480,
-        background: 'var(--proto-card)',
+        maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100dvh - 40px)',
+        background: 'var(--glass-2)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-overlay-strong)',
+        boxShadow: 'var(--shadow-float)',
         zIndex: 61,
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
-        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
-          <span
+          <button
+            type="button"
+            aria-label="Close"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             style={{
               marginLeft: 'auto',
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 5,
-              padding: '2px 6px',
+              borderRadius: 'var(--r-chip)',
+              padding: '5px 8px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
-        <div style={{ padding: '14px 20px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: 'var(--proto-card)', padding: '14px 20px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map((row) => (
             <div key={row.key}>
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  letterSpacing: '.05em',
-                  color: 'var(--proto-muted-3)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '.02em',
+                  color: 'var(--proto-muted)',
                   marginBottom: 6,
                 }}
               >
@@ -113,21 +125,24 @@ export function SessionIdModal({
                 >
                   {row.value}
                 </span>
-                <span
+                <button
+                  type="button"
+                  disabled={row.value === '—'}
+                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
                   onClick={() => copyRow(row.key, row.value)}
                   style={{
                     flex: 'none',
-                    font: `500 9.5px ${mono}`,
-                    color: copiedKey === row.key ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+                    font: `500 11px ${mono}`,
+                    color: copiedKey === row.key ? 'var(--proto-accent)' : 'var(--proto-muted)',
                     border: '1px solid var(--proto-line-3)',
-                    borderRadius: 6,
-                    padding: '3px 8px',
-                    cursor: row.value === '—' ? 'default' : 'pointer',
-                    opacity: row.value === '—' ? 0.4 : 1,
+                    borderRadius: 'var(--r-chip)',
+                    padding: '5px 8px',
+                    background: row.value === '—' ? 'var(--proto-gray)' : 'var(--proto-card)',
+                    cursor: row.value === '—' ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {copiedKey === row.key ? L.wbCopied : L.wbCopy}
-                </span>
+                </button>
               </div>
             </div>
           ))}

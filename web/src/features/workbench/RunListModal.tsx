@@ -1,3 +1,8 @@
+// input:  Modal, schedule rows, run labels, vocabulary
+// output: RunListModal
+// pos:    Scheduled session history and run navigation dialog
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { runOrdinals, unreadRunIds, type ScheduleRow } from './schedule-rail';
@@ -67,9 +72,12 @@ export function RunListModal({
         transform: 'translate(-50%,-50%)',
         width: 400,
         maxWidth: 'calc(100vw - 40px)',
-        background: 'var(--proto-card)',
+        background: 'var(--glass-2)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-overlay-strong)',
+        boxShadow: 'var(--shadow-float)',
+        overflow: 'hidden',
         zIndex: 61,
         display: 'flex',
         flexDirection: 'column',
@@ -85,41 +93,51 @@ export function RunListModal({
             <div style={{ fontSize: 13.5, fontWeight: 650, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {row.title}
             </div>
-            {sub && <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)', marginTop: 2 }}>{sub}</div>}
+            {sub && <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , marginTop: 2 }}>{sub}</div>}
           </div>
           {sched && onManage && (
-            <span
+            <button
+              type="button"
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
               data-action="run-list-manage"
               onClick={onManage}
-              style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none', cursor: 'pointer' }}
+              style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none', cursor: 'pointer' }}
             >
               {L.wbSchedManage}
-            </span>
+            </button>
           )}
-          <span
+          <button
+            type="button"
+            aria-label="Close"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             data-action="run-list-close"
             onClick={onClose}
-            style={{ marginLeft: sched && onManage ? 0 : 'auto', fontSize: 12, color: 'var(--proto-muted-3)', flex: 'none', cursor: 'pointer', padding: '0 2px' }}
+            style={{ marginLeft: sched && onManage ? 0 : 'auto', fontSize: 12, color: 'var(--proto-muted)', flex: 'none', cursor: 'pointer', padding: '5px 8px', borderRadius: 'var(--r-chip)'  }}
           >
             ✕
-          </span>
+          </button>
         </div>
         {/* Column captions are design constants (mono uppercase in both languages), not copy. */}
-        <div style={{ ...GRID, padding: '8px 18px 6px', font: `600 9.5px ${mono}`, color: 'var(--proto-muted-3)', letterSpacing: '.05em', flex: 'none' }}>
+        <div style={{ ...GRID, background: 'var(--proto-card)', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
           <span>RUN</span>
           <span>FIRED</span>
           <span style={{ textAlign: 'right' }}>COST</span>
         </div>
-        <div style={{ overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ background: 'var(--proto-card)', overflowY: 'auto', minHeight: 0 }}>
           {row.runs.map((r, i) => {
             const active = r.sessionId === selectedSessionId;
             return (
-              <div
+              <button
+                type="button"
+                aria-pressed={active}
+                className="focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-proto-accent"
                 key={r.sessionId}
                 data-run-row={r.sessionId}
                 onClick={() => onOpenRun(r.sessionId)}
                 style={{
                   ...GRID,
+                  width: '100%',
+                  textAlign: 'left',
                   cursor: 'pointer',
                   background: active ? 'var(--proto-accent-bg)' : 'transparent',
                   borderTop: i === 0 ? 'none' : '1px solid var(--proto-gray)',
@@ -129,35 +147,37 @@ export function RunListModal({
                   #{ordinals.get(r.sessionId)}
                   {r.unread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)' }} />}
                 </span>
-                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-2)' }}>{sessionStamp(r, now)}</span>
-                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-3)', textAlign: 'right' }}>
+                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{sessionStamp(r, now)}</span>
+                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', textAlign: 'right' }}>
                   {r.costUsd != null ? formatUsd(r.costUsd) : '—'}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '10px 18px 13px', borderTop: '1px solid var(--proto-line)', flex: 'none' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted-2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--proto-card)', padding: '10px 18px 13px', borderTop: '1px solid var(--proto-line)', flex: 'none' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)'  }}>
             {L.wbAllRuns.replace('{n}', String(row.runs.length))}
           </span>
           {onMarkAllRead && unreadIds.length > 0 ? (
-            <span
+            <button
+              type="button"
+              disabled={markAllPending}
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
               data-action="run-list-mark-read"
               onClick={() => { if (!markAllPending) onMarkAllRead(unreadIds); }}
               style={{
                 marginLeft: 'auto',
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: 600,
-                color: 'var(--proto-accent)',
-                cursor: markAllPending ? 'default' : 'pointer',
-                opacity: markAllPending ? 0.5 : 1,
+                color: markAllPending ? 'var(--proto-muted)' : 'var(--proto-accent)',
+                cursor: markAllPending ? 'not-allowed' : 'pointer',
               }}
             >
               {L.wbSchedMarkAllRead.replace('{n}', String(unreadIds.length))}
-            </span>
+            </button>
           ) : (
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{L.wbSchedRunListHint}</span>
+            <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>{L.wbSchedRunListHint}</span>
           )}
         </div>
     </Modal>

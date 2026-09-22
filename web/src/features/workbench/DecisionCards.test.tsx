@@ -1,3 +1,8 @@
+// input:  DecisionCard, React renderer, decision fixtures
+// output: Decision response and disclosure regression tests
+// pos:    Decision card presentation and action coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
@@ -21,7 +26,7 @@ function label(n: ReactTestInstance): string {
 }
 
 function findButtons(root: ReactTestInstance, text: string): ReactTestInstance[] {
-  return root.findAll((n) => n.props?.role === 'button' && label(n).trim() === text);
+  return root.findAll((n) => n.type === 'button' && label(n).trim() === text);
 }
 
 function findButton(root: ReactTestInstance, text: string): ReactTestInstance {
@@ -52,7 +57,13 @@ describe('DecisionCard responses', () => {
 
   it('an approved decision offers no approve button — only the sealed stamp', () => {
     const tree = mount(dec([{ action: 'approve', ts: T }]), fakeActions());
+    const toggleButton = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });
+    expect(toggleButton.type).toBe('button');
+    expect(toggleButton.props['aria-expanded']).toBe(false);
+    expect(toggleButton.parent?.props.style.background).toBe('var(--proto-card)');
+    expect(toggleButton.parent?.props.style.opacity).toBeUndefined();
     toggle(tree);
+    expect(toggleButton.props['aria-expanded']).toBe(true);
     expect(findButtons(tree.root, '✓ Approve')).toHaveLength(0);
   });
 
@@ -61,6 +72,7 @@ describe('DecisionCard responses', () => {
     const tree = mount(dec(), actions);
     toggle(tree);
     act(() => { findButton(tree.root, 'Revise').props.onClick(); });
+    expect(findButton(tree.root, 'Send').props.disabled).toBe(true);
     act(() => { findButton(tree.root, 'Send').props.onClick(); });
     expect(actions.respond).not.toHaveBeenCalled();
 

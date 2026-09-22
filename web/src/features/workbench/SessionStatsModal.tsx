@@ -1,3 +1,8 @@
+// input:  Modal, vocabulary, SessionStatsRow
+// output: SessionStatsModal
+// pos:    Compact session totals dialog
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import type { SessionStatsRow } from './session-stats';
@@ -36,32 +41,39 @@ export function SessionStatsModal({
         transform: 'translate(-50%,-50%)',
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 420,
-        background: 'var(--proto-card)',
+        maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100dvh - 40px)',
+        background: 'var(--glass-2)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-overlay-strong)',
+        boxShadow: 'var(--shadow-float)',
         zIndex: 61,
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionStats}</span>
-        <span
+        <button
+          type="button"
+          aria-label="Close"
+          className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
           onClick={onClose}
           style={{
             marginLeft: 'auto',
-            font: `500 9.5px ${mono}`,
-            color: 'var(--proto-muted-3)',
+            font: `500 11px ${mono}`,
+            color: 'var(--proto-muted)',
             border: '1px solid var(--proto-line)',
-            borderRadius: 5,
-            padding: '2px 6px',
+            borderRadius: 'var(--r-chip)',
+            padding: '5px 8px',
             cursor: 'pointer',
           }}
         >
           esc
-        </span>
+        </button>
       </div>
 
-      <div style={{ padding: '12px 20px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ background: 'var(--proto-card)', padding: '12px 20px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {rows.map((row) => (
           <div
             key={row.key}
@@ -74,7 +86,7 @@ export function SessionStatsModal({
               borderBottom: '1px solid var(--proto-line)',
             }}
           >
-            <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, color: 'var(--proto-muted)' , flex: 1, minWidth: 0 }}>
               {row.label}
             </span>
             <span style={{ font: `600 12.5px ${mono}`, color: 'var(--proto-ink)', flex: 'none' }}>
@@ -82,7 +94,7 @@ export function SessionStatsModal({
             </span>
           </div>
         ))}
-        <div style={{ fontSize: 10.5, lineHeight: 1.5, color: 'var(--proto-muted-3)', paddingTop: 10 }}>
+        <div style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--proto-muted)', paddingTop: 10 }}>
           {L.wbSessionStatsHint}
         </div>
       </div>
