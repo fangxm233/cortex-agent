@@ -1,8 +1,7 @@
-// 1a 会话列表 — the current project's direct sessions, day-grouped, newest first (scheme 1a L86-128).
-// The FAB opens a new-session draft; a row drills into the chat page (1b). The header clock button
-// (scheme-mobile 8a) opens the Scheduled sheet (8b/8c) — scheduled runs never mix into the day
-// timeline. Real tRPC: sessions.list (direct + scheduled), schedules.list and the pending-approval
-// count behind the banner, all project-scoped.
+// input:  Project sessions, schedules, connection state
+// output: MSessionListScreen
+// pos:    Connect mobile session list and scheduled runs
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -27,7 +26,6 @@ const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
     earlier: 'Earlier',
     empty: 'No sessions yet',
     sessionCount: '{n} sessions',
-    approvalsPending: '{n} approvals pending',
   },
   zh: {
     title: '会话',
@@ -36,7 +34,6 @@ const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
     earlier: '更早',
     empty: '暂无会话',
     sessionCount: '{n} 个会话',
-    approvalsPending: '{n} 个待审批',
   },
 };
 
@@ -81,15 +78,12 @@ export function MSessionListScreen() {
   const schedulesQuery = useQuery(
     trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
   );
-  // Same query key MobileShell runs for the Tab badge → this shares its cache, not a second fetch.
-  const approvalsQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
   const sessions = sessionsQuery.data ?? [];
   const groups = useMemo(() => buildSessionGroups(sessions), [sessions]);
   const scheduleRows = useMemo(
     () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? [], Date.now()),
     [schedulesQuery.data, scheduledQuery.data],
   );
-  const approvalCount = approvalsQuery.data?.length ?? 0;
 
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -111,11 +105,6 @@ export function MSessionListScreen() {
         scheduled={
           scheduleRows.length > 0
             ? { unread: unreadScheduleCount(scheduleRows), onOpen: () => setSheetOpen(true) }
-            : undefined
-        }
-        approvals={
-          approvalCount > 0
-            ? { count: approvalCount, onOpen: () => navigate('/m/approvals') }
             : undefined
         }
         onOpen={(id) => navigate(`/m/session/${id}`)}

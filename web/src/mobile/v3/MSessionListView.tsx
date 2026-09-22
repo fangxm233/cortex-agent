@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MSessionListView
-// pos:    Mobile SessionListView presentation
+// pos:    Mobile session groups and scheduled entry
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
@@ -16,8 +16,6 @@ export interface MSessionListCopy {
   empty: string;
   /** Group-header count, `{n}` → the group's session count. */
   sessionCount: string;
-  /** Approvals banner, `{n}` → the pending-approval count. */
-  approvalsPending: string;
 }
 
 function groupLabel(copy: MSessionListCopy, key: MSessionGroup['key']): string {
@@ -132,33 +130,6 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
         </span>
       )}
     </div>
-  );
-}
-
-function ApprovalsBanner({ label, onOpen }: { label: string; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      style={{
-        flex: 'none',
-        margin: '0 16px 12px',
-        padding: '12px 14px',
-        background: 'var(--proto-amber-bg)',
-        border: '1px solid var(--proto-amber-border)',
-        borderRadius: 'var(--r-card)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        cursor: 'pointer',
-      }}
-    >
-      <MDot color="var(--proto-amber)" size={8} style={{ animation: 'cxpulse 2s ease-in-out infinite' }} />
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>{label}</span>
-      <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--proto-amber-fg)' }}>
-        ›
-      </span>
-    </button>
   );
 }
 
@@ -360,7 +331,6 @@ export function MSessionListView({
   presence,
   newLabel,
   scheduled,
-  approvals,
   onOpen,
   onNew,
 }: {
@@ -372,8 +342,6 @@ export function MSessionListView({
   newLabel: string;
   /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
   scheduled?: { unread: number; onOpen: () => void };
-  /** Pending-approval banner; hidden while the count is 0. */
-  approvals?: { count: number; onOpen: () => void };
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
@@ -381,19 +349,11 @@ export function MSessionListView({
     <MScreen
       label="1a 会话列表"
       header={
-        <>
-          <MTabHeader
-            title={copy.title}
-            leading={<BrandTile presence={presence} />}
-            trailing={scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
-          />
-          {approvals && approvals.count > 0 && (
-            <ApprovalsBanner
-              label={copy.approvalsPending.replace('{n}', String(approvals.count))}
-              onOpen={approvals.onOpen}
-            />
-          )}
-        </>
+        <MTabHeader
+          title={copy.title}
+          leading={<BrandTile presence={presence} />}
+          trailing={scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
+        />
       }
       overlay={
         <button type="button" onClick={onNew} style={FAB_STYLE}>

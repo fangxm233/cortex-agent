@@ -5,7 +5,7 @@
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { MC, MCard, MGroupLabel, MPill, MScrollBody } from '../ui/kit';
+import { MC, MCard, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
 import { MTasksView, type MTasksCopy } from './MTasksView';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 
@@ -13,7 +13,7 @@ const noop = () => {};
 const taskCopy = { title: 'Tasks', done: 'Done' } as MTasksCopy;
 const sessionCopy: MSessionListCopy = {
   title: 'Sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier',
-  empty: 'Empty', sessionCount: '{n} sessions', approvalsPending: '{n} approvals',
+  empty: 'Empty', sessionCount: '{n} sessions',
 };
 
 describe('mobile presentation', () => {
@@ -33,6 +33,15 @@ describe('mobile presentation', () => {
     const card = tree.root.findByType(MCard).findByType('div');
     expect(card.props.style.opacity).toBeUndefined();
     expect(JSON.stringify(tree.toJSON())).toContain(task.text);
+    tree.unmount();
+  });
+
+  it('keeps only the title header and scheduled entry above sessions', () => {
+    const tree = create(<MSessionListView groups={[]} copy={sessionCopy} presence="connected"
+      newLabel="New" scheduled={{ unread: 2, onOpen: noop }} onOpen={noop} onNew={noop} />);
+    expect(tree.root.findByType(MScreen).props.header.type).toBe(MTabHeader);
+    expect(tree.root.findByProps({ 'aria-label': 'Scheduled' }).props.onClick).toBe(noop);
+    expect(tree.root.findByProps({ 'aria-label': '2 unread scheduled' })).toBeTruthy();
     tree.unmount();
   });
 
