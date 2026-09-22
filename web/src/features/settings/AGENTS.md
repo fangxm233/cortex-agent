@@ -47,7 +47,7 @@ Settings panels, shared controls, configuration writers and view models.
 | PluginMcpTab.tsx | view | Edit plugin MCP servers |
 | PluginSkillsTab.tsx | view | Browse skills with sealed source editors |
 | PluginsPanel.container.test.tsx | test | Test plugin lifecycle and skill editing |
-| PluginsPanel.tsx | view | Browse and manage plugins |
+| PluginsPanel.tsx | view | Browse readable plugin rows and nested dialogs |
 | plugins-panel-vm.ts | model | Filter plugins and resolve usage and selection |
 | plugin-ui.tsx | UI | Render glass plugin tiles and inset summaries |
 | ProfilesPanel.tsx | view | Browse and edit responsive agent profile rows |
@@ -58,12 +58,12 @@ Settings panels, shared controls, configuration writers and view models.
 | RuntimeSettingsPanels.tsx | view | Render runtime controls and readable status |
 | runtime-settings-writer.test.tsx | test | Test runtime setting commits |
 | runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
-| settings-kit.tsx | UI | Provide glass rows and raised compact controls |
-| SettingsModal.tsx | entry | Render glass settings shell and guarded sections |
+| settings-kit.tsx | UI | Provide glass rows, raised controls and badges |
+| SettingsModal.tsx | entry | Render glass shell, readable nav and guards |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
-| settings-style.css | style | Apply shared card and control materials |
+| settings-style.css | style | Apply glass materials and solid small-text colors |
 | settings-portals.css | style | Style glass dropdown and nested dialog portals |
 | settings-ui.tsx | UI | Provide glass cards and stable form controls |
 | TemplateDetailPane.tsx | view | Edit sealed template source and assignments |

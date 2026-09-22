@@ -1,5 +1,5 @@
 // input:  plugin queries, settings atoms, authoring tabs
-// output: desktop plugin catalog and nested dialogs
+// output: readable plugin catalog and glass nested dialogs
 // pos:    Responsive plugin master-detail panel
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -78,7 +78,7 @@ function PluginListRow(props: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
           font: `600 13px ${MONO}`, minWidth: 0, overflowWrap: 'anywhere',
-          color: props.active ? 'var(--proto-accent)' : 'var(--proto-ink)',
+          color: props.active ? 'var(--settings-selected-ink)' : 'var(--proto-ink)',
         }}>{props.plugin.id}</span>
         {props.plugin.valid ? null : <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>!</span>}
       </div>

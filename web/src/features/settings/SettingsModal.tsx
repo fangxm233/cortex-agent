@@ -1,5 +1,5 @@
 // input:  config queries, panels, login flow, material tokens
-// output: Scoped settings shell, navigation and dirty-form guard
+// output: Glass settings shell, legible nav and dirty-form guard
 // pos:    Responsive settings shell with readable navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -158,7 +158,7 @@ function navButtonStyle(active: boolean, disabled: boolean): CSSProperties {
     width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 9,
     minHeight: 34, padding: '6px 10px', flex: 'none',
     background: active ? 'var(--proto-accent-bg)' : 'transparent',
-    color: active ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
+    color: active ? 'var(--settings-selected-ink)' : 'var(--proto-ink-2)',
     fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 600 : 500,
     borderRadius: 'var(--r-control)', cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.4 : 1, textAlign: 'left',

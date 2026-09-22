@@ -1,5 +1,5 @@
 /* input: shared material tokens, scrollbars, settings primitives
- * output: Scoped glass cards, stable controls and compact layouts
+ * output: Glass cards, readable fields and compact layouts
  * pos: Shared desktop and mobile settings visual system
  * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
@@ -16,6 +16,8 @@
   --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
   --settings-control-boundary: var(--proto-faint);
+  /* Keep selected small text legible over tinted glass in both themes. */
+  --settings-selected-ink: color-mix(in srgb, var(--proto-accent) 80%, var(--proto-ink));
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
   --r-card: var(--settings-card-radius);
@@ -77,7 +79,8 @@
   line-height: 1.5;
   box-shadow: var(--material-control-shadow);
 }
-.settings-surface .settings-control::placeholder { color: var(--proto-muted-3); opacity: 1; }
+/* Inline-style fields need the same solid placeholder as class-based controls. */
+.settings-surface :where(input, textarea)::placeholder { color: var(--proto-muted-3); opacity: 1; }
 .settings-surface .settings-control:disabled { background: var(--proto-alt); color: var(--proto-muted-2); }
 .settings-surface :where(.settings-button, .settings-select-chip, .settings-chip, .settings-segment, .settings-link-action) {
   min-height: var(--settings-control-height);

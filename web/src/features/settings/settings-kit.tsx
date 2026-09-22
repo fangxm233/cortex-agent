@@ -1,5 +1,5 @@
 // input:  react, material tokens, settings-style.css
-// output: Settings row primitives, layout classes and card styles
+// output: Glass rows, compact controls and solid status text
 // pos:    Readable settings feedback, rows and control primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -161,7 +161,7 @@ export type SPillTone = 'accent' | 'amber' | 'success' | 'danger' | 'neutral';
 const PILL_TONE: Record<SPillTone, CSSProperties> = {
   accent: { background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' },
   amber: { background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)' },
-  success: { background: 'var(--proto-success-bg)', color: 'var(--proto-success)' },
+  success: { background: 'var(--proto-success-bg)', color: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
   danger: { background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' },
   neutral: { background: 'var(--proto-gray)', color: 'var(--proto-muted)' },
 };
@@ -208,7 +208,7 @@ function chipStyle(active: boolean, disabled: boolean): CSSProperties {
     background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
     backgroundImage: active ? 'var(--material-sheen)' : undefined,
     boxShadow: 'var(--material-control-shadow)',
-    color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
+    color: active ? 'var(--settings-selected-ink, var(--proto-accent))' : 'var(--proto-muted)',
     display: 'inline-flex', alignItems: 'center', gap: 5,
     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
   };
