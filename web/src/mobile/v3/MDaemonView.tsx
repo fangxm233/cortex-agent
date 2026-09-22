@@ -1,6 +1,6 @@
 // input:  daemon VM, restart callbacks, mobile Settings controls
 // output: MDaemonView
-// pos:    Mobile daemon status and guarded restart actions
+// pos:    Mobile daemon materials and guarded restart actions
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type CSSProperties } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
@@ -198,7 +198,8 @@ function HoldButton({
         height: 44,
         borderRadius: 'var(--r-control)',
         border: `1.5px solid ${MC.failBorder}`,
-        background: 'var(--proto-card)',
+        background: 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         color: MC.fail,
         display: 'flex',
         alignItems: 'center',
@@ -235,7 +236,8 @@ const OUTLINE_BTN: CSSProperties = {
   height: 44,
   borderRadius: 'var(--r-control)',
   border: `1.5px solid var(--proto-line-3)`,
-  background: 'var(--proto-card)',
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   color: MC.ink,
   display: 'flex',
   alignItems: 'center',

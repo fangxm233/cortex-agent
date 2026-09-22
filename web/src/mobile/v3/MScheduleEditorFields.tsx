@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MScheduleEditorFields
-// pos:    Mobile ScheduleEditorFields presentation
+// pos:    Mobile schedule material inputs and selections
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
@@ -25,7 +25,7 @@ const label: CSSProperties = {
 const field: CSSProperties = {
   width: '100%', minWidth: 0, minHeight: 44, boxSizing: 'border-box',
   border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '8px 10px',
-  background: MC.card, color: MC.ink, fontSize: 16, fontFamily: 'inherit',
+  background: 'var(--material-inset-bg)', color: MC.ink, fontSize: 16, fontFamily: 'inherit',
 };
 const pair: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 };
 
@@ -84,7 +84,8 @@ function TypeButton({ type, form, disabled, label: text, onChange }: {
   return (
     <button type="button" disabled={disabled} aria-pressed={selected} onClick={() => onChange({ type })}
       style={{ border: 0, borderRight: type === 'once' ? 0 : `1px solid ${MC.hairline}`,
-        padding: '8px 2px', minHeight: 44, background: selected ? 'var(--proto-accent-bg)' : MC.card,
+        padding: '8px 2px', minHeight: 44, background: selected ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         color: selected ? MC.run : MC.muted, fontSize: 11 }}>
       {text}
     </button>

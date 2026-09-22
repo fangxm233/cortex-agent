@@ -1,6 +1,6 @@
 // input:  appearance preferences, shared settings controls
 // output: MAppearanceView
-// pos:    Mobile appearance preferences and palette controls
+// pos:    Mobile appearance preferences in material cards
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
@@ -64,7 +64,7 @@ export interface MAppearanceCopy {
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 12 }}>
+    <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 12 }}>
       {children}
     </div>
   );

@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatView
-// pos:    Mobile ChatView presentation
+// pos:    Mobile chat materials with stable sticky tool headers
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
@@ -347,7 +347,7 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? MC.muted : MC.done;
   const icon = v.tone === 'rejected' ? '✗' : v.tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)' }}>
       <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{icon} {v.label}</span>
       <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.text}</span>
     </div>
@@ -444,7 +444,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                   {...(hold ?? {})}
                   data-msg-bubble={canHold ? i : undefined}
                   style={{
-                    background: MC.glassRaised,
+                    background: 'var(--material-card-bg)',
                     border: '1px solid var(--proto-line)',
                     // A message written into the running turn's backend that the model has not read
                     // yet dims its TEXT and nothing else — same bubble, full opacity, no icon, badge
@@ -455,14 +455,14 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                     padding: '10px 14px',
                     fontSize: 15,
                     lineHeight: 1.5,
-                    boxShadow: 'var(--shadow-card)',
+                    boxShadow: 'var(--material-card-shadow)',
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'break-word',
                     wordBreak: 'break-word',
                     WebkitUserSelect: canHold ? 'none' : undefined,
                     userSelect: canHold ? 'none' : undefined,
                     WebkitTouchCallout: canHold ? 'none' : undefined,
-                    ...(isEditingRow ? { boxShadow: `var(--shadow-card), 0 0 0 1.5px ${MC.run}` } : {}),
+                    ...(isEditingRow ? { boxShadow: `var(--material-card-shadow), 0 0 0 1.5px ${MC.run}` } : {}),
                   } as React.CSSProperties}
                 >
                   {row.text}
@@ -559,7 +559,8 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
         gap: 6,
         font: `400 11px ${MONO}`,
         color: MC.muted,
-        background: 'var(--proto-card)',
+        background: 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         border: '1px solid var(--proto-line-2)',
         padding: '3px 10px',
         borderRadius: 'var(--r-pill)',

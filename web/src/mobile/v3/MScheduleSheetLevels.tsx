@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MScheduleSheetLevels
-// pos:    Mobile ScheduleSheetLevels presentation
+// pos:    Mobile schedule lists sharing their sheet material
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { MC, MONO } from '@/mobile/ui/kit';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/workbench/schedule-rail';
@@ -123,7 +123,7 @@ function ScheduleRows({ rows, copy, now, onRow }: {
   onRow: (row: ScheduleRow) => void;
 }) {
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
+    <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       {rows.map((row, index) => <ScheduleRowView key={row.scheduleId} row={row} copy={copy}
         now={now} last={index === rows.length - 1} onRow={onRow} />)}
     </div>
@@ -217,7 +217,7 @@ function RunsList({ row, now, onOpenRun }: {
 }) {
   const ordinals = runOrdinals(row.runs);
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)',
+    <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)',
       overflow: 'hidden', maxHeight: '46vh', overflowY: 'auto' }}>
       {row.runs.map((run, index) => <RunRow key={run.sessionId} run={run}
         ordinal={ordinals.get(run.sessionId)} first={index === 0} now={now} onOpenRun={onOpenRun} />)}

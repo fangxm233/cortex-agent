@@ -1,6 +1,6 @@
 // input:  usage VM, policy controls, mobile Settings primitives
 // output: MUsageView
-// pos:    Mobile provider usage and throttle policy controls
+// pos:    Mobile usage material cards and inset policy fields
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import type {
@@ -57,7 +57,7 @@ const POLICY_INPUT: CSSProperties = {
   width: '100%',
   borderRadius: 'var(--r-chip)',
   border: `1px solid ${MC.divider}`,
-  background: MC.card,
+  background: 'var(--material-inset-bg)',
   color: MC.ink,
   fontSize: 16,
   padding: '7px 22px 7px 8px',
@@ -167,7 +167,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
       style={{
         width: 30, height: 30, borderRadius: 'var(--r-chip)', border: `1px solid ${MC.divider}`, padding: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: MC.card, color: MC.sub,
+        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.sub,
         opacity: props.resetDisabled ? 0.45 : 1, cursor: props.resetDisabled ? 'default' : 'pointer',
       }}
     >
@@ -291,7 +291,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
         onClick={() => props.onSavePolicy(props.fallback.target, { enabled: true, thresholdPercent: null })}
         style={{
           marginTop: 8, borderRadius: 'var(--r-chip)', border: `1px solid ${MC.divider}`, padding: '7px 10px',
-          background: MC.card, color: MC.sub, fontSize: 10.5, fontWeight: 650,
+          background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.sub, fontSize: 10.5, fontWeight: 650,
           opacity: pending ? 0.45 : 1, cursor: pending ? 'default' : 'pointer',
         }}
       >

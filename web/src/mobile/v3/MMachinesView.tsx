@@ -1,6 +1,6 @@
 // input:  machine VMs, localized copy, mobile Settings controls
 // output: MMachinesView
-// pos:    Mobile machine cards and expandable telemetry
+// pos:    Mobile machine material cards and telemetry
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
@@ -221,7 +221,8 @@ function InertButton({ children, onClick }: { children: ReactNode; onClick?: () 
         height: 38,
         borderRadius: 'var(--r-control)',
         border: '1.5px solid var(--proto-line-3)',
-        background: 'var(--proto-card)',
+        background: 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         color: MC.ink,
         fontSize: 12.5,
         fontWeight: 600,

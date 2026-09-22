@@ -1,6 +1,6 @@
 // input:  provider draft, validation, mobile Settings sheet
 // output: MCustomProviderSheet
-// pos:    Mobile custom provider editor sheet
+// pos:    Mobile custom provider sheet and inset inputs
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { ReactNode } from 'react';
@@ -20,7 +20,7 @@ const CONTROL_STYLE = {
   width: '100%',
   border: '1px solid var(--proto-line-3)',
   borderRadius: 8,
-  background: 'var(--proto-card)',
+  background: 'var(--material-inset-bg)',
   padding: '11px 14px',
   fontSize: 16,
   fontFamily: 'inherit',

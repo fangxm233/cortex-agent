@@ -1,6 +1,6 @@
 // input:  hooks VM, localized copy, mobile Settings controls
 // output: MHooksView
-// pos:    Read-only mobile hook registry and declaration sheet
+// pos:    Mobile hook cards and shared-surface detail sheet
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import {
@@ -221,7 +221,7 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
       </div>
       <div
         style={{
-          background: 'var(--proto-card)',
+          background: 'transparent',
           border: `1px solid ${MC.hairline}`,
           borderRadius: 'var(--r-card)',
           overflow: 'hidden',

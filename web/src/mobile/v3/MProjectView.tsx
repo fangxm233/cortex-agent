@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MProjectView
-// pos:    Mobile ProjectView presentation
+// pos:    Mobile project material cards and scope navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
@@ -474,7 +474,7 @@ function ProjectSwitchCards({ props }: { props: MProjectViewProps }) {
   );
 }
 
-const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-card)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 'var(--r-card)', padding: 13, cursor: 'pointer' } as const;
+const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 'var(--r-card)', padding: 13, cursor: 'pointer' } as const;
 
 function NewProjectButton({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
   return (

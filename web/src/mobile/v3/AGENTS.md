@@ -8,13 +8,13 @@ Mobile screens, readable presentation views and native service adapters.
 | MAccountsScreen.tsx | screen | Connect mobile accounts to controller actions |
 | MAccountsView.custom.test.tsx | test | Test mobile custom provider controls |
 | MAccountsView.test.tsx | test | Test mobile account presentation |
-| MAccountsView.tsx | view | Render mobile accounts and provider actions |
+| MAccountsView.tsx | view | Render account materials and provider actions |
 | MAppearanceScreen.tsx | screen | Connect mobile appearance preferences |
-| MAppearanceView.tsx | view | Render shared mobile appearance choices |
+| MAppearanceView.tsx | view | Render appearance choices in material cards |
 | MApprovalsScreen.test.tsx | test | Test mobile approval screen actions |
 | MApprovalsScreen.tsx | screen | Connect approval data and actions |
 | MApprovalsView.test.tsx | test | Test mobile approval presentation |
-| MApprovalsView.tsx | view | Render mobile approval requests |
+| MApprovalsView.tsx | view | Render approval materials and decision controls |
 | m-approvals-vm.test.ts | test | Test approval view model construction |
 | m-approvals-vm.ts | model | Build mobile approval view state |
 | MAppUpdateDialog.tsx | view | Render native app update dialog |
@@ -30,27 +30,27 @@ Mobile screens, readable presentation views and native service adapters.
 | MChatSheets.test.tsx | test | Test chat sheets and menu Escape dismissal |
 | MChatSheets.tsx | view | Render glass chat sheets and More menu |
 | MChatView.test.tsx | test | Test chat shortcuts and attachment actions |
-| MChatView.tsx | view | Render readable mobile chat and tool surfaces |
+| MChatView.tsx | view | Render chat materials and stable sticky headers |
 | MChatView.types.ts | type | Define chat view props and localized copy |
 | m-chat-vm.test.ts | test | Test mobile chat view state |
 | m-chat-vm.ts | model | Build chat rows, status and selection state |
 | m-connection.ts | utility | Map connection status to tone and pulse |
-| MCustomProviderSheet.tsx | view | Edit custom provider drafts in a sheet |
+| MCustomProviderSheet.tsx | view | Edit provider drafts with inset sheet fields |
 | MDaemonScreen.tsx | screen | Connect daemon status and controls |
-| MDaemonView.tsx | view | Render daemon status and controls |
+| MDaemonView.tsx | view | Render daemon material cards and controls |
 | m-daemon-vm.test.ts | test | Test daemon view model construction |
 | m-daemon-vm.ts | model | Build mobile daemon view state |
 | MDecisionCards.tsx | view | Render material decision cards and controls |
 | MHooksScreen.tsx | screen | Connect hook data and actions |
-| MHooksView.tsx | view | Render mobile hook groups and details |
+| MHooksView.tsx | view | Render hook groups and shared-surface details |
 | m-hooks-vm.test.ts | test | Test hook grouping and row construction |
 | m-hooks-vm.ts | model | Build mobile hook groups and rows |
 | MHotUpdateDialog.tsx | view | Render web asset update dialog |
 | MInteractionCards.tsx | view | Render material question and plan cards |
 | MIssuesScreen.tsx | screen | Connect project issue data and actions |
-| MIssuesView.tsx | view | Render mobile project issues |
+| MIssuesView.tsx | view | Render project issue material cards and actions |
 | MMachinesScreen.tsx | screen | Connect machine data and actions |
-| MMachinesView.tsx | view | Render mobile machine status |
+| MMachinesView.tsx | view | Render machine material cards and telemetry |
 | m-machines-vm.ts | model | Build mobile machine view state |
 | MMcpScreen.tsx | screen | Host mobile MCP settings |
 | MMemoryFileScreen.tsx | screen | Connect memory file data and actions |
@@ -65,7 +65,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-new-project-flow.test.ts | test | Test mobile project creation completion |
 | m-new-project-flow.ts | utility | Complete mobile project creation flow |
 | MNewProjectView.test.tsx | test | Test mobile project creation form |
-| MNewProjectView.tsx | view | Render mobile project creation form |
+| MNewProjectView.tsx | view | Render project creation form with inset input |
 | m-notes-gestures.test.ts | test | Test note swipe gesture resolution |
 | m-notes-gestures.ts | utility | Resolve note swipe offsets and outcomes |
 | MNotesProjectCard.tsx | view | Render project note cards and actions |
@@ -87,18 +87,18 @@ Mobile screens, readable presentation views and native service adapters.
 | MProfilesScreen.tsx | screen | Browse and edit mobile profiles |
 | MProfilesScreen.test.tsx | test | Check mobile profile actions and editor |
 | MProjectScreen.tsx | screen | Connect project overview data and actions |
-| MProjectView.tsx | view | Render compact project cards and switching |
+| MProjectView.tsx | view | Render project material cards and switching |
 | m-project-vm.test.ts | test | Test project counts and view state |
 | m-project-vm.ts | model | Build project counts and overview state |
 | MRuntimeSettingsScreen.test.tsx | test | Test mobile runtime settings |
 | MRuntimeSettingsScreen.tsx | screen | Edit mobile notification and advanced settings |
-| MScheduleEditorFields.tsx | view | Render schedule editor header and fields |
+| MScheduleEditorFields.tsx | view | Render schedule material fields and selections |
 | MScheduleEditor.tsx | view | Render mobile schedule editor |
-| MScheduleSheetLevels.tsx | view | Render schedule list and run history levels |
+| MScheduleSheetLevels.tsx | view | Render shared-surface schedule and history lists |
 | MScheduleSheet.test.tsx | test | Test mobile schedule sheet |
 | MScheduleSheet.tsx | screen | Connect schedule sheet data and actions |
 | MSessionListScreen.tsx | screen | Connect session list data and actions |
-| MSessionListView.tsx | view | Render readable mobile date-group session cards |
+| MSessionListView.tsx | view | Render material date groups and scheduled entry |
 | m-session-list-vm.test.ts | test | Test session status and grouping |
 | m-session-list-vm.ts | model | Build session status lines and groups |
 | MSettingsControls.tsx | UI | Provide settings material frames and controls |
@@ -128,4 +128,4 @@ Mobile screens, readable presentation views and native service adapters.
 | MUpdateProvider.tsx | provider | Connect mobile update dialogs |
 | MUsageScreen.tsx | screen | Connect mobile usage data and policy actions |
 | MUsageView.test.tsx | test | Test mobile usage policy and refresh controls |
-| MUsageView.tsx | view | Render mobile usage and policy controls |
+| MUsageView.tsx | view | Render usage materials and inset policy controls |

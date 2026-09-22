@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MNewProjectView
-// pos:    Mobile NewProjectView presentation
+// pos:    Mobile project creation form with inset input
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
@@ -60,7 +60,7 @@ export function MNewProjectView({
           height: 48,
           border: '1.5px solid var(--proto-line-3)',
           borderRadius: 'var(--r-card)',
-          background: 'var(--proto-card)',
+          background: 'var(--material-inset-bg)',
           padding: '0 14px',
           fontSize: 16,
           fontFamily: 'inherit',

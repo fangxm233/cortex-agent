@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MIssuesView
-// pos:    Mobile IssuesView presentation
+// pos:    Mobile issue material cards and controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
@@ -122,7 +122,7 @@ function ExpandedCard({
     <MCard
       tone="blue"
       padding={0}
-      style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
+      style={{ overflow: 'hidden', boxShadow: 'var(--material-card-shadow)' }}
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: real date only — the design's source slot has no markdown field */}
@@ -182,7 +182,8 @@ function DecisionButton({
         width,
         height: 44,
         borderRadius: 'var(--r-control)',
-        background: accent ? MC.run : 'var(--proto-card)',
+        background: accent ? MC.run : 'var(--material-control-bg)',
+        boxShadow: accent ? undefined : 'var(--material-control-shadow)',
         color: accent ? 'var(--ink-solid-fg)' : 'var(--proto-danger)',
         border: accent ? 'none' : '1.5px solid var(--proto-danger-bg)',
         display: 'flex',

@@ -1,6 +1,6 @@
 // input:  accounts VM, custom providers, mobile controls
 // output: MAccountsView
-// pos:    Mobile account status and authentication actions
+// pos:    Mobile account materials and authentication actions
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
@@ -53,8 +53,8 @@ function ActionButton({ children, target, action, disabled, onClick }: {
       disabled={disabled} onClick={() => onClick(target)}
       style={{
         border: `1px solid ${action === 'logout' ? 'var(--proto-danger-bg)' : MC.run}`,
-        borderRadius: 'var(--r-chip)', padding: '6px 9px', background: MC.card,
-        color: action === 'logout' ? MC.fail : MC.run, fontSize: 10.5,
+        borderRadius: 'var(--r-chip)', padding: '6px 9px', background: 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)', color: action === 'logout' ? MC.fail : MC.run, fontSize: 10.5,
         fontWeight: 650, cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.45 : 1,
       }}
@@ -195,7 +195,7 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
           type="button" data-cpv-action="edit" data-cpv-provider={provider.name}
           disabled={editDisabled} onClick={onEdit}
           style={{
-            border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '6px 9px', background: MC.card,
+            border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '6px 9px', background: 'var(--material-inset-bg)',
             color: MC.run, fontSize: 10.5, fontWeight: 650,
             cursor: editDisabled ? 'not-allowed' : 'pointer', opacity: editDisabled ? 0.45 : 1,
           }}
@@ -207,7 +207,7 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
           disabled={deleteDisabled} onClick={onDelete}
           style={{
             border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-chip)', padding: '6px 9px',
-            background: MC.card, color: MC.fail, fontSize: 10.5, fontWeight: 650,
+            background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.fail, fontSize: 10.5, fontWeight: 650,
             cursor: deleteDisabled ? 'not-allowed' : 'pointer', opacity: deleteDisabled ? 0.45 : 1,
           }}
         >
@@ -243,7 +243,7 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
   const trailing = onRescan ? (
     <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
       style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 8px',
-        background: MC.card, color: MC.run, fontSize: 10, fontWeight: 650 }}>
+        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650 }}>
       {L.accountsSyncModels}
     </button>
   ) : <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>;
@@ -282,7 +282,7 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
                 onClick={custom.onNew}
                 style={{
                   marginLeft: 8, border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '3px 8px',
-                  background: MC.card, color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
+                  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
                 }}
               >
                 {L.cpvNew}

@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MSessionListView
-// pos:    Mobile session groups and scheduled entry
+// pos:    Mobile material date groups and scheduled entry
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
@@ -45,9 +45,9 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
         height: 28,
         flex: 'none',
         borderRadius: 9,
-        background: 'var(--proto-card)',
+        background: 'var(--material-control-bg)',
         border: '1px solid var(--proto-line)',
-        boxShadow: 'var(--shadow-card)',
+        boxShadow: 'var(--material-control-shadow)',
         display: 'grid',
         placeItems: 'center',
       }}
@@ -256,8 +256,7 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
   );
 }
 
-// One day bucket = one grouped glass card. `--glass-2` rather than `--glass-1`: this card scrolls,
-// and the mobile blur budget forbids a `backdrop-filter` inside a scroller.
+// One day bucket shares one material; rows stay unfilled and never sample blur.
 function DayGroup({
   group,
   copy,
@@ -272,8 +271,8 @@ function DayGroup({
     <div
       style={{
         borderRadius: 'var(--r-float)',
-        background: MC.glassRaised,
-        boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
+        background: 'var(--material-card-bg)',
+        boxShadow: '0 0 0 1px var(--proto-line), var(--material-card-shadow)',
         overflow: 'hidden',
       }}
     >

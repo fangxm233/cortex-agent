@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MApprovalsView
-// pos:    Mobile ApprovalsView presentation
+// pos:    Mobile approval material cards and decision controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
@@ -158,7 +158,7 @@ function ExpandedCard({
     <MCard
       tone="amber"
       padding={0}
-      style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
+      style={{ overflow: 'hidden', boxShadow: 'var(--material-card-shadow)' }}
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: tier pill + real id + real relative time (scheme L368) */}
@@ -237,7 +237,7 @@ function ExpandedCard({
             resize: 'vertical',
             border: '1px solid var(--proto-line-3)',
             borderRadius: 'var(--r-chip)',
-            background: 'var(--proto-card)',
+            background: 'var(--material-inset-bg)',
             color: MC.ink,
             fontSize: 16,
             lineHeight: 1.45,
@@ -281,7 +281,8 @@ function DecisionButton({
         flex: 1,
         height: 44,
         borderRadius: 'var(--r-control)',
-        background: ink ? MC.inkSolid : MC.card,
+        background: ink ? MC.inkSolid : 'var(--material-control-bg)',
+        boxShadow: ink ? undefined : 'var(--material-control-shadow)',
         color: ink ? MC.inkSolidFg : MC.ink,
         border: ink ? 'none' : '1.5px solid var(--proto-line-3)',
         display: 'flex',
