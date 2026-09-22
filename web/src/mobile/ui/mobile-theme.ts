@@ -1,4 +1,18 @@
+// The mesh ground plus the two glass fills, named for the mobile surface vocabulary.
+//
+// BLUR BUDGET — stricter here than on desktop. `glassFilter` may only be paired with `glass` on
+// chrome that holds still: the bottom Tab bar, a bottom sheet's own sheet, and a full-screen
+// overlay's own panel. Never a card, never a list row, never anything inside a scroller: blur is a
+// per-pixel read of everything behind the element, so a blurred row in a long list re-reads the
+// backdrop on every scroll frame and visibly stutters in an Android WebView. Content cards stay
+// OPAQUE (`card`) for exactly that reason — they are the thing that repeats in a long scroll.
 export const MC = {
+  backdrop: 'var(--app-backdrop)',
+  /** Chrome pane fill. Only valid together with `glassFilter` — see the blur budget above. */
+  glass: 'var(--glass-1)',
+  /** Raised translucent fill with NO filter of its own; composites over whatever is behind it. */
+  glassRaised: 'var(--glass-2)',
+  glassFilter: 'var(--glass-filter)',
   canvas: 'var(--m-canvas)',
   card: 'var(--m-card)',
   ink: 'var(--m-ink)',

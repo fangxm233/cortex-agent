@@ -84,7 +84,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
 
 function Pill({ bg, fg, text }: { bg: string; fg: string; text: string }): JSX.Element {
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: bg, color: fg, flex: 'none' }}>{text}</span>
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: bg, color: fg, flex: 'none' }}>{text}</span>
   );
 }
 
@@ -92,7 +92,7 @@ function cardShell(pending: boolean, dimmed: boolean, rejected: boolean): React.
   return {
     border: `1px solid ${pending && !dimmed ? MC.runBorder : MC.hairline}`,
     background: 'var(--proto-card)',
-    borderRadius: 14,
+    borderRadius: 'var(--r-card)',
     overflow: 'hidden',
     boxShadow: pending && !dimmed ? 'var(--focus-ring-accent)' : undefined,
     // 5a rejecting = .55 (scheme L192) · 4c rejected seal = .9 (scheme L388)
@@ -171,7 +171,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
         if (a != null && !isCurrent) {
           return (
             <div key={q.question} style={{ padding: `10px 14px ${last ? '14px' : '0'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 11, padding: '9px 13px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '9px 13px' }}>
                 <span style={{ width: 16, height: 16, borderRadius: '50%', background: MC.done, color: 'var(--ink-solid-fg)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flex: 'none' }}>✓</span>
                 <span style={{ fontSize: 12, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {q.question} → <b style={{ color: MC.ink }}>{a}</b>
@@ -181,7 +181,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
               {!pending && expanded && q.options.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 0 0' }}>
                   {q.options.map((o) => (
-                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${a.includes(o.label) ? MC.runBorder : 'var(--proto-line-2)'}`, borderRadius: 9, padding: '6px 11px' }}>
+                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${a.includes(o.label) ? MC.runBorder : 'var(--proto-line-2)'}`, borderRadius: 'var(--r-chip)', padding: '6px 11px' }}>
                       <span style={{ fontSize: 11.5, color: a.includes(o.label) ? MC.ink : MC.muted }}>{o.label}</span>
                       {a.includes(o.label) && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: MC.done }}>✓</span>}
                     </div>
@@ -215,7 +215,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                       style={{
                         minHeight: 44,
                         border: `1.5px solid ${selected || isDefault ? MC.run : 'var(--proto-line-3)'}`,
-                        borderRadius: 11,
+                        borderRadius: 'var(--r-control)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
@@ -232,7 +232,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                       )}
                       <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>{o.label}</span>
                       {isDefault ? (
-                        <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.defaultBadge}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.defaultBadge}</span>
                       ) : o.description ? (
                         <span style={{ marginLeft: 'auto', minWidth: 0, maxWidth: '55%', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', flex: '0 1 auto', textAlign: 'right', lineHeight: 1.35, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{o.description}</span>
                       ) : null}
@@ -243,7 +243,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                 <button
                   type="button"
                   onClick={onCustom}
-                  style={{ minHeight: 44, border: '1.5px solid var(--proto-line-3)', borderRadius: 11, display: 'flex', alignItems: 'center', padding: '8px 13px', boxSizing: 'border-box', background: 'var(--proto-card)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                  style={{ minHeight: 44, border: '1.5px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', display: 'flex', alignItems: 'center', padding: '8px 13px', boxSizing: 'border-box', background: 'var(--proto-card)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                 >
                   <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.sub }}>{copy.customOption}</span>
                 </button>
@@ -254,7 +254,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                     type="button"
                     onClick={onConfirmMulti}
                     disabled={state.selected.length === 0}
-                    style={{ height: 44, borderRadius: 11, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: state.selected.length === 0 ? 0.45 : 1, width: '100%' }}
+                    style={{ height: 44, borderRadius: 'var(--r-control)', background: MC.ink, boxShadow: state.selected.length === 0 ? undefined : 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: state.selected.length === 0 ? 0.45 : 1, width: '100%' }}
                   >
                     {copy.confirm}
                   </button>
@@ -268,7 +268,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
         if (isQueued) {
           return (
             <div key={q.question} style={{ padding: `12px 14px ${last ? '14px' : '0'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px dashed var(--proto-line-3)', borderRadius: 11, padding: '9px 13px', opacity: 0.6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px dashed var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '9px 13px', opacity: 0.6 }}>
                 <span style={{ font: `600 10px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none' }}>Q{i + 1}</span>
                 <span style={{ fontSize: 12, color: MC.grayInk, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.question}</span>
                 <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint, flex: 'none' }}>{copy.queued}</span>
@@ -343,7 +343,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
         <div style={{ padding: '11px 14px 12px' }}>
           {header}
           {title}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 11, padding: '9px 13px', marginTop: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '9px 13px', marginTop: 9 }}>
             <span style={{ font: `500 10.5px ${MONO}`, color: MC.sub, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.filePath ?? ''}</span>
             <span role="button" onClick={onOpenRead} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: MC.run, flex: 'none', cursor: 'pointer' }}>{copy.viewFullPlan}</span>
           </div>
@@ -364,7 +364,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           <div
             role="button"
             onClick={onOpenRead}
-            style={{ minHeight: 52, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-accent-bg)', borderRadius: 11, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', boxSizing: 'border-box', cursor: 'pointer' }}
+            style={{ minHeight: 52, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-accent-bg)', borderRadius: 'var(--r-control)', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', boxSizing: 'border-box', cursor: 'pointer' }}
           >
             {FILE_SVG}
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -375,8 +375,8 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px' }}>
-          <button type="button" onClick={onRejectStart} style={{ flex: 1, height: 44, borderRadius: 11, border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
-          <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 11, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
+          <button type="button" onClick={onRejectStart} style={{ flex: 1, height: 44, borderRadius: 'var(--r-control)', border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
+          <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 'var(--r-control)', background: MC.ink, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
         </div>
         {/* footer — `来自 X` source has no entity field → left slot omitted (GAP) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
@@ -404,7 +404,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
       </div>
       {/* 4c — the reject feedback enters the stream as the user bubble (real result.feedback) */}
       {rejected && model.feedback && (
-        <div style={{ alignSelf: 'flex-end', maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+        <div style={{ alignSelf: 'flex-end', maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
           {model.feedback}
         </div>
       )}

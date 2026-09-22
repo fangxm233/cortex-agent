@@ -56,7 +56,12 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
       style={{
         flex: 'none',
         borderTop: '1px solid var(--proto-line)',
-        background: 'var(--proto-rail)',
+        // One of the three places on mobile that may blur (see MC's blur budget): the Tab bar is
+        // fixed chrome that never scrolls and never repaints, so the ground behind it is sampled
+        // once rather than once per frame.
+        background: 'var(--glass-1)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
         display: 'flex',
         // Reserve the OS home-indicator gutter (env bottom inset) below the 8px base padding.
         padding: '8px 6px',
@@ -101,7 +106,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                     color: 'var(--ink-solid-fg)',
                     font: "600 8px 'IBM Plex Mono', monospace",
                     padding: '1px 4.5px',
-                    borderRadius: 999,
+                    borderRadius: 'var(--r-pill)',
                   }}
                 >
                   {badge.count}

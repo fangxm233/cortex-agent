@@ -228,7 +228,7 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
         style={{
           background: 'var(--proto-card)',
           border: `1px solid ${MC.hairline}`,
-          borderRadius: 13,
+          borderRadius: 'var(--r-card)',
           overflow: 'hidden',
         }}
       >

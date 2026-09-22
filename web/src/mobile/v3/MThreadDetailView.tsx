@@ -52,7 +52,7 @@ function Header({
         padding: '8px 14px 0',
         paddingTop: 'calc(8px + env(safe-area-inset-top))',
         borderBottom: `1px solid ${MC.hairline}`,
-        background: MC.canvas,
+        background: MC.glassRaised,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -158,7 +158,7 @@ function StepDotColumn({ kind, hasConnector }: { kind: MThreadStepVm['kind']; ha
 
 function AgentBox({ agent }: { agent: NonNullable<MThreadStepVm['agent']> }) {
   return (
-    <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 'var(--r-chip)', padding: '9px 11px', marginTop: 6, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>
         {agent.live && <MDot color={MC.run} size={5} pulse />}
         <span>{agent.turnLabel}</span>
@@ -202,7 +202,7 @@ function StepRow({ step, copy, selected, onSelect }: { step: MThreadStepVm; copy
         {step.agent && selected && <AgentBox agent={step.agent} />}
         {/* Done step: full session transcript when expanded */}
         {step.kind === 'done' && selected && step.sessionId && (
-          <div style={{ border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6, overflow: 'hidden', maxHeight: 400, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 'var(--r-chip)', padding: '9px 11px', marginTop: 6, overflow: 'hidden', maxHeight: 400, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <ThreadStepChat sessionId={step.sessionId} live={false} />
           </div>
         )}
@@ -213,7 +213,7 @@ function StepRow({ step, copy, selected, onSelect }: { step: MThreadStepVm; copy
 
 function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; copy: MThreadDetailCopy; onArtifactClick?: (artifact: MThreadArtifactVm) => void }) {
   return (
-    <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.artifacts}</span>
         <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, marginLeft: 7 }}>{vm.artifactCount}</span>
@@ -271,7 +271,7 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
             style={{
               flex: 1,
               height: 44,
-              borderRadius: 11,
+              borderRadius: 'var(--r-control)',
               border: '1.5px solid var(--proto-line-3)',
               background: 'var(--proto-card)',
               color: MC.ink,
@@ -294,7 +294,7 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
             style={{
               flex: 1,
               height: 44,
-              borderRadius: 11,
+              borderRadius: 'var(--r-control)',
               border: '1.5px solid var(--proto-danger-bg)',
               background: 'var(--proto-card)',
               color: MC.fail,
@@ -353,7 +353,7 @@ export function MThreadDetailView({
         </div>
 
         {/* PIPELINE */}
-        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, padding: '11px 13px 7px' }}>
+        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px 7px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '15px 1fr', columnGap: 8 }}>
             {vm.steps.map((step, i) => (
               <StepRow

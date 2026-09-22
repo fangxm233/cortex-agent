@@ -28,6 +28,7 @@ function NewButton({ onClick }: { onClick: () => void }) {
         height: 34,
         borderRadius: '50%',
         background: MC.ink,
+        boxShadow: 'var(--accent-glow)',
         border: 'none',
         display: 'flex',
         alignItems: 'center',
@@ -80,7 +81,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
             color: 'var(--ink-solid-fg)',
             font: `600 8.5px ${MONO}`,
             padding: '1px 4.5px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             border: `1.5px solid ${MC.canvas}`,
           }}
         >
@@ -99,7 +100,6 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
   const live = status.kind === 'running' || status.kind === 'background';
   return (
     <MCard
-      radius={9}
       padding="12px 13px"
       onClick={() => onOpen(row.id)}
       // Run marker as an INSET shadow, so the accent edge costs no layout: card geometry, padding

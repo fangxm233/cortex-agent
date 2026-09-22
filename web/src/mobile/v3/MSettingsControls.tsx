@@ -50,7 +50,7 @@ export function MSettingsToggle(props: { value: boolean; disabled?: boolean; lab
   return (
     <button type="button" role="switch" aria-checked={props.value} aria-label={props.label}
       disabled={!active} onClick={() => { if (active) props.onChange?.(!props.value); }}
-      style={{ width: 44, height: 26, border: 0, borderRadius: 999, padding: 2,
+      style={{ width: 44, height: 26, border: 0, borderRadius: 'var(--r-pill)', padding: 2,
         background: props.value ? MC.done : 'var(--proto-line-3)', opacity: props.disabled ? 0.55 : 1,
         display: 'flex', justifyContent: props.value ? 'flex-end' : 'flex-start' }}>
       <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--ink-solid-bg)',
@@ -62,7 +62,7 @@ export function MSettingsToggle(props: { value: boolean; disabled?: boolean; lab
 export function MSettingsButton(props: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return (
     <button type="button" onClick={props.onClick} disabled={props.disabled}
-      style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 8,
+      style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 'var(--r-chip)',
         background: props.danger ? MC.failBg : MC.runBg, color: props.danger ? MC.fail : MC.run,
         fontSize: 11, fontWeight: 600, padding: '7px 10px', opacity: props.disabled ? 0.5 : 1 }}>
       {props.children}
@@ -71,7 +71,7 @@ export function MSettingsButton(props: { children: ReactNode; onClick: () => voi
 }
 
 const FIELD: CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${MC.hairline}`,
-  borderRadius: 8, background: MC.card, color: MC.ink, padding: '9px 10px', font: `400 12px ${MONO}` };
+  borderRadius: 'var(--r-chip)', background: MC.card, color: MC.ink, padding: '9px 10px', font: `400 12px ${MONO}` };
 
 interface MSettingsControlFeedback {
   label: string;

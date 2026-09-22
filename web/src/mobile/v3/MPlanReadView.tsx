@@ -83,10 +83,10 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
   return (
     <div
       data-screen-label="6b 计划全文阅读页"
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative', background: MC.canvas }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', position: 'relative' }}
     >
       {/* header — back · title · meta · status pill · progress bar (scheme L136-146) */}
-      <div style={{ flex: 'none', padding: '8px 14px 10px', paddingTop: 'calc(8px + env(safe-area-inset-top))', borderBottom: `1px solid ${MC.hairline}`, background: MC.canvas }}>
+      <div style={{ flex: 'none', padding: '8px 14px 10px', paddingTop: 'calc(8px + env(safe-area-inset-top))', borderBottom: `1px solid ${MC.hairline}`, background: MC.glassRaised }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <button
             type="button"
@@ -103,13 +103,13 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             </div>
           </div>
           {pending ? (
-            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 999, flex: 'none' }}>{copy.pendingPill}</span>
+            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.pendingPill}</span>
           ) : (
-            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 999, flex: 'none' }}>{statusLabel}</span>
+            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
           )}
         </div>
         {pending && (
-          <div style={{ height: 3, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden', marginTop: 9 }}>
+          <div style={{ height: 3, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden', marginTop: 9 }}>
             <div style={{ width: `${pct}%`, height: '100%', background: MC.run }} />
           </div>
         )}
@@ -124,7 +124,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             <ChatMarkdown text={model.planContent} />
           </div>
           {model.status === 'rejected' && model.feedback && (
-            <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 11, padding: '10px 13px' }}>
+            <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
               <div style={{ font: `600 10px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{copy.feedbackLabel}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
             </div>
@@ -141,21 +141,21 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             <button
               type="button"
               onClick={onReject}
-              style={{ flex: 1, height: 48, borderRadius: 13, border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
+              style={{ flex: 1, height: 48, borderRadius: 'var(--r-card)', border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
             >
               {copy.reject}
             </button>
             <button
               type="button"
               onClick={onApprove}
-              style={{ flex: 1.3, height: 48, borderRadius: 13, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
+              style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-card)', background: MC.ink, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
               {approveSub && <span style={{ font: `400 9px ${MONO}`, color: MC.inkSolidFgDim }}>{approveSub}</span>}
             </button>
           </div>
         ) : (
-          <div style={{ height: 48, borderRadius: 13, background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13.5, fontWeight: 600 }}>
+          <div style={{ height: 48, borderRadius: 'var(--r-card)', background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13.5, fontWeight: 600 }}>
             {stamp.text}
           </div>
         )}

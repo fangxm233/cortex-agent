@@ -69,7 +69,7 @@ export function MThreadDetailScreen() {
             margin: 14,
             background: MC.failBg,
             border: `1px solid ${MC.failBorder}`,
-            borderRadius: 10,
+            borderRadius: 'var(--r-control)',
             padding: '10px 14px',
             fontSize: 12.5,
             color: MC.fail,

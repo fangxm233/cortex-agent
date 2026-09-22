@@ -214,7 +214,7 @@ function InertButton({ children, onClick }: { children: ReactNode; onClick?: () 
       style={{
         flex: 1,
         height: 38,
-        borderRadius: 10,
+        borderRadius: 'var(--r-control)',
         border: '1.5px solid var(--proto-line-3)',
         background: 'var(--proto-card)',
         color: MC.ink,
@@ -343,7 +343,7 @@ export function MMachinesView({
           ),
         )}
         {onAdd && <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
-          style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 9, padding: '9px 12px',
+          style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-chip)', padding: '9px 12px',
             background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
           {copy.add}
         </button>}

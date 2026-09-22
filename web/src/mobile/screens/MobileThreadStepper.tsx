@@ -64,7 +64,7 @@ export function MobileThreadStepper({
   onOpen: () => void;
 }): JSX.Element {
   return (
-    <div style={{ border: '1px solid var(--proto-line)', borderRadius: 12, overflow: 'hidden', background: 'var(--proto-card)' }}>
+    <div style={{ border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', overflow: 'hidden', background: 'var(--proto-card)' }}>
       {/* header */}
       <div
         style={{
@@ -88,7 +88,7 @@ export function MobileThreadStepper({
             fontSize: 10,
             fontWeight: 600,
             padding: '2px 8px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             background: pill.bg,
             color: pill.color,
           }}

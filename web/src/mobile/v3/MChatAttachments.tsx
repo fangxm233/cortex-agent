@@ -16,7 +16,7 @@ function ViewTile({ attachment }: { attachment: Attachment }): JSX.Element {
   const { openDoc } = useDocViewer();
   const item = { kind: 'html' as const, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType };
   return (
-    <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 12, overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--proto-rail)', cursor: 'pointer' }}>
         <span style={{ font: `700 7.5px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>VIEW</span>
         <span style={{ font: `500 10.5px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.name}</span>
@@ -50,7 +50,7 @@ function MediaTile({ attachment, kind }: {
   const url = useWorkspaceObjectUrl(attachment.path, true);
   const width = attachment.type === 'video' ? 104 : 74;
   return (
-    <div role="button" onClick={() => openMedia({ kind, name: attachment.name, path: attachment.path })} style={{ width, height: 74, borderRadius: 12, background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
+    <div role="button" onClick={() => openMedia({ kind, name: attachment.name, path: attachment.path })} style={{ width, height: 74, borderRadius: 'var(--r-card)', background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
       <MediaTileBody attachment={attachment} url={url} kind={kind} />
     </div>
   );
@@ -63,7 +63,7 @@ function FileTile({ attachment }: { attachment: Attachment }): JSX.Element {
     ? () => openDoc({ kind: docKind, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType })
     : () => void downloadFile(attachment.path, attachment.name);
   return (
-    <div role="button" onClick={onTap} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 9, padding: '6px 10px', flex: 'none', cursor: 'pointer' }}>
+    <div role="button" onClick={onTap} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '6px 10px', flex: 'none', cursor: 'pointer' }}>
       <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.5"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>
       <span style={{ font: `500 10.5px ${MONO}`, color: MC.body }}>{attachment.name}</span>
     </div>
@@ -113,7 +113,7 @@ function UploadStatus({ attachment, onRetry }: {
 }): JSX.Element | null {
   if (attachment.status === 'queued') return <span style={{ font: `500 9px ${MONO}`, color: MC.muted }}>queued</span>;
   if (attachment.status === 'uploading') {
-    return <><div style={{ width: 34, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ font: `400 9px ${MONO}`, color: MC.run }}>{attachment.progress}%</span></>;
+    return <><div style={{ width: 34, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ font: `400 9px ${MONO}`, color: MC.run }}>{attachment.progress}%</span></>;
   }
   if (attachment.status === 'done') return <span style={{ fontSize: 10, color: MC.done, fontWeight: 700 }}>✓</span>;
   if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ font: `600 9px ${MONO}`, color: MC.fail, cursor: 'pointer' }}>retry</span>;
@@ -127,7 +127,7 @@ function ComposerChip({ attachment, onRetry, onRemove }: {
 }): JSX.Element {
   const uploading = attachment.status === 'uploading';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 9px', flex: 'none' }}>
       <ComposerPreview attachment={attachment} />
       <span style={{ font: `500 10px ${MONO}`, color: MC.body }}>{attachment.name}</span>
       <UploadStatus attachment={attachment} onRetry={onRetry} />

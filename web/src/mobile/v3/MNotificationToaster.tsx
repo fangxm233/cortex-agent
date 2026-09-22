@@ -54,7 +54,7 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
         pointerEvents: 'auto',
         background: 'var(--panel-translucent-bg)',
         border: '1px solid var(--panel-translucent-border)',
-        borderRadius: 20,
+        borderRadius: 'var(--r-float)',
         boxShadow: 'var(--shadow-toast)',
         padding: '11px 13px',
         display: 'flex',
@@ -68,7 +68,7 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
         style={{
           width: 36,
           height: 36,
-          borderRadius: 9,
+          borderRadius: 'var(--r-chip)',
           background: 'var(--brand-badge-bg)',
           border: '1px solid var(--brand-badge-border)',
           display: 'flex',
@@ -106,7 +106,7 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
                   onDismiss(item.id);
                 }}
                 style={{
-                  border: '1px solid var(--panel-translucent-border)', borderRadius: 8,
+                  border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-chip)',
                   background: 'transparent', color: MC.ink, fontSize: 11, padding: '3px 8px',
                 }}
               >

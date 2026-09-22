@@ -150,7 +150,7 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
   onCollapse: () => void;
 }): JSX.Element {
   return (
-    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-chip)', overflow: 'hidden' }}>
       <div onClick={onCollapse} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 11px', cursor: 'pointer' }}>
         <span style={{ fontSize: 8.5 }}>▾</span>
         <span>{count} {unit}</span>
@@ -210,12 +210,12 @@ function MSubagentBlock({ row, unit, sessionId }: {
   const [expanded, setExpanded] = useState(false);
   const label = row.description || row.agentType || L.subagentFallbackLabel;
   return (
-    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 8 }}>
+    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-chip)' }}>
       <div
         onClick={() => setExpanded(!expanded)}
         role="button"
         aria-expanded={expanded}
-        style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, background: 'var(--proto-rail)', minWidth: 0 }}
+        style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, background: 'var(--proto-card)', minWidth: 0 }}
       >
         <MDot
           color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-success)'}
@@ -328,7 +328,7 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? 'var(--proto-muted-3)' : MC.done;
   const icon = v.tone === 'rejected' ? '✗' : v.tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', borderRadius: 10, opacity: v.tone === 'inactive' ? 0.6 : 0.75 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', opacity: v.tone === 'inactive' ? 0.6 : 0.75 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {v.label}</span>
       <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.text}</span>
     </div>
@@ -431,7 +431,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                     // or spinner. The row is provisional, not disabled or failing, and any marker
                     // heavier than the ink would read as one. It clears the instant it is delivered.
                     color: row.pending ? MC.inkSolidFgDim : MC.inkSolidFg,
-                    borderRadius: '16px 16px 4px 16px',
+                    borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)',
                     padding: '9px 13px',
                     fontSize: 13.5,
                     lineHeight: 1.55,
@@ -541,7 +541,7 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line-2)',
         padding: '3px 10px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
       }}
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run }} />
@@ -602,7 +602,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   return (
     <div
       data-screen-label="1b 会话详情"
-      style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
+      style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
       <MChatHeader
         title={props.title}
@@ -628,7 +628,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate', background: MC.canvas }}>
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate' }}>
           <div ref={contentRef} style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <MChatStream
               rows={props.rows}
@@ -714,7 +714,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       {props.originalSheet && props.editCopy && (
         <MBottomSheet onClose={props.originalSheet.onClose}>
           <div style={{ font: `600 10px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{props.editCopy.original}</div>
-          <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
             {props.originalSheet.text}
           </div>
         </MBottomSheet>

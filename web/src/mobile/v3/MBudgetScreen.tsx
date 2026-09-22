@@ -19,7 +19,7 @@ import {
 } from './MSettingsControls';
 
 function SpendBar({ value, limit }: { value: number; limit: number | null }) {
-  return <div style={{ height: 6, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+  return <div style={{ height: 6, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
     <div style={{ width: budgetBarPct(value, limit), height: '100%', background: MC.run }} />
   </div>;
 }

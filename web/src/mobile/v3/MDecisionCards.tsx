@@ -88,14 +88,14 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
     <span
       role="button"
       onClick={() => setMode(mode === m ? 'view' : m)}
-      style={{ flex: 1, height: 38, borderRadius: 10, border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--proto-card)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+      style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--proto-card)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
     >
       {label}
     </span>
   );
 
   return (
-    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 12, boxSizing: 'border-box' }}>
+    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', boxSizing: 'border-box' }}>
       <div
         role="button"
         data-decision-toggle={d.id}
@@ -104,7 +104,7 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
       >
         <Badge L={L} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, lineHeight: 1.4, ...(open ? { overflowWrap: 'break-word' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{d.title}</span>
-        {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
+        {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
         <Caret open={open} />
       </div>
 
@@ -114,7 +114,7 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
           <Section label={L.wbDecDecision} text={d.decision} />
           <Section label={L.wbDecReasoning} text={d.reasoning} />
           {d.actions.length > 0 && (
-            <div style={{ marginTop: 14, border: `1px solid ${MC.hairline}`, background: MC.canvas, borderRadius: 10, padding: '9px 12px' }}>
+            <div style={{ marginTop: 14, border: `1px solid ${MC.hairline}`, background: MC.canvas, borderRadius: 'var(--r-control)', padding: '9px 12px' }}>
               <div style={{ font: `600 10px ${MONO}`, letterSpacing: '.05em', color: MC.faint, paddingBottom: 5 }}>{L.wbDecLog}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {d.actions.map((a, i) => (
@@ -132,14 +132,14 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
             <div style={{ marginTop: 13 }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 {status === 'approved' ? (
-                  <span style={{ flex: 1, height: 38, borderRadius: 10, background: MC.doneBg, color: MC.done, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', background: MC.doneBg, color: MC.done, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
                     ✓ {L.wbDecApproved}
                   </span>
                 ) : (
                   <span
                     role="button"
                     onClick={approve}
-                    style={{ flex: 1, height: 38, borderRadius: 10, background: busy ? MC.faint : MC.ink, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+                    style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', background: busy ? MC.faint : MC.ink, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
                   >
                     ✓ {L.wbDecApprove}
                   </span>
@@ -155,12 +155,12 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 10, padding: '8px 11px', fontSize: 13, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-control)', padding: '8px 11px', fontSize: 13, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <span
                     role="button"
                     onClick={send}
-                    style={{ height: 38, borderRadius: 10, padding: '0 16px', background: canSend ? MC.ink : MC.faint, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
+                    style={{ height: 38, borderRadius: 'var(--r-control)', padding: '0 16px', background: canSend ? MC.ink : MC.faint, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
                   >
                     {L.wbDecSend}
                   </span>

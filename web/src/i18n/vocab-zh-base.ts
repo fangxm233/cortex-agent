@@ -732,6 +732,14 @@ export const zhBase = {
   stMotionFull: '完整',
   stMotionReduced: '减弱',
 
+  // ── Appearance / glass control ──
+  stGlassLabel: '毛玻璃',
+  stGlassHint: '面板、浮层和弹窗的透明程度。如果滚动起来卡顿，就选"关闭"——所有表面变成不透明，模糊也一并关掉。',
+  stGlassOff: '关闭',
+  stGlassSubtle: '轻微',
+  stGlassMedium: '适中',
+  stGlassStrong: '强烈',
+
   // ── Appearance / language control ──
   stLangLabel: '语言',
   stLangHint: '用于这个界面，以及 Cortex 的回复。',

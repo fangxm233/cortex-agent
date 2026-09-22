@@ -70,7 +70,7 @@ export function MThreadsHeader({ copy, qn, band }: {
       below={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
-          <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden' }}>
+          <div style={{ flex: 1, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden' }}>
             <div style={{ width: `${band.pct}%`, height: '100%', background: MC.run }} />
           </div>
           <span style={{ font: `500 10px ${MONO}`, color: MC.ink }}>

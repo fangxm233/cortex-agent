@@ -6,8 +6,8 @@ const ACTIONS_STYLE: CSSProperties = {
   width: '100%', display: 'flex', flexDirection: 'column', gap: 2,
 };
 const PRIMARY_STYLE: CSSProperties = {
-  height: 48, border: 'none', borderRadius: 13, background: 'var(--proto-ink)',
-  color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center',
+  height: 48, border: 'none', borderRadius: 'var(--r-card)', background: 'var(--proto-ink)',
+  boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center',
   justifyContent: 'center', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', width: '100%',
 };
 const SECONDARY_STYLE: CSSProperties = {

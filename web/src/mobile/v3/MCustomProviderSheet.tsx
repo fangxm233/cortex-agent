@@ -15,7 +15,7 @@ import {
 const CONTROL_STYLE = {
   width: '100%',
   border: '1.5px solid var(--proto-line-3)',
-  borderRadius: 13,
+  borderRadius: 'var(--r-card)',
   background: 'var(--proto-card)',
   padding: '11px 14px',
   font: `400 13.5px ${MONO}`,
@@ -107,8 +107,9 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
       <button
         type="button" data-cpv-action="save" onClick={onSave} disabled={!savable}
         style={{
-          width: '100%', height: 48, border: 'none', borderRadius: 13,
-          background: MC.ink, color: 'var(--ink-solid-fg)', display: 'flex',
+          width: '100%', height: 48, border: 'none', borderRadius: 'var(--r-card)',
+          background: MC.ink, boxShadow: savable ? 'var(--accent-glow)' : undefined,
+          color: 'var(--ink-solid-fg)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600,
           marginTop: 2, opacity: savable ? 1 : 0.45, cursor: savable ? 'pointer' : 'default',
         }}

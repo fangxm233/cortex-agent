@@ -191,7 +191,7 @@ function HoldButton({
         position: 'relative',
         flex: 1,
         height: 44,
-        borderRadius: 11,
+        borderRadius: 'var(--r-control)',
         border: `1.5px solid ${MC.failBorder}`,
         background: 'var(--proto-card)',
         color: MC.fail,
@@ -228,7 +228,7 @@ function HoldButton({
 const OUTLINE_BTN: CSSProperties = {
   flex: 1,
   height: 44,
-  borderRadius: 11,
+  borderRadius: 'var(--r-control)',
   border: `1.5px solid var(--proto-line-3)`,
   background: 'var(--proto-card)',
   color: MC.ink,

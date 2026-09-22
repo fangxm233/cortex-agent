@@ -64,10 +64,13 @@ function prefersReducedMotion(): boolean {
 // shell's stacking context and paints OVER the incoming route -- visible as a flash in the gap
 // between the 160ms outgoing slide and the 200ms incoming one, where the outgoing layer has
 // dropped its transform (and with it the stacking context) but is not unmounted yet.
+// Each layer carries the mesh ground itself rather than letting the shell's show through: during a
+// slide the outgoing and incoming layers overlap, so a transparent layer would read as two screens
+// printed on top of each other. `--app-backdrop` bottoms out in a solid colour, so it occludes.
 const layerStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
-  background: MC.canvas,
+  background: MC.backdrop,
   isolation: 'isolate',
 };
 

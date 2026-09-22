@@ -35,7 +35,7 @@ export function MMemoryFileView({
   return (
     <div
       data-screen-label="1j 项目记忆 · 文件"
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}
     >
       <MDrillHeader onBack={onBack}>
         <div style={{ minWidth: 0 }}>

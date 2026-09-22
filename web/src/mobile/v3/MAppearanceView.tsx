@@ -1,5 +1,5 @@
 // input:  appearance preferences, language provenance, localized copy, mobile UI primitives
-// output: mobile appearance drill-in with language, theme, color, and motion
+// output: mobile appearance drill-in with language, theme, color, glass, and motion
 // pos:    Presentational mobile appearance view. Everything here is device-local EXCEPT the
 //         language, which is one server setting shared with what Cortex writes in chat.
 
@@ -13,6 +13,7 @@ import {
   type AccentHue,
   type AccentIntensity,
   type AccentPickerCopy,
+  type GlassLevel,
   type MotionMode,
   type Palette,
   type PaletteControlsCopy,
@@ -45,6 +46,13 @@ export interface MAppearanceCopy {
   accentIntensitySoft: string;
   accentIntensityNormal: string;
   accentIntensityVivid: string;
+  glass: string;
+  /** Says what the levels actually change, and that Off is the one to pick when scrolling drags. */
+  glassHint: string;
+  glassOff: string;
+  glassSubtle: string;
+  glassMedium: string;
+  glassStrong: string;
   motion: string;
   motionSystem: string;
   motionFull: string;
@@ -53,7 +61,7 @@ export interface MAppearanceCopy {
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       {children}
     </div>
   );
@@ -165,6 +173,8 @@ export function MAppearanceView({
   onSetAccentHue,
   accentIntensity,
   onSetAccentIntensity,
+  glass,
+  onSetGlass,
   motionMode,
   onSetMotionMode,
   onBack,
@@ -185,6 +195,8 @@ export function MAppearanceView({
   onSetAccentHue: (hue: AccentHue) => void;
   accentIntensity: AccentIntensity;
   onSetAccentIntensity: (intensity: AccentIntensity) => void;
+  glass: GlassLevel;
+  onSetGlass: (level: GlassLevel) => void;
   motionMode: MotionMode;
   onSetMotionMode: (mode: MotionMode) => void;
   onBack: () => void;
@@ -241,6 +253,16 @@ export function MAppearanceView({
 
         <Card>
           <ChoiceRow
+            divider title={copy.glass} hint={copy.glassHint} ariaLabel={copy.glass} value={glass}
+            options={[
+              { id: 'off', label: copy.glassOff },
+              { id: 'subtle', label: copy.glassSubtle },
+              { id: 'medium', label: copy.glassMedium },
+              { id: 'strong', label: copy.glassStrong },
+            ] as const}
+            onChange={onSetGlass}
+          />
+          <ChoiceRow
             divider={false} title={copy.motion} ariaLabel={copy.motion} value={motionMode}
             options={[
               { id: 'system', label: copy.motionSystem },
@@ -253,7 +275,7 @@ export function MAppearanceView({
 
         <div style={{ padding: '2px 4px', font: `400 9.5px ${MONO}`, color: MC.faint }}>
           localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue ·
-          cortex.accent-intensity · cortex.motion
+          cortex.accent-intensity · cortex.glass · cortex.motion
         </div>
       </MScrollBody>
     </MScreen>

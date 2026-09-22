@@ -121,7 +121,7 @@ function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string
         fontSize: 10,
         fontWeight: 700,
         padding: '2px 8px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: MC.amberBg,
         color: MC.amberInk,
         minWidth: 0,
@@ -156,7 +156,6 @@ function ExpandedCard({
   return (
     <MCard
       tone="amber"
-      radius={14}
       padding={0}
       style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
     >
@@ -200,7 +199,7 @@ function ExpandedCard({
               padding: '8px 10px',
               background: MC.amberCard,
               border: `1px solid ${MC.amberBg}`,
-              borderRadius: 9,
+              borderRadius: 'var(--r-chip)',
               font: `400 10.5px ${MONO}`,
               color: 'var(--proto-amber-fg)',
               whiteSpace: 'pre-wrap',
@@ -236,7 +235,7 @@ function ExpandedCard({
             padding: '9px 10px',
             resize: 'vertical',
             border: '1px solid var(--proto-line-3)',
-            borderRadius: 9,
+            borderRadius: 'var(--r-chip)',
             background: 'var(--proto-card)',
             color: MC.ink,
             font: '400 12px/1.45 inherit',
@@ -278,7 +277,7 @@ function DecisionButton({
       style={{
         flex: 1,
         height: 44,
-        borderRadius: 11,
+        borderRadius: 'var(--r-control)',
         background: ink ? MC.ink : 'var(--proto-card)',
         color: ink ? 'var(--proto-card)' : MC.ink,
         border: ink ? 'none' : '1.5px solid var(--proto-line-3)',
@@ -312,7 +311,7 @@ function CollapsedCard({
     .filter(Boolean)
     .join(' · ');
   return (
-    <MCard radius={14} padding="11px 14px" onClick={() => onExpand(card.id)}>
+    <MCard padding="11px 14px" onClick={() => onExpand(card.id)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
         {card.operation && <TierPill copy={copy} operation={card.operation} />}
         <span

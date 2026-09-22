@@ -79,9 +79,9 @@ function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
 function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JSX.Element {
   const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: 'var(--shadow-context-menu)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
   if (isUser) {
-    return <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', lineHeight: 1.55 }}>{text}</div>;
+    return <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)', lineHeight: 1.55 }}>{text}</div>;
   }
-  return <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, lineHeight: 1.6 }}>{text}</div>;
+  return <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 'var(--r-card)', lineHeight: 1.6 }}>{text}</div>;
 }
 
 function useMsgMenuTop(anchorTop: number | null | undefined): {
@@ -104,7 +104,7 @@ function useMsgMenuTop(anchorTop: number | null | undefined): {
 
 function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
   return (
-    <div onClick={(event) => event.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 13, boxShadow: 'var(--shadow-menu-floating)', overflow: 'hidden' }}>
+    <div onClick={(event) => event.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-floating)', overflow: 'hidden' }}>
       <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
       {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
     </div>
@@ -146,10 +146,10 @@ export function MsgActionMenu({ row, menu, copy }: {
 
 export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-accent-border)', borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-      <div role="button" aria-label="Cancel edit" onClick={onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}>×</div>
+      <div role="button" aria-label="Cancel edit" onClick={onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--proto-card)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}>×</div>
     </div>
   );
 }

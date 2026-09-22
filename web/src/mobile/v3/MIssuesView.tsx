@@ -59,7 +59,7 @@ export function MIssuesView({
                 color: MC.sub,
                 background: 'var(--proto-line-2)',
                 padding: '2px 8px',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 flex: 'none',
               }}
             >
@@ -124,7 +124,6 @@ function ExpandedCard({
   return (
     <MCard
       tone="blue"
-      radius={14}
       padding={0}
       style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
     >
@@ -185,7 +184,7 @@ function DecisionButton({
         flex: width ? 'none' : 1,
         width,
         height: 44,
-        borderRadius: 11,
+        borderRadius: 'var(--r-control)',
         background: accent ? MC.run : 'var(--proto-card)',
         color: accent ? 'var(--ink-solid-fg)' : 'var(--proto-danger)',
         border: accent ? 'none' : '1.5px solid var(--proto-danger-bg)',
@@ -208,7 +207,7 @@ function DecisionButton({
 // ── collapsed card — tap to expand (24c) ─────────────────────────────────────────────────────────
 function CollapsedCard({ card, onExpand }: { card: IssueDetailVm; onExpand: (id: string) => void }) {
   return (
-    <MCard radius={14} padding="11px 14px" onClick={() => onExpand(card.id)}>
+    <MCard padding="11px 14px" onClick={() => onExpand(card.id)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span
           style={{

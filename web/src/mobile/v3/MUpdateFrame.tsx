@@ -7,12 +7,13 @@ const OVERLAY_STYLE: CSSProperties = {
   boxSizing: 'border-box',
 };
 const CARD_STYLE: CSSProperties = {
-  width: '100%', background: 'var(--proto-card)', borderRadius: 18,
+  width: '100%', background: 'var(--glass-2)', borderRadius: 'var(--r-float)',
+  backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)',
   boxShadow: 'var(--shadow-overlay-strong)', padding: '24px 20px 14px',
   boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
 };
 const ICON_STYLE: CSSProperties = {
-  width: 46, height: 46, borderRadius: 14, background: 'var(--proto-accent-bg)',
+  width: 46, height: 46, borderRadius: 'var(--r-card)', background: 'var(--proto-accent-bg)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
 };
 const TITLE_STYLE: CSSProperties = {

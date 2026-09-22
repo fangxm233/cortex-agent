@@ -736,6 +736,14 @@ export const enBase = {
   stMotionFull: 'Full',
   stMotionReduced: 'Reduced',
 
+  // ── Appearance / glass control ──
+  stGlassLabel: 'Glass',
+  stGlassHint: 'How much panels, sheets and overlays let the background through. Pick Off if scrolling feels slow — it makes every surface solid and turns the blur off.',
+  stGlassOff: 'Off',
+  stGlassSubtle: 'Subtle',
+  stGlassMedium: 'Medium',
+  stGlassStrong: 'Strong',
+
   // ── Appearance / language control ──
   stLangLabel: 'Language',
   stLangHint: 'Used for this interface and for what Cortex writes back.',

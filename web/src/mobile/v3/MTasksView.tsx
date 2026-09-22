@@ -90,10 +90,10 @@ function InProgressCard({ task, copy, onOpenTask, onOpenThread }: CardProps) {
     if (threadId) onOpenThread(threadId);
   };
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <IdText task={task} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
-        <span onClick={openThread} style={{ font: `500 9.5px ${MONO}`, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 999, cursor: threadId ? 'pointer' : 'default' }}>
+        <span onClick={openThread} style={{ font: `500 9.5px ${MONO}`, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', cursor: threadId ? 'pointer' : 'default' }}>
           {copy.claim}{claimId ? ` · ${claimId}` : ''}{threadId ? ' ›' : ''}
         </span>
       </div>
@@ -103,14 +103,14 @@ function InProgressCard({ task, copy, onOpenTask, onOpenThread }: CardProps) {
 
 function ActionableCard({ task, copy, expanded, onToggle, onOpenTask }: CardProps) {
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <IdText task={task} />
         <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ marginLeft: 'auto', color: MC.faint, fontSize: 8.5, flex: 'none', cursor: 'pointer', padding: '2px 2px 2px 8px' }}>
           {expanded ? '▾' : '▸'}
         </span>
       </div>
-      {expanded && <div style={{ marginTop: 7, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 8, font: `400 10px/1.6 ${MONO}`, color: MC.sub }}>{copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}</div>}
+      {expanded && <div style={{ marginTop: 7, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 'var(--r-chip)', font: `400 10px/1.6 ${MONO}`, color: MC.sub }}>{copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}</div>}
     </MCard>
   );
 }
@@ -121,7 +121,7 @@ function ApprovalNeededCard({ task, copy, onOpenTask, onOpenApprovals }: CardPro
     onOpenApprovals();
   };
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <IdText task={task} />
       <StatusLine text={`${copy.approvalNeeded} · ${copy.openApprovals}`} color={MC.amberText} dot={MC.amber} onClick={openApprovals} />
     </MCard>
@@ -132,7 +132,7 @@ function WaitingCard({ task, copy, onOpenTask }: CardProps) {
   const dependencies = unresolvedDependencyIds(task);
   const text = dependencies.length > 0 ? `${copy.needs} ${dependencies.join(', ')}` : copy.waiting;
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.8 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.8 }}>
       <IdText task={task} textColor={MC.sub} />
       <StatusLine text={text} color={MC.muted} />
     </MCard>
@@ -142,7 +142,7 @@ function WaitingCard({ task, copy, onOpenTask }: CardProps) {
 function BlockedCard({ task, copy, onOpenTask }: CardProps) {
   const text = task.blockedBy ? `${copy.blocked} · ${task.blockedBy}` : copy.blocked;
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.75 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.75 }}>
       <IdText task={task} textColor={MC.sub} />
       <StatusLine text={text} color={MC.amberText} dot={MC.amber} singleLine />
     </MCard>
@@ -153,7 +153,7 @@ function DoneCard({ task, onOpenTask }: CardProps) {
   // Real `completed-at` in local wall clock; the line is dropped when the task never recorded one.
   const completedAt = formatTaskTime(task.completedAt);
   return (
-    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.7 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.7 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.done, flex: 'none' }} />
         <IdText task={task} textColor={MC.sub} />

@@ -79,7 +79,11 @@ function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
       aria-label={running ? 'Stop' : 'Send'}
       disabled={!enabled}
       onClick={running ? onStop : onSend}
-      style={{ ...circleKeyBase, width: size, height: size, background: MC.inkSolid, border: 'none', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
+      style={{ ...circleKeyBase, width: size, height: size, background: MC.inkSolid, border: 'none',
+        // Glow only on the filled, armed Send: Stop is destructive and a disabled key is not
+        // the primary action, so neither should float.
+        boxShadow: !running && enabled ? 'var(--accent-glow)' : undefined,
+        opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
     >
       {running ? <span style={{ width: 12, height: 12, background: MC.inkSolidFg, borderRadius: 3 }} /> : <SendGlyph size={15} />}
     </button>
@@ -132,7 +136,7 @@ type ComposerCardProps = MComposerProps & {
 function composerCardStyle(tone: MComposerProps['tone'], focused: boolean): CSSProperties {
   return {
     border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
-    borderRadius: 18, background: MC.card,
+    borderRadius: 'var(--r-float)', background: MC.card,
     boxShadow: tone === 'amber' ? 'var(--focus-ring-amber)' : tone === 'accent' || focused ? 'var(--focus-ring-accent)' : undefined,
     boxSizing: 'border-box', padding: '2px 10px 8px 12px',
   };
@@ -201,7 +205,7 @@ export function MComposer(props: MComposerProps): JSX.Element {
   useAutosize(textareaRef, props.value, setMultiline);
   const fullscreen = expanded ? <ComposerFullscreen {...props} value={props.value ?? ''} onCollapse={() => setExpanded(false)} onSend={() => { props.onSend?.(); setExpanded(false); }} onCommandPick={() => setExpanded(false)} /> : null;
   return (
-    <div style={{ flex: 'none', padding: '6px 14px 34px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))', background: MC.canvas }}>
+    <div style={{ flex: 'none', padding: '6px 14px 34px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' }}>
       {props.above}
       {!expanded ? props.commandMenu : null}
       <ComposerCard {...props} focused={focused} showExpand={multiline && !expanded} textareaRef={textareaRef} onFocus={setFocused} onExpand={() => setExpanded(true)} />
@@ -229,12 +233,12 @@ export interface ComposerFullscreenProps {
 }
 
 const fullscreenShellStyle: CSSProperties = {
-  position: 'absolute', inset: 0, zIndex: 4, background: MC.canvas, padding: '8px 10px',
+  position: 'absolute', inset: 0, zIndex: 4, background: MC.backdrop, padding: '8px 10px',
   paddingBottom: 'calc(8px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex',
 };
 const fullscreenCardStyle: CSSProperties = {
   flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-  border: `1.5px solid ${MC.run}`, borderRadius: 18, background: MC.card,
+  border: `1.5px solid ${MC.run}`, borderRadius: 'var(--r-float)', background: MC.card,
   boxShadow: 'var(--focus-ring-accent), var(--shadow-panel)', boxSizing: 'border-box',
 };
 const fullscreenTextareaStyle: CSSProperties = {

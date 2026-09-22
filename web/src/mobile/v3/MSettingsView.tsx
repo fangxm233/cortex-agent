@@ -34,7 +34,7 @@ const SUB = { font: `400 10px ${MONO}`, color: MC.muted, marginTop: 2 } as const
 
 function StatusBadge({ children }: { children: ReactNode }) {
   return (
-    <span style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
+    <span style={{ fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 'var(--r-pill)',
       background: MC.gray, color: MC.grayInk, flex: 'none' }}>
       {children}
     </span>
@@ -73,7 +73,7 @@ function ProfileCard(props: MSettingsViewProps) {
         onClick={() => props.onOpenSection('profiles')}
         style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
           display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-        <span style={{ width: 34, height: 34, borderRadius: 9, background: MC.runBg, color: MC.run,
+        <span style={{ width: 34, height: 34, borderRadius: 'var(--r-chip)', background: MC.runBg, color: MC.run,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           font: `600 11px ${MONO}`, flex: 'none' }}>P</span>
         <span style={{ minWidth: 0, flex: 1 }}>

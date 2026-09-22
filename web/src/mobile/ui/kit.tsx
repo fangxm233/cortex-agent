@@ -50,12 +50,13 @@ export function MScreen({
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        background: MC.canvas,
+        // No fill: the screen IS the mesh ground the shell painted. Cards inside stay opaque.
+        background: 'transparent',
         ...style,
       }}
     >
       {header}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>{children}</div>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>{children}</div>
       {footer}
     </div>
   );
@@ -82,7 +83,9 @@ export function MTabHeader({
       style={{
         flex: 'none',
         borderBottom: `1px solid ${MC.hairline}`,
-        background: MC.canvas,
+        // Translucent band, no `backdrop-filter`: nothing scrolls under a header (the body is a
+        // flex sibling), so a filter here would buy a blur of ground that is already smooth.
+        background: MC.glassRaised,
         padding: '6px 14px 10px',
         paddingTop: 'calc(6px + env(safe-area-inset-top))',
       }}
@@ -134,7 +137,8 @@ export function MDrillHeader({
         alignItems: 'center',
         gap: 9,
         borderBottom: `1px solid ${MC.hairline}`,
-        background: MC.canvas,
+        // Same band as MTabHeader, and unblurred for the same reason.
+        background: MC.glassRaised,
         padding: '8px 14px 10px',
         paddingTop: 'calc(8px + env(safe-area-inset-top))',
       }}
@@ -212,7 +216,11 @@ export function MScrollBody({ children, gap = 10 }: { children: ReactNode; gap?:
   );
 }
 
-// ── MCard — white rounded surface ─────────────────────────────────────────────
+// ── MCard — opaque rounded surface ────────────────────────────────────────────
+// The fill stays OPAQUE (`--m-card`) rather than translucent glass, which is the one deliberate
+// break from the desktop skin: a card is the unit that repeats down a long mobile list, and a
+// translucent card either needs a filter (unaffordable per scroll frame) or reads as a smudge of
+// whatever list row happens to be behind it.
 export type CardTone = 'default' | 'blue' | 'amber' | 'fail';
 const CARD_BORDER: Record<CardTone, string> = {
   default: MC.cardBorder,
@@ -222,14 +230,14 @@ const CARD_BORDER: Record<CardTone, string> = {
 };
 export function MCard({
   tone = 'default',
-  radius = 12,
+  radius = 'var(--r-card)',
   padding = '11px 13px',
   onClick,
   children,
   style,
 }: {
   tone?: CardTone;
-  radius?: number;
+  radius?: number | string;
   padding?: number | string;
   onClick?: () => void;
   children: ReactNode;
@@ -270,7 +278,7 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
         fontSize: 10,
         fontWeight: 600,
         padding: '2px 8px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: c.bg,
         color: c.fg,
         flex: 'none',
@@ -348,7 +356,7 @@ export function MSegmented<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div style={{ display: 'flex', background: MC.hairline, borderRadius: 8, padding: 2 }}>
+    <div style={{ display: 'flex', background: MC.hairline, borderRadius: 'var(--r-control)', padding: 2 }}>
       {options.map((o) => {
         const active = o.id === value;
         return (
@@ -364,7 +372,7 @@ export function MSegmented<T extends string>({
               fontWeight: 600,
               color: active ? MC.ink : MC.muted,
               background: active ? MC.card : 'transparent',
-              borderRadius: 6,
+              borderRadius: 'var(--r-chip)',
               padding: '4px 12px',
               boxShadow: active ? 'var(--shadow-segment)' : undefined,
             }}
@@ -516,8 +524,14 @@ export function MBottomSheet({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'var(--proto-alt)',
-          borderRadius: '18px 18px 0 0',
+          // Blur #2 of the three (see MC's blur budget): a bottom sheet is a single overlay that
+          // holds still once it has settled — the list inside it scrolls, the sheet does not. The
+          // fill is the denser `--glass-2`, as on the desktop Drawer: this sheet covers real
+          // content rather than the smooth ground, so the thinner pane alpha would read as noise.
+          background: 'var(--glass-2)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float) var(--r-float) 0 0',
           boxShadow: 'var(--shadow-sheet)',
           padding: '8px 14px 36px',
           paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
@@ -539,7 +553,7 @@ export function MBottomSheet({
           onPointerCancel={onHandleUp}
           style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none' }}
         >
-          <div style={{ width: 36, height: 5, borderRadius: 999, background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
+          <div style={{ width: 36, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
         </div>
         <div
           data-mobile-sheet-scroll="true"

@@ -26,7 +26,8 @@ const shellStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
-  background: 'var(--proto-alt)',
+  // The shell is the mesh ground the whole app floats on; the Tab bar blurs it, screens sit on it.
+  background: 'var(--app-backdrop)',
 };
 
 type MobileVocab = ReturnType<typeof useVocab>;

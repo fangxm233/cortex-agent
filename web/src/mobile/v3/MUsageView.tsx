@@ -50,7 +50,7 @@ const META: CSSProperties = { font: `400 9.5px ${MONO}`, color: MC.muted };
 const LABEL: CSSProperties = { fontSize: 9.5, fontWeight: 700, color: MC.faint, textTransform: 'uppercase' };
 const POLICY_INPUT: CSSProperties = {
   width: 86,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: `1px solid ${MC.divider}`,
   background: MC.card,
   color: MC.ink,
@@ -93,7 +93,7 @@ function PolicyToggle(props: {
       disabled={props.disabled}
       onClick={props.onClick}
       style={{
-        width: 38, height: 22, borderRadius: 999, border: 0, padding: 2,
+        width: 38, height: 22, borderRadius: 'var(--r-pill)', border: 0, padding: 2,
         display: 'flex', alignItems: 'center', justifyContent: props.enabled ? 'flex-end' : 'flex-start',
         background: props.enabled ? MC.run : MC.divider, cursor: props.disabled ? 'default' : 'pointer',
         opacity: props.disabled ? 0.55 : 1,
@@ -147,7 +147,7 @@ function PolicySaveButton(props: PolicyThresholdButtonsProps) {
         enabled: props.policy.enabled, thresholdPercent: props.parsedThreshold,
       })}
       style={{
-        border: 0, borderRadius: 8, padding: '7px 10px', background: MC.runBg,
+        border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg,
         color: MC.run, fontSize: 10.5, fontWeight: 650,
         opacity: props.saveDisabled ? 0.45 : 1, cursor: props.saveDisabled ? 'default' : 'pointer',
       }}
@@ -174,7 +174,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
       disabled={props.resetDisabled}
       onClick={() => props.onSavePolicy(props.policy.target, { enabled: true, thresholdPercent: null })}
       style={{
-        width: 30, height: 30, borderRadius: 8, border: `1px solid ${MC.divider}`, padding: 0,
+        width: 30, height: 30, borderRadius: 'var(--r-chip)', border: `1px solid ${MC.divider}`, padding: 0,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         background: MC.card, color: MC.sub,
         opacity: props.resetDisabled ? 0.45 : 1, cursor: props.resetDisabled ? 'default' : 'pointer',
@@ -256,7 +256,7 @@ function WindowRow(props: WindowRowProps) {
         <span style={{ fontSize: 11, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
         <span style={{ marginLeft: 'auto', font: `600 10px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
       </div>
-      <div style={{ height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
+      <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
         <div className="usage-meter-fill" style={{ width: props.window.utilizationWidth, height: '100%', background: MC.run }} />
       </div>
       {reset ? <div style={{ ...META, marginTop: 5 }}>{reset}</div> : null}
@@ -289,7 +289,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   const error = props.getPolicyError(props.fallback.target);
   const state = props.fallback.enabled ? props.copy.policy.enabled : props.copy.policy.disabled;
   return (
-    <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: `1px solid ${MC.divider}`, borderRadius: 8, padding: '8px 10px' }}>
+    <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: `1px solid ${MC.divider}`, borderRadius: 'var(--r-chip)', padding: '8px 10px' }}>
       <div style={{ fontSize: 10.5, fontWeight: 650, color: MC.ink }}>{props.copy.policy.legacyFallbackTitle}</div>
       <div style={{ ...META, marginTop: 3 }}>{props.copy.policy.legacyFallbackBody}</div>
       <div style={{ ...META, marginTop: 3 }}>{`${state} · ${props.fallback.thresholdPercent}%`}</div>
@@ -299,7 +299,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
         disabled={pending}
         onClick={() => props.onSavePolicy(props.fallback.target, { enabled: true, thresholdPercent: null })}
         style={{
-          marginTop: 8, borderRadius: 8, border: `1px solid ${MC.divider}`, padding: '7px 10px',
+          marginTop: 8, borderRadius: 'var(--r-chip)', border: `1px solid ${MC.divider}`, padding: '7px 10px',
           background: MC.card, color: MC.sub, fontSize: 10.5, fontWeight: 650,
           opacity: pending ? 0.45 : 1, cursor: pending ? 'default' : 'pointer',
         }}
@@ -393,7 +393,7 @@ function RefreshButton({ copy, pending, onRefresh }: { copy: MUsageCopy; pending
       data-usage-refresh
       aria-busy={pending}
       onClick={onRefresh}
-      style={{ border: 0, borderRadius: 8, padding: '7px 10px', background: MC.runBg, color: MC.run, fontSize: 10.5, fontWeight: 650 }}
+      style={{ border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg, color: MC.run, fontSize: 10.5, fontWeight: 650 }}
     >
       {pending ? copy.refreshing : copy.refresh}
     </button>

@@ -23,8 +23,8 @@
   <body>
     <div id="root"></div>
     <script>
-      // No-flash appearance: apply persisted theme, accent, surface, and motion before first paint.
-      // Mirrors src/theme/theme.ts parsing and DOM attributes — keep in sync.
+      // No-flash appearance: apply persisted theme, accent, surface, motion and glass before first
+      // paint. Mirrors src/theme/theme.ts parsing and DOM attributes — keep in sync.
       (function () {
         try {
           var stored = null;
@@ -62,6 +62,14 @@
           try { motion = window.localStorage.getItem('cortex.motion'); } catch (e) {}
           if (motion === 'full' || motion === 'reduced') {
             document.documentElement.setAttribute('data-motion', motion);
+          }
+          // Glass has to land here more than any other preference: it sets the pane alphas and the
+          // blur radius every surface reads, so applying it after mount would re-skin the whole app
+          // in view. The default `strong` needs no attribute — the bare `:root` carries its values.
+          var glass = null;
+          try { glass = window.localStorage.getItem('cortex.glass'); } catch (e) {}
+          if (glass === 'off' || glass === 'subtle' || glass === 'medium') {
+            document.documentElement.setAttribute('data-glass', glass);
           }
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) {

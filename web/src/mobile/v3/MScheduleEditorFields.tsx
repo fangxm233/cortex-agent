@@ -20,7 +20,7 @@ const label: CSSProperties = {
 };
 const field: CSSProperties = {
   width: '100%', minHeight: 40, boxSizing: 'border-box',
-  border: `1px solid ${MC.hairline}`, borderRadius: 9, padding: '8px 10px',
+  border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '8px 10px',
   background: MC.card, color: MC.ink, fontSize: 13,
 };
 const pair: CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 };
@@ -64,7 +64,7 @@ function TypeField({ copy, form, editableFields, onChange }: FieldsProps) {
   return (
     <div>
       <span style={label}>{copy.scType}</span>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: `1px solid ${MC.hairline}`, borderRadius: 9, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', overflow: 'hidden' }}>
         {SCHED_TYPES.map((type) => <TypeButton key={type} type={type} form={form}
           disabled={!editableFields.type} label={labels[type]} onChange={onChange} />)}
       </div>
@@ -136,7 +136,7 @@ function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
 function OnceTimingNote({ copy, form, mode }: FieldsProps) {
   if (mode !== 'edit' || form.type !== 'once') return null;
   return (
-    <div data-once-timing-note style={{ border: `1px solid ${MC.hairline}`, borderRadius: 9,
+    <div data-once-timing-note style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)',
       padding: 10, color: MC.muted, fontSize: 11.5, lineHeight: 1.5 }}>
       {copy.scOnceTimingUnavailable}
     </div>
@@ -209,7 +209,8 @@ function SubmitFields({ copy, mode, valid, pending, error, onSubmit }: FieldsPro
     <>
       {error && <div role="alert" style={{ color: MC.fail, fontSize: 11.5 }}>{error}</div>}
       <button type="button" data-action="save-schedule" disabled={!valid || pending} onClick={onSubmit}
-        style={{ border: 0, borderRadius: 9, padding: 11, background: MC.run,
+        style={{ border: 0, borderRadius: 'var(--r-chip)', padding: 11, background: MC.run,
+          boxShadow: valid && !pending ? 'var(--accent-glow)' : undefined,
           color: 'var(--ink-solid-fg)', fontSize: 13, fontWeight: 700 }}>
         {mode === 'edit' ? copy.scSaveSchedule : copy.scCreateSchedule}
       </button>

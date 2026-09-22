@@ -5,18 +5,23 @@ export type AccentHue = number | null;
 export type AccentIntensity = 'soft' | 'normal' | 'vivid';
 /** Animation policy; `system` defers to `prefers-reduced-motion`. */
 export type MotionMode = 'system' | 'full' | 'reduced';
+/** How translucent panes and overlays are; `off` also drops `backdrop-filter` entirely. */
+export type GlassLevel = 'off' | 'subtle' | 'medium' | 'strong';
 
 export const THEME_STORAGE_KEY = 'cortex.theme';
 export const ACCENT_HUE_STORAGE_KEY = 'cortex.accent-hue';
 export const ACCENT_INTENSITY_STORAGE_KEY = 'cortex.accent-intensity';
 export const MOTION_STORAGE_KEY = 'cortex.motion';
+export const GLASS_STORAGE_KEY = 'cortex.glass';
 export const DEFAULT_THEME: Theme = 'light';
 export const DEFAULT_ACCENT_HUE = 274;
 export const DEFAULT_ACCENT_INTENSITY: AccentIntensity = 'normal';
 export const DEFAULT_MOTION_MODE: MotionMode = 'system';
+export const DEFAULT_GLASS: GlassLevel = 'strong';
 
 const ACCENT_INTENSITIES: readonly AccentIntensity[] = ['soft', 'normal', 'vivid'];
 const MOTION_MODES: readonly MotionMode[] = ['system', 'full', 'reduced'];
+const GLASS_LEVELS: readonly GlassLevel[] = ['off', 'subtle', 'medium', 'strong'];
 const THEME_TRANSITION_CLEANUP_MS = 200;
 let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -136,6 +141,18 @@ export function storeMotionMode(mode: MotionMode): void {
   storeOption(MOTION_STORAGE_KEY, mode, DEFAULT_MOTION_MODE);
 }
 
+export function parseStoredGlass(stored: string | null): GlassLevel {
+  return parseOption(stored, GLASS_LEVELS, DEFAULT_GLASS);
+}
+
+export function readStoredGlass(): GlassLevel {
+  return readOption(GLASS_STORAGE_KEY, GLASS_LEVELS, DEFAULT_GLASS);
+}
+
+export function storeGlass(level: GlassLevel): void {
+  storeOption(GLASS_STORAGE_KEY, level, DEFAULT_GLASS);
+}
+
 export function watchSystemTheme(onChange: (prefersDark: boolean) => void): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
   const query = window.matchMedia('(prefers-color-scheme: dark)');
@@ -226,4 +243,13 @@ export function applyMotionMode(mode: MotionMode): void {
   const root = document.documentElement;
   if (mode === 'system') root.removeAttribute('data-motion');
   else root.setAttribute('data-motion', mode);
+}
+
+/** `strong` leaves the attribute off: the bare `:root` in theme.css already carries its alphas, so
+ *  the shipped default needs no attribute at all — and neither does the pre-React boot script. */
+export function applyGlass(level: GlassLevel): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (level === DEFAULT_GLASS) root.removeAttribute('data-glass');
+  else root.setAttribute('data-glass', level);
 }
