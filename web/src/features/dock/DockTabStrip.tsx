@@ -1,3 +1,7 @@
+// input:  dock-tabs, browser-target, motion, theme
+// output: DockTabStrip
+// pos:    Compact readable tabs above opaque dock documents
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';
@@ -164,10 +168,10 @@ const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'fle
 const STRIP_SCROLL_STYLE: CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 3, padding: '0 0 0 8px', overflowX: 'auto', overflowY: 'hidden', position: 'relative' };
 const ACTIONS_STYLE: CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px' };
 const TAB_ITEM_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 35, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip) var(--r-chip) 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
-const TAB_SELECT_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
-const TAB_LABEL_STYLE: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '13px' };
-const TAB_CHIP_STYLE: CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 16, padding: '0 5px', marginRight: 6, borderRadius: 5, font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const TAB_SELECT_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 11px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
+const TAB_LABEL_STYLE: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '15px' };
+const TAB_CHIP_STYLE: CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 18, padding: '0 5px', marginRight: 6, borderRadius: 'var(--r-chip)', font: `600 11px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const TAB_CHIP_FORWARD_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
-const TAB_CHIP_PLAIN_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted-2)' };
-const TAB_CLOSE_STYLE: CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted-2)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
+const TAB_CHIP_PLAIN_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted)' };
+const TAB_CLOSE_STYLE: CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
 const ADD_BUTTON_STYLE: CSSProperties = { width: 26, height: 26, flex: 'none', marginBottom: 4, borderRadius: 'var(--r-chip) var(--r-chip) 0 0', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };

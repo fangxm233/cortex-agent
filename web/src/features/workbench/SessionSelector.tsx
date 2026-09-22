@@ -1,3 +1,7 @@
+// input:  selection-menu, tRPC, session selection, vocab
+// output: SessionSelector views and selection controls
+// pos:    Session model/profile controls with readable chip hints
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';
@@ -295,7 +299,7 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
         {parts.main}
       </span>
       {parts.sub ? (
-        <span style={{ color: 'var(--proto-muted-3)', flex: 'none' }}>· {parts.sub}</span>
+        <span style={{ color: 'var(--proto-muted)', flex: 'none' }}>· {parts.sub}</span>
       ) : null}
       {open ? (
         <SelectionMenu

@@ -1,3 +1,7 @@
+// input:  pane state, thread/task/machine resources, vocab
+// output: RightPanel
+// pos:    Glass context drawer with readable tabs and empty states
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -98,7 +102,7 @@ function PanelRailButton({ target, label, active, count = 0, pulse, onClick }: {
             padding: '0 3px',
             boxSizing: 'border-box',
             borderRadius: 7,
-            font: "600 9px 'IBM Plex Mono',monospace",
+            font: "600 11px 'IBM Plex Mono',monospace",
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -294,13 +298,13 @@ function TabButton({ label, count, countColor, active, dot, onClick }: {
     <button type="button" role="tab" aria-selected={active} onClick={onClick} style={{ flex: 1, fontFamily: 'inherit', fontSize: 12, fontWeight: active ? 600 : 500, color: active ? 'var(--proto-ink)' : 'var(--proto-muted)', height: 28, border: 0, borderRadius: 'var(--r-chip)', background: active ? 'var(--glass-2)' : 'transparent', boxShadow: active ? 'var(--shadow-card)' : 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'background .15s' }}>
       {label}
       {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', display: 'inline-block' }} />}
-      <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: countColor }}>{count}</span>
+      <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: countColor }}>{count}</span>
     </button>
   );
 }
 
 const THREAD_GROUP_LABEL_STYLE = {
-  fontSize: 10.5,
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: '.07em',
   textTransform: 'uppercase',
@@ -353,8 +357,8 @@ function RightTabs({ tab, counts, headerAction, onTabChange }: {
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 10px 8px', flex: 'none' }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 'var(--r-control)', background: 'var(--proto-line-2)', flex: 1 }}>
         <TabButton label={L.threads} count={String(counts.threads)} countColor="var(--proto-accent)" active={tab === 'threads'} onClick={() => onTabChange('threads')} />
-        <TabButton label={L.tasks} count={String(counts.tasks)} countColor="var(--proto-muted-2)" active={tab === 'tasks'} onClick={() => onTabChange('tasks')} />
-        <TabButton label={L.machines} count={String(counts.machines)} countColor="var(--proto-muted-2)" active={tab === 'machines'} dot onClick={() => onTabChange('machines')} />
+        <TabButton label={L.tasks} count={String(counts.tasks)} countColor="var(--proto-muted)" active={tab === 'tasks'} onClick={() => onTabChange('tasks')} />
+        <TabButton label={L.machines} count={String(counts.machines)} countColor="var(--proto-muted)" active={tab === 'machines'} dot onClick={() => onTabChange('machines')} />
       </div>
       {headerAction}
     </div>
@@ -365,11 +369,11 @@ function BudgetBar({ budget }: { budget: PanelBudget }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 18px 12px', flex: 'none' }}>
-      <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.today}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.today}</span>
       <div style={{ flex: 1, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
         <div style={{ width: `${budget.percent}%`, height: '100%', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent)' }} />
       </div>
-      <span style={{ font: "500 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{budget.todayLabel} / {budget.limitLabel}</span>
+      <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{budget.todayLabel} / {budget.limitLabel}</span>
     </div>
   );
 }
@@ -381,8 +385,8 @@ function ThreadsTab({ groups, ready, now }: { groups: ThreadGroup[]; ready: bool
       {groups.map((group) => <ThreadGroupSection key={group.kind} group={group} label={group.kind === 'active' ? L.active : L.history} now={now} />)}
       {ready && groups.length === 0 && (
         <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.rpNoActiveThreads}</div>
-          <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>{L.rpNoActiveThreadsHint}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.rpNoActiveThreads}</div>
+          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginTop: 4, lineHeight: 1.6 }}>{L.rpNoActiveThreadsHint}</div>
         </div>
       )}
     </div>

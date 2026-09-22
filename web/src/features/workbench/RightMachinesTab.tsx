@@ -1,3 +1,7 @@
+// input:  machine resource, machine-detail-vm, vocab
+// output: RightMachinesTab, RightMachinesView
+// pos:    Compact machine cards with readable telemetry states
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
@@ -26,7 +30,7 @@ const MACHINE_ICON = (
 );
 
 const MONO = "'IBM Plex Mono',monospace";
-const META_FONT = `400 10px ${MONO}`;
+const META_FONT = `400 11px ${MONO}`;
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -66,8 +70,8 @@ function MeterRow({ meters }: { meters: MachineMeter[] }) {
   return (
     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', padding: '8px 14px' }}>
       {meters.map((meter) => (
-        <span key={meter.key} style={{ display: 'flex', alignItems: 'center', gap: 5, font: META_FONT, color: 'var(--proto-muted-2)' }}>
-          <span style={{ color: 'var(--proto-muted-3)' }}>{meter.label}</span>
+        <span key={meter.key} style={{ display: 'flex', alignItems: 'center', gap: 5, font: META_FONT, color: 'var(--proto-muted)' }}>
+          <span style={{ color: 'var(--proto-muted)' }}>{meter.label}</span>
           <Bar percent={meter.percent} width={34} />
           <span style={{ color: 'var(--proto-muted)' }}>{meter.text}</span>
         </span>
@@ -78,23 +82,23 @@ function MeterRow({ meters }: { meters: MachineMeter[] }) {
 
 function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
   return <div style={{ padding: '6px 14px', borderTop: '1px solid var(--proto-line-soft)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, font: META_FONT, color: 'var(--proto-muted)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', font: META_FONT, color: 'var(--proto-muted)' }}>
         <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{gpu.index}</span>
-        <span style={{ color: 'var(--proto-muted-2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span title={gpu.name} style={{ color: 'var(--proto-muted)', flex: '1 1 80px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {gpu.name}
         </span>
         <Bar percent={gpu.utilPercent} width={34} />
         <span style={{ width: 30, textAlign: 'right' }}>{gpu.utilText}</span>
-        <span style={{ color: 'var(--proto-muted-3)' }}>{gpu.memText}</span>
-        <span style={{ color: 'var(--proto-faint)' }}>{gpu.tempText}</span>
+        <span style={{ color: 'var(--proto-muted)' }}>{gpu.memText}</span>
+        <span style={{ color: 'var(--proto-muted)' }}>{gpu.tempText}</span>
       </div>
       {gpu.processes.map((proc) => (
-        <div key={proc.pid} style={{ font: META_FONT, color: 'var(--proto-faint)', marginTop: 2, paddingLeft: 14 }}>
+        <div key={proc.pid} style={{ font: META_FONT, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 14, overflowWrap: 'anywhere' }}>
           {proc.pid} {proc.name} · {proc.memText}
         </div>
       ))}
       {gpu.hiddenProcessCount > 0 && (
-        <div style={{ font: META_FONT, color: 'var(--proto-faint)', marginTop: 2, paddingLeft: 14 }}>
+        <div style={{ font: META_FONT, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 14 }}>
           +{gpu.hiddenProcessCount}
         </div>
       )}
@@ -108,7 +112,7 @@ function RunRow({ run }: { run: MachineRunRow }) {
         style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0, animation: 'cxpulse 1.6s ease-in-out infinite' }}
       />
       <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{run.label}</span>
-      {run.duration && <span style={{ marginLeft: 'auto', color: 'var(--proto-faint)' }}>{run.duration}</span>}
+      {run.duration && <span style={{ marginLeft: 'auto', color: 'var(--proto-muted)' }}>{run.duration}</span>}
     </div>
   );
 }
@@ -124,9 +128,9 @@ function MetaFooter({ machine, uptime }: { machine: MachineInfo; uptime: string 
   if (machine.capabilities.length > 0) parts.push(machine.capabilities.join(','));
   return (
     <div style={{ padding: '7px 14px 9px', borderTop: '1px solid var(--proto-line-soft)' }}>
-      <div style={{ font: META_FONT, color: 'var(--proto-faint)', lineHeight: 1.7 }}>{parts.join(' · ')}</div>
+      <div style={{ font: META_FONT, color: 'var(--proto-muted)', lineHeight: 1.7, overflowWrap: 'anywhere' }}>{parts.join(' · ')}</div>
       {machine.cortexPath && (
-        <div style={{ font: META_FONT, color: 'var(--proto-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div title={machine.cortexPath} style={{ font: META_FONT, color: 'var(--proto-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {L.mPath} {machine.cortexPath}
         </div>
       )}
@@ -140,7 +144,7 @@ function Notice({ text, tone }: { text: string; tone: 'muted' | 'danger' }) {
       style={{
         padding: '8px 14px',
         font: META_FONT,
-        color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-muted-3)',
+        color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-muted)',
       }}
     >
       {text}
@@ -176,8 +180,8 @@ function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boole
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
     <span style={{ display: 'inline-flex', color: 'var(--proto-muted-3)' }}><Chevron open={open} /></span>
     <span style={{ display: 'inline-flex', color: iconColor }}>{MACHINE_ICON}</span>
-    <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{machine.name}</span>
-    <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, padding: '2px 8px',
+    <span title={machine.name} style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{machine.name}</span>
+    <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, padding: '2px 8px',
       borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.fg }}>{pill.text}</span>
   </div>;
 }
@@ -187,7 +191,7 @@ function MachineCardMeta({ machine }: { machine: MachineInfo }) {
   const parts = [machine.gpuCount == null ? '' : `${L.mGpu} ×${machine.gpuCount}`, machine.os,
     machine.liveRuns > 0 ? `${machine.liveRuns} ${L.mLiveRuns}` : ''].filter(Boolean);
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-    <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', paddingLeft: 17 }}>
+    <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', paddingLeft: 17 }}>
       {parts.join(' · ')}
     </span>
     {machine.liveRuns > 0 && <span style={{ marginLeft: 'auto', width: 6, height: 6,
@@ -200,7 +204,7 @@ function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
   // Same glass-on-glass rule as the thread cards: translucent fill, no filter of its own.
-  return <div style={{ background: 'var(--glass-2)', border: 0, borderRadius: 12,
+  return <div style={{ background: 'var(--glass-2)', border: 0, borderRadius: 'var(--r-card)',
     boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line-2)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
       style={{ padding: '10px 12px', cursor: 'pointer',
@@ -216,7 +220,7 @@ function MachineCard({ machine, open, detail, onToggle }: {
 // labelled card stack, so machines gets the same label the threads and tasks groups use.
 function MachinesHeader({ count }: { count: string }) {
   const L = useVocab();
-  return <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.07em',
+  return <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em',
     textTransform: 'uppercase', color: 'var(--proto-muted)', padding: '6px 6px', flex: 'none' }}>
     {L.machines} · {count}
   </div>;
@@ -225,14 +229,14 @@ function MachinesHeader({ count }: { count: string }) {
 function MachineListState({ loading, error, empty }: { loading: boolean; error: boolean; empty: boolean }) {
   const L = useVocab();
   if (loading) return <div style={{ textAlign: 'center', fontSize: 11,
-    color: 'var(--proto-muted-3)', padding: '24px 0' }}>{L.rpLoadingMachines}</div>;
+    color: 'var(--proto-muted)', padding: '24px 0' }}>{L.rpLoadingMachines}</div>;
   if (error) return <div style={{ textAlign: 'center', fontSize: 11,
     color: 'var(--proto-danger)', padding: '24px 0' }}>{L.rpFailedLoadMachines}</div>;
   if (!empty) return null;
   return <div style={{ textAlign: 'center', padding: '26px 12px',
     border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
-    <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.mNoMachines}</div>
-    <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4,
+    <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.mNoMachines}</div>
+    <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginTop: 4,
       lineHeight: 1.6 }}>{L.rpNoMachinesHint}</div>
   </div>;
 }

@@ -1,3 +1,7 @@
+// input:  cmdk, palette-items, tRPC, routing
+// output: CommandPalette, CommandPaletteProps
+// pos:    Glass command search with readable compact results
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -30,16 +34,18 @@ const HEADER_STYLE: CSSProperties = {
 
 const INPUT_STYLE: CSSProperties = {
   flex: 1,
+  minWidth: 0,
   fontSize: 14,
   color: 'var(--proto-ink)',
   fontFamily: 'inherit',
 };
 
 const ESC_STYLE: CSSProperties = {
-  font: "400 10px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted-3)',
-  border: '1px solid var(--proto-line-3)',
-  borderRadius: 5,
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
+  background: 'transparent',
+  border: '1px solid var(--proto-line)',
+  borderRadius: 'var(--r-chip)',
   padding: '1px 5px',
   cursor: 'pointer',
 };
@@ -54,25 +60,28 @@ const ROW_STYLE: CSSProperties = {
   gap: 10,
   height: 34,
   padding: '0 10px',
-  borderRadius: 9,
+  borderRadius: 'var(--r-chip)',
   cursor: 'pointer',
 };
 
 const KIND_STYLE: CSSProperties = {
-  width: 56,
+  width: 64,
   flex: 'none',
-  font: "600 9px 'IBM Plex Mono',monospace",
-  letterSpacing: '.06em',
+  font: "600 11px 'IBM Plex Mono',monospace",
+  letterSpacing: '.02em',
   textTransform: 'uppercase',
-  color: 'var(--proto-muted-3)',
+  color: 'var(--proto-muted)',
 };
 
 const HINT_STYLE: CSSProperties = {
   marginLeft: 'auto',
-  font: "400 10px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted-3)',
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
   whiteSpace: 'nowrap',
-  flex: 'none',
+  maxWidth: '35%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  flex: '0 1 auto',
   paddingLeft: 10,
 };
 
@@ -84,15 +93,15 @@ const FOOTER_STYLE: CSSProperties = {
 };
 
 const FOOTER_TEXT_STYLE: CSSProperties = {
-  font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-faint)',
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
 };
 
 const EMPTY_STYLE: CSSProperties = {
   padding: '18px 11px',
   textAlign: 'center',
   fontSize: 12.5,
-  color: 'var(--proto-muted-3)',
+  color: 'var(--proto-muted)',
 };
 
 export interface CommandPaletteProps {
@@ -116,7 +125,7 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
       <span style={KIND_STYLE}>{kind}</span>
       <span className="cmdk-row-label">{label}</span>
-      <span style={HINT_STYLE}>{hint}</span>
+      <span style={HINT_STYLE} title={hint}>{hint}</span>
     </Command.Item>
   );
 }
@@ -158,7 +167,7 @@ function PaletteHeader({ query, setQuery, close }: {
         <circle cx="5" cy="5" r="3.8" /><path d="M8 8l2.6 2.6" />
       </svg>
       <Command.Input autoFocus value={query} onValueChange={setQuery} placeholder={L.cmdkPh} style={INPUT_STYLE} />
-      <span style={ESC_STYLE} onClick={close}>esc</span>
+      <button type="button" aria-label="Close command palette" style={ESC_STYLE} onClick={close}>esc</button>
     </div>
   );
 }

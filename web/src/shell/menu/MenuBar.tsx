@@ -1,3 +1,7 @@
+// input:  menu-model, desktop platform
+// output: MenuBar
+// pos:    Compact app menus and readable shortcut hints
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
 import { usesCommandKey } from '@/lib/desktop-platform';
 import { formatAccel, type MenuDef, type MenuNode } from './menu-model';
@@ -59,7 +63,7 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
       <span style={{ width: 14, textAlign: 'center', color: 'inherit' }}>{node.checked ? '✓' : ''}</span>
       <span>{node.label}</span>
       {node.accel && (
-        <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, opacity: hover && !node.disabled ? 0.8 : 1, color: hover && !node.disabled ? 'inherit' : 'var(--proto-muted-3)' }}>
+        <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}`, color: hover && !node.disabled ? 'inherit' : 'var(--proto-muted)' }}>
           {formatAccel(node.accel, commandKey)}
         </span>
       )}
@@ -130,6 +134,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }): JSX.Element {
           <div key={menu.id} style={{ position: 'relative' }}>
             <button
               type="button"
+              className="shell-menu-trigger"
               aria-haspopup="menu"
               aria-expanded={open}
               onClick={(event) => {
@@ -139,7 +144,6 @@ export function MenuBar({ menus }: { menus: MenuDef[] }): JSX.Element {
               onMouseEnter={() => { if (openId) setOpenId(menu.id); }}
               style={{
                 height: BAR_ITEM_HEIGHT,
-                padding: '0 11px',
                 border: 0,
                 borderRadius: 'var(--r-chip)',
                 fontFamily: 'inherit',

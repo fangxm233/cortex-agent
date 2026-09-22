@@ -1,3 +1,7 @@
+// input:  thread DTOs, right-panel-vm, tRPC, modal providers
+// output: RightThreadCard, StepRow, SubtaskCard, taskProjectForDetail
+// pos:    Compact thread progress cards with readable metadata
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
@@ -89,7 +93,7 @@ const ACTIVITY_COLORS: Record<ActivityTone, string> = {
   running: 'var(--proto-accent)',
   done: 'var(--proto-success)',
   failed: 'var(--proto-danger)',
-  idle: 'var(--proto-faint)',
+  idle: 'var(--proto-muted)',
 };
 
 function ActivityDot({ tone }: { tone: ActivityTone }) {
@@ -128,9 +132,9 @@ export function SubtaskCard({ task, onOpen }: {
       }}
     >
       <ActivityDot tone={state.tone} />
-      <span style={{ flex: 'none', font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>task {task.id}</span>
-      <span style={{ minWidth: 0, fontSize: 9.5, color: 'var(--proto-muted-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</span>
-      <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 9.5, fontWeight: 600, color: ACTIVITY_COLORS[state.tone] }}>{state.label}</span>
+      <span style={{ flex: 'none', font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>task {task.id}</span>
+      <span style={{ minWidth: 0, fontSize: 11, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</span>
+      <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, color: ACTIVITY_COLORS[state.tone] }}>{state.label}</span>
     </div>
   );
 }
@@ -157,13 +161,13 @@ interface StepRowProps {
   onOpenTask: (taskId: string) => void;
 }
 
-function StepHeader({ label, meta, active, done }: { label: string; meta: string; active: boolean; done: boolean }) {
-  const labelColor = active ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)';
+function StepHeader({ label, meta, active }: { label: string; meta: string; active: boolean }) {
+  const labelColor = active ? 'var(--proto-ink)' : 'var(--proto-muted)';
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: labelColor }}>{label}</span>
       <span
-        style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: active ? 'var(--proto-accent)' : 'var(--proto-faint)' }}
+        style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}
       >
         {meta}
       </span>
@@ -182,7 +186,7 @@ export function StepRow({ step, isLast, detail, onOpenTask }: StepRowProps) {
     <>
       <StepDot kind={kind} hasTail={!isLast} />
       <div style={{ minWidth: 0, paddingBottom: isLast ? 4 : 9 }}>
-        <StepHeader label={label} meta={stepMeta(step)} active={active} done={kind === 'done'} />
+        <StepHeader label={label} meta={stepMeta(step)} active={active} />
         {hasActivities && <ThreadActivityRows subtasks={subtasks} onOpenTask={onOpenTask} />}
       </div>
     </>
@@ -205,7 +209,7 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
       <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
       <span data-cancel-thread-id={threadId} onClick={() => cancel.mutate({ threadId })} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}>{L.cancel}</span>
       <span onClick={() => openThread(threadId)} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.open}</span>
-      <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>Σ {formatCost(cost)}</span>
+      <span style={{ marginLeft: 'auto', font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>Σ {formatCost(cost)}</span>
     </div>
   );
 }
@@ -263,31 +267,32 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         background: 'var(--glass-2)',
         // The outline is a shadow ring rather than a border so it costs no outer size: a 1px border
         // would make every card 2px wider than the stack it sits in. The running thread wears the
-        // accent ring and its glow; the rest only brighten theirs on hover.
+        // accent ring; the rest only brighten theirs on hover.
         border: 0,
         borderRadius: 'var(--r-card)',
         boxShadow: running
-          ? 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border), var(--accent-glow)'
+          ? 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border)'
           : `var(--shadow-card), 0 0 0 1px ${hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
       }}
     >
       <div
         onClick={() => setOpen((o) => !o)}
         style={{
-          padding: '12px 14px 10px',
+          padding: '10px 12px',
           cursor: 'pointer',
           borderBottom: '1px solid ' + (open ? 'var(--proto-line-soft)' : 'transparent'),
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ display: 'inline-flex', color: iconColor, stroke: iconColor }}>{NODE_ICON}</span>
-          <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
+          <span title={thread.templateName} style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {thread.templateName}
           </span>
           <span
             style={{
               marginLeft: 'auto',
-              fontSize: 10.5,
+              fontSize: 11,
+              flex: 'none',
               fontWeight: 600,
               padding: '2px 8px',
               borderRadius: 'var(--r-pill)',
@@ -298,13 +303,13 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
             {pill.text}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-          <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
+          <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
             {threadMetaLine(thread, now)}
           </span>
           {hasDots && dots && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginRight: 2 }}>
+              <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginRight: 2 }}>
                 {L.rpDepth}
               </span>
               {Array.from({ length: dots.total }).map((_, i) => (
@@ -318,7 +323,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
                   }}
                 />
               ))}
-              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 2 }}>
+              <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 2 }}>
                 {dots.text}
               </span>
             </span>
@@ -326,7 +331,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         </div>
       </div>
       {open && detailQuery.isPending && (
-        <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted-3)' }}>{L.rpLoadingThread}</div>
+        <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted)' }}>{L.rpLoadingThread}</div>
       )}
       {open && detailQuery.isError && (
         <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-danger)' }}>

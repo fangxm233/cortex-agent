@@ -1,4 +1,9 @@
+// input:  pane state, app menus, connection status, theme
+// output: TopBar, TOP_BAR_HEIGHT
+// pos:    Responsive window chrome with all actions retained
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import './top-bar.css';
 import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
 import { useTheme, useSetTheme } from '@/theme';
@@ -33,7 +38,7 @@ function IconButton({ label, active, disabled, onClick, children }: {
   children: ReactNode;
 }): JSX.Element {
   const [hover, setHover] = useState(false);
-  const tone = disabled ? 'var(--proto-line-3)' : active || hover ? 'var(--proto-ink)' : 'var(--proto-muted-2)';
+  const tone = disabled ? 'var(--proto-line-3)' : active || hover ? 'var(--proto-ink)' : 'var(--proto-muted)';
   return (
     <button
       type="button"
@@ -47,7 +52,7 @@ function IconButton({ label, active, disabled, onClick, children }: {
         width: 30,
         height: 30,
         border: 0,
-        borderRadius: 8,
+        borderRadius: 'var(--r-chip)',
         padding: 0,
         display: 'grid',
         placeItems: 'center',
@@ -104,6 +109,8 @@ function CommandPill({ label, accel, onClick }: { label: string; accel: string; 
     <button
       type="button"
       aria-label={label}
+      title={`${label} (${accel})`}
+      className="shell-command-pill"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -112,8 +119,9 @@ function CommandPill({ label, accel, onClick }: { label: string; accel: string; 
         alignItems: 'center',
         gap: 8,
         height: 30,
-        width: 320,
-        padding: '0 12px',
+        minWidth: 34,
+        maxWidth: 320,
+        padding: '0 10px',
         boxSizing: 'border-box',
         border: 0,
         borderRadius: 'var(--r-pill)',
@@ -121,17 +129,18 @@ function CommandPill({ label, accel, onClick }: { label: string; accel: string; 
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         boxShadow: '0 0 0 1px var(--proto-line)',
-        color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-2)',
+        color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
         cursor: 'pointer',
         fontFamily: 'inherit',
         // A button centres its text; the pill reads as a field, so its placeholder starts at the left.
         textAlign: 'left',
-        flex: 'none',
+        flex: '0 1 320px',
+        overflow: 'hidden',
       }}
     >
       <SearchGlyph />
-      <span style={{ fontSize: 12, flex: 1 }}>{label}</span>
-      <span style={{ font: `500 10px ${mono}`, color: 'var(--proto-muted-3)' }}>{accel}</span>
+      <span className="shell-command-label" style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span className="shell-command-accel" style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>{accel}</span>
     </button>
   );
 }
@@ -194,7 +203,7 @@ export function TopBar(): JSX.Element {
           label={`${L.dmDaemon} · ${connLabel}`}
           onClick={() => shellModals.openDaemonStatus()}
         />
-        <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
+        <div className="shell-brand-label" style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none' }}>
@@ -215,7 +224,7 @@ export function TopBar(): JSX.Element {
         </div>
       )}
 
-      <div style={{ flex: 1, alignSelf: 'stretch', minWidth: 20 }} />
+      <div className="shell-topbar-spacer" />
 
       <CommandPill
         label={L.cmdkPh}
@@ -226,12 +235,11 @@ export function TopBar(): JSX.Element {
         onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }))}
       />
 
-      <div style={{ flex: 1, alignSelf: 'stretch', minWidth: 20 }} />
+      <div className="shell-topbar-spacer" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none', paddingRight: 'var(--app-gutter)' }}>
-        {/* Theme (☀/☾). The language switch lives in Settings → Appearance. The capsule opts out of
-            the drag region explicitly: its halves are spans, which the drag walk would otherwise
-            treat as bare bar surface and swallow the click to start a window drag. */}
+        {/* Theme controls remain keyboard reachable when labels compact. The capsule also opts
+            out of the native drag region so its gaps cannot begin a window drag. */}
         <div
           data-tauri-drag-region="false"
           style={{
@@ -242,22 +250,26 @@ export function TopBar(): JSX.Element {
             boxShadow: '0 0 0 1px var(--proto-line)',
           }}
         >
-          <span
+          <button
+            type="button"
+            aria-pressed={theme === 'light'}
             onClick={() => setTheme('light')}
             title={L.stThemeLight}
             aria-label={L.stThemeLight}
-            style={{ fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+            style={{ border: 0, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted)' }}
           >
             ☀
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
+            aria-pressed={theme === 'dark'}
             onClick={() => setTheme('dark')}
             title={L.stThemeDark}
             aria-label={L.stThemeDark}
-            style={{ fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+            style={{ border: 0, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted)' }}
           >
             ☾
-          </span>
+          </button>
         </div>
         {/* Settings is a gear key, not a word: a label here made the cluster read as competing texts. */}
         <IconButton label={L.settings} onClick={openSettings}>

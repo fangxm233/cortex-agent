@@ -1,3 +1,7 @@
+// input:  chat-nav marks, attachment presentation, language
+// output: ChatNavRail, NAV_COPY, NavCopy
+// pos:    Transcript navigation ticks with readable previews
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLang } from '@/i18n';
 import { attachmentFileExt, attachmentTypeColor } from './attachment-presentation';
@@ -53,15 +57,15 @@ function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
     <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
       <span
         style={{
-          width: 18, height: 20, borderRadius: 4, background: colors.bg, color: colors.fg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 7px ${mono}`, flex: 'none',
+          minWidth: 28, height: 22, padding: '0 4px', borderRadius: 'var(--r-chip)', background: colors.bg, color: colors.fg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${mono}`, flex: 'none',
         }}
       >
         {attachmentFileExt(a.name)}
       </span>
       <span
         style={{
-          font: `500 10.5px ${mono}`, color: 'var(--proto-muted-2)', overflow: 'hidden',
+          font: `500 11px ${mono}`, color: 'var(--proto-muted)', overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
@@ -71,10 +75,8 @@ function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
   );
 }
 
-/** The probed mark's message, as much of it as reads at a glance: the first line at full contrast,
- *  the next few stepping down toward the page so the card ends in a fade rather than an edge. */
+/** The title anchors the preview; all body lines retain readable contrast. */
 function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Element {
-  const bodyTones = ['var(--proto-muted)', 'var(--proto-muted-2)', 'var(--proto-faint)'];
   const extra = mark.attachments.length - 2;
   return (
     <>
@@ -91,7 +93,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Elem
         <div
           key={i}
           style={{
-            fontSize: 12, lineHeight: 1.5, color: bodyTones[Math.min(i, bodyTones.length - 1)],
+            fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)',
             overflowWrap: 'break-word', wordBreak: 'break-word',
           }}
         >
@@ -105,7 +107,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Elem
             <AttachmentChip key={i} a={a} />
           ))}
           {extra > 0 && (
-            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)' }}>{copy.attachments(extra)}</span>
+            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.attachments(extra)}</span>
           )}
         </div>
       )}

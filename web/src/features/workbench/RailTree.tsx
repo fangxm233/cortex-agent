@@ -1,3 +1,7 @@
+// input:  rail-tree, rail-order, vocab, ProjectFolderIcon
+// output: RailTree
+// pos:    Dense project tree with opaque sticky project headers
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
@@ -225,10 +229,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
 
   const renderHeader = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 28, padding: '0 14px 4px', flex: 'none', boxSizing: 'content-box' }}>
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted)' }}>
         {L.wbProjects}
       </span>
-      <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-line-3)', marginLeft: 5, marginRight: 'auto' }}>
+      <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', marginLeft: 5, marginRight: 'auto' }}>
         {props.projectCount}
       </span>
       <IconButton label={L.wbFilterSessions} onClick={props.onToggleSearch}><SearchIcon /></IconButton>
@@ -364,7 +368,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         >
           {row.title}
         </span>
-        <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', flex: 'none' }}>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
           {row.age}
         </span>
       </div>
@@ -407,7 +411,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {row.title}
         </span>
-        <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+        <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
           {row.kind === 'repeat' ? `×${row.runs.length}` : L.wbSchedOnce}
         </span>
       </div>
@@ -443,7 +447,6 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             borderRadius: 'var(--r-chip)',
             cursor: 'pointer',
             fontSize: 12.5,
-            opacity: closed ? 0.6 : 1,
             color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
             fontWeight: row.unread ? 600 : 400,
             background: isHover(key) ? 'var(--proto-gray)' : 'transparent',
@@ -495,12 +498,12 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               <AddIcon />
             </IconButton>
           ) : closed ? (
-            <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+            <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
               {row.status === 'done' ? L.wbCommissionDone : L.wbCommissionAbandoned}
             </span>
           ) : (
             row.totalSessions > 0 && (
-              <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+              <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
                 ×{row.totalSessions}
               </span>
             )
@@ -564,7 +567,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             // 6 + the scroller's 8 puts the folder glyph on x=14, the same left margin the section
             // header above it uses.
             padding: '0 8px 0 6px',
-            borderRadius: 9,
+            borderRadius: 'var(--r-chip)',
             cursor: 'pointer',
             opacity: dragId === node.id ? 0.45 : 1,
             // The current project used to be a 5% tint on a 4% tint — invisible now that both are
@@ -575,13 +578,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               : node.current
                 ? '0 0 0 1px var(--proto-line-2)'
                 : undefined,
-            // This row is `sticky`: the whole tree scrolls under it, so it has to be a raised
-            // surface rather than a tint. `--glass-2` with no filter of its own — it is a row in a
-            // scroller, and blurring one of those is what makes the shells stutter. Hover stacks a
-            // second tint over that fill so the cue cannot make the row LESS opaque than at rest.
+            // A sticky header must occlude scrolling rows. The opaque card is the base in both
+            // states; the hover tint never replaces it. No filter on this scrolling surface.
             background: hovered
-              ? 'linear-gradient(var(--proto-gray), var(--proto-gray)), var(--glass-2)'
-              : 'var(--glass-2)',
+              ? 'linear-gradient(var(--proto-gray), var(--proto-gray)), var(--proto-card)'
+              : 'var(--proto-card)',
           }}
         >
           {/* The folder glyph IS the drag handle. A separate grip column cost 17px of permanent
@@ -616,7 +617,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             {node.matchCount !== null && (
               <span
                 style={{
-                  font: `600 9px ${mono}`,
+                  font: `600 11px ${mono}`,
                   color: 'var(--proto-accent)',
                   background: 'var(--proto-accent-bg)',
                   borderRadius: 4,
@@ -627,7 +628,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               </span>
             )}
             {node.running > 0 && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 11px ${mono}`, color: 'var(--proto-accent)' }}>
                 <span
                   style={{
                     width: 6,
@@ -654,7 +655,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   // Not a hardcoded white: --ink-solid-fg flips with the theme, so the digit stays
                   // legible on both fills in light and dark.
                   color: 'var(--ink-solid-fg)',
-                  font: `600 9.5px ${mono}`,
+                  font: `600 11px ${mono}`,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -685,9 +686,9 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                 </IconButton>
               </span>
             ) : node.idleAge !== null ? (
-              <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>{node.idleAge}</span>
+              <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{node.idleAge}</span>
             ) : (
-              node.hotkey && <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-line-3)' }}>{node.hotkey}</span>
+              node.hotkey && <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{node.hotkey}</span>
             )}
           </span>
         </div>
@@ -721,11 +722,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                 >
                   <CommissionIcon />
                   {L.wbCommissionGroup}
-                  <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                  <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)' }}>
                     · {node.commissions.length}
                   </span>
                   {node.commissionUnread > 0 && !node.commissionsExpanded && (
-                    <span style={{ marginLeft: 'auto', font: `500 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
+                    <span style={{ marginLeft: 'auto', font: `500 11px ${mono}`, color: 'var(--proto-accent)' }}>
                       {L.wbSchedUnread.replace('{n}', String(node.commissionUnread))}
                     </span>
                   )}
@@ -800,7 +801,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                       style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }}
                     />
                   )}
-                  <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+                  <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
                     ×{node.schedules.length}
                   </span>
                 </div>
@@ -819,7 +820,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
       {props.searchOpen && renderSearch()}
       <div data-zone="tree" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px' }}>
         {props.nodes.length === 0 ? (
-          <div style={{ padding: '26px 16px', textAlign: 'center', color: 'var(--proto-faint)', fontSize: 12 }}>
+          <div style={{ padding: '26px 16px', textAlign: 'center', color: 'var(--proto-muted)', fontSize: 12 }}>
             {L.wbFilterNoMatch}
           </div>
         ) : (

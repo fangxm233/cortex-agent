@@ -1,3 +1,7 @@
+// input:  DockProvider, DockTabStrip, DockFileBody, WebBody
+// output: DockPane
+// pos:    Opaque split dock preserving mounted tab bodies
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { splitFromDrag } from './dock-split';
@@ -86,7 +90,7 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <span role="button" data-close-dock="" title="Close the dock" onClick={closeDock} style={ACTION_STYLE}>×</span>
+          <button type="button" data-close-dock="" title="Close the dock" aria-label="Close the dock" onClick={closeDock} style={ACTION_STYLE}>×</button>
         }
       />
 
@@ -152,6 +156,7 @@ const ACTION_STYLE: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: 16,
+  padding: 0,
   cursor: 'pointer',
   flex: 'none',
   userSelect: 'none',

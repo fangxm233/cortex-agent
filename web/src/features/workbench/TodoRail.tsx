@@ -1,3 +1,7 @@
+// input:  TodoSnapshot, todo-vm, session identity, language
+// output: TodoRail, TodoRailProps, TodoRailLanguage
+// pos:    Compact task progress rail with readable completed rows
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';
@@ -86,7 +90,9 @@ function TodoRow({ row }: { row: TodoRowViewModel }): JSX.Element {
           lineHeight: '15px',
           paddingBottom: row.hasTail ? 9 : 0,
           fontWeight: active ? 600 : 400,
-          color: done ? 'var(--proto-muted-2)' : active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+          color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+          minWidth: 0,
+          overflowWrap: 'anywhere',
           textDecoration: done ? 'line-through' : undefined,
         }}
       >
@@ -160,11 +166,11 @@ export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element
           }}
         >
           <StatusDot status={vm.allDone ? 'completed' : 'in_progress'} allDone={vm.allDone} />
-          <span style={{ font: `600 10.5px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
+          <span style={{ font: `600 11px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
           <span
             style={{
               fontSize: 12,
-              color: vm.activeLabel ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
+              color: 'var(--proto-muted)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
