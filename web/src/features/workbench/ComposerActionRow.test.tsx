@@ -1,3 +1,7 @@
+// input:  ComposerActionRow, mocked device and commission queries
+// output: Toolbar and picker regression tests
+// pos:    Verify compact action controls and selection behavior
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -99,6 +103,12 @@ describe('ComposerActionRow ＋ menu', () => {
     openPlus(renderer);
     act(() => renderer.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick(click));
     const row = renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE });
+    expect(row.type).toBe('button');
+    expect(row.props.type).toBe('button');
+    expect(row.props.className).toContain('focus-visible:outline');
+    const menu = renderer.root.findByProps({ 'data-menu': 'plus' });
+    expect(menu.props.style.background).toBe('var(--proto-card)');
+    expect(menu.props.style.backdropFilter).toBeUndefined();
     act(() => row.props.onClick(click));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
   });
@@ -118,6 +128,8 @@ describe('ComposerActionRow ＋ menu', () => {
     openPlus(renderer);
     const row = renderer.root.findByProps({ 'data-plus-item': 'browser' });
     expect(row.props['data-editable']).toBe('false');
+    expect(row.type).toBe('button');
+    expect(row.props.disabled).toBe(true);
     expect(row.props.onClick).toBeUndefined();
   });
 });

@@ -1,3 +1,7 @@
+// input:  React, selection options, MenuChrome
+// output: SelectionMenu, SelectionPane, SelectionMenuProps
+// pos:    Engine picker with readable keyboard-accessible rows
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type {
@@ -5,6 +9,7 @@ import type {
 } from './selection-menu';
 import {
   Divider, MenuCard, MenuRow, MONO as mono, Note, rowBackground, SectionTitle, type HoverProps,
+  MENU_BUTTON_STYLE, MENU_FOCUS,
 } from './MenuChrome';
 
 // The composer's engine picker, anchored above or below its position:relative chip.
@@ -36,24 +41,27 @@ function DrillRow({ row, onOpen, hover, setHover }: {
 } & HoverProps): JSX.Element {
   const id = `pane:${row.key}`;
   return (
-    <div
+    <button
+      type="button"
+      className={MENU_FOCUS}
       onMouseEnter={() => setHover(id)}
       onMouseLeave={() => setHover(hover === id ? null : hover)}
       onClick={(event) => { event.stopPropagation(); onOpen(); }}
       data-selection-pane={row.key}
       style={{
+        ...MENU_BUTTON_STYLE,
         display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', cursor: 'pointer',
         background: rowBackground(id, hover, false),
       }}
     >
       <span style={{
-        font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-        color: 'var(--proto-muted-3)', flex: 'none',
+        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+        color: 'var(--proto-muted)', flex: 'none',
       }}>
         {row.label}
       </span>
       <span style={{
-        marginLeft: 'auto', font: `500 10px ${mono}`, minWidth: 0,
+        marginLeft: 'auto', font: `500 11px ${mono}`, minWidth: 0,
         color: row.overridden ? 'var(--proto-accent)' : 'var(--proto-ink)',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
@@ -62,8 +70,8 @@ function DrillRow({ row, onOpen, hover, setHover }: {
       {row.overridden && (
         <span style={{ color: 'var(--proto-accent)', fontSize: 9, flex: 'none' }}>•</span>
       )}
-      <span style={{ color: 'var(--proto-muted-3)', fontSize: 11, flex: 'none' }}>›</span>
-    </div>
+      <span style={{ color: 'var(--proto-muted)', fontSize: 11, flex: 'none' }}>›</span>
+    </button>
   );
 }
 
@@ -72,12 +80,15 @@ function BackRow({ title, onBack, hover, setHover }: {
   onBack: () => void;
 } & HoverProps): JSX.Element {
   return (
-    <div
+    <button
+      type="button"
+      className={MENU_FOCUS}
       onMouseEnter={() => setHover('back')}
       onMouseLeave={() => setHover(hover === 'back' ? null : hover)}
       onClick={(event) => { event.stopPropagation(); onBack(); }}
       data-selection-back="true"
       style={{
+        ...MENU_BUTTON_STYLE,
         display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', cursor: 'pointer',
         borderBottom: '1px solid var(--proto-line)',
         background: rowBackground('back', hover, false),
@@ -85,12 +96,12 @@ function BackRow({ title, onBack, hover, setHover }: {
     >
       <span style={{ color: 'var(--proto-accent)', fontSize: 12, fontWeight: 700 }}>‹</span>
       <span style={{
-        font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-        color: 'var(--proto-muted-3)',
+        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+        color: 'var(--proto-muted)',
       }}>
         {title}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -205,14 +216,16 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
         <div style={{ padding: '6px 8px 4px' }} onClick={(event) => event.stopPropagation()}>
           <input
             data-selection-filter="model"
+            aria-label={L.wbFilterModels}
+            className={MENU_FOCUS}
             autoFocus
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={L.wbFilterModels}
             style={{
-              width: '100%', boxSizing: 'border-box', font: `400 10px ${mono}`,
+              width: '100%', boxSizing: 'border-box', font: `400 11px ${mono}`,
               color: 'var(--proto-ink)', background: 'var(--proto-bg)',
-              border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px', outline: 'none',
+              border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px',
             }}
           />
         </div>
@@ -228,7 +241,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
       {groups.map((group) => (
         <div key={`group:${group.group}`}>
           <div style={{
-            font: `500 8.5px ${mono}`, color: 'var(--proto-muted-3)', padding: '4px 8px 2px',
+            font: `500 11px ${mono}`, color: 'var(--proto-muted)', padding: '4px 8px 2px',
           }}>
             {group.group}
           </div>

@@ -1,3 +1,9 @@
+// input:  Run status, session totals, stats action
+// output: ComposerStatusLine, ComposerStatusLineProps
+// pos:    Readable compact run and session metadata footer
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { MENU_FOCUS } from './MenuChrome';
+
 const MONO = "'IBM Plex Mono',monospace";
 
 export interface ComposerStatusLineProps {
@@ -19,7 +25,7 @@ export function ComposerStatusLine({
 }: ComposerStatusLineProps): JSX.Element {
   const clickable = !!sessionText && !!onOpenSessionStats;
   return (
-    <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: running ? 'var(--proto-muted-2)' : 'var(--proto-faint)', padding: '9px 4px 0', height: 16, minWidth: 0 }}>
+    <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: 'var(--proto-muted)', padding: '9px 4px 0', height: 16, minWidth: 0 }}>
       {/* The live segment never yields width: a truncated "running · 2m 4s" is worse than a
           truncated total, so the totals segment is the one allowed to shrink. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 'none' }}>
@@ -30,6 +36,7 @@ export function ComposerStatusLine({
         <>
           <span aria-hidden="true" style={{ color: 'var(--proto-line-3)', flex: 'none' }}>│</span>
           <span
+            className={MENU_FOCUS}
             data-composer-session-totals="true"
             role={clickable ? 'button' : undefined}
             tabIndex={clickable ? 0 : undefined}

@@ -1,4 +1,9 @@
+// input:  Session context usage, compact action, locale
+// output: ContextUsageControl, ring, details and compact footer
+// pos:    Compact context gauge and usage controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
+import { MENU_FOCUS } from './MenuChrome';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { Button } from '@/design/Button';
 import { Modal } from '@/design/Modal';
@@ -77,7 +82,7 @@ export interface ContextUsageRingProps extends Omit<ButtonHTMLAttributes<HTMLBut
   lang: ContextLanguage;
 }
 
-const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
+const TRIGGER_STYLE: CSSProperties = { borderRadius: 'var(--r-pill)', border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
 
 /** Compact circular usage gauge — the toolbar form of context usage: the desktop composer row, and
  *  on mobile the chat header beside ⋯. The percent lives in the tooltip/aria label rather than
@@ -85,7 +90,7 @@ const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', pad
  *  (mobile makes it a 36px bare key on the floating header) — it is the button itself, so do not
  *  wrap it in one. */
 export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
-  { usage, variant, lang, style, ...buttonProps },
+  { usage, variant, lang, style, className, ...buttonProps },
   ref,
 ): JSX.Element {
   const copy = COPY[lang];
@@ -97,7 +102,7 @@ export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingPr
   const filled = circumference * ((vm.progress ?? 0) / 100);
   const label = `${copy.usage}: ${vm.percentLabel}`;
   return (
-    <button {...buttonProps} ref={ref} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
+    <button {...buttonProps} ref={ref} className={`${MENU_FOCUS} ${className ?? ''}`} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"

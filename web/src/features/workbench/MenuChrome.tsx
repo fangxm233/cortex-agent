@@ -1,3 +1,7 @@
+// input:  React, picker rows and placement
+// output: MenuCard, MenuRow, shared picker chrome
+// pos:    Opaque picker surfaces and accessible compact controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 
 // The chrome the composer's pickers share: one card, one row, one hover rule.
@@ -7,6 +11,8 @@ import type { ReactNode } from 'react';
 // what stops the two from drifting into two menus that merely resemble each other.
 
 export const MONO = "'IBM Plex Mono',monospace";
+export const MENU_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--proto-accent)]';
+export const MENU_BUTTON_STYLE = { width: '100%', border: 0, textAlign: 'left', fontFamily: 'inherit', borderRadius: 'var(--r-chip)' } as const;
 
 /** Hover lives in the menu that owns the rows, so only one row anywhere is lit at a time. */
 export interface HoverProps {
@@ -23,8 +29,8 @@ export function rowBackground(id: string, hover: string | null, active: boolean)
 export function SectionTitle({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
-      font: `600 8.5px ${MONO}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-      color: 'var(--proto-muted-3)', padding: '6px 8px 3px',
+      font: `600 11px ${MONO}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+      color: 'var(--proto-muted)', padding: '6px 8px 3px',
     }}>
       {text}
     </div>
@@ -35,7 +41,7 @@ export function SectionTitle({ text }: { text: string }): JSX.Element {
 export function Note({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
-      font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)', padding: '5px 8px 6px', lineHeight: 1.5,
+      font: `400 11px ${MONO}`, color: 'var(--proto-muted)', padding: '5px 8px 6px', lineHeight: 1.5,
     }}>
       {text}
     </div>
@@ -59,24 +65,29 @@ export function MenuRow({
   onPick: () => void;
 } & HoverProps): JSX.Element {
   return (
-    <div
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={active}
+      className={MENU_FOCUS}
       onMouseEnter={() => setHover(disabled ? null : id)}
       onMouseLeave={() => setHover(hover === id ? null : hover)}
       onClick={(event) => { event.stopPropagation(); if (!disabled) onPick(); }}
       data-selection-row={id}
       data-disabled={disabled ? 'true' : undefined}
       style={{
+        ...MENU_BUTTON_STYLE,
         display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px',
         cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1,
         background: rowBackground(id, hover, active),
       }}
     >
-      <span style={{ font: `600 10px ${MONO}`, color: 'var(--proto-ink)' }}>{label}</span>
-      {sub ? <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{sub}</span> : null}
+      <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)' }}>{label}</span>
+      {sub ? <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{sub}</span> : null}
       {active && (
-        <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
       )}
-    </div>
+    </button>
   );
 }
 

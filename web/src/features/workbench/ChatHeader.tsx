@@ -1,4 +1,9 @@
+// input:  React, notes and dock providers, ShellModalsProvider
+// output: ChatHeader
+// pos:    Session title, project badge and compact header controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import { useVocab } from '@/i18n';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
@@ -13,12 +18,12 @@ function iconButtonStyle(hover: boolean, active: boolean): CSSProperties {
     height: 28,
     padding: 0,
     border: 0,
-    borderRadius: 7,
+    borderRadius: 'var(--r-chip)',
     display: 'grid',
     placeItems: 'center',
     cursor: 'pointer',
     background: hover || active ? 'var(--proto-line-2)' : 'transparent',
-    color: active ? 'var(--proto-accent)' : hover ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+    color: active ? 'var(--proto-accent)' : hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
   };
 }
 
@@ -36,6 +41,7 @@ function HeaderIconButton({ active = false, title, ariaLabel, attr, onClick, chi
     <button
       type="button"
       {...attr}
+      className={MENU_FOCUS}
       aria-pressed={active}
       aria-label={ariaLabel}
       title={title}
@@ -173,10 +179,10 @@ export function ChatHeader({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
-            font: `500 10.5px ${MONO}`,
+            font: `500 11px ${MONO}`,
             color: 'var(--proto-muted)',
             background: 'var(--proto-line-2)',
-            borderRadius: 6,
+            borderRadius: 'var(--r-chip)',
             padding: '2px 7px',
             flex: 'none',
           }}
@@ -185,7 +191,7 @@ export function ChatHeader({
           {projectName}
         </span>
       )}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted-2)' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
         <BrowserIconButton />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <HeaderIconButton
@@ -205,12 +211,12 @@ export function ChatHeader({
                 position: 'absolute',
                 top: -3,
                 right: -3,
-                minWidth: 14,
-                height: 14,
+                minWidth: 16,
+                height: 16,
                 padding: '0 3px',
                 boxSizing: 'border-box',
-                borderRadius: 7,
-                font: `600 9px ${MONO}`,
+                borderRadius: 'var(--r-pill)',
+                font: `600 11px ${MONO}`,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -225,6 +231,7 @@ export function ChatHeader({
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <button
             type="button"
+            className={MENU_FOCUS}
             data-chip="more"
             aria-label="Session menu"
             aria-expanded={moreMenuOpen}
@@ -256,17 +263,21 @@ export function ChatHeader({
                 background: 'var(--proto-card)',
                 border: '1px solid var(--proto-line)',
                 borderRadius: 'var(--r-card)',
-                boxShadow: 'var(--shadow-menu-strong)',
+                boxShadow: 'var(--shadow-menu)',
                 overflow: 'hidden',
                 zIndex: 40,
               }}
             >
-              <div
+              <button
+                type="button"
+                className={MENU_FOCUS}
                 onClick={() => {
                   setMoreMenuOpen(false);
                   shellModals.openSessionId();
                 }}
                 style={{
+                  ...MENU_BUTTON_STYLE,
+                  background: 'transparent',
                   padding: '9px 13px',
                   fontSize: 12.5,
                   color: 'var(--proto-ink)',
@@ -275,7 +286,7 @@ export function ChatHeader({
                 }}
               >
                 {L.wbSessionId}
-              </div>
+              </button>
             </span>
           ) : null}
         </span>

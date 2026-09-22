@@ -1,3 +1,8 @@
+// input:  Session state, attachment uploads, composer controls
+// output: Composer, ComposerSendFailure
+// pos:    Draft input sheet with compact send and status controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { MENU_FOCUS } from './MenuChrome';
 import {
   useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo,
   type ReactNode, type RefObject,
@@ -557,12 +562,13 @@ export function Composer({
 
           {/* Composer card — doubles as drop zone (15a) */}
           <div
+            className="focus-within:outline focus-within:outline-2 focus-within:outline-[var(--proto-accent-border)]"
             style={{
               position: 'relative',
               borderRadius: 'var(--r-float)',
               // Opaque on purpose: the transcript scrolls UNDER this sheet, and a translucent composer
               // would show message text sliding behind the line being typed.
-              background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
+              background: 'var(--proto-card)',
               // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
               // the ring IS the "press ⏎" affordance. Drag keeps its flattened look; the dashed edge
               // is the state cue there, drawn as an outline so entering the drag state costs no layout.
@@ -571,8 +577,8 @@ export function Composer({
               boxShadow: dragOver
                 ? 'none'
                 : composerRing
-                  ? 'var(--shadow-float), 0 0 0 1.5px var(--proto-accent-border)'
-                  : 'var(--shadow-float)',
+                  ? 'var(--shadow-chrome-float), 0 0 0 1.5px var(--proto-accent-border)'
+                  : 'var(--shadow-chrome-float), 0 0 0 1px var(--proto-line)',
               transition: 'box-shadow .15s',
               padding: '12px 12px 10px 16px',
             }}
@@ -593,7 +599,7 @@ export function Composer({
                     ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount))
                     : L.wbDropFilesSingular}
                 </span>
-                <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
                   {L.wbAttachPath}
                 </span>
               </div>
@@ -683,6 +689,7 @@ export function Composer({
                       <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <button
                           type="button"
+                          className={MENU_FOCUS}
                           data-action="send"
                           aria-label={L.wbSend}
                           title={`${L.wbSend} · ⏎`}
@@ -719,7 +726,11 @@ export function Composer({
                           </svg>
                         </button>
                         {running && (
-                          <div
+                          <button
+                            type="button"
+                            className={MENU_FOCUS}
+                            aria-label={L.stop}
+                            disabled={cancelMut.isPending}
                             data-action="stop"
                             title={`${L.stop} · esc`}
                             onClick={doStop}
@@ -729,6 +740,7 @@ export function Composer({
                               flex: 'none',
                               width: 34,
                               height: 34,
+                              border: 0, padding: 0,
                               borderRadius: '50%',
                               background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
                               boxShadow: 'var(--shadow-key-lift)',
@@ -738,8 +750,8 @@ export function Composer({
                               cursor: cancelMut.isPending ? 'default' : 'pointer',
                             }}
                           >
-                            <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
-                          </div>
+                            <span style={{ width: 11, height: 11, background: 'var(--ink-solid-fg)', borderRadius: 2 }} />
+                          </button>
                         )}
                       </span>
                     )}
@@ -759,7 +771,7 @@ export function Composer({
                       alignItems: 'center',
                       gap: 3,
                       // Stays opaque: it sits on top of the dimmed attachment row and has to hide it.
-                      background: 'var(--panel-translucent-bg)',
+                      background: 'var(--proto-card)',
                       border: '1px solid var(--proto-accent-border)',
                       borderRadius: 'var(--r-card)',
                       padding: '10px 18px',
@@ -772,7 +784,7 @@ export function Composer({
                         ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount))
                         : L.wbDropAddMore}
                     </span>
-                    <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                    <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
                       {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount))}
                     </span>
                   </div>
