@@ -45,7 +45,7 @@ const CELL_BOX: CSSProperties = {
   height: CONTROL_HEIGHT.md,
   boxSizing: 'border-box',
   border: '1px solid var(--proto-line-3)',
-  background: 'var(--proto-card)',
+  background: 'var(--material-inset-bg)',
   borderRadius: 'var(--r-control)',
   padding: '0 10px',
 };
@@ -123,7 +123,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
       {/* backdrop (prototype L1291-1292) */}
       <div
         onClick={onCancel}
-        style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, animation: 'cxfade .18s ease' }}
+        style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', backdropFilter: 'var(--material-scrim-filter)', WebkitBackdropFilter: 'var(--material-scrim-filter)', zIndex: 60, animation: 'cxfade .18s ease' }}
       />
       {/* card (prototype L1433) */}
       <div
@@ -145,11 +145,11 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
           // Floating glass sheet, matching design/Modal: a top-level overlay is the one shape
           // `backdrop-filter` is affordable on, because the sheet holds still and the backdrop is
           // sampled once per open rather than on every scroll frame of the form inside it.
-          background: 'var(--glass-2)',
+          background: 'var(--material-overlay-bg)',
           backdropFilter: 'var(--glass-filter)',
           WebkitBackdropFilter: 'var(--glass-filter)',
           borderRadius: 'var(--r-float)',
-          boxShadow: 'var(--shadow-float)',
+          boxShadow: 'var(--material-overlay-shadow)',
           zIndex: 61,
           overflow: 'hidden',
         }}
@@ -177,7 +177,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         </div>
 
         {/* body (prototype L1435) */}
-        <div style={{ padding: '0 20px 16px', background: 'var(--proto-card)', minHeight: 0, overflowY: 'auto' }}>
+        <div style={{ padding: '0 20px 16px', background: 'transparent', minHeight: 0, overflowY: 'auto' }}>
           {/* TYPE (prototype L1436-1442) */}
           <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
           <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
@@ -354,7 +354,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
 
           {/* MESSAGE (prototype L1447-1448) */}
           <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
+          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--material-inset-bg)' , borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
             <textarea
               className={focusClass}
               aria-label={L.scMessage}
@@ -419,7 +419,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         </div>
 
         {/* footer (prototype L1454-1458) */}
-        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 10, padding: '16px 20px', borderTop: '1px solid var(--proto-line-2)', background: 'var(--proto-card)' }}>
+        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 10, padding: '16px 20px', borderTop: '1px solid var(--proto-line-2)', background: 'transparent' }}>
           {nextRun && (
             <span data-schedule-next-run style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
               {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{nextRun.clock}</b> · {L.scFooterIn} {nextRun.delta}
@@ -457,6 +457,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               padding: '7px 15px',
               color: canCreate ? 'var(--ink-solid-fg)' : 'var(--proto-muted)',
               background: canCreate ? 'var(--proto-accent)' : 'var(--proto-gray)',
+              backgroundImage: 'var(--material-sheen)',
               cursor: canCreate ? 'pointer' : 'not-allowed',
             }}
           >

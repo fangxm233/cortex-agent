@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 
 const OVERLAY_CLASS =
   'fixed inset-0 z-40 bg-state-ink/[0.44] ' +
+  '[backdrop-filter:var(--material-scrim-filter)] [-webkit-backdrop-filter:var(--material-scrim-filter)] ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out motion-reduce:animate-none';
 
 const CONTENT_CLASS =
@@ -14,9 +15,9 @@ const CONTENT_CLASS =
   'w-[420px] max-w-[calc(100vw-32px)] box-border ' +
   // Floating glass sheet, matching design/Modal's standard panel — a top-level overlay is the one
   // shape `backdrop-filter` is affordable on, and this one holds still for its whole lifetime.
-  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  'rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'p-5 pb-4 shadow-[shadow:var(--shadow-float)] focus:outline-none ' +
+  'p-5 pb-4 shadow-[shadow:var(--material-overlay-shadow)] focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out motion-reduce:animate-none';
 
 export interface DesktopUpdateFrameProps {

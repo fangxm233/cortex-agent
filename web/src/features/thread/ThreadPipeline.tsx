@@ -86,11 +86,11 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } }}
       data-step-kind={step.kind}
       style={{
-        background: 'var(--proto-card)',
+        background: 'var(--material-card-bg)',
         border: '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'),
         borderRadius: 'var(--r-card)',
         padding: '9px 13px',
-        boxShadow: 'none',
+        boxShadow: 'var(--material-card-shadow)',
         cursor: 'pointer',
       }}
     >
@@ -136,7 +136,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
       data-sub-thread-id={sub.id}
       style={{
         border: '1px solid ' + (running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'),
-        background: running ? 'var(--proto-rail)' : 'var(--proto-rail)',
+        background: 'transparent',
         borderRadius: 'var(--r-control)',
         padding: '8px 11px',
       }}
@@ -152,6 +152,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
             padding: '1.5px 7px',
             borderRadius: 'var(--r-pill)',
             background: sub.pill.bg,
+            backgroundImage: 'var(--material-sheen)',
             color: sub.pill.fg,
           }}
         >
@@ -197,10 +198,10 @@ function ExpandedStep({
       data-active-step={running ? 'true' : undefined}
       data-expanded-step="true"
       style={{
-        background: 'var(--proto-card)',
+        background: 'var(--material-card-bg)',
         border: '1px solid var(--proto-accent-border)',
         borderRadius: 'var(--r-card)',
-        boxShadow: 'none',
+        boxShadow: 'var(--material-card-shadow)',
         overflow: 'hidden',
       }}
     >

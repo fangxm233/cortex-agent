@@ -24,6 +24,7 @@ function SkillChip({ name }: { name: string }): JSX.Element {
         fontWeight: 500,
         color: 'var(--proto-accent)',
         background: 'var(--proto-accent-bg)',
+        backgroundImage: 'var(--material-sheen)',
         border: '1px solid var(--proto-accent-border)',
         borderRadius: 'var(--r-chip)',
         padding: '3px 8px',
@@ -42,7 +43,7 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
   const L = useVocab();
   const label = group.plugin ?? L.skUserSkills;
   return (
-    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--glass-2)' }}>
+    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)'  }}>
       <div
         style={{
           fontSize: 11.5,
@@ -94,7 +95,7 @@ export function SkillsView(): JSX.Element {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        background: 'var(--proto-rail)',
+        background: 'transparent',
       }}
     >
       {/* Header */}

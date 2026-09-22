@@ -10,7 +10,7 @@ import { useVocab } from '@/i18n';
 
 const INPUT_CLASS =
   'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-2 ' +
-  'bg-surface-card px-2g py-1.5g text-ui text-state-ink ' +
+  '[background:var(--material-inset-bg)] px-2g py-1.5g text-ui text-state-ink ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
 export interface UiTokenLoginProps {
@@ -39,7 +39,7 @@ export function UiTokenLogin({ onSubmit }: UiTokenLoginProps) {
   }
 
   return (
-    <div className="content-surface flex min-h-screen items-center justify-center bg-surface-canvas p-2g">
+    <div className="content-surface flex min-h-screen items-center justify-center [background:var(--app-backdrop)] p-2g">
       <Card className="w-full max-w-md" padded>
         <form className="space-y-2g" onSubmit={submit}>
           <h1 className="text-lg font-medium text-state-ink">{L.uiLoginTitle}</h1>

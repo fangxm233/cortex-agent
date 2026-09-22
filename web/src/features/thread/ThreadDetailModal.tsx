@@ -1,3 +1,7 @@
+// input:  Radix dialog, thread controller, material tokens
+// output: Thread detail modal provider and navigation state
+// pos:    Floating thread detail sheet and entry points
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as Dialog from '@radix-ui/react-dialog';
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
@@ -36,7 +40,8 @@ function ModalMessage({ children, failed }: { children: ReactNode; failed?: bool
 
 const OVERLAY_STYLE: React.CSSProperties = {
   position: 'fixed', inset: 0, zIndex: 70,
-  background: 'var(--overlay-scrim-medium)', animation: 'cxfade .18s ease',
+  background: 'var(--overlay-scrim-medium)',
+  backdropFilter: 'var(--material-scrim-filter)', WebkitBackdropFilter: 'var(--material-scrim-filter)', animation: 'cxfade .18s ease',
 };
 
 const CONTENT_STYLE: React.CSSProperties = {
@@ -45,9 +50,9 @@ const CONTENT_STYLE: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 'var(--r-float)',
   // Floating glass sheet, like design/Modal: one static top-level overlay, so it is the shape blur
   // is affordable on. The border is gone — `--shadow-float` carries the hairline ring itself.
-  background: 'var(--glass-2)',
+  background: 'var(--material-overlay-bg)',
   backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)',
-  boxShadow: 'var(--shadow-float)', outline: 'none',
+  boxShadow: 'var(--material-overlay-shadow)', outline: 'none',
   animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
 };
 

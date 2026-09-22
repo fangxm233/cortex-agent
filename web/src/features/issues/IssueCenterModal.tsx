@@ -68,6 +68,8 @@ function IssueCenterView(props: IssueCenterViewProps) {
           position: 'fixed',
           inset: 0,
           background: 'var(--overlay-scrim-soft)',
+          backdropFilter: 'var(--material-scrim-filter)',
+          WebkitBackdropFilter: 'var(--material-scrim-filter)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -89,11 +91,11 @@ function IssueCenterView(props: IssueCenterViewProps) {
           maxHeight: '90vh',
           // Floating glass sheet, matching design/Modal and the approval centre it is a sibling of:
           // one static top-level overlay, so its blur is read once per open, not per scroll frame.
-          background: 'var(--glass-2)',
+          background: 'var(--material-overlay-bg)',
           backdropFilter: 'var(--glass-filter)',
           WebkitBackdropFilter: 'var(--glass-filter)',
           borderRadius: 'var(--r-float)',
-          boxShadow: 'var(--shadow-float)',
+          boxShadow: 'var(--material-overlay-shadow)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -117,7 +119,8 @@ function IssueCenterView(props: IssueCenterViewProps) {
               style={{
                 font: `600 11px ${mono}`,
                 color: 'var(--proto-muted)',
-                background: 'var(--proto-line-2)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 padding: '2px 9px',
                 borderRadius: 'var(--r-pill)',
                 marginLeft: 2,
@@ -187,7 +190,7 @@ function EmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 9,
-        background: 'var(--proto-rail)',
+        background: 'transparent',
       }}
     >
       <span
@@ -232,7 +235,7 @@ function IssueQueue({
         width: 'clamp(180px, 34%, 400px)',
         flex: 'none',
         borderRight: '1px solid var(--proto-line-2)',
-        background: 'var(--proto-rail)',
+        background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -263,11 +266,11 @@ function IssueQueue({
               onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(e.id); } }}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--proto-card)',
+                background: 'var(--material-card-bg)',
                 border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
                 borderRadius: 'var(--r-card)',
                 padding: '11px 13px',
-                boxShadow: 'none',
+                boxShadow: 'var(--material-card-shadow)',
                 cursor: 'pointer',
                 flex: 'none',
               }}
@@ -339,7 +342,7 @@ function DetailPane({
 }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--proto-card)' }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'transparent' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '18px 24px 0' }}>
         {/* title — no status pill by design (在列表即待处理) */}
         <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35 }}>
@@ -417,7 +420,8 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--glass-2)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -459,7 +463,8 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--glass-2)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,

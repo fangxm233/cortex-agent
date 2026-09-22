@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Commission presentation and supporting state modules.
+Commission material chrome, stable documents and supporting state.
 
 | filename | role | function |
 |---|---|---|

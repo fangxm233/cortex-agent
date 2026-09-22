@@ -73,7 +73,7 @@ function ArtifactBody({ artifact }: { artifact: DetailArtifact }) {
   const L = useVocab();
   const filename = artifact.path?.split('/').pop() ?? L.thNoArtifact;
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '13px 16px' }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '13px 16px', background: 'var(--proto-card)'  }}>
       <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>{filename}</div>
       <div style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginTop: 4 }}>
         {L.thOwner}: {artifact.taskId ?? '—'}
@@ -100,7 +100,7 @@ function WrittenByFooter({ artifact }: { artifact: DetailArtifact }) {
 
 function WriterChip({ writer }: { writer: DetailArtifact['writtenBy'][number] }) {
   return (
-    <span style={{ font: `${writer.active ? 500 : 400} 11px 'IBM Plex Mono',monospace`, background: writer.active ? 'var(--proto-accent-bg)' : 'var(--proto-rail)', border: `1px solid ${writer.active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`, color: writer.active ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '2px 7px', borderRadius: 'var(--r-control)' }}>
+    <span style={{ font: `${writer.active ? 500 : 400} 11px 'IBM Plex Mono',monospace`, background: writer.active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', backgroundImage: 'var(--material-sheen)', border: `1px solid ${writer.active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`, color: writer.active ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '2px 7px', borderRadius: 'var(--r-control)' }}>
       {writer.label}{writer.active && ' ●'}
     </span>
   );
@@ -113,9 +113,8 @@ export function ThreadArtifactPanel({ artifact }: { artifact: DetailArtifact }):
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted)' }}>{L.thArtifact}</span>
       </div>
-      {/* Stays opaque `--proto-card` while the step cards beside it go glass: this pane is a
-          document body, and rendered prose over a translucent fill reads the mesh through it. */}
-      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', boxShadow: 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Only the document body stays opaque; its toolbar shares the surrounding card material. */}
+      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--material-card-bg)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-card-shadow)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ArtifactFileHeader artifact={artifact} />
         <ArtifactBody artifact={artifact} />
         <WrittenByFooter artifact={artifact} />

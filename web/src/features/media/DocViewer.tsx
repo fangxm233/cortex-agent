@@ -245,7 +245,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         gap: 8,
         padding: '7px 10px',
         borderBottom: '1px solid var(--proto-line-2)',
-        background: 'var(--proto-rail)',
+        background: 'var(--material-card-bg)',
         flex: 'none',
       }}
     >
@@ -276,7 +276,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
             padding: '3px 4px',
             borderRadius: 'var(--r-chip)',
             border: '1px solid var(--proto-line-2)',
-            background: 'var(--proto-card)',
+            background: 'var(--material-inset-bg)',
             color: 'var(--proto-ink)',
             font: `600 11.5px ${mono}`,
           }}
@@ -322,7 +322,8 @@ function pagerBtnStyle(disabled: boolean): React.CSSProperties {
     height: 28,
     borderRadius: 'var(--r-control)',
     border: '1px solid var(--proto-line-2)',
-    background: 'var(--proto-card)',
+    background: 'var(--material-control-bg)',
+    boxShadow: 'var(--material-control-shadow)',
     color: 'var(--proto-muted)',
     display: 'flex',
     alignItems: 'center',
@@ -383,16 +384,16 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
         style={{
           width: 'min(920px, 96vw)',
           height: 'min(88vh, 100%)',
-          // Stays opaque: this sheet is a document body (text, HTML, rendered PDF pages), which is
-          // the contract case for `--proto-card` — prose read through a translucent surface picks up
-          // the colour mesh behind every line.
-          background: 'var(--proto-card)',
+          // The toolbar is glass; the document body below keeps its stable reading surface.
+          background: 'var(--material-overlay-bg)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
           border: '1px solid var(--proto-line-2)',
           borderRadius: 'var(--r-float)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          boxShadow: 'var(--media-panel-shadow)',
+          boxShadow: 'var(--material-overlay-shadow)',
         }}
       >
         {/* Header — filename + download + close. */}
@@ -404,7 +405,7 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
             padding: '10px 12px',
             borderBottom: '1px solid var(--proto-line-2)',
             flex: 'none',
-            background: 'var(--proto-rail)',
+            background: 'transparent',
           }}
         >
           <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
@@ -444,7 +445,8 @@ const btnStyle: React.CSSProperties = {
   height: 30,
   borderRadius: 'var(--r-control)',
   border: '1px solid var(--proto-line-2)',
-  background: 'var(--proto-card)',
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   color: 'var(--proto-muted)',
   display: 'flex',
   alignItems: 'center',

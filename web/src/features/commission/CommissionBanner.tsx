@@ -59,7 +59,8 @@ export function CommissionBanner({ commissionId }: { commissionId: string }): JS
         borderRadius: 'var(--r-control)',
         cursor: 'pointer',
         border: '1px solid var(--proto-line-2)',
-        background: hover ? 'var(--proto-gray)' : 'var(--proto-rail)',
+        background: hover ? 'var(--proto-gray)' : 'var(--material-card-bg)',
+        boxShadow: 'var(--material-card-shadow)',
       }}
     >
       <svg width={12} height={12} viewBox="0 0 14 14" fill="none" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}

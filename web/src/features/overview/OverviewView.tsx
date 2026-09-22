@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: OverviewView presentation
-// pos:    Dense overview content surface
+// pos:    Dense overview cards on shared glass materials
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
@@ -49,10 +49,10 @@ import {
 
 // Stable content fill with one subtle boundary; outer chrome owns the glass.
 const CARD: CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--material-card-bg)',
   border: '1px solid var(--proto-line-2)',
   borderRadius: 'var(--r-card)',
-  boxShadow: 'none',
+  boxShadow: 'var(--material-card-shadow)',
   // minWidth:0 lets the 1fr grid track shrink below its content's min-content size, so long real
   // data (schedule prompts, execution ids) truncates instead of blowing the column wide.
   minWidth: 0,
@@ -207,7 +207,8 @@ export function OverviewView(): JSX.Element {
               borderRadius: 'var(--r-control)',
               padding: '4px 12px',
               color: 'var(--proto-ink)',
-              background: 'var(--glass-2)',
+              background: 'var(--material-control-bg)',
+              boxShadow: 'var(--material-control-shadow)',
               cursor: 'pointer',
             }}
           >
@@ -278,7 +279,7 @@ export function OverviewView(): JSX.Element {
           display: 'grid',
           gridAutoRows: 'min-content',
           gap: 12,
-          background: 'var(--proto-alt)',
+          background: 'transparent',
           alignContent: 'start',
         }}
       >
@@ -495,7 +496,7 @@ export function OverviewView(): JSX.Element {
                     {s.message}
                   </span>
                   {s.paused && (
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--r-pill)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)' }}>
                       {L.paused}
                     </span>
                   )}
@@ -621,7 +622,7 @@ export function OverviewView(): JSX.Element {
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now))}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, backgroundImage: 'var(--material-sheen)', color: pill.color }}>
                     {pill.dot ? '• ' : ''}
                     {pill.text}
                   </span>

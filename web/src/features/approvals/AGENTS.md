@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Approval queue state and desktop decision presentation.
+Approval queue state, material cards and desktop decision sheets.
 
 | filename | role | function |
 |---|---|---|

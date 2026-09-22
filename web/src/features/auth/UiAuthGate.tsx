@@ -64,8 +64,8 @@ export function UiAuthGate({ children }: { children: ReactNode }) {
 function GateNotice({ kind, onRetry }: { kind: 'no-login' | 'unreachable'; onRetry: () => void }) {
   const L = useVocab();
   return (
-    <div className="content-surface flex min-h-screen items-center justify-center bg-surface-canvas p-2g">
-      <div className="max-w-md space-y-1g rounded-[var(--r-card)] border border-proto-line-2 bg-surface-card p-3g text-center">
+    <div className="content-surface flex min-h-screen items-center justify-center [background:var(--app-backdrop)] p-2g">
+      <div className="max-w-md space-y-1g rounded-[var(--r-card)] border border-proto-line-2 [background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)] p-3g text-center">
         <p className="text-ui text-state-ink">
           {kind === 'unreachable' ? L.uiLoginUnreachable : L.uiLoginDisabled}
         </p>

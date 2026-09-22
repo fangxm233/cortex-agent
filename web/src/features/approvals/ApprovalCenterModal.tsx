@@ -75,6 +75,8 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
           position: 'fixed',
           inset: 0,
           background: 'var(--overlay-scrim)',
+          backdropFilter: 'var(--material-scrim-filter)',
+          WebkitBackdropFilter: 'var(--material-scrim-filter)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -98,11 +100,11 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
           // Floating glass sheet, matching design/Modal: this hand-rolled overlay is a top-level
           // floating sheet, which is the one shape `backdrop-filter` is affordable on — it holds
           // still while its two columns scroll inside it, so the backdrop is read once per open.
-          background: 'var(--glass-2)',
+          background: 'var(--material-overlay-bg)',
           backdropFilter: 'var(--glass-filter)',
           WebkitBackdropFilter: 'var(--glass-filter)',
           borderRadius: 'var(--r-float)',
-          boxShadow: 'var(--shadow-float)',
+          boxShadow: 'var(--material-overlay-shadow)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -217,7 +219,7 @@ function EmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 9,
-        background: 'var(--proto-card)',
+        background: 'transparent',
       }}
     >
       <span
@@ -264,7 +266,7 @@ function PendingList({
         width: 370,
         flex: 'none',
         borderRight: '1px solid var(--proto-line)',
-        background: 'var(--proto-alt)',
+        background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'auto',
@@ -300,7 +302,9 @@ function PendingList({
               data-approval-id={e.id}
               onClick={() => onSelect(e.id)}
               style={{
-                background: sel ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+                background: sel ? 'var(--proto-accent-bg)' : 'var(--material-card-bg)',
+                backgroundImage: 'var(--material-sheen)',
+                boxShadow: 'var(--material-card-shadow)',
                 border: `1px solid ${sel ? 'var(--proto-accent)' : 'var(--proto-line-2)'}`,
                 borderRadius: 'var(--r-card)',
                 padding: '10px 12px',
@@ -398,7 +402,7 @@ function DetailPane({
 }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowWrap: 'anywhere', background: 'var(--proto-card)' }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowWrap: 'anywhere', background: 'transparent' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '16px 22px 0' }}>
         {/* title + status pill */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -412,6 +416,7 @@ function DetailPane({
               padding: '2px 9px',
               borderRadius: 'var(--r-pill)',
               background: detail.pill.bg,
+              backgroundImage: 'var(--material-sheen)',
               color: detail.pill.fg,
               flex: 'none',
               marginTop: 2,
@@ -532,8 +537,7 @@ function DetailPane({
               alignItems: 'center',
               gap: 8,
               border: '1px solid var(--proto-danger)',
-              // Opaque: a field you type into is the canonical occluding surface.
-              background: 'var(--proto-card)',
+              background: 'var(--material-inset-bg)',
               borderRadius: 'var(--r-control)',
               padding: '7px 12px',
             }}
@@ -580,7 +584,8 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
               }}
@@ -620,7 +625,8 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
               }}

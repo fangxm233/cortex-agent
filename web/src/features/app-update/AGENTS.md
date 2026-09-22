@@ -6,5 +6,5 @@ Native application update prompts and version checks.
 |---|---|---|
 | app-update.test.ts | test | Test app update |
 | app-update.ts | utility | Resolve app update |
-| AppUpdateDialog.tsx | view | Render app update dialog |
+| AppUpdateDialog.tsx | view | Render app update prompt with material controls |
 | useAppUpdate.ts | hook | Manage app update |

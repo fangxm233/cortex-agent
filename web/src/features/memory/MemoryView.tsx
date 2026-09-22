@@ -224,7 +224,7 @@ export function MemoryView(): JSX.Element {
             width: 'clamp(140px, 28%, 220px)',
             flex: 'none',
             borderRight: '1px solid var(--proto-line-2)',
-            background: 'var(--proto-rail)',
+            background: 'transparent',
             padding: '8px 6px',
             overflow: 'auto',
           }}

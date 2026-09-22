@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Tasks presentation and supporting state modules.
+Task material cards, detail sheets and supporting state modules.
 
 | filename | role | function |
 |---|---|---|

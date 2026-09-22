@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Notes presentation and supporting state modules.
+Notes cards, material controls and supporting state modules.
 
 | filename | role | function |
 |---|---|---|

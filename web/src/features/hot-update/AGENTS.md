@@ -6,5 +6,5 @@ Frontend update detection and refresh prompts.
 |---|---|---|
 | frontend-update.test.ts | test | Test frontend update |
 | frontend-update.ts | utility | Resolve frontend update |
-| HotUpdateDialog.tsx | view | Render hot update dialog |
+| HotUpdateDialog.tsx | view | Render frontend update material controls |
 | useHotUpdate.ts | hook | Manage hot update |

@@ -10,4 +10,4 @@ Embedded web content, forwarded URLs and frame metadata.
 | frame-title.test.ts | test | Test frame title |
 | frame-title.ts | utility | Resolve frame title |
 | WebBody.test.tsx | test | Test web body |
-| WebBody.tsx | view | Render web body |
+| WebBody.tsx | view | Render browser content and material toolbar |

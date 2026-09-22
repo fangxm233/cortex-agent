@@ -274,7 +274,7 @@ function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDra
 }): JSX.Element {
   const origin = browserTabForwardSource(tab);
   return (
-    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderBottom: '1px solid var(--proto-line)', background: 'var(--glass-2)' }}>
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderBottom: '1px solid var(--proto-line)', background: 'var(--material-card-bg)' }}>
       <NavBtn title="Back" disabled={!canGoBack(tab.history)} onClick={() => onStep('back')}>‹</NavBtn>
       <NavBtn title="Forward" disabled={!canGoForward(tab.history)} onClick={() => onStep('forward')}>›</NavBtn>
       <NavBtn title="Reload" disabled={url === null} onClick={onReload}>⟳</NavBtn>
@@ -300,7 +300,7 @@ function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDra
       <select className={CONTROL_FOCUS} title="Viewport width" value={tab.viewportId} onChange={(event) => onViewport(event.target.value as ViewportPreset['id'])} style={SELECT_STYLE}>
         {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
       </select>
-      <button type="button" className={CONTROL_FOCUS} title="Ports listening on the server or a connected device" onClick={onTogglePorts} style={{ ...PORT_BUTTON, border: portsOpen ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: portsOpen ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: portsOpen ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>Ports</button>
+      <button type="button" className={CONTROL_FOCUS} title="Ports listening on the server or a connected device" onClick={onTogglePorts} style={{ ...PORT_BUTTON, border: portsOpen ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: portsOpen ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', color: portsOpen ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>Ports</button>
       <NavBtn title="Open in system browser" disabled={url === null} onClick={() => { if (url) void openExternalUrl(url); }}>↗</NavBtn>
     </div>
   );
@@ -312,7 +312,7 @@ function PortsPanel({ state, onDevice, onPort }: {
   onPort: (port: number) => Promise<void>;
 }): JSX.Element {
   return (
-    <div style={{ flex: 'none', maxHeight: 190, overflow: 'auto', borderBottom: '1px solid var(--proto-line)', background: 'var(--glass-2)' }}>
+    <div style={{ flex: 'none', maxHeight: 190, overflow: 'auto', borderBottom: '1px solid var(--proto-line)', background: 'var(--material-inset-bg)' }}>
       {state.devices.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid var(--proto-line)' }}>
           <DeviceTab active={state.device === ''} onClick={() => onDevice('')}>server</DeviceTab>
@@ -352,7 +352,7 @@ function PortRow({ port, onClick }: { port: ListeningPort; onClick: () => void }
 }
 
 function DeviceTab({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" className={CONTROL_FOCUS} onClick={onClick} style={{ ...DEVICE_BUTTON, border: active ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: active ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{children}</button>;
+  return <button type="button" className={CONTROL_FOCUS} onClick={onClick} style={{ ...DEVICE_BUTTON, border: active ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{children}</button>;
 }
 
 function PortsNote({ children }: { children: React.ReactNode }): JSX.Element {
@@ -363,10 +363,10 @@ function NavBtn({ children, title, disabled, onClick }: { children: React.ReactN
   return <button type="button" className={CONTROL_FOCUS} title={title} disabled={disabled} onClick={onClick} style={{ ...SMALL_BUTTON, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'default' : 'pointer' }}>{children}</button>;
 }
 
-const ADDRESS_FIELD_STYLE: React.CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--proto-gray)' };
+const ADDRESS_FIELD_STYLE: React.CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-inset-bg)' };
 const ADDRESS_BADGE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', maxWidth: '45%', height: 20, padding: '0 6px', borderRadius: 'var(--r-chip)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', font: `600 11px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const SMALL_BUTTON: React.CSSProperties = { width: 28, height: 28, flex: 'none', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--glass-2)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
-const SELECT_STYLE: React.CSSProperties = { height: 28, borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--glass-2)', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}`, cursor: 'pointer' };
+const SMALL_BUTTON: React.CSSProperties = { width: 28, height: 28, flex: 'none', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
+const SELECT_STYLE: React.CSSProperties = { height: 28, borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}`, cursor: 'pointer' };
 const PORT_BUTTON: React.CSSProperties = { height: 28, flex: 'none', padding: '0 8px', borderRadius: 'var(--r-control)', font: `600 11.5px ${MONO}`, cursor: 'pointer' };
 const DEVICE_BUTTON: React.CSSProperties = { height: 24, padding: '0 8px', borderRadius: 'var(--r-chip)', font: `600 11px ${MONO}`, cursor: 'pointer' };
 const PORT_ROW_STYLE: React.CSSProperties = { display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '6px 12px', border: 'none', borderBottom: '1px solid var(--proto-line)', background: 'transparent', color: 'var(--proto-ink)', font: `500 11px ${MONO}`, cursor: 'pointer', textAlign: 'left' };

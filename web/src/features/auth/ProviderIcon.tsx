@@ -1,3 +1,7 @@
+// input:  provider glyph data, shared material tokens
+// output: ProviderIcon
+// pos:    Provider brand glyph on a compact material tile
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { PROVIDER_ICON_SVGS } from './provider-icon-data';
 
 // Exact provider-id → brand glyph. Unknown ids retry with their first hyphen
@@ -79,7 +83,7 @@ export function ProviderIcon({ provider, label, size = 16 }: ProviderIconProps) 
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         // Ringed rather than bordered: the letter avatar sits inline next to brand glyphs that have
         // no outline at all, so its edge must not take a pixel of the glyph's box.
-        background: 'var(--glass-2)', boxShadow: '0 0 0 1px var(--proto-line-2)',
+        background: 'var(--material-control-bg)', boxShadow: '0 0 0 1px var(--proto-line-2), var(--material-control-shadow)',
         fontSize: Math.round(size * 0.55), fontWeight: 700, color: 'var(--proto-muted-2)',
         lineHeight: 1,
       }}

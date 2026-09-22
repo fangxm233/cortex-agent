@@ -30,7 +30,7 @@ function StatusPill({ status }: { status: CommissionInfo['status'] }): JSX.Eleme
   const color = status === 'active' ? 'var(--proto-accent)' : 'var(--proto-muted)';
   const bg = status === 'active' ? 'var(--proto-accent-bg)' : 'var(--proto-gray)';
   return (
-    <span style={{ font: `500 11px ${mono}`, color, background: bg, borderRadius: 'var(--r-control)', padding: '2px 6px', flex: 'none' }}>
+    <span style={{ font: `500 11px ${mono}`, color, background: bg, backgroundImage: 'var(--material-sheen)', borderRadius: 'var(--r-control)', padding: '2px 6px', flex: 'none' }}>
       {label}
     </span>
   );
@@ -53,9 +53,9 @@ function PaneTab({ active, label, onClick }: {
         cursor: 'pointer',
         fontSize: 11.5,
         fontWeight: active ? 600 : 400,
-        background: active ? 'var(--glass-2)' : 'transparent',
+        background: active ? 'var(--material-control-bg)' : 'transparent',
         color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
-        boxShadow: 'none',
+        boxShadow: active ? 'var(--material-control-shadow)' : 'none',
       }}
     >
       {label}
@@ -84,7 +84,8 @@ function ActionButton({ label, tone, disabled, onClick }: {
         fontSize: 12,
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
-        background: hover && !disabled ? 'var(--proto-gray)' : 'transparent',
+        background: hover && !disabled ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         color: tone === 'danger' ? 'var(--proto-amber)' : 'var(--proto-ink-2)',
       }}
     >
@@ -165,11 +166,11 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         // Floating glass sheet, matching design/Modal's standard panel: `chrome="bare"` hands the
         // look to this call site, and a top-level overlay is the one shape `backdrop-filter` is
         // affordable on — the sheet holds still while the two panes scroll inside it.
-        background: 'var(--glass-2)',
+        background: 'var(--material-overlay-bg)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
@@ -218,7 +219,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
       </div>
 
       {confirming && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderBottom: '1px solid var(--proto-line-2)', background: 'transparent', flex: 'none' }}>
           <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)', flex: 'none' }}>
             {confirming === 'done' ? L.wbCommissionCompleteTitle : L.wbCommissionAbandonTitle}
           </span>
@@ -233,8 +234,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
               padding: '0 8px',
               borderRadius: 'var(--r-control)',
               border: '1px solid var(--proto-line-2)',
-              // Opaque: a field you type into is the contract case for `--proto-card`.
-              background: 'var(--proto-card)',
+              background: 'var(--material-inset-bg)',
               color: 'var(--proto-ink)',
               fontSize: 12,
             }}
@@ -252,7 +252,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
       <div className="commission-columns" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--proto-line-2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)' }}>
-            <div style={{ display: 'flex', gap: 2, background: 'var(--proto-gray)', borderRadius: 'var(--r-chip)', padding: 2 }}>
+            <div style={{ display: 'flex', gap: 2, background: 'var(--material-inset-bg)', borderRadius: 'var(--r-chip)', padding: 2 }}>
               <PaneTab active={pane === 'ledger'} label={L.wbCommissionLedger} onClick={() => setPane('ledger')} />
               <PaneTab active={pane === 'contract'} label={L.wbCommissionContract} onClick={() => setPane('contract')} />
             </div>

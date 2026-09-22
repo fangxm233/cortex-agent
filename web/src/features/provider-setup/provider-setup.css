@@ -4,7 +4,7 @@
    >>> Once updated, update this header and the parent AGENTS.md <<< */
 .provider-setup {
   height: 100%; display: flex; flex-direction: column;
-  background: var(--proto-alt); color: var(--proto-ink);
+  background: var(--app-backdrop); background-attachment: fixed; color: var(--proto-ink);
   font: 13px/1.55 -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 .provider-setup * { box-sizing: border-box; }
@@ -16,7 +16,7 @@
 .provider-setup svg { flex: none; }
 .provider-setup .setup-header {
   height: 56px; flex: none; display: flex; align-items: center; gap: 12px;
-  padding: 0 28px; background: var(--proto-rail); border-bottom: 1px solid var(--proto-line);
+  padding: 0 28px; background: var(--material-card-bg); border-bottom: 1px solid var(--proto-line);
 }
 .provider-setup .setup-header[data-caption='custom'] { padding-right: 0; }
 .provider-setup .setup-brand { display: inline-flex; gap: 9px; align-items: center; font-size: 14px; font-weight: 650; }
@@ -27,9 +27,9 @@
 }
 .provider-setup .setup-header-label { border-left: 1px solid var(--proto-line); padding-left: 12px; color: var(--proto-muted); font-size: 12px; }
 .provider-setup .setup-header-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.provider-setup .setup-lang-toggle { display: flex; padding: 2px; background: var(--proto-alt); border: 1px solid var(--proto-line); border-radius: var(--r-chip); }
+.provider-setup .setup-lang-toggle { display: flex; padding: 2px; background: var(--material-inset-bg); border: 1px solid var(--proto-line); border-radius: var(--r-chip); }
 .provider-setup .setup-lang-toggle button { border: 0; background: transparent; color: var(--proto-muted); border-radius: var(--r-chip); min-height: 24px; padding: 2px 7px; font-size: 11px; }
-.provider-setup .setup-lang-toggle button[aria-pressed='true'] { background: var(--glass-2); color: var(--proto-ink); box-shadow: var(--shadow-card-subtle); }
+.provider-setup .setup-lang-toggle button[aria-pressed='true'] { background: var(--material-control-bg); color: var(--proto-ink); box-shadow: var(--material-control-shadow); }
 .provider-setup .setup-theme-toggle { border: 1px solid var(--proto-line); background: transparent; color: var(--proto-muted); display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 5px; border-radius: var(--r-chip); }
 .provider-setup .setup-theme-toggle:hover { background: var(--proto-gray); }
 .provider-setup .setup-scroll { min-height: 0; flex: 1; overflow-y: auto; }
@@ -39,23 +39,23 @@
 .provider-setup h1 { font-size: 28px; line-height: 1.25; font-weight: 650; letter-spacing: -.7px; margin: 0 0 10px; }
 .provider-setup .setup-intro { font-size: 14px; color: var(--proto-muted); margin: 0 0 28px; max-width: 580px; }
 .provider-setup h2 { font-size: 14px; font-weight: 650; margin: 0; }
-.provider-setup .setup-card { background: var(--glass-2); border: 1px solid var(--proto-line); border-radius: var(--r-card); box-shadow: var(--shadow-card-subtle); overflow: hidden; margin-top: 14px; }
+.provider-setup .setup-card { background: var(--material-card-bg); border: 1px solid var(--proto-line); border-radius: var(--r-card); box-shadow: var(--material-card-shadow); overflow: hidden; margin-top: 14px; }
 .provider-setup .setup-card-header { padding: 14px 20px; border-bottom: 1px solid var(--proto-line-2); display: flex; align-items: center; gap: 10px; }
 .provider-setup .setup-card-body { padding: 16px 20px; }
-.provider-setup .setup-pill { border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 550; white-space: nowrap; color: var(--proto-muted); background: var(--proto-alt); border: 1px solid var(--proto-line-2); }
+.provider-setup .setup-pill { border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 550; white-space: nowrap; color: var(--proto-muted); background: var(--material-control-bg); box-shadow: var(--material-control-shadow); border: 1px solid var(--proto-line-2); }
 .provider-setup .setup-good { background: var(--proto-accent-bg); color: var(--proto-accent); border-color: var(--proto-accent-border); }
 .provider-setup .setup-button {
   border: 1px solid var(--proto-line); border-radius: var(--r-control); padding: 8px 14px; min-height: 36px;
-  font-size: 12px; line-height: 1.55; font-weight: 600; color: var(--proto-ink-2); background: var(--glass-2);
+  font-size: 12px; line-height: 1.55; font-weight: 600; color: var(--proto-ink-2); background: var(--material-control-bg); box-shadow: var(--material-control-shadow);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
 }
 .provider-setup .setup-button:hover:not(:disabled) { background: var(--proto-gray); }
-.provider-setup .setup-primary { background: var(--proto-accent); border-color: var(--proto-accent); color: var(--ink-solid-fg); box-shadow: var(--accent-glow); }
+.provider-setup .setup-primary { background: var(--proto-accent); background-image: var(--material-sheen); border-color: var(--proto-accent); color: var(--ink-solid-fg); box-shadow: var(--accent-glow); }
 .provider-setup .setup-primary:hover:not(:disabled) { background: var(--proto-accent-strong); border-color: var(--proto-accent-strong); }
-.provider-setup .setup-rescan { margin-left: auto; font-size: 11px; font-weight: 500; min-height: 26px; padding: 2px 0; border: 0; color: var(--proto-muted); background: transparent; }
+.provider-setup .setup-rescan { margin-left: auto; font-size: 11px; font-weight: 500; min-height: 26px; padding: 2px 0; border: 0; color: var(--proto-muted); background: transparent; box-shadow: none; }
 .provider-setup .setup-search { padding: 12px 20px 4px; }
-.provider-setup .setup-input { width: 100%; border: 1px solid var(--proto-line); border-radius: var(--r-control); background: var(--proto-alt); color: var(--proto-ink); padding: 8px 11px; font-size: 12px; line-height: 1.55; }
-.provider-setup .setup-input:focus { border-color: var(--proto-accent); background: var(--proto-card); }
+.provider-setup .setup-input { width: 100%; border: 1px solid var(--proto-line); border-radius: var(--r-control); background: var(--material-inset-bg); color: var(--proto-ink); padding: 8px 11px; font-size: 12px; line-height: 1.55; }
+.provider-setup .setup-input:focus { border-color: var(--proto-accent); }
 .provider-setup .setup-input::placeholder { color: var(--proto-muted-3); }
 .provider-setup .setup-input:disabled { opacity: .65; }
 .provider-setup .setup-providers { padding: 0 20px; max-height: 250px; overflow-y: auto; }

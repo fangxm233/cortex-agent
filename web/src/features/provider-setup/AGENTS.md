@@ -4,7 +4,7 @@ Provider connection setup, capability checks and wizard chrome.
 
 | filename | role | function |
 |---|---|---|
-| provider-setup.css | style | Style provider setup |
+| provider-setup.css | style | Style provider setup with shared materials |
 | provider-setup.test.ts | test | Test provider setup |
 | provider-setup.ts | utility | Resolve provider setup |
 | ProviderSetupPage.test.tsx | test | Test provider setup page |

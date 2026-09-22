@@ -36,16 +36,16 @@ const DOT_COLORS: Record<TaskGroupKind, string> = {
 
 // One quiet boundary and an opaque fill keep dense task metadata readable.
 const CARD_STYLE: CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--material-card-bg)',
   border: 0,
   borderRadius: 'var(--r-card)',
   padding: '9px 12px',
-  boxShadow: '0 0 0 1px var(--proto-line-2)',
+  boxShadow: '0 0 0 1px var(--proto-line-2), var(--material-card-shadow)',
   cursor: 'pointer',
 };
 
 const CARD_HOVER_STYLE: CSSProperties = {
-  boxShadow: '0 0 0 1px var(--proto-accent-border)',
+  boxShadow: '0 0 0 1px var(--proto-accent-border), var(--material-card-shadow)',
 };
 
 const META_STYLE: Record<TaskMetaKind, CSSProperties> = {

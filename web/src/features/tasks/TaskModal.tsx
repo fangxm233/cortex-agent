@@ -26,12 +26,12 @@ import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verific
 // DATA GAP still flagged:
 //   • GAP-GPU          : no gpu on TaskInfo → Fields gpu renders "—" (matches the T-046 proto-shot).
 
-// Opaque content cards sit inside the outer glass sheet.
+// Lightweight cards share the outer glass sheet without adding another blur.
 const CARD: React.CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--material-card-bg)',
   border: '1px solid var(--proto-line-2)',
   borderRadius: 'var(--r-card)',
-  boxShadow: 'none',
+  boxShadow: 'var(--material-card-shadow)',
 };
 
 const CARD_HEADER: React.CSSProperties = {
@@ -79,7 +79,7 @@ function DispatchHistoryBody({ vv }: { vv: TaskVerificationVm }) {
             alignItems: 'center',
             gap: 8,
             padding: '6px 9px',
-            background: d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-rail)',
+            background: d.isCompleting ? 'var(--proto-accent-bg)' : 'transparent',
             border: `1px solid ${d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
             borderRadius: 'var(--r-chip)',
           }}
@@ -150,11 +150,11 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         width: 760,
         maxWidth: '94vw',
         maxHeight: '84vh',
-        background: 'var(--glass-2)',
+        background: 'var(--material-overlay-bg)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
@@ -165,7 +165,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         <div
           style={{
             flex: 'none',
-            background: 'var(--glass-2)',
+            background: 'transparent',
             borderBottom: '1px solid var(--proto-line-2)',
             display: 'flex',
             alignItems: 'center',
@@ -183,6 +183,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               padding: '1.5px 8px',
               borderRadius: 'var(--r-pill)',
               background: tm.pill.bg,
+              backgroundImage: 'var(--material-sheen)',
               color: tm.pill.fg,
             }}
           >
@@ -280,7 +281,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     fontSize: 11.5,
                     lineHeight: 1.5,
                     color: 'var(--proto-ink-2)',
-                    background: 'var(--proto-rail)',
+                    background: 'transparent',
                     border: '1px solid var(--proto-line-2)',
                     borderRadius: 'var(--r-chip)',
                     padding: '6px 10px',
@@ -292,7 +293,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       height: 12,
                       borderRadius: 'var(--r-control)',
                       border: '1.5px solid var(--proto-line-3)',
-                      background: 'var(--proto-card)',
+                      background: 'var(--material-control-bg)',
                       boxSizing: 'border-box',
                       flex: 'none',
                       marginTop: 1.5,
@@ -463,6 +464,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   padding: '7px 0',
                   color: 'var(--ink-solid-fg)',
                   background: tm.completeBg,
+                  backgroundImage: 'var(--material-sheen)',
                   cursor: tm.completable && !pending ? 'pointer' : 'not-allowed',
                   opacity: pending ? 0.6 : 1,
                 }}

@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Auth presentation and supporting state modules.
+Authentication material cards, controls and supporting state.
 
 | filename | role | function |
 |---|---|---|

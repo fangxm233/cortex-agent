@@ -1,5 +1,5 @@
 // input:  ThreadPipeline, renderer, synthetic view model
-// output: Pending-label contrast and keyboard regressions
+// output: Card material, metadata and keyboard regressions
 // pos:    Thread pipeline presentation tests
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -29,13 +29,15 @@ describe('ThreadPipeline presentation', () => {
     const renderer = create(<LangProvider><ThreadPipeline vm={vm} onOpenSub={() => {}} /></LangProvider>);
     const pending = renderer.root.findByProps({ 'data-step-kind': 'pending' });
     expect(pending.props.tabIndex).toBe(0);
+    expect(pending.props.style.background).toBe('var(--material-card-bg)');
+    expect(pending.props.style.backdropFilter).toBeUndefined();
     const label = pending.findAllByType('span').find(node => node.children.includes('Stage metadata'))!;
     expect(label.props.style.color).toBe('var(--proto-muted)');
     expect(label.props.style.font).toContain('11px');
     const preventDefault = vi.fn();
     act(() => pending.props.onKeyDown({ key: 'Enter', preventDefault }));
     expect(preventDefault).toHaveBeenCalledOnce();
-    expect(renderer.root.findByProps({ 'data-expanded-step': 'true' }).props.style.background).toBe('var(--proto-card)');
+    expect(renderer.root.findByProps({ 'data-expanded-step': 'true' }).props.style.background).toBe('var(--material-card-bg)');
     act(() => renderer.unmount());
   });
 });

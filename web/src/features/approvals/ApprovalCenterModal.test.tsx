@@ -61,7 +61,8 @@ describe('ApprovalCenterModal', () => {
     const selected = renderer.root.findByProps({ 'data-approval-id': 'apr-1' });
     expect(selected.props.tabIndex).toBe(0);
     expect(selected.props['aria-pressed']).toBe(true);
-    expect(selected.props.style.boxShadow).toBeUndefined();
+    expect(selected.props.style.boxShadow).toBe('var(--material-card-shadow)');
+    expect(selected.props.style.backdropFilter).toBeUndefined();
     const click = vi.fn();
     const preventDefault = vi.fn();
     act(() => selected.props.onKeyDown({ key: ' ', preventDefault, currentTarget: { click } }));

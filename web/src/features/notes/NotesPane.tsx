@@ -54,7 +54,7 @@ function AddInput({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; onAdd
   };
   return (
     <form onSubmit={submit} style={{ margin: '12px 16px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', background: 'var(--proto-card)', padding: '9px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', background: 'var(--material-inset-bg)', padding: '9px 12px' }}>
         <span style={{ width: 15, height: 15, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.inputPlaceholder} aria-label={copy.inputPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 12.5, color: 'var(--proto-ink)' }} />
         <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '1px 5px' }}>{copy.enter}</span>
@@ -97,7 +97,7 @@ function ActionButton({ label, onClick, primary = false, danger = false, disable
 }) {
   const color = danger ? 'var(--proto-danger)' : primary ? 'var(--ink-solid-fg)' : 'var(--proto-muted)';
   return (
-    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--glass-2)', boxShadow: primary ? 'var(--accent-glow)' : undefined, color, fontSize: 11, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--material-control-bg)', backgroundImage: 'var(--material-sheen)', boxShadow: primary ? 'var(--accent-glow)' : 'var(--material-control-shadow)', color, fontSize: 11, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {label}
     </button>
   );
@@ -179,7 +179,7 @@ function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose 
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px 8px 16px', borderBottom: '1px solid var(--proto-line-2)' }}>
       {headerIcon && <span aria-hidden="true" style={{ color: 'var(--proto-muted)', display: 'grid', placeItems: 'center' }}>{headerIcon}</span>}
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
-      <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{activeCount}</span>
+      <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{activeCount}</span>
       <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>context/NOTES.md</span>
       {headerAction}
       <button type="button" onClick={onClose} style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>

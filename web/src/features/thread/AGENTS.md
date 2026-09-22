@@ -1,13 +1,13 @@
 Please update me when files in this folder change.
 
-Thread presentation and supporting state modules.
+Thread material cards, artifact reading panes and supporting state.
 
 | filename | role | function |
 |---|---|---|
 | ThreadArtifactPanel.tsx | view | Render ThreadArtifactPanel |
 | ThreadDetailModal.tsx | view | Render ThreadDetailModal |
 | ThreadDetailView.tsx | view | Render ThreadDetailView |
-| ThreadPipeline.test.tsx | test | Verify ThreadPipeline |
+| ThreadPipeline.test.tsx | test | Verify step materials and keyboard expansion |
 | ThreadPipeline.tsx | view | Render ThreadPipeline |
 | ThreadStepChat.tsx | view | Render ThreadStepChat |
 | nested-threads.test.ts | test | Verify nested-threads |

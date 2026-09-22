@@ -102,7 +102,8 @@ const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTa
         ...TAB_ITEM_STYLE,
         pointerEvents: isPresent ? 'auto' : 'none',
         borderBottomColor: active ? 'var(--proto-card)' : 'var(--proto-line)',
-        background: active ? 'var(--proto-card)' : 'var(--proto-gray)',
+        background: active ? 'var(--material-control-bg)' : 'var(--material-inset-bg)',
+        boxShadow: active ? 'var(--material-control-shadow)' : undefined,
       }}
     >
       <button
@@ -164,7 +165,7 @@ function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
   return 'user';
 }
 
-const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--proto-gray)' };
+const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--material-card-bg)'  };
 const STRIP_SCROLL_STYLE: CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 3, padding: '0 0 0 8px', overflowX: 'auto', overflowY: 'hidden', position: 'relative' };
 const ACTIONS_STYLE: CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px' };
 const TAB_ITEM_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 35, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip) var(--r-chip) 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
@@ -174,4 +175,4 @@ const TAB_CHIP_STYLE: CSSProperties = { display: 'inline-flex', alignItems: 'cen
 const TAB_CHIP_FORWARD_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
 const TAB_CHIP_PLAIN_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted)' };
 const TAB_CLOSE_STYLE: CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
-const ADD_BUTTON_STYLE: CSSProperties = { width: 26, height: 26, flex: 'none', marginBottom: 4, borderRadius: 'var(--r-chip) var(--r-chip) 0 0', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
+const ADD_BUTTON_STYLE: CSSProperties = { width: 26, height: 26, flex: 'none', marginBottom: 4, borderRadius: 'var(--r-chip) var(--r-chip) 0 0', border: '1px solid var(--proto-line)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };

@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Server update dialogs, prompts and shared update controls.
+Server update prompts, shared material sheets and update controls.
 
 | filename | role | function |
 |---|---|---|

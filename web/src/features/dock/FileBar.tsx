@@ -47,7 +47,9 @@ export function FileBarToggle({ on, label, title, onClick, ...rest }: {
       style={{
         ...TOGGLE_STYLE,
         borderColor: on ? 'var(--proto-accent)' : 'var(--proto-line)',
-        background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+        background: on ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+        backgroundImage: 'var(--material-sheen)',
+        boxShadow: 'var(--material-control-shadow)',
         color: on ? 'var(--proto-accent)' : 'var(--proto-muted)',
       }}
     >{label}</button>
@@ -61,7 +63,7 @@ const BAR_STYLE: CSSProperties = {
   gap: 6,
   padding: '7px 10px',
   borderBottom: '1px solid var(--proto-line)',
-  background: 'var(--proto-rail)',
+  background: 'var(--material-card-bg)',
 };
 
 const PATH_STYLE: CSSProperties = {
@@ -82,7 +84,8 @@ const BUTTON_STYLE: CSSProperties = {
   height: 28,
   borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)',
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   color: 'var(--proto-muted)',
   display: 'flex',
   alignItems: 'center',

@@ -168,7 +168,7 @@ function InfoNotice({ notice, L }: {
 }
 
 const OAUTH_STEP_CLASS =
-  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 bg-surface-card p-2g';
+  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 [background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)] p-2g';
 
 function AuthUrlNotice({ notice, L, hideInstructions }: {
   notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
@@ -230,7 +230,7 @@ function NoticeBody({ state }: { state: LoginFlowState }) {
 
 const PROMPT_CONTROL_CLASS =
   'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-2 ' +
-  'bg-surface-card px-2g py-1.5g text-ui text-state-ink ' +
+  '[background:var(--material-inset-bg)] px-2g py-1.5g text-ui text-state-ink ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
 function PromptSelect({ state, value, onChange }: {
@@ -738,7 +738,7 @@ function MobileLoginSheet({
         <header className="flex flex-none items-center justify-between gap-2g pb-2g">
           <h2 id="auth-sheet-title" className="min-w-0 break-words text-body font-semibold text-state-ink">{title}</h2>
           <button type="button" aria-label={closeLabel} onClick={onClose}
-            className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-surface-card text-state-ink/70">✕</button>
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-full [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink/70">✕</button>
         </header>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-2g">{body}</div>
         {footer ? <footer className="flex flex-none flex-wrap gap-1g border-t border-card pt-2g [&>*]:flex-1">{footer}</footer> : null}

@@ -17,7 +17,9 @@ function buttonStyle(active: boolean): CSSProperties {
     padding: '4px 9px',
     // Raised glass rather than an opaque chip: this button sits on a header that is now translucent,
     // and a solid fill would punch a white hole in it.
-    background: active ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
+    background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+    backgroundImage: 'var(--material-sheen)',
+    boxShadow: 'var(--material-control-shadow)',
     color: active ? 'var(--proto-accent)' : 'var(--proto-ink)',
     fontFamily: 'inherit',
     cursor: 'pointer',

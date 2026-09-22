@@ -4,7 +4,7 @@ Media presentation and supporting state modules.
 
 | filename | role | function |
 |---|---|---|
-| DocViewer.tsx | view | Render DocViewer |
+| DocViewer.tsx | view | Render stable documents with material controls |
 | HtmlBody.tsx | view | Render HtmlBody |
 | MediaViewer.tsx | view | Render MediaViewer |
 | VideoThumb.tsx | view | Render VideoThumb |
