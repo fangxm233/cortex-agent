@@ -15,8 +15,9 @@ const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
 const chipStyle: CSSProperties = {
   font: `400 11px ${mono}`,
-  // Glass tint, no filter: these chips live in the scrolling transcript.
-  background: 'var(--glass-2)',
+  // Control material, no filter: these chips live in the scrolling transcript.
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   border: '1px solid var(--proto-line-2)',
   padding: '1px 6px',
   borderRadius: 'var(--r-chip)',
@@ -37,7 +38,8 @@ const measureStyle: CSSProperties = {
   width: 'max-content', overflow: 'visible',
 };
 const expandedPanelStyle: CSSProperties = {
-  background: 'var(--glass-2)',
+  background: 'var(--material-card-bg)',
+  boxShadow: 'var(--material-card-shadow)',
   border: '1px solid var(--proto-line)',
   borderRadius: 'var(--r-card)',
   padding: '2px 0',
@@ -50,7 +52,7 @@ const expandedCallStyle: CSSProperties = {
 };
 const kindStyle: CSSProperties = {
   font: `600 11px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--glass-2)', padding: '1.5px 7px',
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
   borderRadius: 'var(--r-chip)', flex: 'none',
 };
 const inputStyle: CSSProperties = {

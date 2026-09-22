@@ -11,7 +11,7 @@ const mono = "'IBM Plex Mono',monospace";
 
 const typeChipStyle: CSSProperties = {
   font: `600 11px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--glass-2)', padding: '1.5px 7px',
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
   borderRadius: 'var(--r-chip)', flex: 'none',
 };
 /** Outlined rather than filled, so the pair reads as one identity at two weights: the type is what
@@ -71,7 +71,8 @@ function headerStyle(hover: boolean, expanded: boolean): CSSProperties {
 
 function boxStyle(hover: boolean): CSSProperties {
   return {
-    background: 'var(--glass-2)',
+    background: 'var(--material-card-bg)',
+    boxShadow: 'var(--material-card-shadow)',
     border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
     borderRadius: 'var(--r-card)',
   };

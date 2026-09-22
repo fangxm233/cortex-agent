@@ -138,7 +138,7 @@ function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
 
 const fileBaseStyle: CSSProperties = {
   position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 54,
-  background: 'var(--glass-2)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
+  background: 'var(--material-control-bg)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
 };
 const fileNameStyle: CSSProperties = {
   font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140,
@@ -149,7 +149,7 @@ function fileChipStyle(a: AttachmentUploadItem, preview: boolean): CSSProperties
   const ring = a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-line-2)';
   return {
     ...fileBaseStyle,
-    boxShadow: `var(--shadow-card-subtle), 0 0 0 1px ${ring}`,
+    boxShadow: `var(--material-control-shadow), 0 0 0 1px ${ring}`,
     cursor: preview ? 'pointer' : 'default',
   };
 }

@@ -69,7 +69,7 @@ function MediaThumb({ a, width, height }: {
 }
 
 const userFileStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--glass-2)',
+  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
   borderRadius: 'var(--r-card)', padding: '8px 12px 8px 9px',
 };
 
@@ -113,7 +113,7 @@ function dirOf(path: string): string {
 // The two trailing controls of an attachment card share one glass pill shape; only the ring tone
 // and the label distinguish the neutral action from the accent "open".
 const pillBaseStyle: CSSProperties = {
-  border: 0, padding: 0, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--glass-2)', display: 'flex',
+  border: 0, padding: 0, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none',
 };
 
@@ -123,7 +123,7 @@ function ActionBtn({ title, onClick, children }: {
   children: ReactNode;
 }): JSX.Element {
   const style: CSSProperties = {
-    ...pillBaseStyle, width: 26, boxShadow: '0 0 0 1px var(--proto-line-2)',
+    ...pillBaseStyle, width: 26, boxShadow: 'var(--material-control-shadow), 0 0 0 1px var(--proto-line-2)',
     color: 'var(--proto-muted)', fontSize: 11,
   };
   return <button type="button" className={MENU_FOCUS} title={title} aria-label={title} onClick={onClick} style={style}>{children}</button>;
@@ -131,7 +131,7 @@ function ActionBtn({ title, onClick, children }: {
 
 function OpenBtn({ onClick, children }: { onClick: () => void; children: ReactNode }): JSX.Element {
   const style: CSSProperties = {
-    ...pillBaseStyle, boxShadow: '0 0 0 1px var(--proto-accent-border)',
+    ...pillBaseStyle, boxShadow: 'var(--material-control-shadow), 0 0 0 1px var(--proto-accent-border)',
     color: 'var(--proto-accent)', font: `500 11px ${mono}`, padding: '0 9px',
   };
   return <button type="button" className={MENU_FOCUS} onClick={onClick} style={style}>{children} ↗</button>;
@@ -139,8 +139,8 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: ReactNo
 
 const agentFileStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10,
-  background: 'var(--glass-2)', borderRadius: 'var(--r-card)', padding: '9px 10px',
-  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
+  background: 'var(--material-card-bg)', borderRadius: 'var(--r-card)', padding: '9px 10px',
+  boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)',
   boxSizing: 'border-box', maxWidth: '100%',
 };
 const agentNameStyle: CSSProperties = {
@@ -218,8 +218,8 @@ function ViewHeader({ a, source, download, dock, expand, canPin }: {
 // The frame is glass, but the body inside it stays opaque `--proto-card`: it renders arbitrary
 // author HTML, which has to occlude the transcript behind it to stay readable.
 const viewCardStyle: CSSProperties = {
-  width: '100%', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', overflow: 'hidden',
-  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)', boxSizing: 'border-box',
+  width: '100%', background: 'var(--material-card-bg)', borderRadius: 'var(--r-card)', overflow: 'hidden',
+  boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)', boxSizing: 'border-box',
 };
 
 function AgentViewCard({ a }: { a: Attachment }): JSX.Element {

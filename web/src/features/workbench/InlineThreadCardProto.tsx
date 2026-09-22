@@ -187,7 +187,7 @@ function InlineRow({ row, onOpenNested }: { row: ProtoRow; onOpenNested: () => v
 
 function InlineCardView({ card, onOpen }: { card: ProtoCard; onOpen: () => void }) {
   return (
-    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
+    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <InlineCardHeader card={card} onOpen={onOpen} />
       <div style={{ padding: '10px 14px 6px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>

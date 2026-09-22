@@ -204,8 +204,8 @@ function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
   // Same glass-on-glass rule as the thread cards: translucent fill, no filter of its own.
-  return <div style={{ background: 'var(--glass-2)', border: 0, borderRadius: 'var(--r-card)',
-    boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line-2)' }}>
+  return <div style={{ background: 'var(--material-card-bg)', border: 0, borderRadius: 'var(--r-card)',
+    boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
       style={{ padding: '10px 12px', cursor: 'pointer',
         borderBottom: `1px solid ${open ? 'var(--proto-line-soft)' : 'transparent'}` }}>

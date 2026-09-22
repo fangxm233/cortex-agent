@@ -264,15 +264,15 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
       style={{
         // Raised glass inside the drawer: the sheet under it is translucent, so an opaque card
         // would punch a white hole in it. No filter — the drawer already blurs, and this list scrolls.
-        background: 'var(--glass-2)',
+        background: 'var(--material-card-bg)',
         // The outline is a shadow ring rather than a border so it costs no outer size: a 1px border
         // would make every card 2px wider than the stack it sits in. The running thread wears the
         // accent ring; the rest only brighten theirs on hover.
         border: 0,
         borderRadius: 'var(--r-card)',
         boxShadow: running
-          ? 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border)'
-          : `var(--shadow-card), 0 0 0 1px ${hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
+          ? 'var(--material-card-shadow), 0 0 0 1px var(--proto-accent-border)'
+          : `var(--material-card-shadow), 0 0 0 1px ${hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
       }}
     >
       <div

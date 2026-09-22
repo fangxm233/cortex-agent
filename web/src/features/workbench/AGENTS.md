@@ -31,7 +31,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | Composer.tsx | view | Render filter-free composer and stable input |
 | ComposerActionRow.test.tsx | test | Test menu surfaces and action selection |
 | ComposerActionRow.tsx | view | Render compact controls and glass action menus |
-| ComposerAttachmentChip.tsx | view | Render composer attachment chip |
+| ComposerAttachmentChip.tsx | view | Render material chips and stable media previews |
 | ComposerSendFailure.tsx | view | Render composer send failure |
 | ComposerStatusLine.tsx | view | Render composer status line |
 | context-usage.test.ts | test | Test context usage |
@@ -45,7 +45,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | DecisionCards.tsx | view | Render material decision cards and responses |
 | DraftProjectSelector.test.tsx | test | Test draft project selector |
 | DraftProjectSelector.tsx | view | Select draft project from a glass picker |
-| InlineThreadCardProto.tsx | view | Render inline thread card proto |
+| InlineThreadCardProto.tsx | view | Render filter-free inline thread material |
 | interaction-vm.test.ts | test | Test interaction vm |
 | interaction-vm.ts | model | Build interaction vm state |
 | InteractionCards.test.tsx | test | Test card materials and interaction controls |
@@ -54,7 +54,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | left-rail-projects.ts | model | Build left rail projects state |
 | LeftRail.tsx | view | Render navigation and readable attention counts |
 | MenuChrome.tsx | view | Share glass menu shells and unfiltered rows |
-| MessageAttachmentCards.tsx | view | Render message attachment cards |
+| MessageAttachmentCards.tsx | view | Render material frames and stable media bodies |
 | MessageEdit.tsx | view | Render material editor and message actions |
 | MessageEdit.test.tsx | test | Test editor materials and keyboard actions |
 | MessageStream.tsx | view | Render message stream |
@@ -81,10 +81,10 @@ Desktop conversations, composer controls, session navigation and context panels.
 | reveal-pacing.ts | model | Build reveal pacing state |
 | right-panel-vm.test.ts | test | Test right panel vm |
 | right-panel-vm.ts | model | Build right panel vm state |
-| RightMachinesTab.tsx | view | Render right machines tab |
+| RightMachinesTab.tsx | view | Render filter-free machine telemetry cards |
 | RightPanel.tsx | view | Render context tabs and steady count badges |
 | RightThreadCard.test.tsx | test | Test right thread card |
-| RightThreadCard.tsx | view | Render right thread card |
+| RightThreadCard.tsx | view | Render material thread progress cards |
 | RunListModal.tsx | view | Browse runs inside a stationary glass dialog |
 | schedule-rail.test.ts | test | Test schedule rail |
 | schedule-rail.ts | model | Build schedule rail state |
@@ -108,7 +108,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | SessionSelector.tsx | view | Render keyboard-accessible session selector |
 | SessionStatsModal.tsx | view | Render session totals on shared glass surface |
 | SubagentBlock.test.tsx | test | Test subagent block |
-| SubagentBlock.tsx | view | Render subagent block |
+| SubagentBlock.tsx | view | Render material card with opaque sticky header |
 | SubagentTranscriptDetail.test.tsx | test | Test subagent transcript detail |
 | SubagentTranscriptDetail.tsx | view | Load and render subagent conversation |
 | system-hint-row.test.tsx | test | Test system hint row |
@@ -120,7 +120,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | TodoRail.tsx | view | Render todo rail |
 | tool-call-overflow.ts | model | Build tool call overflow state |
 | ToolCallsRow.test.tsx | test | Test tool group spacing and collapse behavior |
-| ToolCallsRow.tsx | view | Render spaced, click-to-collapse tool groups |
+| ToolCallsRow.tsx | view | Render spaced material chips and tool groups |
 | transcript-vm.test.ts | test | Test transcript vm |
 | transcript-vm.ts | model | Build transcript vm state |
 | useAssistantDeltaStream.test.tsx | test | Test use assistant delta stream |
