@@ -78,7 +78,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notification-routing.test.ts | test | Test notification target validation |
 | m-notification-routing.ts | utility | Validate notification targets and routes |
 | MNotificationToaster.tsx | view | Render low-cost material notification banners |
-| mobile-chat-presentation.test.tsx | test | Guard chat materials, blur budget and input sizes |
+| mobile-chat-presentation.test.tsx | test | Guard chat materials, toast cost and input sizes |
 | mobile-presentation.test.tsx | test | Guard mobile materials and scroll clearance |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |
