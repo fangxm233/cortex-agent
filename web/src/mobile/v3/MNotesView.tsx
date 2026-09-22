@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MNotesView
-// pos:    Mobile NotesView presentation
+// pos:    Readable mobile notes and compact touch controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
@@ -57,8 +57,8 @@ function useRowGesture(id: string, open: boolean, onTap: () => void, onSwipe: (i
 
 function NoteCircle({ completed, busy, onClick }: { completed: boolean; busy: boolean; onClick: () => void }) {
   return (
-    <button type="button" disabled={busy} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ width: 22, height: 22, borderRadius: '50%', border: completed ? 0 : `2px solid ${MC.hairline}`, background: completed ? MC.done : 'transparent', color: MC.inkSolidFg, padding: 0, flex: 'none', fontSize: 11 }}>
-      {completed ? '✓' : ''}
+    <button type="button" disabled={busy} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ width: 44, height: 44, border: 0, background: 'transparent', color: MC.inkSolidFg, padding: 0, margin: '-11px 0 -11px -11px', flex: 'none', display: 'grid', placeItems: 'center', fontSize: 11 }}>
+      <span aria-hidden="true" style={{ width: 22, height: 22, boxSizing: 'border-box', borderRadius: '50%', border: completed ? 0 : `1.5px solid ${MC.muted}`, background: completed ? MC.done : 'transparent', display: 'grid', placeItems: 'center' }}>{completed ? '✓' : ''}</span>
     </button>
   );
 }

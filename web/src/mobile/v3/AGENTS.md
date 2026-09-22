@@ -70,7 +70,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notes-gestures.ts | utility | Resolve note swipe offsets and outcomes |
 | MNotesProjectCard.tsx | view | Render project note cards and actions |
 | MNotesScreen.tsx | screen | Connect project notes and actions |
-| MNotesView.tsx | view | Render mobile project notes |
+| MNotesView.tsx | view | Render readable notes and compact touch controls |
 | m-notes-vm.test.ts | test | Test notes view model construction |
 | m-notes-vm.ts | model | Build mobile notes view state |
 | MNotificationProvider.test.tsx | test | Test mobile notification delivery and routing |

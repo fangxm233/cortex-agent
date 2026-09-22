@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MobileThreadStepper
-// pos:    Compact mobile inline thread progress card
+// pos:    Mobile thread progress card with aligned step labels
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, KeyboardEvent } from 'react';
 import type { ProtoPill } from '@/features/workbench/thread-card-proto';
@@ -106,7 +106,7 @@ export function MobileThreadStepper({
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', justifyContent: 'space-between', marginTop: 6, font: `400 11px ${mono}`, color: 'var(--m-muted)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${card.nodes.length}, minmax(0, 1fr))`, gap: 6, marginTop: 6, font: `400 11px ${mono}`, color: 'var(--m-muted)' }}>
         {card.nodes.map((node, i) => (
           <span key={i} style={node.state === 'running' ? { color: 'var(--proto-accent)' } : undefined}>
             {nodeLabel(node, card.footer.elapsed)}

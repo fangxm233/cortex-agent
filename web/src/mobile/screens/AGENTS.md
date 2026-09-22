@@ -8,5 +8,5 @@ Mobile machine, session and inline thread presentation adapters.
 | mobile-machines-vm.ts | model | Build mobile machine summaries |
 | mobile-session-vm.test.ts | test | Test session and stepper view state |
 | mobile-session-vm.ts | model | Build mobile session and stepper view state |
-| MobileThreadStepper.test.tsx | test | Test inline thread progress presentation |
-| MobileThreadStepper.tsx | view | Render readable compact thread progress cards |
+| MobileThreadStepper.test.tsx | test | Test inline thread navigation and label alignment |
+| MobileThreadStepper.tsx | view | Render thread progress with aligned step labels |

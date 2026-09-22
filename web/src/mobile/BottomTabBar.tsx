@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: BottomTabBar
-// pos:    Floating mobile tab navigation
+// pos:    Readable floating mobile tab navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
@@ -69,7 +69,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
         background: 'var(--glass-1)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
-        boxShadow: 'var(--glass-ring-inset), 0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
+        boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-around',

@@ -4,7 +4,7 @@ Mobile route shells, tab navigation and viewport adapters.
 
 | filename | role | function |
 |---|---|---|
-| BottomTabBar.tsx | UI | Render readable floating tab labels and badges |
+| BottomTabBar.tsx | UI | Render single-boundary floating tab navigation |
 | MobileAnimatedOutlet.test.tsx | test | Test MobileAnimatedOutlet |
 | MobileAnimatedOutlet.tsx | UI | Provide MobileAnimatedOutlet |
 | MobileShell.tsx | UI | Provide MobileShell |
