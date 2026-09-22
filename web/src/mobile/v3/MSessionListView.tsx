@@ -1,4 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (Cortex_Glass_Mobile.dc.html L25-79)
+// input:  React, mobile kit, presentation props
+// output: MSessionListView
+// pos:    Mobile SessionListView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
@@ -31,7 +34,7 @@ const PRESENCE: Record<ConnectionStatus, string> = {
   connected: 'var(--proto-success)',
   connecting: 'var(--proto-amber)',
   reconnecting: 'var(--proto-amber)',
-  disconnected: 'var(--proto-muted-3)',
+  disconnected: MC.muted,
 };
 
 // The brand tile carrying the live link state as a presence dot.
@@ -92,9 +95,9 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
         aria-label="Scheduled"
         onClick={onClick}
         style={{
-          width: 34,
-          height: 34,
-          borderRadius: 11,
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--r-control)',
           background: 'var(--glass-2)',
           boxShadow: '0 0 0 1px var(--proto-line)',
           border: 0,
@@ -119,7 +122,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
             right: -4,
             background: MC.run,
             color: 'var(--ink-solid-fg)',
-            font: `600 8.5px ${MONO}`,
+            font: `600 11px ${MONO}`,
             padding: '1px 4.5px',
             borderRadius: 'var(--r-pill)',
             border: `1.5px solid ${MC.canvas}`,
@@ -143,8 +146,7 @@ function ApprovalsBanner({ label, onOpen }: { label: string; onOpen: () => void 
         padding: '12px 14px',
         background: 'var(--proto-amber-bg)',
         border: '1px solid var(--proto-amber-border)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-amber-lift)',
+        borderRadius: 'var(--r-card)',
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -223,7 +225,7 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
         gap: 10,
         minHeight: quiet ? 44 : 48,
         padding: quiet ? '0 10px 0 29px' : '0 10px 0 12px',
-        borderRadius: 12,
+        borderRadius: 'var(--r-card)',
         background: live ? 'var(--proto-accent-bg)' : undefined,
         cursor: 'pointer',
       }}
@@ -258,9 +260,11 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
         {showStatus && (
           <div
             style={{
-              font: `400 10.5px ${MONO}`,
+              font: `400 11px ${MONO}`,
               color: STATUS_COLOR[kind],
-              opacity: live ? 0.7 : undefined,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               marginTop: 1,
             }}
           >
@@ -271,8 +275,8 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
       <span
         style={
           live
-            ? { flex: 'none', font: `500 10.5px ${MONO}`, color: 'var(--proto-accent)', opacity: 0.7 }
-            : { flex: 'none', font: `400 10.5px ${MONO}`, color: MC.faint }
+            ? { flex: 'none', font: `500 11px ${MONO}`, color: 'var(--proto-accent)' }
+            : { flex: 'none', font: `400 11px ${MONO}`, color: MC.muted }
         }
       >
         {row.time}
@@ -296,7 +300,7 @@ function DayGroup({
   return (
     <div
       style={{
-        borderRadius: 18,
+        borderRadius: 'var(--r-float)',
         background: MC.glassRaised,
         boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
         overflow: 'hidden',
@@ -310,7 +314,7 @@ function DayGroup({
               display: 'flex',
               alignItems: 'center',
               gap: 4,
-              font: `600 10px ${MONO}`,
+              font: `600 11px ${MONO}`,
               color: 'var(--proto-accent)',
             }}
           >
@@ -318,7 +322,7 @@ function DayGroup({
             {liveCount}
           </span>
         )}
-        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
+        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
           {copy.sessionCount.replace('{n}', String(group.rows.length))}
         </span>
       </div>
@@ -338,7 +342,7 @@ const FAB_STYLE: CSSProperties = {
   height: 48,
   padding: '0 18px 0 14px',
   border: 0,
-  borderRadius: 16,
+  borderRadius: 'var(--r-float)',
   background: 'var(--proto-accent)',
   color: 'var(--ink-solid-fg)',
   fontSize: 14,
@@ -400,7 +404,7 @@ export function MSessionListView({
     >
       <MScrollBody gap={14} padding="0 16px 0">
         {groups.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
         )}

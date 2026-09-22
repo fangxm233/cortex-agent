@@ -80,11 +80,11 @@ function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
         <Bar percent={gpu.utilPercent} />
         <span style={{ color: MC.sub }}>{gpu.utilText}</span>
       </div>
-      <div style={{ ...META, color: MC.faint, paddingLeft: 14, marginTop: 2 }}>
+      <div style={{ ...META, color: MC.muted, paddingLeft: 14, marginTop: 2 }}>
         {gpu.memText} · {gpu.tempText} · {gpu.powerText}
       </div>
       {gpu.processes.length > 0 && (
-        <div style={{ ...META, color: MC.faint, paddingLeft: 14, marginTop: 2 }}>
+        <div style={{ ...META, color: MC.muted, paddingLeft: 14, marginTop: 2 }}>
           {gpu.processes.map((proc) => `${proc.name} ${proc.memText}`).join(' · ')}
           {gpu.hiddenProcessCount > 0 && ` +${gpu.hiddenProcessCount}`}
         </div>
@@ -98,13 +98,13 @@ function RunLine({ run }: { run: MachineRunRow }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META, marginTop: 5 }}>
       <MDot color={MC.run} size={5} pulse />
       <span style={{ color: MC.body, fontWeight: 600 }}>{run.label}</span>
-      {run.duration && <span style={{ marginLeft: 'auto', color: MC.faint }}>{run.duration}</span>}
+      {run.duration && <span style={{ marginLeft: 'auto', color: MC.muted }}>{run.duration}</span>}
     </div>
   );
 }
 
 function Notice({ text, tone }: { text: string; tone?: 'fail' }) {
-  return <div style={{ ...META, color: tone === 'fail' ? MC.fail : MC.faint, marginTop: 6 }}>{text}</div>;
+  return <div style={{ ...META, color: tone === 'fail' ? MC.fail : MC.muted, marginTop: 6 }}>{text}</div>;
 }
 
 /** Static facts from machines.list — shown whether or not a probe succeeded. */
@@ -116,9 +116,9 @@ function CardStatics({ card, copy, uptime }: { card: MMachineCard; copy: MMachin
   if (card.capabilities.length > 0) parts.push(card.capabilities.join(','));
   return (
     <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${MC.divider}` }}>
-      <div style={{ ...META, color: MC.faint }}>{parts.join(' · ')}</div>
+      <div style={{ ...META, color: MC.muted }}>{parts.join(' · ')}</div>
       {card.cortexPath && (
-        <div style={{ ...META, color: MC.faint, overflowWrap: 'anywhere' }}>
+        <div style={{ ...META, color: MC.muted, overflowWrap: 'anywhere' }}>
           {copy.path} {card.cortexPath}
         </div>
       )}
@@ -137,7 +137,7 @@ function ProbePanel({ panel, copy }: { panel: MMachineDetailPanel; copy: MMachin
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
           {meters.map((meter) => (
             <span key={meter.key} style={{ display: 'flex', alignItems: 'center', gap: 4, ...META }}>
-              <span style={{ color: MC.faint }}>{meter.label}</span>
+              <span style={{ color: MC.muted }}>{meter.label}</span>
               <Bar percent={meter.percent} width={30} />
               <span>{meter.text}</span>
             </span>
@@ -282,7 +282,7 @@ function OfflineCard({
 // ── footer registry line (scheme L594) ──────────────────────────────────────────
 function RegistryFooter({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '2px 4px', fontSize: 12, color: MC.faint }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '2px 4px', fontSize: 12, color: MC.muted }}>
       <span>
         machines.json · {vm.total} {copy.registered}
       </span>
@@ -322,7 +322,7 @@ export function MMachinesView({
       </MDrillHeader>}>
       <MScrollBody gap={10}>
         {vm.cards.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
         )}
         {vm.cards.map((card) =>
           card.online ? (

@@ -1,12 +1,14 @@
-// @ds-adherence-ignore -- mobile bottom Tab bar, 1:1 from Cortex_Glass_Mobile.dc.html L81-85
-// (raw px/svg by design, §8.3).
+// input:  React, mobile kit, presentation props
+// output: BottomTabBar
+// pos:    Floating mobile tab navigation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
 import { MONO } from './ui/mobile-theme';
 import { type Vocab } from '@/i18n';
 
 const ACTIVE = 'var(--proto-accent)';
-const IDLE = 'var(--proto-muted-2)';
+const IDLE = 'var(--m-muted)';
 
 function TabIcon({ id, color }: { id: MobileTabId; color: string }): ReactNode {
   switch (id) {
@@ -118,7 +120,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                     // Amber, not accent: this is the pending-approvals count — the app's「需要你」colour.
                     background: 'var(--proto-amber)',
                     color: 'var(--ink-solid-fg)',
-                    font: `600 9px ${MONO}`,
+                    font: `600 11px ${MONO}`,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -128,7 +130,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                 </span>
               )}
             </div>
-            <span style={{ fontSize: 10, fontWeight: active ? 600 : 500, color }}>
+            <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, color }}>
               {vocab[tab.labelKey]}
             </span>
           </button>

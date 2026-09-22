@@ -1,4 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1i L509-518)
+// input:  React, mobile kit, presentation props
+// output: MNewProjectView
+// pos:    Mobile NewProjectView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { canCreateProject } from '@/features/projects/new-project';
@@ -38,7 +41,7 @@ export function MNewProjectView({
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
           {copy.title}
         </span>
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
           {copy.tag}
         </span>
       </div>
@@ -59,10 +62,10 @@ export function MNewProjectView({
           borderRadius: 'var(--r-card)',
           background: 'var(--proto-card)',
           padding: '0 14px',
-          font: `400 13.5px ${MONO}`,
+          fontSize: 16,
+          fontFamily: 'inherit',
           color: MC.ink,
           boxSizing: 'border-box',
-          outline: 'none',
         }}
       />
 
@@ -86,7 +89,7 @@ export function MNewProjectView({
           height: 48,
           border: 'none',
           borderRadius: 'var(--r-card)',
-          background: MC.ink,
+          background: MC.inkSolid,
           boxShadow: submittable ? 'var(--accent-glow)' : undefined,
           color: 'var(--ink-solid-fg)',
           display: 'flex',

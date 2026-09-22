@@ -1,6 +1,6 @@
 Please update me when files in this folder change.
 
-Mobile screens, presentation views, view models and native service adapters.
+Mobile screens, readable presentation views and native service adapters.
 
 | filename | role | function |
 |---|---|---|
@@ -78,6 +78,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | m-notification-routing.test.ts | test | Test notification target validation |
 | m-notification-routing.ts | utility | Validate notification targets and routes |
 | MNotificationToaster.tsx | view | Render notification toasts and banners |
+| mobile-presentation.test.tsx | test | Guard mobile readability and surface styling |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |
 | MPlanReadView.tsx | view | Render plans and approval controls |
@@ -85,7 +86,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | MProfilesScreen.tsx | screen | Browse and edit mobile profiles |
 | MProfilesScreen.test.tsx | test | Check mobile profile actions and editor |
 | MProjectScreen.tsx | screen | Connect project overview data and actions |
-| MProjectView.tsx | view | Render mobile project overview |
+| MProjectView.tsx | view | Render compact project cards and switching |
 | m-project-vm.test.ts | test | Test project counts and view state |
 | m-project-vm.ts | model | Build project counts and overview state |
 | MRuntimeSettingsScreen.test.tsx | test | Test mobile runtime settings |
@@ -96,7 +97,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | MScheduleSheet.test.tsx | test | Test mobile schedule sheet |
 | MScheduleSheet.tsx | screen | Connect schedule sheet data and actions |
 | MSessionListScreen.tsx | screen | Connect session list data and actions |
-| MSessionListView.tsx | view | Render mobile session groups |
+| MSessionListView.tsx | view | Render readable mobile date-group session cards |
 | m-session-list-vm.test.ts | test | Test session status and grouping |
 | m-session-list-vm.ts | model | Build session status lines and groups |
 | MSettingsControls.tsx | UI | Provide mobile settings frames and controls |
@@ -111,7 +112,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | m-task-detail-vm.test.ts | test | Test task detail view model construction |
 | m-task-detail-vm.ts | model | Build mobile task detail state |
 | MTasksScreen.tsx | screen | Connect task lists and navigation |
-| MTasksView.tsx | view | Render mobile task groups |
+| MTasksView.tsx | view | Render readable task groups and completion states |
 | MThreadDetailScreen.tsx | screen | Connect thread detail data and actions |
 | MThreadDetailView.test.tsx | test | Test mobile thread detail presentation |
 | MThreadDetailView.tsx | view | Render mobile thread details |

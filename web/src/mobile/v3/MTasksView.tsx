@@ -1,5 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design
-
+// input:  React, mobile kit, presentation props
+// output: MTasksView
+// pos:    Mobile TasksView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentType, CSSProperties, MouseEvent } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from '@/features/tasks/task-claim';
@@ -54,7 +56,7 @@ interface CardProps {
 function IdText({ task, textColor = MC.body }: { task: TaskInfo; textColor?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, flex: 1 }}>
-      <span style={{ font: `500 10px ${MONO}`, color: MC.muted, flex: 'none' }}>{task.id}</span>
+      <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: '0 1 auto', maxWidth: '35%', overflowWrap: 'anywhere' }}>{task.id}</span>
       <span style={{ fontSize: 12.5, color: textColor, lineHeight: 1.45, ...TEXT_TRUNCATE }} title={task.text}>
         {task.text}
       </span>
@@ -74,7 +76,7 @@ function StatusLine({ text, color, dot, onClick, singleLine = false }: {
       {dot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: dot, flex: 'none' }} />}
       <span
         data-task-blocker={singleLine ? 'true' : undefined}
-        style={{ font: `400 9.5px ${MONO}`, color, ...(singleLine ? TEXT_TRUNCATE : {}) }}
+        style={{ font: `400 11px ${MONO}`, color, ...(singleLine ? TEXT_TRUNCATE : {}) }}
       >
         {text}
       </span>
@@ -93,7 +95,7 @@ function InProgressCard({ task, copy, onOpenTask, onOpenThread }: CardProps) {
     <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <IdText task={task} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
-        <span onClick={openThread} style={{ font: `500 9.5px ${MONO}`, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', cursor: threadId ? 'pointer' : 'default' }}>
+        <span onClick={openThread} style={{ font: `500 11px ${MONO}`, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', cursor: threadId ? 'pointer' : 'default' }}>
           {copy.claim}{claimId ? ` · ${claimId}` : ''}{threadId ? ' ›' : ''}
         </span>
       </div>
@@ -106,11 +108,11 @@ function ActionableCard({ task, copy, expanded, onToggle, onOpenTask }: CardProp
     <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <IdText task={task} />
-        <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ marginLeft: 'auto', color: MC.faint, fontSize: 8.5, flex: 'none', cursor: 'pointer', padding: '2px 2px 2px 8px' }}>
+        <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ marginLeft: 'auto', color: MC.muted, fontSize: 8.5, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '-10px -8px -10px 0' }}>
           {expanded ? '▾' : '▸'}
         </span>
       </div>
-      {expanded && <div style={{ marginTop: 7, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 'var(--r-chip)', font: `400 10px/1.6 ${MONO}`, color: MC.sub }}>{copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}</div>}
+      {expanded && <div style={{ marginTop: 7, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 'var(--r-chip)', font: `400 11px/1.6 ${MONO}`, color: MC.sub }}>{copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}</div>}
     </MCard>
   );
 }
@@ -132,7 +134,7 @@ function WaitingCard({ task, copy, onOpenTask }: CardProps) {
   const dependencies = unresolvedDependencyIds(task);
   const text = dependencies.length > 0 ? `${copy.needs} ${dependencies.join(', ')}` : copy.waiting;
   return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.8 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <IdText task={task} textColor={MC.sub} />
       <StatusLine text={text} color={MC.muted} />
     </MCard>
@@ -142,7 +144,7 @@ function WaitingCard({ task, copy, onOpenTask }: CardProps) {
 function BlockedCard({ task, copy, onOpenTask }: CardProps) {
   const text = task.blockedBy ? `${copy.blocked} · ${task.blockedBy}` : copy.blocked;
   return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.75 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <IdText task={task} textColor={MC.sub} />
       <StatusLine text={text} color={MC.amberText} dot={MC.amber} singleLine />
     </MCard>
@@ -153,12 +155,12 @@ function DoneCard({ task, onOpenTask }: CardProps) {
   // Real `completed-at` in local wall clock; the line is dropped when the task never recorded one.
   const completedAt = formatTaskTime(task.completedAt);
   return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.7 }}>
+    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.done, flex: 'none' }} />
         <IdText task={task} textColor={MC.sub} />
         {completedAt && (
-          <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, flex: 'none' }}>{completedAt}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{completedAt}</span>
         )}
       </div>
     </MCard>
@@ -187,7 +189,7 @@ export function MTasksView({ groups, scope, copy, expandedIds, onToggleExpand, o
   return (
     <MScreen label="1d 任务" header={<MTabHeader title={copy.title} qn={scope} />}>
       <MScrollBody gap={6}>
-        {groups.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>}
+        {groups.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>}
         {groups.map((group, index) => {
           const Card = CARD_COMPONENTS[group.kind];
           return <div key={group.kind} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

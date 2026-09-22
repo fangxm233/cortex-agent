@@ -1,10 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme.dc.html sec-24 24c)
-// Pure presentational view for the 24c 移动端 Issues screen (render-testable without tRPC/router).
-// The FIRST card (or whichever id is expanded) renders expanded with the inline 删除 / 处理
-// decision; the rest render collapsed title+date rows that swap the expansion on tap — same
-// interaction as MApprovalsView (1f), but deliberately NO amber anywhere: issues never block a
-// thread (design sec-24). Field labels are VERBATIM from the markdown; the design mock's source
-// slot / 相关文件 chips have no DTO source → omitted, never fabricated.
+// input:  React, mobile kit, presentation props
+// output: MIssuesView
+// pos:    Mobile IssuesView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
@@ -45,7 +42,7 @@ export function MIssuesView({
       header={
         <MDrillHeader
           onBack={onBack}
-          trailing={<span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>ISSUES.md</span>}
+          trailing={<span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>ISSUES.md</span>}
         >
           <div
             style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
@@ -55,7 +52,7 @@ export function MIssuesView({
           {cards.length > 0 && (
             <span
               style={{
-                font: `600 10px ${MONO}`,
+                font: `600 11px ${MONO}`,
                 color: MC.sub,
                 background: 'var(--proto-line-2)',
                 padding: '2px 8px',
@@ -71,7 +68,7 @@ export function MIssuesView({
     >
       <MScrollBody gap={10}>
         {cards.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
         )}
@@ -99,7 +96,7 @@ export function MIssuesView({
               padding: '10px 0 12px',
             }}
           >
-            <span style={{ fontSize: 10.5, color: MC.faint }}>{copy.footer}</span>
+            <span style={{ fontSize: 11, color: MC.muted }}>{copy.footer}</span>
           </div>
         )}
       </MScrollBody>
@@ -131,7 +128,7 @@ function ExpandedCard({
         {/* meta row: real date only — the design's source slot has no markdown field */}
         {card.date && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: MC.faint }}>{card.date}</span>
+            <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{card.date}</span>
           </div>
         )}
         <div style={{ fontSize: 14.5, fontWeight: 600, color: MC.ink, lineHeight: 1.4, marginTop: card.date ? 8 : 0 }}>
@@ -224,7 +221,7 @@ function CollapsedCard({ card, onExpand }: { card: IssueDetailVm; onExpand: (id:
           {card.title}
         </span>
         {card.date && (
-          <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none' }}>{card.date}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.date}</span>
         )}
       </div>
     </MCard>

@@ -1,10 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
-// (raw px/hex/font by design §8.3; the mobile palette is not in the light `proto.*` token set).
-//
-// Shared, presentational building blocks for the mobile v3 screens (1a–1r). Every screen composes
-// these so the four-tab redesign reads as one system. Pure — no data, no tRPC. The full-bleed shell
-// (MobileShell) owns the viewport + bottom Tab bar; a screen renders <MScreen> with its own header,
-// scroll body, and optional footer. Composer variants share an optional local-command menu slot.
+// input:  React, mobile kit, presentation props
+// output: Mobile UI primitives
+// pos:    Mobile frames, cards, labels and sheets
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { statusTone, type Tone } from '@/design/tone';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
@@ -50,6 +47,8 @@ export function MScreen({
       data-screen-label={label}
       style={{
         height: '100%',
+        minWidth: 0,
+        overflowWrap: 'anywhere',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
@@ -98,14 +97,14 @@ export function MTabHeader({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {leading}
         <span
-          style={{ fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', flex: 'none' }}
+          style={{ fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {title}
         </span>
         {qn && (
           <span
             style={{
-              font: `600 9.5px ${MONO}`,
+              font: `600 11px ${MONO}`,
               color: MC.run,
               background: MC.runBg,
               padding: '2px 7px',
@@ -140,7 +139,8 @@ export function MDrillHeader({
         flex: 'none',
         display: 'flex',
         alignItems: 'center',
-        gap: 9,
+        flexWrap: 'wrap',
+        gap: 8,
         // Transparent over the ground, like MTabHeader — every mobile header reads as one surface.
         padding: '8px 14px 10px',
         paddingTop: 'calc(8px + env(safe-area-inset-top))',
@@ -161,7 +161,7 @@ export function MDrillHeader({
           cursor: 'pointer',
           flex: 'none',
           minHeight: 44,
-          minWidth: 30,
+          minWidth: 44,
           display: 'flex',
           alignItems: 'center',
         }}
@@ -169,7 +169,7 @@ export function MDrillHeader({
         ‹
       </button>
       {children}
-      {trailing && <div style={{ marginLeft: 'auto', flex: 'none' }}>{trailing}</div>}
+      {trailing && <div style={{ marginLeft: 'auto', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{trailing}</div>}
     </div>
   );
 }
@@ -182,8 +182,8 @@ export function MMoreButton({ onClick }: { onClick?: () => void }) {
       aria-label="More"
       onClick={onClick}
       style={{
-        width: 34,
-        height: 34,
+        width: 44,
+        height: 44,
         borderRadius: '50%',
         background: MC.card,
         border: `1px solid ${MC.hairline}`,
@@ -270,6 +270,8 @@ export function MCard({
         borderRadius: radius,
         padding,
         boxSizing: 'border-box',
+        minWidth: 0,
+        overflowWrap: 'anywhere',
         cursor: onClick ? 'pointer' : undefined,
         ...style,
       }}
@@ -293,7 +295,7 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 600,
         padding: '2px 8px',
         borderRadius: 'var(--r-pill)',
@@ -346,10 +348,10 @@ export function MGroupLabel({ children, style }: { children: ReactNode; style?: 
   return (
     <div
       style={{
-        fontSize: 9.5,
+        fontSize: 11,
         fontWeight: 700,
         letterSpacing: '.07em',
-        color: MC.faint,
+        color: MC.muted,
         padding: '0 2px 2px',
         ...style,
       }}
@@ -392,6 +394,7 @@ export function MSegmented<T extends string>({
               background: active ? MC.card : 'transparent',
               borderRadius: 'var(--r-chip)',
               padding: '4px 12px',
+              minHeight: 44,
               boxShadow: active ? 'var(--shadow-segment)' : undefined,
             }}
           >

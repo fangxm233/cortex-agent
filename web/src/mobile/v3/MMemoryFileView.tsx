@@ -1,11 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1j)
-//
-// Mobile 项目记忆 file viewer (/m/memory/file) — a read-only reading surface for one memory file,
-// drilled from the 1j memory tree. NON-Tab drill page (the shell hides the Tab bar for /m/memory*).
-// Pure presentational (render-testable without tRPC providers); the container (MMemoryFileScreen) reads
-// `?path=` + binds `memory.file`. Renders the raw markdown via the shared `ChatMarkdown` (the same
-// renderer the 6b plan-read page uses). Git diff/blame is intentionally OMITTED here — the desktop 7b
-// viewer owns that richer view; on mobile this is a clean read.
+// input:  React, mobile kit, presentation props
+// output: MMemoryFileView
+// pos:    Mobile MemoryFileView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { MDrillHeader, MC, MONO } from '@/mobile/ui/kit';
 
@@ -54,8 +50,8 @@ export function MMemoryFileView({
           {metaLine && (
             <div
               style={{
-                font: `400 10px ${MONO}`,
-                color: MC.faint,
+                font: `400 11px ${MONO}`,
+                color: MC.muted,
                 marginTop: 1,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -71,13 +67,13 @@ export function MMemoryFileView({
       {/* white reading surface — real file markdown (read-only) */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--proto-card)' }}>
         {status === 'loading' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.faint }}>{copy.loading}</div>
+          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.loading}</div>
         )}
         {status === 'error' && (
           <div style={{ padding: 16, fontSize: 12.5, color: MC.fail }}>{copy.error}</div>
         )}
         {status === 'empty' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.faint }}>{copy.empty}</div>
+          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.empty}</div>
         )}
         {status === 'ready' && (
           <div
@@ -86,6 +82,8 @@ export function MMemoryFileView({
               fontSize: 13,
               lineHeight: 1.7,
               color: MC.body,
+              minWidth: 0,
+              overflowWrap: 'anywhere',
             }}
           >
             <ChatMarkdown text={content} />

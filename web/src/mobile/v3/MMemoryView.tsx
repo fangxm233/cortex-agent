@@ -1,7 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1j L523-554)
-//
-// Files are openable in the read-only viewer. Memory directories render as controlled accordions from
-// real DTO entries; unavailable diff badges, draft state, and per-file descriptors remain omitted.
+// input:  React, mobile kit, presentation props
+// output: MMemoryView
+// pos:    Mobile MemoryView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScreen, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import type { MMemoryVm, MMemoryFileRow, MMemoryDirCard } from './m-memory-vm';
@@ -37,7 +37,7 @@ function DocIcon() {
 }
 
 // A right-pointing chevron; rotates 90° down when `open` (accordion header affordance).
-function Chevron({ open = false, color = MC.faint }: { open?: boolean; color?: string }) {
+function Chevron({ open = false, color = MC.muted }: { open?: boolean; color?: string }) {
   return (
     <svg
       width="9"
@@ -66,6 +66,8 @@ function FileRow({ row, last, onOpen }: { row: MMemoryFileRow; last: boolean; on
         alignItems: 'center',
         gap: 9,
         padding: '10px 13px',
+        minHeight: 44,
+        boxSizing: 'border-box',
         borderBottom: last ? undefined : '1px solid var(--proto-alt)',
         cursor: 'pointer',
       }}
@@ -74,10 +76,10 @@ function FileRow({ row, last, onOpen }: { row: MMemoryFileRow; last: boolean; on
       <span style={{ font: `500 12px ${MONO}`, color: MC.body, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {row.name}
       </span>
-      <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint, flex: 'none' }}>
+      <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>
         {row.time}
       </span>
-      <Chevron color={MC.faint} />
+      <Chevron color={MC.muted} />
     </div>
   );
 }
@@ -116,19 +118,21 @@ function DirAccordion({
           display: 'flex',
           alignItems: 'center',
           padding: '9px 13px',
+          minHeight: 44,
+          boxSizing: 'border-box',
           borderBottom: open ? '1px solid var(--proto-line-2)' : undefined,
           cursor: 'pointer',
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{dir.name}/</span>
-        <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, marginLeft: 7 }}>{dir.entryCount}</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{dir.name}/</span>
+        <span style={{ font: `400 11px ${MONO}`, color: MC.muted, marginLeft: 7 }}>{dir.entryCount}</span>
         <span style={{ marginLeft: 'auto', flex: 'none' }}>
           <Chevron open={open} />
         </span>
       </div>
       {open &&
         (dir.entries.length === 0 ? (
-          <div style={{ padding: '10px 13px', font: `400 11px ${MONO}`, color: MC.faint }}>{copy.emptyDir}</div>
+          <div style={{ padding: '10px 13px', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.emptyDir}</div>
         ) : (
           dir.entries.map((row, i) => (
             <FileRow key={row.path} row={row} last={i === dir.entries.length - 1} onOpen={onOpen} />
@@ -160,7 +164,7 @@ export function MMemoryView({
     <MDrillHeader
       onBack={onBack}
       trailing={
-        <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
+        <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
           memory/ · {vm.fileCount} {copy.filesUnit}
         </span>
       }
@@ -174,7 +178,7 @@ export function MMemoryView({
     <MScreen label="1j 项目记忆" header={header}>
       <MScrollBody gap={10}>
         {vm.isEmpty ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
         ) : (
@@ -199,7 +203,7 @@ export function MMemoryView({
                 onOpen={onOpenFile}
               />
             ))}
-            <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '0 4px' }}>{copy.footer}</div>
+            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, padding: '0 4px' }}>{copy.footer}</div>
           </>
         )}
       </MScrollBody>
