@@ -28,7 +28,7 @@ function Tag({ children, tone }: { children: ReactNode; tone: 'muted' | 'warn' }
       font: `600 9px ${MONO}`,
       color: tone === 'warn' ? 'var(--proto-amber-fg)' : 'var(--proto-muted-2)',
       border: '1px solid var(--proto-line-2)',
-      borderRadius: 999,
+      borderRadius: 'var(--r-pill)',
       padding: '2px 7px',
     }}>
       {children}

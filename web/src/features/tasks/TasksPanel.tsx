@@ -18,7 +18,7 @@ const GROUP_LABEL_STYLE = {
 } as const;
 
 const ERROR_STYLE = {
-  borderRadius: 10,
+  borderRadius: 'var(--r-control)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-danger-bg)',
   padding: '6px 10px',

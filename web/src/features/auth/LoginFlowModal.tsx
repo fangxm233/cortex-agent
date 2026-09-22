@@ -162,7 +162,7 @@ function InfoNotice({ notice, L }: {
 }
 
 const OAUTH_STEP_CLASS =
-  'min-w-0 rounded-card border border-proto-line-2 bg-surface-canvas-alt p-2g';
+  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 bg-surface-canvas-alt p-2g';
 
 function AuthUrlNotice({ notice, L, hideInstructions }: {
   notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
@@ -223,7 +223,7 @@ function NoticeBody({ state }: { state: LoginFlowState }) {
 }
 
 const PROMPT_CONTROL_CLASS =
-  'box-border min-h-11 w-full rounded-card border border-proto-line-3 ' +
+  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-3 ' +
   'bg-surface-canvas-alt px-2g py-1.5g text-ui text-state-ink shadow-sm ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
@@ -274,7 +274,7 @@ function SelectionBody({ controller }: { controller: LoginController }) {
             { value: 'pi', label: 'PI' },
           ]}
           onValueChange={controller.chooseBackend}
-          className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
+          className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
         />
       </label>
       {controller.backend === 'pi' ? <ProviderSelect controller={controller} /> : null}
@@ -299,7 +299,7 @@ function AuthTypeSelect({ controller }: { controller: LoginController }) {
             : controller.backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth,
         }))}
         onValueChange={controller.chooseAuthType}
-        className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
+        className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
       />
     </label>
   );
@@ -319,7 +319,7 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
           label: option.label,
         }))}
         onValueChange={controller.chooseProvider}
-        className="w-full rounded-card border border-card bg-surface-card px-2g py-1g"
+        className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
       />
     </label>
   );
@@ -622,7 +622,7 @@ function useLoginController(
 function FlowError({ children }: { children: string }) {
   return (
     <p data-auth-error role="alert"
-      className="max-h-48 min-w-0 overflow-y-auto break-words rounded-card border border-state-fail/20 bg-pill-failed-bg p-1.5g text-state-fail [overflow-wrap:anywhere]">
+      className="max-h-48 min-w-0 overflow-y-auto break-words rounded-[var(--r-card)] border border-state-fail/20 bg-pill-failed-bg p-1.5g text-state-fail [overflow-wrap:anywhere]">
       {children}
     </p>
   );
@@ -667,7 +667,7 @@ function LoginBody({ controller, vm, L }: {
     notice: latest ? <NoticeBody state={latest} /> : null,
     running: <p role="status" className="break-words text-state-run">{vm.message}</p>,
     done: <p data-auth-success role="status"
-      className="rounded-card bg-pill-done-bg p-2g font-medium text-state-done">{vm.message}</p>,
+      className="rounded-[var(--r-card)] bg-pill-done-bg p-2g font-medium text-state-done">{vm.message}</p>,
     failed: <FlowError>{vm.message}</FlowError>,
     cancelled: <p className="break-words text-state-muted">{vm.message}</p>,
   };

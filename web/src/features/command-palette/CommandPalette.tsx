@@ -54,7 +54,7 @@ const ROW_STYLE: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '8px 11px',
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   cursor: 'pointer',
 };
 

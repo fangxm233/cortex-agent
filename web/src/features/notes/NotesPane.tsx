@@ -48,7 +48,7 @@ function AddInput({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; onAdd
   };
   return (
     <form onSubmit={submit} style={{ margin: '12px 16px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1.5px solid var(--proto-accent)', borderRadius: 10, boxShadow: '0 0 0 3px var(--proto-accent-bg)', padding: '9px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1.5px solid var(--proto-accent)', borderRadius: 'var(--r-control)', boxShadow: '0 0 0 3px var(--proto-accent-bg)', padding: '9px 12px' }}>
         <span style={{ width: 15, height: 15, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.inputPlaceholder} aria-label={copy.inputPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 12.5, color: 'var(--proto-ink)' }} />
         <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)', border: '1px solid var(--proto-line-2)', borderRadius: 4, padding: '1px 5px' }}>{copy.enter}</span>
@@ -72,8 +72,8 @@ function EditRow({ row, copy, busy, actions, onCancel }: {
     onCancel();
   };
   return (
-    <div style={{ border: '1px solid var(--proto-accent-border)', borderRadius: 9, padding: 10 }}>
-      <input value={text} onChange={(event) => setText(event.target.value)} autoFocus style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--proto-line-3)', borderRadius: 7, padding: '7px 9px', fontSize: 12.5, outline: 0 }} />
+    <div style={{ border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: 10 }}>
+      <input value={text} onChange={(event) => setText(event.target.value)} autoFocus style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '7px 9px', fontSize: 12.5, outline: 0 }} />
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         <ActionButton label={copy.save} onClick={save} primary disabled={busy} />
         <ActionButton label={copy.cancel} onClick={onCancel} disabled={busy} />
@@ -91,7 +91,7 @@ function ActionButton({ label, onClick, primary = false, danger = false, disable
 }) {
   const color = danger ? 'var(--proto-danger)' : primary ? 'var(--ink-solid-fg)' : 'var(--proto-muted)';
   return (
-    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line)', borderRadius: 7, padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--proto-card)', color, fontSize: 10.5, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--glass-2)', boxShadow: primary ? 'var(--accent-glow)' : undefined, color, fontSize: 10.5, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {label}
     </button>
   );
@@ -105,7 +105,7 @@ function ActiveNoteRow({ row, copy, busy, actions, targeted, onSelect }: { row: 
       id={`note-${row.id}`}
       data-note-target={row.id}
       onClick={() => onSelect(row.id)}
-      style={{ border: targeted ? '1px solid var(--proto-accent-border)' : '1px solid transparent', borderRadius: 10, background: targeted ? 'var(--proto-accent-bg)' : 'transparent', padding: '9px 10px', cursor: 'pointer' }}
+      style={{ border: targeted ? '1px solid var(--proto-accent-border)' : '1px solid transparent', borderRadius: 'var(--r-chip)', background: targeted ? 'var(--proto-accent-bg)' : 'transparent', padding: '9px 10px', cursor: 'pointer' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
         <Circle completed={false} disabled={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
@@ -173,7 +173,7 @@ function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose 
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px 8px 16px', borderBottom: '1px solid var(--proto-line-2)' }}>
       {headerIcon && <span aria-hidden="true" style={{ color: 'var(--proto-muted-2)', display: 'grid', placeItems: 'center' }}>{headerIcon}</span>}
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
-      <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 999 }}>{activeCount}</span>
+      <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{activeCount}</span>
       <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>context/NOTES.md</span>
       {headerAction}
       <button type="button" onClick={onClose} style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', border: '1px solid var(--proto-line)', borderRadius: 5, padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>
@@ -186,7 +186,9 @@ export function NotesPaneView(props: NotesPaneViewProps) {
   usePaneEffects(props.targetId, props.onClose, props.visible !== false);
   const actions: PaneActions = props;
   return (
-    <aside data-notes-pane="" style={{ width: '100%', flex: 1, background: 'var(--proto-card)', boxShadow: 'var(--shadow-side-panel)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    // No background and no shadow of its own: the drawer sheet this fills IS the surface, and a
+    // second fill on top would only mute its glass while the sheet's `--shadow-float` already lifts it.
+    <aside data-notes-pane="" style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <NotesPaneHeader copy={props.copy} activeCount={props.vm.activeCount} headerIcon={props.headerIcon} headerAction={props.headerAction} onClose={props.onClose} />
       <AddInput copy={props.copy} busy={props.busy} onAdd={props.onAdd} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 14px' }}>

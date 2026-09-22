@@ -25,7 +25,7 @@ function RateLimitDemo() {
 
 function PausedItem({ label, note, muted }: { label: string; note: string; muted?: boolean }) {
   return (
-    <div className="flex items-center gap-1g rounded-card border border-card px-1.5g py-1g">
+    <div className="flex items-center gap-1g rounded-[var(--r-card)] border border-card px-1.5g py-1g">
       <span
         className={['h-0.5g w-0.5g flex-none rounded-full', muted ? 'bg-state-gray' : 'bg-state-wait']
           .join(' ')}
@@ -83,10 +83,10 @@ function MachineOfflineDemo() {
       meta="last seen 09:12 · ws closed"
       detail={
         <div className="flex flex-col gap-1g">
-          <div className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-1g font-mono text-ui text-state-ink/70">
+          <div className="rounded-[var(--r-card)] border border-card bg-surface-canvas-alt px-1.5g py-1g font-mono text-ui text-state-ink/70">
             exec_31c2 → <span className="text-pill-failed-fg">lost</span> (3 missed heartbeats) · thread notified
           </div>
-          <div className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-1g font-mono text-ui text-state-ink/70">
+          <div className="rounded-[var(--r-card)] border border-card bg-surface-canvas-alt px-1.5g py-1g font-mono text-ui text-state-ink/70">
             T-045 pending held · 4h no callback auto-clears tracking · reopenable
           </div>
         </div>

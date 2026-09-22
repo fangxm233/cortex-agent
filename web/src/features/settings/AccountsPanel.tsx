@@ -64,7 +64,7 @@ function StatusMetadata({ value }: { value: AccountCredentialVm }) {
 function CapabilityBadge({ authType }: { authType: AuthType }) {
   const L = useVocab();
   return (
-    <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', borderRadius: 999, padding: '2px 7px' }}>
+    <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', borderRadius: 'var(--r-pill)', padding: '2px 7px' }}>
       {authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}
     </span>
   );
@@ -155,7 +155,7 @@ function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: O
         <ProviderIcon provider={provider.provider} label={provider.label} size={16} />
         <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.label}</span>
         <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{provider.provider}</span>
-        {provider.inUse ? <span style={{ fontSize: 9, fontWeight: 650, color: 'var(--proto-success)', background: 'var(--proto-success-bg)', borderRadius: 999, padding: '2px 7px' }}>{L.accountsInUse}</span> : null}
+        {provider.inUse ? <span style={{ fontSize: 9, fontWeight: 650, color: 'var(--proto-success)', background: 'var(--proto-success-bg)', borderRadius: 'var(--r-pill)', padding: '2px 7px' }}>{L.accountsInUse}</span> : null}
         {provider.loginTypes.map(authType => <CapabilityBadge key={authType} authType={authType} />)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>

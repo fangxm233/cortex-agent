@@ -87,9 +87,14 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
           maxWidth: '94vw',
           height: 700,
           maxHeight: '90vh',
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
+          // Floating glass sheet, matching design/Modal: this hand-rolled overlay is a top-level
+          // floating sheet, which is the one shape `backdrop-filter` is affordable on — it holds
+          // still while its two columns scroll inside it, so the backdrop is read once per open.
+          background: 'var(--glass-2)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float)',
+          boxShadow: 'var(--shadow-float)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -116,7 +121,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                 gap: 6,
                 background: 'var(--proto-amber-bg)',
                 border: '1px solid var(--proto-amber-border)',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 padding: '3px 10px',
                 marginLeft: 4,
               }}
@@ -274,9 +279,9 @@ function PendingList({
               data-approval-id={e.id}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                borderRadius: 10,
+                borderRadius: 'var(--r-card)',
                 padding: '10px 12px',
                 boxShadow: sel ? 'var(--focus-ring-accent)' : 'none',
                 cursor: 'pointer',
@@ -384,7 +389,7 @@ function DetailPane({
               fontSize: 10,
               fontWeight: 600,
               padding: '2px 9px',
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: detail.pill.bg,
               color: detail.pill.fg,
               flex: 'none',
@@ -463,9 +468,11 @@ function DetailPane({
             </div>
             <div
               style={{
+                // A tint rather than opaque `--proto-card`: the command sits on a sheet that has
+                // already blurred everything behind it, so there is nothing left to occlude.
                 background: 'var(--proto-rail)',
                 border: '1px solid var(--proto-line-2)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '9px 14px',
                 font: `400 11px/1.75 ${mono}`,
                 color: 'var(--proto-muted)',
@@ -485,7 +492,7 @@ function DetailPane({
               margin: '13px 0 14px',
               background: 'var(--proto-danger-bg)',
               border: '1px solid var(--proto-danger-bg)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '10px 13px',
               fontSize: 11.5,
               lineHeight: 1.55,
@@ -506,8 +513,9 @@ function DetailPane({
               alignItems: 'center',
               gap: 8,
               border: '1px solid var(--proto-danger-bg)',
+              // Opaque: a field you type into is the canonical occluding surface.
               background: 'var(--proto-card)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '7px 12px',
             }}
           >
@@ -546,10 +554,10 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -564,7 +572,8 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
+                boxShadow: 'var(--accent-glow)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-accent)',
@@ -588,10 +597,10 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-line-3)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -606,7 +615,7 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-danger)',

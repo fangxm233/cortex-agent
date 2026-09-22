@@ -45,7 +45,7 @@ export function CommissionBanner({ commissionId }: { commissionId: string }): JS
         gap: 8,
         margin: '0 24px 8px',
         padding: '6px 11px',
-        borderRadius: 8,
+        borderRadius: 'var(--r-control)',
         cursor: 'pointer',
         border: '1px solid var(--proto-line-2)',
         background: hover ? 'var(--proto-gray)' : 'var(--proto-rail)',

@@ -38,7 +38,7 @@ function ArtifactFileHeader({ artifact }: { artifact: DetailArtifact }) {
 
 function LivePill({ label }: { label: string }) {
   return (
-    <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', flex: 'none', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', flex: 'none', whiteSpace: 'nowrap' }}>
       <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', marginRight: 4, animation: 'cxpulse 1.6s ease-in-out infinite' }} />
       {label}
     </span>
@@ -108,7 +108,9 @@ export function ThreadArtifactPanel({ artifact }: { artifact: DetailArtifact }):
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)' }}>{L.thArtifact}</span>
       </div>
-      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Stays opaque `--proto-card` while the step cards beside it go glass: this pane is a
+          document body, and rendered prose over a translucent fill reads the mesh through it. */}
+      <div data-thread-artifact="true" style={{ flex: 1, minHeight: 0, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ArtifactFileHeader artifact={artifact} />
         <ArtifactBody artifact={artifact} />
         <WrittenByFooter artifact={artifact} />

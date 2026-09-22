@@ -8,7 +8,11 @@ const OVERLAY_CLASS =
 const CONTENT_CLASS =
   'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 ' +
   'w-[420px] max-w-[calc(100vw-32px)] box-border ' +
-  'rounded-[14px] bg-surface-card p-5 pb-4 shadow-overlay-strong focus:outline-none ' +
+  // Floating glass sheet, matching design/Modal's standard panel — a top-level overlay is the one
+  // shape `backdrop-filter` is affordable on, and this one holds still for its whole lifetime.
+  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'p-5 pb-4 shadow-[shadow:var(--shadow-float)] focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out motion-reduce:animate-none';
 
 export interface DesktopUpdateFrameProps {
@@ -23,7 +27,7 @@ export interface DesktopUpdateFrameProps {
 function DesktopUpdateHeader(props: Pick<DesktopUpdateFrameProps, 'title' | 'summary'>) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-card bg-proto-accent-bg text-state-run">
+      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-[var(--r-control)] bg-proto-accent-bg text-state-run">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M10 14V4M5.5 8.5 10 4l4.5 4.5" />
           <path d="M3.5 16.5h13" />

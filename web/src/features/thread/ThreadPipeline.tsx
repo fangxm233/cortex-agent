@@ -79,9 +79,9 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
       onClick={onClick}
       data-step-kind={step.kind}
       style={{
-        background: 'var(--proto-card)',
+        background: 'var(--glass-2)',
         border: pending ? '1px dashed var(--proto-line-3)' : '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
-        borderRadius: 10,
+        borderRadius: 'var(--r-card)',
         padding: '9px 13px',
         boxShadow: 'var(--shadow-card-subtle)',
         cursor: 'pointer',
@@ -130,7 +130,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
       style={{
         border: '1px solid ' + (running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'),
         background: running ? 'var(--proto-rail)' : 'var(--proto-rail)',
-        borderRadius: 8,
+        borderRadius: 'var(--r-control)',
         padding: '8px 11px',
       }}
     >
@@ -143,7 +143,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
             fontSize: 9.5,
             fontWeight: 600,
             padding: '1.5px 7px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             background: sub.pill.bg,
             color: sub.pill.fg,
           }}
@@ -190,9 +190,9 @@ function ExpandedStep({
       data-active-step={running ? 'true' : undefined}
       data-expanded-step="true"
       style={{
-        background: 'var(--proto-card)',
+        background: 'var(--glass-2)',
         border: running ? '1.5px solid var(--proto-accent)' : '1.5px solid var(--proto-accent-border)',
-        borderRadius: 10,
+        borderRadius: 'var(--r-card)',
         boxShadow: running ? '0 0 0 3px var(--proto-accent-bg)' : 'var(--shadow-card-soft)',
         overflow: 'hidden',
       }}

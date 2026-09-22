@@ -56,7 +56,7 @@ function PluginListRow(props: {
     <div role="button" data-plugin-item={props.plugin.id} data-active={props.active ? '' : undefined}
       onClick={() => props.onSelect(props.plugin.id)}
       style={{
-        padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+        padding: '7px 10px', borderRadius: 'var(--r-chip)', cursor: 'pointer',
         background: props.active ? 'var(--proto-accent-bg)' : 'transparent',
         display: 'flex', flexDirection: 'column', gap: 3,
       }}>

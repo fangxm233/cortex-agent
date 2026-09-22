@@ -20,10 +20,12 @@ import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verific
 // DATA GAP still flagged:
 //   • GAP-GPU          : no gpu on TaskInfo → Fields gpu renders "—" (matches the T-046 proto-shot).
 
+// `--glass-2` over the sheet's own `--glass-2`: two alpha blends stack to ~0.91, so the cards read
+// as raised without a second fill token — the same glass-on-glass relationship the panes use.
 const CARD: React.CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--glass-2)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 10,
+  borderRadius: 'var(--r-card)',
   boxShadow: 'var(--shadow-card-subtle)',
 };
 
@@ -74,7 +76,7 @@ function DispatchHistoryBody({ vv }: { vv: TaskVerificationVm }) {
             padding: '6px 9px',
             background: d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-rail)',
             border: `1px solid ${d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
-            borderRadius: 7,
+            borderRadius: 'var(--r-chip)',
           }}
         >
           <span
@@ -141,9 +143,11 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 760,
         maxHeight: '84vh',
-        background: 'var(--proto-alt)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        background: 'var(--glass-2)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--shadow-float)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
@@ -154,7 +158,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         <div
           style={{
             flex: 'none',
-            background: 'var(--proto-card)',
+            background: 'var(--glass-2)',
             borderBottom: '1px solid var(--proto-line)',
             display: 'flex',
             alignItems: 'center',
@@ -170,7 +174,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               fontSize: 9.5,
               fontWeight: 600,
               padding: '1.5px 8px',
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: tm.pill.bg,
               color: tm.pill.fg,
             }}
@@ -271,7 +275,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     color: 'var(--proto-ink-2)',
                     background: 'var(--proto-rail)',
                     border: '1px solid var(--proto-line-2)',
-                    borderRadius: 7,
+                    borderRadius: 'var(--r-chip)',
                     padding: '6px 10px',
                   }}
                 >
@@ -371,7 +375,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       padding: '6px 9px',
                       background: dp.bg,
                       border: `1px solid ${dp.border}`,
-                      borderRadius: 7,
+                      borderRadius: 'var(--r-chip)',
                     }}
                   >
                     <span
@@ -425,7 +429,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     fontSize: 11,
                     fontWeight: 600,
                     border: '1px solid var(--proto-line-3)',
-                    borderRadius: 8,
+                    borderRadius: 'var(--r-control)',
                     padding: '6px 0',
                     color: 'var(--proto-ink)',
                     cursor: pending ? 'not-allowed' : 'pointer',
@@ -443,7 +447,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   textAlign: 'center',
                   fontSize: 11,
                   fontWeight: 600,
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-control)',
+                  // Glow only while the button is actually the accent-filled primary; a disabled
+                  // `--proto-faint` fill glowing accent would promise an action that is not there.
+                  boxShadow: tm.completable ? 'var(--accent-glow)' : 'none',
                   padding: '7px 0',
                   color: 'var(--ink-solid-fg)',
                   background: tm.completeBg,

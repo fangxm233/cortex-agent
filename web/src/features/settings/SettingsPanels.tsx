@@ -19,7 +19,7 @@ export function PresencePill({ present }: { present: boolean }) {
         fontSize: 9,
         fontWeight: 600,
         padding: '1px 6px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: present ? 'var(--proto-success-bg)' : 'var(--proto-gray)',
         color: present ? 'var(--proto-success)' : 'var(--proto-muted-2)',
       }}
@@ -67,7 +67,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.stServers}</span>
         <div
           title="full / core / tui variant is a runtime-mode selection — no config.set for it (inert)"
-          style={{ marginLeft: 'auto', display: 'flex', background: 'var(--proto-line-2)', borderRadius: 7, padding: 2 }}
+          style={{ marginLeft: 'auto', display: 'flex', background: 'var(--proto-line-2)', borderRadius: 'var(--r-chip)', padding: 2 }}
         >
           {['full', 'core', 'tui'].map((v) => (
             <span
@@ -75,7 +75,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
               style={{
                 font: `500 10px ${MONO}`,
                 color: v === 'full' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-                background: v === 'full' ? 'var(--proto-card)' : 'transparent',
+                background: v === 'full' ? 'var(--glass-2)' : 'transparent',
                 borderRadius: 5,
                 padding: '3px 10px',
                 boxShadow: v === 'full' ? 'var(--shadow-segment)' : 'none',

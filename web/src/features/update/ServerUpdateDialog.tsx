@@ -5,12 +5,12 @@ import { DesktopUpdateFrame } from './DesktopUpdateFrame';
 // sentences describe one flow and are never reused, so a shared vocab entry would only add a hop.
 
 const GHOST_BTN_CLASS =
-  'box-border flex h-9 items-center rounded-[9px] border border-proto-line px-4 text-[12.5px] ' +
+  'box-border flex h-9 items-center rounded-[var(--r-control)] border border-proto-line px-4 text-[12.5px] ' +
   'font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
 const PRIMARY_BTN_CLASS =
-  'box-border flex h-9 items-center rounded-[9px] bg-state-ink px-4 text-[12.5px] font-semibold ' +
+  'box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold ' +
   'text-surface-card transition-opacity hover:opacity-90 disabled:opacity-60 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
@@ -95,7 +95,7 @@ export function ServerUpdateDialog(props: ServerUpdateDialogProps) {
         </div>
       ) : null}
       {props.status.error ? (
-        <pre className="mb-3 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-[9px] bg-surface-canvas-alt p-2 font-mono text-[10.5px] leading-snug text-state-fail">
+        <pre className="mb-3 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-[var(--r-control)] bg-surface-canvas-alt p-2 font-mono text-[10.5px] leading-snug text-state-fail">
           {props.status.error}
         </pre>
       ) : null}

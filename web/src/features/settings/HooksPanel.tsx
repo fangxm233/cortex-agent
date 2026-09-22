@@ -105,7 +105,7 @@ function MountBadge({ target }: { target: HookMountTarget }) {
       style={{
         font: `600 8.5px ${MONO}`,
         padding: '1px 5px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: tone.bg,
         color: tone.fg,
         flex: 'none',
@@ -124,7 +124,7 @@ function SourceBadge({ source }: { source: HookDetail['source'] }) {
       style={{
         font: `600 9px ${MONO}`,
         padding: '1px 6px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: managed ? 'var(--proto-line-2)' : 'var(--proto-alt)',
         color: 'var(--proto-muted)',
         flex: 'none',
@@ -157,7 +157,7 @@ function InlineNote({
         alignItems: 'flex-start',
         gap: 7,
         padding: '7px 10px',
-        borderRadius: 8,
+        borderRadius: 'var(--r-control)',
         background: palette.bg,
         border: `1px solid ${palette.border}`,
         marginTop: 10,
@@ -206,7 +206,7 @@ function HookRow({
         alignItems: 'flex-start',
         gap: 7,
         padding: '7px 9px',
-        borderRadius: 8,
+        borderRadius: 'var(--r-chip)',
         background: selected ? 'var(--proto-accent-bg)' : 'transparent',
         cursor: 'pointer',
       }}
@@ -237,7 +237,7 @@ function HookRow({
               style={{
                 font: `600 8.5px ${MONO}`,
                 padding: '0 5px',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 background: 'var(--proto-danger-bg)',
                 color: 'var(--proto-danger)',
                 flex: 'none',
@@ -656,7 +656,7 @@ function HookEditor({
                   borderRadius: 6,
                   cursor: 'pointer',
                   color: on ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                  background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+                  background: on ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
                   border: `1px solid ${on ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
                 }}
               >
@@ -787,7 +787,7 @@ function TestRunner({
           style={{
             marginTop: 9,
             border: '1px solid var(--proto-line-2)',
-            borderRadius: 8,
+            borderRadius: 'var(--r-control)',
             overflow: 'hidden',
           }}
         >

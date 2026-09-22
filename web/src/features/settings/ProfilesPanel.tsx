@@ -458,9 +458,9 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
               font: `600 11px ${MONO}`,
               color: 'var(--proto-ink)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 7,
+              borderRadius: 'var(--r-chip)',
               padding: '4px 10px',
-              background: 'var(--proto-card)',
+              background: 'var(--glass-2)',
               cursor: 'pointer',
             }}
           />
@@ -472,7 +472,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
               alignItems: 'center',
               gap: 7,
               border: '1px solid var(--proto-line)',
-              borderRadius: 7,
+              borderRadius: 'var(--r-chip)',
               padding: '4px 10px',
             }}
           >
@@ -541,7 +541,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
                         fontSize: 8,
                         fontWeight: 600,
                         padding: '1px 4px',
-                        borderRadius: 999,
+                        borderRadius: 'var(--r-pill)',
                         background: 'var(--proto-accent-bg)',
                         color: 'var(--proto-accent)',
                       }}

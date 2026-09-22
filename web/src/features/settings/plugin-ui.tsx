@@ -8,14 +8,16 @@ export const META_LABEL: CSSProperties = {
 };
 export const NOTICE: CSSProperties = {
   fontSize: 10.5, color: 'var(--proto-muted-2)', background: 'var(--proto-alt)',
-  border: '1px solid var(--proto-line)', borderRadius: 8, padding: '8px 10px',
+  border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '8px 10px',
 };
+// Raised glass like every other card in settings: a plugin row is a tile in a scroller, and
+// `--glass-2` carries no filter, so it stays a plain alpha blend while that scroller moves.
 export const ROW: CSSProperties = {
-  border: '1px solid var(--proto-line)', borderRadius: 9,
-  padding: '10px 12px', background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+  padding: '10px 12px', background: 'var(--glass-2)',
 };
 export const PILL: CSSProperties = {
-  border: '1px solid var(--proto-line)', borderRadius: 999,
+  border: '1px solid var(--proto-line)', borderRadius: 'var(--r-pill)',
   padding: '2px 8px', fontSize: 10, color: 'var(--proto-muted-2)',
 };
 export const SCROLLER: CSSProperties = {

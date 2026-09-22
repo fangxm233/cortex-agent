@@ -21,7 +21,7 @@ function SkillChip({ name }: { name: string }): JSX.Element {
         color: 'var(--proto-accent)',
         background: 'var(--proto-accent-bg)',
         border: '1px solid var(--proto-accent-border)',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         padding: '2px 10px',
         fontFamily: MONO,
         letterSpacing: 0.1,
@@ -95,7 +95,6 @@ export function SkillsView(): JSX.Element {
         style={{
           padding: '20px 28px 16px',
           borderBottom: '1px solid var(--proto-line-2)',
-          background: 'var(--proto-card)',
           flex: 'none',
         }}
       >

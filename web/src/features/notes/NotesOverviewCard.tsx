@@ -14,7 +14,7 @@ function QuickInput({ copy, onAdd }: { copy: NotesCopy; onAdd: (text: string) =>
   };
   return (
     <form onSubmit={submit} onClick={(event) => event.stopPropagation()} style={{ margin: '10px 14px 2px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--proto-line-3)', borderRadius: 8, padding: '7px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '7px 10px' }}>
         <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />
         <input
           value={text}
@@ -51,7 +51,7 @@ export function NotesOverviewCard({
   onAdd: (text: string) => Promise<unknown>;
 }) {
   return (
-    <div data-notes-overview-card="" onClick={() => onOpen()} style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', cursor: 'pointer', minWidth: 0 }}>
+    <div data-notes-overview-card="" onClick={() => onOpen()} style={{ background: 'var(--glass-2)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)', cursor: 'pointer', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
         <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>context/NOTES.md</span>

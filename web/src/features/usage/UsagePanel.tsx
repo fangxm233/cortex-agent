@@ -80,8 +80,8 @@ function CardHeader({ provider }: { provider: ProviderUsageView }) {
 
 function UsageMeter({ window }: { window: UsageWindowView }) {
   return (
-    <div style={{ height: 8, borderRadius: 999, background: 'var(--proto-gray)', overflow: 'hidden', marginTop: 6 }}>
-      <div className="usage-meter-fill" style={{ width: window.utilizationWidth, height: '100%', borderRadius: 999, background: SEVERITY_FILL[window.severity] }} />
+    <div style={{ height: 8, borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', overflow: 'hidden', marginTop: 6 }}>
+      <div className="usage-meter-fill" style={{ width: window.utilizationWidth, height: '100%', borderRadius: 'var(--r-pill)', background: SEVERITY_FILL[window.severity] }} />
     </div>
   );
 }
@@ -102,7 +102,7 @@ function QuietState({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        marginTop: 8, border: '1px dashed var(--proto-line-3)', borderRadius: 8,
+        marginTop: 8, border: '1px dashed var(--proto-line-3)', borderRadius: 'var(--r-control)',
         padding: '8px 11px', fontSize: 10.5, lineHeight: 1.55, color: 'var(--proto-muted-2)',
       }}
     >
@@ -286,7 +286,7 @@ function LegacyFallbackNotice(props: {
   const pending = props.isPolicySaving(props.fallback.target);
   const error = props.getPolicyError(props.fallback.target);
   return (
-    <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: '1px solid var(--proto-line-3)', borderRadius: 8, padding: '8px 10px' }}>
+    <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '8px 10px' }}>
       <div style={{ fontSize: 10.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.usagePolicyLegacyTitle}</div>
       <div style={{ ...POLICY_TEXT, marginTop: 3 }}>{L.usagePolicyLegacyBody}</div>
       <div style={{ ...POLICY_TEXT, marginTop: 3 }}>{`${props.fallback.enabled ? L.usagePolicyEnabled : L.usagePolicyDisabled} · ${props.fallback.thresholdPercent}%`}</div>
@@ -335,7 +335,7 @@ function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: R
 
 function SpendTile({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '7px 10px' }}>
+    <div style={{ background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '7px 10px' }}>
       <div style={{ ...SECTION_LABEL, letterSpacing: '.05em' }}>{label}</div>
       <div style={{ font: `600 15px ${MONO}`, color: 'var(--proto-ink)', letterSpacing: '-.02em', marginTop: 3 }}>{value}</div>
     </div>
@@ -363,7 +363,7 @@ function NoteBlock({ provider }: { provider: ProviderUsageView }) {
       data-usage-note="error"
       style={{
         margin: '0 14px 12px', display: 'flex', alignItems: 'flex-start', gap: 7,
-        background: 'var(--proto-danger-bg)', borderRadius: 8, padding: '7px 10px',
+        background: 'var(--proto-danger-bg)', borderRadius: 'var(--r-control)', padding: '7px 10px',
       }}
     >
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none', marginTop: 4 }} />
@@ -388,7 +388,7 @@ function ErrorChip({ label, message }: { label: string; message: string }) {
     <span
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, background: 'var(--proto-danger-bg)',
-        borderRadius: 8, padding: '5px 10px', color: 'var(--proto-danger)', fontSize: 10.5,
+        borderRadius: 'var(--r-control)', padding: '5px 10px', color: 'var(--proto-danger)', fontSize: 10.5,
       }}
     >
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-danger)', flex: 'none' }} />

@@ -56,7 +56,7 @@ const KEY: CSSProperties = {
 // each carrying its own padding.
 const DURATION_CONTROL: CSSProperties = {
   height: CONTROL_HEIGHT.sm, boxSizing: 'border-box', padding: '0 8px',
-  border: '1px solid var(--proto-line)', borderRadius: 6,
+  border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)',
   background: 'var(--proto-card)', font: `500 10px ${MONO}`,
 };
 const DURATION_INPUT: CSSProperties = {
@@ -316,7 +316,7 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
         <div style={DESC}>{L.stAdvConcNote}</div>
       </div>
       <span style={{ font: `500 10.5px ${MONO}`, color: value === undefined ? 'var(--proto-faint)' : 'var(--proto-ink)',
-        border: '1px solid var(--proto-line)', borderRadius: 7, padding: '4px 11px' }}>
+        border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', padding: '4px 11px' }}>
         {typeof value === 'number' ? value : value === null ? L.stAuto : '—'}
       </span>
       <span style={KEY}>{`settings.taskDispatchMaxConcurrent · ${entry?.source ?? '—'}`}</span>
@@ -490,7 +490,7 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
         <div style={DESC}>{L.advMock}</div>
       </div>
       <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)',
-        border: '1px dashed var(--proto-line-3)', borderRadius: 7, padding: '4px 11px' }}>
+        border: '1px dashed var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '4px 11px' }}>
         {present ? L.stSet : '—'}
       </span>
       <span style={KEY}>CORTEX_GPU_MONITOR_MOCK</span>

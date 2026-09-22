@@ -41,10 +41,13 @@ import {
 //   - Project memory — real memory viewer link (memory.tree/memory.file fs scope).
 //   - Adjust-budget + ⋯ are inert here; budgets (global and per-project) are edited in Settings ▸ Budget.
 
+// Raised glass, not an opaque tile: these cards sit still inside the workspace pane, so `--glass-2`
+// composites over the blur the pane already produced and costs a plain alpha blend. The hairline
+// border stays — with no fill contrast left against the pane, it is what marks the card's edge.
 const CARD: CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--glass-2)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 10,
+  borderRadius: 'var(--r-card)',
   boxShadow: 'var(--shadow-card-subtle)',
   // minWidth:0 lets the 1fr grid track shrink below its content's min-content size, so long real
   // data (schedule prompts, execution ids) truncates instead of blowing the column wide.
@@ -141,7 +144,9 @@ export function OverviewView(): JSX.Element {
   );
 
   return (
-    <div data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--proto-card)' }}>
+    // No background of its own: the overview reads directly on the workspace pane's glass, the same
+    // way the chat transcript does.
+    <div data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* header bar (prototype L526–556) */}
       <div
         style={{
@@ -152,7 +157,6 @@ export function OverviewView(): JSX.Element {
           alignItems: 'center',
           gap: 9,
           padding: '0 20px',
-          background: 'var(--proto-card)',
         }}
       >
         <span
@@ -196,10 +200,10 @@ export function OverviewView(): JSX.Element {
               fontSize: 11.5,
               fontWeight: 600,
               border: '1px solid var(--proto-line-3)',
-              borderRadius: 7,
+              borderRadius: 'var(--r-control)',
               padding: '4px 12px',
               color: 'var(--proto-ink)',
-              background: 'var(--proto-card)',
+              background: 'var(--glass-2)',
               cursor: 'pointer',
             }}
           >
@@ -221,7 +225,6 @@ export function OverviewView(): JSX.Element {
           alignItems: 'center',
           gap: 30,
           padding: '12px 20px 14px',
-          background: 'var(--proto-card)',
         }}
       >
         <div style={{ minWidth: 180 }}>
@@ -232,7 +235,7 @@ export function OverviewView(): JSX.Element {
             </span>
             {/* budget progress bar — REAL: today's scoped spend as % of the daily budget (empty when
                 there is no positive daily-budget denominator, honest placeholder) */}
-            <div style={{ flex: 1, height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 2 }}>
+            <div style={{ flex: 1, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 2 }}>
               <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: 'var(--proto-accent)' }} />
             </div>
           </div>
@@ -426,7 +429,7 @@ export function OverviewView(): JSX.Element {
                 >
                   {row.label}
                 </span>
-                <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${row.pct}%`,
@@ -483,7 +486,7 @@ export function OverviewView(): JSX.Element {
                     {s.message}
                   </span>
                   {s.paused && (
-                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: 'var(--proto-gray)', color: 'var(--proto-muted-2)' }}>
+                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted-2)' }}>
                       {L.paused}
                     </span>
                   )}
@@ -610,7 +613,7 @@ export function OverviewView(): JSX.Element {
                 <span style={{ font: "400 10px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now))}</span>
                 <span style={{ font: "400 10px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>
-                  <span style={{ fontSize: 9, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: pill.bg, color: pill.color }}>
+                  <span style={{ fontSize: 9, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
                     {pill.dot ? '• ' : ''}
                     {pill.text}
                   </span>

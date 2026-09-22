@@ -17,7 +17,7 @@ export interface ThreadDetailViewProps {
 
 function StatusPill({ vm }: { vm: ThreadDetailVm }) {
   return (
-    <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: vm.pill.bg, color: vm.pill.fg }}>
+    <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: vm.pill.bg, color: vm.pill.fg }}>
       {vm.pill.text}
     </span>
   );
@@ -27,10 +27,10 @@ function LiveActions({ onCancel, pending }: { onCancel: () => void; pending: boo
   const L = useVocab();
   return (
     <>
-      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 7, padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--proto-card)', cursor: 'not-allowed', opacity: 0.6 }}>
+      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--glass-2)', cursor: 'not-allowed', opacity: 0.6 }}>
         {L.pause}
       </span>
-      <button type="button" disabled={pending} onClick={onCancel} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', border: '1px solid var(--proto-danger-bg)', borderRadius: 7, padding: '4px 12px', color: 'var(--proto-danger)', background: 'var(--proto-card)', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1 }}>
+      <button type="button" disabled={pending} onClick={onCancel} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-danger)', background: 'var(--glass-2)', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1 }}>
         {L.cancel}
       </button>
     </>
@@ -41,7 +41,7 @@ function DetailHeader({ vm, onClose, onCancel, cancelPending }: {
   vm: ThreadDetailVm; onClose: () => void; onCancel: () => void; cancelPending: boolean;
 }) {
   return (
-    <div style={{ height: 50, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 20px', background: 'var(--proto-card)' }}>
+    <div style={{ height: 50, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 20px', background: 'var(--glass-2)' }}>
       <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{vm.name}</span>
       <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{vm.tid}</span>
       <StatusPill vm={vm} />
@@ -76,7 +76,7 @@ function DepthField({ vm }: { vm: ThreadDetailVm }) {
 function DetailMeta({ vm }: { vm: ThreadDetailVm }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 'none', background: 'var(--proto-card)', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 32, padding: '12px 20px 14px' }}>
+    <div style={{ flex: 'none', background: 'var(--glass-2)', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 32, padding: '12px 20px 14px' }}>
       <MetaField label={L.thTemplate} value={vm.template} />
       <MetaField label={L.thStarted} value={vm.started} />
       <MetaField label={L.thElapsed} value={vm.elapsed} accent />

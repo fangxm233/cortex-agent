@@ -277,7 +277,7 @@ function AssignBody(props: PluginAssignViewProps) {
         <Select data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
           options={slotOptions(props.scopedTargets, L)} disabled={props.pending || state.dirty}
           onValueChange={props.onSelectTarget}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', border: '1px solid var(--proto-line)', borderRadius: 8 }} />
+          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)' }} />
       ) : null}
       {readOnly ? <div data-plugin-readonly={readOnly} style={NOTICE}>{readonlyText(readOnly, L)}</div> : null}
       {props.unmanagedCount > 0 ? <div style={NOTICE}>{L.plUnmanagedNotice.replace('{n}', String(props.unmanagedCount))}</div> : null}

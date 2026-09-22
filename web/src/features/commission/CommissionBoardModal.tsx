@@ -46,7 +46,7 @@ function PaneTab({ active, label, onClick }: {
         cursor: 'pointer',
         fontSize: 11.5,
         fontWeight: active ? 600 : 400,
-        background: active ? 'var(--proto-card)' : 'transparent',
+        background: active ? 'var(--glass-2)' : 'transparent',
         color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
         boxShadow: active ? 'var(--shadow-raised, none)' : 'none',
       }}
@@ -72,7 +72,7 @@ function ActionButton({ label, tone, disabled, onClick }: {
       onMouseLeave={() => setHover(false)}
       style={{
         border: '1px solid var(--proto-line-2)',
-        borderRadius: 7,
+        borderRadius: 'var(--r-control)',
         padding: '4px 11px',
         fontSize: 12,
         cursor: disabled ? 'default' : 'pointer',
@@ -154,9 +154,14 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         maxWidth: '94vw',
         height: 700,
         maxHeight: '90vh',
-        background: 'var(--proto-card)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        // Floating glass sheet, matching design/Modal's standard panel: `chrome="bare"` hands the
+        // look to this call site, and a top-level overlay is the one shape `backdrop-filter` is
+        // affordable on — the sheet holds still while the two panes scroll inside it.
+        background: 'var(--glass-2)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--shadow-float)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
@@ -218,8 +223,9 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
               minWidth: 0,
               height: 26,
               padding: '0 8px',
-              borderRadius: 6,
+              borderRadius: 'var(--r-control)',
               border: '1px solid var(--proto-line-2)',
+              // Opaque: a field you type into is the contract case for `--proto-card`.
               background: 'var(--proto-card)',
               color: 'var(--proto-ink)',
               fontSize: 12,
@@ -238,7 +244,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--proto-line)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line)' }}>
-            <div style={{ display: 'flex', gap: 2, background: 'var(--proto-gray)', borderRadius: 7, padding: 2 }}>
+            <div style={{ display: 'flex', gap: 2, background: 'var(--proto-gray)', borderRadius: 'var(--r-chip)', padding: 2 }}>
               <PaneTab active={pane === 'ledger'} label={L.wbCommissionLedger} onClick={() => setPane('ledger')} />
               <PaneTab active={pane === 'contract'} label={L.wbCommissionContract} onClick={() => setPane('contract')} />
             </div>
@@ -267,7 +273,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
                     onClick={() => props.onOpenSession(s)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-                      padding: '5px 7px', borderRadius: 6, fontSize: 12.5,
+                      padding: '5px 7px', borderRadius: 'var(--r-chip)', fontSize: 12.5,
                       background: 'var(--proto-amber-bg, var(--proto-gray))', color: 'var(--proto-ink)',
                     }}
                   >

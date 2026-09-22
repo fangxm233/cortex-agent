@@ -114,7 +114,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             style={{
               width: 38,
               height: 38,
-              borderRadius: 10,
+              borderRadius: 'var(--r-control)',
               background: 'var(--media-control-bg)',
               color: 'var(--ink-solid-fg)',
               display: 'flex',
@@ -134,7 +134,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
           style={{
             width: 38,
             height: 38,
-            borderRadius: 10,
+            borderRadius: 'var(--r-control)',
             background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
@@ -153,7 +153,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
           style={{
             width: 38,
             height: 38,
-            borderRadius: 10,
+            borderRadius: 'var(--r-control)',
             background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
@@ -183,7 +183,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             controls
             autoPlay
             playsInline
-            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: 'var(--media-stage-bg)' }}
+            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 'var(--r-card)', background: 'var(--media-stage-bg)' }}
           />
         ) : (
           <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>

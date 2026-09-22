@@ -8,7 +8,7 @@ import { Button, Card } from '@/design';
 import { useVocab } from '@/i18n';
 
 const INPUT_CLASS =
-  'box-border min-h-11 w-full rounded-card border border-proto-line-3 ' +
+  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-3 ' +
   'bg-surface-canvas-alt px-2g py-1.5g text-ui text-state-ink shadow-sm ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 

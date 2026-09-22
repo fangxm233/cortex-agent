@@ -268,7 +268,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
             width: 44,
             textAlign: 'center',
             padding: '3px 4px',
-            borderRadius: 6,
+            borderRadius: 'var(--r-chip)',
             border: '1px solid var(--proto-line)',
             background: 'var(--proto-card)',
             color: 'var(--proto-ink)',
@@ -314,7 +314,7 @@ function pagerBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     width: 28,
     height: 28,
-    borderRadius: 8,
+    borderRadius: 'var(--r-control)',
     border: '1px solid var(--proto-line)',
     background: 'var(--proto-card)',
     color: 'var(--proto-muted)',
@@ -376,9 +376,12 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
         style={{
           width: 'min(920px, 96vw)',
           height: 'min(88vh, 100%)',
+          // Stays opaque: this sheet is a document body (text, HTML, rendered PDF pages), which is
+          // the contract case for `--proto-card` — prose read through a translucent surface picks up
+          // the colour mesh behind every line.
           background: 'var(--proto-card)',
           border: '1px solid var(--proto-line)',
-          borderRadius: 14,
+          borderRadius: 'var(--r-float)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -432,7 +435,7 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
 const btnStyle: React.CSSProperties = {
   width: 30,
   height: 30,
-  borderRadius: 8,
+  borderRadius: 'var(--r-control)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
   color: 'var(--proto-muted)',

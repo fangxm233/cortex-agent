@@ -42,9 +42,12 @@ const OVERLAY_STYLE: React.CSSProperties = {
 const CONTENT_STYLE: React.CSSProperties = {
   position: 'fixed', left: '50%', top: '50%', zIndex: 71,
   transform: 'translate(-50%,-50%)', width: 'min(1200px,94vw)', height: 'min(90vh,900px)',
-  display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 14,
-  border: '1px solid var(--proto-line)', background: 'var(--proto-alt)',
-  boxShadow: 'var(--shadow-overlay-strong)', outline: 'none',
+  display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 'var(--r-float)',
+  // Floating glass sheet, like design/Modal: one static top-level overlay, so it is the shape blur
+  // is affordable on. The border is gone — `--shadow-float` carries the hairline ring itself.
+  background: 'var(--glass-2)',
+  backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)',
+  boxShadow: 'var(--shadow-float)', outline: 'none',
   animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
 };
 

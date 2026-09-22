@@ -80,9 +80,13 @@ function IssueCenterView(props: IssueCenterViewProps) {
           maxWidth: '94vw',
           height: 730,
           maxHeight: '90vh',
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
+          // Floating glass sheet, matching design/Modal and the approval centre it is a sibling of:
+          // one static top-level overlay, so its blur is read once per open, not per scroll frame.
+          background: 'var(--glass-2)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float)',
+          boxShadow: 'var(--shadow-float)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -108,7 +112,7 @@ function IssueCenterView(props: IssueCenterViewProps) {
                 color: 'var(--proto-muted)',
                 background: 'var(--proto-line-2)',
                 padding: '2px 9px',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 marginLeft: 2,
               }}
             >
@@ -249,9 +253,9 @@ function IssueQueue({
               data-issue-id={e.id}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                borderRadius: 10,
+                borderRadius: 'var(--r-card)',
                 padding: '11px 13px',
                 boxShadow: sel ? 'var(--focus-ring-accent)' : 'none',
                 cursor: 'pointer',
@@ -399,10 +403,10 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -417,7 +421,8 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
+                boxShadow: 'var(--accent-glow)',
                 padding: '8px 22px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-accent)',
@@ -440,10 +445,10 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-line-3)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--proto-card)',
+                background: 'var(--glass-2)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -458,7 +463,7 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-danger)',

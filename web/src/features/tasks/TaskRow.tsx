@@ -28,10 +28,12 @@ const DOT_COLORS: Record<TaskGroupKind, string> = {
   done: 'var(--proto-success)',
 };
 
+// Raised glass rather than an opaque tile. `--glass-2` carries no `backdrop-filter`, so it stays
+// a plain alpha blend even though these rows repaint on every scroll frame of the tasks list.
 const CARD_STYLE: CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--glass-2)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 9,
+  borderRadius: 'var(--r-card)',
   padding: '9px 12px',
   boxShadow: 'var(--shadow-card-subtle)',
   cursor: 'pointer',
@@ -110,7 +112,7 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
         style={{
           font: "500 9.5px 'IBM Plex Mono',monospace",
           padding: '1.5px 7px',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           ...META_STYLE[meta.kind],
           ...(meta.kind === 'blocked' ? BLOCKED_META_STYLE : {}),
         }}

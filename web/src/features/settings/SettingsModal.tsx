@@ -42,9 +42,13 @@ const MODAL_STYLE: CSSProperties = {
   maxWidth: '94vw',
   height: 680,
   maxHeight: '90vh',
-  background: 'var(--proto-card)',
-  borderRadius: 14,
-  boxShadow: 'var(--shadow-overlay-strong)',
+  // Floating glass sheet, matching design/Modal. The blur belongs here and nowhere else in this
+  // file: the sheet is a single static overlay, while the nav and the panel scroll inside it.
+  background: 'var(--glass-2)',
+  backdropFilter: 'var(--glass-filter)',
+  WebkitBackdropFilter: 'var(--glass-filter)',
+  borderRadius: 'var(--r-float)',
+  boxShadow: 'var(--shadow-float)',
   zIndex: 61,
   overflow: 'hidden',
   display: 'flex',
@@ -128,7 +132,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 function SettingsHeader(props: { onClose: () => void; closeBlocked: boolean }) {
   const L = useVocab();
   return (
-    <div style={{ height: 48, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 18px', background: 'var(--proto-card)' }}>
+    <div style={{ height: 48, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 18px', background: 'var(--glass-2)' }}>
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.settings}</span>
       <button type="button" disabled={props.closeBlocked} onClick={props.onClose}
         title={props.closeBlocked ? L.plUnsavedLeave : undefined}
@@ -144,7 +148,7 @@ function navButtonStyle(active: boolean, disabled: boolean): CSSProperties {
     width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 8,
     padding: '7px 10px',
     background: active ? 'var(--proto-accent-bg)' : 'transparent',
-    borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer',
+    borderRadius: 'var(--r-chip)', cursor: disabled ? 'not-allowed' : 'pointer',
   };
 }
 

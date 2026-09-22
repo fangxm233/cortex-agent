@@ -30,14 +30,14 @@ import { useBudgetWriter } from './useBudgetWriter';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const CHIP_LABEL: CSSProperties = { font: `500 10.5px ${MONO}`, borderRadius: 7, padding: '4px 11px' };
+const CHIP_LABEL: CSSProperties = { font: `500 10.5px ${MONO}`, borderRadius: 'var(--r-chip)', padding: '4px 11px' };
 
 function chipStyle(active: boolean): CSSProperties {
   return {
     ...CHIP_LABEL,
     fontWeight: active ? 600 : 500,
     color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
-    background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+    background: active ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
     border: '1px solid ' + (active ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
     cursor: 'pointer',
   };
@@ -324,7 +324,7 @@ export function BudgetPanel({
                           fontSize: 9,
                           fontWeight: 600,
                           padding: '1px 6px',
-                          borderRadius: 999,
+                          borderRadius: 'var(--r-pill)',
                           background: 'var(--proto-accent-bg)',
                           color: 'var(--proto-accent)',
                           marginLeft: 4,
@@ -353,7 +353,7 @@ export function BudgetPanel({
           <div
             style={{
               height: 5,
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: 'var(--proto-line-2)',
               overflow: 'hidden',
               marginTop: 8,
@@ -368,7 +368,7 @@ export function BudgetPanel({
               {L.month} / {formatBudgetUsd(resolved.monthly)}
             </span>
           </div>
-          <div style={{ height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 7 }}>
+          <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 7 }}>
             <div style={{ width: budgetBarPct(month, resolved.monthly), height: '100%', background: 'var(--proto-accent-2)' }} />
           </div>
           <div
@@ -378,7 +378,7 @@ export function BudgetPanel({
               gap: 7,
               background: 'var(--proto-amber-bg)',
               border: '1px solid var(--proto-amber-border)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '7px 10px',
               marginTop: 13,
             }}

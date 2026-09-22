@@ -2,10 +2,12 @@ import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent,
 
 const MONO = "'IBM Plex Mono',monospace";
 
+// Raised glass: settings cards sit still inside the settings sheet, so `--glass-2` composites over
+// the blur that sheet already produced. No filter of its own — the fill is a plain alpha blend.
 export const CARD_STYLE: CSSProperties = {
-  background: 'var(--proto-card)',
+  background: 'var(--glass-2)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 10,
+  borderRadius: 'var(--r-card)',
   boxShadow: 'var(--shadow-card-subtle)',
 };
 
@@ -81,7 +83,7 @@ function toggleStyle(
   focused = false,
 ): CSSProperties {
   return {
-    width: 32, height: 19, borderRadius: 999, display: 'flex',
+    width: 32, height: 19, borderRadius: 'var(--r-pill)', display: 'flex',
     alignItems: 'center', padding: 2, boxSizing: 'border-box',
     cursor: toggleCursor(interactive, inert), flex: 'none',
     boxShadow: focusShadow(focused), ...toggleVisualState(on, inert),
@@ -178,9 +180,11 @@ export const S_CONTROL_STYLE: CSSProperties = {
   boxSizing: 'border-box',
   font: `400 11px ${MONO}`,
   color: 'var(--proto-ink)',
+  // Opaque, deliberately: a field you type into is the contract case for `--proto-card`. Text you
+  // are editing must not have the mesh showing through it.
   background: 'var(--proto-card)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 7,
+  borderRadius: 'var(--r-control)',
   padding: '5px 9px',
   outline: 'none',
 };
@@ -195,16 +199,21 @@ export const S_CONTROL_DISABLED_STYLE: CSSProperties = {
 export type SButtonTone = 'accent' | 'danger' | 'neutral';
 
 const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperties }> = {
+  // Only `accent` glows: `danger` is filled from the state palette rather than the accent, so a
+  // glow there would read as a second primary (same call as design/Button).
   accent: {
-    base: { color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)', border: '1px solid transparent' },
+    base: {
+      color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)',
+      border: '1px solid transparent', boxShadow: 'var(--accent-glow)',
+    },
     hover: { background: 'var(--proto-accent-strong)' },
   },
   danger: {
-    base: { color: 'var(--proto-danger)', background: 'var(--proto-card)', border: '1px solid var(--proto-danger-bg)' },
+    base: { color: 'var(--proto-danger)', background: 'var(--glass-2)', border: '1px solid var(--proto-danger-bg)' },
     hover: { background: 'var(--proto-danger-bg)' },
   },
   neutral: {
-    base: { color: 'var(--proto-ink)', background: 'var(--proto-card)', border: '1px solid var(--proto-line-3)' },
+    base: { color: 'var(--proto-ink)', background: 'var(--glass-2)', border: '1px solid var(--proto-line-3)' },
     hover: { background: 'var(--proto-alt)' },
   },
 };
@@ -222,7 +231,10 @@ function focusedButtonStyle(
   disabled?: boolean,
 ): CSSProperties {
   if (!focused || disabled) return style;
-  return { ...style, boxShadow: '0 0 0 2px var(--proto-accent-bg)' };
+  // Compose rather than replace: the accent tone carries `--accent-glow` in its base shadow, and
+  // overwriting it would make the primary button go flat for as long as it holds focus.
+  const ring = '0 0 0 2px var(--proto-accent-bg)';
+  return { ...style, boxShadow: style.boxShadow ? `${ring}, ${style.boxShadow}` : ring };
 }
 
 function buttonBaseStyle(
@@ -232,7 +244,7 @@ function buttonBaseStyle(
   focused = false,
 ): CSSProperties {
   const spec = BUTTON_TONE[tone];
-  const base = { fontSize: 11.5, fontWeight: 600, borderRadius: 8,
+  const base = { fontSize: 11.5, fontWeight: 600, borderRadius: 'var(--r-control)',
     padding: '6px 14px', flex: 'none', ...buttonDisabledStyle(disabled), ...spec.base };
   const hovered = hover && !disabled ? { ...base, ...spec.hover } : base;
   return focusedButtonStyle(hovered, focused, disabled);

@@ -63,7 +63,7 @@ function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
                     color: 'var(--proto-accent)',
                     background: 'var(--proto-accent-bg)',
                     border: '1px solid var(--proto-accent-border)',
-                    borderRadius: 999,
+                    borderRadius: 'var(--r-pill)',
                     padding: '1px 6px',
                   }}
                 >
@@ -97,7 +97,7 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
         gap: 7,
         padding: `5px 8px 5px ${row.depth === 1 ? 22 : 8}px`,
         background: bg,
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         cursor: row.selectable ? 'pointer' : 'default',
       }}
     >
@@ -121,13 +121,14 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
   );
 }
 
+// No background of its own: the viewer reads directly on the workspace pane's glass. Only the
+// document body below keeps an opaque fill, because prose has to occlude the mesh behind it.
 const CENTER: CSSProperties = {
   flex: 1,
   minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
-  background: 'var(--proto-card)',
 };
 
 export function MemoryView(): JSX.Element {
@@ -180,7 +181,6 @@ export function MemoryView(): JSX.Element {
           alignItems: 'center',
           gap: 9,
           padding: '0 20px',
-          background: 'var(--proto-card)',
         }}
       >
         <span
@@ -225,6 +225,8 @@ export function MemoryView(): JSX.Element {
           ))}
         </div>
 
+        {/* The rendered document stays on opaque `--proto-card`: long prose over a translucent
+            surface reads the mesh through every line, which is exactly what a reading pane must not do. */}
         <div style={{ flex: 1, minWidth: 0, background: 'var(--proto-card)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* diff bar (prototype L678–684) */}
           <div
@@ -260,7 +262,7 @@ export function MemoryView(): JSX.Element {
                 color: dt.color,
                 background: dt.bg,
                 border: `1px solid ${dt.border}`,
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 padding: '2px 10px',
                 cursor: 'pointer',
               }}
@@ -278,7 +280,7 @@ export function MemoryView(): JSX.Element {
                   color: 'var(--proto-amber-fg)',
                   background: 'var(--proto-amber-bg)',
                   border: '1px solid var(--proto-amber-border)',
-                  borderRadius: 7,
+                  borderRadius: 'var(--r-control)',
                   padding: '6px 11px',
                   marginBottom: 12,
                   lineHeight: 1.5,

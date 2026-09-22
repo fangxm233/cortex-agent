@@ -39,7 +39,7 @@ const CELL_BOX: CSSProperties = {
   height: CONTROL_HEIGHT.md,
   boxSizing: 'border-box',
   border: '1px solid var(--proto-line)',
-  borderRadius: 8,
+  borderRadius: 'var(--r-control)',
   padding: '0 10px',
 };
 
@@ -129,9 +129,14 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
           transform: 'translate(-50%,-50%)',
           animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
           width: 560,
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
+          // Floating glass sheet, matching design/Modal: a top-level overlay is the one shape
+          // `backdrop-filter` is affordable on, because the sheet holds still and the backdrop is
+          // sampled once per open rather than on every scroll frame of the form inside it.
+          background: 'var(--glass-2)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float)',
+          boxShadow: 'var(--shadow-float)',
           zIndex: 61,
           overflow: 'hidden',
         }}
@@ -159,7 +164,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         <div style={{ padding: '0 20px' }}>
           {/* TYPE (prototype L1436-1442) */}
           <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
-          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
             {SCHED_TYPES.map((t: SchedType, i) => {
               const selected = form.type === t;
               return (
@@ -328,7 +333,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
 
           {/* MESSAGE (prototype L1447-1448) */}
           <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid var(--proto-line)', borderRadius: 8, padding: '8px 11px', minHeight: 38 }}>
+          <div style={{ border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
             <textarea
               value={form.message}
               disabled={!editableFields.message}
@@ -405,7 +410,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               fontSize: 11.5,
               fontWeight: 600,
               border: '1px solid var(--proto-line-3)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '6px 13px',
               color: 'var(--proto-ink)',
               cursor: 'pointer',
@@ -419,10 +424,13 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '7px 15px',
               color: 'var(--ink-solid-fg)',
               background: 'var(--proto-accent)',
+              // Glow only while the action is actually available: a button dimmed to 0.55 that still
+              // throws accent light reads as live.
+              boxShadow: canCreate ? 'var(--accent-glow)' : 'none',
               cursor: canCreate ? 'pointer' : 'not-allowed',
               opacity: canCreate ? 1 : 0.55,
             }}

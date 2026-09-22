@@ -13,14 +13,14 @@ function HotUpdateActions(props: Pick<HotUpdateDialogProps, 'onApply' | 'onDismi
       <button
         type="button"
         onClick={props.onDismiss}
-        className="box-border flex h-9 items-center rounded-[9px] border border-proto-line px-4 text-[12.5px] font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
+        className="box-border flex h-9 items-center rounded-[var(--r-control)] border border-proto-line px-4 text-[12.5px] font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
       >
         忽略
       </button>
       <button
         type="button"
         onClick={props.onApply}
-        className="box-border flex h-9 items-center rounded-[9px] bg-state-ink px-4 text-[12.5px] font-semibold text-surface-card transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
+        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold text-surface-card transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
       >
         重启 App
       </button>

@@ -125,7 +125,7 @@ function renderBlock(b: Block, i: number): ReactNode {
       const cols = Math.max(b.header.length, ...b.rows.map((r) => r.length), 1);
       const grid = `repeat(${cols}, minmax(0,1fr))`;
       return (
-        <div key={i} style={{ border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
+        <div key={i} style={{ border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
           <div
             style={{
               display: 'grid',
@@ -171,7 +171,7 @@ function renderBlock(b: Block, i: number): ReactNode {
           style={{
             background: 'var(--proto-rail)',
             border: '1px solid var(--proto-line-2)',
-            borderRadius: 8,
+            borderRadius: 'var(--r-control)',
             padding: '10px 13px',
             font: `400 10.5px ${MONO}`,
             color: 'var(--proto-ink-2)',
@@ -210,7 +210,7 @@ export function MarkdownView({ content, resolveImage }: {
     <ImageResolverContext.Provider value={resolveImage ?? null}>
     <div>
       {frontmatter && (frontmatter.entries.length > 0 || frontmatter.summary) && (
-        <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '10px 13px' }}>
+        <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 13, font: `400 10px ${MONO}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
             {frontmatter.entries.map((e, i) => (
               <span key={i}>

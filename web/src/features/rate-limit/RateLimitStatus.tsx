@@ -33,7 +33,7 @@ const RailBannerTrigger = forwardRef<
         border: '1px solid var(--pill-waiting-bg)',
         background: 'var(--pill-waiting-bg)',
         color: 'var(--pill-waiting-fg)',
-        borderRadius: 9,
+        borderRadius: 'var(--r-control)',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -84,7 +84,7 @@ export function MobileRateLimitStatus({
         border: `1px solid ${MC.amberBorder}`,
         background: MC.amberBg,
         color: MC.amberText,
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         padding: '3px 7px',
         maxWidth: 190,
         overflow: 'hidden',
@@ -114,7 +114,7 @@ function clearButtonStyle(mobile: boolean, busy: boolean): CSSProperties {
   const border = mobile ? MC.amberBorder : 'var(--pill-waiting-bg)';
   return {
     border: `1px solid ${border}`, background: 'transparent',
-    color: mobile ? MC.amberText : 'var(--pill-waiting-fg)', borderRadius: 999,
+    color: mobile ? MC.amberText : 'var(--pill-waiting-fg)', borderRadius: 'var(--r-pill)',
     padding: '2px 8px', font: "600 9px 'IBM Plex Mono',monospace",
     cursor: busy ? 'progress' : 'pointer', opacity: busy ? 0.6 : 1,
   };

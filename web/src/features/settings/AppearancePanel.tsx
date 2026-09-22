@@ -19,10 +19,13 @@ import {
   useResetPalette,
   useMotionMode,
   useSetMotionMode,
+  useGlass,
+  useSetGlass,
   useTheme,
   useSetTheme,
   type AccentIntensity,
   type AccentPickerCopy,
+  type GlassLevel,
   type MotionMode,
   type PaletteControlsCopy,
   type Theme,
@@ -85,7 +88,8 @@ function SettingRow({ title, hint, control }: { title: string; hint: string; con
 }
 
 // One card per setting, in the order a user reasons about appearance: what language the UI speaks,
-// then the light/dark frame, then the surfaces inside it, then the accent on top, then motion.
+// then the light/dark frame, then the surfaces inside it, then the accent on top, then how solid
+// those surfaces are, then motion.
 function AppearanceCards() {
   const L = useVocab();
   const theme = useTheme();
@@ -104,6 +108,8 @@ function AppearanceCards() {
   const resetPalette = useResetPalette();
   const motionMode = useMotionMode();
   const setMotionMode = useSetMotionMode();
+  const glass = useGlass();
+  const setGlass = useSetGlass();
   const accentCopy: AccentPickerCopy = {
     label: L.stAccentLabel, default: L.stAccentDefault, blue: L.stAccentBlue,
     teal: L.stAccentTeal, violet: L.stAccentViolet, rose: L.stAccentRose,
@@ -149,6 +155,9 @@ function AppearanceCards() {
         <SettingRow title={L.stAccentIntensityLabel} hint={L.stAccentIntensityHint} control={<Segmented<AccentIntensity> value={accentIntensity} options={[{ id: 'soft', label: L.stAccentIntensitySoft }, { id: 'normal', label: L.stAccentIntensityNormal }, { id: 'vivid', label: L.stAccentIntensityVivid }]} onChange={setAccentIntensity} dataAttr="data-accent-intensity-option" />} />
       </SCard>
       <SCard style={cardStyle}>
+        <SettingRow title={L.stGlassLabel} hint={L.stGlassHint} control={<Segmented<GlassLevel> value={glass} options={[{ id: 'off', label: L.stGlassOff }, { id: 'subtle', label: L.stGlassSubtle }, { id: 'medium', label: L.stGlassMedium }, { id: 'strong', label: L.stGlassStrong }]} onChange={setGlass} dataAttr="data-glass-option" />} />
+      </SCard>
+      <SCard style={cardStyle}>
         <SettingRow title={L.stMotionLabel} hint={L.stMotionHint} control={<Segmented<MotionMode> value={motionMode} options={[{ id: 'system', label: L.stMotionSystem }, { id: 'full', label: L.stMotionFull }, { id: 'reduced', label: L.stMotionReduced }]} onChange={setMotionMode} dataAttr="data-motion-option" />} />
       </SCard>
     </>
@@ -160,7 +169,7 @@ export function AppearancePanel() {
     <div style={{ marginTop: 12, maxWidth: 760 }}>
       <AppearanceCards />
       <div style={{ marginTop: 10, font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2 }}>
-        localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.motion
+        localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.glass · cortex.motion
       </div>
     </div>
   );

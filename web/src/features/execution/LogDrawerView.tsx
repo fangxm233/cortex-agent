@@ -32,7 +32,7 @@ const PILL_STYLE: CSSProperties = {
   fontSize: 9,
   fontWeight: 600,
   padding: '1.5px 7px',
-  borderRadius: 999,
+  borderRadius: 'var(--r-pill)',
   background: 'var(--log-border)',
   color: 'var(--proto-accent-2)',
 };
@@ -112,7 +112,7 @@ export function LogDrawerView({
             fontWeight: 600,
             color: 'var(--proto-danger)',
             border: '1px solid var(--proto-danger)',
-            borderRadius: 7,
+            borderRadius: 'var(--r-control)',
             padding: '4px 12px',
             cursor: killDisabled ? 'default' : 'pointer',
             background: 'transparent',

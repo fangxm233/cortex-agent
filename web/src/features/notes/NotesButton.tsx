@@ -7,9 +7,11 @@ function buttonStyle(active: boolean): CSSProperties {
     alignItems: 'center',
     gap: 6,
     border: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)',
-    borderRadius: 7,
+    borderRadius: 'var(--r-control)',
     padding: '4px 9px',
-    background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+    // Raised glass rather than an opaque chip: this button sits on a header that is now translucent,
+    // and a solid fill would punch a white hole in it.
+    background: active ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
     color: active ? 'var(--proto-accent)' : 'var(--proto-ink)',
     fontFamily: 'inherit',
     cursor: 'pointer',
