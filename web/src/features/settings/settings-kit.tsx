@@ -362,7 +362,7 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, className,
     }}>
       {dot}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{name}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>{name}</div>
         {meta != null && (
           <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere' }}>
             {meta}
