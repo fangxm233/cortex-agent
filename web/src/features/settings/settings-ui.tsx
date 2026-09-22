@@ -1,4 +1,4 @@
-// input:  react, theme tokens, settings-kit, settings-style.css
+// input:  react, material tokens, settings-kit, settings-style.css
 // output: Settings cards, field rows, controls, buttons and toggles
 // pos:    Shared compact settings form primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
@@ -12,12 +12,12 @@ export * from './settings-kit';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// Cards are stable surfaces; only the outer settings sheet retains glass blur.
+// Cards carry tint and a shallow highlight; only portaled shells blur.
 export const CARD_STYLE: CSSProperties = {
-  background: 'var(--settings-card-fill, var(--proto-card))',
+  background: 'var(--settings-card-fill, var(--material-card-bg))',
   borderRadius: 'var(--settings-card-radius, 12px)',
   border: '1px solid var(--settings-boundary, var(--proto-line-2))',
-  boxShadow: 'none', boxSizing: 'border-box', minWidth: 0,
+  boxShadow: 'var(--material-card-shadow)', boxSizing: 'border-box', minWidth: 0,
 };
 
 // Rest props are forwarded so callers can hang `data-*` hooks off the card. TypeScript does not
@@ -84,6 +84,7 @@ function toggleVisualState(on: boolean, inert?: boolean): CSSProperties {
     // Off is `--proto-line-3`, not `--proto-line`: the track has to stay visible as a shape on a
     // translucent card, where the fainter tint disappears into the pane.
     background: on ? 'var(--proto-accent)' : 'var(--proto-line-3)',
+    backgroundImage: 'var(--material-sheen)',
     opacity: inert ? 0.85 : 1,
   };
 }
@@ -110,7 +111,7 @@ function toggleStyle(
 function knobStyle(on: boolean): CSSProperties {
   return {
     position: 'absolute', top: 3, left: on ? 17 : 3, width: 16, height: 16,
-    borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+    borderRadius: '50%', background: 'var(--ink-solid-fg)', boxShadow: 'var(--material-control-shadow)',
     transition: 'left .15s',
   };
 }
@@ -206,9 +207,9 @@ export const S_CONTROL_STYLE: CSSProperties = {
   minHeight: 'var(--settings-control-height, 34px)',
   fontFamily: 'inherit', fontSize: 'var(--settings-input-size, 13px)', lineHeight: 1.5,
   color: 'var(--proto-ink)',
-  background: 'var(--settings-control-fill, var(--proto-card))',
+  background: 'var(--settings-control-fill, var(--material-control-bg))',
   border: '1px solid var(--settings-control-boundary, var(--proto-line-3))',
-  boxShadow: 'none',
+  boxShadow: 'var(--material-control-shadow)',
   borderRadius: 'var(--settings-control-radius, 8px)',
   padding: '6px 10px',
 };
@@ -227,16 +228,17 @@ const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperti
   accent: {
     base: {
       color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)',
-      border: '1px solid transparent', boxShadow: 'none',
+      backgroundImage: 'var(--material-sheen)',
+      border: '1px solid transparent', boxShadow: 'var(--material-control-shadow)',
     },
     hover: { background: 'var(--proto-accent-strong)' },
   },
   danger: {
-    base: { color: 'var(--proto-danger)', background: 'var(--settings-control-fill, var(--proto-card))', border: '1px solid var(--proto-danger-bg)', boxShadow: 'none' },
+    base: { color: 'var(--proto-danger)', background: 'var(--settings-control-fill, var(--material-control-bg))', border: '1px solid var(--proto-danger-bg)', boxShadow: 'var(--material-control-shadow)' },
     hover: { background: 'var(--proto-danger-bg)' },
   },
   neutral: {
-    base: { color: 'var(--proto-ink)', background: 'var(--settings-control-fill, var(--proto-card))', border: '1px solid var(--proto-line-3)', boxShadow: 'none' },
+    base: { color: 'var(--proto-ink)', background: 'var(--settings-control-fill, var(--material-control-bg))', border: '1px solid var(--proto-line-3)', boxShadow: 'var(--material-control-shadow)' },
     hover: { background: 'var(--proto-alt)' },
   },
 };

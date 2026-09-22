@@ -1,5 +1,5 @@
-/* input: theme.css tokens, global scrollbars, settings primitives
- * output: Scoped settings tokens, visible controls and layouts
+/* input: shared material tokens, scrollbars, settings primitives
+ * output: Scoped glass cards, stable controls and compact layouts
  * pos: Shared desktop and mobile settings visual system
  * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
@@ -12,8 +12,8 @@
   --settings-body-size: 13px;
   --settings-hint-size: 12px;
   --settings-section-gap: 20px;
-  --settings-card-fill: var(--proto-card);
-  --settings-control-fill: var(--proto-card);
+  --settings-card-fill: var(--material-card-bg);
+  --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
   --settings-control-boundary: var(--proto-faint);
   --settings-panel-padding: 20px;
@@ -36,7 +36,7 @@
   background: var(--settings-card-fill);
   border: 1px solid var(--settings-boundary);
   border-radius: var(--settings-card-radius);
-  box-shadow: none;
+  box-shadow: var(--material-card-shadow);
 }
 
 .settings-surface :where(.settings-row, .settings-card-header, .settings-section-heading, .settings-entity-row) {
@@ -75,7 +75,7 @@
   font: inherit;
   font-size: var(--settings-input-size);
   line-height: 1.5;
-  box-shadow: none;
+  box-shadow: var(--material-control-shadow);
 }
 .settings-surface .settings-control::placeholder { color: var(--proto-muted-3); opacity: 1; }
 .settings-surface .settings-control:disabled { background: var(--proto-alt); color: var(--proto-muted-2); }

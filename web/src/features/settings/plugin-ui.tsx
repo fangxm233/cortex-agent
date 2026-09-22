@@ -1,5 +1,5 @@
 // input:  plugin catalog, settings atoms, localized copy
-// output: plugin metadata, summaries and card styles
+// output: plugin metadata, inset summaries and glass card styles
 // pos:    Compact desktop plugin presentation helpers
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -10,11 +10,9 @@ import { GROUP_STYLE, ROW_STYLE, SPill, SRow, SRowGroup, SSection } from './sett
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// A plugin, a skill or an MCP server reads as one tile rather than a stack of hairline rows, so it
-// takes the kit's ringed card and carries the row padding itself. `border: 0` is explicit because
-// the tile is also used on a <button>, which would otherwise keep the UA border the ring replaced.
+// Plugin tiles share the kit's glass fill and boundary, including button tiles.
 export const ROW: CSSProperties = {
-  ...GROUP_STYLE, border: 0, boxShadow: 'none', background: 'var(--proto-alt)',
+  ...GROUP_STYLE,
   padding: '12px 16px', minWidth: 0, overflowWrap: 'anywhere',
 };
 
@@ -79,7 +77,7 @@ export function McpSummaryLine({ server }: { server: UiPluginMcpServer }) {
     // Recessed, not raised: this tile always sits inside a card that already carries the fill.
     <div data-plugin-server={server.name} style={{
       display: 'flex', flexDirection: 'column', gap: 4, padding: '11px 14px',
-      borderRadius: 'var(--r-control)', background: 'var(--proto-alt)',
+      borderRadius: 'var(--r-control)', background: 'var(--material-inset-bg)',
     }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere' }}>{server.name} · {mcpTransportText(server, L)}</div>
       {/* Wrapping, not ellipsed: this line is what an operator consents to when a server is added. */}

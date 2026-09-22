@@ -1,5 +1,5 @@
 // input:  react, settings-ui, settings-style.css
-// output: Master-detail pane styles, headers and wrapping footers
+// output: Glass editor panes, solid counts and wrapping footers
 // pos:    Shared responsive settings editor layout primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -60,8 +60,8 @@ const PANE_COUNT_STYLE: CSSProperties = {
 
 const FILTER_ROW_STYLE: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6 };
 
-/** The count a filter chip trails. Dimmed rather than re-coloured, so it reads in both chip states. */
-export const CHIP_COUNT_STYLE: CSSProperties = { opacity: 0.6 };
+/** Counts inherit the chip's solid foreground in both neutral and selected states. */
+export const CHIP_COUNT_STYLE: CSSProperties = { color: 'inherit' };
 
 /**
  * Title and total, the filter chips, then the search field. The search attribute is passed as a

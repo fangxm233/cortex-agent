@@ -1,4 +1,4 @@
-// input:  config queries, panels, login flow, settings-style.css
+// input:  config queries, panels, login flow, material tokens
 // output: Scoped settings shell, navigation and dirty-form guard
 // pos:    Responsive settings shell with readable navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
@@ -32,6 +32,8 @@ const BACKDROP_STYLE: CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'var(--overlay-scrim)',
+  backdropFilter: 'var(--material-scrim-filter)',
+  WebkitBackdropFilter: 'var(--material-scrim-filter)',
   zIndex: 60,
 };
 
@@ -47,15 +49,14 @@ const MODAL_STYLE: CSSProperties = {
   maxWidth: '94vw',
   height: 680,
   maxHeight: '90vh',
-  // Floating glass sheet, matching design/Modal. The blur belongs here and nowhere else in this
-  // file: the sheet is a single static overlay, while the nav and the panel scroll inside it.
-  background: 'var(--glass-2)',
+  // The sheet filters once; scrolling cards and controls carry unfiltered tint.
+  background: 'var(--material-overlay-bg)',
   backdropFilter: 'var(--glass-filter)',
   WebkitBackdropFilter: 'var(--glass-filter)',
   borderRadius: 16,
   border: '1px solid var(--proto-line-2)',
   boxSizing: 'border-box',
-  boxShadow: 'var(--shadow-float)',
+  boxShadow: 'var(--material-overlay-shadow)',
   zIndex: 61,
   overflow: 'hidden',
   display: 'flex',

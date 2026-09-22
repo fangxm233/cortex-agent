@@ -1,5 +1,5 @@
-/* input: desktop panel classes and local Settings theme tokens */
-/* output: adaptive profile, field and card layouts */
+/* input: desktop panel classes and shared material tokens */
+/* output: adaptive profile, field and glass stat layouts */
 /* pos: panel-specific layouts inside the desktop Settings surface */
 /* >>> Once updated, update this header and parent AGENTS.md <<< */
 
@@ -51,8 +51,7 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.settings-surface .settings-usage-window > .settings-stat,
-.settings-surface .settings-usage-spend > .settings-stat { border: 0 !important; box-shadow: none !important; background: var(--proto-alt) !important; }
+/* Usage stats retain the shared card material; do not flatten their local fill. */
 
 /* Platform is also hosted on mobile: only its desktop instance is adjusted here. */
 .settings-modal .ps-panel {
@@ -62,6 +61,7 @@
 }
 .settings-modal .ps-grid { gap: 12px; }
 .settings-modal .settings-platform-card { container: settings-platform-card / inline-size; }
+/* Inner platform groups stay unboxed inside their already-glass parent card. */
 .settings-modal .settings-platform-group { border: 0 !important; box-shadow: none !important; background: transparent !important; }
 .settings-modal .settings-platform-summary { min-height: 34px; font-size: 13px !important; }
 

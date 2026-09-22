@@ -1,4 +1,4 @@
-// input:  react, theme tokens, settings-style.css
+// input:  react, material tokens, settings-style.css
 // output: Settings row primitives, layout classes and card styles
 // pos:    Readable settings feedback, rows and control primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
@@ -20,14 +20,14 @@ export function settingsClassName(base: string, extra: unknown): string {
 const MONO = "'IBM Plex Mono',monospace";
 
 // ── Grouped rows ────────────────────────────────────────────────────────────
-// A stable fill and one boundary keep grouped content quiet on the outer glass sheet.
+// Cards transmit the sheet's tint without adding a backdrop-filter per row.
 export const GROUP_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   borderRadius: 'var(--settings-card-radius, 12px)',
-  background: 'var(--settings-card-fill, var(--proto-card))',
+  background: 'var(--settings-card-fill, var(--material-card-bg))',
   border: '1px solid var(--settings-boundary, var(--proto-line-2))',
-  boxShadow: 'none', boxSizing: 'border-box', minWidth: 0,
+  boxShadow: 'var(--material-card-shadow)', boxSizing: 'border-box', minWidth: 0,
   overflow: 'hidden',
 };
 
@@ -113,7 +113,7 @@ export interface SegmentOption<T extends string> {
 
 const SEG_TRACK_STYLE: CSSProperties = {
   display: 'flex', gap: 2, padding: 3, borderRadius: 'var(--settings-control-radius, 8px)',
-  background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', flex: 'none',
+  background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line-2)', flex: 'none',
 };
 
 function segOptionStyle(active: boolean, mono: boolean, inert: boolean): CSSProperties {
@@ -122,8 +122,8 @@ function segOptionStyle(active: boolean, mono: boolean, inert: boolean): CSSProp
     font: mono ? `500 12px ${MONO}` : undefined,
     fontFamily: mono ? undefined : 'inherit',
     fontSize: mono ? undefined : 13, fontWeight: mono ? undefined : 600,
-    background: active ? 'var(--settings-card-fill, var(--proto-card))' : 'transparent',
-    boxShadow: 'none',
+    background: active ? 'var(--material-control-bg)' : 'transparent',
+    boxShadow: active ? 'var(--material-control-shadow)' : 'none',
     color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     cursor: inert ? 'default' : 'pointer', transition: 'background .12s, color .12s',
@@ -178,7 +178,7 @@ export function SPill({ tone = 'neutral', mono, children, ...rest }: {
       font: mono ? `600 9.5px ${MONO}` : undefined,
       fontSize: mono ? undefined : 10, fontWeight: mono ? undefined : 600,
       lineHeight: 1.5, padding: '1.5px 7px', borderRadius: 'var(--r-pill)',
-      whiteSpace: 'nowrap', ...PILL_TONE[tone],
+      whiteSpace: 'nowrap', ...PILL_TONE[tone], backgroundImage: 'var(--material-sheen)',
     }}>
       {children}
     </span>
@@ -205,7 +205,9 @@ function chipStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
     minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
     fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-    background: active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)',
+    background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+    backgroundImage: active ? 'var(--material-sheen)' : undefined,
+    boxShadow: 'var(--material-control-shadow)',
     color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
     display: 'inline-flex', alignItems: 'center', gap: 5,
     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
@@ -238,7 +240,7 @@ export function SSelectChip({ children, onClick, disabled, className, ...rest }:
     <button {...rest} className={settingsClassName('settings-select-chip', className)} type="button" disabled={disabled} onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--settings-control-height, 34px)',
       padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-faint))', borderRadius: 'var(--settings-control-radius, 8px)',
-      background: 'var(--settings-control-fill, var(--proto-card))', boxShadow: 'none',
+      background: 'var(--settings-control-fill, var(--material-control-bg))', boxShadow: 'var(--material-control-shadow)',
       fontFamily: 'inherit', fontSize: 13, color: 'var(--proto-ink)', flex: 'none',
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
     }}>
@@ -336,8 +338,8 @@ export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6 }: {
 export function SKeyCap({ children }: { children: ReactNode }) {
   return (
     <span style={{
-      font: `500 11px ${MONO}`, color: 'var(--proto-ink)', background: 'var(--glass-1)',
-      boxShadow: '0 0 0 1px var(--proto-line-3)', borderRadius: 'var(--r-chip)',
+      font: `500 11px ${MONO}`, color: 'var(--proto-ink)', background: 'var(--material-control-bg)',
+      border: '1px solid var(--proto-line-3)', boxShadow: 'var(--material-control-shadow)', borderRadius: 'var(--r-chip)',
       padding: '2px 8px', flex: 'none', whiteSpace: 'nowrap',
     }}>
       {children}

@@ -9,7 +9,7 @@ Settings panels, shared controls, configuration writers and view models.
 | AccountsPanel.tsx | view | Render provider accounts and login actions |
 | accounts-vm.test.ts | test | Test account status and grouping |
 | accounts-vm.ts | model | Build account status and provider groups |
-| AppearancePanel.tsx | view | Render appearance controls and storage hints |
+| AppearancePanel.tsx | view | Render appearance controls and glass previews |
 | AppUpdateCard.test.tsx | test | Test native silent-update preferences |
 | AppUpdateCard.tsx | view | Show update preferences and readable status |
 | AuthLoginEntry.test.tsx | test | Test settings authentication entry |
@@ -21,14 +21,14 @@ Settings panels, shared controls, configuration writers and view models.
 | CustomProvidersCard.tsx | view | Manage custom providers |
 | custom-provider-vm.test.ts | test | Test custom provider drafts and validation |
 | custom-provider-vm.ts | model | Validate and build custom provider drafts |
-| desktop-panels.css | style | Style adaptive desktop panel layouts |
+| desktop-panels.css | style | Style adaptive panels and retain glass stats |
 | HookDetailPane.tsx | view | Show hook details and test controls |
 | HookEditorForm.tsx | view | Edit hook trigger, action and scope |
 | HooksPanel.tsx | view | Browse and manage hooks |
 | hooks-panel-vm.test.ts | test | Test hook filtering and editor rules |
 | hooks-panel-vm.ts | model | Build hook filters, forms and validation |
 | MachinesPanel.tsx | view | Show machines and connection guidance |
-| master-detail-ui.tsx | UI | Provide master-detail editor primitives |
+| master-detail-ui.tsx | UI | Provide glass editor panes and solid counts |
 | PlatformConnectionFields.tsx | view | Edit platform connection credentials |
 | platform-env.test.ts | test | Test environment and runtime setting helpers |
 | platform-env.ts | utility | Index config and validate runtime values |
@@ -49,7 +49,7 @@ Settings panels, shared controls, configuration writers and view models.
 | PluginsPanel.container.test.tsx | test | Test plugin lifecycle and skill editing |
 | PluginsPanel.tsx | view | Browse and manage plugins |
 | plugins-panel-vm.ts | model | Filter plugins and resolve usage and selection |
-| plugin-ui.tsx | UI | Render plugin metadata and status summaries |
+| plugin-ui.tsx | UI | Render glass plugin tiles and inset summaries |
 | ProfilesPanel.tsx | view | Browse and edit responsive agent profile rows |
 | ProfilesPanel.test.tsx | test | Check profile labels and action availability |
 | profiles-panel-vm.test.ts | test | Test profile form transitions and validation |
@@ -58,14 +58,14 @@ Settings panels, shared controls, configuration writers and view models.
 | RuntimeSettingsPanels.tsx | view | Render runtime controls and readable status |
 | runtime-settings-writer.test.tsx | test | Test runtime setting commits |
 | runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
-| settings-kit.tsx | UI | Provide readable settings rows and controls |
-| SettingsModal.tsx | entry | Render readable navigation and guarded sections |
+| settings-kit.tsx | UI | Provide glass rows and raised compact controls |
+| SettingsModal.tsx | entry | Render glass settings shell and guarded sections |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
-| settings-style.css | style | Style settings with shared application scrolling |
-| settings-portals.css | style | Style settings dropdown and dialog portals |
-| settings-ui.tsx | UI | Provide settings form primitives |
+| settings-style.css | style | Apply shared card and control materials |
+| settings-portals.css | style | Style glass dropdown and nested dialog portals |
+| settings-ui.tsx | UI | Provide glass cards and stable form controls |
 | TemplateDetailPane.tsx | view | Edit template details and assignments |
 | TemplatesPanel.tsx | view | Browse and manage thread templates |
 | templates-panel-vm.test.ts | test | Test template filtering and editor save gates |

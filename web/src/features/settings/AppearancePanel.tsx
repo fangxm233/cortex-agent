@@ -1,5 +1,5 @@
 // input:  language, device-local theme providers, settings atoms
-// output: desktop appearance settings panel
+// output: appearance controls with glass theme preview frames
 // pos:    Compact appearance controls and readable storage hints
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -49,12 +49,11 @@ interface ThemeCardSpec {
 
 function themeCardStyle(active: boolean): CSSProperties {
   return {
-    border: 0, padding: 6, borderRadius: 'var(--r-card)', background: 'var(--glass-2)',
-    boxShadow: active
-      ? '0 0 0 1.5px var(--proto-accent)'
-      : '0 0 0 1px var(--proto-line-2)',
+    border: 0, padding: 6, borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)',
+    outline: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line-2)',
+    boxShadow: 'var(--material-card-shadow)',
     cursor: 'pointer', textAlign: 'left', display: 'block', width: '100%',
-    transition: 'box-shadow .12s',
+    transition: 'outline-color .12s',
   };
 }
 
