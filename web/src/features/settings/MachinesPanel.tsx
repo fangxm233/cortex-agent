@@ -1,6 +1,6 @@
 // input:  machines resource, settings atoms, approval action
 // output: desktop machine registry and connectivity cards
-// pos:    Responsive desktop machines panel
+// pos:    Machine settings with readable connection guidance
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import './desktop-panels.css';
@@ -25,7 +25,7 @@ import {
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const HINT_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-faint)', overflowWrap: 'anywhere' };
+const HINT_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
 const FOOTNOTE_STYLE: CSSProperties = {
   fontSize: 12, lineHeight: 1.7, color: 'var(--proto-muted-2)', paddingLeft: 2,
 };

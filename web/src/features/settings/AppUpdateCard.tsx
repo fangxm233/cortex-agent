@@ -1,6 +1,6 @@
 // input:  native shell update preferences, settings atoms
 // output: native-shell-only quiet update controls
-// pos:    Advanced settings app update card
+// pos:    App update settings with readable status metadata
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState, type CSSProperties } from 'react';
@@ -13,7 +13,7 @@ import { SButton, SRow, SRowGroup, Toggle } from './settings-ui';
 const MONO = "'IBM Plex Mono',monospace";
 
 const FOOTNOTE_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4, overflowWrap: 'anywhere',
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
 };
 const ALERT_STYLE: CSSProperties = {
   fontSize: 12, lineHeight: 1.5, color: 'var(--proto-danger)', marginTop: 6,

@@ -1,6 +1,6 @@
 // input:  config queries, panels, login flow, settings-style.css
 // output: Scoped settings shell, navigation and dirty-form guard
-// pos:    Responsive desktop settings modal and section router
+// pos:    Responsive settings shell with readable navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -177,8 +177,8 @@ function NavIcon({ path, active }: { path: string; active: boolean }) {
 function NavGroupLabel({ children }: { children: string }) {
   return (
     <div style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
-      color: 'var(--proto-faint)', padding: '12px 10px 5px', flex: 'none',
+      fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase',
+      color: 'var(--proto-muted-2)', padding: '12px 10px 5px', flex: 'none',
     }}>
       {children}
     </div>
@@ -222,7 +222,7 @@ function SettingsNav(props: SettingsNavProps) {
           </div>
         ))}
       </div>
-      <div className="settings-nav-build" style={{ padding: '10px 10px 0', font: `400 10px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
+      <div className="settings-nav-build" style={{ padding: '10px 10px 0', font: `400 11px ${MONO}`, color: 'var(--proto-muted-2)', flex: 'none' }}>
         Cortex · {BUILD_STAMP}
       </div>
     </div>

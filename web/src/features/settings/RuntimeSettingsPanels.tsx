@@ -1,6 +1,6 @@
 // input:  runtime setting writer, config, settings atoms
 // output: desktop notifications and advanced settings
-// pos:    Compact runtime setting rows and status history
+// pos:    Runtime settings with readable keys and status history
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
@@ -56,7 +56,7 @@ const MONO = "'IBM Plex Mono',monospace";
 // Which setting a row writes, and where its current value came from, is an identifier rather than
 // prose: it gets its own mono line under the description instead of competing with the control.
 const KEY_LINE_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4, overflowWrap: 'anywhere',
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
 };
 const MONO_VALUE_STYLE: CSSProperties = {
   font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
@@ -212,7 +212,7 @@ function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
         ) : null}
         <div style={{ ...NOTICE_BODY_STYLE, marginTop: entry.title ? 3 : 0 }}>{entry.text}</div>
       </div>
-      <span style={{ ...MONO_VALUE_STYLE, color: 'var(--proto-faint)', paddingTop: 2 }}>
+      <span style={{ ...MONO_VALUE_STYLE, color: 'var(--proto-muted-2)', paddingTop: 2 }}>
         {relativeAge(entry.ts)}
       </span>
     </div>

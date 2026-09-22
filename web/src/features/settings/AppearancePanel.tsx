@@ -1,6 +1,6 @@
 // input:  language, device-local theme providers, settings atoms
 // output: desktop appearance settings panel
-// pos:    Compact desktop theme and language controls
+// pos:    Compact appearance controls and readable storage hints
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties } from 'react';
@@ -230,7 +230,7 @@ export function AppearancePanel() {
       <ThemeSection />
       <ColorSection />
       <SurfaceSection />
-      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
+      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', paddingLeft: 2, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
         localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.glass · cortex.motion
       </div>
     </>

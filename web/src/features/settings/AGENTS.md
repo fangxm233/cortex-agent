@@ -9,9 +9,9 @@ Settings panels, shared controls, configuration writers and view models.
 | AccountsPanel.tsx | view | Render provider accounts and login actions |
 | accounts-vm.test.ts | test | Test account status and grouping |
 | accounts-vm.ts | model | Build account status and provider groups |
-| AppearancePanel.tsx | view | Render language and appearance controls |
+| AppearancePanel.tsx | view | Render appearance controls and storage hints |
 | AppUpdateCard.test.tsx | test | Test native silent-update preferences |
-| AppUpdateCard.tsx | view | Control native silent-update preferences |
+| AppUpdateCard.tsx | view | Show update preferences and readable status |
 | AuthLoginEntry.test.tsx | test | Test settings authentication entry |
 | BudgetPanel.test.tsx | test | Test budget editor interaction gates |
 | BudgetPanel.tsx | view | Edit global and project budgets |
@@ -27,7 +27,7 @@ Settings panels, shared controls, configuration writers and view models.
 | HooksPanel.tsx | view | Browse and manage hooks |
 | hooks-panel-vm.test.ts | test | Test hook filtering and editor rules |
 | hooks-panel-vm.ts | model | Build hook filters, forms and validation |
-| MachinesPanel.tsx | view | Display connected machines |
+| MachinesPanel.tsx | view | Show machines and connection guidance |
 | master-detail-ui.tsx | UI | Provide master-detail editor primitives |
 | PlatformConnectionFields.tsx | view | Edit platform connection credentials |
 | platform-env.test.ts | test | Test environment and runtime setting helpers |
@@ -55,11 +55,11 @@ Settings panels, shared controls, configuration writers and view models.
 | profiles-panel-vm.test.ts | test | Test profile form transitions and validation |
 | profiles-panel-vm.ts | model | Build profile forms and validation rules |
 | RuntimeSettingsPanels.test.tsx | test | Test runtime controls and save gates |
-| RuntimeSettingsPanels.tsx | view | Render notification and advanced settings |
+| RuntimeSettingsPanels.tsx | view | Render runtime controls and readable status |
 | runtime-settings-writer.test.tsx | test | Test runtime setting commits |
 | runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
 | settings-kit.tsx | UI | Provide wrapping settings rows and controls |
-| SettingsModal.tsx | entry | Route settings sections and guard dirty forms |
+| SettingsModal.tsx | entry | Render readable navigation and guarded sections |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
