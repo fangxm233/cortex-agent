@@ -34,7 +34,7 @@
 .provider-setup .setup-theme-toggle:hover { background: var(--proto-gray); }
 .provider-setup .setup-scroll { min-height: 0; flex: 1; overflow-y: auto; }
 .provider-setup .setup-workspace { width: min(640px, calc(100% - 48px)); margin: clamp(40px, 10vh, 96px) auto 40px; }
-.provider-setup .setup-eyebrow { font-size: 11px; font-weight: 600; color: var(--proto-accent); margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.provider-setup .setup-eyebrow { font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--proto-accent) 85%, var(--proto-ink)); margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
 .provider-setup .setup-eyebrow::before { content: ''; height: 6px; width: 6px; border-radius: 50%; background: currentColor; }
 .provider-setup h1 { font-size: 28px; line-height: 1.25; font-weight: 650; letter-spacing: -.7px; margin: 0 0 10px; }
 .provider-setup .setup-intro { font-size: 14px; color: var(--proto-muted); margin: 0 0 28px; max-width: 580px; }
