@@ -1,3 +1,7 @@
+// input:  skills query, SkillGroup, localized vocabulary
+// output: SkillsView
+// pos:    Read-only skill groups and loading or empty states
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
@@ -21,8 +25,10 @@ function SkillChip({ name }: { name: string }): JSX.Element {
         color: 'var(--proto-accent)',
         background: 'var(--proto-accent-bg)',
         border: '1px solid var(--proto-accent-border)',
-        borderRadius: 'var(--r-pill)',
-        padding: '2px 10px',
+        borderRadius: 'var(--r-chip)',
+        padding: '3px 8px',
+        maxWidth: '100%',
+        overflowWrap: 'anywhere',
         fontFamily: MONO,
         letterSpacing: 0.1,
       }}
@@ -36,13 +42,14 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
   const L = useVocab();
   const label = group.plugin ?? L.skUserSkills;
   return (
-    <div style={{ marginBottom: 28 }}>
+    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--glass-2)' }}>
       <div
         style={{
-          fontSize: 10.5,
-          fontWeight: 700,
-          color: 'var(--proto-muted-2)',
-          letterSpacing: 0.8,
+          fontSize: 11.5,
+          fontWeight: 600,
+          color: 'var(--proto-muted)',
+          overflowWrap: 'anywhere',
+          letterSpacing: 0.4,
           textTransform: 'uppercase',
           marginBottom: 10,
           fontFamily: MONO,
@@ -52,9 +59,9 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
         <span
           style={{
             marginLeft: 8,
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 500,
-            color: 'var(--proto-line)',
+            color: 'var(--proto-muted)',
             letterSpacing: 0,
             textTransform: 'none',
           }}
@@ -101,7 +108,7 @@ export function SkillsView(): JSX.Element {
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: -0.3 }}>
           {L.skTitle}
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', marginTop: 3 }}>
+        <div style={{ fontSize: 12, color: 'var(--proto-muted)', marginTop: 4 }}>
           {isLoading
             ? L.skScanning
             : isError
@@ -113,13 +120,13 @@ export function SkillsView(): JSX.Element {
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
         {isLoading && (
-          <div style={{ fontSize: 12, color: 'var(--proto-line)', fontFamily: MONO }}>{L.skLoadingBody}</div>
+          <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skLoadingBody}</div>
         )}
         {isError && (
           <div style={{ fontSize: 12, color: 'var(--proto-danger)', fontFamily: MONO }}>{L.skFailedBody}</div>
         )}
         {!isLoading && !isError && groups.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--proto-line)', fontFamily: MONO }}>{L.skEmpty}</div>
+          <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skEmpty}</div>
         )}
         {groups.map((g) => (
           <GroupSection key={g.plugin ?? '__user__'} group={g} />

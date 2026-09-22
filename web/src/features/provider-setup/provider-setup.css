@@ -1,5 +1,5 @@
 /* input:  shared proto theme tokens and provider setup markup
-   output: scoped styles matching desktop/ui/shell.css
+   output: scoped provider setup and compact header styles
    pos:    Installation-wizard appearance for the provider step
    >>> Once updated, update this header and the parent AGENTS.md <<< */
 .provider-setup {
@@ -25,12 +25,12 @@
   width: 26px; height: 26px; border-radius: var(--r-chip);
   background: var(--brand-badge-bg); border: 1px solid var(--brand-badge-border);
 }
-.provider-setup .setup-header-label { border-left: 1px solid var(--proto-line); padding-left: 12px; color: var(--proto-muted-2); font-size: 12px; }
+.provider-setup .setup-header-label { border-left: 1px solid var(--proto-line); padding-left: 12px; color: var(--proto-muted); font-size: 12px; }
 .provider-setup .setup-header-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .provider-setup .setup-lang-toggle { display: flex; padding: 2px; background: var(--proto-alt); border: 1px solid var(--proto-line); border-radius: var(--r-chip); }
-.provider-setup .setup-lang-toggle button { border: 0; background: transparent; color: var(--proto-muted); border-radius: 4px; padding: 2px 7px; font-size: 11px; }
+.provider-setup .setup-lang-toggle button { border: 0; background: transparent; color: var(--proto-muted); border-radius: var(--r-chip); min-height: 24px; padding: 2px 7px; font-size: 11px; }
 .provider-setup .setup-lang-toggle button[aria-pressed='true'] { background: var(--glass-2); color: var(--proto-ink); box-shadow: var(--shadow-card-subtle); }
-.provider-setup .setup-theme-toggle { border: 0; background: transparent; color: var(--proto-muted); display: flex; padding: 5px; border-radius: var(--r-chip); }
+.provider-setup .setup-theme-toggle { border: 1px solid var(--proto-line); background: transparent; color: var(--proto-muted); display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 5px; border-radius: var(--r-chip); }
 .provider-setup .setup-theme-toggle:hover { background: var(--proto-gray); }
 .provider-setup .setup-scroll { min-height: 0; flex: 1; overflow-y: auto; }
 .provider-setup .setup-workspace { width: min(640px, calc(100% - 48px)); margin: clamp(40px, 10vh, 96px) auto 40px; }

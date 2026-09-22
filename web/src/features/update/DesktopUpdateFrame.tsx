@@ -1,3 +1,7 @@
+// input:  Radix dialog, ReactNode, update copy and dismiss callback
+// output: DesktopUpdateFrame and DesktopUpdateFrameProps
+// pos:    Shared accessible frame for desktop update prompts
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 
@@ -10,7 +14,7 @@ const CONTENT_CLASS =
   'w-[420px] max-w-[calc(100vw-32px)] box-border ' +
   // Floating glass sheet, matching design/Modal's standard panel — a top-level overlay is the one
   // shape `backdrop-filter` is affordable on, and this one holds still for its whole lifetime.
-  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  'rounded-[var(--r-float)] border border-proto-line bg-[var(--glass-2)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
   'p-5 pb-4 shadow-[shadow:var(--shadow-float)] focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out motion-reduce:animate-none';
@@ -35,7 +39,7 @@ function DesktopUpdateHeader(props: Pick<DesktopUpdateFrameProps, 'title' | 'sum
       </div>
       <div className="min-w-0 flex-1">
         <RadixDialog.Title className="text-body font-semibold text-state-ink">{props.title}</RadixDialog.Title>
-        <div className="mt-[3px] font-mono text-[10.5px] font-medium text-proto-muted-3">{props.summary}</div>
+        <div className="mt-1 break-words font-mono text-[11.5px] font-medium leading-relaxed text-proto-muted">{props.summary}</div>
       </div>
     </div>
   );
