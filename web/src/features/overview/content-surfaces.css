@@ -1,0 +1,55 @@
+/* input: theme tokens, owned feature presentation roots
+ * output: Scoped content controls and responsive overview layout
+ * pos: Shared dense content surface language
+ * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+
+.content-surface { min-width: 0; color: var(--proto-ink); }
+.content-surface :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--proto-accent) !important;
+  outline-offset: 2px;
+}
+.content-surface :where(button, [role='button']) {
+  font-family: inherit;
+  border-radius: var(--r-control);
+  -webkit-tap-highlight-color: transparent;
+}
+.content-surface :where(button, a, [role='button']):not(:disabled):hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.content-surface :where(button, input, textarea, select):disabled { cursor: not-allowed; }
+.content-surface :where(input, textarea, select) { max-width: 100%; }
+.content-surface :where(p, pre) { overflow-wrap: anywhere; }
+
+.overview-header, .overview-stats { flex-wrap: wrap; }
+.overview-header { min-height: 50px; height: auto; padding-block: 10px; }
+.overview-header > *, .overview-stats > * { min-width: 0; }
+.overview-header { overflow-wrap: anywhere; }
+.overview-actions { flex-wrap: wrap; }
+.overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overview-executions { grid-column: 1 / -1; }
+.overview-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+.overview-table-row {
+  display: grid;
+  grid-template-columns: 104px minmax(180px, 1fr) 100px 72px 72px 104px 56px;
+  min-width: 716px;
+  gap: 8px;
+}
+.overview-table-row > * { min-width: 0; overflow-wrap: anywhere; }
+.overview-schedule-meta { flex-wrap: wrap; gap: 6px; }
+.thread-detail-header, .thread-detail-meta { flex-wrap: wrap; height: auto; min-height: 50px; }
+.thread-detail-header { padding-block: 10px !important; overflow-wrap: anywhere; }
+.thread-detail-content { flex-wrap: wrap; align-content: flex-start; }
+.thread-detail-content > [data-pipeline] { flex-basis: 360px; }
+.thread-artifact-column { width: min(440px, 100%) !important; flex: 1 1 340px !important; }
+.thread-step-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 1024px) {
+  .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .overview-stats { gap: 16px !important; }
+}
+@media (max-width: 768px) {
+  .overview-grid { padding: 12px !important; }
+  .overview-header, .overview-stats { padding-inline: 12px !important; }
+  .overview-actions { width: 100%; }
+}

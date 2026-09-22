@@ -1,3 +1,8 @@
+// input:  OverviewView, react-test-renderer, query mocks
+// output: Overview action and responsive structure regressions
+// pos:    Scoped overview presentation tests
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -118,6 +123,16 @@ afterEach(() => {
 });
 
 describe('Overview schedule actions', () => {
+  it('keeps every execution column inside a keyboard-scrollable region', async () => {
+    const renderer = await mount();
+    const region = renderer.root.findByProps({ className: 'overview-table-scroll' });
+    expect(region.props.tabIndex).toBe(0);
+    expect(region.props.role).toBe('region');
+    expect(region.findByProps({ className: 'overview-table-row' }).children).toHaveLength(7);
+    expect(renderer.root.findByProps({ className: 'overview-grid' }).props.style.gridTemplateColumns).toBeUndefined();
+    act(() => renderer.unmount());
+  });
+
   it('deletes the selected schedule only after confirmation', async () => {
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
     vi.stubGlobal('confirm', confirm);

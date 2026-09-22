@@ -1,3 +1,8 @@
+// input:  react, feature data, theme tokens
+// output: TasksPanel presentation
+// pos:    Dense tasks content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
@@ -9,7 +14,7 @@ import { useTaskModal } from './TaskModalProvider';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
 const GROUP_LABEL_STYLE = {
-  fontSize: 10.5,
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: '.07em',
   textTransform: 'uppercase',
@@ -19,7 +24,7 @@ const GROUP_LABEL_STYLE = {
 
 const ERROR_STYLE = {
   borderRadius: 'var(--r-control)',
-  border: '1px solid var(--proto-line)',
+  border: '1px solid var(--proto-line-2)',
   background: 'var(--proto-danger-bg)',
   padding: '6px 10px',
   fontSize: 12,
@@ -56,7 +61,7 @@ function TaskSections({ groups, onOpen }: {
 }) {
   const vocab = useVocab();
   if (groups.length === 0) {
-    return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: '24px 0', textAlign: 'center' }}>{vocab.mNoTasks}</div>;
+    return <div style={{ fontSize: 12, color: 'var(--proto-muted)', padding: '24px 0', textAlign: 'center' }}>{vocab.mNoTasks}</div>;
   }
   return <>{groups.map((group) => <GroupSection key={group.kind} {...group} onOpen={onOpen} />)}</>;
 }
@@ -65,7 +70,7 @@ function TaskFooter({ tasks, groups }: { tasks: TaskInfo[]; groups: ReturnType<t
   const vocab = useVocab();
   const done = groups.find((group) => group.kind === 'done')?.tasks.length ?? 0;
   return (
-    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '8px 2px 0', borderTop: '1px solid var(--proto-line-2)', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '8px 2px 0', borderTop: '1px solid var(--proto-line-2)', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
       <span>TASKS.yaml · {vocab.synced}</span>
       <span style={{ marginLeft: 'auto' }}>{tasks.length} total · {done} done</span>
     </div>
@@ -85,7 +90,7 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   const tasks = query.data ?? [];
   const groups = useMemo(() => groupTasks(tasks), [tasks]);
 
-  if (query.isPending) return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: 12 }}>{vocab.tkLoading}</div>;
+  if (query.isPending) return <div style={{ fontSize: 12, color: 'var(--proto-muted)', padding: 12 }}>{vocab.tkLoading}</div>;
   if (query.isError) return <div style={ERROR_STYLE}>{vocab.tkLoadFailed}: {query.error.message}</div>;
   return (
     <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>

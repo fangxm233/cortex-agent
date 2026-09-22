@@ -1,3 +1,8 @@
+// input:  react, feature data, theme tokens
+// output: ThreadStepChat presentation
+// pos:    Dense thread content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -42,7 +47,7 @@ export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; 
     [transcript, liveTail, streaming, running, live, L],
   );
 
-  const muted: React.CSSProperties = { fontSize: 11.5, color: 'var(--proto-muted-3)', padding: '2px 0' };
+  const muted: React.CSSProperties = { fontSize: 11.5, color: 'var(--proto-muted)', padding: '2px 0' };
 
   if (!sessionId) {
     return <div style={muted}>{L.thStepNoSession}</div>;

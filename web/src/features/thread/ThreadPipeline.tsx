@@ -1,3 +1,8 @@
+// input:  react, feature data, theme tokens
+// output: ThreadPipeline presentation
+// pos:    Dense thread content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-vm';
@@ -11,7 +16,7 @@ import { ThreadStepChat } from './ThreadStepChat';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)' }}>
+    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted)' }}>
       {children}
     </span>
   );
@@ -31,7 +36,7 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 8.5,
+          fontSize: 11,
           fontWeight: 700,
           flex: 'none',
         }}
@@ -71,33 +76,35 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
 
 function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void }) {
   const [hover, setHover] = useState(false);
-  const pending = step.kind === 'pending';
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } }}
       data-step-kind={step.kind}
       style={{
-        background: 'var(--glass-2)',
-        border: pending ? '1px dashed var(--proto-line-3)' : '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
+        background: 'var(--proto-card)',
+        border: '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'),
         borderRadius: 'var(--r-card)',
         padding: '9px 13px',
-        boxShadow: 'var(--shadow-card-subtle)',
+        boxShadow: 'none',
         cursor: 'pointer',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="thread-step-heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <StepDot kind={step.kind} />
         <span
-          style={{ fontSize: 12.5, fontWeight: 600, color: pending ? 'var(--proto-faint)' : 'var(--proto-muted)', flex: 'none' }}
+          style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-muted)', flex: 'none' }}
         >
           {step.title}
         </span>
         <span
           style={{
-            fontSize: 10.5,
-            color: 'var(--proto-muted-3)',
+            fontSize: 11,
+            color: 'var(--proto-muted)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -108,14 +115,14 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
         <span
           style={{
             marginLeft: 'auto',
-            font: "400 10px 'IBM Plex Mono',monospace",
-            color: pending ? 'var(--proto-line-3)' : 'var(--proto-faint)',
+            font: "400 11px 'IBM Plex Mono',monospace",
+            color: 'var(--proto-muted)',
             flex: 'none',
           }}
         >
           {step.meta}
         </span>
-        <span style={{ color: 'var(--proto-line-3)', fontSize: 9, flex: 'none' }}>▸</span>
+        <span style={{ color: 'var(--proto-muted)', fontSize: 11, flex: 'none' }}>▸</span>
       </div>
     </div>
   );
@@ -136,11 +143,11 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{sub.name}</span>
-        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>{sub.level}</span>
+        <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{sub.level}</span>
         <span
           style={{
             marginLeft: 'auto',
-            fontSize: 9.5,
+            fontSize: 11,
             fontWeight: 600,
             padding: '1.5px 7px',
             borderRadius: 'var(--r-pill)',
@@ -152,13 +159,13 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
         </span>
       </div>
       {(sub.hasLine || sub.drillable) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)', marginTop: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted)', marginTop: 5 }}>
           {sub.hasLine && sub.line}
           {sub.drillable && (
             <span
               data-drill-thread-id={sub.id}
               onClick={onOpen}
-              style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
+              style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
             >
               {L.thOpenSub} ›
             </span>
@@ -190,15 +197,19 @@ function ExpandedStep({
       data-active-step={running ? 'true' : undefined}
       data-expanded-step="true"
       style={{
-        background: 'var(--glass-2)',
-        border: running ? '1.5px solid var(--proto-accent)' : '1.5px solid var(--proto-accent-border)',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-accent-border)',
         borderRadius: 'var(--r-card)',
-        boxShadow: running ? '0 0 0 3px var(--proto-accent-bg)' : 'var(--shadow-card-soft)',
+        boxShadow: 'none',
         overflow: 'hidden',
       }}
     >
       {/* header row — click to collapse */}
       <div
+        className="thread-step-heading"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onCollapse(); } }}
         onClick={onCollapse}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 13px', cursor: 'pointer' }}
       >
@@ -207,29 +218,29 @@ function ExpandedStep({
         {agentLabel && (
           <span
             style={{
-              font: "500 9px 'IBM Plex Mono',monospace",
-              border: '1px solid var(--proto-line)',
-              color: 'var(--proto-muted-2)',
+              font: "500 11px 'IBM Plex Mono',monospace",
+              border: '1px solid var(--proto-line-2)',
+              color: 'var(--proto-muted)',
               padding: '1px 6px',
-              borderRadius: 5,
+              borderRadius: 'var(--r-control)',
             }}
           >
             {L.thAgentLabel}: {agentLabel}
           </span>
         )}
         {execInfo && (
-          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{execInfo}</span>
+          <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{execInfo}</span>
         )}
         <span
           style={{
             marginLeft: 'auto',
-            font: "400 10px 'IBM Plex Mono',monospace",
-            color: running ? 'var(--proto-accent)' : 'var(--proto-faint)',
+            font: "400 11px 'IBM Plex Mono',monospace",
+            color: running ? 'var(--proto-accent)' : 'var(--proto-muted)',
           }}
         >
           {step.meta}
         </span>
-        <span style={{ color: 'var(--proto-faint)', fontSize: 9, flex: 'none', transform: 'rotate(90deg)' }}>▸</span>
+        <span style={{ color: 'var(--proto-muted)', fontSize: 11, flex: 'none', transform: 'rotate(90deg)' }}>▸</span>
       </div>
 
       {/* agent chat */}
@@ -254,7 +265,7 @@ function ExpandedStep({
       {/* sub-threads */}
       {step.subCount > 0 && (
         <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 13px 12px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)', marginBottom: 7 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted)', marginBottom: 7 }}>
             {L.thSubThreads} · {step.subCount}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
