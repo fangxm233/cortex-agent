@@ -50,7 +50,7 @@ Mobile screens, readable presentation views and native service adapters.
 | MIssuesScreen.tsx | screen | Connect project issue data and actions |
 | MIssuesView.tsx | view | Render project issue material cards and actions |
 | MMachinesScreen.tsx | screen | Connect machine data and actions |
-| MMachinesView.tsx | view | Render machine material cards and telemetry |
+| MMachinesView.tsx | view | Render machine cards and readable daemon metadata |
 | m-machines-vm.ts | model | Build mobile machine view state |
 | MMcpScreen.tsx | screen | Host mobile MCP settings |
 | MMemoryFileScreen.tsx | screen | Connect memory file data and actions |
@@ -70,7 +70,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notes-gestures.ts | utility | Resolve note swipe offsets and outcomes |
 | MNotesProjectCard.tsx | view | Render project note cards and actions |
 | MNotesScreen.tsx | screen | Connect project notes and actions |
-| MNotesView.tsx | view | Render note materials and stable swipe surfaces |
+| MNotesView.tsx | view | Render readable note actions and swipe surfaces |
 | m-notes-vm.test.ts | test | Test notes view model construction |
 | m-notes-vm.ts | model | Build mobile notes view state |
 | MNotificationProvider.test.tsx | test | Test mobile notification delivery and routing |
@@ -87,7 +87,7 @@ Mobile screens, readable presentation views and native service adapters.
 | MProfilesScreen.tsx | screen | Browse and edit mobile profiles |
 | MProfilesScreen.test.tsx | test | Check mobile profile actions and editor |
 | MProjectScreen.tsx | screen | Connect project overview data and actions |
-| MProjectView.tsx | view | Render project material cards and switching |
+| MProjectView.tsx | view | Render project cards and readable initials |
 | m-project-vm.test.ts | test | Test project counts and view state |
 | m-project-vm.ts | model | Build project counts and overview state |
 | MRuntimeSettingsScreen.test.tsx | test | Test mobile runtime settings |

@@ -1,6 +1,6 @@
 // input:  machine VMs, localized copy, mobile Settings controls
 // output: MMachinesView
-// pos:    Mobile machine material cards and telemetry
+// pos:    Mobile machine cards and readable daemon metadata
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
@@ -47,7 +47,7 @@ const META: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted };
 // ── header trailing: daemon · N/M 在线 (real online/total; scheme L564) ──────────
 function DaemonStatus({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: MC.done }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: `color-mix(in srgb, ${MC.done}, ${MC.ink} 15%)` }}>
       <MDot color={MC.done} size={6} />
       {copy.daemon} · {vm.onlineCount}/{vm.total} {copy.onlineWord}
     </span>

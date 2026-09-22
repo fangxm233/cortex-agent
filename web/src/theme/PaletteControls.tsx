@@ -1,6 +1,6 @@
 // input:  palette presets, ColorSlider
 // output: PaletteControls, PaletteControlsCopy
-// pos:    Appearance palette presets and adjustment controls
+// pos:    Readable palette preset labels and exact color previews
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { CSSProperties } from 'react';
@@ -60,7 +60,7 @@ function PresetChip({ preset, label, active, onPick }: {
         padding: '4px 9px 4px 5px', borderRadius: 'var(--r-control)', minHeight: 'var(--settings-control-height, 34px)', font: 'inherit', fontSize: 12, fontWeight: 600,
         background: active ? 'var(--proto-accent-bg)' : 'var(--proto-gray)',
         boxShadow: `0 0 0 1px ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-        color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
+        color: active ? 'color-mix(in srgb, var(--proto-accent), var(--proto-ink) 15%)' : 'var(--proto-muted)',
       }}
     >
       <PresetSwatch preset={preset} />

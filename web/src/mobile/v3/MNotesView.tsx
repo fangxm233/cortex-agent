@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MNotesView
-// pos:    Mobile note materials and stable swipe occlusion
+// pos:    Mobile notes with readable clear and stable swipe surfaces
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
@@ -172,7 +172,7 @@ export function MNotesView(props: MNotesViewProps) {
           : <ActiveRow key={row.id} row={row} copy={props.copy} busy={props.busy} actionOpen={actionId === row.id} swipeOpen={swipeId === row.id} actions={actions} onActions={setActionId} onSwipe={setSwipeId} onEdit={() => setEditingId(row.id)} />)}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 0' }}>
           <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, padding: 0, background: 'transparent', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: MC.muted }}>{props.copy.completed} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
-          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: 'var(--proto-danger)', fontSize: 11, fontWeight: 600 }}>{props.copy.clear}</button>}
+          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: `color-mix(in srgb, var(--proto-danger), ${MC.ink} 15%)`, fontSize: 11, fontWeight: 600 }}>{props.copy.clear}</button>}
         </div>
         {completedOpen && props.vm.completed.map((row) => <CompletedRow key={row.id} row={row} busy={props.busy} onReopen={() => void props.onSetCompleted(row.id, false)} />)}
       </MScrollBody>

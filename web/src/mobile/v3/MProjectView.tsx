@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MProjectView
-// pos:    Mobile project material cards and scope navigation
+// pos:    Mobile project cards with readable project initials
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
@@ -131,7 +131,7 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
             height: 36,
             borderRadius: 'var(--r-chip)',
             background: MC.runBg,
-            color: MC.run,
+            color: `color-mix(in srgb, ${MC.run}, ${MC.ink} 15%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
