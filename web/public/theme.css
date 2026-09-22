@@ -208,7 +208,9 @@
   --media-glyph-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
 
   --cmdk-panel-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
-  --cmdk-row-selected: oklch(calc(0.974 + 0.45 * var(--bg-light)) calc(0.0094 * var(--bg-chroma)) var(--bg-hue));
+  /* Alpha, not an opaque fill: the palette sheet is glass, and an opaque row would punch a flat
+     hole through the blur behind it. */
+  --cmdk-row-selected: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.05);
   --cmdk-row-hover: var(--accent-soft);
   --log-bg: #12151a;
   --log-fg: #c9ceda;
@@ -385,8 +387,8 @@
   --media-label-bg: rgba(20, 23, 27, 0.82);
   --media-label-bg-soft: rgba(20, 23, 27, 0.68);
   --cmdk-panel-bg: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue));
-  --cmdk-row-selected: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
-  --cmdk-row-hover: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
+  --cmdk-row-selected: oklch(1 0 var(--ink-hue) / 0.08);
+  --cmdk-row-hover: oklch(1 0 var(--ink-hue) / 0.05);
   --log-bg: #14181f;
   --log-fg: #c9ceda;
 

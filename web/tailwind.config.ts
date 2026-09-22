@@ -128,8 +128,10 @@ const config: Config = {
         '6g': '48px',
       },
       borderRadius: {
-        card: '10px',
-        menu: '8px',
+        // Aliases onto the shared radius scale in public/theme.css rather than pixel literals, so
+        // the Tailwind-styled minority of the UI cannot drift from the inline-styled majority.
+        card: 'var(--r-card)',
+        menu: 'var(--r-chip)',
       },
       boxShadow: {
         card: 'var(--shadow-card)',

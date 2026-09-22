@@ -76,9 +76,15 @@
     transform: translateX(-50%);
     width: 560px;
     max-width: 94vw;
-    background: var(--cmdk-panel-bg);
-    border-radius: 14px;
-    box-shadow: var(--shadow-overlay-strong);
+    /* A floating sheet like every other overlay. The blur belongs here and nowhere else in the
+       palette: this element holds still while its result list scrolls inside it, so the ground
+       behind it is sampled once per open rather than once per scroll frame. The rows use an alpha
+       tint instead, which composites over the blur this sheet already produced. */
+    background: var(--glass-2);
+    backdrop-filter: var(--glass-filter);
+    -webkit-backdrop-filter: var(--glass-filter);
+    border-radius: var(--r-float);
+    box-shadow: var(--shadow-float);
     z-index: 61;
     overflow: hidden;
     animation: cxcmdk 0.22s cubic-bezier(0.22, 1, 0.36, 1);
