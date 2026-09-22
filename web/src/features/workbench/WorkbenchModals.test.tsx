@@ -1,6 +1,6 @@
 // input:  Workbench dialogs, React renderer, modal test harness
 // output: Dialog shell, dismissal and action regression tests
-// pos:    Workbench modal presentation integration coverage
+// pos:    Workbench modal glass surface and interaction coverage
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -111,6 +111,15 @@ describe('NewProjectModal shared shell', () => {
     act(() => input.props.onChange({ target: { value: 'atlas' } }));
     act(() => input.props.onKeyDown({ key: 'Enter' }));
     expect(harness.createCalls).toEqual(['atlas']);
+  });
+});
+
+describe('SessionStatsModal glass body', () => {
+  it('does not cover the shared glass surface with an opaque body', () => {
+    const tree = render(<SessionStatsModal rows={[{ key: 'runs', label: 'Runs', value: '6 runs' }]} onClose={vi.fn()} />);
+    const body = tree.root.findByProps({ 'data-session-stats-row': 'runs' }).parent!;
+    expect(body.props.style.background).toBe('transparent');
+    act(() => tree.unmount());
   });
 });
 

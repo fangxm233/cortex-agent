@@ -1,8 +1,8 @@
 // input:  Tool calls, overflow measurement, debug details
 // output: ToolCallsRow
-// pos:    Focus-stable tool toggles and expandable debug details
+// pos:    Spaced tool groups with click-anywhere detail collapse
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { useRef, useState, type CSSProperties, type MouseEvent, type Ref } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
@@ -41,8 +41,7 @@ const expandedPanelStyle: CSSProperties = {
   border: '1px solid var(--proto-line)',
   borderRadius: 'var(--r-card)',
   padding: '2px 0',
-  // Closes the row gap the summary row's own tuck opens, so the panel hangs off that row.
-  marginTop: -6,
+  cursor: 'pointer',
   animation: 'cxfade .2s ease',
 };
 const expandedCallStyle: CSSProperties = {
@@ -101,19 +100,20 @@ function ToolChip({ call }: { call: ToolCall }): JSX.Element {
 
 // The summary row is the same in both states — expanding flips its caret and hangs a panel under
 // it rather than replacing it, so the chips stay readable while the detail is open.
-function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover }: {
+function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover, buttonRef }: {
   calls: ToolCall[];
   text: string;
   expanded: boolean;
   hover: boolean;
   onToggle: () => void;
   onHover: (hovered: boolean) => void;
+  buttonRef: Ref<HTMLButtonElement>;
 }): JSX.Element {
   const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.label), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
-    <div style={{ margin: '-8px 0' }}>
-      <button type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
+    <div>
+      <button ref={buttonRef} type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
         <span style={{ fontSize: 9, color: 'var(--proto-muted)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span style={{ flex: 'none' }}>{text}</span>
         <span ref={containerRef} style={collapsedCallsStyle}>
@@ -129,12 +129,13 @@ function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover }
   );
 }
 
-function ExpandedToolCall({ call, onInspect }: {
+function ExpandedToolCall({ call, first, onInspect }: {
   call: ToolCall;
+  first: boolean;
   onInspect: Inspect;
 }): JSX.Element {
   return (
-    <div className={call.debug ? 'group/tool-call' : undefined} style={expandedCallStyle}>
+    <div className={call.debug ? 'group/tool-call' : undefined} style={{ ...expandedCallStyle, ...(first ? { borderTop: 'none' } : {}) }}>
       <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>{call.kind}</span>
       <span style={{ ...inputStyle, ...(call.debug ? { minWidth: 0, flex: 1 } : {}) }}>{call.input}</span>
       {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" onClick={(event) => onInspect(event, call)} /> : null}
@@ -142,16 +143,17 @@ function ExpandedToolCall({ call, onInspect }: {
   );
 }
 
-function ExpandedToolCalls({ calls, selected, onInspect, onClose }: {
+function ExpandedToolCalls({ calls, selected, onInspect, onClose, onCollapse }: {
   calls: ToolCall[];
   selected: DebugDetail | null;
   onInspect: Inspect;
   onClose: () => void;
+  onCollapse: () => void;
 }): JSX.Element {
   return (
     <>
-      <div style={expandedPanelStyle}>
-        {calls.map((call, index) => <ExpandedToolCall key={index} call={call} onInspect={onInspect} />)}
+      <div data-tool-calls-panel onClick={onCollapse} style={expandedPanelStyle}>
+        {calls.map((call, index) => <ExpandedToolCall key={index} call={call} first={index === 0} onInspect={onInspect} />)}
       </div>
       <DebugDetailsModal detail={selected} onClose={onClose} />
     </>
@@ -164,6 +166,7 @@ export function ToolCallsRow({ calls, sessionId }: {
 }): JSX.Element {
   const L = useVocab();
   const client = useTRPCClient();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
@@ -181,10 +184,11 @@ export function ToolCallsRow({ calls, sessionId }: {
         : current);
     }).catch(() => {});
   };
+  const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
   return (
-    <>
-      <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} onToggle={() => setExpanded((value) => !value)} onHover={setHover} />
-      {expanded ? <ExpandedToolCalls calls={calls} selected={selected} onInspect={inspect} onClose={() => setSelected(null)} /> : null}
-    </>
+    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '-8px 0' }}>
+      <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
+      {expanded ? <ExpandedToolCalls calls={calls} selected={selected} onInspect={inspect} onClose={() => setSelected(null)} onCollapse={collapse} /> : null}
+    </div>
   );
 }

@@ -105,7 +105,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | SessionIdModal.tsx | view | Render session id modal |
 | SessionSelector.test.tsx | test | Test selection changes and keyboard trigger |
 | SessionSelector.tsx | view | Render keyboard-accessible session selector |
-| SessionStatsModal.tsx | view | Render session stats modal |
+| SessionStatsModal.tsx | view | Render session totals on shared glass surface |
 | SubagentBlock.test.tsx | test | Test subagent block |
 | SubagentBlock.tsx | view | Render subagent block |
 | SubagentTranscriptDetail.test.tsx | test | Test subagent transcript detail |
@@ -118,8 +118,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | TodoRail.test.tsx | test | Test todo rail |
 | TodoRail.tsx | view | Render todo rail |
 | tool-call-overflow.ts | model | Build tool call overflow state |
-| ToolCallsRow.test.tsx | test | Test persistent tool expansion toggle |
-| ToolCallsRow.tsx | view | Render focus-preserving tool calls row |
+| ToolCallsRow.test.tsx | test | Test tool group spacing and collapse behavior |
+| ToolCallsRow.tsx | view | Render spaced, click-to-collapse tool groups |
 | transcript-vm.test.ts | test | Test transcript vm |
 | transcript-vm.ts | model | Build transcript vm state |
 | useAssistantDeltaStream.test.tsx | test | Test use assistant delta stream |
@@ -145,5 +145,5 @@ Desktop conversations, composer controls, session navigation and context panels.
 | wait-rail-vm.ts | model | Build wait rail vm state |
 | WaitRail.test.tsx | test | Test wait rail |
 | WaitRail.tsx | view | Render wait rail |
-| WorkbenchModals.test.tsx | test | Test workbench modals |
+| WorkbenchModals.test.tsx | test | Test dialog surfaces and modal interactions |
 | WorkbenchPage.tsx | view | Compose the desktop workbench |

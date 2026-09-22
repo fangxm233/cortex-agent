@@ -1,6 +1,6 @@
 // input:  Modal, vocabulary, SessionStatsRow
 // output: SessionStatsModal
-// pos:    Compact session totals dialog
+// pos:    Session totals on a continuous glass dialog surface
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { Modal } from '@/design/Modal';
@@ -73,7 +73,7 @@ export function SessionStatsModal({
         </button>
       </div>
 
-      <div style={{ background: 'var(--proto-card)', padding: '12px 20px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ background: 'transparent', padding: '12px 20px 18px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {rows.map((row) => (
           <div
             key={row.key}
