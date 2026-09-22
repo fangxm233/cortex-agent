@@ -13,11 +13,11 @@ Desktop conversations, composer controls, session navigation and context panels.
 | chat-content.ts | model | Build chat content state |
 | chat-nav.test.ts | test | Test chat nav |
 | chat-nav.ts | model | Build chat nav state |
-| ChatHeader.tsx | view | Render chat header |
+| ChatHeader.tsx | view | Render chat title and glass action menu |
 | ChatMarkdown.test.tsx | test | Test chat markdown |
 | ChatMarkdown.tsx | view | Render chat markdown |
 | ChatNavRail.test.tsx | test | Test chat nav rail |
-| ChatNavRail.tsx | view | Render chat nav rail |
+| ChatNavRail.tsx | view | Render transcript ticks and glass previews |
 | ChatNotice.test.tsx | test | Test chat notice |
 | ChatNotice.tsx | view | Render chat notice |
 | commission-rail.test.ts | test | Test commission rail |
@@ -29,8 +29,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | composer-slash.ts | model | Build composer slash state |
 | Composer.test.tsx | test | Test composer |
 | Composer.tsx | view | Render composer |
-| ComposerActionRow.test.tsx | test | Test composer action row |
-| ComposerActionRow.tsx | view | Render composer action row |
+| ComposerActionRow.test.tsx | test | Test menu surfaces and action selection |
+| ComposerActionRow.tsx | view | Render compact controls and glass action menus |
 | ComposerAttachmentChip.tsx | view | Render composer attachment chip |
 | ComposerSendFailure.tsx | view | Render composer send failure |
 | ComposerStatusLine.tsx | view | Render composer status line |
@@ -44,7 +44,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | DecisionCards.test.tsx | test | Test decision cards |
 | DecisionCards.tsx | view | Render decision cards |
 | DraftProjectSelector.test.tsx | test | Test draft project selector |
-| DraftProjectSelector.tsx | view | Render draft project selector |
+| DraftProjectSelector.tsx | view | Select draft project from a glass picker |
 | InlineThreadCardProto.tsx | view | Render inline thread card proto |
 | interaction-vm.test.ts | test | Test interaction vm |
 | interaction-vm.ts | model | Build interaction vm state |
@@ -53,7 +53,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | left-rail-projects.test.ts | test | Test left rail projects |
 | left-rail-projects.ts | model | Build left rail projects state |
 | LeftRail.tsx | view | Render navigation and readable attention counts |
-| MenuChrome.tsx | view | Render composer picker cards and rows |
+| MenuChrome.tsx | view | Share glass menu shells and unfiltered rows |
 | MessageAttachmentCards.tsx | view | Render message attachment cards |
 | MessageEdit.tsx | view | Render message actions and inline editing |
 | MessageStream.tsx | view | Render message stream |
@@ -75,7 +75,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | rail-tree.test.ts | test | Test rail tree |
 | rail-tree.ts | model | Build rail tree state |
 | RailTree.commission.test.tsx | test | Test rail tree.commission |
-| RailTree.tsx | view | Render opaque headers and readable attention |
+| RailTree.tsx | view | Render opaque headers and glass sort menu |
 | reveal-pacing.test.ts | test | Test reveal pacing |
 | reveal-pacing.ts | model | Build reveal pacing state |
 | right-panel-vm.test.ts | test | Test right panel vm |
@@ -96,7 +96,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | SelectedSessionProvider.tsx | provider | Provide selected session |
 | selection-menu.test.ts | test | Test selection menu |
 | selection-menu.ts | model | Build selection menu state |
-| SelectionMenu.tsx | view | Render selection menu |
+| SelectionMenu.tsx | view | Render model selection and inset filter input |
 | session-groups.test.ts | test | Test session groups |
 | session-groups.ts | model | Build session groups state |
 | session-id.ts | model | Build session id state |

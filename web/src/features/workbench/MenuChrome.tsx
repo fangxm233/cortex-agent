@@ -1,14 +1,22 @@
 // input:  React, picker rows and placement
 // output: MenuCard, MenuRow, shared picker chrome
-// pos:    Opaque picker surfaces and accessible compact controls
+// pos:    Glass picker shells and accessible compact controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 // The chrome the composer's pickers share: one card, one row, one hover rule.
 //
 // The engine chip and the agent chip answer different questions and own different menus, but on
 // screen they are the same object — a card of rows hanging off a 30px chip. Sharing the pieces is
 // what stops the two from drifting into two menus that merely resemble each other.
+
+// Only stationary overlay shells filter; rows and inner scrollers share the surface.
+export const MENU_SURFACE: CSSProperties = {
+  background: 'var(--material-overlay-bg)',
+  boxShadow: 'var(--material-overlay-shadow)',
+  backdropFilter: 'var(--glass-filter)',
+  WebkitBackdropFilter: 'var(--glass-filter)',
+};
 
 export const MONO = "'IBM Plex Mono',monospace";
 export const MENU_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--proto-accent)]';
@@ -111,19 +119,15 @@ export function MenuCard({ kind, level, minWidth = 244, placement = 'above', ali
         position: 'absolute',
         ...(align === 'right' ? { right: 0 } : { left: 0 }),
         ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
-        // Opaque, not glass: a menu exists to hide what it covers, and it is also a scroller
-        // (`maxHeight` + `overflowY`) — the one shape a `backdrop-filter` must never take.
-        background: 'var(--proto-card)',
+        ...MENU_SURFACE,
         border: '1px solid var(--proto-line)',
         borderRadius: 'var(--r-card)',
-        boxShadow: 'var(--shadow-menu)',
         zIndex: 59,
         minWidth,
-        maxHeight: 420,
-        overflowY: 'auto',
+        overflow: 'hidden',
       }}
     >
-      {children}
+      <div data-menu-scroll style={{ maxHeight: 420, overflowY: 'auto' }}>{children}</div>
     </div>
   );
 }

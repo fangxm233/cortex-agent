@@ -4,6 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
+import { MENU_SURFACE } from './MenuChrome';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
 import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
 import type { RailSortMode } from './rail-order';
@@ -189,7 +190,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           height: 30,
           padding: '0 10px',
           borderRadius: 9,
-          background: 'var(--glass-2)',
+          background: 'var(--material-inset-bg)',
           boxShadow: '0 0 0 1.5px var(--proto-accent-border)',
         }}
       >
@@ -256,9 +257,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               minWidth: 118,
               padding: 4,
               borderRadius: 'var(--r-card)',
-              background: 'var(--proto-card)',
+              ...MENU_SURFACE,
               border: '1px solid var(--proto-line-3)',
-              boxShadow: 'var(--shadow-menu)',
               display: 'block',
               textAlign: 'left',
             }}

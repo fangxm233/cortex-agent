@@ -224,7 +224,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
             placeholder={L.wbFilterModels}
             style={{
               width: '100%', boxSizing: 'border-box', font: `400 11px ${mono}`,
-              color: 'var(--proto-ink)', background: 'var(--proto-bg)',
+              color: 'var(--proto-ink)', background: 'var(--material-inset-bg)',
               border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px',
             }}
           />

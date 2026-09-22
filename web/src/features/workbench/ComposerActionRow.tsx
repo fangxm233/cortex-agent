@@ -1,9 +1,9 @@
 // input:  React, browser and commission options, slash suggestions
 // output: ComposerActionRow, ComposerSlashMenu, control types
-// pos:    Compact composer toolbar and opaque action pickers
+// pos:    Compact composer toolbar and glass action pickers
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
+import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from './composer-slash';
@@ -20,7 +20,7 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   const [hovered, setHovered] = useState<number | null>(null);
   if (suggestions.length === 0) return null;
   return (
-    <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
+    <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', ...MENU_SURFACE, overflow: 'hidden', zIndex: 10 }}>
       {suggestions.map((suggestion, index) => (
         <button
           type="button"
@@ -31,13 +31,13 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
           onMouseEnter={() => setHovered(index)}
           onMouseLeave={() => setHovered((value) => value === index ? null : value)}
           onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: hovered === index || index === 0 ? 'var(--proto-accent-bg)' : 'var(--proto-card)', cursor: suggestion.disabled ? 'default' : 'pointer' }}
+          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: hovered === index || index === 0 ? 'var(--proto-accent-bg)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
         >
           <span style={{ font: `600 12px ${MONO}`, color: index === 0 ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{suggestion.command}</span>
           <span style={{ fontSize: 11.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
         </button>
       ))}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'var(--proto-rail)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'transparent' }}>
         <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
       </div>
     </div>
@@ -241,21 +241,13 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
         {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
       </button>
       {open && editable && (
-        <span
-          data-menu="browser"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 170,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="browser" align="left" minWidth={170}>
           <BrowserDeviceRows
             options={options}
             current={device}
             onPick={(picked) => { close(); browser.onChange!(picked); }}
           />
-        </span>
+        </MenuCard>
       )}
     </span>
   );
@@ -316,21 +308,13 @@ function ComposerCommissionChip({ commission }: {
         {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
       </button>
       {open && editable && (
-        <span
-          data-menu="commission"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 190,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="commission" align="left" minWidth={190}>
           <CommissionOptionRows
             options={options}
             current={value}
             onPick={(picked) => { close(); commission.onChange!(picked); }}
           />
-        </span>
+        </MenuCard>
       )}
     </span>
   );
@@ -377,7 +361,8 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
           width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
           border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
           color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
-          background: 'var(--proto-card)',
+          background: 'var(--material-control-bg)',
+          boxShadow: 'var(--material-control-shadow)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           lineHeight: 0, cursor: 'pointer',
         }}
@@ -385,15 +370,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
         <PlusGlyph />
       </button>
       {open && (
-        <span
-          data-menu="plus"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 190,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="plus" align="left" minWidth={190}>
           {page === 'root' ? (
             <>
               <button
@@ -483,7 +460,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
               />
             </>
           )}
-        </span>
+        </MenuCard>
       )}
     </span>
   );

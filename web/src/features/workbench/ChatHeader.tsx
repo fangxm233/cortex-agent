@@ -3,7 +3,7 @@
 // pos:    Session title, project badge and compact header controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
+import { MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import { useVocab } from '@/i18n';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
@@ -258,12 +258,9 @@ export function ChatHeader({
                 right: 0,
                 top: 24,
                 minWidth: 132,
-                // Menus stay opaque: they have to hide what they cover, and a blurred popover is
-                // blur the shells pay for on every one of these — the drawer is the blur budget.
-                background: 'var(--proto-card)',
+                ...MENU_SURFACE,
                 border: '1px solid var(--proto-line)',
                 borderRadius: 'var(--r-card)',
-                boxShadow: 'var(--shadow-menu)',
                 overflow: 'hidden',
                 zIndex: 40,
               }}

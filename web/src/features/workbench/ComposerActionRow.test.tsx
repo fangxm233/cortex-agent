@@ -37,7 +37,7 @@ beforeEach(() => {
 });
 
 describe('shared picker chrome', () => {
-  it('keeps selections semantic and disabled choices inert on an opaque surface', () => {
+  it('keeps selections semantic and disabled choices inert on a stationary glass surface', () => {
     const onPick = vi.fn();
     const renderer = create(
       <MenuCard kind="test">
@@ -52,8 +52,13 @@ describe('shared picker chrome', () => {
     act(() => row.props.onClick({ stopPropagation: vi.fn() }));
     expect(onPick).not.toHaveBeenCalled();
     const card = renderer.root.findByProps({ 'data-menu': 'test' });
-    expect(card.props.style.background).toBe('var(--proto-card)');
-    expect(card.props.style.backdropFilter).toBeUndefined();
+    expect(card.props.style.background).toBe('var(--material-overlay-bg)');
+    expect(card.props.style.backdropFilter).toBe('var(--glass-filter)');
+    expect(card.props.style.overflow).toBe('hidden');
+    const scroller = card.findByProps({ 'data-menu-scroll': true });
+    expect(scroller.props.style.overflowY).toBe('auto');
+    expect(scroller.props.style.backdropFilter).toBeUndefined();
+    expect(row.props.style.backdropFilter).toBeUndefined();
   });
 });
 
@@ -129,8 +134,8 @@ describe('ComposerActionRow ＋ menu', () => {
     expect(row.props.type).toBe('button');
     expect(row.props.className).toContain('focus-visible:outline');
     const menu = renderer.root.findByProps({ 'data-menu': 'plus' });
-    expect(menu.props.style.background).toBe('var(--proto-card)');
-    expect(menu.props.style.backdropFilter).toBeUndefined();
+    expect(menu.props.style.background).toBe('var(--material-overlay-bg)');
+    expect(menu.props.style.backdropFilter).toBe('var(--glass-filter)');
     act(() => row.props.onClick(click));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
   });

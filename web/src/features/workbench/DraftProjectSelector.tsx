@@ -1,9 +1,9 @@
 // input:  CurrentProjectProvider, React, MenuChrome
 // output: DraftProjectSelector, orderDraftProjects
-// pos:    Draft project chip and opaque keyboard-ready picker
+// pos:    Draft project chip and glass keyboard-ready picker
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
-import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
+import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
@@ -28,7 +28,7 @@ function ProjectMenu({ projects, current, onPick }: {
 }): JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   return (
-    <div data-menu="project" style={{ position: 'absolute', left: 0, bottom: 36, minWidth: 200, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59, overflow: 'hidden' }}>
+    <MenuCard kind="project" align="left" minWidth={200}>
       {projects.map((project) => (
         <button
           type="button"
@@ -45,7 +45,7 @@ function ProjectMenu({ projects, current, onPick }: {
           {project.id === current && <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>}
         </button>
       ))}
-    </div>
+    </MenuCard>
   );
 }
 
@@ -78,7 +78,7 @@ export function DraftProjectSelector({ disabled = false }: { disabled?: boolean 
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={(event) => { event.stopPropagation(); if (!disabled) setOpen((value) => !value); }}
-        style={{ background: 'var(--proto-card)', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, width: 'fit-content' }}
+        style={{ background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, width: 'fit-content' }}
       >
         {L.project} · {currentProjectId}
       </button>

@@ -3,6 +3,7 @@
 // pos:    Transcript navigation ticks with readable previews
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MENU_SURFACE } from './MenuChrome';
 import { useLang } from '@/i18n';
 import { attachmentFileExt, attachmentTypeColor } from './attachment-presentation';
 import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-nav';
@@ -257,8 +258,8 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
             position: 'absolute', left: RAIL_W + CARD_GAP, top: cardTop ?? 0, width: CARD_W, maxWidth: CARD_W,
             opacity: cardTop == null ? 0 : 1, pointerEvents: 'none', boxSizing: 'border-box',
             display: 'flex', flexDirection: 'column', gap: 6,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
-            boxShadow: 'var(--shadow-overlay)', padding: '14px 16px',
+            ...MENU_SURFACE, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+            padding: '14px 16px',
           }}
         >
           <PreviewCard mark={probed} copy={copy} />
