@@ -1,3 +1,9 @@
+// input:  login flow state, design controls, vocabulary
+// output: LoginFlowModal
+// pos:    Provider authentication presentation and controller
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
+import '../overview/content-surfaces.css';
 import {
   useEffect,
   useMemo,
@@ -162,7 +168,7 @@ function InfoNotice({ notice, L }: {
 }
 
 const OAUTH_STEP_CLASS =
-  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 bg-surface-canvas-alt p-2g';
+  'min-w-0 rounded-[var(--r-card)] border border-proto-line-2 bg-surface-card p-2g';
 
 function AuthUrlNotice({ notice, L, hideInstructions }: {
   notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>;
@@ -223,8 +229,8 @@ function NoticeBody({ state }: { state: LoginFlowState }) {
 }
 
 const PROMPT_CONTROL_CLASS =
-  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-3 ' +
-  'bg-surface-canvas-alt px-2g py-1.5g text-ui text-state-ink shadow-sm ' +
+  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-2 ' +
+  'bg-surface-card px-2g py-1.5g text-ui text-state-ink ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
 function PromptSelect({ state, value, onChange }: {
@@ -727,7 +733,7 @@ function MobileLoginSheet({
     <MBottomSheet onClose={onClose}>
       <section data-auth-sheet role="dialog" aria-modal="true"
         aria-labelledby="auth-sheet-title" aria-describedby="auth-sheet-description"
-        className="flex max-h-[78dvh] min-h-[18rem] min-w-0 flex-col">
+        className="content-surface flex max-h-[78dvh] min-h-[18rem] min-w-0 flex-col">
         <p id="auth-sheet-description" className="sr-only">{description}</p>
         <header className="flex flex-none items-center justify-between gap-2g pb-2g">
           <h2 id="auth-sheet-title" className="min-w-0 break-words text-body font-semibold text-state-ink">{title}</h2>
@@ -757,7 +763,7 @@ export function LoginFlowModal({
       closeLabel={L.authLoginClose} body={body} footer={footer} onClose={onClose} />;
   }
   return (
-    <Modal open={open} onOpenChange={next => { if (!next) onClose(); }}
+    <Modal contentClassName="content-surface" open={open} onOpenChange={next => { if (!next) onClose(); }}
       title={title} description={description} hideDescription footer={footer}>
       {body}
     </Modal>

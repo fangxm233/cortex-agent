@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: RateLimitStatus presentation
+// pos:    Dense rate-limit content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
+import '../overview/content-surfaces.css';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { Popover } from '@/design/Popover';
@@ -25,6 +31,7 @@ const RailBannerTrigger = forwardRef<
       ref={ref}
       type="button"
       {...triggerProps}
+      className={`content-surface ${triggerProps.className ?? ''}`}
       aria-label="Rate limit status"
       title={label}
       style={{
@@ -39,7 +46,7 @@ const RailBannerTrigger = forwardRef<
         gap: 8,
         cursor: 'pointer',
         textAlign: 'left',
-        font: "600 10px 'IBM Plex Mono',monospace",
+        font: "600 11px 'IBM Plex Mono',monospace",
       }}
     >
       <span
@@ -77,6 +84,7 @@ export function MobileRateLimitStatus({
   return (
     <button
       type="button"
+      className="content-surface"
       aria-label="Rate limit status"
       title={status.label}
       onClick={onOpen}
@@ -90,7 +98,7 @@ export function MobileRateLimitStatus({
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-        font: `600 8.5px ${MONO}`,
+        font: `600 11px ${MONO}`,
         cursor: 'pointer',
       }}
     >
@@ -115,7 +123,7 @@ function clearButtonStyle(mobile: boolean, busy: boolean): CSSProperties {
   return {
     border: `1px solid ${border}`, background: 'transparent',
     color: mobile ? MC.amberText : 'var(--pill-waiting-fg)', borderRadius: 'var(--r-pill)',
-    padding: '2px 8px', font: "600 9px 'IBM Plex Mono',monospace",
+    padding: '2px 8px', font: "600 11px 'IBM Plex Mono',monospace",
     cursor: busy ? 'progress' : 'pointer', opacity: busy ? 0.6 : 1,
   };
 }
@@ -144,10 +152,10 @@ function ProviderWindows(props: { provider: RateLimitProviderView; recovers: str
   return props.provider.windows.map((window) => (
     <div
       key={`${window.type}:${window.typeLabel}:${window.resetsAt}`}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, color: props.muted }}
+      style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 6, color: props.muted }}
     >
-      <span style={{ font: `600 9.5px ${MONO}` }}>{window.typeLabel}</span>
-      <span style={{ marginLeft: 'auto', font: `500 9.5px ${MONO}` }}>
+      <span style={{ font: `600 11px ${MONO}` }}>{window.typeLabel}</span>
+      <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}` }}>
         {window.countdown} {props.recovers}
       </span>
     </div>
@@ -158,19 +166,19 @@ function ProviderDetails(props: {
   provider: RateLimitProviderView; index: number; status: RateLimitView; mobile: boolean;
 }) {
   const { provider, index, status, mobile } = props;
-  const muted = mobile ? MC.muted : 'var(--proto-muted-2)';
+  const muted = mobile ? MC.muted : 'var(--proto-muted)';
   const line = mobile ? MC.hairline : 'var(--proto-line)';
   const amber = mobile ? MC.amberText : 'var(--pill-waiting-fg)';
   return (
     <div style={{ borderTop: index > 0 ? `1px solid ${line}` : 'none', paddingTop: index > 0 ? 9 : 0, marginTop: index > 0 ? 9 : 0 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700 }}>{provider.displayName}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ClearRateLimitButton provider={provider.provider} lang={status.lang} mobile={mobile} />
-          <span style={{ font: `600 9px ${MONO}`, color: amber }}>{provider.recoveryCountdown}</span>
+          <span style={{ font: `600 11px ${MONO}`, color: amber }}>{provider.recoveryCountdown}</span>
         </span>
       </div>
-      <div style={{ marginTop: 4, color: muted, font: `500 9px ${MONO}` }}>{provider.waitingLabel}</div>
+      <div style={{ marginTop: 4, color: muted, font: `500 11px ${MONO}` }}>{provider.waitingLabel}</div>
       <ProviderWindows provider={provider} recovers={detailsCopy(status).recovers} muted={muted} />
     </div>
   );
@@ -180,7 +188,7 @@ export function RateLimitDetails({ status, mobile = false }: { status: RateLimit
   const copy = detailsCopy(status);
   const ink = mobile ? MC.ink : 'var(--proto-ink)';
   return (
-    <div style={{ minWidth: mobile ? 0 : 230, color: ink }}>
+    <div className="content-surface" style={{ minWidth: mobile ? 0 : 230, color: ink }}>
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{copy.title}</div>
       {status.providers.map((provider, index) => (
         <ProviderDetails key={provider.provider} provider={provider} index={index} status={status} mobile={mobile} />

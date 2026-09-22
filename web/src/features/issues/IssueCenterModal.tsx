@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: IssueCenterModal presentation
+// pos:    Dense issues content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useEffect, useMemo, useState } from 'react';
+import '../overview/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
@@ -68,6 +74,7 @@ function IssueCenterView(props: IssueCenterViewProps) {
       />
       {/* shell (design 24b: 1150×730) */}
       <div
+        className="content-surface issue-center"
         data-issue-center=""
         data-issue-selected={selected?.id ?? ''}
         style={{
@@ -101,14 +108,14 @@ function IssueCenterView(props: IssueCenterViewProps) {
             alignItems: 'center',
             gap: 9,
             padding: '12px 20px',
-            borderBottom: '1px solid var(--proto-line)',
+            borderBottom: '1px solid var(--proto-line-2)',
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.issuesTitle}</span>
           {hasItems && (
             <span
               style={{
-                font: `600 10.5px ${mono}`,
+                font: `600 11px ${mono}`,
                 color: 'var(--proto-muted)',
                 background: 'var(--proto-line-2)',
                 padding: '2px 9px',
@@ -119,22 +126,22 @@ function IssueCenterView(props: IssueCenterViewProps) {
               {count}
             </span>
           )}
-          <span style={{ marginLeft: 'auto', font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+          <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
             {props.projectId ? `${props.projectId}/ISSUES.md` : 'ISSUES.md'}
           </span>
-          <span
+          <button type="button" className="content-text-action"
             onClick={props.onClose}
             style={{
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 5,
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
+              border: '1px solid var(--proto-line-2)',
+              borderRadius: 'var(--r-control)',
               padding: '2px 6px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body */}
@@ -200,7 +207,7 @@ function EmptyState() {
         ✓
       </span>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.isEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{L.isEmptyDesc}</div>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{L.isEmptyDesc}</div>
     </div>
   );
 }
@@ -222,9 +229,9 @@ function IssueQueue({
   return (
     <div
       style={{
-        width: 400,
+        width: 'clamp(180px, 34%, 400px)',
         flex: 'none',
-        borderRight: '1px solid var(--proto-line)',
+        borderRight: '1px solid var(--proto-line-2)',
         background: 'var(--proto-rail)',
         display: 'flex',
         flexDirection: 'column',
@@ -234,10 +241,10 @@ function IssueQueue({
       <div
         style={{
           padding: '14px 18px 9px',
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 700,
           letterSpacing: '.06em',
-          color: 'var(--proto-muted-3)',
+          color: 'var(--proto-muted)',
           flex: 'none',
         }}
       >
@@ -251,13 +258,16 @@ function IssueQueue({
             <div
               key={e.id}
               data-issue-id={e.id}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(e.id); } }}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--glass-2)',
+                background: 'var(--proto-card)',
                 border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
                 borderRadius: 'var(--r-card)',
                 padding: '11px 13px',
-                boxShadow: sel ? 'var(--focus-ring-accent)' : 'none',
+                boxShadow: 'none',
                 cursor: 'pointer',
                 flex: 'none',
               }}
@@ -274,7 +284,7 @@ function IssueQueue({
               </div>
               {card.date && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6 }}>
-                  <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
+                  <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
                     {card.date}
                   </span>
                 </div>
@@ -288,8 +298,8 @@ function IssueQueue({
           marginTop: 'auto',
           padding: '12px 18px',
           borderTop: '1px solid var(--proto-line-2)',
-          font: `400 9.5px ${mono}`,
-          color: 'var(--proto-faint)',
+          font: `400 11px ${mono}`,
+          color: 'var(--proto-muted)',
           lineHeight: 1.7,
           flex: 'none',
         }}
@@ -303,10 +313,10 @@ function IssueQueue({
 // ── right detail pane (24b: read-only grid, verbatim field labels) ────────────────────────────
 
 const GRID_LABEL: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: '.05em',
-  color: 'var(--proto-muted-3)',
+  color: 'var(--proto-muted)',
   paddingTop: 2,
 };
 
@@ -329,7 +339,7 @@ function DetailPane({
 }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--proto-card)' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '18px 24px 0' }}>
         {/* title — no status pill by design (在列表即待处理) */}
         <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35 }}>
@@ -344,8 +354,8 @@ function DetailPane({
               alignItems: 'center',
               gap: 14,
               marginTop: 8,
-              font: `400 10.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `400 11px ${mono}`,
+              color: 'var(--proto-muted)',
             }}
           >
             <span>
@@ -359,7 +369,7 @@ function DetailPane({
           style={{
             margin: '16px 0 14px',
             display: 'grid',
-            gridTemplateColumns: '76px 1fr',
+            gridTemplateColumns: '76px minmax(0, 1fr)',
             rowGap: 10,
             columnGap: 14,
             fontSize: 12,
@@ -387,11 +397,12 @@ function DetailPane({
           borderTop: '1px solid var(--proto-line-2)',
           padding: '14px 22px',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 10,
         }}
       >
-        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
           {L.isFootNote}
         </span>
         {!armed && (
@@ -505,15 +516,17 @@ function HoverButton({
 } & Record<string, unknown>) {
   const [h, setH] = useState(false);
   return (
-    <span
+    <button
       {...rest}
+      type="button"
+      disabled={!onClick}
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      style={h ? { ...base, ...hover } : base}
+      style={{ border: 0, fontFamily: 'inherit', ...base, ...(h && onClick ? hover : {}) }}
     >
       {children}
-    </span>
+    </button>
   );
 }
 
