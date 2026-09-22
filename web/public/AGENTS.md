@@ -7,4 +7,4 @@ Shared theme tokens and browser application icons.
 | apple-touch-icon.png | asset | Identify the installed web application |
 | favicon-32.png | asset | Identify browser tabs |
 | favicon.svg | asset | Provide a scalable browser icon |
-| theme.css | style | Define palette, glass and material contracts |
+| theme.css | style | Define palette, glass and readable material tokens |

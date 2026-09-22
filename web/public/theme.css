@@ -135,7 +135,8 @@
      scrims may use --material-scrim-filter as backdrop-filter (including the WebKit property).
      Controls occlude more than cards; inset surfaces sit lower without another frosted layer.
      All base colors follow the live palette and become opaque when glass alphas reach 1. */
-  --material-sheen-top: rgba(255, 255, 255, calc(0.14 * var(--material-sheen-strength)));
+  /* Keep light sheen below the filled danger action's contrast headroom. */
+  --material-sheen-top: rgba(255, 255, 255, calc(0.1 * var(--material-sheen-strength)));
   --material-sheen-bottom: rgba(16, 24, 40, calc(0.025 * var(--material-sheen-strength)));
   --material-edge: rgba(255, 255, 255, 0.65);
   --material-sheen: linear-gradient(180deg, var(--material-sheen-top), transparent 48%, var(--material-sheen-bottom));
