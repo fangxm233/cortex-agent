@@ -10,7 +10,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | MAccountsView.test.tsx | test | Test mobile account presentation |
 | MAccountsView.tsx | view | Render mobile accounts and provider actions |
 | MAppearanceScreen.tsx | screen | Connect mobile appearance preferences |
-| MAppearanceView.tsx | view | Render mobile language and appearance controls |
+| MAppearanceView.tsx | view | Render shared mobile appearance choices |
 | MApprovalsScreen.test.tsx | test | Test mobile approval screen actions |
 | MApprovalsScreen.tsx | screen | Connect approval data and actions |
 | MApprovalsView.test.tsx | test | Test mobile approval presentation |
@@ -83,6 +83,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | MPlanReadView.tsx | view | Render plans and approval controls |
 | MPlatformScreen.tsx | screen | Host shared platform settings |
 | MProfilesScreen.tsx | screen | Browse and edit mobile profiles |
+| MProfilesScreen.test.tsx | test | Check mobile profile actions and editor |
 | MProjectScreen.tsx | screen | Connect project overview data and actions |
 | MProjectView.tsx | view | Render mobile project overview |
 | m-project-vm.test.ts | test | Test project counts and view state |
@@ -99,6 +100,7 @@ Mobile screens, presentation views, view models and native service adapters.
 | m-session-list-vm.test.ts | test | Test session status and grouping |
 | m-session-list-vm.ts | model | Build session status lines and groups |
 | MSettingsControls.tsx | UI | Provide mobile settings frames and controls |
+| MSettingsControls.test.tsx | test | Check mobile settings scope and controls |
 | MSettingsScreen.tsx | screen | Connect settings overview data and navigation |
 | MSettingsView.test.tsx | test | Test mobile settings navigation parity |
 | MSettingsView.tsx | view | Render mobile settings overview |

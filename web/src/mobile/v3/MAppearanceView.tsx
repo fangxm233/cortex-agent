@@ -1,4 +1,4 @@
-// input:  appearance preferences, language, theme controls
+// input:  appearance preferences, shared settings controls
 // output: MAppearanceView
 // pos:    Mobile appearance preferences and palette controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
@@ -6,6 +6,7 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
+import { SSegmented } from '@/features/settings/settings-kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
 import type { Lang, LangSource } from '@/i18n';
@@ -82,39 +83,13 @@ function rowStyle(divider: boolean): CSSProperties {
 const TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, color: MC.ink };
 const HINT: CSSProperties = { fontSize: 12, color: MC.muted, marginTop: 4, lineHeight: 1.45, paddingRight: 8 };
 
-function SegmentItem<T extends string>({ id, label, active, onChange }: {
-  id: T;
-  label: string;
-  active: boolean;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <button
-      type="button" aria-pressed={active} onClick={() => onChange(id)}
-      style={{
-        border: 0, fontSize: 11, fontWeight: 600, padding: '3px 10px', cursor: 'pointer',
-        background: active ? 'var(--ink-solid-bg)' : 'transparent',
-        color: active ? 'var(--ink-solid-fg)' : MC.muted,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
 function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
   value: T;
   options: readonly { id: T; label: string }[];
   onChange: (value: T) => void;
   ariaLabel: string;
 }) {
-  return (
-    <div className="mobile-settings-segment" role="group" aria-label={ariaLabel} style={{ display: 'flex', border: `1px solid ${MC.hairline}`, borderRadius: 8 }}>
-      {options.map((option) => (
-        <SegmentItem key={option.id} {...option} active={value === option.id} onChange={onChange} />
-      ))}
-    </div>
-  );
+  return <SSegmented value={value} options={[...options]} onChange={onChange} ariaLabel={ariaLabel} />;
 }
 
 /** Label on the left, segmented control on the right — the row shape shared by every simple choice. */

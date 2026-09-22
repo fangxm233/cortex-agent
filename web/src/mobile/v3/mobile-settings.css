@@ -67,6 +67,8 @@
   touch-action: manipulation;
 }
 .mobile-settings button { min-width: 44px; font-size: 13px !important; }
+.mobile-settings .mobile-settings-back { font-size: 24px !important; }
+.mobile-settings .usage-meter-fill { max-width: 100%; }
 .mobile-settings button:not(:disabled):hover { filter: brightness(.97); }
 .mobile-settings [data-accent-picker] button { height: auto !important; }
 .mobile-settings [data-accent-picker] button > span { min-height: 28px; }
@@ -124,7 +126,6 @@
 .mobile-settings .ps-grid { grid-template-columns: minmax(0, 1fr); }
 .mobile-settings-choice { flex-wrap: wrap; }
 .mobile-settings-choice > :first-child { flex-basis: 140px !important; }
-.mobile-settings-segment { flex-wrap: wrap; max-width: 100%; }
 .mobile-settings-profile-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; align-items: end; }
 .mobile-settings [data-usage-policy-controls] { flex-wrap: wrap; }
 .mobile-settings [data-usage-threshold-reset] { width: 44px !important; height: 44px !important; }
