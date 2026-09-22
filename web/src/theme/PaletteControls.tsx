@@ -1,7 +1,13 @@
+// input:  palette presets, ColorSlider
+// output: PaletteControls, PaletteControlsCopy
+// pos:    Appearance palette presets and adjustment controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { CSSProperties } from 'react';
 import { PALETTE_RANGES, type Palette, type PaletteKey } from './palette';
 import { PALETTE_PRESETS, type PalettePreset } from './palette-presets';
 import { DEFAULT_ACCENT_HUE } from './theme';
+import { ColorSlider } from './ColorSlider';
 
 export interface PaletteControlsCopy {
   presets: string;
@@ -32,6 +38,11 @@ function swatchVars(preset: PalettePreset): CSSProperties {
   } as CSSProperties;
 }
 
+function PresetSwatch({ preset }: { preset: PalettePreset }) {
+  return <span aria-hidden data-preset-swatch style={{ ...swatchVars(preset), width: 18, height: 18,
+    borderRadius: '50%', flex: 'none', boxShadow: '0 0 0 1px var(--proto-line-3)' }} />;
+}
+
 function PresetChip({ preset, label, active, onPick }: {
   preset: PalettePreset;
   label: string;
@@ -46,20 +57,13 @@ function PresetChip({ preset, label, active, onPick }: {
       onClick={() => onPick(preset.id)}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', border: 0,
-        padding: '4px 9px 4px 5px', borderRadius: 'var(--r-pill)', font: 'inherit', fontSize: 11, fontWeight: 600,
+        padding: '4px 9px 4px 5px', borderRadius: 'var(--r-control)', minHeight: 'var(--settings-control-height, 34px)', font: 'inherit', fontSize: 12, fontWeight: 600,
         background: active ? 'var(--proto-accent-bg)' : 'var(--proto-gray)',
         boxShadow: `0 0 0 1px ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
         color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
       }}
     >
-      <span
-        aria-hidden
-        data-preset-swatch
-        style={{
-          ...swatchVars(preset), width: 18, height: 18, borderRadius: '50%', flex: 'none',
-          boxShadow: '0 0 0 1px var(--proto-line-3)',
-        }}
-      />
+      <PresetSwatch preset={preset} />
       {label}
     </button>
   );
@@ -122,30 +126,13 @@ function ParamSlider({ paramKey, label, value, onChange }: {
   onChange: (key: PaletteKey, value: number) => void;
 }) {
   const { min, max, step } = PALETTE_RANGES[paramKey];
-  const ratio = (value - min) / (max - min);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 11, color: 'var(--proto-muted-2)', flex: 'none', width: 34 }}>{label}</span>
-      <div style={{ position: 'relative', height: 14, flex: 1, minWidth: 0 }}>
-        <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 'var(--r-pill)', background: TRACKS[paramKey] }} />
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute', top: 0, left: `calc(${ratio * 100}% - 7px)`,
-            width: 14, height: 14, borderRadius: '50%', background: 'var(--proto-card)',
-            // Inset: the thumb's `left` offset is computed against a 14px box, so the ring has to
-            // stay inside it the way the border it replaces did.
-            boxShadow: 'var(--shadow-switch-thumb), inset 0 0 0 2px var(--proto-ink)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          type="range" min={min} max={max} step={step} value={value}
-          data-palette-slider={paramKey} aria-label={label}
-          onChange={(event) => onChange(paramKey, Number(event.target.value))}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: 14, margin: 0, opacity: 0, cursor: 'pointer' }}
-        />
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <span style={{ fontSize: 12, color: 'var(--proto-muted-2)', flex: '0 0 64px' }}>{label}</span>
+      <ColorSlider min={min} max={max} step={step} value={value}
+        data-palette-slider={paramKey} aria-label={label}
+        onChange={(next) => onChange(paramKey, next)} track={TRACKS[paramKey]}
+        style={{ flex: 1 }} />
     </div>
   );
 }
@@ -159,7 +146,7 @@ function ParamGroup({ title, rows, palette, onChange }: {
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', marginBottom: 9 }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {rows.map((row) => (
           <ParamSlider
             key={row.key} paramKey={row.key} label={row.label}
@@ -182,26 +169,14 @@ export function PaletteControls({ palette, copy, activePreset, onPickPreset, onC
   return (
     <div data-palette-controls style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <PresetRow copy={copy} activePreset={activePreset} onPickPreset={onPickPreset} onReset={onReset} />
-      <ParamGroup
-        title={copy.background}
-        palette={palette}
-        onChange={onChange}
-        rows={[
-          { key: 'bgHue', label: copy.hue },
-          { key: 'bgChroma', label: copy.tint },
-          { key: 'bgLight', label: copy.lightness },
-        ]}
-      />
-      <ParamGroup
-        title={copy.foreground}
-        palette={palette}
-        onChange={onChange}
-        rows={[
-          { key: 'inkHue', label: copy.hue },
-          { key: 'inkChroma', label: copy.tint },
-          { key: 'inkContrast', label: copy.contrast },
-        ]}
-      />
+      <ParamGroup title={copy.background} palette={palette} onChange={onChange} rows={[
+        { key: 'bgHue', label: copy.hue }, { key: 'bgChroma', label: copy.tint },
+        { key: 'bgLight', label: copy.lightness },
+      ]} />
+      <ParamGroup title={copy.foreground} palette={palette} onChange={onChange} rows={[
+        { key: 'inkHue', label: copy.hue }, { key: 'inkChroma', label: copy.tint },
+        { key: 'inkContrast', label: copy.contrast },
+      ]} />
     </div>
   );
 }
