@@ -1,6 +1,6 @@
 // input:  dock-tabs, browser-target, motion, theme
 // output: DockTabStrip
-// pos:    Compact readable tabs above opaque dock documents
+// pos:    Compact material tabs above stable dock documents
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
@@ -165,7 +165,7 @@ function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
   return 'user';
 }
 
-const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--material-card-bg)'  };
+const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--material-card-bg)' };
 const STRIP_SCROLL_STYLE: CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 3, padding: '0 0 0 8px', overflowX: 'auto', overflowY: 'hidden', position: 'relative' };
 const ACTIONS_STYLE: CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px' };
 const TAB_ITEM_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 35, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip) var(--r-chip) 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };

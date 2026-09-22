@@ -1,6 +1,6 @@
 // input:  skills query, SkillGroup, localized vocabulary
 // output: SkillsView
-// pos:    Read-only skill groups and loading or empty states
+// pos:    Read-only skill groups with material cards and chips
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -43,7 +43,7 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
   const L = useVocab();
   const label = group.plugin ?? L.skUserSkills;
   return (
-    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)'  }}>
+    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' }}>
       <div
         style={{
           fontSize: 11.5,

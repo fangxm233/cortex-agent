@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: CommissionBoardModal presentation
-// pos:    Dense commission content surface
+// pos:    Commission glass chrome and stable document panes
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useCallback, useState } from 'react';

@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: ThreadDetailView presentation
-// pos:    Dense thread content surface
+// pos:    Continuous thread sheet with material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { ReactNode } from 'react';

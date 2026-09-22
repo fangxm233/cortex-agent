@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: TaskModal presentation
-// pos:    Dense tasks content surface
+// pos:    Task detail material sheet and lightweight cards
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useQuery } from '@tanstack/react-query';

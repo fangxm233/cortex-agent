@@ -1,6 +1,6 @@
 // input:  login flow state, design controls, vocabulary
 // output: LoginFlowModal
-// pos:    Provider authentication presentation and controller
+// pos:    Provider authentication with shared material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import '../overview/content-surfaces.css';
@@ -280,7 +280,7 @@ function SelectionBody({ controller }: { controller: LoginController }) {
             { value: 'pi', label: 'PI' },
           ]}
           onValueChange={controller.chooseBackend}
-          className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
+          className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
         />
       </label>
       {controller.backend === 'pi' ? <ProviderSelect controller={controller} /> : null}
@@ -305,7 +305,7 @@ function AuthTypeSelect({ controller }: { controller: LoginController }) {
             : controller.backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth,
         }))}
         onValueChange={controller.chooseAuthType}
-        className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
+        className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
       />
     </label>
   );
@@ -325,7 +325,7 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
           label: option.label,
         }))}
         onValueChange={controller.chooseProvider}
-        className="w-full rounded-[var(--r-control)] border border-card bg-surface-card px-2g py-1g"
+        className="w-full rounded-[var(--r-control)] border border-card [background:var(--material-inset-bg)] px-2g py-1g"
       />
     </label>
   );

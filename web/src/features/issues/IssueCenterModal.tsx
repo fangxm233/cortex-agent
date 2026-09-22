@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: IssueCenterModal presentation
-// pos:    Dense issues content surface
+// pos:    Issue material cards and transparent detail pane
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useEffect, useMemo, useState } from 'react';

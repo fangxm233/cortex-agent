@@ -1,6 +1,6 @@
 // input:  file path, download callback, body controls
 // output: FileBar, FileBarToggle
-// pos:    Readable file location and keyboard-accessible actions
+// pos:    File location and keyboard-accessible material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 

@@ -7,6 +7,6 @@ Execution presentation and supporting state modules.
 | ExecutionLogDrawer.tsx | view | Render ExecutionLogDrawer |
 | ExecutionLogDrawerProvider.tsx | utility | Provide ExecutionLogDrawerProvider |
 | LogDrawerView.test.tsx | test | Verify log contrast and accessible actions |
-| LogDrawerView.tsx | view | Render opaque log chrome and execution metadata |
+| LogDrawerView.tsx | view | Render stable log and highlighted toolbar chrome |
 | execution-log-view.test.ts | test | Verify execution-log-view |
 | execution-log-view.ts | utility | Provide execution-log-view |

@@ -1,6 +1,6 @@
 // input:  ScheduleForm, editable fields, Select, vocabulary
 // output: ScheduleModal
-// pos:    Schedule editor presentation and controls
+// pos:    Continuous schedule glass sheet and inset controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useEffect, type CSSProperties } from 'react';
@@ -354,7 +354,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
 
           {/* MESSAGE (prototype L1447-1448) */}
           <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--material-inset-bg)' , borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
+          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
             <textarea
               className={focusClass}
               aria-label={L.scMessage}

@@ -1,6 +1,6 @@
 // input:  DesktopUpdateFrame, staged update and action callbacks
 // output: HotUpdateDialog
-// pos:    Staged frontend update prompt presentation
+// pos:    Frontend update prompt with material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { DesktopUpdateFrame } from '@/features/update/DesktopUpdateFrame';
 import { updateSummaryLine, type StagedUpdate } from './frontend-update';

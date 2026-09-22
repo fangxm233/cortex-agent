@@ -1,6 +1,6 @@
 // input:  ApprovalInfo, approval queue, vocabulary, toast
 // output: ApprovalCenterModal
-// pos:    Pending approval list and decision detail overlay
+// pos:    Approval material cards and decision detail sheet
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useEffect, useState } from 'react';

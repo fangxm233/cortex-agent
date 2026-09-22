@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: ThreadPipeline presentation
-// pos:    Dense thread content surface
+// pos:    Blur-free step cards with shared material surfaces
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState } from 'react';

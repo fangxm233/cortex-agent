@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: MemoryView presentation
-// pos:    Dense memory content surface
+// pos:    Stable memory reader beside a transparent tree
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useMemo, useState, type CSSProperties } from 'react';

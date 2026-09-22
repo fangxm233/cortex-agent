@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: TaskRow presentation
-// pos:    Dense tasks content surface
+// pos:    Dense task material cards and state chips
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type CSSProperties } from 'react';
@@ -34,7 +34,7 @@ const DOT_COLORS: Record<TaskGroupKind, string> = {
   done: 'var(--proto-success)',
 };
 
-// One quiet boundary and an opaque fill keep dense task metadata readable.
+// One quiet boundary and a blur-free material keep dense task metadata readable.
 const CARD_STYLE: CSSProperties = {
   background: 'var(--material-card-bg)',
   border: 0,
@@ -122,6 +122,7 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
           padding: '1.5px 7px',
           borderRadius: 'var(--r-pill)',
           ...META_STYLE[meta.kind],
+          backgroundImage: 'var(--material-sheen)',
           ...(meta.kind === 'blocked' ? BLOCKED_META_STYLE : {}),
         }}
       >

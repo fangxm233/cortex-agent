@@ -1,5 +1,5 @@
 // input:  OverviewView, react-test-renderer, query mocks
-// output: Overview action and responsive structure regressions
+// output: Overview material, action and layout regressions
 // pos:    Scoped overview presentation tests
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -129,6 +129,12 @@ describe('Overview schedule actions', () => {
     expect(region.props.tabIndex).toBe(0);
     expect(region.props.role).toBe('region');
     expect(region.findByProps({ className: 'overview-table-row' }).children).toHaveLength(7);
+    const cards = renderer.root.findAll(node => node.props.style?.background === 'var(--material-card-bg)');
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card.props.style.boxShadow).toBe('var(--material-card-shadow)');
+      expect(card.props.style.backdropFilter).toBeUndefined();
+    }
     expect(renderer.root.findByProps({ className: 'overview-grid' }).props.style.gridTemplateColumns).toBeUndefined();
     act(() => renderer.unmount());
   });

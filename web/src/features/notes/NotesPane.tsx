@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: NotesPane presentation
-// pos:    Dense notes content surface
+// pos:    Transparent notes pane with material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';

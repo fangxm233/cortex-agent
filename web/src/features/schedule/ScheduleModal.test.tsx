@@ -75,7 +75,9 @@ describe('ScheduleModal custom selections', () => {
     expect(target.props.disabled).toBe(true);
     expect(renderer.root.findByProps({ role: 'dialog' }).props.style).toMatchObject({
       width: 560, maxWidth: 'calc(100vw - 40px)', backdropFilter: 'var(--glass-filter)',
+      background: 'var(--material-overlay-bg)', boxShadow: 'var(--material-overlay-shadow)',
     });
+    expect(renderer.root.findAll(node => node.props.style?.background === 'var(--proto-card)')).toHaveLength(0);
   });
 
   it('emits typed patches for interval, profile, target and fallback fields', () => {

@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: ThreadArtifactPanel presentation
-// pos:    Dense thread content surface
+// pos:    Stable thread document with material chrome
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useVocab } from '@/i18n';
@@ -73,7 +73,7 @@ function ArtifactBody({ artifact }: { artifact: DetailArtifact }) {
   const L = useVocab();
   const filename = artifact.path?.split('/').pop() ?? L.thNoArtifact;
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '13px 16px', background: 'var(--proto-card)'  }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '13px 16px', background: 'var(--proto-card)' }}>
       <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>{filename}</div>
       <div style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginTop: 4 }}>
         {L.thOwner}: {artifact.taskId ?? '—'}

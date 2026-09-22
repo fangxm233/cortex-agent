@@ -1,6 +1,6 @@
 // input:  react, feature data, theme tokens
 // output: NotesButton presentation
-// pos:    Dense notes content surface
+// pos:    Material notes toggle and active count
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { CSSProperties } from 'react';

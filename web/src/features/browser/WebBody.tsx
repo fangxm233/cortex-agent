@@ -1,6 +1,6 @@
 // input:  BrowserTabState, forwarding API, external navigation
 // output: WebBody
-// pos:    Persistent browser preview with navigation and port tools
+// pos:    Persistent browser preview with material toolbar
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
