@@ -1,6 +1,11 @@
+// input:  React, theme ink and surface tokens
+// output: EmptyState, EmptyStateProps
+// pos:    Readable empty-content title, guidance and actions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { ReactNode } from 'react';
 
-// Empty-state primitive (design §5, design 10d): centered card with muted title,
+// Empty-state primitive: centered card with a clear title,
 // optional description, optional action. Generalizes the shell EmptyPane.
 // Opaque like `Card`, and for the same reason: it is content sitting in a pane, not a sheet
 // floating over one.
@@ -24,9 +29,9 @@ export function EmptyState({ title, description, icon, action, className }: Empt
         .filter(Boolean)
         .join(' ')}
     >
-      {icon && <div className="text-state-ink/40">{icon}</div>}
-      <div className="text-body font-medium text-state-ink/70">{title}</div>
-      {description && <p className="max-w-md text-ui text-state-ink/50">{description}</p>}
+      {icon && <div className="text-proto-muted">{icon}</div>}
+      <div className="text-body font-semibold leading-snug text-proto-ink">{title}</div>
+      {description && <p className="max-w-md text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]">{description}</p>}
       {action && <div className="mt-1g">{action}</div>}
     </div>
   );

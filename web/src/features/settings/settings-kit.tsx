@@ -1,6 +1,6 @@
 // input:  react, theme tokens, settings-style.css
 // output: Settings row primitives, layout classes and card styles
-// pos:    Shared compact settings visual primitives
+// pos:    Readable settings feedback, rows and control primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -191,8 +191,9 @@ export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone
     <span style={{
       minWidth: 16, height: 16, padding: '0 5px', boxSizing: 'border-box',
       borderRadius: 'var(--r-pill)', font: `600 9.5px ${MONO}`, lineHeight: 1,
-      background: tone === 'amber' ? 'var(--proto-amber)' : 'var(--proto-accent)',
-      color: 'var(--ink-solid-fg)', display: 'inline-flex', alignItems: 'center',
+      background: tone === 'amber' ? 'var(--proto-amber-bg)' : 'var(--proto-accent)',
+      color: tone === 'amber' ? 'var(--proto-amber-fg)' : 'var(--accent-fg)',
+      display: 'inline-flex', alignItems: 'center',
       justifyContent: 'center', flex: 'none',
     }}>
       {children}
@@ -236,7 +237,7 @@ export function SSelectChip({ children, onClick, disabled, className, ...rest }:
   return (
     <button {...rest} className={settingsClassName('settings-select-chip', className)} type="button" disabled={disabled} onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--settings-control-height, 34px)',
-      padding: '4px 10px', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--settings-control-radius, 8px)',
+      padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-faint))', borderRadius: 'var(--settings-control-radius, 8px)',
       background: 'var(--settings-control-fill, var(--proto-card))', boxShadow: 'none',
       fontFamily: 'inherit', fontSize: 13, color: 'var(--proto-ink)', flex: 'none',
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
@@ -269,10 +270,10 @@ export function SNotice({ tone = 'muted', icon, action, children, className, ...
     <div {...rest} className={settingsClassName('settings-notice', className)} style={{
       display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 16px',
       borderRadius: 'var(--settings-card-radius, 12px)', background: spec.bg,
-      border: `1px solid ${spec.ring}`, fontSize: 12, lineHeight: 1.6, color: spec.fg,
+      border: `1px solid ${spec.ring}`, fontSize: 13, lineHeight: 1.6, color: spec.fg,
     }}>
       {icon}
-      <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
+      <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{children}</span>
       {action}
     </div>
   );

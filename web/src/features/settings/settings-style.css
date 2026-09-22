@@ -1,5 +1,5 @@
 /* input: theme.css tokens, settings primitives
- * output: Scoped settings tokens, controls and responsive layouts
+ * output: Scoped settings tokens, visible controls and layouts
  * pos: Shared desktop and mobile settings visual system
  * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
@@ -15,7 +15,7 @@
   --settings-card-fill: var(--proto-card);
   --settings-control-fill: var(--proto-card);
   --settings-boundary: var(--proto-line-2);
-  --settings-control-boundary: var(--proto-line-3);
+  --settings-control-boundary: var(--proto-faint);
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
   --r-card: var(--settings-card-radius);
@@ -57,7 +57,7 @@
 }
 
 .settings-surface :where(.settings-row-title, .settings-entity-name) { overflow-wrap: anywhere; }
-.settings-surface .settings-hint { font-size: var(--settings-hint-size); }
+.settings-surface .settings-hint { font-size: var(--settings-hint-size); color: var(--proto-muted); }
 .settings-surface .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .settings-surface .settings-stack { display: flex; flex-direction: column; gap: var(--settings-section-gap); min-width: 0; }
 .settings-surface .settings-mono { font-family: 'IBM Plex Mono', monospace !important; }
@@ -90,6 +90,7 @@
   line-height: 1.5;
   box-shadow: none;
 }
+.settings-surface .settings-control::placeholder { color: var(--proto-muted-3); opacity: 1; }
 .settings-surface .settings-control:disabled { background: var(--proto-alt); color: var(--proto-muted-2); }
 .settings-surface :where(.settings-button, .settings-select-chip, .settings-chip, .settings-segment, .settings-link-action) {
   min-height: var(--settings-control-height);

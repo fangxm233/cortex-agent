@@ -1,6 +1,7 @@
 /* input:  Tailwind layers and shared theme.css custom properties */
-/* output: global styles, UI animations and usage meter motion */
+/* output: base styles, keyboard focus and UI animations */
 /* pos:    SPA-wide structural stylesheet layered over theme tokens */
+/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -274,6 +275,17 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Low specificity lets contained settings/menu outlines keep their own offsets.
+   Do not use :focus: pointer activation should not leave a persistent ring. */
+:where(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--proto-accent);
+  outline-offset: 2px;
+}
+
+:where([role='option'], [role='tab']):focus-visible {
+  outline-offset: -2px;
 }
 
 .usage-meter-fill {

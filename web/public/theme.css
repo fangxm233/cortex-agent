@@ -1,6 +1,7 @@
 /* input:  theme/accent attributes and shared web/native consumers */
-/* output: adaptive palette, semantic color, and shadow properties */
-/* pos:    Single appearance source for SPA, mobile, and native shell */
+/* output: readable ink, semantic colors, glass and shadow tokens */
+/* pos:    Shared appearance palette for web and native surfaces */
+/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
 :root {
   --accent-hue: 274;
@@ -17,6 +18,8 @@
   --ink-chroma: 1;
   --ink-contrast: 0;
   --accent-main: #4655d4;
+  /* Filled accent actions need a foreground, not a surface colour. */
+  --accent-fg: var(--ink-solid-fg);
   --accent-soft: #eef0fa;
   --accent-border: #c9cff2;
   --accent-mid: #9aa3e8;
@@ -59,15 +62,13 @@
   --proto-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-2: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-3: oklch(calc(0.362 - var(--ink-contrast)) calc(0.0191 * var(--ink-chroma)) var(--ink-hue));
-  /* The three faintest tiers are darkened from .588/.611/.658 so that on the DEFAULT `strong` pane
-     they measure what they used to measure on a flat opaque one (4.15 / 3.78 / 3.14). Without this
-     they land at 3.28 / 2.98 / 2.48 — a ~21% tax that pushes secondary text under the 3.0 floor.
-     The tiers above `muted` are deliberately NOT compensated: they sit at 5.4-13.5 on glass, and
-     restoring exact parity there would drive body ink to pure black for no legibility gain. */
-  --proto-muted: oklch(calc(0.469 - var(--ink-contrast)) calc(0.032 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-2: oklch(calc(0.532 - var(--ink-contrast)) calc(0.0315 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-3: oklch(calc(0.554 - var(--ink-contrast)) calc(0.0284 * var(--ink-chroma)) var(--ink-hue));
-  --proto-faint: oklch(calc(0.599 - var(--ink-contrast)) calc(0.026 * var(--ink-chroma)) var(--ink-hue));
+  /* Muted tiers carry normal-size text: target 4.5:1 on default glass, including its
+     inner gray tint. Faint is for decorative glyphs/control edges (3:1), not body text.
+     Custom palette offsets and arbitrary content behind glass can reduce contrast. */
+  --proto-muted: oklch(calc(0.45 - var(--ink-contrast)) calc(0.032 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.465 - var(--ink-contrast)) calc(0.0315 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.48 - var(--ink-contrast)) calc(0.0284 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.565 - var(--ink-contrast)) calc(0.026 * var(--ink-chroma)) var(--ink-hue));
   /* `--proto-disabled` stays opaque: it is used as a TEXT colour, and alpha text over glass washes
      out against the mesh. The line family is alpha, per the note above. */
   --proto-disabled: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
@@ -242,10 +243,10 @@
   --m-tabbar-bg: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
   --m-sheet-bg: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
-  --m-sub: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
-  --m-muted: oklch(calc(0.598 - var(--ink-contrast)) calc(0.0346 * var(--ink-chroma)) var(--ink-hue));
-  --m-faint: oklch(calc(0.658 - var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: var(--proto-muted-2);
+  --m-faint: var(--proto-muted-3);
   --m-hairline: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
   --m-divider: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --m-card-border: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
@@ -264,11 +265,12 @@
   --m-fail-bg: #fbedeb;
   --m-fail-border: #eed3d0;
   --m-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
-  --m-gray-ink: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
+  --m-gray-ink: var(--proto-muted-2);
 }
 
 [data-theme='dark'] {
   --accent-main: #8b96f2;
+  --accent-fg: var(--ink-solid-fg);
   --accent-soft: rgba(110, 123, 236, 0.16);
   --accent-border: #333c5a;
   --accent-mid: #6e7bec;
@@ -293,12 +295,11 @@
   --proto-ink: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-2: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-3: oklch(calc(0.762 + var(--ink-contrast)) calc(0.0219 * var(--ink-chroma)) var(--ink-hue));
-  /* Mirror of the light-theme correction: lightened so the faint tiers hold their flat-surface
-     contrast (4.62 / 3.69 / 2.62) on the default `strong` pane. */
-  --proto-muted: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-2: oklch(calc(0.66 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-3: oklch(calc(0.603 + var(--ink-contrast)) calc(0.027 * var(--ink-chroma)) var(--ink-hue));
-  --proto-faint: oklch(calc(0.521 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  /* The dark ramp includes headroom for the white inner tint over a glass pane. */
+  --proto-muted: oklch(calc(0.76 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.745 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.73 + var(--ink-contrast)) calc(0.027 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.625 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
   --proto-disabled: oklch(calc(0.422 + 0.45 * var(--bg-light)) calc(0.0291 * var(--bg-chroma)) var(--bg-hue));
   --proto-line: oklch(1 0 var(--ink-hue) / 0.09);
   --proto-line-2: oklch(1 0 var(--ink-hue) / 0.06);
@@ -423,10 +424,10 @@
   --m-tabbar-bg: oklch(calc(0.195 + var(--bg-light)) calc(0.013 * var(--bg-chroma)) var(--bg-hue));
   --m-sheet-bg: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.965 + var(--ink-contrast)) calc(0.0054 * var(--ink-chroma)) var(--ink-hue));
-  --m-sub: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
-  --m-muted: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
-  --m-faint: oklch(calc(0.486 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: var(--proto-muted-2);
+  --m-faint: var(--proto-muted-3);
   --m-hairline: oklch(calc(0.263 + 0.45 * var(--bg-light)) calc(0.0184 * var(--bg-chroma)) var(--bg-hue));
   --m-divider: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
   --m-card-border: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
@@ -445,14 +446,14 @@
   --m-fail-bg: rgba(224, 107, 98, 0.16);
   --m-fail-border: #4a2e2b;
   --m-gray: oklch(calc(0.288 + 0.45 * var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
-  --m-gray-ink: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-gray-ink: var(--proto-muted-2);
 }
 
 /* ── Glass level ──────────────────────────────────────────────────────────────
    `data-glass` on <html>, owned by src/theme, beside `data-theme`. It sets only the two pane alphas
    and the blur radius; the colours themselves are derived above, so a level change never re-hues
    anything. `strong` is the SHIPPED DEFAULT, which is why the bare `:root` carries its values and
-   why the ink ramp is calibrated against it — the lighter levels can then only improve contrast.
+   why the ink ramp is calibrated against it, with the other levels checked as well.
    `off` is the escape hatch: fully opaque panes and no `backdrop-filter` at all, for low-end GPUs
    and anyone who just wants flat surfaces. */
 :root,

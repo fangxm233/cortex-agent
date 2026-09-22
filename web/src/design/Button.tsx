@@ -1,3 +1,8 @@
+// input:  React, theme tokens, shared focus-visible styles
+// output: Button, ButtonProps, ButtonVariant, ButtonSize
+// pos:    Theme-aware action buttons with semantic foregrounds
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
 // Button primitive with token-driven variants (design §5). No hard-coded hex —
@@ -11,12 +16,12 @@ export type ButtonSize = 'sm' | 'md';
 // palette, not the accent, so glowing it would read as a second primary.
 // The glow needs the arbitrary shadow utility's `shadow:` type hint — a bare `var()` there is
 // ambiguous and Tailwind compiles it to a shadow *color* instead. The hinted form also keeps the
-// box-shadow composed with `--tw-ring-shadow`, so the focus ring below still draws over the glow.
+// box-shadow composed with Tailwind shadows; keyboard focus uses the shared solid outline.
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-state-run text-surface-card shadow-[shadow:var(--accent-glow)] hover:bg-state-run/90',
-  secondary: 'border border-card bg-surface-card text-state-ink hover:bg-surface-canvas-alt',
-  ghost: 'text-state-ink/80 hover:bg-surface-canvas-alt',
-  danger: 'bg-state-fail text-surface-card hover:bg-state-fail/90',
+  primary: 'bg-state-run text-[var(--accent-fg)] shadow-[shadow:var(--accent-glow)] hover:bg-proto-accent-strong',
+  secondary: 'border border-proto-faint bg-surface-card text-state-ink hover:bg-surface-canvas-alt',
+  ghost: 'text-proto-ink-2 hover:bg-surface-canvas-alt',
+  danger: 'bg-state-fail text-[var(--ink-solid-fg)] hover:bg-state-fail/90',
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {
@@ -26,7 +31,6 @@ const SIZE_CLASS: Record<ButtonSize, string> = {
 
 const BASE =
   'inline-flex items-center justify-center gap-1g rounded-[var(--r-control)] font-medium transition-colors ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

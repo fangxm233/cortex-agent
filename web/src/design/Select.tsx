@@ -1,6 +1,6 @@
-// input:  Radix Select, React
+// input:  Radix Select, React, shared focus-visible styles
 // output: Select, SelectProps, SelectOption
-// pos:    Accessible select trigger and portaled option list
+// pos:    Keyboard-visible select trigger and readable option list
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixSelect from '@radix-ui/react-select';
@@ -38,8 +38,7 @@ export interface SelectProps<T extends SelectValue>
 }
 
 const TRIGGER_CLASS =
-  'inline-flex items-center justify-between gap-1g text-left outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-proto-accent/40 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-between gap-1g text-left disabled:cursor-not-allowed';
 
 // The popup is a floating glass sheet. It is the ONE surface here that blurs: the menu itself holds
 // still, while the rows in its viewport scroll unfiltered over the blur it has already produced.
@@ -47,13 +46,13 @@ const TRIGGER_CLASS =
 const CONTENT_CLASS =
   'z-[100] overflow-hidden rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'font-mono text-[10px] text-proto-ink shadow-[shadow:var(--shadow-float)] ' +
+  'font-mono text-[12px] text-proto-ink shadow-[shadow:var(--shadow-float)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
 const ITEM_CLASS =
-  'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g outline-none ' +
-  'font-semibold leading-[normal] ' +
+  'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g ' +
+  'font-medium leading-normal ' +
   'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-accent-bg ' +
   'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40';
 
@@ -114,7 +113,7 @@ function SelectItem<T extends SelectValue>({
     >
       <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
       {option.description ? (
-        <span className="text-[9px] font-normal text-proto-muted-3">{option.description}</span>
+        <span className="text-[11px] font-normal text-proto-muted [overflow-wrap:anywhere]">{option.description}</span>
       ) : null}
       <RadixSelect.ItemIndicator className="absolute right-1g text-[9px] font-bold text-proto-accent">
         ✓

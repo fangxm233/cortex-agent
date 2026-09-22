@@ -1,6 +1,6 @@
-// input:  Radix Dialog, React
+// input:  Radix Dialog, React, shared focus-visible styles
 // output: Modal, ModalClose, modal styling helpers
-// pos:    Accessible dialogs with optional portaled styling
+// pos:    Accessible dialogs with readable standard chrome
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -32,9 +32,8 @@ const CONTENT_BASE_CLASS =
   'motion-reduce:animate-none ';
 
 const CLOSE_CLASS =
-  '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-state-ink/60 transition-colors ' +
-  'hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-state-run/40';
+  '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-proto-muted transition-colors ' +
+  'hover:bg-surface-canvas-alt hover:text-state-ink';
 
 export type ModalChrome = 'standard' | 'bare';
 export type ModalSize = 'default' | 'wide' | 'custom';
@@ -108,7 +107,7 @@ function ModalBody({ children, chrome, bodyStyle }: Pick<ModalProps, 'children' 
 }): JSX.Element | null {
   if (!children) return null;
   const className = chrome === 'standard'
-    ? 'min-w-0 overflow-x-hidden overflow-y-auto text-ui text-state-ink/80'
+    ? 'min-w-0 overflow-x-hidden overflow-y-auto text-ui leading-relaxed text-proto-ink-2'
     : undefined;
   return <div data-modal-body={true} className={className} style={bodyStyle}>{children}</div>;
 }
@@ -120,7 +119,7 @@ function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element 
     <RadixDialog.Content {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`} style={contentStyle}>
       <ModalHeader title={title} hideTitle={hideTitle} showClose={showClose} />
       {description ? <RadixDialog.Description
-        className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui text-state-ink/70 [overflow-wrap:anywhere]'}
+        className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]'}
       >{description}</RadixDialog.Description> : null}
       <ModalBody chrome="standard" bodyStyle={bodyStyle}>{children}</ModalBody>
       {footer ? <div className="flex flex-wrap items-center justify-end gap-1g pt-1g">{footer}</div> : null}

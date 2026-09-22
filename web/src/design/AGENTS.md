@@ -4,25 +4,26 @@ Shared UI controls, overlays, feedback and status presentation.
 
 | filename | role | function |
 |---|---|---|
-| Button.tsx | component | Render themed action buttons |
+| Button.tsx | component | Render actions with semantic foregrounds |
 | Card.tsx | component | Render surface cards |
 | controls.ts | style | Define control heights |
-| DegradedState.tsx | component | Present degraded service states |
+| DegradedState.tsx | component | Present readable service recovery guidance |
 | degraded.ts | utility | Define degraded severity presentation |
-| Drawer.tsx | component | Render side-panel dialogs |
-| EmptyState.tsx | component | Present empty content states |
-| ID.tsx | component | Display and copy identifiers |
+| Drawer.tsx | component | Render readable side sheets with keyboard focus |
+| EmptyState.tsx | component | Present readable empty-content guidance |
+| ID.tsx | component | Display readable identifiers and copy feedback |
 | index.ts | entry | Export shared design components |
 | Modal.test.tsx | test | Check dialog portal styling opt-in |
-| Modal.tsx | component | Render accessible styled dialogs |
-| MonoText.tsx | component | Render monospaced text |
+| Modal.tsx | component | Render readable dialogs with keyboard focus |
+| MonoText.tsx | component | Render monospaced data with opaque muted ink |
 | PlusGlyph.tsx | component | Render plus icons |
 | Popover.tsx | component | Render anchored floating content |
-| SectionHeader.tsx | component | Render section titles and actions |
+| presentation.test.tsx | test | Check semantic ink and feedback presentation |
+| SectionHeader.tsx | component | Render readable titles, guidance and actions |
 | Select.test.tsx | test | Check select values and popup styling |
-| Select.tsx | component | Render accessible selects and option lists |
+| Select.tsx | component | Render readable options and keyboard focus |
 | StatusPill.tsx | component | Render status labels |
-| Tabs.tsx | component | Render tab navigation |
+| Tabs.tsx | component | Render readable keyboard-navigable tabs |
 | toast-store.test.ts | test | Check toast store lifecycle |
 | toast-store.ts | store | Manage notification state |
 | Toast.tsx | provider | Provide toast notifications |

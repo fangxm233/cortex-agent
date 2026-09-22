@@ -1,7 +1,7 @@
 // input:  usage resource, policy draft, settings atoms
 // output: desktop provider quota and policy controls
-// pos:    Compact desktop usage panel
-// >>> Once updated, update this header and parent AGENTS.md <<<
+// pos:    Readable provider quotas, policy fields and feedback
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import '@/features/settings/desktop-panels.css';
 import type { CSSProperties, ReactNode } from 'react';
@@ -38,8 +38,8 @@ const SEVERITY_FILL: Record<UsageSeverity, string> = {
   danger: 'var(--proto-danger)',
 };
 
-const META_TEXT: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
-const POLICY_TEXT: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
+const META_TEXT: CSSProperties = { font: `400 12px/1.5 ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
+const POLICY_TEXT: CSSProperties = { fontSize: 13, lineHeight: 1.5, color: 'var(--proto-muted)', overflowWrap: 'anywhere' };
 // The kit control scale, widened on the right only: the `%` suffix is painted over the field.
 const POLICY_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 84, paddingRight: 24 };
 const POLICY_INPUT_DISABLED: CSSProperties = { ...S_CONTROL_DISABLED_STYLE, width: 84, paddingRight: 24 };
@@ -389,7 +389,7 @@ function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-      {usage.refreshError ? <span style={{ fontSize: 12, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
+      {usage.refreshError ? <span style={{ ...POLICY_TEXT, color: 'var(--proto-danger)' }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
       <SButton tone="neutral" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <RefreshIcon spinning={usage.isRefreshing} />
@@ -402,7 +402,7 @@ function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
 
 function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }): ReactNode {
   const L = useVocab();
-  if (usage.isLoading) return <div style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.usageLoading}</div>;
+  if (usage.isLoading) return <SNotice tone="muted">{L.usageLoading}</SNotice>;
   if (usage.queryError) {
     return (
       <SNotice tone="danger" icon={<SDot color="var(--proto-danger)" size={6} />}>

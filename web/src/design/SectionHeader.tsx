@@ -1,3 +1,8 @@
+// input:  React, MonoText, theme ink tokens
+// output: SectionHeader, SectionHeaderProps
+// pos:    Section titles, counts, actions and readable descriptions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { ReactNode } from 'react';
 import { MonoText } from './MonoText';
 
@@ -30,7 +35,7 @@ export function SectionHeader({
         )}
         {actions && <div className="ml-auto flex items-center gap-1g">{actions}</div>}
       </div>
-      {description && <p className="text-ui text-state-ink/60">{description}</p>}
+      {description && <p className="text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]">{description}</p>}
     </div>
   );
 }
