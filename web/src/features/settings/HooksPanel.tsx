@@ -1,3 +1,9 @@
+// input:  hook queries, settings atoms, detail pane
+// output: desktop hooks master-detail editor
+// pos:    Hook list and editor composition
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import './desktop-panels.css';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';
@@ -59,18 +65,18 @@ const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
 // ── left column: chips, search, grouped list ──────────────────────────────────────────────────
 
 const ORDER_STYLE: CSSProperties = {
-  font: `500 10.5px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
+  font: `500 12px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
 };
 
 const EVENT_STYLE: CSSProperties = {
-  font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 3, overflowWrap: 'anywhere',
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 3, overflowWrap: 'anywhere',
 };
 
 function hookIdStyle(selected: boolean): CSSProperties {
   return {
     flex: 1, minWidth: 0, font: `600 12px ${MONO}`,
     color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
-    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    overflowWrap: 'anywhere',
   };
 }
 
@@ -78,10 +84,10 @@ function hookIdStyle(selected: boolean): CSSProperties {
 function HookRowMeta({ hook }: { hook: HookDetail }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
       {hook.mountsOn.map((target) => <MountBadge key={target} target={target} />)}
       <span style={{
-        marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, flex: 'none',
+        marginLeft: 'auto', fontSize: 12, fontWeight: 600, flex: 'none',
         color: hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)',
       }}>
         {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
@@ -157,7 +163,7 @@ function HookGroups({ visible, selectedId, onSelect }: {
           <div
             data-hook-group={group.key}
             style={{
-              font: `600 10.5px ${MONO}`, letterSpacing: '.05em',
+              fontSize: 12, fontWeight: 600, letterSpacing: '.03em',
               color: 'var(--proto-muted-3)', padding: '8px 10px 4px',
             }}
           >
@@ -196,7 +202,7 @@ function HookList({
   const L = useVocab();
   const empty = hooks.length === 0 || visible.length === 0;
   return (
-    <div style={listPaneStyle(LIST_WIDTH)}>
+    <div className="settings-list-pane" style={listPaneStyle(LIST_WIDTH)}>
       <ListHeader
         title={L.stAgentHooks} count={hooks.length} searchAttr="data-hook-search"
         search={search} placeholder={L.hkSearchPh} onSearch={onSearch}
@@ -236,7 +242,7 @@ export function HooksPanelView(props: HooksPanelViewProps) {
   const hook = props.hooks.find((h) => h.id === props.selectedId) ?? null;
   return (
     <div data-settings-panel="hooks" style={EDITOR_ROOT_STYLE}>
-      <div data-hook-cards="" style={EDITOR_COLUMNS_STYLE}>
+      <div className="settings-editor-columns" data-hook-cards="" style={EDITOR_COLUMNS_STYLE}>
         <HookList
           hooks={props.hooks}
           visible={visible}
@@ -365,11 +371,11 @@ export function HooksPanel() {
   );
 
   if (listQuery.isLoading) {
-    return <div style={{ fontSize: 12.5, color: 'var(--proto-muted-2)' }}>{L.hkLoading}</div>;
+    return <div style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>{L.hkLoading}</div>;
   }
   if (listQuery.isError) {
     return (
-      <div style={{ fontSize: 12.5, color: 'var(--proto-danger)' }}>
+      <div style={{ fontSize: 13, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>
         {L.hkLoadFailed} {listQuery.error.message}
       </div>
     );

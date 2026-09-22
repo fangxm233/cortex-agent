@@ -1,3 +1,8 @@
+// input:  accounts controller, login flow, settings atoms
+// output: desktop account status and credential actions
+// pos:    Compact desktop accounts panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useState, type CSSProperties } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
@@ -31,9 +36,9 @@ const STATE_STYLE: Record<AccountStatusTone, { tone: SPillTone; dot: string }> =
   cancelled: { tone: 'neutral', dot: 'var(--proto-muted-3)' },
 };
 
-const META_STYLE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)' };
+const META_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
 
-const PANEL_TEXT_STYLE: CSSProperties = { fontSize: 12.5, color: 'var(--proto-muted-2)' };
+const PANEL_TEXT_STYLE: CSSProperties = { fontSize: 13, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
 
 function StatePill({ value }: { value: AccountStatusVm }) {
   const L = useVocab();
@@ -184,7 +189,7 @@ function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: S
       name={<ProviderName provider={provider} />}
       meta={providerMeta(L, provider)}
       trailing={(
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
           <StatePill value={provider.status} />
           <AccountActions
             {...actions} backend="pi" provider={provider.provider}
@@ -205,7 +210,7 @@ function ProviderFilter({ filter, onFilter }: { filter: string; onFilter: (value
         value={filter} onChange={event => onFilter(event.target.value)}
         placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
       />
-      <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 8, padding: '0 2px' }}>
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 8, padding: '0 2px' }}>
         {L.accountsSyncModelsHint}
       </div>
     </div>

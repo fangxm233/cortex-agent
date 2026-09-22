@@ -1,6 +1,6 @@
 // input:  redacted fields, local drafts and credential transport state
 // output: accessible write-only credential fields and clear controls
-// pos:    Shared platform connection form fields
+// pos:    Platform connection fields and optional disclosure
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties } from 'react';
@@ -72,7 +72,7 @@ export function PlatformConnectionFields(props: {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
     {props.fields.filter(field => !optional(field)).map(render)}
     {props.fields.some(optional) && <details style={{ color: 'var(--proto-muted)' }}>
-      <summary style={SUMMARY_STYLE}>{L.psOptional}</summary>
+      <summary className="settings-platform-summary" style={SUMMARY_STYLE}>{L.psOptional}</summary>
       {props.fields.filter(optional).map(render)}
     </details>}
     <p style={PS_HINT_STYLE}>{L.psSecretHint}</p>

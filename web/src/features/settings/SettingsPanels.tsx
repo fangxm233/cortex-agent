@@ -1,6 +1,6 @@
 // input:  config snapshots, localized copy and shared cards
 // output: platform identity primitives and MCP panel
-// pos:    Shared badges and read-only MCP settings
+// pos:    Platform badges and compact desktop MCP settings
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
@@ -72,7 +72,7 @@ function ServerRows({ servers }: { servers: string[] }) {
     <>
       {servers.map((name, index) => (
         <div key={name} style={index < servers.length - 1 ? { borderBottom: '1px solid var(--proto-line-2)' } : undefined}>
-          <SRow title={<span style={{ font: `600 12.5px ${MONO}` }}>{name}</span>} />
+          <SRow title={<span style={{ font: `600 13px ${MONO}`, overflowWrap: 'anywhere' }}>{name}</span>} />
         </div>
       ))}
     </>
@@ -88,7 +88,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       <ServerRows servers={servers} />
       <div style={{
         borderTop: '1px solid var(--proto-line-2)', padding: '12px 16px',
-        fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-muted-2)',
+        fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)',
       }}>
         {L.stMcpFootNote}
       </div>

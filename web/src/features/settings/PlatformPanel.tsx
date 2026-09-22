@@ -19,10 +19,11 @@ import {
 import { safeCredentialTransport } from '@/lib/sensitive-transport';
 import { usePlatformSettings, type PlatformWriteFeedback } from './usePlatformSettings';
 import './platform-settings.css';
+import './desktop-panels.css';
 
 const HEADING_STYLE: CSSProperties = { margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' };
-const GUIDE_STYLE: CSSProperties = { marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' };
-const PROSE_STYLE: CSSProperties = { margin: 0, fontSize: 12.5, lineHeight: 1.7, color: 'var(--proto-muted-2)' };
+const GUIDE_STYLE: CSSProperties = { marginLeft: 'auto', fontSize: 'var(--settings-platform-hint-size, 11.5px)', fontWeight: 600, color: 'var(--proto-accent)' };
+const PROSE_STYLE: CSSProperties = { margin: 0, fontSize: 'var(--settings-platform-body-size, 12.5px)', lineHeight: 1.7, color: 'var(--proto-muted-2)' };
 
 interface CardProps {
   platform: PlatformSettingsSnapshot; settings: ConfigSnapshot['settings'];
@@ -75,7 +76,7 @@ function ConnectionEditor(props: CardProps & {
   const locked = props.pending || !props.secure;
   return <form style={PS_BLOCK_STYLE} onSubmit={event => { event.preventDefault(); props.onSave(); }}>
     <SSection label={L.psSetup}>
-      <SRowGroup>
+      <SRowGroup className="settings-platform-group">
         <SRow title={L.psEnabled} desc={L.psEnableHint} align="flex-start" control={
           <Toggle on={props.enabled} inert={locked} ariaLabel={L.psEnabled}
             onClick={locked ? undefined : () => props.setEnabled(!props.enabled)} />
@@ -107,7 +108,7 @@ export function PlatformCard(props: CardProps) {
     if (!dirty || props.pending || !props.secure) return;
     if (await props.saveConnection(patch)) setDraft({});
   };
-  return <article data-platform={props.platform.platform} style={{ ...CARD_STYLE, minWidth: 0, overflow: 'hidden' }}>
+  return <article className="settings-platform-card" data-platform={props.platform.platform} style={{ ...CARD_STYLE, minWidth: 0, overflow: 'hidden' }}>
     <PlatformHeader platform={props.platform} />
     <ConnectionEditor {...props} enabled={enabled} setEnabled={setEnabled} draft={draft} setDraft={setDraft}
       dirty={dirty} onSave={() => void save()} onReset={reset} />

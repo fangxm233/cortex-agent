@@ -1,3 +1,8 @@
+// input:  skill queries, authoring actions, settings atoms
+// output: skill list, source editor and nested dialogs
+// pos:    Responsive desktop plugin skills tab
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
@@ -11,10 +16,10 @@ import type { PluginAuthoringActions } from './usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const EDITOR: CSSProperties = {
-  ...S_CONTROL_STYLE, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre',
+  ...S_CONTROL_STYLE, fontFamily: MONO, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre', overflowX: 'auto',
 };
 const ACTIONS: CSSProperties = { display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' };
-const PATH_LINE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)' };
+const PATH_LINE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere', minWidth: 0 };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -88,7 +93,7 @@ function SkillRow(props: {
   return (
     <div data-plugin-skill={props.skill.name} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{props.skill.name}</span>
+        <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.skill.name}</span>
         {props.skill.managed ? <SPill tone="accent">{L.plOriginManaged}</SPill> : null}
         <div style={ACTIONS}>
           <SButton tone="neutral" data-action="skill-open" onClick={props.onToggle}>
@@ -103,7 +108,7 @@ function SkillRow(props: {
         </div>
       </div>
       {props.skill.description
-        ? <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 2 }}>{props.skill.description}</div>
+        ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 2 }}>{props.skill.description}</div>
         : null}
       <div style={{ ...PATH_LINE, marginTop: 6 }}>
         {`${props.plugin.rootDir}/skills/${props.skill.name}/SKILL.md`}
@@ -167,9 +172,9 @@ function MoveSkillModal(props: {
   const nameBad = toSkill.length > 0 && !isCanonicalName(toSkill);
   const unchanged = toPluginId === props.plugin.id && toSkill === props.skill;
   return (
-    <Modal open layer="nested" title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
+    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="accent" data-action="skill-move-confirm"
             disabled={props.busy || unchanged || !isCanonicalName(toSkill)}
@@ -184,7 +189,7 @@ function MoveSkillModal(props: {
         </div>
       )}>
       <SFieldRow label={L.plSkillRenamePlugin}>
-        <Select value={toPluginId} onValueChange={setToPluginId}
+        <Select value={toPluginId} onValueChange={setToPluginId} style={S_CONTROL_STYLE}
           options={props.plugins.map((plugin) => ({ value: plugin.id, label: plugin.id }))} />
       </SFieldRow>
       <SFieldRow label={L.plSkillRenameName} hint={nameBad ? L.plNameInvalid : undefined} hintTone="danger">
@@ -204,10 +209,10 @@ function DeleteSkillModal(props: {
 }) {
   const L = useVocab();
   return (
-    <Modal open layer="nested" title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
+    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="danger" data-action="skill-delete-confirm" disabled={props.busy}
             onClick={async () => {
@@ -218,7 +223,7 @@ function DeleteSkillModal(props: {
           </SButton>
         </div>
       )}>
-      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{L.plSkillDeleteDesc}</div>
+      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{L.plSkillDeleteDesc}</div>
     </Modal>
   );
 }

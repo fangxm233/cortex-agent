@@ -1,10 +1,15 @@
+// input:  assignment queries, settings atoms, plugin view-model
+// output: plugin assignment form and consent dialog
+// pos:    Nested desktop template plugin assignment editor
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Modal, Select, useToast, type SelectOption } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { RadioDot, SButton, SNotice, SPill, SSection, Toggle } from './settings-ui';
+import { RadioDot, SButton, SNotice, SPill, SSection, S_CONTROL_STYLE, Toggle } from './settings-ui';
 import {
   EmptyMessage, McpServerSummary, ROW,
   pluginTitle, scopeNoticeText,
@@ -31,12 +36,7 @@ const MONO = "'IBM Plex Mono',monospace";
 
 const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 };
 const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
-// The trigger wears the same ring and glass as the chips it opens over, instead of a border that
-// would sit one pixel wider than the cards under it.
-const TARGET_SELECT: CSSProperties = {
-  width: '100%', boxSizing: 'border-box', padding: '7px 11px', borderRadius: 'var(--r-control)',
-  background: 'var(--glass-1)', boxShadow: '0 0 0 1px var(--proto-line-3)',
-};
+const TARGET_SELECT: CSSProperties = { ...S_CONTROL_STYLE, width: '100%' };
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
 type AssignMutation = { mutateAsync: (payload: PluginsAssignArgs) => Promise<unknown> };
@@ -172,7 +172,7 @@ function PluginChoice(props: {
         ariaLabel={L.plToggleLabel.replace('{name}', pluginTitle(props.plugin))} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{pluginTitle(props.plugin)}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(props.plugin)}</span>
           <SPill>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</SPill>
           {props.plugin.mcp.servers.length > 0
             ? <SPill tone="accent">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>
@@ -180,7 +180,7 @@ function PluginChoice(props: {
           {props.plugin.assignable ? null : <SPill tone="danger">{L.plUnassignable}</SPill>}
         </div>
         {props.plugin.manifest.description
-          ? <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)' }}>{props.plugin.manifest.description}</div>
+          ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' }}>{props.plugin.manifest.description}</div>
           : null}
         {scopeNote ? <SNotice tone="muted" data-plugin-scope={props.plugin.scope}>{scopeNote}</SNotice> : null}
       </div>
@@ -229,6 +229,7 @@ function AckModal(props: {
   const L = useVocab();
   return (
     <Modal title={L.plAckTitle} description={L.plAckDesc} open={props.open} layer="nested"
+      contentDataAttributes={{ 'data-settings-dialog': '' }}
       onOpenChange={props.onOpenChange}
       footer={(
         <>
@@ -239,8 +240,8 @@ function AckModal(props: {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {props.plugins.map((plugin) => (
           <div key={plugin.id} style={ROW}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</div>
-            <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 3 }}>{plugin.id}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</div>
+            <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 4, overflowWrap: 'anywhere' }}>{plugin.id}</div>
             <div style={{ marginTop: 10 }}><McpServerSummary plugin={plugin} /></div>
           </div>
         ))}
@@ -300,7 +301,7 @@ function AssignBody(props: PluginAssignViewProps) {
           ))
           : <EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" />}
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" disabled={!resettable} data-action="reset"
           data-disabled={resettable ? 'false' : 'true'} onClick={props.onReset}>{L.plReset}</SButton>
         <SButton tone="accent" disabled={!state.canSave} data-action="save"

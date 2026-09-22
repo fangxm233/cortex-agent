@@ -1,7 +1,6 @@
-// input:  the server's /api/ui/session probe
-// output: a browser-only "sign out of this browser" card
-// pos:    Settings → Advanced. Renders nothing in a native shell (their credential lives in the OS
-//         keychain and is managed by the connect flow) or on a server with token login switched off.
+// input:  UI session probe, native shell status, settings atoms
+// output: browser-only sign-out card
+// pos:    Advanced settings browser session action
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
@@ -35,7 +34,7 @@ export function UiSignOutCard() {
 
   // The action is the whole row: there is no second line of copy for it to sit beside.
   return (
-    <SRowGroup style={{ maxWidth: 760 }}>
+    <SRowGroup>
       <SRow title={
         <SLinkAction tone="danger" data-ui-sign-out onClick={() => void signOut()}>
           {L.uiLogoutAction}

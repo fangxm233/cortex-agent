@@ -1,3 +1,8 @@
+// input:  runtime setting writer, config, settings atoms
+// output: desktop notifications and advanced settings
+// pos:    Compact runtime setting rows and status history
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { Select, relativeAge } from '@/design';
@@ -51,15 +56,14 @@ const MONO = "'IBM Plex Mono',monospace";
 // Which setting a row writes, and where its current value came from, is an identifier rather than
 // prose: it gets its own mono line under the description instead of competing with the control.
 const KEY_LINE_STYLE: CSSProperties = {
-  font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4,
+  font: `400 12px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4, overflowWrap: 'anywhere',
 };
 const MONO_VALUE_STYLE: CSSProperties = {
-  font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)', flex: 'none',
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
 };
-// Editors sit in the row's control slot as one strip. Their fields carry fixed widths so the
-// controls line up down the card rather than each sizing itself to its own value.
+// Controls keep their compact widths, but wrap as a unit below the row's text when needed.
 const CONTROL_STRIP_STYLE: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, flex: 'none',
+  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%',
 };
 const NUMBER_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 96 };
 const DURATION_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 64 };
@@ -192,7 +196,7 @@ const NOTICE_LEVEL_COLOR: Record<SystemNoticeEntry['level'], string> = {
 };
 
 const NOTICE_BODY_STYLE: CSSProperties = {
-  font: `400 11.5px ${MONO}`, color: 'var(--proto-muted-2)', lineHeight: 1.55,
+  fontSize: 13, color: 'var(--proto-muted-2)', lineHeight: 1.55,
   whiteSpace: 'pre-wrap', wordBreak: 'break-word',
 };
 
@@ -217,7 +221,7 @@ function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
 
 function NoticeNote({ text }: { text: string }) {
   return (
-    <div style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--proto-muted-3)' }}>{text}</div>
+    <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--proto-muted-3)' }}>{text}</div>
   );
 }
 

@@ -1,3 +1,9 @@
+// input:  plugin queries, settings atoms, authoring tabs
+// output: desktop plugin catalog and nested dialogs
+// pos:    Responsive plugin master-detail panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import './desktop-panels.css';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
@@ -43,7 +49,7 @@ const DETAIL_HEADER: CSSProperties = {
   padding: '14px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)',
 };
 
-const MODAL_TEXT: CSSProperties = { fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-muted-2)' };
+const MODAL_TEXT: CSSProperties = { fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted-2)' };
 
 const TAB_LABEL: Record<PluginTab, keyof Vocab> = {
   overview: 'plTabOverview',
@@ -71,12 +77,12 @@ function PluginListRow(props: {
       }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
-          font: `600 11.5px ${MONO}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          font: `600 13px ${MONO}`, minWidth: 0, overflowWrap: 'anywhere',
           color: props.active ? 'var(--proto-accent)' : 'var(--proto-ink)',
         }}>{props.plugin.id}</span>
         {props.plugin.valid ? null : <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>!</span>}
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--proto-muted-3)' }}>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
         {L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}
         {props.plugin.mcp.servers.length > 0 ? ` · ${L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}` : ''}
       </div>
@@ -90,10 +96,10 @@ function CreatePluginModal(props: { actions: PluginAuthoringActions; onClose: ()
   const [description, setDescription] = useState('');
   const bad = id.length > 0 && !isCanonicalName(id);
   return (
-    <Modal open layer="nested" title={L.plNewPluginTitle}
+    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plNewPluginTitle}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="accent" data-action="plugin-create-confirm"
             disabled={props.actions.busy || !isCanonicalName(id)}
@@ -125,10 +131,10 @@ function DeletePluginModal(props: {
   const L = useVocab();
   const managed = props.plugin.origin === 'managed';
   return (
-    <Modal open layer="nested" title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
+    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="danger" data-action="plugin-delete-confirm" disabled={props.actions.busy || managed}
             onClick={async () => {
@@ -159,7 +165,7 @@ function PluginList(props: {
   const L = useVocab();
   const [creating, setCreating] = useState(false);
   return (
-    <SCard style={LIST_CARD}>
+    <SCard className="settings-list-pane" style={LIST_CARD}>
       <SCardHeader title={L.plCatalogTitle} right={`${props.plugins.length}`} />
       <div style={{ padding: '12px 14px', flex: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <input data-plugin-search="" value={props.search} placeholder={L.plSearchPh}
@@ -185,17 +191,17 @@ function PluginList(props: {
 function UsageRow({ item }: { item: PluginUsage }) {
   const L = useVocab();
   return (
-    <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, gap: 10 }}>
+    <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, flexWrap: 'wrap', overflowWrap: 'anywhere', gap: 8 }}>
       <SPill>{item.kind === 'agent' ? L.plTargetAgent : L.plTargetSlot}</SPill>
-      <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink-2)' }}>{item.name}</span>
-      {item.slot ? <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{item.slot}</span> : null}
+      <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-ink-2)', minWidth: 0 }}>{item.name}</span>
+      {item.slot ? <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{item.slot}</span> : null}
     </div>
   );
 }
 
 function UsageList({ usage }: { usage: readonly PluginUsage[] }) {
   const L = useVocab();
-  if (usage.length === 0) return <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{L.plUsedByNone}</div>;
+  if (usage.length === 0) return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{L.plUsedByNone}</div>;
   return <SRowGroup>{usage.map((item) => <UsageRow key={item.key} item={item} />)}</SRowGroup>;
 }
 
@@ -232,7 +238,7 @@ function PluginHeader(props: { plugin: UiPluginCatalogEntry; busy: boolean; onDe
   const plugin = props.plugin;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</span>
       <SPill mono>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
       <SPill>{pluginKindText(plugin.kind, L)}</SPill>
       <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'managed' ? 'accent' : 'neutral'}>
@@ -263,19 +269,19 @@ function PluginDetail(props: {
   );
   if (!props.plugin) {
     return (
-      <SCard style={{ ...DETAIL_CARD, alignItems: 'center', justifyContent: 'center' }}>
-        <span data-plugin-detail-empty="" style={{ fontSize: 12.5, color: 'var(--proto-muted-2)' }}>{L.plSelectPrompt}</span>
+      <SCard className="settings-detail-pane" style={{ ...DETAIL_CARD, alignItems: 'center', justifyContent: 'center' }}>
+        <span data-plugin-detail-empty="" style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>{L.plSelectPrompt}</span>
       </SCard>
     );
   }
   const plugin = props.plugin;
   return (
-    <SCard data-plugin-detail={plugin.id} style={DETAIL_CARD}>
+    <SCard className="settings-detail-pane" data-plugin-detail={plugin.id} style={DETAIL_CARD}>
       <div style={DETAIL_HEADER}>
         <PluginHeader plugin={plugin} busy={props.actions.busy} onDelete={() => setDeleting(true)} />
         <PluginTabs tab={props.tab} onTab={props.onTab} />
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '16px' }}>
+      <div className="settings-detail-fields" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
         {props.tab === 'overview' ? <OverviewTab plugin={plugin} usage={usage} /> : null}
         {props.tab === 'skills'
           ? <PluginSkillsTab plugin={plugin} plugins={props.plugins} actions={props.actions} />
@@ -314,7 +320,7 @@ export function PluginsPanelView(props: PluginsPanelViewProps) {
         ? <EmptyMessage text={`${L.plLoadFailed} ${props.errorMessage ?? ''}`.trim()} dataAttr="data-plugins-error" />
         : null}
       {props.state === 'ready' ? (
-        <div data-plugin-cards="" style={CARDS}>
+        <div className="settings-editor-columns" data-plugin-cards="" style={CARDS}>
           <PluginList plugins={props.plugins} visible={visible} search={props.search}
             selectedId={selected?.id ?? null} actions={props.actions}
             onSearch={props.onSearch} onSelect={props.onSelect} />

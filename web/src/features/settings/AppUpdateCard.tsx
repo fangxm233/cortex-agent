@@ -1,8 +1,6 @@
-// input:  the shell's own update prefs (get_update_prefs / set_update_silent)
-// output: a native-shell-only switch for "install app updates when I quit"
-// pos:    Settings → Advanced. Renders nothing off-shell (plain browser / ui-http): there is no app
-//         shell to update there, so the switch would promise something the page cannot do. An older
-//         shell that lacks the commands stays hidden for the same reason.
+// input:  native shell update preferences, settings atoms
+// output: native-shell-only quiet update controls
+// pos:    Advanced settings app update card
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState, type CSSProperties } from 'react';
@@ -15,10 +13,10 @@ import { SButton, SRow, SRowGroup, Toggle } from './settings-ui';
 const MONO = "'IBM Plex Mono',monospace";
 
 const FOOTNOTE_STYLE: CSSProperties = {
-  font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4,
+  font: `400 12px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4, overflowWrap: 'anywhere',
 };
 const ALERT_STYLE: CSSProperties = {
-  fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-danger)', marginTop: 6,
+  fontSize: 12, lineHeight: 1.5, color: 'var(--proto-danger)', marginTop: 6,
 };
 
 /**
@@ -107,7 +105,7 @@ export function AppUpdateCard() {
 
   const fallenBack = hasFallenBackToAsking(prefs);
   return (
-    <SRowGroup data-app-update-silent="" style={{ maxWidth: 760 }}>
+    <SRowGroup data-app-update-silent="">
       <SRow
         title="自动安装更新"
         desc={
@@ -116,7 +114,7 @@ export function AppUpdateCard() {
           </span>
         }
         control={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             {fallenBack ? (
               <SButton tone="neutral" disabled={pending} data-app-update-retry=""
                 onClick={() => void write(true)}>重试自动安装</SButton>

@@ -1,6 +1,7 @@
-// input:  react, the settings kit, the templates view-model
-// output: the templates editor's right column — identity, tabs, body, validation, references
-// pos:    Detail half of the templates master–detail panel; the list half stays in TemplatesPanel
+// input:  template view-model, settings atoms
+// output: template detail, validation and plugin forms
+// pos:    Responsive detail pane for desktop templates
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { ThreadTemplateDetail, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
@@ -87,8 +88,8 @@ function IssueList({ issues, tone }: { issues: readonly ThreadTemplateIssue[]; t
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       {issues.map((issue, i) => (
-        <div key={`${issue.path}:${i}`} data-issue={tone} style={{ display: 'flex', gap: 10, fontSize: 11.5 }}>
-          <span style={{ font: `600 10.5px ${MONO}`, color, flex: 'none', minWidth: 140, wordBreak: 'break-all' }}>
+        <div key={`${issue.path}:${i}`} data-issue={tone} className="settings-template-issue">
+          <span style={{ font: `600 12px ${MONO}`, color, minWidth: 0, overflowWrap: 'anywhere' }}>
             {issue.path}
           </span>
           <span style={{ color: 'var(--proto-muted)', lineHeight: 1.6 }}>{issue.message}</span>
@@ -100,23 +101,23 @@ function IssueList({ issues, tone }: { issues: readonly ThreadTemplateIssue[]; t
 
 function RefRow({ k, v }: { k: string; v: ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '5px 0', fontSize: 11.5 }}>
-      <span style={{ color: 'var(--proto-muted-3)', minWidth: 168, flex: 'none' }}>{k}</span>
-      <span style={{ color: 'var(--proto-ink-2)', wordBreak: 'break-all' }}>{v}</span>
+    <div className="settings-template-reference">
+      <span style={{ color: 'var(--proto-muted-3)', minWidth: 0, overflowWrap: 'anywhere' }}>{k}</span>
+      <span style={{ color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'anywhere' }}>{v}</span>
     </div>
   );
 }
 
 function Muted({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', lineHeight: 1.6, ...style }}>{children}</div>;
+  return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.6, overflowWrap: 'anywhere', ...style }}>{children}</div>;
 }
 
 // Code, so it stays opaque: `--proto-card` keeps the mesh from showing through a monospace block.
 const CODE_BLOCK_STYLE: CSSProperties = {
-  font: `400 10.5px/1.7 ${MONO}`,
+  font: `400 12px/1.7 ${MONO}`,
   color: 'var(--proto-muted)',
   background: 'var(--proto-card)',
-  boxShadow: '0 0 0 1px var(--proto-line-2)',
+  boxShadow: 'none',
   borderRadius: 'var(--r-control)',
   padding: 12,
   marginTop: 8,
@@ -125,6 +126,7 @@ const CODE_BLOCK_STYLE: CSSProperties = {
 
 const EDITOR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE,
+  fontFamily: MONO,
   minHeight: 320,
   height: '100%',
   resize: 'vertical',
@@ -147,7 +149,7 @@ function DetailIdentity(props: {
 }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 11 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
       <KindBadge kind={props.kind} />
       {props.creating ? (
         <input
@@ -155,10 +157,10 @@ function DetailIdentity(props: {
           value={props.draftName}
           onChange={(e) => props.onDraftName(e.target.value)}
           placeholder={L.ttNamePh}
-          style={{ ...S_CONTROL_STYLE, width: 220 }}
+          style={{ ...S_CONTROL_STYLE, width: 220, maxWidth: '100%' }}
         />
       ) : (
-        <span style={{ font: `650 13px ${MONO}`, color: 'var(--proto-ink)' }}>{props.name}</span>
+        <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.name}</span>
       )}
       {props.origin !== null ? <OriginBadge origin={props.origin} /> : null}
       {props.dirty ? (
@@ -270,7 +272,7 @@ function ReferencesTab({ detail }: { detail: ThreadTemplateDetail | null }) {
   if (!detail) return <Muted>{L.ttSelectPrompt}</Muted>;
   return (
     <div>
-      <RefRow k={L.ttFilePath} v={<span style={{ font: `400 10.5px ${MONO}` }}>{detail.filePath}</span>} />
+      <RefRow k={L.ttFilePath} v={<span style={{ font: `400 12px ${MONO}` }}>{detail.filePath}</span>} />
       <RefRow k={L.ttUsedBy} v={detail.usedByTemplates.length > 0 ? detail.usedByTemplates.join(', ') : L.ttUsedByNone} />
       <RefRow k={L.ttRunningThreads} v={detail.runningThreads} />
       <RefRow k={L.ttReferencingTasks} v={detail.referencingTasks} />
@@ -384,7 +386,7 @@ function tabsFor(L: Vocab, kind: TemplateKind, creating: boolean, issueCount: nu
 function EmptyDetail() {
   const L = useVocab();
   return (
-    <div style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
+    <div className="settings-detail-pane" style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
       <span data-template-detail-empty="" style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
         {L.ttSelectPrompt}
       </span>
@@ -400,7 +402,7 @@ function DetailBody(props: TemplateDetailPaneProps & {
 }) {
   const creating = props.creating !== null;
   return (
-    <div style={PANE_BODY_STYLE}>
+    <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
       <DetailNotices
         nameError={creating ? validateName(props.draftName) : null}
         runningThreads={!creating && needsRunningConfirm(props.detail) ? props.detail?.runningThreads ?? 0 : null}
@@ -444,7 +446,7 @@ export function TemplateDetailPane(props: TemplateDetailPaneProps) {
   const tabs = tabsFor(L, kind, creating !== null, issues.errors.length + issues.warnings.length);
 
   return (
-    <div data-template-detail={`${kind}:${name}`} style={DETAIL_PANE_STYLE}>
+    <div className="settings-detail-pane" data-template-detail={`${kind}:${name}`} style={DETAIL_PANE_STYLE}>
       <div style={PANE_HEADER_STYLE}>
         <DetailIdentity
           kind={kind} name={name} creating={creating !== null} draftName={props.draftName}

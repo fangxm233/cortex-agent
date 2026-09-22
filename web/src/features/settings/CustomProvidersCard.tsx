@@ -1,3 +1,8 @@
+// input:  custom provider controller, settings atoms
+// output: provider cards and endpoint editor
+// pos:    Desktop custom provider account forms
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import type { ReactNode } from 'react';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
@@ -41,7 +46,7 @@ function ProviderActions({ editDisabled, deleteDisabled, confirming, onEdit, onD
 }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       <SButton tone="neutral" data-cpv-action="edit" disabled={editDisabled} onClick={onEdit}>{L.cpvEdit}</SButton>
       <SButton tone="danger" data-cpv-action="delete" disabled={deleteDisabled} onClick={onDelete}>
         {confirming ? L.cpvConfirmDelete : L.cpvDelete}
@@ -71,7 +76,7 @@ function ProviderRow({ provider, ...actions }: {
       )}
       meta={providerMeta(provider)}
       trailing={(
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
           <SPill tone="neutral" mono>{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SPill>
           <ProviderActions {...actions} />
         </div>
@@ -146,7 +151,7 @@ function EndpointFields({ draft, errors, set }: Omit<FieldsProps, 'creating'>) {
         <textarea
           data-cpv-field="models" value={draft.models} rows={3}
           onChange={(e) => set({ models: e.target.value })}
-          style={{ ...S_CONTROL_STYLE, resize: 'vertical' }}
+          style={{ ...S_CONTROL_STYLE, height: 'auto', minHeight: 80, resize: 'vertical' }}
         />
       </SFieldRow>
     </>
@@ -178,7 +183,7 @@ function EditorCard({ controller, draft }: { controller: Controller; draft: Cust
       <div style={{ padding: '10px 16px 14px' }}>
         <Editor draft={draft} creating={controller.creating}
           errors={controller.errors} onChange={controller.changeDraft} />
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <SButton tone="neutral" data-cpv-action="cancel" disabled={controller.savePending}
             onClick={controller.closeDraft}>{L.cpvCancel}</SButton>
           <SButton tone="accent" data-cpv-action="save"
@@ -229,7 +234,7 @@ export function CustomProvidersCard() {
   return (
     <SSection label={label} action={add}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', padding: '0 2px' }}>
+        <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', padding: '0 2px' }}>
           {L.cpvSubtitle}
         </div>
         <ProviderList controller={controller} />

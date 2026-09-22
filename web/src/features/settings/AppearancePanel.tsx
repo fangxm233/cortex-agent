@@ -1,7 +1,7 @@
-// input:  Language (server-owned) plus device-local theme/palette providers and the settings kit
-// output: Desktop appearance settings panel
-// pos:    Desktop appearance controls. Everything here is device-local EXCEPT the language, which
-//         is one server setting shared with the conversation Cortex writes in.
+// input:  language, device-local theme providers, settings atoms
+// output: desktop appearance settings panel
+// pos:    Compact desktop theme and language controls
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties } from 'react';
 import { useVocab, useLang, useSetLang, useLangSource, type Lang } from '@/i18n';
@@ -51,8 +51,8 @@ function themeCardStyle(active: boolean): CSSProperties {
   return {
     border: 0, padding: 6, borderRadius: 'var(--r-card)', background: 'var(--glass-2)',
     boxShadow: active
-      ? 'var(--shadow-card-subtle), 0 0 0 1.5px var(--proto-accent)'
-      : 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
+      ? '0 0 0 1.5px var(--proto-accent)'
+      : '0 0 0 1px var(--proto-line-2)',
     cursor: 'pointer', textAlign: 'left', display: 'block', width: '100%',
     transition: 'box-shadow .12s',
   };
@@ -80,7 +80,7 @@ function ThemeCard({ spec, active, onSelect }: {
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--proto-accent)' : 'transparent' }} />
         </span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{spec.label}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{spec.label}</span>
       </div>
     </button>
   );
@@ -97,12 +97,12 @@ function ThemeSection() {
   ];
   return (
     <SSection label={L.stThemeLabel}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10 }}>
         {specs.map((spec) => (
           <ThemeCard key={spec.id} spec={spec} active={spec.id === theme} onSelect={setTheme} />
         ))}
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', padding: '9px 2px 0', lineHeight: 1.6 }}>{L.stThemeHint}</div>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: '9px 2px 0', lineHeight: 1.6 }}>{L.stThemeHint}</div>
     </SSection>
   );
 }
@@ -230,7 +230,7 @@ export function AppearancePanel() {
       <ThemeSection />
       <ColorSection />
       <SurfaceSection />
-      <div style={{ font: `400 10px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2, lineHeight: 1.7 }}>
+      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-faint)', paddingLeft: 2, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
         localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.glass · cortex.motion
       </div>
     </>

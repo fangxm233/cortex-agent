@@ -1,6 +1,6 @@
-// input:  settings kit control tokens
-// output: the field, hint and block styles the three platform editor files share
-// pos:    Local style seam for the platform panel — everything else comes from the kit
+// input:  settings atoms, desktop platform typography tokens
+// output: platform field, hint and block styles
+// pos:    Local style seam for shared platform editors
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties } from 'react';
@@ -24,7 +24,7 @@ export const PS_BLOCK_STYLE: CSSProperties = {
 /** Advisory copy that is not a notice: guidance sitting under a control or a heading. */
 export const PS_HINT_STYLE: CSSProperties = {
   margin: '10px 0 0',
-  fontSize: 11.5,
+  fontSize: 'var(--settings-platform-hint-size, 11.5px)',
   lineHeight: 1.6,
   color: 'var(--proto-muted-2)',
   overflowWrap: 'anywhere',

@@ -1,3 +1,9 @@
+// input:  template queries, settings atoms, detail pane
+// output: desktop template master-detail editor
+// pos:    Template list and editor composition
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import './desktop-panels.css';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadTemplateEntry, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
@@ -72,11 +78,9 @@ function TemplateRow({
         style={{
           flex: 1,
           minWidth: 0,
-          font: `600 11.5px ${MONO}`,
+          font: `600 13px ${MONO}`,
           color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          overflowWrap: 'anywhere',
         }}
       >
         {entry.name}
@@ -137,7 +141,7 @@ function TemplateList({
 }) {
   const L = useVocab();
   return (
-    <div style={listPaneStyle(LIST_WIDTH)}>
+    <div className="settings-list-pane" style={listPaneStyle(LIST_WIDTH)}>
       <ListHeader
         title={L.ttEditorTitle} count={entries.length} searchAttr="data-template-search"
         search={search} placeholder={L.ttSearchPh} onSearch={onSearch}
@@ -336,7 +340,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
 
   return (
     <div data-settings-panel="templates" style={EDITOR_ROOT_STYLE}>
-      <div style={EDITOR_COLUMNS_STYLE}>
+      <div className="settings-editor-columns" style={EDITOR_COLUMNS_STYLE}>
         <TemplateList
           entries={entries}
           visible={visible}

@@ -1,3 +1,9 @@
+// input:  profile controller, model catalog, settings atoms
+// output: responsive desktop profile list and editor
+// pos:    Desktop profile comparison and editing panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import './desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
@@ -52,47 +58,37 @@ import { useProfilesController, type ProfileFact } from './useProfilesController
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// The wrapper div stays for `data-settings-panel`, so it reproduces the 22px rhythm the shell puts
-// around a panel that returns a bare fragment.
-const PANEL_STACK: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 22 };
+const PANEL_STACK: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
 
 // ── the table ─────────────────────────────────────────────────────────────────────────────────
 //
-// A profile is five short parallel attributes, and the job this list is read for is comparing them
-// ACROSS rows — which profile runs which model, which ones share a backend. Columns are what make
-// that a straight downward read, and the header is what makes a one-word cell like `pi` or `max`
-// mean anything at all. So this stays a real table rather than a stack of entity rows, where the
-// same five values would fold into one unlabelled mono line.
-
-const GRID = '150px 1fr 76px 76px 76px 178px';
+// Wide panes compare attributes in columns; narrow panes repeat the labels in each card.
+// The create action stays visible in both layouts.
 
 const COL: CSSProperties = {
-  fontSize: 10.5,
-  fontWeight: 700,
+  fontSize: 12,
+  fontWeight: 600,
   letterSpacing: '.07em',
   textTransform: 'uppercase',
   color: 'var(--proto-muted)',
 };
 
 const TABLE_ROW: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: GRID,
   gap: 12,
   alignItems: 'center',
   padding: '11px 16px',
 };
 
-const ROW_ACTIONS: CSSProperties = { display: 'flex', gap: 12, justifyContent: 'flex-end' };
+const ROW_ACTIONS: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', minWidth: 0 };
 
-function Cell({ value, dim }: { value: string | null; dim?: boolean }) {
+function Cell({ value, label, dim }: { value: string | null; label: string; dim?: boolean }) {
   return (
     <span
+      className="settings-profile-cell" data-label={label}
       style={{
-        font: `400 10.5px ${MONO}`,
+        font: `400 12px ${MONO}`,
         color: value ? (dim ? 'var(--proto-muted-3)' : 'var(--proto-ink-2)') : 'var(--proto-faint)',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
+        overflowWrap: 'anywhere',
         minWidth: 0,
       }}
     >
@@ -104,7 +100,7 @@ function Cell({ value, dim }: { value: string | null; dim?: boolean }) {
 function ProfileTableHead({ busy, onCreate }: { busy: boolean; onCreate: () => void }) {
   const L = useVocab();
   return (
-    <div style={{ ...TABLE_ROW, padding: '10px 16px' }}>
+    <div className="settings-profile-row settings-profile-head" style={{ ...TABLE_ROW, padding: '10px 16px' }}>
       <span style={COL}>{L.stColName}</span>
       <span style={COL}>{L.stColModel}</span>
       <span style={COL}>{L.stColBackend}</span>
@@ -159,25 +155,26 @@ function ProfileRow({ p, fact }: { p: ProfilesPanelViewProps; fact: ProfileFact 
   const r = fact.profile;
   return (
     <div
+      className="settings-profile-row"
       data-profile-row={r.name}
       style={{
         ...TABLE_ROW,
         background: p.editingName === r.name ? 'var(--proto-accent-bg)' : undefined,
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <span className="settings-profile-name" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, minWidth: 0 }}>
         <span style={{
-          font: `600 11px ${MONO}`, color: 'var(--proto-ink)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          font: `600 13px ${MONO}`, color: 'var(--proto-ink)',
+          overflowWrap: 'anywhere', minWidth: 0,
         }}>
           {r.name}
         </span>
         {fact.current ? <SPill tone="accent">{L.default}</SPill> : null}
       </span>
-      <Cell value={r.model} dim />
-      <Cell value={r.backend} dim />
-      <Cell value={r.mode} />
-      <Cell value={r.thinking} />
+      <Cell value={r.model} label={L.stColModel} dim />
+      <Cell value={r.backend} label={L.stColBackend} dim />
+      <Cell value={r.mode} label={L.stColMode} />
+      <Cell value={r.thinking} label={L.stColThinking} />
       <ProfileRowActions p={p} fact={fact} />
     </div>
   );
@@ -186,10 +183,10 @@ function ProfileRow({ p, fact }: { p: ProfilesPanelViewProps; fact: ProfileFact 
 function ProfileTable({ p }: { p: ProfilesPanelViewProps }) {
   const L = useVocab();
   return (
-    <SRowGroup>
+    <SRowGroup className="settings-profile-table">
       <ProfileTableHead busy={p.draft !== null} onCreate={p.onStartCreate} />
       {p.profileFacts.length === 0 ? (
-        <div style={{ padding: '13px 16px', fontSize: 12.5, color: 'var(--proto-muted-2)' }}>
+        <div style={{ padding: '13px 16px', fontSize: 13, color: 'var(--proto-muted-2)' }}>
           {L.stNoProfiles}
         </div>
       ) : (
@@ -201,22 +198,10 @@ function ProfileTable({ p }: { p: ProfilesPanelViewProps }) {
 
 // ── the default-profile row ───────────────────────────────────────────────────────────────────
 
-// The live picker and the inert replica have to read as the same control, so the Radix trigger
-// copies SSelectChip's geometry — the kit chip is a button and cannot host one.
+// The live picker uses the shared control geometry; only identifiers retain monospace.
 const PICKER_STYLE: CSSProperties = {
-  height: 30,
-  minWidth: 132,
-  padding: '0 10px 0 12px',
-  border: 0,
-  borderRadius: 'var(--r-control)',
-  background: 'var(--glass-1)',
-  boxShadow: '0 0 0 1px var(--proto-line)',
-  fontFamily: MONO,
-  fontSize: 12,
-  fontWeight: 500,
-  color: 'var(--proto-ink)',
-  cursor: 'pointer',
-  flex: 'none',
+  ...S_CONTROL_STYLE, width: 'auto', minWidth: 132, maxWidth: '100%',
+  fontFamily: MONO, fontWeight: 500, cursor: 'pointer', flex: 'none',
 };
 
 function DefaultProfileRow({ current, names, onPick }: {
@@ -283,7 +268,7 @@ function ProfileChoice({
   // (a provider that is not logged in, a scan that failed) must stay writable.
   if (custom || options.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="settings-inline-fields" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <input
           data-profile-field={field}
           data-profile-choice="custom"
@@ -330,13 +315,13 @@ function ExtraOptionRows({ rows, onChange }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {rows.map((row, i) => (
-        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div key={i} className="settings-key-value-fields">
           <input
             data-profile-option-key={i}
             value={row.key}
             placeholder={L.pfOptionKeyPlaceholder}
             onChange={(e) => patch(i, { key: e.target.value })}
-            style={{ ...S_CONTROL_STYLE, width: 150, flex: 'none' }}
+            style={S_CONTROL_STYLE}
           />
           <input
             data-profile-option-value={i}
@@ -372,7 +357,7 @@ function PreservedFields({ entry }: { entry: ConfigProfileEntry | null }) {
     <SSection label={`${L.pfFieldExtraEnv} · ${L.pfFieldFallback}`}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{
-          font: `400 10.5px/1.9 ${MONO}`, color: 'var(--proto-muted-2)',
+          font: `400 12px/1.7 ${MONO}`, color: 'var(--proto-muted-2)',
           background: 'var(--proto-alt)', borderRadius: 'var(--r-control)', padding: '9px 12px',
         }}>
           <MonoKV k={L.pfFieldExtraEnv} value={envValue} />
@@ -548,7 +533,7 @@ function ProfileEditor({
 function EditorFooter({ p, savable }: { p: ProfilesPanelViewProps; savable: boolean }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       {p.dirty ? <SPill tone="amber">{L.pfDirty}</SPill> : null}
       <span style={{ marginLeft: 'auto' }} />
       {!p.creating ? (
@@ -639,7 +624,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
   // handler is passed (e.g. the pure render test).
   const canWrite = !!props.onSetDefaultProfile && names.length > 0;
   return (
-    <div data-settings-panel="profiles" style={PANEL_STACK}>
+    <div className="settings-profiles" data-settings-panel="profiles" style={PANEL_STACK}>
       <DefaultProfileRow
         current={props.snapshot.profiles?.defaultProfile ?? null}
         names={names}

@@ -1,3 +1,8 @@
+// input:  budget writer, config and cost snapshots, settings atoms
+// output: desktop spend and budget limit controls
+// pos:    Compact desktop budget panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigBudget, ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
@@ -46,10 +51,10 @@ import { useBudgetWriter } from './useBudgetWriter';
 const MONO = "'IBM Plex Mono',monospace";
 
 const AMOUNT_STYLE: CSSProperties = { font: `500 18px ${MONO}`, letterSpacing: '-.02em' };
-const NOTE_STYLE: CSSProperties = { fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
-const SCOPE_TAG_STYLE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)' };
-const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap' };
-const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 22 };
+const NOTE_STYLE: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
+const SCOPE_TAG_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
+const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' };
+const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
 
 const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab; def: boolean }[] = [
   { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc', def: true },
@@ -125,7 +130,7 @@ function LimitChips(props: Pick<LimitRowProps, 'field' | 'chips' | 'current' | '
 function LimitControl(props: Pick<LimitRowProps, 'field' | 'draft' | 'pending' | 'onDraft' | 'onApply'>) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
       <input
         value={props.draft} disabled={props.pending}
         onChange={(event) => props.onDraft(event.target.value)}
@@ -207,7 +212,7 @@ function ScopeRow({ scope, projects, budget, onSelect }: {
 function ClearOverrideRow({ pending, onClear }: { pending: boolean; onClear: () => void }) {
   const L = useVocab();
   return (
-    <div style={ROW_STYLE}>
+    <div style={{ ...ROW_STYLE, flexWrap: 'wrap' }}>
       <span style={{ ...NOTE_STYLE, flex: 1, minWidth: 0 }}>{L.stBudgetClearHint}</span>
       <SLinkAction tone="danger" disabled={pending} onClick={onClear} data-budget-clear>
         {L.stBudgetClear}
@@ -228,7 +233,7 @@ function PolicySection() {
             key={row.titleKey} align="flex-start" control={<RadioDot selected={false} />}
             desc={L[row.descKey]}
             title={
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--proto-muted)' }}>
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, color: 'var(--proto-muted)' }}>
                 {L[row.titleKey]}
                 {row.def ? <SPill tone="accent">{L.default}</SPill> : null}
               </span>

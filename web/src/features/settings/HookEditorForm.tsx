@@ -1,6 +1,7 @@
-// input:  react, the settings kit, the hooks view-model
-// output: the hook declaration form — trigger, action, scope and advanced fields
-// pos:    The editable half of the hooks detail pane; the read-only half stays in HookDetailPane
+// input:  hook view-model, settings atoms
+// output: hook trigger, action, scope and advanced fields
+// pos:    Responsive hook declaration form
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
@@ -56,7 +57,7 @@ function FilterRow({ row, index, rows, setRows }: {
   const edit = (patch: Partial<FilterRows[number]>) =>
     setRows(rows.map((r, j) => (index === j ? { ...r, ...patch } : r)));
   return (
-    <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+    <div className="settings-key-value-fields" style={{ marginBottom: 8 }}>
       <input
         data-hook-filter-key={index} value={row.key} placeholder={L.hkFilterKeyPh}
         onChange={(e) => edit({ key: e.target.value })} style={{ ...S_CONTROL_STYLE, flex: 1 }}
@@ -148,7 +149,7 @@ function RunKindPicker({ draft, onDraftChange }: {
 }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingTop: 4 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, paddingTop: 4 }}>
       {(['script', 'command'] as const).map((kind) => (
         <span
           key={kind}
@@ -158,7 +159,7 @@ function RunKindPicker({ draft, onDraftChange }: {
           style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}
         >
           <RadioDot selected={draft.runKind === kind} />
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink-2)' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink-2)' }}>
             {kind === 'script' ? L.hkFieldScript : L.hkFieldCommand}
           </span>
         </span>
@@ -213,7 +214,7 @@ function ActionFields({ draft, errors, scripts, onDraftChange, err }: EditorSect
       </SFieldRow>
       <RunTargetField draft={draft} scripts={scripts} onDraftChange={onDraftChange} />
       <SFieldRow label={L.hkFieldTimeout} hint={err(errors.timeoutSec)} hintTone="danger">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <input
             data-hook-field="timeout"
             value={draft.timeoutSec}
@@ -221,7 +222,7 @@ function ActionFields({ draft, errors, scripts, onDraftChange, err }: EditorSect
             onChange={(e) => onDraftChange({ ...draft, timeoutSec: e.target.value })}
             style={{ ...S_CONTROL_STYLE, width: 92 }}
           />
-          <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{L.hkSeconds}</span>
+          <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{L.hkSeconds}</span>
         </div>
       </SFieldRow>
     </>

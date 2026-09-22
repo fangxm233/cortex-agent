@@ -1,6 +1,6 @@
 // input:  runtime settings snapshot and serialized setting writer
 // output: notification routing editor and Web Feishu skill switch
-// pos:    Runtime controls embedded in platform cards
+// pos:    Runtime controls grouped within platform cards
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
@@ -24,7 +24,7 @@ function SkillSwitch(props: RuntimeProps) {
   const on = entry?.value === true;
   const locked = props.pending || typeof entry?.value !== 'boolean';
   return <section data-platform-runtime="feishuSkillsInWeb" style={PS_BLOCK_STYLE}>
-    <SRowGroup>
+    <SRowGroup className="settings-platform-group">
       <SRow title={L.psSkills} desc={L.psSkillsHint} align="flex-start" control={
         <Toggle on={on} inert={locked} ariaLabel={L.psSkills}
           onClick={locked ? undefined : () => void props.onSave({ feishuSkillsInWeb: !on })} />

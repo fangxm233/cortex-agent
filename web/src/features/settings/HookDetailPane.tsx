@@ -1,6 +1,7 @@
-// input:  react, the settings kit, the hooks view-model
-// output: the hooks editor's right column — declaration, form, registry facts, test runner
-// pos:    Detail half of the hooks master–detail panel; the list half stays in HooksPanel
+// input:  hook view-model, settings atoms
+// output: hook detail, declaration form and test runner
+// pos:    Responsive detail pane for desktop hooks
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
@@ -50,7 +51,7 @@ const MOUNT_TONE: Record<HookMountTarget, SPillTone> = {
 };
 
 const FACTS_STYLE: CSSProperties = {
-  font: `400 10.5px/1.9 ${MONO}`, color: 'var(--proto-muted)',
+  font: `400 12px/1.7 ${MONO}`, color: 'var(--proto-muted)',
 };
 
 // ── small presentational atoms ────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ function SourceBadge({ source }: { source: HookDetail['source'] }) {
 }
 
 function Mono({ children }: { children: ReactNode }) {
-  return <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink-2)' }}>{children}</span>;
+  return <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-ink-2)', overflowWrap: 'anywhere' }}>{children}</span>;
 }
 
 // ── read-only declaration ─────────────────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ function ReadOnlyDeclaration({ hook }: { hook: HookDetail }) {
 // Output, not input, but still code: opaque so the mesh never shows through a stack trace.
 const RESULT_CARD_STYLE: CSSProperties = {
   marginTop: 10, background: 'var(--proto-card)', borderRadius: 'var(--r-control)',
-  boxShadow: '0 0 0 1px var(--proto-line-2)', overflow: 'hidden',
+  boxShadow: 'none', overflow: 'hidden',
 };
 
 function TestStream({ label, text, tone }: { label: string; text: string; tone?: 'danger' }) {
@@ -118,9 +119,9 @@ function TestStream({ label, text, tone }: { label: string; text: string; tone?:
     : tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)';
   return (
     <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px' }}>
-      <div style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
+      <div style={{ font: `600 12px ${MONO}`, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
       <pre style={{
-        margin: 0, font: `400 11px/1.65 ${MONO}`, color, whiteSpace: 'pre-wrap',
+        margin: 0, font: `400 12px/1.65 ${MONO}`, color, whiteSpace: 'pre-wrap',
         wordBreak: 'break-word', maxHeight: 130, overflow: 'auto',
       }}>
         {empty ? L.hkTestNoOutput : text}
@@ -133,8 +134,8 @@ function TestResult({ result }: { result: HooksTestReturn }) {
   return (
     <div data-hook-test-result="" style={RESULT_CARD_STYLE}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-        background: 'var(--proto-alt)', font: `500 10.5px ${MONO}`, color: 'var(--proto-muted)',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px',
+        background: 'var(--proto-alt)', overflowWrap: 'anywhere', font: `500 12px ${MONO}`, color: 'var(--proto-muted)',
       }}>
         <span
           data-hook-test-exit={result.exitCode === null ? '' : String(result.exitCode)}
@@ -153,8 +154,8 @@ function TestResult({ result }: { result: HooksTestReturn }) {
 function TestRunnerHeader({ onReset, onClose }: { onReset: () => void; onClose: () => void }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.hkTestTitle}</span>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.hkTestTitle}</span>
       <SLinkAction data-action="reset-test-payload" onClick={onReset}>{L.hkTestReset}</SLinkAction>
       <span style={{ marginLeft: 'auto' }}>
         <SLinkAction data-action="close-test" tone="muted" onClick={onClose}>{L.hkTestClose}</SLinkAction>
@@ -171,16 +172,16 @@ function PayloadField({ payload, error, onPayloadChange }: {
   const L = useVocab();
   return (
     <>
-      <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', margin: '10px 0 5px' }}>{L.hkTestPayload}</div>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', margin: '12px 0 4px' }}>{L.hkTestPayload}</div>
       <textarea
         data-hook-test-payload=""
         value={payload}
         onChange={(e) => onPayloadChange(e.target.value)}
         rows={6}
-        style={{ ...(error ? CONTROL_ERROR_STYLE : S_CONTROL_STYLE), resize: 'vertical', lineHeight: 1.6 }}
+        style={{ ...(error ? CONTROL_ERROR_STYLE : S_CONTROL_STYLE), fontFamily: MONO, height: 'auto', resize: 'vertical', lineHeight: 1.6 }}
       />
       {error ? (
-        <div data-hook-payload-error="" style={{ fontSize: 11.5, color: 'var(--proto-danger)', marginTop: 4 }}>
+        <div data-hook-payload-error="" style={{ fontSize: 12, color: 'var(--proto-danger)', marginTop: 4 }}>
           {L.hkPayloadInvalid}
         </div>
       ) : null}
@@ -214,11 +215,11 @@ function TestRunner({ hook, payload, result, pending, onPayloadChange, onRun, on
         payload={payload} onPayloadChange={onPayloadChange}
         error={payload.trim() !== '' && !isPayloadParseable(payload)}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
         <SButton data-action="run-test" tone="accent" disabled={!runnable} onClick={onRun}>
           {L.hkTestRun}
         </SButton>
-        <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', minWidth: 0, overflowWrap: 'anywhere' }}>
+        <span style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', minWidth: 0, overflowWrap: 'anywhere' }}>
           {hook.run.command ?? hook.run.script ?? '—'}
         </span>
       </div>
@@ -259,7 +260,7 @@ export interface HookDetailPaneProps {
 function EmptyDetail() {
   const L = useVocab();
   return (
-    <div style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
+    <div className="settings-detail-pane" style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
       <span style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.hkSelectHint}</span>
     </div>
   );
@@ -276,7 +277,7 @@ function DetailHeader({ hook, draft, creating, dirty, saving, onToggleEnabled }:
   const L = useVocab();
   const canToggle = hook !== null && hookCapability(hook).canToggle;
   return (
-    <div style={{ ...PANE_HEADER_STYLE, display: 'flex', alignItems: 'center', gap: 9 }}>
+    <div style={{ ...PANE_HEADER_STYLE, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>
         {creating ? draft.id || L.hkCreate : hook?.id}
       </span>
@@ -289,7 +290,7 @@ function DetailHeader({ hook, draft, creating, dirty, saving, onToggleEnabled }:
           data-hook-enabled={hook.enabled ? '' : undefined}
           style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}
         >
-          <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>
+          <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>
             {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
           </span>
           <Toggle on={hook.enabled} onClick={saving ? undefined : () => onToggleEnabled(hook, !hook.enabled)} />
@@ -345,7 +346,7 @@ function RegistryFacts({ hook }: { hook: HookDetail }) {
       {hook.appliesAt !== null ? (
         <div
           data-hook-applies-at={hook.appliesAt}
-          style={{ fontSize: 11.5, lineHeight: 1.7, color: 'var(--proto-muted-2)', marginTop: 9 }}
+          style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--proto-muted-2)', marginTop: 9 }}
         >
           {hook.appliesAt === 'server-restart' ? L.hkAppliesRestart : L.hkAppliesNextAgent}
         </div>
@@ -415,7 +416,7 @@ function DetailBody(props: HookDetailPaneProps & {
   const L = useVocab();
   const { hook } = props;
   return (
-    <div style={PANE_BODY_STYLE}>
+    <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
       <CapabilityNotices hook={hook} note={hook ? hookCapability(hook).note : undefined} />
       {props.editing ? (
         <HookEditor
@@ -462,7 +463,7 @@ export function HookDetailPane(props: HookDetailPaneProps & { hook: HookDetail |
   const savable = editing && dirty && isHookFormValid(errors) && !props.saving;
 
   return (
-    <div style={DETAIL_PANE_STYLE}>
+    <div className="settings-detail-pane" style={DETAIL_PANE_STYLE}>
       <DetailHeader
         hook={hook} draft={draft} creating={creating} dirty={dirty}
         saving={props.saving} onToggleEnabled={props.onToggleEnabled}

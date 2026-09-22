@@ -1,3 +1,9 @@
+// input:  machines resource, settings atoms, approval action
+// output: desktop machine registry and connectivity cards
+// pos:    Responsive desktop machines panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import './desktop-panels.css';
 import type { CSSProperties } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
@@ -19,12 +25,12 @@ import {
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const HINT_STYLE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)' };
+const HINT_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-faint)', overflowWrap: 'anywhere' };
 const FOOTNOTE_STYLE: CSSProperties = {
-  fontSize: 11.5, lineHeight: 1.7, color: 'var(--proto-muted-2)', paddingLeft: 2,
+  fontSize: 12, lineHeight: 1.7, color: 'var(--proto-muted-2)', paddingLeft: 2,
 };
 const KV_BODY_STYLE: CSSProperties = {
-  padding: '12px 16px', font: `400 11.5px ${MONO}`, lineHeight: 1.9, color: 'var(--proto-ink)',
+  padding: '12px 16px', font: `400 12px ${MONO}`, lineHeight: 1.7, color: 'var(--proto-ink)',
 };
 
 function MachineEntity({ machine }: { machine: MachineInfo }) {
@@ -34,7 +40,7 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
     dot={<SDot color={ssh ? 'var(--proto-success)' : 'var(--proto-line-3)'} />}
     name={<SEntityName>{machine.name}</SEntityName>}
     meta={`${machine.cortexPath ?? '—'} · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
-    trailing={<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    trailing={<div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       <SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>
       <SLinkAction tone="muted" disabled title="No machine logs/registry backend op — inert">
         {L.stLogs}
@@ -44,7 +50,7 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
 
 function AddMachineAction({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {
   const L = useVocab();
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+  return <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
     <span style={HINT_STYLE}>{L.stMachineFieldsHint}</span>
     <SLinkAction onClick={disabled ? undefined : onAdd} disabled={disabled} role="button"
       data-add-machine="" aria-disabled={disabled} title={L.stAddMachineApprovalTitle}>
@@ -63,7 +69,7 @@ function MachinesHeading({ count }: { count: number }) {
 function MachineGuidance() {
   const L = useVocab();
   return <>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+    <div className="settings-adaptive-cards">
       <SCard><SCardHeader title={L.stClientLifecycle} right="client-manager" /><div style={KV_BODY_STYLE}>
         <MonoKV k={L.mHeartbeat} value="5s · 15s timeout" />
         <MonoKV k={L.mRecover} value="SSH restart · 60s backoff" />

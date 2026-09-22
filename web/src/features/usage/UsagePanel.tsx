@@ -1,3 +1,9 @@
+// input:  usage resource, policy draft, settings atoms
+// output: desktop provider quota and policy controls
+// pos:    Compact desktop usage panel
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import '@/features/settings/desktop-panels.css';
 import type { CSSProperties, ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import {
@@ -32,8 +38,8 @@ const SEVERITY_FILL: Record<UsageSeverity, string> = {
   danger: 'var(--proto-danger)',
 };
 
-const META_TEXT: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)' };
-const POLICY_TEXT: CSSProperties = { fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
+const META_TEXT: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
+const POLICY_TEXT: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
 // The kit control scale, widened on the right only: the `%` suffix is painted over the field.
 const POLICY_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 84, paddingRight: 24 };
 const POLICY_INPUT_DISABLED: CSSProperties = { ...S_CONTROL_DISABLED_STYLE, width: 84, paddingRight: 24 };
@@ -64,7 +70,7 @@ function ProviderHeader({ provider }: { provider: ProviderUsageView }) {
       <SCardHeader
         title={provider.displayName}
         right={(
-          <span style={{ ...META_TEXT, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ ...META_TEXT, display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <span>{provider.modes.join(' · ')}</span>
             <Observation provider={provider} />
           </span>
@@ -93,7 +99,7 @@ function ThresholdField(props: {
   onChange: (value: string) => void;
 }) {
   return (
-    <div style={{ position: 'relative', width: 84 }}>
+    <div style={{ position: 'relative', width: 84, flex: 'none' }}>
       <input
         data-usage-threshold-input={targetKey(props.target)}
         type="number"
@@ -106,7 +112,7 @@ function ThresholdField(props: {
         onChange={(event) => props.onChange(event.target.value)}
         style={props.disabled ? POLICY_INPUT_DISABLED : POLICY_INPUT}
       />
-      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', font: `500 10.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>%</span>
+      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', font: `500 12px ${MONO}`, color: 'var(--proto-muted-2)' }}>%</span>
     </div>
   );
 }
@@ -149,7 +155,7 @@ function PolicyControlsRow(props: PolicyThresholdButtonsProps & {
   return (
     <div data-usage-policy-controls={key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
       <Toggle on={props.policy.enabled} onClick={onClick} ariaLabel={`Usage throttle ${key}`} inert={props.disabled} />
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
       <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
       <ThresholdField disabled={props.disabled} target={props.policy.target} value={props.draft} onChange={props.setDraft} />
       <PolicyThresholdButtons {...props} />
@@ -252,7 +258,7 @@ function WindowStat(props: { window: UsageWindowView; usage: ReturnType<typeof u
   const view = props.window;
   const detailed = view.policy !== null || view.resetsAt !== null;
   return (
-    <div data-usage-window={view.type} data-usage-severity={view.severity}>
+    <div className="settings-usage-window" data-usage-window={view.type} data-usage-severity={view.severity}>
       <SStat
         value={view.utilizationLabel ?? L.usageUnavailable}
         caption={view.label}
@@ -330,7 +336,7 @@ function SpendBlock({ provider }: { provider: ProviderUsageView }) {
   return (
     <section data-usage-spend={provider.provider} style={{ borderTop: '1px solid var(--proto-line-2)', padding: '14px 16px' }}>
       <SSection label={L.usageGatewaySpend}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="settings-adaptive-cards settings-usage-spend">
           <SStat value={provider.spend.today} caption={L.usageToday} />
           <SStat value={provider.spend.month} caption={L.usageMonth} />
         </div>
@@ -383,7 +389,7 @@ function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-      {usage.refreshError ? <span style={{ fontSize: 11.5, color: 'var(--proto-danger)' }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
+      {usage.refreshError ? <span style={{ fontSize: 12, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
       <SButton tone="neutral" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <RefreshIcon spinning={usage.isRefreshing} />

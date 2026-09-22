@@ -1,3 +1,8 @@
+// input:  plugin catalog, settings atoms, localized copy
+// output: plugin metadata, summaries and card styles
+// pos:    Compact desktop plugin presentation helpers
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import type { CSSProperties, ReactNode } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
@@ -8,7 +13,10 @@ const MONO = "'IBM Plex Mono',monospace";
 // A plugin, a skill or an MCP server reads as one tile rather than a stack of hairline rows, so it
 // takes the kit's ringed card and carries the row padding itself. `border: 0` is explicit because
 // the tile is also used on a <button>, which would otherwise keep the UA border the ring replaced.
-export const ROW: CSSProperties = { ...GROUP_STYLE, border: 0, padding: '13px 16px' };
+export const ROW: CSSProperties = {
+  ...GROUP_STYLE, border: 0, boxShadow: 'none', background: 'var(--proto-alt)',
+  padding: '12px 16px', minWidth: 0, overflowWrap: 'anywhere',
+};
 
 export function pluginTitle(plugin: UiPluginCatalogEntry): string {
   return plugin.manifest.name ?? plugin.id;
@@ -59,7 +67,7 @@ export function MetaSection({ label, children }: { label: string; children: Reac
 }
 
 export function EmptyMessage({ text, dataAttr }: { text: string; dataAttr: string }) {
-  return <div {...{ [dataAttr]: '' }} style={{ fontSize: 12.5, color: 'var(--proto-muted-2)' }}>{text}</div>;
+  return <div {...{ [dataAttr]: '' }} style={{ fontSize: 13, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' }}>{text}</div>;
 }
 
 export function McpSummaryLine({ server }: { server: UiPluginMcpServer }) {
@@ -73,9 +81,9 @@ export function McpSummaryLine({ server }: { server: UiPluginMcpServer }) {
       display: 'flex', flexDirection: 'column', gap: 4, padding: '11px 14px',
       borderRadius: 'var(--r-control)', background: 'var(--proto-alt)',
     }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{server.name} · {mcpTransportText(server, L)}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere' }}>{server.name} · {mcpTransportText(server, L)}</div>
       {/* Wrapping, not ellipsed: this line is what an operator consents to when a server is added. */}
-      <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', lineHeight: 1.6, wordBreak: 'break-word' }}>{text}</div>
+      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', lineHeight: 1.6, overflowWrap: 'anywhere' }}>{text}</div>
     </div>
   );
 }
@@ -84,7 +92,7 @@ export function McpServerSummary({ plugin }: { plugin: UiPluginCatalogEntry }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{mcpStatusText(plugin, L)}</div>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{mcpStatusText(plugin, L)}</div>
       {plugin.mcp.servers.map((server) => <McpSummaryLine key={`${plugin.id}:${server.name}`} server={server} />)}
     </div>
   );
@@ -106,8 +114,8 @@ function IssueLine({ plugin, index }: { plugin: UiPluginCatalogEntry; index: num
   return (
     <div data-plugin-issue={advisory ? 'advisory' : 'error'}
       style={{ ...ROW_STYLE, flexDirection: 'column', alignItems: 'stretch', gap: 3 }}>
-      <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{meta}</div>
-      <div style={{ fontSize: 11.5, lineHeight: 1.5, color: advisory ? 'var(--proto-muted-2)' : 'var(--proto-danger)' }}>
+      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' }}>{meta}</div>
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: advisory ? 'var(--proto-muted-2)' : 'var(--proto-danger)' }}>
         {issue.message}
       </div>
     </div>
@@ -116,7 +124,7 @@ function IssueLine({ plugin, index }: { plugin: UiPluginCatalogEntry; index: num
 
 export function IssueList({ plugin }: { plugin: UiPluginCatalogEntry }) {
   const L = useVocab();
-  if (plugin.issues.length === 0) return <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{L.plNone}</div>;
+  if (plugin.issues.length === 0) return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{L.plNone}</div>;
   return (
     <SRowGroup>
       {plugin.issues.map((_, index) => <IssueLine key={`${plugin.id}:${index}`} plugin={plugin} index={index} />)}
