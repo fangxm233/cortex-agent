@@ -1,18 +1,27 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
-import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';
+import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
+import { useTheme, useSetTheme } from '@/theme';
+import { useSettings } from '@/features/settings/SettingsProvider';
+import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
+import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
+import { BrandBadge, GearIcon } from '@/features/workbench/LeftRail';
 import { usePaneState } from './PaneStateProvider';
 import { useNavigationHistory } from './NavigationHistoryProvider';
+import { useShellModals } from './ShellModalsProvider';
 import { MenuBar } from './menu/MenuBar';
+import { formatAccel } from './menu/menu-model';
 import { useAppMenus } from './menu/useAppMenus';
 import { useMenuShortcuts } from './menu/useMenuShortcuts';
 import { useNativeMenu } from './menu/useNativeMenu';
 import { WindowControls } from './WindowControls';
 
-export const TOP_BAR_HEIGHT = 34;
+export const TOP_BAR_HEIGHT = 44;
 
-// Left-loaded by design: the right side is nothing but drag region and caption buttons. An earlier
-// draft put live status chips there; they were dropped so the bar stays a command surface.
+const mono = "'IBM Plex Mono',monospace";
+
+// The bar is the app's one always-visible surface, so everything that must survive a collapsed rail
+// lives here: the brand block with its connectivity dot, the palette entry, theme and Settings.
 //
 // Everything here is window-scoped. Session-scoped controls (Browser, Notes, ⋯) stay in ChatHeader.
 
@@ -38,7 +47,7 @@ function IconButton({ label, active, disabled, onClick, children }: {
         width: 30,
         height: 30,
         border: 0,
-        borderRadius: 7,
+        borderRadius: 8,
         padding: 0,
         display: 'grid',
         placeItems: 'center',
@@ -78,10 +87,68 @@ function ArrowGlyph({ forward }: { forward?: boolean }): JSX.Element {
   );
 }
 
+function SearchGlyph(): JSX.Element {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
+      <circle cx="7.2" cy="7.2" r="3.9" />
+      <path d="M10.1 10.1 12.9 12.9" />
+    </svg>
+  );
+}
+
+// The palette entry. A real button, not a styled div: it has to be keyboard reachable, and Tauri's
+// drag walk stops at the first clickable ancestor — a div here would drag the window instead.
+function CommandPill({ label, accel, onClick }: { label: string; accel: string; onClick: () => void }): JSX.Element {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        height: 30,
+        width: 320,
+        padding: '0 12px',
+        boxSizing: 'border-box',
+        border: 0,
+        borderRadius: 'var(--r-pill)',
+        background: hover ? 'var(--glass-2)' : 'var(--glass-1)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        boxShadow: '0 0 0 1px var(--proto-line)',
+        color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-2)',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        // A button centres its text; the pill reads as a field, so its placeholder starts at the left.
+        textAlign: 'left',
+        flex: 'none',
+      }}
+    >
+      <SearchGlyph />
+      <span style={{ fontSize: 12, flex: 1 }}>{label}</span>
+      <span style={{ font: `500 10px ${mono}`, color: 'var(--proto-muted-3)' }}>{accel}</span>
+    </button>
+  );
+}
+
 export function TopBar(): JSX.Element {
   const L = useVocab();
   const panes = usePaneState();
   const history = useNavigationHistory();
+  const theme = useTheme();
+  const setTheme = useSetTheme();
+  const { open: openSettings } = useSettings();
+  // Live UI↔server connectivity for the brand badge (green connected / amber (re)connecting /
+  // red disconnected).
+  const connStatus = useConnectionStatus();
+  const connDot = connectionDot(connStatus);
+  const connLabel = L[connectionLabelKey(connStatus)];
+  const shellModals = useShellModals();
   const { menus, windowActions } = useAppMenus();
   // On macOS the shell installs a real system menu and owns the accelerators; everywhere else this
   // reports inactive and the bar draws the menus itself.
@@ -110,7 +177,27 @@ export function TopBar(): JSX.Element {
       {/* macOS keeps its native traffic lights under TitleBarStyle::Overlay; reserve their strip. */}
       <div style={{ width: captionInsetLeft(), flex: 'none' }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none', paddingLeft: mode === 'overlay' ? 0 : 12 }}>
+      {/* The bar itself is full-bleed, so the gutter is on the first and last CONTENT clusters —
+          that is what lines the brand mark up with the rail below it. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          flex: 'none',
+          paddingLeft: mode === 'overlay' ? 0 : 'var(--app-gutter)',
+          paddingRight: 10,
+        }}
+      >
+        <BrandBadge
+          dot={connDot}
+          label={`${L.dmDaemon} · ${connLabel}`}
+          onClick={() => shellModals.openDaemonStatus()}
+        />
+        <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none' }}>
         <IconButton label={L.tbToggleRail} active={!panes.railCollapsed} onClick={panes.toggleRail}>
           <PanelGlyph />
         </IconButton>
@@ -123,12 +210,60 @@ export function TopBar(): JSX.Element {
       </div>
 
       {!nativeMenu.active && (
-        <div style={{ marginLeft: 14, flex: 'none' }}>
+        <div style={{ marginLeft: 10, flex: 'none' }}>
           <MenuBar menus={menus} />
         </div>
       )}
 
       <div style={{ flex: 1, alignSelf: 'stretch', minWidth: 20 }} />
+
+      <CommandPill
+        label={L.cmdkPh}
+        accel={formatAccel('mod+k', usesCommandKey())}
+        // The palette's open state lives in AppShell's own `useCommandPalette` instance, so the
+        // established way to reach it from elsewhere is the synthetic key event (precedent:
+        // shell/menu/useAppMenus.ts, features/workbench/CenterChat.tsx).
+        onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }))}
+      />
+
+      <div style={{ flex: 1, alignSelf: 'stretch', minWidth: 20 }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none', paddingRight: 'var(--app-gutter)' }}>
+        {/* Theme (☀/☾). The language switch lives in Settings → Appearance. The capsule opts out of
+            the drag region explicitly: its halves are spans, which the drag walk would otherwise
+            treat as bare bar surface and swallow the click to start a window drag. */}
+        <div
+          data-tauri-drag-region="false"
+          style={{
+            display: 'flex',
+            borderRadius: 'var(--r-chip)',
+            overflow: 'hidden',
+            background: 'var(--glass-1)',
+            boxShadow: '0 0 0 1px var(--proto-line)',
+          }}
+        >
+          <span
+            onClick={() => setTheme('light')}
+            title={L.stThemeLight}
+            aria-label={L.stThemeLight}
+            style={{ fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+          >
+            ☀
+          </span>
+          <span
+            onClick={() => setTheme('dark')}
+            title={L.stThemeDark}
+            aria-label={L.stThemeDark}
+            style={{ fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+          >
+            ☾
+          </span>
+        </div>
+        {/* Settings is a gear key, not a word: a label here made the cluster read as competing texts. */}
+        <IconButton label={L.settings} onClick={openSettings}>
+          <GearIcon />
+        </IconButton>
+      </div>
 
       {mode === 'custom' && <WindowControls actions={windowActions} />}
     </div>

@@ -40,6 +40,68 @@ import { useSessionCommission } from './CommissionOptIn';
 
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
+// The brand mark (25c 皮层弧 C), tinted for the transcript rather than the rail badge.
+function DraftBrandMark(): JSX.Element {
+  return (
+    <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx={33} cy={32} r={6} fill="var(--proto-ink)" />
+      <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--proto-accent)" strokeWidth={6} strokeLinecap="round" />
+      <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--proto-accent)" strokeWidth={6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Fills the transcript area of a draft, where there is nothing to read yet.
+/** "in {project} · sends on first message" — the project keeps full ink so it reads as the answer
+ *  to "where will this land?", which is the only thing the draft state has to say. */
+function DraftSubtitle({ projectName }: { projectName: string | null }): JSX.Element | null {
+  const L = useVocab();
+  if (!projectName) return null;
+  const [before, after] = L.wbDraftIn.split('{p}');
+  return (
+    <div style={{ fontSize: 12 }}>
+      {before}
+      <span style={{ color: 'var(--proto-ink)', fontWeight: 600 }}>{projectName}</span>
+      {after}
+      {' · '}
+      {L.wbDraftSendsOnFirst}
+    </div>
+  );
+}
+
+function DraftHero({ title, projectName }: { title: string; projectName: string | null }): JSX.Element {
+  return (
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        color: 'var(--proto-muted-2)',
+        animation: 'cxfade .3s ease',
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          background: 'var(--glass-2)',
+          boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line)',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <DraftBrandMark />
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-ink)' }}>{title}</div>
+      <DraftSubtitle projectName={projectName} />
+    </div>
+  );
+}
+
 // `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
 // is pinned beside the chat (WorkbenchPage owns the split).
 export function CenterChat({ grow = 1, onOpenSettings }: {
@@ -189,10 +251,9 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     };
   }, [sessionId, running, rewindMut]);
 
-  const onCmdK = () => {
-    // Trigger the global ⌘K command palette (AppShell mounts it via a window keydown hook).
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
-  };
+  // The rail's session lists are already scoped to the current project, so a live session's own
+  // project and the selected one agree; a draft has only the latter.
+  const projectName = active?.projectId ?? currentProjectId ?? null;
 
   return (
     <div
@@ -212,7 +273,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     >
       <ChatHeader
         title={title}
-        onCmdK={onCmdK}
+        running={running}
+        projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
       />
@@ -238,14 +300,18 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           transition: 'grid-template-rows 420ms cubic-bezier(.22,1,.36,1)',
         }}
       >
-        <MessageStream
-          rows={rows}
-          loading={!!sessionId && transcriptQuery.isPending}
-          inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
-          interactionActions={interactionActions}
-          edit={edit}
-          streamKey={sessionId}
-        />
+        {preFirstMessage ? (
+          <DraftHero title={L.wbNewConversation} projectName={projectName} />
+        ) : (
+          <MessageStream
+            rows={rows}
+            loading={!!sessionId && transcriptQuery.isPending}
+            inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
+            interactionActions={interactionActions}
+            edit={edit}
+            streamKey={sessionId}
+          />
+        )}
         <Composer
           sessionId={sessionId}
           running={running}

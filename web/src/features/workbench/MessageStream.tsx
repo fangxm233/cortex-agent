@@ -24,7 +24,7 @@ import { ChatNotice } from './ChatNotice';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
-const COLUMN_W = 756;
+const COLUMN_W = 760;
 const GUTTER = 32;
 
 /** Where a jump parks its target — the column's own top padding, so the message lands where a fresh
@@ -127,8 +127,8 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
               // ring rather than a border so the bubble keeps its exact size.
               background: 'var(--glass-2)',
               boxShadow: 'var(--shadow-card-soft), 0 0 0 1px var(--proto-line)',
-              borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)',
-              padding: '9px 14px',
+              borderRadius: '16px 16px 5px 16px',
+              padding: '10px 14px',
               fontSize: 13.5,
               lineHeight: 1.55,
               color: pending ? 'var(--proto-muted)' : 'var(--proto-ink)',
@@ -276,7 +276,7 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
   return (
     <div
       className="group"
-      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
+      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.7, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
@@ -498,7 +498,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     const before = rows.slice(0, editingIdx!);
     const after = rows.slice(editingIdx! + 1);
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {before.map((row, i) => (
           <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, i)} />
         ))}
@@ -525,7 +525,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {rows.map((row, i) => (
         <Row
           key={rowKey(row, i)}
@@ -663,9 +663,9 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 12px` }}>
+        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
-          {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
+          {inlineThreadCard && <div style={{ marginTop: 18 }}>{inlineThreadCard}</div>}
         </div>
       </div>
       <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />

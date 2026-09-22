@@ -31,12 +31,15 @@ export {
 export function MScreen({
   header,
   footer,
+  overlay,
   children,
   label,
   style,
 }: {
   header?: ReactNode;
   footer?: ReactNode;
+  /** Absolutely-positioned screen chrome (FAB, etc.) — anchored to the frame, outside the scroller. */
+  overlay?: ReactNode;
   children: ReactNode;
   /** data-screen-label for verification shots (mirrors the scheme's data-screen-label). */
   label?: string;
@@ -47,6 +50,7 @@ export function MScreen({
       data-screen-label={label}
       style={{
         height: '100%',
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
@@ -58,21 +62,25 @@ export function MScreen({
       {header}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>{children}</div>
       {footer}
+      {overlay}
     </div>
   );
 }
 
 // ── MTabHeader — the big-title tab header (会话 / 线程 / 任务 / 项目) ───────────
-// scheme 1a L91-95: 22/700 title + optional passive QN scope tag + a trailing slot (＋ / segment /
-// daemon status). `below` renders an optional second row (线程 budget band, etc.). Top padding
-// reserves the OS status-bar inset.
+// 22/700 title, an optional `leading` slot (brand tile), an optional passive QN scope tag and a
+// trailing slot (＋ / segment / daemon status). `below` renders an optional second row (线程 budget
+// band, etc.). Top padding reserves the OS status-bar inset.
 export function MTabHeader({
   title,
+  leading,
   qn,
   trailing,
   below,
 }: {
   title: string;
+  /** Rendered before the title (brand tile / presence). */
+  leading?: ReactNode;
   /** Passive project-scope tag (real current-project initials, e.g. "NI"); omitted → no tag. */
   qn?: string;
   trailing?: ReactNode;
@@ -82,15 +90,13 @@ export function MTabHeader({
     <div
       style={{
         flex: 'none',
-        borderBottom: `1px solid ${MC.hairline}`,
-        // Translucent band, no `backdrop-filter`: nothing scrolls under a header (the body is a
-        // flex sibling), so a filter here would buy a blur of ground that is already smooth.
-        background: MC.glassRaised,
-        padding: '6px 14px 10px',
-        paddingTop: 'calc(6px + env(safe-area-inset-top))',
+        // Unfilled and unruled: the header sits straight on the mesh ground the shell painted.
+        padding: '0 16px 10px',
+        paddingTop: 'calc(18px + env(safe-area-inset-top))',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {leading}
         <span
           style={{ fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', flex: 'none' }}
         >
@@ -104,7 +110,6 @@ export function MTabHeader({
               background: MC.runBg,
               padding: '2px 7px',
               borderRadius: 4,
-              marginLeft: 9,
               flex: 'none',
             }}
           >
@@ -136,9 +141,7 @@ export function MDrillHeader({
         display: 'flex',
         alignItems: 'center',
         gap: 9,
-        borderBottom: `1px solid ${MC.hairline}`,
-        // Same band as MTabHeader, and unblurred for the same reason.
-        background: MC.glassRaised,
+        // Transparent over the ground, like MTabHeader — every mobile header reads as one surface.
         padding: '8px 14px 10px',
         paddingTop: 'calc(8px + env(safe-area-inset-top))',
       }}
@@ -199,28 +202,43 @@ export function MMoreButton({ onClick }: { onClick?: () => void }) {
 }
 
 // ── MScrollBody — the standard 12/14 padded scroll region content wrapper ──────
-export function MScrollBody({ children, gap = 10 }: { children: ReactNode; gap?: number }) {
+export function MScrollBody({
+  children,
+  gap = 10,
+  padding = '12px 14px 0',
+}: {
+  children: ReactNode;
+  gap?: number;
+  padding?: string;
+}) {
   return (
     <div
       style={{
-        padding: '12px 14px 0',
+        padding,
         display: 'flex',
         flexDirection: 'column',
         gap,
       }}
     >
       {children}
-      {/* bottom gutter — non-Tab pages own their home-indicator inset. */}
-      <div style={{ height: 'calc(20px + env(safe-area-inset-bottom))', flex: 'none' }} />
+      {/* Bottom gutter: the home-indicator inset plus, on a Tab route, the room the floating Tab bar
+          takes out of the viewport (`--m-tabbar-clearance`, published by MobileShell; 0 elsewhere). */}
+      <div
+        style={{
+          height: 'calc(20px + env(safe-area-inset-bottom) + var(--m-tabbar-clearance, 0px))',
+          flex: 'none',
+        }}
+      />
     </div>
   );
 }
 
 // ── MCard — opaque rounded surface ────────────────────────────────────────────
 // The fill stays OPAQUE (`--m-card`) rather than translucent glass, which is the one deliberate
-// break from the desktop skin: a card is the unit that repeats down a long mobile list, and a
-// translucent card either needs a filter (unaffordable per scroll frame) or reads as a smudge of
-// whatever list row happens to be behind it.
+// break from the desktop skin: a card is the unit that repeats down a long mobile list, and one
+// translucent card stacked over the next reads as a smudge. A container that wraps a whole section
+// (the 会话 day group) is a different shape — it has only the ground behind it, so it takes
+// `--glass-2`, which composites without a `backdrop-filter` and stays cheap inside a scroller.
 export type CardTone = 'default' | 'blue' | 'amber' | 'fail';
 const CARD_BORDER: Record<CardTone, string> = {
   default: MC.cardBorder,

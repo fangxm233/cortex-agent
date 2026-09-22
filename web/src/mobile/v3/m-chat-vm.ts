@@ -398,9 +398,11 @@ export function buildAgentSheet(input: {
 }
 
 // ── 7a long-press action overlay placement ──
-// The overlay covers the chat BODY frame (transcript + composer), not the header — the same region
-// the 2b full-screen editor takes, which is why the band below needs no header/safe-area arithmetic.
-/** Inset from the top of that frame the floated group may not cross. */
+// The overlay covers the chat BODY frame (transcript + composer), which runs the full height of the
+// screen because the header floats over it rather than sitting above it in flow. The band the menu
+// must not cross is therefore the header pill's bottom edge, which only the DOM knows (its top is a
+// safe-area inset) — callers measure it and pass it as `safeTop`; this constant is just the floor.
+/** Minimum inset from the top of that frame the floated group may not cross. */
 export const MSG_MENU_SAFE_TOP = 12;
 /** Inset from the bottom of that frame — keeps the menu off the screen edge. */
 export const MSG_MENU_SAFE_BOTTOM = 16;
@@ -414,6 +416,13 @@ export interface MsgMenuLayout {
   overlayHeight: number;
   /** Measured height of the floated group: bubble copy + timestamp + menu. */
   groupHeight: number;
+  /** Overlay-local y the group may not rise above — the floating header's bottom edge plus a gap. */
+  safeTop?: number;
+}
+
+/** The effective top band: the measured header clearance, never below the bare minimum. */
+export function msgMenuSafeTop(safeTop?: number): number {
+  return Math.max(MSG_MENU_SAFE_TOP, safeTop ?? 0);
 }
 
 /**
@@ -426,9 +435,10 @@ export interface MsgMenuLayout {
  * top instead of escaping upward off-screen (the copy carries its own height cap for that case).
  */
 export function msgMenuGroupTop(l: MsgMenuLayout): number {
+  const safeTop = msgMenuSafeTop(l.safeTop);
   const lowest = l.overlayHeight - MSG_MENU_SAFE_BOTTOM - l.groupHeight;
-  if (l.anchorTop == null || lowest <= MSG_MENU_SAFE_TOP) return MSG_MENU_SAFE_TOP;
-  return Math.max(MSG_MENU_SAFE_TOP, Math.min(l.anchorTop - l.overlayTop, lowest));
+  if (l.anchorTop == null || lowest <= safeTop) return safeTop;
+  return Math.max(safeTop, Math.min(l.anchorTop - l.overlayTop, lowest));
 }
 
 // ── 1o attachment chip projection over the shared upload state machine ──

@@ -841,6 +841,7 @@ export function MChatScreen(): JSX.Element {
       <MChatView
         title={title}
         status={status}
+        project={currentProjectId ?? undefined}
         rows={rows}
         copy={copy}
         onBack={() => navigate('/m/sessions')}

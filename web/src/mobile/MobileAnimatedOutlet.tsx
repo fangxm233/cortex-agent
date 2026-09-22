@@ -59,11 +59,17 @@ function prefersReducedMotion(): boolean {
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-// `isolation` keeps every route's z-index inside its own layer. Layers are absolute with
-// z-index auto, so without it a positioned child (the sticky subagent header) escapes to the
-// shell's stacking context and paints OVER the incoming route -- visible as a flash in the gap
-// between the 160ms outgoing slide and the 200ms incoming one, where the outgoing layer has
-// dropped its transform (and with it the stacking context) but is not unmounted yet.
+// The layer needs its own stacking context: layers are absolute with z-index auto, so without one a
+// positioned child (the sticky subagent header) escapes to the shell's context and paints OVER the
+// incoming route -- visible as a flash in the gap between the 160ms outgoing slide and the 200ms
+// incoming one, where the outgoing layer has dropped its transform (and with it the stacking
+// context) but is not unmounted yet.
+//
+// It must be `z-index: 0` and NOT `isolation: isolate`: isolation also makes the layer a BACKDROP
+// ROOT, which silently turns every `backdrop-filter` inside the route into a no-op — the floating
+// chat header and composer then read as flat translucent panes with sharp text showing through.
+// A z-index stacking context solves the escape problem without capping the backdrop.
+//
 // Each layer carries the mesh ground itself rather than letting the shell's show through: during a
 // slide the outgoing and incoming layers overlap, so a transparent layer would read as two screens
 // printed on top of each other. `--app-backdrop` bottoms out in a solid colour, so it occludes.
@@ -71,7 +77,7 @@ const layerStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
   background: MC.backdrop,
-  isolation: 'isolate',
+  zIndex: 0,
 };
 
 const retainedStyle: CSSProperties = {

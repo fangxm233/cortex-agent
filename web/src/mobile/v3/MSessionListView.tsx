@@ -1,8 +1,9 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1a L86-128)
+// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (Cortex_Glass_Mobile.dc.html L25-79)
+import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
-import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MDot, MC, MONO } from '@/mobile/ui/kit';
-import { sessionStatusLine, type MSessionGroup } from './m-session-list-vm';
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+import type { ConnectionStatus } from '@/features/connection/connection-status';
+import { MScreen, MTabHeader, MScrollBody, MDot, MC, MONO } from '@/mobile/ui/kit';
+import type { MSessionGroup, MSessionRow, MSessionStatus } from './m-session-list-vm';
 
 export interface MSessionListCopy {
   title: string;
@@ -10,41 +11,79 @@ export interface MSessionListCopy {
   yesterday: string;
   earlier: string;
   empty: string;
+  /** Group-header count, `{n}` → the group's session count. */
+  sessionCount: string;
+  /** Approvals banner, `{n}` → the pending-approval count. */
+  approvalsPending: string;
 }
 
 function groupLabel(copy: MSessionListCopy, key: MSessionGroup['key']): string {
   return key === 'TODAY' ? copy.today : key === 'YESTERDAY' ? copy.yesterday : copy.earlier;
 }
 
-// The ＋ new-session button (scheme 1a L94): 34px ink circle.
-function NewButton({ onClick }: { onClick: () => void }) {
+function isLive(status: MSessionStatus): boolean {
+  // A turn or a background task is actually advancing. `awaiting` is blocked ON the user, so it
+  // keeps its amber semantics and stays out of this.
+  return status.kind === 'running' || status.kind === 'background';
+}
+
+const PRESENCE: Record<ConnectionStatus, string> = {
+  connected: 'var(--proto-success)',
+  connecting: 'var(--proto-amber)',
+  reconnecting: 'var(--proto-amber)',
+  disconnected: 'var(--proto-muted-3)',
+};
+
+// The brand tile carrying the live link state as a presence dot.
+function BrandTile({ presence }: { presence: ConnectionStatus }) {
   return (
-    <button
-      type="button"
-      aria-label="New session"
-      onClick={onClick}
+    <div
       style={{
-        width: 34,
-        height: 34,
-        borderRadius: '50%',
-        background: MC.ink,
-        boxShadow: 'var(--accent-glow)',
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--ink-solid-fg)',
-        lineHeight: 0,
-        cursor: 'pointer',
+        position: 'relative',
+        width: 28,
+        height: 28,
+        flex: 'none',
+        borderRadius: 9,
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
+        boxShadow: 'var(--shadow-card)',
+        display: 'grid',
+        placeItems: 'center',
       }}
     >
-      <PlusGlyph size={15} strokeWidth={1.9} />
-    </button>
+      <svg width={20} height={20} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <circle cx="33" cy="32" r="6" fill="var(--proto-ink)" />
+        <path
+          d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
+          stroke="var(--proto-accent)"
+          strokeWidth={6}
+          strokeLinecap="round"
+        />
+        <path
+          d="M48.6 17.95A21 21 0 1 0 48.6 46.05"
+          stroke="var(--proto-accent)"
+          strokeWidth={6}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span
+        style={{
+          position: 'absolute',
+          right: -3,
+          bottom: -3,
+          width: 9,
+          height: 9,
+          borderRadius: '50%',
+          background: PRESENCE[presence],
+          border: '2px solid var(--glass-2)',
+        }}
+      />
+    </div>
   );
 }
 
-// The Scheduled entry (scheme-mobile 8a): a 34px clock circle left of ＋; unread schedules ride
-// as a badge (blue — failed runs have no data source, so the badge never turns red here).
+// The Scheduled entry (scheme-mobile 8a): a glass square in the header; unread schedules ride as a
+// badge (blue — failed runs have no data source, so the badge never turns red here).
 function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
   return (
     <div style={{ position: 'relative', flex: 'none' }}>
@@ -55,17 +94,18 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
         style={{
           width: 34,
           height: 34,
-          borderRadius: '50%',
-          background: MC.card,
-          border: `1px solid ${MC.hairline}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          borderRadius: 11,
+          background: 'var(--glass-2)',
+          boxShadow: '0 0 0 1px var(--proto-line)',
+          border: 0,
+          color: 'var(--proto-muted)',
+          display: 'grid',
+          placeItems: 'center',
           cursor: 'pointer',
           padding: 0,
         }}
       >
-        <svg width={16} height={16} viewBox="0 0 14 14" fill="none" stroke={MC.sub} strokeWidth={1.5}>
+        <svg width={16} height={16} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5}>
           <circle cx="7" cy="7" r="5.6" />
           <path d="M7 4v3.2l2.2 1.3" />
         </svg>
@@ -92,112 +132,280 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
   );
 }
 
-function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: Map<string, SessionInfo>; onOpen: (id: string) => void }) {
-  const s = byId.get(row.id);
-  const status = s ? sessionStatusLine(s) : { kind: 'idle' as const, text: '空闲' };
-  // Live = a turn or a background task is actually advancing. `awaiting` is blocked ON the user, so
-  // it keeps its amber semantics and stays out of this; `idle` gets no run treatment at all.
-  const live = status.kind === 'running' || status.kind === 'background';
+function ApprovalsBanner({ label, onOpen }: { label: string; onOpen: () => void }) {
   return (
-    <MCard
-      padding="12px 13px"
-      onClick={() => onOpen(row.id)}
-      // Run marker as an INSET shadow, so the accent edge costs no layout: card geometry, padding
-      // and text positions are byte-identical between a live row and an idle one.
-      style={live ? { boxShadow: `inset 2px 0 0 ${MC.run}` } : undefined}
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        flex: 'none',
+        margin: '0 16px 12px',
+        padding: '12px 14px',
+        background: 'var(--proto-amber-bg)',
+        border: '1px solid var(--proto-amber-border)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-amber-lift)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        cursor: 'pointer',
+      }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        {/* Unread marker (honest addition, mirrors desktop LeftRail): an accent dot leads unread
-            rows and their title keeps full ink + semibold, while read rows soften — so unread reads
-            darker at a glance. Cleared by useMarkSessionRead once the chat is opened. */}
-        {row.unread && (
-          <span
-            aria-label="unread"
-            style={{ width: 7, height: 7, borderRadius: '50%', background: MC.run, flex: 'none' }}
-          />
-        )}
+      <MDot color="var(--proto-amber)" size={8} style={{ animation: 'cxpulse 2s ease-in-out infinite' }} />
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>{label}</span>
+      <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--proto-amber-fg)' }}>
+        ›
+      </span>
+    </button>
+  );
+}
+
+// The dot column: live/awaiting pulse, an external wait is a still hollow ring, an unread idle row
+// borrows the slot so its title stays aligned with the rows above it.
+function RowDot({ row }: { row: MSessionRow }) {
+  const kind = row.status.kind;
+  if (isLive(row.status)) return <MDot color="var(--proto-accent)" size={7} pulse />;
+  if (kind === 'awaiting') return <MDot color="var(--proto-amber)" size={7} pulse />;
+  if (kind === 'waiting-external') {
+    return (
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          boxSizing: 'border-box',
+          border: `1.5px solid ${MC.muted}`,
+          flex: 'none',
+        }}
+      />
+    );
+  }
+  if (row.unread) {
+    // Unread marker (mirrors desktop LeftRail); cleared by useMarkSessionRead once the chat opens.
+    return (
+      <span
+        aria-label="unread"
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: 'var(--proto-accent)',
+          flex: 'none',
+        }}
+      />
+    );
+  }
+  return null;
+}
+
+const STATUS_COLOR: Record<MSessionStatus['kind'], string> = {
+  running: 'var(--proto-accent)',
+  background: 'var(--proto-accent)',
+  awaiting: 'var(--proto-amber-fg)',
+  'waiting-external': MC.muted,
+  idle: MC.muted,
+};
+
+function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
+  const kind = row.status.kind;
+  const live = isLive(row.status);
+  // The only shape without a dot: a read idle row. It drops the status line with it and indents to
+  // keep its title on the same x as the dotted rows.
+  const quiet = kind === 'idle' && !row.unread;
+  const showStatus = kind !== 'idle';
+  return (
+    <div
+      onClick={() => onOpen(row.id)}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        minHeight: quiet ? 44 : 48,
+        padding: quiet ? '0 10px 0 29px' : '0 10px 0 12px',
+        borderRadius: 12,
+        background: live ? 'var(--proto-accent-bg)' : undefined,
+        cursor: 'pointer',
+      }}
+    >
+      {live && (
         <span
           style={{
+            position: 'absolute',
+            left: 0,
+            top: 10,
+            bottom: 10,
+            width: 3,
+            borderRadius: 2,
+            background: 'var(--proto-accent)',
+          }}
+        />
+      )}
+      <RowDot row={row} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
             fontSize: 14,
-            fontWeight: row.unread ? 600 : 400,
-            color: row.unread ? MC.ink : 'var(--proto-muted)',
+            fontWeight: quiet ? 400 : 600,
+            color: live ? 'var(--proto-accent)' : quiet ? MC.muted : MC.ink,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
         >
           {row.title}
-        </span>
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint, flex: 'none' }}>
-          {row.time}
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-        {status.kind === 'running' && <MDot color={MC.run} pulse />}
-        {/* Background-held now reads as run-blue (same as running) — a bg task is not a user action. */}
-        {status.kind === 'background' && <MDot color={MC.run} pulse />}
-        {/* Amber is reserved for「需要你」— a pending ask-user question / plan approval. */}
-        {status.kind === 'awaiting' && <MDot color={MC.amber} pulse />}
-        {/* Waiting on an external signal: a still, hollow ring. Visible, but it asks nothing of you. */}
-        {status.kind === 'waiting-external' && (
-          <span style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', border: `1.5px solid ${MC.muted}`, flex: 'none' }} />
+        </div>
+        {showStatus && (
+          <div
+            style={{
+              font: `400 10.5px ${MONO}`,
+              color: STATUS_COLOR[kind],
+              opacity: live ? 0.7 : undefined,
+              marginTop: 1,
+            }}
+          >
+            {row.status.text}
+          </div>
         )}
-        {/* The status line joins the run accent while live; unread keeps its own weight/colour on
-            the title line above, so "running" never masquerades as "unread". */}
-        <span style={{ font: `400 10px ${MONO}`, color: live ? MC.run : MC.muted }}>{status.text}</span>
       </div>
-    </MCard>
+      <span
+        style={
+          live
+            ? { flex: 'none', font: `500 10.5px ${MONO}`, color: 'var(--proto-accent)', opacity: 0.7 }
+            : { flex: 'none', font: `400 10.5px ${MONO}`, color: MC.faint }
+        }
+      >
+        {row.time}
+      </span>
+    </div>
   );
 }
 
+// One day bucket = one grouped glass card. `--glass-2` rather than `--glass-1`: this card scrolls,
+// and the mobile blur budget forbids a `backdrop-filter` inside a scroller.
+function DayGroup({
+  group,
+  copy,
+  onOpen,
+}: {
+  group: MSessionGroup;
+  copy: MSessionListCopy;
+  onOpen: (id: string) => void;
+}) {
+  const liveCount = group.rows.filter((row) => isLive(row.status)).length;
+  return (
+    <div
+      style={{
+        borderRadius: 18,
+        background: MC.glassRaised,
+        boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 8px' }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: MC.ink }}>{groupLabel(copy, group.key)}</span>
+        {liveCount > 0 && (
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              font: `600 10px ${MONO}`,
+              color: 'var(--proto-accent)',
+            }}
+          >
+            <MDot color="var(--proto-accent)" size={6} pulse />
+            {liveCount}
+          </span>
+        )}
+        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
+          {copy.sessionCount.replace('{n}', String(group.rows.length))}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', padding: '0 6px 6px' }}>
+        {group.rows.map((row) => (
+          <Row key={row.id} row={row} onOpen={onOpen} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const FAB_STYLE: CSSProperties = {
+  position: 'absolute',
+  right: 18,
+  bottom: 'calc(104px + env(safe-area-inset-bottom))',
+  height: 48,
+  padding: '0 18px 0 14px',
+  border: 0,
+  borderRadius: 16,
+  background: 'var(--proto-accent)',
+  color: 'var(--ink-solid-fg)',
+  fontSize: 14,
+  fontWeight: 600,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  cursor: 'pointer',
+  boxShadow: 'var(--accent-glow), var(--glass-ring-inset)',
+};
+
 export function MSessionListView({
   groups,
-  sessions,
-  scope,
   copy,
+  presence,
+  newLabel,
   scheduled,
+  approvals,
   onOpen,
   onNew,
 }: {
   groups: MSessionGroup[];
-  sessions: SessionInfo[];
-  scope?: string;
   copy: MSessionListCopy;
+  /** Live link state → the brand tile's presence dot. */
+  presence: ConnectionStatus;
+  /** Label for the new-session FAB (vocab `wbNewSession`). */
+  newLabel: string;
   /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
   scheduled?: { unread: number; onOpen: () => void };
+  /** Pending-approval banner; hidden while the count is 0. */
+  approvals?: { count: number; onOpen: () => void };
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
-  const byId = new Map(sessions.map((s) => [s.sessionId, s]));
   return (
     <MScreen
       label="1a 会话列表"
       header={
-        <MTabHeader
-          title={copy.title}
-          qn={scope}
-          trailing={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
-              <NewButton onClick={onNew} />
-            </div>
-          }
-        />
+        <>
+          <MTabHeader
+            title={copy.title}
+            leading={<BrandTile presence={presence} />}
+            trailing={scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
+          />
+          {approvals && approvals.count > 0 && (
+            <ApprovalsBanner
+              label={copy.approvalsPending.replace('{n}', String(approvals.count))}
+              onOpen={approvals.onOpen}
+            />
+          )}
+        </>
+      }
+      overlay={
+        <button type="button" onClick={onNew} style={FAB_STYLE}>
+          <PlusGlyph size={15} strokeWidth={1.8} />
+          {newLabel}
+        </button>
       }
     >
-      <MScrollBody gap={6}>
+      <MScrollBody gap={14} padding="0 16px 0">
         {groups.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
             {copy.empty}
           </div>
         )}
         {groups.map((g) => (
-          <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <MGroupLabel style={{ padding: '6px 2px 2px' }}>{groupLabel(copy, g.key)}</MGroupLabel>
-            {g.rows.map((row) => (
-              <Row key={row.id} row={row} byId={byId} onOpen={onOpen} />
-            ))}
-          </div>
+          <DayGroup key={g.key} group={g} copy={copy} onOpen={onOpen} />
         ))}
       </MScrollBody>
     </MScreen>

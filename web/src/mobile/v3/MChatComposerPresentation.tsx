@@ -59,8 +59,9 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
   commission?: { label: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
+  // Clears the floating composer card: its 20px bottom offset plus its ~94px height.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 14, bottom: 90, width: 208, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
       <AttachMenuItem label={copy.attachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
       <AttachMenuItem label={copy.attachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.attachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
@@ -105,16 +106,25 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   );
 }
 
+/** The quiet outline both toolbar capsules wear. Chips sit on a glass card now, so an opaque fill
+ *  would punch a hole through the blur behind them. */
+const composerChipStyle: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 5, border: '1px solid var(--proto-line-3)',
+  background: 'transparent', borderRadius: 'var(--r-pill)', height: 34, padding: '0 12px',
+  boxSizing: 'border-box', minWidth: 0, overflow: 'hidden', cursor: 'pointer',
+};
+
 /** Model and thinking level share one capsule with no separator between them — on a phone the
- *  toolbar has no room for punctuation, so colour does the separating: the model in the accent, the
- *  level muted beside it. The level is also what goes first when the row runs out of width (it
- *  shrinks far faster than the model name), since the model is the fact worth keeping on screen. */
+ *  toolbar has no room for punctuation, so ink weight does the separating: the model in the body
+ *  tier, the level a step fainter beside it. The level is also what goes first when the row runs out
+ *  of width (it shrinks far faster than the model name), since the model is the fact worth keeping
+ *  on screen. */
 function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | null; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 'var(--r-pill)', height: 34, padding: '0 11px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
-      <span style={{ flex: '0 1 auto', minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ ...composerChipStyle, flex: '0 1 auto' }}>
+      <span style={{ flex: '0 1 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {sub ? (
-        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
+        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: 'var(--proto-muted-3)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
       ) : null}
     </button>
   );
@@ -122,10 +132,10 @@ function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | 
 
 /** The environment capsule, immediately left of the engine one: where the turn runs, before what
  *  runs it. It names the agent outright — the environment decides whether the session has the
- *  skills and rules for the job at all, which is worth a glance rather than a sheet visit. Muted
- *  while the conversation is only following the host's default, so a name it chose for itself reads
- *  differently from a name it merely fell back to. It also yields width first: of the two capsules
- *  the model is the one that must stay legible on a phone. */
+ *  skills and rules for the job at all, which is worth a glance rather than a sheet visit. A step
+ *  fainter while the conversation is only following the host's default, so a name it chose for
+ *  itself reads differently from a name it merely fell back to. It also yields width first: of the
+ *  two capsules the model is the one that must stay legible on a phone. */
 function AgentChip({ axis, label, followingDefault, onClick }: {
   /** What the capsule IS, for the screen reader — the name alone would not say. */
   axis: string;
@@ -140,15 +150,10 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
       data-agent-following-default={followingDefault ? 'true' : 'false'}
       aria-label={`${axis} · ${label}`}
       onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', flex: '0 3 auto', minWidth: 0, overflow: 'hidden',
-        border: `1.5px solid ${followingDefault ? MC.hairline : MC.runBorder}`,
-        background: MC.card, borderRadius: 'var(--r-pill)', height: 34, padding: '0 11px',
-        boxSizing: 'border-box', cursor: 'pointer',
-      }}
+      style={{ ...composerChipStyle, flex: '0 3 auto' }}
     >
       <span style={{
-        minWidth: 0, font: `600 11.5px ${MONO}`, color: followingDefault ? MC.muted : MC.run,
+        minWidth: 0, font: `500 11.5px ${MONO}`, color: followingDefault ? 'var(--proto-muted-3)' : MC.muted,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {label}
@@ -219,7 +224,7 @@ export function BrowserChip({ device, label, onClick }: {
 
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
   return (
-    <button type="button" aria-label="Attach" onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
+    <button type="button" aria-label="Attach" onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--proto-line-3)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
       <PlusGlyph size={15} />
     </button>
   );

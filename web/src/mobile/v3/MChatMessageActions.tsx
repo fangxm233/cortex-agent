@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/workbench/transcript-vm';
 import { MC, MONO } from '@/mobile/ui/kit';
-import { msgMenuGroupTop, MSG_MENU_SAFE_BOTTOM, MSG_MENU_SAFE_TOP } from './m-chat-vm';
+import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
 import type { MChatEditCopy, MMsgMenu } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
@@ -79,7 +79,7 @@ function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
 function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JSX.Element {
   const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: 'var(--shadow-context-menu)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
   if (isUser) {
-    return <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)', lineHeight: 1.55 }}>{text}</div>;
+    return <div style={{ ...shared, maxWidth: '84%', background: 'var(--glass-2)', border: '1px solid var(--proto-line)', color: MC.ink, borderRadius: '18px 18px 6px 18px', lineHeight: 1.5 }}>{text}</div>;
   }
   return <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 'var(--r-card)', lineHeight: 1.6 }}>{text}</div>;
 }
@@ -88,18 +88,25 @@ function useMsgMenuTop(anchorTop: number | null | undefined): {
   overlayRef: React.RefObject<HTMLDivElement>;
   groupRef: React.RefObject<HTMLDivElement>;
   top: number | null;
+  safeTop: number;
 } {
   const overlayRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState<number | null>(null);
+  const [safeTop, setSafeTop] = useState(msgMenuSafeTop());
   useLayoutEffect(() => {
     const overlay = overlayRef.current;
     const group = groupRef.current;
     if (!overlay || !group) return;
     const box = overlay.getBoundingClientRect();
-    setTop(msgMenuGroupTop({ anchorTop: anchorTop ?? null, overlayTop: box.top, overlayHeight: box.height, groupHeight: group.getBoundingClientRect().height }));
+    // The header floats over this same box and its top is a safe-area inset, so its clearance can
+    // only be measured, never computed.
+    const header = document.querySelector('[data-chat-header]')?.getBoundingClientRect();
+    const headerClearance = header ? header.bottom - box.top + 8 : undefined;
+    setSafeTop(msgMenuSafeTop(headerClearance));
+    setTop(msgMenuGroupTop({ anchorTop: anchorTop ?? null, overlayTop: box.top, overlayHeight: box.height, groupHeight: group.getBoundingClientRect().height, safeTop: headerClearance }));
   }, [anchorTop]);
-  return { overlayRef, groupRef, top };
+  return { overlayRef, groupRef, top, safeTop };
 }
 
 function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
@@ -111,17 +118,18 @@ function MessageMenuCard({ menu, copy }: { menu: MMsgMenu; copy: MChatEditCopy }
   );
 }
 
-function ActionGroup({ row, menu, copy, groupRef, top }: {
+function ActionGroup({ row, menu, copy, groupRef, top, safeTop }: {
   row: ChatRow;
   menu: MMsgMenu;
   copy: MChatEditCopy;
   groupRef: React.RefObject<HTMLDivElement>;
   top: number | null;
+  safeTop: number;
 }): JSX.Element {
   const isUser = row.kind === 'user';
   const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
   const timeLabel = messageTimeLabel(row.kind === 'user' ? row.ts : undefined);
-  const style: CSSProperties = { position: 'absolute', left: 14, right: 14, top: top ?? MSG_MENU_SAFE_TOP, maxHeight: `calc(100% - ${MSG_MENU_SAFE_TOP + MSG_MENU_SAFE_BOTTOM}px)`, visibility: top == null ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9, WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' };
+  const style: CSSProperties = { position: 'absolute', left: 14, right: 14, top: top ?? safeTop, maxHeight: `calc(100% - ${safeTop + MSG_MENU_SAFE_BOTTOM}px)`, visibility: top == null ? 'hidden' : 'visible', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9, WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' };
   return (
     <div ref={groupRef} data-msg-menu-group="true" style={style}>
       <HeldBubbleCopy isUser={isUser} text={text} />
@@ -136,10 +144,10 @@ export function MsgActionMenu({ row, menu, copy }: {
   menu: MMsgMenu;
   copy: MChatEditCopy;
 }): JSX.Element {
-  const { overlayRef, groupRef, top } = useMsgMenuTop(menu.anchorTop);
+  const { overlayRef, groupRef, top, safeTop } = useMsgMenuTop(menu.anchorTop);
   return (
     <div ref={overlayRef} onClick={menu.onClose} style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'var(--overlay-scrim-interaction)', backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)', overflow: 'hidden' }}>
-      <ActionGroup row={row} menu={menu} copy={copy} groupRef={groupRef} top={top} />
+      <ActionGroup row={row} menu={menu} copy={copy} groupRef={groupRef} top={top} safeTop={safeTop} />
     </div>
   );
 }

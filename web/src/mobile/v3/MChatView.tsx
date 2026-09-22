@@ -1,10 +1,13 @@
-// @ds-adherence-ignore -- mobile v3 chat surface, chrome extracted 1:1 from scheme-mobile.dc.html
-// (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
-// design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
-// every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer is a
-// unified card: full-width input on top, one toolbar row below (＋ menu left; engine chip, context
-// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu.
+// @ds-adherence-ignore -- mobile v3 chat surface. The chrome is extracted 1:1 from the glass mock
+// (Cortex_Glass_Mobile.dc.html L93-125); the stream rows that mock has no form for still follow
+// scheme-mobile.dc.html (1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/font/svg
+// by design §8.3. Pure + presentational: every field is a prop, no tRPC. The container
+// (MChatScreen) owns data + mutations + live sync. Interaction cards (6a plan / 5b ask / 4a-c
+// sealed) live in MInteractionCards. Header and composer both FLOAT: the transcript scrolls under
+// the header pill and behind the composer card, which is why both carry their own clearance in the
+// scroll padding rather than taking flow height. The composer is a unified card — full-width input
+// on top, one toolbar row below (＋ menu and the engine chips left, Send/Stop right). Browser opt-in
+// and local slash commands fold into the ＋ menu.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
@@ -26,7 +29,7 @@ import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOr
 import { modelLabel } from '@/features/workbench/model-label';
 import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
-import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
 import { MDecisionCardGroup } from './MDecisionCards';
 import { AttachmentGroup } from './MChatAttachments';
@@ -46,63 +49,91 @@ export type {
   MEditMode, MMsgMenu, MRejectBar,
 } from './MChatView.types';
 
-// ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
+// ── floating header — back chevron · title + status line · context ring · ⋯ ───
 interface MChatHeaderProps {
   title: string;
   status: ChatHeaderStatus;
+  /** Project the session belongs to; prefixes the status line when known. */
+  project?: string;
   onBack: () => void;
   onMore: () => void;
   /** Context usage, as a round key left of ⋯. Absent on a session that reports no window. */
   contextControl?: ReactNode;
 }
 
-export function MChatHeader(props: MChatHeaderProps): JSX.Element {
+const CHAT_HEADER: CSSProperties = {
+  position: 'absolute', top: 'calc(8px + env(safe-area-inset-top))', left: 12, right: 12, height: 52,
+  zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 0 4px',
+  borderRadius: 'var(--r-float)', background: MC.glass,
+  backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
+  boxShadow: 'var(--glass-ring-inset), 0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
+  boxSizing: 'border-box',
+};
+
+const HEADER_KEY: CSSProperties = {
+  flex: 'none', width: 36, height: 36, border: 0, background: 'transparent', padding: 0,
+  cursor: 'pointer',
+};
+
+function BackChevron(): JSX.Element {
   return (
-    <MDrillHeader
-      onBack={props.onBack}
-      trailing={(
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          {props.contextControl}
-          <MMoreButton onClick={props.onMore} />
-        </div>
-      )}
-    >
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {props.title}
-        </div>
-        <MChatStatusLine {...props} />
-      </div>
-    </MDrillHeader>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 6-6 6 6 6" />
+    </svg>
   );
 }
 
-/** Context usage wears the ⋯ button's shape here rather than the composer's bare ring: in the
- *  header it is one of two round keys, and a 22px ring floating beside a 34px button would read as
- *  an ornament rather than something to press. The ring is itself the button — nesting one inside
- *  a round wrapper would nest a button in a button. */
+/** The header floats over the transcript rather than docking above it, so it is built here instead
+ *  of through `MDrillHeader`: that kit header is a bordered flex band the other drill screens still
+ *  want. */
+export function MChatHeader(props: MChatHeaderProps): JSX.Element {
+  return (
+    <div data-chat-header="true" style={CHAT_HEADER}>
+      <button type="button" aria-label="Back" onClick={props.onBack}
+        style={{ ...HEADER_KEY, color: 'var(--proto-accent)', display: 'grid', placeItems: 'center' }}>
+        <BackChevron />
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)', animation: props.status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {props.title}
+          </span>
+        </div>
+        <MChatStatusLine {...props} />
+      </div>
+      {props.contextControl}
+      <button type="button" aria-label="More" onClick={props.onMore}
+        style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
+        ⋯
+      </button>
+    </div>
+  );
+}
+
+/** Context usage is a bare ring here, not a bordered key: the header pill is already a framed
+ *  surface, so a second frame inside it reads as a control on a control. The ring is itself the
+ *  button — nesting one inside a round wrapper would nest a button in a button. */
 const HEADER_CONTEXT_KEY: CSSProperties = {
-  width: 34, height: 34, borderRadius: '50%', background: MC.card, border: `1px solid ${MC.hairline}`,
+  width: 36, height: 36, borderRadius: '50%', background: 'transparent', border: 0,
   boxSizing: 'border-box', justifyContent: 'center',
 };
 
-function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
+/** Flat muted ink: the waiting tone the line used to carry in amber now rides the title-row dot. */
+function MChatStatusLine({ status, project }: MChatHeaderProps): JSX.Element {
   return (
-    <div data-chat-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `400 10px ${MONO}`, color: status.tone === 'waiting' ? MC.amberText : MC.muted, marginTop: 1 }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : 'var(--proto-line-3)', animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, flex: 'none' }} />
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status.text}</span>
-      </span>
+    <div data-chat-status-line="true" style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {project ? `${project} · ${status.text}` : status.text}
     </div>
   );
 }
 
 // The ⋯ menu exposes the Session ID sheet plus, once the session has run, its whole-session stats.
 // ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
-const MOBILE_TOOL_GAP = 6;
+const MOBILE_TOOL_GAP = 7;
 const mobileToolChipStyle = {
-  font: `400 10px ${MONO}`, background: 'var(--proto-card)',
-  border: '1px solid var(--proto-line-2)', padding: '1px 6px', borderRadius: 4, flex: 'none',
+  font: `400 10.5px ${MONO}`, background: MC.glassRaised,
+  border: '1px solid var(--proto-line)', padding: '1px 7px', borderRadius: 5, flex: 'none',
 } as const;
 const mobileToolStripStyle = {
   display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP,
@@ -112,6 +143,9 @@ const mobileToolMeasureStyle = {
   ...mobileToolStripStyle,
   position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
   width: 'max-content', overflow: 'visible',
+} as const;
+const mobileToolOverflowStyle = {
+  font: `500 10.5px ${MONO}`, color: 'var(--proto-muted)', flex: 'none',
 } as const;
 
 function MobileToolChip({ name }: { name: string }): JSX.Element {
@@ -128,15 +162,15 @@ function CollapsedToolCalls({ count, calls, unit, onExpand }: {
   const { containerRef, measureRef, layout } = useToolCallOverflow(labels, MOBILE_TOOL_GAP);
   const chips = toolChips(calls, layout);
   return (
-    <div onClick={onExpand} style={{ display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP, fontSize: 11, color: 'var(--proto-muted-3)', flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer' }}>
+    <div onClick={onExpand} style={{ display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP, fontSize: 12, color: 'var(--proto-muted-3)', flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer' }}>
       <span style={{ fontSize: 8.5, flex: 'none' }}>▸</span>
       <span style={{ flex: 'none' }}>{count} {unit}</span>
       <span ref={containerRef} style={mobileToolStripStyle}>
         {chips.names.map((name, index) => <MobileToolChip key={index} name={name} />)}
-        {chips.overflow > 0 ? <span style={{ flex: 'none' }}>+{chips.overflow}</span> : null}
+        {chips.overflow > 0 ? <span style={mobileToolOverflowStyle}>+{chips.overflow}</span> : null}
         <span ref={measureRef} aria-hidden="true" style={mobileToolMeasureStyle}>
           {labels.map((name, index) => <MobileToolChip key={index} name={name} />)}
-          <span style={{ flex: 'none' }}>+{calls.length}</span>
+          <span style={mobileToolOverflowStyle}>+{calls.length}</span>
         </span>
       </span>
     </div>
@@ -398,9 +432,9 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
         return (
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
           {row.kind === 'divider' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, ...(dimmed ? { opacity: 0.35 } : {}) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, ...(dimmed ? { opacity: 0.35 } : {}) }}>
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-              <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>{row.text}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>{row.text}</div>
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
           )}
@@ -416,7 +450,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'user' && !row.systemOrigin && (
             <>
               {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
-              <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '82%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
+              <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
                 {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
                 {isEditingRow && editCopy && (
                   <span style={{ font: `600 9.5px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.editingBadge}</span>
@@ -425,23 +459,25 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                   {...(hold ?? {})}
                   data-msg-bubble={canHold ? i : undefined}
                   style={{
-                    background: MC.ink,
+                    background: MC.glassRaised,
+                    border: '1px solid var(--proto-line)',
                     // A message written into the running turn's backend that the model has not read
                     // yet dims its TEXT and nothing else — same bubble, full opacity, no icon, badge
                     // or spinner. The row is provisional, not disabled or failing, and any marker
                     // heavier than the ink would read as one. It clears the instant it is delivered.
-                    color: row.pending ? MC.inkSolidFgDim : MC.inkSolidFg,
-                    borderRadius: 'var(--r-float) var(--r-float) 4px var(--r-float)',
-                    padding: '9px 13px',
-                    fontSize: 13.5,
-                    lineHeight: 1.55,
+                    color: row.pending ? MC.muted : MC.ink,
+                    borderRadius: '18px 18px 6px 18px',
+                    padding: '10px 14px',
+                    fontSize: 15,
+                    lineHeight: 1.5,
+                    boxShadow: 'var(--shadow-card)',
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'break-word',
                     wordBreak: 'break-word',
                     WebkitUserSelect: canHold ? 'none' : undefined,
                     userSelect: canHold ? 'none' : undefined,
                     WebkitTouchCallout: canHold ? 'none' : undefined,
-                    ...(isEditingRow ? { boxShadow: `0 0 0 2px ${MC.canvas}, 0 0 0 3.5px ${MC.run}` } : {}),
+                    ...(isEditingRow ? { boxShadow: `var(--shadow-card), 0 0 0 1.5px ${MC.run}` } : {}),
                   } as React.CSSProperties}
                 >
                   {row.text}
@@ -493,7 +529,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'assistant' && (
             <div
               {...(hold ?? {})}
-              style={{ fontSize: 13.5, lineHeight: 1.65, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}), WebkitUserSelect: canHold ? 'none' : undefined, userSelect: canHold ? 'none' : undefined, WebkitTouchCallout: canHold ? 'none' : undefined } as React.CSSProperties}
+              style={{ fontSize: 15, lineHeight: 1.6, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}), WebkitUserSelect: canHold ? 'none' : undefined, userSelect: canHold ? 'none' : undefined, WebkitTouchCallout: canHold ? 'none' : undefined } as React.CSSProperties}
             >
               {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
               {editCopy && regenIdx?.has(i) && (
@@ -607,6 +643,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       <MChatHeader
         title={props.title}
         status={props.status}
+        project={props.project}
         onBack={props.onBack}
         onMore={props.onMoreToggle}
         contextControl={(props.contextUsageSupported || props.contextUsage != null) ? (
@@ -621,15 +658,16 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           />
         ) : null}
       />
-      {/* Body region — a position:relative frame holding the scroll transcript + composer. The
-          full-screen editor (2b) mounts as an absolute overlay of THIS region, so it covers the
-          transcript + composer while leaving the header untouched. */}
+      {/* Body region — a position:relative frame holding the scroll transcript + the floating
+          composer, both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of
+          THIS region; since the header now floats over the same box, the editor outranks it. */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
         <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate' }}>
-          <div ref={contentRef} style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
+          <div ref={contentRef} style={{ padding: 'calc(72px + env(safe-area-inset-top)) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream
               rows={props.rows}
               toolCallsUnit={copy.toolCallsUnit}
@@ -646,7 +684,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             {props.systemLines?.map((t, i) => (
               <SystemLine key={i} text={t} />
             ))}
-            <div style={{ height: 'calc(8px + env(safe-area-inset-bottom))', flex: 'none' }} />
+            {/* Tail clearance for the floating composer, which no longer takes flow height. */}
+            <div style={{ height: 'calc(150px + env(safe-area-inset-bottom))', flex: 'none' }} />
           </div>
         </div>
         <MComposer

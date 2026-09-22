@@ -132,6 +132,17 @@
     opacity: 0.3;
   }
 }
+/* A live indicator that breathes outward instead of blinking: the halo expands and fades, so a
+   running session reads as active in peripheral vision without the flicker `cxpulse` has. */
+@keyframes cxglow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-main) 28%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
 @keyframes cxtoast {
   from {
     opacity: 0;

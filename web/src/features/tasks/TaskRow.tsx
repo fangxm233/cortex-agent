@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import { displayClaimId } from './task-claim';
@@ -30,13 +30,18 @@ const DOT_COLORS: Record<TaskGroupKind, string> = {
 
 // Raised glass rather than an opaque tile. `--glass-2` carries no `backdrop-filter`, so it stays
 // a plain alpha blend even though these rows repaint on every scroll frame of the tasks list.
+// The outline is a shadow ring, not a border: a real border would add 2px to the card's outer size.
 const CARD_STYLE: CSSProperties = {
   background: 'var(--glass-2)',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 'var(--r-card)',
+  border: 0,
+  borderRadius: 12,
   padding: '9px 12px',
-  boxShadow: 'var(--shadow-card-subtle)',
+  boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line-2)',
   cursor: 'pointer',
+};
+
+const CARD_HOVER_STYLE: CSSProperties = {
+  boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line-3)',
 };
 
 const META_STYLE: Record<TaskMetaKind, CSSProperties> = {
@@ -81,7 +86,6 @@ function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta |
 function TaskIdentity({ task }: { task: TaskInfo }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
-      <span style={{ color: 'var(--proto-faint)', fontSize: 8.5, flex: 'none' }}>▸</span>
       <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
         {task.id}
       </span>
@@ -126,8 +130,16 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
 export function TaskRow({ task, kind, onOpen }: TaskRowProps) {
   const vocab = useVocab();
   const meta = taskMeta(task, kind, vocab);
+  const [hover, setHover] = useState(false);
   return (
-    <div data-task-id={task.id} data-status={task.status} onClick={() => onOpen(task)} style={CARD_STYLE}>
+    <div
+      data-task-id={task.id}
+      data-status={task.status}
+      onClick={() => onOpen(task)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={hover ? { ...CARD_STYLE, ...CARD_HOVER_STYLE } : CARD_STYLE}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: DOT_COLORS[kind], flex: 'none', marginTop: 5 }} />
         <div style={{ minWidth: 0, flex: 1 }}>

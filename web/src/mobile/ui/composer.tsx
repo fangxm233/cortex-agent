@@ -14,9 +14,11 @@ export function composerCountLabel(value: string, lineUnit: string, charUnit: st
   return `${composerLineCount(value)} ${lineUnit} · ${composerCharCount(value)} ${charUnit}`;
 }
 
+// The card carries the breathing room now (`composerCardStyle`), so the field itself is nearly
+// flush — the autosize thresholds derive from that padding rather than restating it.
 const COMPOSER_LINE_H = 20;
-const COMPOSER_PAD_V = 12;
-const COMPOSER_MIN_H = 46;
+const COMPOSER_PAD_V = 2;
+const COMPOSER_MIN_H = COMPOSER_LINE_H + 2 * COMPOSER_PAD_V;
 const COMPOSER_MAX_H = 5 * COMPOSER_LINE_H + 2 * COMPOSER_PAD_V;
 
 function ExpandIcon(): JSX.Element {
@@ -133,12 +135,22 @@ type ComposerCardProps = MComposerProps & {
   onExpand: () => void;
 };
 
+const composerShellStyle: CSSProperties = {
+  position: 'absolute', left: 12, right: 12, bottom: 'calc(20px + env(safe-area-inset-bottom))',
+  zIndex: 4,
+};
+
+const COMPOSER_GLASS = 'var(--glass-ring-inset), var(--shadow-float)';
+
+/** The tone/focus accent is an extra ring in the shadow stack rather than a border: a real border
+ *  would resize the card the moment the field takes focus. */
 function composerCardStyle(tone: MComposerProps['tone'], focused: boolean): CSSProperties {
+  const accent = tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : null;
   return {
-    border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
-    borderRadius: 'var(--r-float)', background: MC.card,
-    boxShadow: tone === 'amber' ? 'var(--focus-ring-amber)' : tone === 'accent' || focused ? 'var(--focus-ring-accent)' : undefined,
-    boxSizing: 'border-box', padding: '2px 10px 8px 12px',
+    borderRadius: 20, background: MC.glass,
+    backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
+    boxShadow: accent ? `${COMPOSER_GLASS}, 0 0 0 1.5px ${accent}` : COMPOSER_GLASS,
+    boxSizing: 'border-box', padding: '12px 12px 10px 14px',
   };
 }
 
@@ -153,7 +165,7 @@ function ComposerField(props: ComposerCardProps): JSX.Element {
         onFocus={() => props.onFocus(true)}
         onBlur={() => props.onFocus(false)}
         placeholder={props.placeholder}
-        style={{ flex: 1, minWidth: 0, resize: 'none', border: 'none', outline: 'none', background: 'transparent', padding: `${COMPOSER_PAD_V}px 0 6px`, margin: 0, maxHeight: COMPOSER_MAX_H, fontSize: 13.5, lineHeight: `${COMPOSER_LINE_H}px`, color: MC.ink, fontFamily: 'inherit', boxSizing: 'border-box' }}
+        style={{ flex: 1, minWidth: 0, resize: 'none', border: 'none', outline: 'none', background: 'transparent', padding: `${COMPOSER_PAD_V}px 0`, margin: 0, maxHeight: COMPOSER_MAX_H, fontSize: 15, lineHeight: `${COMPOSER_LINE_H}px`, color: MC.ink, fontFamily: 'inherit', boxSizing: 'border-box' }}
       />
       {props.showExpand && <ExpandButton onClick={props.onExpand} />}
     </div>
@@ -166,7 +178,7 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
       type="button"
       aria-label="Expand"
       onClick={onClick}
-      style={{ position: 'absolute', top: 8, right: 0, width: 22, height: 22, borderRadius: '50%', background: 'var(--m-gray)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+      style={{ position: 'absolute', top: 1, right: 0, width: 22, height: 22, borderRadius: '50%', background: 'var(--m-gray)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
     >
       <ExpandIcon />
     </button>
@@ -176,14 +188,16 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
 function ComposerToolbar(props: MComposerProps): JSX.Element {
   const running = props.running ?? false;
   return (
-    <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
       {props.leading}
-      {/* The right-hand group carries the push itself rather than sitting behind a spacer element:
-          an empty spacer would also claim a gap on each side, and on a phone toolbar those 8px are
-          width the engine chip needs. */}
-      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
-      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} />}
-      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
+      {/* The send pair carries the push itself rather than sitting behind a spacer element: an empty
+          spacer would also claim a gap on each side, and on a phone toolbar those 8px are width the
+          engine chip needs. */}
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+        {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
+        <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={38} />
+      </span>
     </div>
   );
 }
@@ -204,13 +218,17 @@ export function MComposer(props: MComposerProps): JSX.Element {
   const [multiline, setMultiline] = useState(() => composerLineCount(props.value ?? '') > 1);
   useAutosize(textareaRef, props.value, setMultiline);
   const fullscreen = expanded ? <ComposerFullscreen {...props} value={props.value ?? ''} onCollapse={() => setExpanded(false)} onSend={() => { props.onSend?.(); setExpanded(false); }} onCommandPick={() => setExpanded(false)} /> : null;
+  // The fullscreen editor is a SIBLING of the floating card, not a child: it spans the whole
+  // positioned region the card is anchored inside, which the card itself no longer is.
   return (
-    <div style={{ flex: 'none', padding: '6px 14px 34px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' }}>
-      {props.above}
-      {!expanded ? props.commandMenu : null}
-      <ComposerCard {...props} focused={focused} showExpand={multiline && !expanded} textareaRef={textareaRef} onFocus={setFocused} onExpand={() => setExpanded(true)} />
+    <>
+      <div style={composerShellStyle}>
+        {props.above}
+        {!expanded ? props.commandMenu : null}
+        <ComposerCard {...props} focused={focused} showExpand={multiline && !expanded} textareaRef={textareaRef} onFocus={setFocused} onExpand={() => setExpanded(true)} />
+      </div>
       {fullscreen}
-    </div>
+    </>
   );
 }
 
@@ -232,8 +250,11 @@ export interface ComposerFullscreenProps {
   charUnit?: string;
 }
 
+// Above the floating chat header (z 5) too: the editor takes the whole region, so a header pill
+// left on top of it would land inside the card.
 const fullscreenShellStyle: CSSProperties = {
-  position: 'absolute', inset: 0, zIndex: 4, background: MC.backdrop, padding: '8px 10px',
+  position: 'absolute', inset: 0, zIndex: 6, background: MC.backdrop, padding: '8px 10px',
+  paddingTop: 'calc(8px + env(safe-area-inset-top))',
   paddingBottom: 'calc(8px + env(safe-area-inset-bottom))', boxSizing: 'border-box', display: 'flex',
 };
 const fullscreenCardStyle: CSSProperties = {

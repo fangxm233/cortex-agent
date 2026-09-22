@@ -200,10 +200,10 @@ function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
   // Same glass-on-glass rule as the thread cards: translucent fill, no filter of its own.
-  return <div style={{ background: 'var(--glass-2)', border: '1px solid var(--proto-line)',
-    borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)' }}>
+  return <div style={{ background: 'var(--glass-2)', border: 0, borderRadius: 12,
+    boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-line-2)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
-      style={{ padding: '11px 14px 9px', cursor: 'pointer',
+      style={{ padding: '10px 12px', cursor: 'pointer',
         borderBottom: `1px solid ${open ? 'var(--proto-line-soft)' : 'transparent'}` }}>
       <MachineCardTitle machine={machine} open={open} />
       <MachineCardMeta machine={machine} />
@@ -212,12 +212,13 @@ function MachineCard({ machine, open, detail, onToggle }: {
   </div>;
 }
 
+// A group label, not a header bar: the drawer's three tabs each open onto the same kind of
+// labelled card stack, so machines gets the same label the threads and tasks groups use.
 function MachinesHeader({ count }: { count: string }) {
   const L = useVocab();
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px',
-    borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
-    <span style={{ fontSize: 10.5, color: 'var(--proto-muted)' }}>{L.machines}</span>
-    <span style={{ marginLeft: 'auto', font: `500 10.5px ${MONO}`, color: 'var(--proto-muted)' }}>{count}</span>
+  return <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.07em',
+    textTransform: 'uppercase', color: 'var(--proto-muted)', padding: '6px 6px', flex: 'none' }}>
+    {L.machines} · {count}
   </div>;
 }
 
@@ -247,15 +248,16 @@ interface RightMachinesViewProps {
 
 export function RightMachinesView(props: RightMachinesViewProps) {
   const count = !props.loading && !props.error ? String(props.machines.length) : '—';
-  return <><MachinesHeader count={count} />
-    <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column',
-      gap: 10, overflow: 'auto', minHeight: 0 }}>
+  return <div style={{ flex: 1, minHeight: 0, padding: '0 12px 12px', display: 'flex',
+    flexDirection: 'column', overflow: 'auto' }}>
+    <MachinesHeader count={count} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {props.machines.map((machine) => <MachineCard key={machine.name} machine={machine}
         open={props.expanded.has(machine.name)} detail={props.detailFor(machine.name)}
         onToggle={() => props.onToggle(machine.name)} />)}
       <MachineListState loading={props.loading} error={props.error} empty={props.machines.length === 0} />
     </div>
-  </>;
+  </div>;
 }
 
 export function RightMachinesTab() {

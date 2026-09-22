@@ -9,12 +9,12 @@ import { useTaskModal } from './TaskModalProvider';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
 const GROUP_LABEL_STYLE = {
-  fontSize: 11.5,
+  fontSize: 10.5,
   fontWeight: 700,
-  letterSpacing: '.06em',
+  letterSpacing: '.07em',
   textTransform: 'uppercase',
   color: 'var(--proto-muted)',
-  padding: '8px 2px 4px',
+  padding: '6px 6px',
 } as const;
 
 const ERROR_STYLE = {
@@ -43,7 +43,7 @@ function GroupSection({ kind, tasks, onOpen }: {
   return (
     <section>
       <div style={GROUP_LABEL_STYLE}>{labels[kind]} · {tasks.length}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {tasks.map((task) => <TaskRow key={task.id} task={task} kind={kind} onOpen={onOpen} />)}
       </div>
     </section>

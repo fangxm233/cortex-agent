@@ -123,6 +123,8 @@ export interface CommissionSheetItem {
 export interface MChatViewProps {
   title: string;
   status: ChatHeaderStatus;
+  /** Project the session belongs to; prefixes the header status line when known. */
+  project?: string;
   rows: ChatRow[];
   copy: MChatCopy;
   onBack: () => void;

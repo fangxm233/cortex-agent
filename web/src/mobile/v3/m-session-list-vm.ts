@@ -5,6 +5,8 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { groupSessions, type SessionGroupLabel } from '@/features/workbench/session-groups';
 import { relTimeZh } from '@/mobile/ui/format';
 
+export type MSessionStatus = ReturnType<typeof sessionStatusLine>;
+
 export interface MSessionRow {
   id: string;
   title: string;
@@ -14,6 +16,8 @@ export interface MSessionRow {
   /** Real agent-turn count; null when unknown. */
   numTurns: number | null;
   unread: boolean;
+  /** Carried on the row so a group header can count its live rows without a second lookup. */
+  status: MSessionStatus;
 }
 
 export interface MSessionGroup {
@@ -58,6 +62,7 @@ function toRow(s: SessionInfo, now: number): MSessionRow {
     running: s.running,
     numTurns: s.numTurns,
     unread: s.unread,
+    status: sessionStatusLine(s),
   };
 }
 

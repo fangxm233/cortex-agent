@@ -188,6 +188,8 @@ export const enBase = {
   wbHiddenNoProfile: '{n} models have no profile',
   wbModelsPending: 'loading models…',
   wbNewConversation: 'New conversation',
+  wbDraftIn: 'in {p}',
+  wbDraftSendsOnFirst: 'sends on first message',
   wbSend: 'send',
   wbSlashInvalid: 'Message not sent: unrecognized command or invalid arguments. Text starting with / is treated as a command. For a normal message, rephrase it so it does not start with /.',
   wbSlashIncomplete: 'Message not sent: command is incomplete. Complete it or select a command from the menu. For a normal message, do not start with /.',

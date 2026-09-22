@@ -184,6 +184,8 @@ export const zhBase = {
   wbHiddenNoProfile: '{n} 个模型无可用配置',
   wbModelsPending: '正在加载模型…',
   wbNewConversation: '新对话',
+  wbDraftIn: '在 {p}',
+  wbDraftSendsOnFirst: '首次发送时创建',
   wbSend: '发送',
   wbSlashInvalid: '未发送：无法识别该命令或参数无效。以 / 开头的内容会被当作命令；若要发送普通消息，请改为不以 / 开头。',
   wbSlashIncomplete: '未发送：命令尚未输入完整。请补全或从菜单选择命令；若要发送普通消息，请改为不以 / 开头。',

@@ -31,13 +31,18 @@ const measureStyle: CSSProperties = {
   position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
   width: 'max-content', overflow: 'visible',
 };
-const expandedHeaderStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 7, fontSize: 11,
-  color: 'var(--proto-muted-3)', padding: '6px 13px',
+const expandedPanelStyle: CSSProperties = {
+  background: 'var(--glass-2)',
+  border: '1px solid var(--proto-line)',
+  borderRadius: 10,
+  padding: '2px 0',
+  // Closes the row gap the summary row's own tuck opens, so the panel hangs off that row.
+  marginTop: -6,
+  animation: 'cxfade .2s ease',
 };
 const expandedCallStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
-  padding: '5.5px 13px', borderTop: '1px solid var(--proto-line-soft)',
+  padding: '6px 13px', borderTop: '1px solid var(--proto-line-2)',
 };
 const kindStyle: CSSProperties = {
   font: `600 9px ${mono}`, color: 'var(--proto-muted)',
@@ -80,14 +85,6 @@ function collapsedRowStyle(hover: boolean): CSSProperties {
   };
 }
 
-function expandedBoxStyle(hover: boolean): CSSProperties {
-  return {
-    background: 'var(--glass-2)',
-    border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
-    borderRadius: 'var(--r-control)', padding: '2px 0', cursor: 'pointer',
-  };
-}
-
 function ToolChip({ call }: { call: ToolCall }): JSX.Element {
   return (
     <span style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
@@ -96,19 +93,22 @@ function ToolChip({ call }: { call: ToolCall }): JSX.Element {
   );
 }
 
-function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
+// The summary row is the same in both states — expanding flips its caret and hangs a panel under
+// it rather than replacing it, so the chips stay readable while the detail is open.
+function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover }: {
   calls: ToolCall[];
   text: string;
+  expanded: boolean;
   hover: boolean;
-  onExpand: () => void;
+  onToggle: () => void;
   onHover: (hovered: boolean) => void;
 }): JSX.Element {
   const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.label), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div style={{ margin: '-8px 0' }}>
-      <div onClick={onExpand} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
-        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>▸</span>
+      <div onClick={onToggle} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
+        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span style={{ flex: 'none' }}>{text}</span>
         <span ref={containerRef} style={collapsedCallsStyle}>
           {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
@@ -148,8 +148,8 @@ function ExpandedToolCalls({ calls, text, hover, selected, onCollapse, onHover, 
 }): JSX.Element {
   return (
     <>
-      <div onClick={onCollapse} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={expandedBoxStyle(hover)}>
-        <div style={expandedHeaderStyle}><span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▾</span><span>{text}</span></div>
+      <ToolCallsSummaryRow calls={calls} text={text} expanded hover={hover} onToggle={onCollapse} onHover={onHover} />
+      <div style={expandedPanelStyle}>
         {calls.map((call, index) => <ExpandedToolCall key={index} call={call} onInspect={onInspect} />)}
       </div>
       <DebugDetailsModal detail={selected} onClose={onClose} />
@@ -181,7 +181,7 @@ export function ToolCallsRow({ calls, sessionId }: {
     }).catch(() => {});
   };
   if (!expanded) {
-    return <CollapsedToolCalls calls={calls} text={text} hover={hover} onExpand={() => setExpanded(true)} onHover={setHover} />;
+    return <ToolCallsSummaryRow calls={calls} text={text} expanded={false} hover={hover} onToggle={() => setExpanded(true)} onHover={setHover} />;
   }
   return (
     <ExpandedToolCalls calls={calls} text={text} hover={hover} selected={selected}

@@ -19,7 +19,7 @@ export function ComposerStatusLine({
 }: ComposerStatusLineProps): JSX.Element {
   const clickable = !!sessionText && !!onOpenSessionStats;
   return (
-    <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: running ? 'var(--proto-muted-2)' : 'var(--proto-faint)', padding: '8px 2px 10px', minWidth: 0 }}>
+    <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: running ? 'var(--proto-muted-2)' : 'var(--proto-faint)', padding: '9px 4px 0', height: 16, minWidth: 0 }}>
       {/* The live segment never yields width: a truncated "running · 2m 4s" is worse than a
           truncated total, so the totals segment is the one allowed to shrink. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 'none' }}>

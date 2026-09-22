@@ -15,7 +15,7 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   const [hovered, setHovered] = useState<number | null>(null);
   if (suggestions.length === 0) return null;
   return (
-    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
+    <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
       {suggestions.map((suggestion, index) => (
         <div
           key={suggestion.command}
@@ -357,7 +357,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
         onMouseLeave={() => setHover(false)}
         style={{
           width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
-          border: `1.5px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
+          border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
           color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
           background: 'var(--proto-card)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -490,7 +490,7 @@ export function ComposerActionRow({ browser, commission, onAttach, onCommands, a
   sendControl: ReactNode;
 }): JSX.Element {
   return (
-    <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+    <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
       <ComposerPlusMenu browser={browser} commission={commission} onAttach={onAttach} onCommands={onCommands} />
       {browser && <ComposerBrowserChip browser={browser} />}
       {commission && <ComposerCommissionChip commission={commission} />}

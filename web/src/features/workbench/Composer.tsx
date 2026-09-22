@@ -307,7 +307,9 @@ export function Composer({
   const hasPendingUploads = attachmentUploads.hasNonDone;
   const canSend = attachmentSendAllowed(composer, attachments) && (!!sessionId || isDraft)
     && !sendMut.isPending && !createAndSendMut.isPending;
-  const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
+  // The accent ring is the card's only state cue now that it carries no resting border: it lights up
+  // when the draft is sendable, and while the slash palette is anchored to the card.
+  const composerRing = canSend || slashOpen;
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
@@ -526,294 +528,297 @@ export function Composer({
 
   return (
     <div style={{ flex: 'none' }}>
-      <div
-        ref={localDropTargetRef}
-        style={{ maxWidth: 756, margin: '0 auto', padding: '0 32px 18px', position: 'relative' }}
-      >
-        {/* Slash palette */}
-        {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
+      {/* The gutter sits OUTSIDE the card's own column, so the composer sheet is wider than the
+          prose it answers rather than inset from it. */}
+      <div ref={localDropTargetRef} style={{ padding: '6px 32px 14px' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+          {/* Slash palette */}
+          {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
 
-        {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
-            the highest-value line on this surface and belongs at the point of gaze; it renders
-            nothing at all when the session has no task list. */}
-        {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
+          {/* Task list rail. Sits directly above the input because "what the agent is doing now" is
+              the highest-value line on this surface and belongs at the point of gaze; it renders
+              nothing at all when the session has no task list. */}
+          {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
 
-        {/* What the session is waiting on from OUTSIDE Cortex. Directly above the input for the same
-            reason the task list is: it answers "why is nothing happening right now". Renders nothing
-            when no waitpoint is armed. */}
-        {!isDraft && waitpoints && (
-          <WaitRail
-            sessionId={sessionId}
-            lang={lang}
-            waitpoints={waitpoints.waitpoints}
-            onCancel={waitpoints.cancel}
-            cancelling={waitpoints.cancelling}
-          />
-        )}
+          {/* What the session is waiting on from OUTSIDE Cortex. Directly above the input for the same
+              reason the task list is: it answers "why is nothing happening right now". Renders nothing
+              when no waitpoint is armed. */}
+          {!isDraft && waitpoints && (
+            <WaitRail
+              sessionId={sessionId}
+              lang={lang}
+              waitpoints={waitpoints.waitpoints}
+              onCancel={waitpoints.cancel}
+              cancelling={waitpoints.cancelling}
+            />
+          )}
 
-        {isDraft && <DraftProjectSelector disabled={createAndSendMut.isPending} />}
+          {isDraft && <DraftProjectSelector disabled={createAndSendMut.isPending} />}
 
-        {/* Composer card — doubles as drop zone (15a) */}
-        <div
-          style={{
-            position: 'relative',
-            border: dragOver ? '1.5px dashed var(--proto-accent)' : '1.5px solid ' + composerBorder,
-            borderRadius: 'var(--r-float)',
-            // Opaque on purpose: the transcript scrolls UNDER this sheet, and a translucent composer
-            // would show message text sliding behind the line being typed.
-            background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
-            // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
-            // the ring IS the "press ⏎" affordance. Drag keeps its flattened look; the dashed
-            // border is the state cue there.
-            boxShadow: dragOver
-              ? 'none'
-              : canSend
-                ? 'var(--shadow-float), 0 0 0 1.5px var(--proto-accent-border)'
-                : 'var(--shadow-float)',
-            transition: 'box-shadow 150ms ease',
-            padding: '10px 12px 10px 14px',
-          }}
-        >
-          {/* Drop state — empty composer: replace content with centered drop prompt */}
-          {dragOver && !hasAttachments ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                padding: '22px 12px',
-              }}
-            >
-              <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                {dragFileCount > 0
-                  ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount))
-                  : L.wbDropFilesSingular}
-              </span>
-              <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
-                {L.wbAttachPath}
-              </span>
-            </div>
-          ) : (
-            <>
-              {/* Drop state with existing attachments: dim content + overlay */}
+          {/* Composer card — doubles as drop zone (15a) */}
+          <div
+            style={{
+              position: 'relative',
+              borderRadius: 'var(--r-float)',
+              // Opaque on purpose: the transcript scrolls UNDER this sheet, and a translucent composer
+              // would show message text sliding behind the line being typed.
+              background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
+              // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
+              // the ring IS the "press ⏎" affordance. Drag keeps its flattened look; the dashed edge
+              // is the state cue there, drawn as an outline so entering the drag state costs no layout.
+              outline: dragOver ? '1.5px dashed var(--proto-accent)' : undefined,
+              outlineOffset: -1.5,
+              boxShadow: dragOver
+                ? 'none'
+                : composerRing
+                  ? 'var(--shadow-float), 0 0 0 1.5px var(--proto-accent-border)'
+                  : 'var(--shadow-float)',
+              transition: 'box-shadow .15s',
+              padding: '12px 12px 10px 16px',
+            }}
+          >
+            {/* Drop state — empty composer: replace content with centered drop prompt */}
+            {dragOver && !hasAttachments ? (
               <div
                 style={{
-                  opacity: dragOver ? 0.4 : 1,
-                  pointerEvents: dragOver ? 'none' : 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '22px 12px',
                 }}
               >
-                {/* Attachment chips row */}
-                {hasAttachments && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 8,
-                      padding: '2px 2px 10px',
-                      borderBottom: '1px solid var(--proto-line-2)',
-                    }}
-                  >
-                    {attachments.map((attachment) => (
-                      <ComposerAttachmentChip
-                        key={attachment.id}
-                        attachment={attachment}
-                        onRetry={retryAttachment}
-                        onRemove={removeAttachment}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Text input — full card width; every control lives in the toolbar row below. */}
-                <textarea
-                  ref={inputRef}
-                  data-composer-input
-                  rows={1}
-                  value={composer}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setComposer(v);
-                    setSendError(null);
-                    setSlashOpen(v.startsWith('/'));
-                    // Height is re-fit by the useLayoutEffect on `composer`.
-                  }}
-                  onKeyDown={onKey}
-                  onPaste={onPaste}
-                  placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
+                <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
+                  {dragFileCount > 0
+                    ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount))
+                    : L.wbDropFilesSingular}
+                </span>
+                <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                  {L.wbAttachPath}
+                </span>
+              </div>
+            ) : (
+              <>
+                {/* Drop state with existing attachments: dim content + overlay */}
+                <div
                   style={{
-                    width: '100%',
-                    fontSize: 13.5,
-                    lineHeight: 1.5,
-                    color: 'var(--proto-ink)',
-                    fontFamily: 'inherit',
-                    padding: hasAttachments ? '11px 2px' : '2px 0',
-                    border: 'none',
-                    outline: 'none',
-                    resize: 'none',
-                    background: 'transparent',
-                    maxHeight: COMPOSER_MAX_HEIGHT,
-                    overflowY: 'auto',
+                    opacity: dragOver ? 0.4 : 1,
+                    pointerEvents: dragOver ? 'none' : 'auto',
                   }}
-                />
+                >
+                  {/* Attachment chips row */}
+                  {hasAttachments && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        padding: '2px 2px 10px',
+                        borderBottom: '1px solid var(--proto-line-2)',
+                      }}
+                    >
+                      {attachments.map((attachment) => (
+                        <ComposerAttachmentChip
+                          key={attachment.id}
+                          attachment={attachment}
+                          onRetry={retryAttachment}
+                          onRemove={removeAttachment}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-                {/* Toolbar: ＋ menu left; agent, profile, context ring and Send/Stop right.
-                    Send is ALWAYS rendered. While a turn is running the composer still sends —
-                    the server injects the text into the live turn rather than queuing it behind
-                    that turn. Showing send as the secondary action next to Stop makes the
-                    keyboard behaviour (⏎ mid-turn) visible instead of accidental. */}
-                <ComposerActionRow
-                  browser={isDraft
-                    ? { device: browserDevice, onChange: setBrowserDevice } satisfies ComposerBrowserControl
-                    // A live session shows what it was created with, without pretending it can
-                    // be changed now.
-                    : sessionBrowser
-                      ? { device: sessionBrowser.device }
-                      : null}
-                  commission={commissionControl}
-                  onAttach={() => fileInputRef.current?.click()}
-                  onCommands={() => { setComposer('/'); setSlashOpen(true); }}
-                  agentControl={<AgentSelectorView selection={engineSelection} />}
-                  selectionControl={<SessionSelectorView selection={engineSelection} />}
-                  contextControl={contextControl}
-                  sendControl={(
-                    <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <button
-                        type="button"
-                        data-action="send"
-                        aria-label={L.wbSend}
-                        title={`${L.wbSend} · ⏎`}
-                        disabled={!canSend}
-                        onClick={doSend}
-                        style={{
-                          flex: 'none',
-                          width: running ? 30 : 34,
-                          height: running ? 30 : 34,
-                          padding: 0,
-                          borderRadius: '50%',
-                          // Running: outlined/secondary so Stop stays the primary action.
-                          background: running ? 'transparent' : sendBg,
-                          border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
-                          // Glow only on the filled, armed state — a disabled or outlined send
-                          // button that still floated would read as the primary action it is not.
-                          boxShadow: !running && canSend ? 'var(--accent-glow)' : undefined,
-                          boxSizing: 'border-box',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: canSend ? 'pointer' : 'default',
-                        }}
-                      >
-                        <svg
-                          width={running ? 12 : 14}
-                          height={running ? 12 : 14}
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
-                          strokeWidth="1.8"
-                        >
-                          <path d="M7 12V2M3 6l4-4 4 4" />
-                        </svg>
-                      </button>
-                      {running && (
-                        <div
-                          data-action="stop"
-                          title={`${L.stop} · esc`}
-                          onClick={doStop}
-                          onMouseEnter={() => setBtnHover(true)}
-                          onMouseLeave={() => setBtnHover(false)}
+                  {/* Text input — full card width; every control lives in the toolbar row below. */}
+                  <textarea
+                    ref={inputRef}
+                    data-composer-input
+                    rows={1}
+                    value={composer}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setComposer(v);
+                      setSendError(null);
+                      setSlashOpen(v.startsWith('/'));
+                      // Height is re-fit by the useLayoutEffect on `composer`.
+                    }}
+                    onKeyDown={onKey}
+                    onPaste={onPaste}
+                    placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
+                    style={{
+                      width: '100%',
+                      fontSize: 13.5,
+                      lineHeight: 1.5,
+                      color: 'var(--proto-ink)',
+                      fontFamily: 'inherit',
+                      padding: hasAttachments ? '11px 2px' : '2px 0',
+                      border: 'none',
+                      outline: 'none',
+                      resize: 'none',
+                      background: 'transparent',
+                      maxHeight: COMPOSER_MAX_HEIGHT,
+                      overflowY: 'auto',
+                    }}
+                  />
+
+                  {/* Toolbar: ＋ menu left; agent, profile, context ring and Send/Stop right.
+                      Send is ALWAYS rendered. While a turn is running the composer still sends —
+                      the server injects the text into the live turn rather than queuing it behind
+                      that turn. Showing send as the secondary action next to Stop makes the
+                      keyboard behaviour (⏎ mid-turn) visible instead of accidental. */}
+                  <ComposerActionRow
+                    browser={isDraft
+                      ? { device: browserDevice, onChange: setBrowserDevice } satisfies ComposerBrowserControl
+                      // A live session shows what it was created with, without pretending it can
+                      // be changed now.
+                      : sessionBrowser
+                        ? { device: sessionBrowser.device }
+                        : null}
+                    commission={commissionControl}
+                    onAttach={() => fileInputRef.current?.click()}
+                    onCommands={() => { setComposer('/'); setSlashOpen(true); }}
+                    agentControl={<AgentSelectorView selection={engineSelection} />}
+                    selectionControl={<SessionSelectorView selection={engineSelection} />}
+                    contextControl={contextControl}
+                    sendControl={(
+                      <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          data-action="send"
+                          aria-label={L.wbSend}
+                          title={`${L.wbSend} · ⏎`}
+                          disabled={!canSend}
+                          onClick={doSend}
                           style={{
                             flex: 'none',
-                            width: 34,
-                            height: 34,
+                            width: running ? 30 : 34,
+                            height: running ? 30 : 34,
+                            padding: 0,
                             borderRadius: '50%',
-                            background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+                            // Running: outlined/secondary so Stop stays the primary action.
+                            background: running ? 'transparent' : sendBg,
+                            border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
+                            // Glow only on the filled, armed state — a disabled or outlined send
+                            // button that still floated would read as the primary action it is not.
+                            boxShadow: !running && canSend ? 'var(--accent-glow)' : undefined,
+                            boxSizing: 'border-box',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: cancelMut.isPending ? 'default' : 'pointer',
+                            cursor: canSend ? 'pointer' : 'default',
                           }}
                         >
-                          <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
-                        </div>
-                      )}
-                    </span>
-                  )}
-                />
-              </div>
-
-              {/* Floating overlay when dragging with existing attachments */}
-              {dragOver && hasAttachments && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    transform: 'translate(-50%,-50%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 3,
-                    // Stays opaque: it sits on top of the dimmed attachment row and has to hide it.
-                    background: 'var(--panel-translucent-bg)',
-                    border: '1px solid var(--proto-accent-border)',
-                    borderRadius: 'var(--r-card)',
-                    padding: '10px 18px',
-                    boxShadow: 'var(--shadow-accent-soft)',
-                    zIndex: 2,
-                  }}
-                >
-                  <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                    {dragFileCount > 0
-                      ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount))
-                      : L.wbDropAddMore}
-                  </span>
-                  <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
-                    {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount))}
-                  </span>
+                          <svg
+                            width={running ? 12 : 14}
+                            height={running ? 12 : 14}
+                            viewBox="0 0 14 14"
+                            fill="none"
+                            stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
+                            strokeWidth="1.8"
+                          >
+                            <path d="M7 12V2M3 6l4-4 4 4" />
+                          </svg>
+                        </button>
+                        {running && (
+                          <div
+                            data-action="stop"
+                            title={`${L.stop} · esc`}
+                            onClick={doStop}
+                            onMouseEnter={() => setBtnHover(true)}
+                            onMouseLeave={() => setBtnHover(false)}
+                            style={{
+                              flex: 'none',
+                              width: 34,
+                              height: 34,
+                              borderRadius: '50%',
+                              background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+                              boxShadow: 'var(--shadow-key-lift)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: cancelMut.isPending ? 'default' : 'pointer',
+                            }}
+                          >
+                            <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
+                          </div>
+                        )}
+                      </span>
+                    )}
+                  />
                 </div>
-              )}
-            </>
+
+                {/* Floating overlay when dragging with existing attachments */}
+                {dragOver && hasAttachments && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%,-50%)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      // Stays opaque: it sits on top of the dimmed attachment row and has to hide it.
+                      background: 'var(--panel-translucent-bg)',
+                      border: '1px solid var(--proto-accent-border)',
+                      borderRadius: 'var(--r-card)',
+                      padding: '10px 18px',
+                      boxShadow: 'var(--shadow-accent-soft)',
+                      zIndex: 2,
+                    }}
+                  >
+                    <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
+                      {dragFileCount > 0
+                        ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount))
+                        : L.wbDropAddMore}
+                    </span>
+                    <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                      {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount))}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {slashErrorKey && (
+            <div data-slash-error role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--proto-danger)' }}>
+              {L[slashErrorKey]}
+            </div>
+          )}
+          {sendError && <ComposerSendFailure error={sendError} />}
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+                e.target.value = '';
+              }
+            }}
+            style={{ display: 'none' }}
+          />
+
+          {/* Session meta, below the input: it is low-frequency reference information and reads as a
+              footer for the composer, so the rail above the input keeps the position closest to the
+              user's gaze. */}
+          {showStatus && (
+            <ComposerStatusLine
+              running={runStatus.active}
+              text={browserStarting && statusBrowserDevice
+                ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
+                : runStatusText}
+              sessionText={sessionStats?.summary}
+              onOpenSessionStats={sessionStats ? () => setStatsOpen(true) : undefined}
+            />
+          )}
+          {statsOpen && sessionStats && (
+            <SessionStatsModal rows={sessionStats.rows} onClose={() => setStatsOpen(false)} />
           )}
         </div>
-
-        {slashErrorKey && (
-          <div data-slash-error role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--proto-danger)' }}>
-            {L[slashErrorKey]}
-          </div>
-        )}
-        {sendError && <ComposerSendFailure error={sendError} />}
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              addFiles(e.target.files);
-              e.target.value = '';
-            }
-          }}
-          style={{ display: 'none' }}
-        />
-
-        {/* Session meta, below the input: it is low-frequency reference information and reads as a
-            footer for the composer, so the rail above the input keeps the position closest to the
-            user's gaze. */}
-        {showStatus && (
-          <ComposerStatusLine
-            running={runStatus.active}
-            text={browserStarting && statusBrowserDevice
-              ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
-              : runStatusText}
-            sessionText={sessionStats?.summary}
-            onOpenSessionStats={sessionStats ? () => setStatsOpen(true) : undefined}
-          />
-        )}
-        {statsOpen && sessionStats && (
-          <SessionStatsModal rows={sessionStats.rows} onClose={() => setStatsOpen(false)} />
-        )}
       </div>
     </div>
   );

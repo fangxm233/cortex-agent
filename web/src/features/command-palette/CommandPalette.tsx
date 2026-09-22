@@ -8,12 +8,11 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 
-// ⌘K command palette — 1:1 rebuild from prototype.dc.html L1295–1315 (task c967). The overlay
-// chrome, row anatomy, and copy are reproduced verbatim (exact inline styles / px / hex / font /
-// weight — LeftRail/CenterChat/RightPanel raw-value precedent); real sessions/threads/tasks over
-// tRPC are substituted into the exact structure (§8.3: data is the only variable). cmdk drives the
-// fuzzy filter + ↑/↓/Enter + focus-trap; the underlying Radix Dialog drives Esc/overlay-close +
-// focus-restore. The prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
+// ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
+// label, right-aligned hint); real sessions/threads/tasks over tRPC are substituted into that
+// structure (§8.3: data is the only variable). cmdk drives the fuzzy filter + ↑/↓/Enter +
+// focus-trap; the underlying Radix Dialog drives Esc/overlay-close + focus-restore. The
+// prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
 // The fixed panel/backdrop live in index.css (`.cmdk-panel`/`.cmdk-backdrop`) — cmdk's Dialog only
 // exposes overlay/content classNames, not style props.
 //
@@ -25,23 +24,23 @@ const HEADER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  padding: '12px 16px',
+  padding: '14px 16px',
   borderBottom: '1px solid var(--proto-line-2)',
 };
 
 const INPUT_STYLE: CSSProperties = {
   flex: 1,
-  fontSize: 13.5,
+  fontSize: 14,
   color: 'var(--proto-ink)',
   fontFamily: 'inherit',
 };
 
 const ESC_STYLE: CSSProperties = {
-  font: "500 9.5px 'IBM Plex Mono',monospace",
+  font: "400 10px 'IBM Plex Mono',monospace",
   color: 'var(--proto-muted-3)',
-  border: '1px solid var(--proto-line)',
+  border: '1px solid var(--proto-line-3)',
   borderRadius: 5,
-  padding: '2px 6px',
+  padding: '1px 5px',
   cursor: 'pointer',
 };
 
@@ -53,35 +52,26 @@ const ROW_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  padding: '8px 11px',
-  borderRadius: 'var(--r-chip)',
+  height: 34,
+  padding: '0 10px',
+  borderRadius: 9,
   cursor: 'pointer',
 };
 
-const GLYPH_STYLE: CSSProperties = {
-  width: 20,
-  height: 20,
-  borderRadius: 6,
-  background: 'var(--proto-gray)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  font: "600 9px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted)',
+const KIND_STYLE: CSSProperties = {
+  width: 56,
   flex: 'none',
+  font: "600 9px 'IBM Plex Mono',monospace",
+  letterSpacing: '.06em',
+  textTransform: 'uppercase',
+  color: 'var(--proto-muted-3)',
 };
 
-const SUB_STYLE: CSSProperties = {
-  fontSize: 10.5,
+const HINT_STYLE: CSSProperties = {
+  marginLeft: 'auto',
+  font: "400 10px 'IBM Plex Mono',monospace",
   color: 'var(--proto-muted-3)',
   whiteSpace: 'nowrap',
-  flex: 'none',
-};
-
-const KBD_STYLE: CSSProperties = {
-  marginLeft: 'auto',
-  font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-faint)',
   flex: 'none',
   paddingLeft: 10,
 };
@@ -89,9 +79,8 @@ const KBD_STYLE: CSSProperties = {
 const FOOTER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  padding: '7px 16px',
-  borderTop: '1px solid var(--proto-alt)',
-  background: 'var(--proto-rail)',
+  padding: '8px 16px',
+  borderTop: '1px solid var(--proto-line-2)',
 };
 
 const FOOTER_TEXT_STYLE: CSSProperties = {
@@ -111,7 +100,7 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// A single palette row — glyph badge + label + sub + right-aligned kbd. cmdk sets
+// A single palette row — kind column + label + right-aligned hint. cmdk sets
 // `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; the prototype highlight
 // (var(--proto-accent-bg) bg, var(--proto-accent) label) is applied there via `.cmdk-row` CSS in index.css.
 function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
@@ -119,12 +108,15 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
   const label = row.labelKey ? L[row.labelKey] : row.label;
   const sub = row.subKey ? L[row.subKey] : row.sub;
+  // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
+  // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
+  const kind = row.labelKey ? 'command' : row.kbd;
+  const hint = [sub, row.kbd === kind ? null : row.kbd].filter(Boolean).join(' · ');
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
-      <span style={GLYPH_STYLE}>{row.glyph}</span>
+      <span style={KIND_STYLE}>{kind}</span>
       <span className="cmdk-row-label">{label}</span>
-      <span style={SUB_STYLE}>{sub}</span>
-      <span style={KBD_STYLE}>{row.kbd}</span>
+      <span style={HINT_STYLE}>{hint}</span>
     </Command.Item>
   );
 }

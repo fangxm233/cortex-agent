@@ -38,12 +38,20 @@ function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
   needsYouCount: number;
   onTab: (path: string) => void;
 }) {
+  const onTabRoute = isTabRoute(pathname);
   return (
-    <div style={shellStyle}>
+    <div
+      style={{
+        ...shellStyle,
+        // The Tab bar floats over the outlet, so screens cannot discover its height by layout.
+        // Publish it here; MScrollBody spends it as tail padding (0 off a Tab route).
+        '--m-tabbar-clearance': onTabRoute ? 'calc(88px + env(safe-area-inset-bottom))' : '0px',
+      } as CSSProperties}
+    >
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <AnimatedOutlet />
       </div>
-      {isTabRoute(pathname) && (
+      {onTabRoute && (
         <BottomTabBar
           vocab={vocab}
           activeId={activeTabId(pathname)}

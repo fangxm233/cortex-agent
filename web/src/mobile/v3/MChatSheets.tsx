@@ -22,8 +22,9 @@ export function MoreMenu({ copy, onClose, onSessionId, onSessionStats }: {
     { label: copy.menuSessionId, onTap: onSessionId },
     ...(onSessionStats ? [{ label: copy.menuSessionStats, onTap: onSessionStats }] : []),
   ];
+  // Hangs 8px below the floating header pill, whose bottom edge is 8 + 52 + the status-bar inset.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(52px + env(safe-area-inset-top))', right: 14, width: 148, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(68px + env(safe-area-inset-top))', right: 12, width: 148, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
       {items.map((item, index) => <div key={item.label} onClick={item.onTap} style={{ padding: '11px 14px', fontSize: 13, color: MC.ink, borderBottom: index < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined, cursor: 'pointer' }}>{item.label}</div>)}
     </div></>
   );

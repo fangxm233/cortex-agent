@@ -25,8 +25,6 @@ export type StepperState = 'done' | 'running' | 'pending';
 export interface StepperNode {
   label: string;
   state: StepperState;
-  /** the connecting line drawn BEFORE this node is "done" only when the previous node completed. */
-  lineDone: boolean;
 }
 
 export interface MobileStepperFooter {
@@ -60,10 +58,9 @@ function formatElapsed(ms: number): string {
  * from createdAt→updatedAt, cost from totalCostUsd, sub-thread count from children.length.
  */
 export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
-  const nodes: StepperNode[] = detail.steps.map((s, i) => ({
+  const nodes: StepperNode[] = detail.steps.map((s) => ({
     label: s.stage ?? `Step ${s.stepIndex + 1}`,
     state: stepState(s.status),
-    lineDone: i > 0 && detail.steps[i - 1].status === 'completed',
   }));
 
   const pillText =

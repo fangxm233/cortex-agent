@@ -201,7 +201,7 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
     },
   }));
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '8px 14px', borderTop: '1px solid var(--proto-line-2)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)' }}>
       <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
       <span data-cancel-thread-id={threadId} onClick={() => cancel.mutate({ threadId })} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}>{L.cancel}</span>
       <span onClick={() => openThread(threadId)} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.open}</span>
@@ -216,7 +216,7 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
   return (
     <>
       {detail.steps.length > 0 && (
-        <div style={{ padding: '10px 14px 4px' }}>
+        <div style={{ padding: '8px 14px 4px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>
             {detail.steps.map((step) => <StepRow key={step.stepIndex} step={step}
               isLast={step.stepIndex === detail.steps.length - 1} detail={detail}
@@ -238,7 +238,9 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   // Running threads default-open (matches the proto-shot's expanded experiment-pipeline); others
   // collapse to header-only and lazy-fetch threads.get on open.
   const L = useVocab();
-  const [open, setOpen] = useState(thread.status === 'running');
+  const running = thread.status === 'running';
+  const [open, setOpen] = useState(running);
+  const [hover, setHover] = useState(false);
   const trpc = useTRPC();
   const detailQuery = useQuery({
     ...trpc.threads.get.queryOptions({ threadId: thread.id }),
@@ -246,26 +248,33 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   });
 
   const pill = threadPill(thread.status);
-  const iconColor = thread.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
+  const iconColor = running ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   const detail = open ? detailQuery.data : undefined;
   const dots = detail ? depthInfo(detail) : null;
   const hasDots = !!dots && dots.filled > 1;
 
   return (
     <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         // Raised glass inside the drawer: the sheet under it is translucent, so an opaque card
         // would punch a white hole in it. No filter — the drawer already blurs, and this list scrolls.
         background: 'var(--glass-2)',
-        border: '1px solid var(--proto-line)',
+        // The outline is a shadow ring rather than a border so it costs no outer size: a 1px border
+        // would make every card 2px wider than the stack it sits in. The running thread wears the
+        // accent ring and its glow; the rest only brighten theirs on hover.
+        border: 0,
         borderRadius: 'var(--r-card)',
-        boxShadow: 'var(--shadow-card-subtle)',
+        boxShadow: running
+          ? 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border), var(--accent-glow)'
+          : `var(--shadow-card), 0 0 0 1px ${hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
       }}
     >
       <div
         onClick={() => setOpen((o) => !o)}
         style={{
-          padding: '11px 14px 9px',
+          padding: '12px 14px 10px',
           cursor: 'pointer',
           borderBottom: '1px solid ' + (open ? 'var(--proto-line-soft)' : 'transparent'),
         }}

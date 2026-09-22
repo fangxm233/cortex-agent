@@ -297,3 +297,25 @@ describe('MChatStream subagent prompt', () => {
     expect(rendered).not.toContain('hidden user');
   });
 });
+
+// The header status line carries the project the session belongs to, not just the run state — on a
+// phone the drill screen is the only place that fact is visible at all.
+describe('MChatView header status line', () => {
+  const line = (html: string): string =>
+    html.match(/<div data-chat-status-line="true"[^>]*>([^<]*)</)?.[1] ?? '';
+
+  it('prefixes the status with the project when one is known', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} project="cortex-agent" rows={[]}
+        status={{ running: true, tone: 'running', text: 'running 2m' }} />,
+    );
+    expect(line(html)).toBe('cortex-agent · running 2m');
+  });
+
+  it('falls back to the bare status with no project', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} rows={[]} status={{ running: false, tone: 'idle', text: 'idle' }} />,
+    );
+    expect(line(html)).toBe('idle');
+  });
+});
