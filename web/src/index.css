@@ -1,5 +1,5 @@
 /* input:  Tailwind layers and shared theme.css custom properties */
-/* output: base styles, keyboard focus and UI animations */
+/* output: Base styles, glass scrollbars, focus and animations */
 /* pos:    SPA-wide structural stylesheet layered over theme tokens */
 /* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 @tailwind base;
@@ -47,6 +47,40 @@
     outline: none;
     border: none;
     background: transparent;
+  }
+
+  /* One unobtrusive scroll treatment for panes, dialogs and code blocks.
+     Leave forced-colors scrollbars native. Standard non-auto scrollbar colors
+     override WebKit thumb styling in Chromium, so use them only as a fallback. */
+  @media (forced-colors: none) {
+    @supports selector(::-webkit-scrollbar) {
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track,
+      ::-webkit-scrollbar-corner { background: transparent; }
+      ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+      ::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--proto-muted) 32%, transparent);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+        min-height: 28px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: color-mix(in srgb, var(--proto-muted) 52%, transparent);
+      }
+      ::-webkit-scrollbar-thumb:active {
+        background-color: color-mix(in srgb, var(--proto-muted) 70%, transparent);
+      }
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      :where(*) {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--proto-muted) 32%, transparent) transparent;
+      }
+      :where(*:hover, *:focus-within) {
+        scrollbar-color: color-mix(in srgb, var(--proto-muted) 52%, transparent) transparent;
+      }
+    }
   }
 
   .sess-row .sess-more {

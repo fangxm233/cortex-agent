@@ -63,7 +63,7 @@ Settings panels, shared controls, configuration writers and view models.
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
-| settings-style.css | style | Style readable controls and adaptive layouts |
+| settings-style.css | style | Style settings with shared application scrolling |
 | settings-portals.css | style | Style settings dropdown and dialog portals |
 | settings-ui.tsx | UI | Provide settings form primitives |
 | TemplateDetailPane.tsx | view | Edit template details and assignments |

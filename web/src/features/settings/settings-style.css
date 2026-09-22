@@ -1,4 +1,4 @@
-/* input: theme.css tokens, settings primitives
+/* input: theme.css tokens, global scrollbars, settings primitives
  * output: Scoped settings tokens, visible controls and layouts
  * pos: Shared desktop and mobile settings visual system
  * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
@@ -25,19 +25,6 @@
   font-size: var(--settings-body-size);
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-
-.settings-surface, .settings-surface * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--proto-line-3) transparent;
-}
-.settings-surface ::-webkit-scrollbar { width: 8px; height: 8px; }
-.settings-surface ::-webkit-scrollbar-track { background: transparent; }
-.settings-surface ::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 8px;
-  background: var(--proto-line-3);
-  background-clip: padding-box;
 }
 
 .settings-surface :where(.settings-card, .settings-row-group, .settings-entity-row, .settings-stat) {
