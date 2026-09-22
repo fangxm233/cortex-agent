@@ -21,14 +21,14 @@ Mobile screens, readable presentation views and native service adapters.
 | MBudgetScreen.test.ts | test | Test mobile budget write feedback |
 | MBudgetScreen.tsx | screen | Edit mobile budget limits |
 | m-chat-attachments.ts | hook | Persist mobile chat drafts and attachments |
-| MChatAttachments.tsx | view | Render chat attachments and upload controls |
-| MChatComposerPresentation.tsx | view | Render dismissible menus and composer controls |
+| MChatAttachments.tsx | view | Render material attachments and stable previews |
+| MChatComposerPresentation.tsx | view | Render glass attach menu and composer controls |
 | MChatInlineThreadCard.tsx | view | Render inline session thread links |
-| MChatMessageActions.tsx | UI | Provide chat copy, edit and long-press actions |
+| MChatMessageActions.tsx | UI | Render material chat actions and stable previews |
 | MChatScreen.optimistic.test.tsx | test | Test optimistic chat and run status |
 | MChatScreen.tsx | screen | Connect mobile chat state and actions |
 | MChatSheets.test.tsx | test | Test chat sheets and menu Escape dismissal |
-| MChatSheets.tsx | view | Render chat sheets and dismissible More menu |
+| MChatSheets.tsx | view | Render glass chat sheets and More menu |
 | MChatView.test.tsx | test | Test chat shortcuts and attachment actions |
 | MChatView.tsx | view | Render readable mobile chat and tool surfaces |
 | MChatView.types.ts | type | Define chat view props and localized copy |
@@ -40,13 +40,13 @@ Mobile screens, readable presentation views and native service adapters.
 | MDaemonView.tsx | view | Render daemon status and controls |
 | m-daemon-vm.test.ts | test | Test daemon view model construction |
 | m-daemon-vm.ts | model | Build mobile daemon view state |
-| MDecisionCards.tsx | view | Render grouped decision cards |
+| MDecisionCards.tsx | view | Render material decision cards and controls |
 | MHooksScreen.tsx | screen | Connect hook data and actions |
 | MHooksView.tsx | view | Render mobile hook groups and details |
 | m-hooks-vm.test.ts | test | Test hook grouping and row construction |
 | m-hooks-vm.ts | model | Build mobile hook groups and rows |
 | MHotUpdateDialog.tsx | view | Render web asset update dialog |
-| MInteractionCards.tsx | view | Render readable question and plan approval cards |
+| MInteractionCards.tsx | view | Render material question and plan cards |
 | MIssuesScreen.tsx | screen | Connect project issue data and actions |
 | MIssuesView.tsx | view | Render mobile project issues |
 | MMachinesScreen.tsx | screen | Connect machine data and actions |
@@ -70,15 +70,15 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notes-gestures.ts | utility | Resolve note swipe offsets and outcomes |
 | MNotesProjectCard.tsx | view | Render project note cards and actions |
 | MNotesScreen.tsx | screen | Connect project notes and actions |
-| MNotesView.tsx | view | Render readable notes and compact touch controls |
+| MNotesView.tsx | view | Render note materials and stable swipe surfaces |
 | m-notes-vm.test.ts | test | Test notes view model construction |
 | m-notes-vm.ts | model | Build mobile notes view state |
 | MNotificationProvider.test.tsx | test | Test mobile notification delivery and routing |
 | MNotificationProvider.tsx | adapter | Connect native notifications and routing |
 | m-notification-routing.test.ts | test | Test notification target validation |
 | m-notification-routing.ts | utility | Validate notification targets and routes |
-| MNotificationToaster.tsx | view | Render notification toasts and banners |
-| mobile-chat-presentation.test.tsx | test | Guard chat input sizes and sealed card styling |
+| MNotificationToaster.tsx | view | Render low-cost material notification banners |
+| mobile-chat-presentation.test.tsx | test | Guard chat materials, blur budget and input sizes |
 | mobile-presentation.test.tsx | test | Guard mobile materials and scroll clearance |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |
@@ -116,14 +116,14 @@ Mobile screens, readable presentation views and native service adapters.
 | MTasksView.tsx | view | Render readable task groups and completion states |
 | MThreadDetailScreen.tsx | screen | Connect thread detail data and actions |
 | MThreadDetailView.test.tsx | test | Test mobile thread detail presentation |
-| MThreadDetailView.tsx | view | Render mobile thread details |
+| MThreadDetailView.tsx | view | Render thread materials and stable log panels |
 | m-thread-detail-vm.test.ts | test | Test thread detail view model construction |
 | m-thread-detail-vm.ts | model | Build mobile thread detail state |
 | MThreadsScreen.tsx | screen | Connect thread lists and actions |
 | MThreadsView.tsx | view | Render thread sections and running cards |
 | m-threads-vm.test.ts | test | Test thread budget and pipeline state |
 | m-threads-vm.ts | model | Build thread budget bands and pipeline state |
-| MUpdateFrame.tsx | UI | Provide mobile update dialog frame |
+| MUpdateFrame.tsx | UI | Provide mobile glass update dialog frame |
 | MUpdateProvider.test.tsx | test | Test mobile update provider |
 | MUpdateProvider.tsx | provider | Connect mobile update dialogs |
 | MUsageScreen.tsx | screen | Connect mobile usage data and policy actions |

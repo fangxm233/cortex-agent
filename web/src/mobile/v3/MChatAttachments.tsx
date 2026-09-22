@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatAttachments
-// pos:    Mobile ChatAttachments presentation
+// pos:    Mobile attachment materials and stable media previews
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { downloadFile } from '@/lib/files';
 import { HtmlBody } from '@/features/media/HtmlBody';
@@ -21,7 +21,7 @@ function ViewTile({ attachment }: { attachment: Attachment }): JSX.Element {
   const item = { kind: 'html' as const, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType };
   return (
     <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxSizing: 'border-box' }}>
-      <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--proto-rail)', cursor: 'pointer' }}>
+      <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--material-control-bg)', cursor: 'pointer' }}>
         <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>VIEW</span>
         <span style={{ font: `500 11px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.name}</span>
         <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
@@ -67,7 +67,7 @@ function FileTile({ attachment }: { attachment: Attachment }): JSX.Element {
     ? () => openDoc({ kind: docKind, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType })
     : () => void downloadFile(attachment.path, attachment.name);
   return (
-    <div role="button" onClick={onTap} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '6px 10px', minHeight: 44, boxSizing: 'border-box', minWidth: 0, maxWidth: '100%', cursor: 'pointer' }}>
+    <div role="button" onClick={onTap} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '6px 10px', minHeight: 44, boxSizing: 'border-box', minWidth: 0, maxWidth: '100%', cursor: 'pointer' }}>
       <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.5"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>
       <span style={{ font: `500 11px ${MONO}`, color: MC.body, minWidth: 0, overflowWrap: 'anywhere' }}>{attachment.name}</span>
     </div>
@@ -131,7 +131,7 @@ function ComposerChip({ attachment, onRetry, onRemove }: {
 }): JSX.Element {
   const uploading = attachment.status === 'uploading';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 9px', flex: 'none', maxWidth: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 9px', flex: 'none', maxWidth: '100%', boxSizing: 'border-box' }}>
       <ComposerPreview attachment={attachment} />
       <span style={{ font: `500 11px ${MONO}`, color: MC.body, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
       <UploadStatus attachment={attachment} onRetry={onRetry} />

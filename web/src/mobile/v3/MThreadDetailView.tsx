@@ -1,6 +1,6 @@
 // input:  React, mobile kit, presentation props
 // output: MThreadDetailView
-// pos:    Mobile ThreadDetailView presentation
+// pos:    Mobile thread material cards and stable log panels
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type ReactNode } from 'react';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
@@ -212,7 +212,7 @@ function StepRow({ step, copy, selected, onSelect }: { step: MThreadStepVm; copy
 
 function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; copy: MThreadDetailCopy; onArtifactClick?: (artifact: MThreadArtifactVm) => void }) {
   return (
-    <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.artifacts}</span>
         <span style={{ font: `400 11px ${MONO}`, color: MC.muted, marginLeft: 7 }}>{vm.artifactCount}</span>
@@ -272,7 +272,8 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
               height: 44,
               borderRadius: 'var(--r-control)',
               border: '1.5px solid var(--proto-line-3)',
-              background: 'var(--proto-card)',
+              background: 'var(--material-control-bg)',
+              boxShadow: 'var(--material-control-shadow)',
               color: MC.ink,
               display: 'flex',
               alignItems: 'center',
@@ -295,7 +296,8 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
               height: 44,
               borderRadius: 'var(--r-control)',
               border: '1.5px solid var(--proto-danger-bg)',
-              background: 'var(--proto-card)',
+              background: 'var(--material-control-bg)',
+              boxShadow: 'var(--material-control-shadow)',
               color: MC.fail,
               display: 'flex',
               alignItems: 'center',
@@ -352,7 +354,7 @@ export function MThreadDetailView({
         </div>
 
         {/* PIPELINE */}
-        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px 7px' }}>
+        <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '11px 13px 7px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '15px minmax(0, 1fr)', columnGap: 8 }}>
             {vm.steps.map((step, i) => (
               <StepRow

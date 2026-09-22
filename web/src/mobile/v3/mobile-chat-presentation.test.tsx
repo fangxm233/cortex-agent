@@ -1,11 +1,15 @@
 // input:  React SSR, mobile composer and interaction cards
 // output: Chat presentation regression tests
-// pos:    Guard mobile input sizes and sealed card readability
+// pos:    Guard mobile chat material layers and input sizes
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MComposer, ComposerFullscreen } from '../ui/composer';
 import { MPlanCard, M_INT_COPY } from './MInteractionCards';
+import { MoreMenu } from './MChatSheets';
+import { AttachMenu } from './MChatComposerPresentation';
+import { MNotificationToaster } from './MNotificationToaster';
+import type { MChatCopy } from './MChatView.types';
 import type { PlanCardModel } from '@/features/workbench/interaction-vm';
 
 const noop = () => {};
@@ -26,8 +30,33 @@ describe('mobile chat presentation', () => {
     expect(html).not.toContain('opacity:');
     expect(html).not.toContain('focus-ring-accent');
     expect(html).not.toContain('backdrop-filter');
+    expect(html).toContain('var(--material-card-bg)');
+    expect(html).toContain('var(--material-card-shadow)');
     expect(html).toContain('A reviewed plan');
     expect(html).toContain('font-size:11px');
+  });
+
+  it('gives only the small menus a backdrop sample', () => {
+    const copy = { menuSessionId: 'Session ID' } as MChatCopy;
+    const menus = [
+      renderToStaticMarkup(<MoreMenu copy={copy} onClose={noop} onSessionId={noop} />),
+      renderToStaticMarkup(<AttachMenu copy={copy} onClose={noop} onCamera={noop}
+        onLibrary={noop} onFile={noop} onCommands={noop} />),
+    ];
+    for (const html of menus) {
+      expect(html).toContain('background:var(--material-overlay-bg)');
+      expect(html).toContain('backdrop-filter:var(--glass-filter)');
+      expect(html).not.toContain('var(--panel-translucent-bg)');
+      expect(html).toContain('z-index:6');
+    }
+  });
+
+  it('keeps notification material low-cost without fading text', () => {
+    const html = renderToStaticMarkup(<MNotificationToaster now={1} onDismiss={noop}
+      items={[{ id: 'notice', title: 'Ready', ts: '2026-01-01T00:00:00Z', duration: 0 }]} />);
+    expect(html).toContain('background:var(--material-overlay-bg)');
+    expect(html).not.toContain('backdrop-filter');
+    expect(html).not.toContain('opacity:');
   });
 
   it('preserves temporary reject-composer dimming', () => {

@@ -1,3 +1,7 @@
+// input:  React, shared material tokens
+// output: MUpdateFrame, MUpdateFrameProps
+// pos:    Mobile update dialog glass frame
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 
 const MONO = "'IBM Plex Mono', monospace";
@@ -7,9 +11,9 @@ const OVERLAY_STYLE: CSSProperties = {
   boxSizing: 'border-box',
 };
 const CARD_STYLE: CSSProperties = {
-  width: '100%', background: 'var(--glass-2)', borderRadius: 'var(--r-float)',
+  width: '100%', background: 'var(--material-overlay-bg)', borderRadius: 'var(--r-float)',
   backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)',
-  boxShadow: 'var(--shadow-overlay-strong)', padding: '24px 20px 14px',
+  boxShadow: 'var(--material-overlay-shadow)', padding: '24px 20px 14px',
   boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
 };
 const ICON_STYLE: CSSProperties = {

@@ -1,9 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1q L876-883)
-// Presentational top-banner toaster for the mobile 1q notification — the mobile rendering of the
-// app's ONE bubble queue (design/Toast), so chat replies, system notices and action feedback all
-// land here instead of in the desktop bottom-right stack. Renders the scheme's floating banner
-// (cx avatar + title + body + time), tappable to activate when the item carries a target.
-// Stacks the visible items; reserves the OS status-bar inset at the top.
+// input:  Shared toast queue, mobile palette, relative time
+// output: MNotificationToaster, MNotificationBanners
+// pos:    Low-cost mobile notification material banners
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { relTimeZh } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';
@@ -52,10 +50,11 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
       onClick={activate ? () => { activate(); onDismiss(item.id); } : undefined}
       style={{
         pointerEvents: 'auto',
-        background: 'var(--panel-translucent-bg)',
+        // Dense overlay fill without a per-notification backdrop sample.
+        background: 'var(--material-overlay-bg)',
         border: '1px solid var(--panel-translucent-border)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-toast)',
+        boxShadow: 'var(--material-overlay-shadow)',
         padding: '11px 13px',
         display: 'flex',
         gap: 10,

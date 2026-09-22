@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatSheets
-// pos:    Mobile chat sheets and Escape-dismissible More menu
+// pos:    Mobile glass sheets and Escape-dismissible More menu
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
@@ -31,9 +31,11 @@ export function MoreMenu({ copy, onClose, onSessionId, onSessionStats }: {
     { label: copy.menuSessionId, onTap: onSessionId },
     ...(onSessionStats ? [{ label: copy.menuSessionStats, onTap: onSessionStats }] : []),
   ];
-  // Hangs 8px below the floating header pill, whose bottom edge is 8 + 52 + the status-bar inset.
+  // A sibling of header/composer, outside the transcript's isolated scroller:
+  // the menu can sample the route backdrop, not a blurred ancestor's flat fill.
+  // Keep its anchor and z-index above chrome and below sheets.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(68px + env(safe-area-inset-top))', right: 12, width: 148, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(68px + env(safe-area-inset-top))', right: 12, width: 148, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
       {items.map((item, index) => <div key={item.label} onClick={item.onTap} style={{ padding: '11px 14px', fontSize: 13, color: MC.ink, borderBottom: index < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined, cursor: 'pointer' }}>{item.label}</div>)}
     </div></>
   );
@@ -50,7 +52,7 @@ function SessionIdRow({ row, copy, copied, onCopy }: SessionIdRowProps): JSX.Ele
   return (
     <div>
       <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--material-inset-bg)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '10px 12px' }}>
         <span style={{ flex: 1, minWidth: 0, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>{row.value}</span>
         <span role="button" onClick={onCopy} style={{ flex: 'none', font: `600 11px ${MONO}`, color: copied ? MC.run : MC.muted, border: `1px solid ${copied ? MC.runBorder : 'var(--proto-line-3)'}`, borderRadius: 'var(--r-chip)', padding: '4px 9px', cursor: row.value === '—' ? 'default' : 'pointer', opacity: row.value === '—' ? 0.4 : 1 }}>{copied ? copy.copied : copy.copy}</span>
       </div>
@@ -86,7 +88,7 @@ export function SessionStatsSheet({ copy, rows, onClose }: {
     <MBottomSheet onClose={onClose}>
       <div data-mobile-session-stats-sheet="true">
         <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.sessionStatsTitle}</div>
-        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '4px 13px' }}>
+        <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '4px 13px' }}>
           {rows.map((row, index) => (
             <div
               key={row.key}
@@ -114,7 +116,7 @@ export function ContextUsageSheet({ usage, lang, compactAction, onClose }: {
     <MBottomSheet onClose={onClose}>
       <div data-mobile-context-usage-sheet="true">
         <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>{contextUsageTitle(lang)}</div>
-        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '12px 13px' }}><ContextUsageDetails usage={usage} lang={lang} /></div>
+        <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', padding: '12px 13px' }}><ContextUsageDetails usage={usage} lang={lang} /></div>
         {compactAction ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}><ContextCompactFooter action={compactAction} lang={lang} /></div> : null}
       </div>
     </MBottomSheet>
@@ -168,7 +170,7 @@ function SelectionDrillRow({ row, last, onOpen }: {
 }
 
 function SheetCard({ children }: { children: ReactNode }): JSX.Element {
-  return <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{children}</div>;
+  return <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{children}</div>;
 }
 
 function SheetNote({ text }: { text: string }): JSX.Element {
@@ -305,7 +307,7 @@ function OptionSheet({ items, attr, title, current, onClose, onPick }: {
   return (
     <MBottomSheet onClose={onClose}>
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span></div>
-      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{items.map((item, index) => <OptionRow key={item.value ?? '__off__'} item={item} attr={attr} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
+      <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{items.map((item, index) => <OptionRow key={item.value ?? '__off__'} item={item} attr={attr} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
     </MBottomSheet>
   );
 }

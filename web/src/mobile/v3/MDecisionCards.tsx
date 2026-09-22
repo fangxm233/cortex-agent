@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MDecisionCards
-// pos:    Mobile DecisionCards presentation
+// pos:    Mobile decision material cards and controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
@@ -92,14 +92,14 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
     <span
       role="button"
       onClick={() => setMode(mode === m ? 'view' : m)}
-      style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--proto-card)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+      style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
     >
       {label}
     </span>
   );
 
   return (
-    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', boxSizing: 'border-box' }}>
+    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', boxSizing: 'border-box' }}>
       <div
         role="button"
         data-decision-toggle={d.id}
@@ -118,7 +118,7 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
           <Section label={L.wbDecDecision} text={d.decision} />
           <Section label={L.wbDecReasoning} text={d.reasoning} />
           {d.actions.length > 0 && (
-            <div style={{ marginTop: 14, border: `1px solid ${MC.hairline}`, background: MC.canvas, borderRadius: 'var(--r-control)', padding: '9px 12px' }}>
+            <div style={{ marginTop: 14, border: `1px solid ${MC.hairline}`, background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', padding: '9px 12px' }}>
               <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, paddingBottom: 5 }}>{L.wbDecLog}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {d.actions.map((a, i) => (
@@ -159,7 +159,7 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-control)', padding: '8px 11px', fontSize: 16, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-control)', padding: '8px 11px', fontSize: 16, lineHeight: 1.5, color: MC.ink, background: 'var(--material-inset-bg)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <span
                     role="button"

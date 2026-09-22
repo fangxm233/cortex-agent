@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MInteractionCards
-// pos:    Mobile InteractionCards presentation
+// pos:    Mobile question and plan material cards
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -95,7 +95,8 @@ function Pill({ bg, fg, text }: { bg: string; fg: string; text: string }): JSX.E
 function cardShell(pending: boolean, dimmed: boolean, rejected: boolean): React.CSSProperties {
   return {
     border: `1px solid ${pending && !dimmed ? MC.runBorder : MC.hairline}`,
-    background: 'var(--proto-card)',
+    background: 'var(--material-card-bg)',
+    boxShadow: 'var(--material-card-shadow)',
     borderRadius: 'var(--r-card)',
     overflow: 'hidden',
     color: rejected ? MC.sub : MC.ink,
@@ -226,7 +227,8 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                         gap: 8,
                         padding: '8px 13px',
                         boxSizing: 'border-box',
-                        background: 'var(--proto-card)',
+                        background: 'var(--material-control-bg)',
+                        boxShadow: 'var(--material-control-shadow)',
                         cursor: 'pointer',
                         textAlign: 'left',
                         width: '100%',
@@ -248,7 +250,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                 <button
                   type="button"
                   onClick={onCustom}
-                  style={{ minHeight: 44, border: '1.5px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', display: 'flex', alignItems: 'center', padding: '8px 13px', boxSizing: 'border-box', background: 'var(--proto-card)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                  style={{ minHeight: 44, border: '1.5px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', display: 'flex', alignItems: 'center', padding: '8px 13px', boxSizing: 'border-box', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                 >
                   <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.sub }}>{copy.customOption}</span>
                 </button>
@@ -380,7 +382,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px' }}>
-          <button type="button" onClick={onRejectStart} style={{ flex: 1, height: 44, borderRadius: 'var(--r-control)', border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
+          <button type="button" onClick={onRejectStart} style={{ flex: 1, height: 44, borderRadius: 'var(--r-control)', border: '1.5px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
           <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
         </div>
         {/* footer — `来自 X` source has no entity field → left slot omitted (GAP) */}

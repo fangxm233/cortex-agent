@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatComposerPresentation
-// pos:    Mobile composer controls and Escape-dismissible attach menu
+// pos:    Mobile composer controls and glass attachment menu
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
@@ -68,9 +68,10 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  // Clears the floating composer card: its 20px bottom offset plus its ~94px height.
+  // Mounted beside (not inside) the blurred composer, outside the isolated
+  // transcript; the small menu samples the route. Preserve composer clearance.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
       <AttachMenuItem label={copy.attachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
       <AttachMenuItem label={copy.attachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.attachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
@@ -87,9 +88,9 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} /><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
-        <div role="button" aria-label="Cancel reject" onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--proto-card)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
+        <div role="button" aria-label="Cancel reject" onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
       </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>{props.rejectBar.chips.map((chip) => <span key={chip} role="button" onClick={() => props.rejectBar!.onChipTap(chip)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 'var(--r-pill)', padding: '5px 11px', cursor: 'pointer' }}>{chip}</span>)}</div>
+      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>{props.rejectBar.chips.map((chip) => <span key={chip} role="button" onClick={() => props.rejectBar!.onChipTap(chip)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', borderRadius: 'var(--r-pill)', padding: '5px 11px', cursor: 'pointer' }}>{chip}</span>)}</div>
     </>
   );
 }
@@ -264,7 +265,7 @@ export function MobileSlashMenu({ suggestions, onPick }: {
   onPick: (suggestion: SlashSuggestion) => void;
 }): JSX.Element {
   return (
-    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: MC.card, overflow: 'hidden', boxShadow: 'var(--shadow-menu-soft)' }}>
+    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', overflow: 'hidden', boxShadow: 'var(--material-control-shadow)' }}>
       {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
     </div>
   );
