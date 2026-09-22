@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MDecisionCards
-// pos:    Mobile decision material cards and controls
+// pos:    Mobile decision materials with readable badge ink
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
@@ -27,7 +27,7 @@ function actionLabel(kind: DecisionActionKind, L: Vocab): string {
 
 function Badge({ L }: { L: Vocab }): JSX.Element {
   return (
-    <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: MC.run, background: MC.runBg, border: `1px solid ${MC.runBorder}`, borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+    <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: 'var(--pill-running-fg)', background: MC.runBg, border: `1px solid ${MC.runBorder}`, borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
       {L.wbDecBadge}
     </span>
   );

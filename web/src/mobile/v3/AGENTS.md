@@ -40,7 +40,7 @@ Mobile screens, readable presentation views and native service adapters.
 | MDaemonView.tsx | view | Render daemon material cards and controls |
 | m-daemon-vm.test.ts | test | Test daemon view model construction |
 | m-daemon-vm.ts | model | Build mobile daemon view state |
-| MDecisionCards.tsx | view | Render material decision cards and controls |
+| MDecisionCards.tsx | view | Render decision materials and readable badges |
 | MHooksScreen.tsx | screen | Connect hook data and actions |
 | MHooksView.tsx | view | Render hook groups and shared-surface details |
 | m-hooks-vm.test.ts | test | Test hook grouping and row construction |
