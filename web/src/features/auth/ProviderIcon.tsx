@@ -77,7 +77,9 @@ export function ProviderIcon({ provider, label, size = 16 }: ProviderIconProps) 
       style={{
         width: size, height: size, borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--proto-alt)', border: '1px solid var(--proto-line)',
+        // Ringed rather than bordered: the letter avatar sits inline next to brand glyphs that have
+        // no outline at all, so its edge must not take a pixel of the glyph's box.
+        background: 'var(--glass-2)', boxShadow: '0 0 0 1px var(--proto-line-2)',
         fontSize: Math.round(size * 0.55), fontWeight: 700, color: 'var(--proto-muted-2)',
         lineHeight: 1,
       }}

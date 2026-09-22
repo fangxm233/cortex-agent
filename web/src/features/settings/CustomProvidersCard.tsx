@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
-import { useVocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import {
   CUSTOM_PROVIDER_API_OPTIONS,
   customProviderFieldErrorCopy,
@@ -14,29 +14,43 @@ import {
   SButton,
   SCard,
   SCardHeader,
+  SCount,
+  SDot,
+  SEntityName,
+  SEntityRow,
   SFieldRow,
-  SSectionLabel,
+  SLinkAction,
+  SNotice,
+  SPill,
+  SSection,
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
 } from './settings-ui';
 
-const MONO = "'IBM Plex Mono',monospace";
+function providerMeta(provider: CustomProviderView): string {
+  const models = provider.models.map((model) => model.id).join(', ');
+  return [provider.api, provider.upstreamUrl ?? '—', models].join('  ·  ');
+}
 
-function Tag({ children, tone }: { children: ReactNode; tone: 'muted' | 'warn' }) {
+function ProviderActions({ editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
+  editDisabled: boolean;
+  deleteDisabled: boolean;
+  confirming: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const L = useVocab();
   return (
-    <span style={{
-      font: `600 9px ${MONO}`,
-      color: tone === 'warn' ? 'var(--proto-amber-fg)' : 'var(--proto-muted-2)',
-      border: '1px solid var(--proto-line-2)',
-      borderRadius: 'var(--r-pill)',
-      padding: '2px 7px',
-    }}>
-      {children}
-    </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <SButton tone="neutral" data-cpv-action="edit" disabled={editDisabled} onClick={onEdit}>{L.cpvEdit}</SButton>
+      <SButton tone="danger" data-cpv-action="delete" disabled={deleteDisabled} onClick={onDelete}>
+        {confirming ? L.cpvConfirmDelete : L.cpvDelete}
+      </SButton>
+    </div>
   );
 }
 
-function ProviderRow({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
+function ProviderRow({ provider, ...actions }: {
   provider: CustomProviderView;
   editDisabled: boolean;
   deleteDisabled: boolean;
@@ -46,54 +60,49 @@ function ProviderRow({ provider, editDisabled, deleteDisabled, confirming, onEdi
 }) {
   const L = useVocab();
   return (
-    <div
+    <SEntityRow
       data-custom-provider={provider.name}
-      style={{ padding: '11px 14px', borderBottom: '1px solid var(--proto-alt)' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.name}</span>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{provider.api}</span>
-        {provider.routed ? null : <Tag tone="warn">{L.cpvUnrouted}</Tag>}
-        <Tag tone="muted">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</Tag>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-        <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' }}>
-          {provider.upstreamUrl ?? '—'}
-        </span>
-        <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' }}>
-          {provider.models.map((model) => model.id).join(', ')}
-        </span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          <SButton tone="neutral" data-cpv-action="edit" disabled={editDisabled} onClick={onEdit}>{L.cpvEdit}</SButton>
-          <SButton tone="danger" data-cpv-action="delete" disabled={deleteDisabled} onClick={onDelete}>
-            {confirming ? L.cpvConfirmDelete : L.cpvDelete}
-          </SButton>
-        </span>
-      </div>
-    </div>
+      dot={<SDot color={provider.routed ? 'var(--proto-success)' : 'var(--proto-amber)'} />}
+      name={(
+        <>
+          <SEntityName>{provider.name}</SEntityName>
+          {provider.routed ? null : <SPill tone="amber">{L.cpvUnrouted}</SPill>}
+        </>
+      )}
+      meta={providerMeta(provider)}
+      trailing={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <SPill tone="neutral" mono>{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SPill>
+          <ProviderActions {...actions} />
+        </div>
+      )}
+    />
   );
 }
 
-function Editor({ draft, creating, errors, onChange }: {
+interface FieldsProps {
   draft: CustomProviderFormState;
   creating: boolean;
   errors: CustomProviderFormErrors;
-  onChange: (next: CustomProviderFormState) => void;
-}) {
-  const L = useVocab();
-  const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
-  const hint = (field: keyof typeof errors, fallback?: ReactNode) => {
-    return customProviderFieldErrorCopy(errors[field], L) ?? fallback;
-  };
-  const tone = (field: keyof typeof errors) => (errors[field] ? ('danger' as const) : ('muted' as const));
+  set: (patch: Partial<CustomProviderFormState>) => void;
+}
 
+function fieldHint(L: Vocab, errors: CustomProviderFormErrors, field: keyof CustomProviderFormErrors, fallback?: ReactNode) {
+  return customProviderFieldErrorCopy(errors[field], L) ?? fallback;
+}
+
+function fieldTone(errors: CustomProviderFormErrors, field: keyof CustomProviderFormErrors) {
+  return errors[field] ? ('danger' as const) : ('muted' as const);
+}
+
+function IdentityFields({ draft, creating, errors, set }: FieldsProps) {
+  const L = useVocab();
   return (
     <>
-      <SSectionLabel>{creating ? L.cpvCreateTitle : L.cpvEditTitle}</SSectionLabel>
       <SFieldRow
         label={L.cpvFieldName}
-        hint={hint('name', creating ? L.cpvNameHint : L.cpvNoRename)}
-        hintTone={tone('name')}
+        hint={fieldHint(L, errors, 'name', creating ? L.cpvNameHint : L.cpvNoRename)}
+        hintTone={fieldTone(errors, 'name')}
       >
         <input
           data-cpv-field="name" value={draft.name} disabled={!creating}
@@ -111,7 +120,15 @@ function Editor({ draft, creating, errors, onChange }: {
           style={S_CONTROL_STYLE}
         />
       </SFieldRow>
-      <SFieldRow label={L.cpvFieldUrl} hint={hint('upstreamUrl', L.cpvUrlHint)} hintTone={tone('upstreamUrl')}>
+    </>
+  );
+}
+
+function EndpointFields({ draft, errors, set }: Omit<FieldsProps, 'creating'>) {
+  const L = useVocab();
+  return (
+    <>
+      <SFieldRow label={L.cpvFieldUrl} hint={fieldHint(L, errors, 'upstreamUrl', L.cpvUrlHint)} hintTone={fieldTone(errors, 'upstreamUrl')}>
         <input
           data-cpv-field="url" value={draft.upstreamUrl}
           onChange={(e) => set({ upstreamUrl: e.target.value })}
@@ -125,13 +142,66 @@ function Editor({ draft, creating, errors, onChange }: {
           style={S_CONTROL_STYLE}
         />
       </SFieldRow>
-      <SFieldRow label={L.cpvFieldModels} hint={hint('models', L.cpvModelsHint)} hintTone={tone('models')}>
+      <SFieldRow label={L.cpvFieldModels} hint={fieldHint(L, errors, 'models', L.cpvModelsHint)} hintTone={fieldTone(errors, 'models')}>
         <textarea
           data-cpv-field="models" value={draft.models} rows={3}
           onChange={(e) => set({ models: e.target.value })}
           style={{ ...S_CONTROL_STYLE, resize: 'vertical' }}
         />
       </SFieldRow>
+    </>
+  );
+}
+
+function Editor({ draft, creating, errors, onChange }: {
+  draft: CustomProviderFormState;
+  creating: boolean;
+  errors: CustomProviderFormErrors;
+  onChange: (next: CustomProviderFormState) => void;
+}) {
+  const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
+  return (
+    <>
+      <IdentityFields draft={draft} creating={creating} errors={errors} set={set} />
+      <EndpointFields draft={draft} errors={errors} set={set} />
+    </>
+  );
+}
+
+type Controller = ReturnType<typeof useCustomProvidersController>;
+
+function EditorCard({ controller, draft }: { controller: Controller; draft: CustomProviderFormState }) {
+  const L = useVocab();
+  return (
+    <SCard style={{ overflow: 'hidden' }}>
+      <SCardHeader title={controller.creating ? L.cpvCreateTitle : L.cpvEditTitle} />
+      <div style={{ padding: '10px 16px 14px' }}>
+        <Editor draft={draft} creating={controller.creating}
+          errors={controller.errors} onChange={controller.changeDraft} />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+          <SButton tone="neutral" data-cpv-action="cancel" disabled={controller.savePending}
+            onClick={controller.closeDraft}>{L.cpvCancel}</SButton>
+          <SButton tone="accent" data-cpv-action="save"
+            disabled={controller.savePending || !isCustomProviderFormValid(controller.errors)}
+            onClick={controller.save}>{L.cpvSave}</SButton>
+        </div>
+      </div>
+    </SCard>
+  );
+}
+
+function ProviderList({ controller }: { controller: Controller }) {
+  const L = useVocab();
+  if (controller.providers.length === 0) return <SNotice tone="muted">{L.cpvNone}</SNotice>;
+  return (
+    <>
+      {controller.providers.map(provider => (
+        <ProviderRow key={provider.name} provider={provider}
+          editDisabled={controller.savePending} deleteDisabled={controller.removePending}
+          confirming={controller.confirmingDelete === provider.name}
+          onEdit={() => controller.openEdit(provider)}
+          onDelete={() => controller.requestDelete(provider.name)} />
+      ))}
     </>
   );
 }
@@ -144,37 +214,27 @@ function Editor({ draft, creating, errors, onChange }: {
 export function CustomProvidersCard() {
   const L = useVocab();
   const controller = useCustomProvidersController();
+  const label = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+      {L.cpvTitle}
+      <SCount tone="accent">{controller.providers.length}</SCount>
+    </span>
+  );
+  const add = (
+    <SLinkAction data-cpv-action="new" disabled={controller.savePending || controller.draft !== null}
+      onClick={controller.openCreate}>
+      {L.cpvNew}
+    </SLinkAction>
+  );
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 980, overflow: 'hidden' }}>
-      <SCardHeader title={L.cpvTitle} right={(
-        <SButton tone="accent" data-cpv-action="new"
-          disabled={controller.savePending || controller.draft !== null} onClick={controller.openCreate}>
-          {L.cpvNew}
-        </SButton>
-      )} />
-      <div style={{ padding: '8px 14px 0', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
-        {L.cpvSubtitle}
-      </div>
-      {controller.providers.length > 0 ? controller.providers.map(provider => (
-        <ProviderRow key={provider.name} provider={provider}
-          editDisabled={controller.savePending} deleteDisabled={controller.removePending}
-          confirming={controller.confirmingDelete === provider.name}
-          onEdit={() => controller.openEdit(provider)}
-          onDelete={() => controller.requestDelete(provider.name)} />
-      )) : <div style={{ padding: '12px 14px', color: 'var(--proto-muted-3)', fontSize: 11 }}>{L.cpvNone}</div>}
-      {controller.draft ? (
-        <div style={{ padding: '4px 14px 14px' }}>
-          <Editor draft={controller.draft} creating={controller.creating}
-            errors={controller.errors} onChange={controller.changeDraft} />
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
-            <SButton tone="neutral" data-cpv-action="cancel" disabled={controller.savePending}
-              onClick={controller.closeDraft}>{L.cpvCancel}</SButton>
-            <SButton tone="accent" data-cpv-action="save"
-              disabled={controller.savePending || !isCustomProviderFormValid(controller.errors)}
-              onClick={controller.save}>{L.cpvSave}</SButton>
-          </div>
+    <SSection label={label} action={add}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', padding: '0 2px' }}>
+          {L.cpvSubtitle}
         </div>
-      ) : null}
-    </SCard>
+        <ProviderList controller={controller} />
+        {controller.draft ? <EditorCard controller={controller} draft={controller.draft} /> : null}
+      </div>
+    </SSection>
   );
 }

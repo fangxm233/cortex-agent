@@ -4,10 +4,12 @@ import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } 
 import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
+import {
+  ROW_STYLE, SButton, SCard, SCardHeader, SFieldRow, SNotice, SPill, SRowGroup, SSegmented,
+  S_CONTROL_STYLE,
+} from './settings-ui';
 import {
   EmptyMessage, IssueList, MetaBlock, MetaSection,
-  NOTICE, PILL,
   manifestSourceText, pluginKindText, pluginTitle, scopeNoticeText,
 } from './plugin-ui';
 import {
@@ -20,13 +22,13 @@ import { PluginMcpTab } from './PluginMcpTab';
 import { usePluginAuthoring, type PluginAuthoringActions } from './usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
-const LIST_WIDTH = 232;
+const LIST_WIDTH = 244;
 
 const PANEL: CSSProperties = {
-  marginTop: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
 };
 const CARDS: CSSProperties = {
-  display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch',
+  display: 'flex', gap: 14, flex: 1, minHeight: 0, alignItems: 'stretch',
 };
 const LIST_CARD: CSSProperties = {
   width: LIST_WIDTH, flex: 'none', minHeight: 0,
@@ -35,6 +37,13 @@ const LIST_CARD: CSSProperties = {
 const DETAIL_CARD: CSSProperties = {
   flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
 };
+// The detail header holds still while the tab body scrolls under it, so the two are parted by a
+// hairline: inside a card a divider stays a border, only the card itself outlines with a ring.
+const DETAIL_HEADER: CSSProperties = {
+  padding: '14px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)',
+};
+
+const MODAL_TEXT: CSSProperties = { fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-muted-2)' };
 
 const TAB_LABEL: Record<PluginTab, keyof Vocab> = {
   overview: 'plTabOverview',
@@ -56,18 +65,18 @@ function PluginListRow(props: {
     <div role="button" data-plugin-item={props.plugin.id} data-active={props.active ? '' : undefined}
       onClick={() => props.onSelect(props.plugin.id)}
       style={{
-        padding: '7px 10px', borderRadius: 'var(--r-chip)', cursor: 'pointer',
+        padding: '9px 12px', borderRadius: 'var(--r-control)', cursor: 'pointer',
         background: props.active ? 'var(--proto-accent-bg)' : 'transparent',
-        display: 'flex', flexDirection: 'column', gap: 3,
+        display: 'flex', flexDirection: 'column', gap: 3, flex: 'none',
       }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
-          font: `600 11px ${MONO}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          font: `600 11.5px ${MONO}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           color: props.active ? 'var(--proto-accent)' : 'var(--proto-ink)',
         }}>{props.plugin.id}</span>
-        {props.plugin.valid ? null : <span style={{ font: `500 9px ${MONO}`, color: 'var(--proto-danger)' }}>!</span>}
+        {props.plugin.valid ? null : <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>!</span>}
       </div>
-      <div style={{ fontSize: 9.5, color: 'var(--proto-faint)' }}>
+      <div style={{ fontSize: 10.5, color: 'var(--proto-muted-3)' }}>
         {L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}
         {props.plugin.mcp.servers.length > 0 ? ` · ${L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}` : ''}
       </div>
@@ -84,7 +93,7 @@ function CreatePluginModal(props: { actions: PluginAuthoringActions; onClose: ()
     <Modal open layer="nested" title={L.plNewPluginTitle}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="accent" data-action="plugin-create-confirm"
             disabled={props.actions.busy || !isCanonicalName(id)}
@@ -119,7 +128,7 @@ function DeletePluginModal(props: {
     <Modal open layer="nested" title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="danger" data-action="plugin-delete-confirm" disabled={props.actions.busy || managed}
             onClick={async () => {
@@ -130,10 +139,10 @@ function DeletePluginModal(props: {
           </SButton>
         </div>
       )}>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{L.plDeletePluginDesc}</div>
-      {managed
-        ? <div data-plugin-delete-managed="" style={{ ...NOTICE, marginTop: 8 }}>{L.plDeletePluginManaged}</div>
-        : null}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={MODAL_TEXT}>{L.plDeletePluginDesc}</div>
+        {managed ? <SNotice tone="amber" data-plugin-delete-managed="">{L.plDeletePluginManaged}</SNotice> : null}
+      </div>
     </Modal>
   );
 }
@@ -152,53 +161,55 @@ function PluginList(props: {
   return (
     <SCard style={LIST_CARD}>
       <SCardHeader title={L.plCatalogTitle} right={`${props.plugins.length}`} />
-      <div style={{ padding: '8px 10px', flex: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '12px 14px', flex: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <input data-plugin-search="" value={props.search} placeholder={L.plSearchPh}
-          onChange={(event) => props.onSearch(event.target.value)}
-          style={{ ...S_CONTROL_STYLE, width: '100%', boxSizing: 'border-box', padding: '4px 8px' }} />
+          onChange={(event) => props.onSearch(event.target.value)} style={S_CONTROL_STYLE} />
         <SButton tone="neutral" data-action="plugin-create" disabled={props.actions.busy}
           onClick={() => setCreating(true)} style={{ width: '100%' }}>
           {L.plNewPlugin}
         </SButton>
         {creating ? <CreatePluginModal actions={props.actions} onClose={() => setCreating(false)} /> : null}
       </div>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 6px 8px' }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 8px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {props.visible.length > 0
           ? props.visible.map((plugin) => (
             <PluginListRow key={plugin.id} plugin={plugin}
               active={plugin.id === props.selectedId} onSelect={props.onSelect} />
           ))
-          : <div style={{ padding: '8px 10px' }}><EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" /></div>}
+          : <div style={{ padding: '4px 8px' }}><EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" /></div>}
       </div>
     </SCard>
   );
 }
 
-function UsageList({ usage }: { usage: readonly PluginUsage[] }) {
+function UsageRow({ item }: { item: PluginUsage }) {
   const L = useVocab();
-  if (usage.length === 0) return <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)' }}>{L.plUsedByNone}</div>;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {usage.map((item) => (
-        <div key={item.key} data-plugin-usage={item.key} style={{ fontSize: 10.5, color: 'var(--proto-muted-2)' }}>
-          <span style={{ ...PILL, marginRight: 6 }}>{item.kind === 'agent' ? L.plTargetAgent : L.plTargetSlot}</span>
-          <span style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-ink-2)' }}>{item.name}</span>
-          {item.slot ? <span style={{ marginLeft: 6 }}>{item.slot}</span> : null}
-        </div>
-      ))}
+    <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, gap: 10 }}>
+      <SPill>{item.kind === 'agent' ? L.plTargetAgent : L.plTargetSlot}</SPill>
+      <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-ink-2)' }}>{item.name}</span>
+      {item.slot ? <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{item.slot}</span> : null}
     </div>
   );
+}
+
+function UsageList({ usage }: { usage: readonly PluginUsage[] }) {
+  const L = useVocab();
+  if (usage.length === 0) return <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)' }}>{L.plUsedByNone}</div>;
+  return <SRowGroup>{usage.map((item) => <UsageRow key={item.key} item={item} />)}</SRowGroup>;
 }
 
 function OverviewTab({ plugin, usage }: { plugin: UiPluginCatalogEntry; usage: readonly PluginUsage[] }) {
   const L = useVocab();
   const scopeNote = scopeNoticeText(plugin, L);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {scopeNote ? <div data-plugin-scope={plugin.scope} style={NOTICE}>{scopeNote}</div> : null}
-      <MetaBlock label={L.plRootDirLabel} value={plugin.rootDir} />
-      <MetaBlock label={L.plManifestSourceLabel} value={manifestSourceText(plugin.manifest.source, L)} />
-      <MetaBlock label={L.plManifestDescLabel} value={plugin.manifest.description ?? L.plUnknownValue} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {scopeNote ? <SNotice tone="muted" data-plugin-scope={plugin.scope}>{scopeNote}</SNotice> : null}
+      <SRowGroup>
+        <MetaBlock label={L.plRootDirLabel} value={plugin.rootDir} />
+        <MetaBlock label={L.plManifestSourceLabel} value={manifestSourceText(plugin.manifest.source, L)} />
+        <MetaBlock label={L.plManifestDescLabel} value={plugin.manifest.description ?? L.plUnknownValue} />
+      </SRowGroup>
       <MetaSection label={L.plUsedByLabel}><UsageList usage={usage} /></MetaSection>
       <MetaSection label={L.plIssuesLabel}><IssueList plugin={plugin} /></MetaSection>
     </div>
@@ -207,23 +218,31 @@ function OverviewTab({ plugin, usage }: { plugin: UiPluginCatalogEntry; usage: r
 
 function PluginTabs(props: { tab: PluginTab; onTab: (tab: PluginTab) => void }) {
   const L = useVocab();
+  const options = PLUGIN_TABS.map((key) => ({ id: key, label: L[TAB_LABEL[key]] }));
   return (
-    <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--proto-line-2)' }}>
-      {PLUGIN_TABS.map((key) => {
-        const active = key === props.tab;
-        return (
-          <span key={key} role="button" data-plugin-tab={key} data-active={active ? '' : undefined}
-            onClick={() => props.onTab(key)}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: '5px 10px', cursor: 'pointer',
-              color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-              borderBottom: `2px solid ${active ? 'var(--proto-accent)' : 'transparent'}`,
-              marginBottom: -1,
-            }}>
-            {L[TAB_LABEL[key]]}
-          </span>
-        );
-      })}
+    <div style={{ display: 'flex' }}>
+      <SSegmented<PluginTab> value={props.tab} options={options} onChange={props.onTab}
+        dataAttr="data-plugin-tab" />
+    </div>
+  );
+}
+
+function PluginHeader(props: { plugin: UiPluginCatalogEntry; busy: boolean; onDelete: () => void }) {
+  const L = useVocab();
+  const plugin = props.plugin;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</span>
+      <SPill mono>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
+      <SPill>{pluginKindText(plugin.kind, L)}</SPill>
+      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'managed' ? 'accent' : 'neutral'}>
+        {plugin.origin === 'managed' ? L.plOriginManaged : L.plOriginLocal}
+      </SPill>
+      <SPill tone={plugin.valid ? 'success' : 'danger'}>{plugin.valid ? L.plValid : L.plInvalid}</SPill>
+      <SButton tone="danger" data-action="plugin-delete" disabled={props.busy}
+        style={{ marginLeft: 'auto' }} onClick={props.onDelete}>
+        {L.plDeletePlugin}
+      </SButton>
     </div>
   );
 }
@@ -245,32 +264,18 @@ function PluginDetail(props: {
   if (!props.plugin) {
     return (
       <SCard style={{ ...DETAIL_CARD, alignItems: 'center', justifyContent: 'center' }}>
-        <span data-plugin-detail-empty="" style={{ fontSize: 11, color: 'var(--proto-faint)' }}>{L.plSelectPrompt}</span>
+        <span data-plugin-detail-empty="" style={{ fontSize: 12.5, color: 'var(--proto-muted-2)' }}>{L.plSelectPrompt}</span>
       </SCard>
     );
   }
   const plugin = props.plugin;
   return (
     <SCard data-plugin-detail={plugin.id} style={DETAIL_CARD}>
-      <div style={{ padding: '10px 14px 0', flex: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</span>
-          <span style={PILL}>{plugin.manifest.version ?? L.plUnknownValue}</span>
-          <span style={PILL}>{pluginKindText(plugin.kind, L)}</span>
-          <span data-plugin-origin={plugin.origin} style={PILL}>
-            {plugin.origin === 'managed' ? L.plOriginManaged : L.plOriginLocal}
-          </span>
-          <span style={{ ...PILL, color: plugin.valid ? 'var(--proto-muted-2)' : 'var(--proto-danger)' }}>
-            {plugin.valid ? L.plValid : L.plInvalid}
-          </span>
-          <SButton tone="danger" data-action="plugin-delete" disabled={props.actions.busy}
-            style={{ marginLeft: 'auto' }} onClick={() => setDeleting(true)}>
-            {L.plDeletePlugin}
-          </SButton>
-        </div>
+      <div style={DETAIL_HEADER}>
+        <PluginHeader plugin={plugin} busy={props.actions.busy} onDelete={() => setDeleting(true)} />
         <PluginTabs tab={props.tab} onTab={props.onTab} />
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '12px 14px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '16px' }}>
         {props.tab === 'overview' ? <OverviewTab plugin={plugin} usage={usage} /> : null}
         {props.tab === 'skills'
           ? <PluginSkillsTab plugin={plugin} plugins={props.plugins} actions={props.actions} />

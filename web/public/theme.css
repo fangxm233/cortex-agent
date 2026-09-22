@@ -108,6 +108,16 @@
     radial-gradient(40% 40% at 60% 40%, oklch(calc(0.9 + 0.45 * var(--bg-light)) calc(0.05 * var(--bg-chroma)) calc(var(--bg-hue) + 56) / 0.6), transparent 60%),
     oklch(calc(0.93 + var(--bg-light)) calc(0.014 * var(--bg-chroma)) var(--bg-hue));
 
+  /* Theme preview swatches for the Appearance cards. Declared once at `:root` and deliberately NOT
+     re-declared per theme: a card previews the theme you are not in, so it must not follow the one
+     you are. Hues track the live palette, so a re-hued workspace previews in its own colours. */
+  --theme-preview-light: linear-gradient(135deg, oklch(0.86 calc(0.08 * var(--bg-chroma)) calc(var(--bg-hue) + 10)), oklch(0.88 calc(0.06 * var(--bg-chroma)) calc(var(--bg-hue) - 59)));
+  --theme-preview-dark: linear-gradient(135deg, oklch(0.36 calc(0.09 * var(--bg-chroma)) calc(var(--bg-hue) + 10)), oklch(0.17 calc(0.018 * var(--bg-chroma)) var(--bg-hue)));
+  --theme-preview-system: linear-gradient(105deg, oklch(0.86 calc(0.08 * var(--bg-chroma)) calc(var(--bg-hue) + 10)) 50%, oklch(0.24 calc(0.05 * var(--bg-chroma)) calc(var(--bg-hue) + 10)) 50%);
+  --theme-preview-pane-light: rgba(255, 255, 255, 0.72);
+  --theme-preview-pane-dark: rgba(44, 48, 62, 0.8);
+  --theme-preview-pane-system: rgba(255, 255, 255, 0.42);
+
   /* `--glass-1` is the panel pane, `--glass-2` the raised surface drawn on it (drawer cards, message
      bubbles, segmented tracks). Both are the background family at an alpha the `[data-glass]` level
      sets, so darkening the ground never turns the panes grey — the same invariant the opaque card

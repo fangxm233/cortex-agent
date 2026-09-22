@@ -1,4 +1,3 @@
-import { Children, isValidElement, type ReactElement } from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
@@ -128,20 +127,24 @@ describe('runtime settings panel save gates', () => {
 describe('runtime setting row interaction', () => {
   it('a writable row requests the inverse snapshot value', () => {
     const onToggle = vi.fn();
-    const row = RuntimeSettingToggleRow({
-      settingKey: 'turnNotify',
-      value: false,
-      source: 'file',
-      title: 'Turn notice',
-      desc: 'desc',
-      pending: false,
-      onToggle,
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <RuntimeSettingToggleRow
+          settingKey="turnNotify"
+          value={false}
+          source="file"
+          title="Turn notice"
+          desc="desc"
+          pending={false}
+          onToggle={onToggle}
+        />,
+      );
     });
-    const toggle = Children.toArray(row.props.children).find(isValidElement) as ReactElement<{
-      onClick?: () => void;
-    }>;
 
-    toggle.props.onClick?.();
+    // The switch is located by its role rather than by position: the row puts its control wherever
+    // the settings language says it goes.
+    act(() => { renderer!.root.findByProps({ role: 'switch' }).props.onClick(); });
     expect(onToggle).toHaveBeenCalledWith('turnNotify', true);
   });
 });

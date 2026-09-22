@@ -3,7 +3,7 @@
 // pos:    Functional platform editor interaction tests
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { expect, test, vi } from 'vitest';
 import type { ConfigSnapshot, PlatformSettingsSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
@@ -31,6 +31,10 @@ function props(overrides: Record<string, unknown> = {}) {
 function render(p: ReturnType<typeof props>) {
   return create(<LangProvider><PlatformPanelView {...p} /></LangProvider>);
 }
+/** Rendered text of a node, so an assertion reads the strip's copy and not its element tree. */
+function textOf(node: ReactTestInstance): string {
+  return node.children.map(child => (typeof child === 'string' ? child : textOf(child))).join('');
+}
 
 test('blank secrets preserve existing values and explicit clear is a null patch', () => {
   expect(connectionPatch(platform, true, { FEISHU_APP_SECRET: '' }).fields).toEqual({});
@@ -56,14 +60,14 @@ test('failed saves retain the draft for retry and never display raw error conten
   act(() => input.props.onChange({ target: { value: 'retry-demo' } }));
   await act(async () => { view.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
   expect(view.root.findByProps({ name: 'FEISHU_APP_SECRET' }).props.value).toBe('retry-demo');
-  expect(view.root.findByProps({ role: 'status' }).children.join('')).not.toContain('retry-demo');
+  expect(textOf(view.root.findByProps({ role: 'status' }))).not.toContain('retry-demo');
   view.unmount();
 });
 
 test('skill and destination controls write only their own runtime settings', async () => {
   const p = props(); const view = render(p);
-  const switches = view.root.findAllByProps({ type: 'checkbox' });
-  await act(async () => { switches[1].props.onChange({ target: { checked: true } }); });
+  const skill = view.root.findByProps({ 'data-platform-runtime': 'feishuSkillsInWeb' }).findByProps({ role: 'switch' });
+  await act(async () => { skill.props.onClick(); });
   expect(p.saveRuntime).toHaveBeenLastCalledWith({ feishuSkillsInWeb: true });
   act(() => view.root.findByProps({ name: 'feishuAdminChannel' }).props.onChange({ target: { value: 'oc_new' } }));
   const save = view.root.findAllByType('button').find(button => String(button.children).includes('destination') || String(button.children).includes('通知目标'))!;

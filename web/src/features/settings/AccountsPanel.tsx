@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
@@ -10,32 +10,37 @@ import {
   type AccountStatusTone,
   type AccountStatusVm,
   type ClaudeAccountVm,
+  type ClaudeCredentialSlotVm,
   type PiProviderVm,
 } from '@/features/settings/accounts-vm';
 import { CustomProvidersCard } from './CustomProvidersCard';
 import { useAccountsController } from './useAccountsController';
-import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
+import {
+  SButton, SCount, SDot, SEntityName, SEntityRow, SLinkAction, SNotice, SPill, SRow, SRowGroup,
+  SSection, S_CONTROL_STYLE, type SPillTone,
+} from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const STATE_COLOR: Record<AccountStatusTone, string> = {
-  done: 'var(--proto-success)',
-  waiting: 'var(--proto-amber-fg)',
-  failed: 'var(--proto-danger)',
-  cancelled: 'var(--proto-muted-2)',
+// One state, two renderings: the pill carries the words, the dot repeats it as colour so a long
+// provider list can be read down its left edge without parsing a single label.
+const STATE_STYLE: Record<AccountStatusTone, { tone: SPillTone; dot: string }> = {
+  done: { tone: 'success', dot: 'var(--proto-success)' },
+  waiting: { tone: 'amber', dot: 'var(--proto-amber)' },
+  failed: { tone: 'danger', dot: 'var(--proto-danger)' },
+  cancelled: { tone: 'neutral', dot: 'var(--proto-muted-3)' },
 };
 
-/** Compact dot + label state mark — subtler than a full StatusPill at row scale. */
-function StateMark({ value }: { value: AccountStatusVm }) {
+const META_STYLE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)' };
+
+const PANEL_TEXT_STYLE: CSSProperties = { fontSize: 12.5, color: 'var(--proto-muted-2)' };
+
+function StatePill({ value }: { value: AccountStatusVm }) {
   const L = useVocab();
   return (
-    <span
-      data-account-state={value.kind}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: `600 10px ${MONO}`, color: STATE_COLOR[value.tone] }}
-    >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flex: 'none' }} />
+    <SPill data-account-state={value.kind} tone={STATE_STYLE[value.tone].tone} mono>
       {L[value.labelKey]}
-    </span>
+    </SPill>
   );
 }
 
@@ -48,24 +53,14 @@ function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): 
   return backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth;
 }
 
-function StatusMetadata({ value }: { value: AccountCredentialVm }) {
+/** State, source and expiry for one stored credential — the description line of a Claude slot. */
+function CredentialLine({ value }: { value: AccountCredentialVm }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <StateMark value={value} />
-      <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>
-        {L.accountsSource}: {value.source ?? '—'}
-      </span>
-      {value.expiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
-    </div>
-  );
-}
-
-function CapabilityBadge({ authType }: { authType: AuthType }) {
-  const L = useVocab();
-  return (
-    <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', borderRadius: 'var(--r-pill)', padding: '2px 7px' }}>
-      {authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}
+    <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <StatePill value={value} />
+      <span style={META_STYLE}>{L.accountsSource}: {value.source ?? '—'}</span>
+      {value.expiresAt ? <span style={META_STYLE}>{L.accountsExpires}: {value.expiresAt}</span> : null}
     </span>
   );
 }
@@ -80,11 +75,13 @@ interface ActionsProps {
   onLogout: (target: AccountActionTarget) => void;
 }
 
+type SharedActions = Omit<ActionsProps, 'backend' | 'provider' | 'loginTypes' | 'logoutTypes'>;
+
 function AccountActions(props: ActionsProps) {
   const L = useVocab();
   const target = (authType: AuthType): AccountActionTarget => ({ backend: props.backend, provider: props.provider, authType });
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
       {props.loginTypes.map(authType => (
         <SButton
           key={`login:${authType}`} tone="accent" disabled={props.disabled}
@@ -111,63 +108,116 @@ function AccountActions(props: ActionsProps) {
   );
 }
 
-function ClaudeCard({ account, actions }: { account: ClaudeAccountVm; actions: Omit<ActionsProps, 'backend' | 'provider' | 'loginTypes' | 'logoutTypes'> }) {
+function ClaudeSlotRow({ slot, provider, actions }: {
+  slot: ClaudeCredentialSlotVm;
+  provider: string;
+  actions: SharedActions;
+}) {
   const L = useVocab();
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 980 }}>
-      <SCardHeader
-        title={(
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <ProviderIcon provider="claude-code" label="Claude Code" size={15} />
-            Claude Code
-          </span>
-        )}
-        right={account.inUse ? L.accountsInUse : undefined}
-      />
-      <div style={{ padding: '8px 14px' }}>
-        {account.slots.map(slot => (
-          <SFieldRow key={slot.authType} label={authTypeLabel(L, slot.authType, 'claude')}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {slot.credentials.map((credential, index) => <StatusMetadata key={`${credential.source ?? 'none'}:${index}`} value={credential} />)}
-              <AccountActions
-                {...actions} backend="claude" provider={account.provider}
-                loginTypes={slot.canLogin ? [slot.authType] : []}
-                logoutTypes={slot.canLogout ? [slot.authType] : []}
-              />
-            </div>
-          </SFieldRow>
-        ))}
-      </div>
-    </SCard>
+    <SRow
+      title={authTypeLabel(L, slot.authType, 'claude')}
+      desc={(
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {slot.credentials.map((credential, index) => (
+            <CredentialLine key={`${credential.source ?? 'none'}:${index}`} value={credential} />
+          ))}
+        </span>
+      )}
+      control={(
+        <AccountActions
+          {...actions} backend="claude" provider={provider}
+          loginTypes={slot.canLogin ? [slot.authType] : []}
+          logoutTypes={slot.canLogout ? [slot.authType] : []}
+        />
+      )}
+    />
   );
 }
 
-function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: Omit<ActionsProps, 'backend' | 'provider' | 'loginTypes' | 'logoutTypes'> }) {
+function ClaudeCard({ account, actions }: { account: ClaudeAccountVm; actions: SharedActions }) {
   const L = useVocab();
-  const metadata: AccountCredentialVm = {
-    ...provider.status,
-    source: provider.source,
-    expiresAt: provider.expiresAt,
-  };
+  const label = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+      <ProviderIcon provider="claude-code" label="Claude Code" size={14} />
+      Claude Code
+    </span>
+  );
   return (
-    <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--proto-alt)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <ProviderIcon provider={provider.provider} label={provider.label} size={16} />
-        <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.label}</span>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{provider.provider}</span>
-        {provider.inUse ? <span style={{ fontSize: 9, fontWeight: 650, color: 'var(--proto-success)', background: 'var(--proto-success-bg)', borderRadius: 'var(--r-pill)', padding: '2px 7px' }}>{L.accountsInUse}</span> : null}
-        {provider.loginTypes.map(authType => <CapabilityBadge key={authType} authType={authType} />)}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-        <StatusMetadata value={metadata} />
-        <span style={{ marginLeft: 'auto' }}>
+    <SSection label={label} action={account.inUse ? <SPill tone="success">{L.accountsInUse}</SPill> : undefined}>
+      <SRowGroup>
+        {account.slots.map(slot => (
+          <ClaudeSlotRow key={slot.authType} slot={slot} provider={account.provider} actions={actions} />
+        ))}
+      </SRowGroup>
+    </SSection>
+  );
+}
+
+function ProviderName({ provider }: { provider: PiProviderVm }) {
+  const L = useVocab();
+  return (
+    <>
+      <ProviderIcon provider={provider.provider} label={provider.label} size={16} />
+      <SEntityName>{provider.label}</SEntityName>
+      {provider.inUse ? <SPill tone="success">{L.accountsInUse}</SPill> : null}
+      {provider.loginTypes.map(authType => (
+        <SPill key={authType} tone="accent" mono>
+          {authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}
+        </SPill>
+      ))}
+    </>
+  );
+}
+
+function providerMeta(L: Vocab, provider: PiProviderVm): string {
+  const parts = [provider.provider, `${L.accountsSource}: ${provider.source ?? '—'}`];
+  if (provider.expiresAt) parts.push(`${L.accountsExpires}: ${provider.expiresAt}`);
+  return parts.join('  ·  ');
+}
+
+function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: SharedActions }) {
+  const L = useVocab();
+  return (
+    <SEntityRow
+      dot={<SDot color={STATE_STYLE[provider.status.tone].dot} />}
+      name={<ProviderName provider={provider} />}
+      meta={providerMeta(L, provider)}
+      trailing={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <StatePill value={provider.status} />
           <AccountActions
             {...actions} backend="pi" provider={provider.provider}
             loginTypes={provider.loginTypes} logoutTypes={provider.logoutTypes}
           />
-        </span>
+        </div>
+      )}
+    />
+  );
+}
+
+function ProviderFilter({ filter, onFilter }: { filter: string; onFilter: (value: string) => void }) {
+  const L = useVocab();
+  return (
+    <div>
+      <input
+        data-accounts-filter aria-label={L.accountsFilter}
+        value={filter} onChange={event => onFilter(event.target.value)}
+        placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
+      />
+      <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 8, padding: '0 2px' }}>
+        {L.accountsSyncModelsHint}
       </div>
     </div>
+  );
+}
+
+function SectionCount({ label, count }: { label: string; count: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+      {label}
+      <SCount tone="accent">{count}</SCount>
+    </span>
   );
 }
 
@@ -175,31 +225,26 @@ function PiProviderList({ providers, filter, onFilter, actions, onRescan, rescan
   providers: PiProviderVm[];
   filter: string;
   onFilter: (value: string) => void;
-  actions: Omit<ActionsProps, 'backend' | 'provider' | 'loginTypes' | 'logoutTypes'>;
+  actions: SharedActions;
   onRescan: () => void;
   rescanning: boolean;
 }) {
   const L = useVocab();
+  const rescan = (
+    <SLinkAction data-accounts-sync disabled={rescanning} onClick={onRescan}>
+      {L.accountsSyncModels}
+    </SLinkAction>
+  );
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 980, overflow: 'hidden' }}>
-      <SCardHeader title={L.accountsPiProviders} right={`${providers.length}`} />
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            data-accounts-filter aria-label={L.accountsFilter}
-            value={filter} onChange={event => onFilter(event.target.value)}
-            placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
-          />
-          <SButton data-accounts-sync tone="neutral" disabled={rescanning} onClick={onRescan}>
-            {L.accountsSyncModels}
-          </SButton>
-        </div>
-        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--proto-muted-3)' }}>{L.accountsSyncModelsHint}</div>
+    <SSection label={<SectionCount label={L.accountsPiProviders} count={providers.length} />} action={rescan}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <ProviderFilter filter={filter} onFilter={onFilter} />
+        {providers.map(provider => (
+          <ProviderRow key={provider.provider} provider={provider} actions={actions} />
+        ))}
+        {providers.length === 0 ? <SNotice tone="muted">{L.accountsNoProviders}</SNotice> : null}
       </div>
-      {providers.length > 0
-        ? providers.map(provider => <ProviderRow key={provider.provider} provider={provider} actions={actions} />)
-        : <div style={{ padding: '12px 14px', color: 'var(--proto-muted-3)', fontSize: 11 }}>{L.accountsNoProviders}</div>}
-    </SCard>
+    </SSection>
   );
 }
 
@@ -208,9 +253,9 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   const { openLogin } = useLoginFlow();
   const controller = useAccountsController();
   const [filter, setFilter] = useState('');
-  if (controller.statusLoading) return <div style={{ marginTop: 16 }}>{L.accountsLoading}</div>;
+  if (controller.statusLoading) return <div style={PANEL_TEXT_STYLE}>{L.accountsLoading}</div>;
   if (controller.statusError || !controller.status) {
-    return <div style={{ marginTop: 16, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
+    return <div style={{ ...PANEL_TEXT_STYLE, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
   }
   const vm = buildAccountsVm(controller.status, filter);
   const actions = {

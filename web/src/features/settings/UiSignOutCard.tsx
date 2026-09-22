@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
 import { probeUiSession, uiLogout } from '@/lib/ui-session';
-import { SCard } from './settings-ui';
+import { SLinkAction, SRow, SRowGroup } from './settings-ui';
 
 export function UiSignOutCard() {
   const L = useVocab();
@@ -33,19 +33,14 @@ export function UiSignOutCard() {
     window.location.reload();
   };
 
+  // The action is the whole row: there is no second line of copy for it to sit beside.
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 760, padding: '12px 14px' }}>
-      <button
-        type="button"
-        data-ui-sign-out
-        onClick={() => void signOut()}
-        style={{
-          border: 'none', background: 'transparent', cursor: 'pointer',
-          fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)', padding: 0,
-        }}
-      >
-        {L.uiLogoutAction}
-      </button>
-    </SCard>
+    <SRowGroup style={{ maxWidth: 760 }}>
+      <SRow title={
+        <SLinkAction tone="danger" data-ui-sign-out onClick={() => void signOut()}>
+          {L.uiLogoutAction}
+        </SLinkAction>
+      } />
+    </SRowGroup>
   );
 }

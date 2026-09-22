@@ -1,15 +1,30 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
+import type { ConfigBudget, ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
-import { SCard, SCardHeader, RadioDot, SButton, S_CONTROL_STYLE } from './settings-ui';
+import {
+  RadioDot,
+  ROW_STYLE,
+  SButton,
+  SChip,
+  SDot,
+  SLinkAction,
+  SNotice,
+  SPill,
+  SRow,
+  SRowGroup,
+  SSection,
+  SStat,
+  S_CONTROL_STYLE,
+} from './settings-ui';
 import {
   DAILY_CHIPS,
   MONTHLY_CHIPS,
   WARN_CHIPS,
   type BudgetScopeId,
+  type ScopeBudget,
   hasOverride,
   pickScopeBudget,
   buildBudgetValue,
@@ -30,18 +45,11 @@ import { useBudgetWriter } from './useBudgetWriter';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const CHIP_LABEL: CSSProperties = { font: `500 10.5px ${MONO}`, borderRadius: 'var(--r-chip)', padding: '4px 11px' };
-
-function chipStyle(active: boolean): CSSProperties {
-  return {
-    ...CHIP_LABEL,
-    fontWeight: active ? 600 : 500,
-    color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
-    background: active ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
-    border: '1px solid ' + (active ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
-    cursor: 'pointer',
-  };
-}
+const AMOUNT_STYLE: CSSProperties = { font: `500 18px ${MONO}`, letterSpacing: '-.02em' };
+const NOTE_STYLE: CSSProperties = { fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
+const SCOPE_TAG_STYLE: CSSProperties = { font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)' };
+const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap' };
+const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 22 };
 
 const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab; def: boolean }[] = [
   { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc', def: true },
@@ -49,50 +57,198 @@ const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab; def: boolean }
   { titleKey: 'stPolicyStopTitle', descKey: 'stPolicyStopDesc', def: false },
 ];
 
-const LABEL_STYLE: CSSProperties = {
-  fontSize: 9.5,
-  fontWeight: 700,
-  letterSpacing: '.05em',
-  color: 'var(--proto-muted-3)',
-};
+// SMeter wants a number; the vm owns the clamp and formats it as `NN%`.
+function meterPct(spent: number, limit: number | null): number {
+  return Number.parseFloat(budgetBarPct(spent, limit));
+}
 
-export function BudgetPanel({
-  snapshot,
-  cost,
-}: {
-  snapshot: ConfigSnapshot;
-  cost: CostSummary | undefined;
+// ── Current spend ───────────────────────────────────────────────────────────
+
+function SpendSection({ scopeLabel, today, month, limits }: {
+  scopeLabel: string;
+  today: number;
+  month: number;
+  limits: ScopeBudget;
 }) {
   const L = useVocab();
-  const trpc = useTRPC();
+  return (
+    <SSection label={L.stCurrentSpend} action={<span style={SCOPE_TAG_STYLE}>{scopeLabel}</span>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <SStat
+          value={formatBudgetUsd(today)} caption={`${L.today} / ${formatBudgetUsd(limits.daily)}`}
+          percent={meterPct(today, limits.daily)}
+        />
+        <SStat
+          value={formatBudgetUsd(month)}
+          caption={`${L.month} / ${formatBudgetUsd(limits.monthly)}`}
+          percent={meterPct(month, limits.monthly)} tone="var(--proto-accent-2)"
+          footnote={L.stBudgetFootNote}
+        />
+        <SNotice tone="amber" icon={<SDot size={6} />}>{L.stObNote}</SNotice>
+      </div>
+    </SSection>
+  );
+}
+
+// ── Limit rows ──────────────────────────────────────────────────────────────
+
+interface LimitRowProps {
+  field: 'daily' | 'monthly';
+  label: string;
+  current: number | null;
+  chips: number[];
+  inherited: boolean;
+  pending: boolean;
+  draft: string;
+  onDraft: (value: string) => void;
+  onChip: (value: number) => void;
+  onApply: () => void;
+}
+
+function LimitChips(props: Pick<LimitRowProps, 'field' | 'chips' | 'current' | 'inherited' | 'pending' | 'onChip'>) {
+  return (
+    <>
+      {props.chips.map((value) => (
+        <SChip
+          key={value} role="button" data-budget-chip={`${props.field}-${value}`}
+          aria-disabled={props.pending} disabled={props.pending}
+          active={!props.inherited && isChipActive(props.current, value)}
+          onClick={props.pending ? undefined : () => props.onChip(value)}
+        >
+          {'$' + value}
+        </SChip>
+      ))}
+    </>
+  );
+}
+
+function LimitControl(props: Pick<LimitRowProps, 'field' | 'draft' | 'pending' | 'onDraft' | 'onApply'>) {
+  const L = useVocab();
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <input
+        value={props.draft} disabled={props.pending}
+        onChange={(event) => props.onDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (!props.pending && event.key === 'Enter') props.onApply();
+        }}
+        placeholder={L.stBudgetCustomPlaceholder} data-budget-input={props.field}
+        style={{ ...S_CONTROL_STYLE, width: 92 }}
+      />
+      <SButton tone="neutral" disabled={props.pending || props.draft.trim() === ''}
+        onClick={props.onApply}>
+        {L.stApply}
+      </SButton>
+    </div>
+  );
+}
+
+function LimitRow(props: LimitRowProps) {
+  return (
+    <SRow title={props.label} control={<LimitControl {...props} />}>
+      <div style={{ ...CHIPS_STYLE, alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <span
+          data-budget-limit={props.field}
+          style={{ ...AMOUNT_STYLE, color: props.inherited ? 'var(--proto-muted-2)' : 'var(--proto-ink)' }}
+        >
+          {formatBudgetUsd(props.current)}
+        </span>
+        <div style={CHIPS_STYLE}><LimitChips {...props} /></div>
+      </div>
+    </SRow>
+  );
+}
+
+// WARN AT has no budget.json field — the chips are structure, not a setting.
+function WarnRow() {
+  const L = useVocab();
+  return (
+    <SRow title={L.stWarnAt} desc={L.warnNote}>
+      <div style={{ ...CHIPS_STYLE, alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <span style={{ ...AMOUNT_STYLE, color: 'var(--proto-faint)' }}>—</span>
+        <div style={CHIPS_STYLE}>
+          {WARN_CHIPS.map((value) => (
+            <SChip key={value} disabled title="No warn-threshold field in budget.json — inert">
+              {value + '%'}
+            </SChip>
+          ))}
+        </div>
+      </div>
+    </SRow>
+  );
+}
+
+function ScopeRow({ scope, projects, budget, onSelect }: {
+  scope: BudgetScopeId;
+  projects: { id: string }[];
+  budget: ConfigBudget | null;
+  onSelect: (scope: BudgetScopeId) => void;
+}) {
+  const L = useVocab();
+  return (
+    <SRow title={L.stBudgetScope} desc={L.stBudgetScopeNote} control={
+      <div style={CHIPS_STYLE}>
+        <SChip role="button" data-budget-scope="global" active={scope == null}
+          onClick={() => onSelect(null)}>
+          {L.stBudgetScopeGlobal}
+        </SChip>
+        {projects.map((project) => (
+          <SChip key={project.id} role="button" data-budget-scope={project.id}
+            active={scope === project.id} onClick={() => onSelect(project.id)}>
+            {project.id}
+            {hasOverride(budget, project.id) ? ' •' : ''}
+          </SChip>
+        ))}
+      </div>
+    } />
+  );
+}
+
+function ClearOverrideRow({ pending, onClear }: { pending: boolean; onClear: () => void }) {
+  const L = useVocab();
+  return (
+    <div style={ROW_STYLE}>
+      <span style={{ ...NOTE_STYLE, flex: 1, minWidth: 0 }}>{L.stBudgetClearHint}</span>
+      <SLinkAction tone="danger" disabled={pending} onClick={onClear} data-budget-clear>
+        {L.stBudgetClear}
+      </SLinkAction>
+    </div>
+  );
+}
+
+// ── Over-budget policy ──────────────────────────────────────────────────────
+
+function PolicySection() {
+  const L = useVocab();
+  return (
+    <SSection label={L.stOverBudgetBehavior} action={<span style={SCOPE_TAG_STYLE}>{L.obNote}</span>}>
+      <SRowGroup title="No over-budget-policy field in budget.json — inert" style={{ cursor: 'not-allowed' }}>
+        {POLICY_ROWS.map((row) => (
+          <SRow
+            key={row.titleKey} align="flex-start" control={<RadioDot selected={false} />}
+            desc={L[row.descKey]}
+            title={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--proto-muted)' }}>
+                {L[row.titleKey]}
+                {row.def ? <SPill tone="accent">{L.default}</SPill> : null}
+              </span>
+            }
+          />
+        ))}
+      </SRowGroup>
+    </SSection>
+  );
+}
+
+// ── Writes ──────────────────────────────────────────────────────────────────
+
+function useBudgetActions(scope: BudgetScopeId, resolved: ScopeBudget) {
+  const L = useVocab();
   const { toast } = useToast();
   const writer = useBudgetWriter();
-
-  const budget = snapshot.budget;
-  const [scope, setScope] = useState<BudgetScopeId>(null);
-  const [draft, setDraft] = useState('');
-
-  const projects = useQuery(trpc.projects.list.queryOptions({})).data ?? [];
-  // The spend side must follow the scope, or the panel would divide project-scoped limits by
-  // all-project spend. The unscoped summary already arrives as a prop; a project scope re-queries.
-  const scopedCost = useQuery({
-    ...trpc.cost.summary.queryOptions({ projectId: scope ?? undefined }),
-    enabled: scope != null,
-  });
-  const shown = scope == null ? cost : scopedCost.data;
-
-  const resolved = pickScopeBudget(budget, scope);
-  const overridden = hasOverride(budget, scope);
-  const today = shown?.today ?? 0;
-  const month = shown?.month ?? 0;
-
-  // Leaving a scope must not carry its typed amount into the next one.
-  useEffect(() => setDraft(''), [scope]);
-
   const writeFailed = (error: Error) => {
     toast({ title: `${L.stToastWriteFailed}: ${error.message}`, tone: 'failed' });
   };
-
   const write = (patch: { daily?: number; monthly?: number }, label: string) => {
     if (writer.isPending) return;
     const value = buildBudgetValue(resolved, patch);
@@ -104,295 +260,106 @@ export function BudgetPanel({
       if (operation) toast({ title: `${label} · ${L.stToastBudgetWritten}`, tone: 'done' });
     }).catch(writeFailed);
   };
-
-  const onApplyTyped = (field: 'daily' | 'monthly') => {
-    if (writer.isPending) return;
-    const amount = parseAmountInput(draft);
-    if (amount == null) {
-      toast({ title: L.stBudgetAmountInvalid, tone: 'waiting' });
-      return;
-    }
-    setDraft('');
-    write({ [field]: amount }, `${field === 'daily' ? L.stDaily : L.stMonthly} → ${formatBudgetUsd(amount)}`);
-  };
-
-  const onClearOverride = () => {
+  const clear = () => {
     if (!scope || writer.isPending) return;
     void writer.clear(scope).then((operation) => {
       if (operation) toast({ title: `${scope} · ${L.stToastBudgetCleared}`, tone: 'done' });
     }).catch(writeFailed);
   };
+  const invalidAmount = () => toast({ title: L.stBudgetAmountInvalid, tone: 'waiting' });
+  return { pending: writer.isPending, write, clear, invalidAmount };
+}
 
-  const limitRow = (
-    field: 'daily' | 'monthly',
-    label: string,
-    current: number | null,
-    chips: number[],
-    last?: boolean,
-  ) => (
-    <div
-      style={{
-        padding: '12px 14px',
-        borderBottom: last ? undefined : '1px solid var(--proto-alt)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ width: 104, flex: 'none' }}>
-        <div style={LABEL_STYLE}>{label}</div>
-        <div
-          style={{
-            font: `600 19px ${MONO}`,
-            color: resolved.inherited ? 'var(--proto-muted-2)' : 'var(--proto-ink)',
-            letterSpacing: '-.02em',
-            marginTop: 2,
-          }}
-          data-budget-limit={field}
-        >
-          {formatBudgetUsd(current)}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {chips.map((v) => (
-          <span
-            key={v}
-            onClick={writer.isPending ? undefined : () => write({ [field]: v }, `${label} → ${formatBudgetUsd(v)}`)}
-            role="button"
-            aria-disabled={writer.isPending}
-            data-budget-chip={`${field}-${v}`}
-            style={{
-              ...chipStyle(!resolved.inherited && isChipActive(current, v)),
-              opacity: writer.isPending ? 0.6 : 1,
-            }}
-          >
-            {'$' + v}
-          </span>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', alignItems: 'center' }}>
-        <input
-          value={draft}
-          disabled={writer.isPending}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (!writer.isPending && e.key === 'Enter') onApplyTyped(field);
-          }}
-          placeholder={L.stBudgetCustomPlaceholder}
-          data-budget-input={field}
-          style={{ ...S_CONTROL_STYLE, width: 88 }}
-        />
-        <SButton tone="neutral" disabled={writer.isPending || draft.trim() === ''}
-          onClick={() => onApplyTyped(field)}>
-          {L.stApply}
-        </SButton>
-      </div>
-    </div>
+type BudgetActions = ReturnType<typeof useBudgetActions>;
+
+// One typed amount serves both limits; leaving a scope must not carry it into the next one.
+function useLimitDraft(scope: BudgetScopeId, actions: BudgetActions) {
+  const [draft, setDraft] = useState('');
+  useEffect(() => setDraft(''), [scope]);
+  const applyTyped = (field: 'daily' | 'monthly', label: string) => {
+    if (actions.pending) return;
+    const amount = parseAmountInput(draft);
+    if (amount == null) {
+      actions.invalidAmount();
+      return;
+    }
+    setDraft('');
+    actions.write({ [field]: amount }, `${label} → ${formatBudgetUsd(amount)}`);
+  };
+  return { draft, setDraft, applyTyped };
+}
+
+interface LimitsSectionProps {
+  scope: BudgetScopeId;
+  projects: { id: string }[];
+  budget: ConfigBudget | null;
+  resolved: ScopeBudget;
+  actions: BudgetActions;
+  onScope: (scope: BudgetScopeId) => void;
+}
+
+function LimitsSection({ scope, projects, budget, resolved, actions, onScope }: LimitsSectionProps) {
+  const L = useVocab();
+  const { draft, setDraft, applyTyped } = useLimitDraft(scope, actions);
+  const row = (field: 'daily' | 'monthly', label: string, current: number | null, chips: number[]) => (
+    <LimitRow
+      field={field} label={label} current={current} chips={chips} draft={draft}
+      inherited={resolved.inherited} pending={actions.pending} onDraft={setDraft}
+      onChip={(value) => actions.write({ [field]: value }, `${label} → ${formatBudgetUsd(value)}`)}
+      onApply={() => applyTyped(field, label)}
+    />
   );
+  return (
+    <SSection label={L.stLimits}>
+      <SRowGroup>
+        <ScopeRow scope={scope} projects={projects} budget={budget} onSelect={onScope} />
+        {resolved.inherited ? (
+          <div style={{ ...ROW_STYLE, padding: '11px 16px' }} data-budget-inherited>
+            <span style={NOTE_STYLE}>{L.stBudgetInherited}</span>
+          </div>
+        ) : null}
+        {row('daily', L.stDaily, resolved.daily, DAILY_CHIPS)}
+        {row('monthly', L.stMonthly, resolved.monthly, MONTHLY_CHIPS)}
+        <WarnRow />
+        {hasOverride(budget, scope)
+          ? <ClearOverrideRow pending={actions.pending} onClear={actions.clear} /> : null}
+      </SRowGroup>
+    </SSection>
+  );
+}
+
+export function BudgetPanel({
+  snapshot,
+  cost,
+}: {
+  snapshot: ConfigSnapshot;
+  cost: CostSummary | undefined;
+}) {
+  const L = useVocab();
+  const trpc = useTRPC();
+
+  const budget = snapshot.budget;
+  const [scope, setScope] = useState<BudgetScopeId>(null);
+
+  const projects = useQuery(trpc.projects.list.queryOptions({})).data ?? [];
+  // The spend side must follow the scope, or the panel would divide project-scoped limits by
+  // all-project spend. The unscoped summary already arrives as a prop; a project scope re-queries.
+  const scopedCost = useQuery({
+    ...trpc.cost.summary.queryOptions({ projectId: scope ?? undefined }),
+    enabled: scope != null,
+  });
+  const shown = scope == null ? cost : scopedCost.data;
+
+  const resolved = pickScopeBudget(budget, scope);
+  const actions = useBudgetActions(scope, resolved);
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr',
-        gap: 12,
-        marginTop: 12,
-        alignItems: 'start',
-        maxWidth: 980,
-      }}
-      data-settings-panel="budget"
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <SCard>
-          <SCardHeader title={L.stLimits} right={L.stBudgetScopeNote} />
-          {/* SCOPE — global, or one project's override */}
-          <div
-            style={{
-              padding: '12px 14px',
-              borderBottom: '1px solid var(--proto-alt)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div style={{ width: 104, flex: 'none', ...LABEL_STYLE }}>{L.stBudgetScope}</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span
-                onClick={() => setScope(null)}
-                role="button"
-                data-budget-scope="global"
-                style={chipStyle(scope == null)}
-              >
-                {L.stBudgetScopeGlobal}
-              </span>
-              {projects.map((p) => (
-                <span
-                  key={p.id}
-                  onClick={() => setScope(p.id)}
-                  role="button"
-                  data-budget-scope={p.id}
-                  style={chipStyle(scope === p.id)}
-                >
-                  {p.id}
-                  {hasOverride(budget, p.id) ? ' •' : ''}
-                </span>
-              ))}
-            </div>
-          </div>
-          {resolved.inherited ? (
-            <div
-              style={{
-                padding: '8px 14px',
-                borderBottom: '1px solid var(--proto-alt)',
-                fontSize: 10.5,
-                color: 'var(--proto-muted-2)',
-              }}
-              data-budget-inherited
-            >
-              {L.stBudgetInherited}
-            </div>
-          ) : null}
-          {limitRow('daily', L.stDaily, resolved.daily, DAILY_CHIPS)}
-          {limitRow('monthly', L.stMonthly, resolved.monthly, MONTHLY_CHIPS)}
-          {/* WARN AT — no budget.json field → inert placeholder */}
-          <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 104, flex: 'none' }}>
-              <div style={LABEL_STYLE}>{L.stWarnAt}</div>
-              <div style={{ font: `600 19px ${MONO}`, color: 'var(--proto-faint)', letterSpacing: '-.02em', marginTop: 2 }}>
-                —
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {WARN_CHIPS.map((v) => (
-                <span
-                  key={v}
-                  title="No warn-threshold field in budget.json — inert"
-                  style={{ ...chipStyle(false), cursor: 'not-allowed', color: 'var(--proto-faint)' }}
-                >
-                  {v + '%'}
-                </span>
-              ))}
-            </div>
-            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--proto-muted-2)' }}>
-              {L.warnNote}
-            </span>
-          </div>
-          {overridden ? (
-            <div
-              style={{
-                padding: '10px 14px',
-                borderTop: '1px solid var(--proto-alt)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
-              <span style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', flex: 1 }}>
-                {L.stBudgetClearHint}
-              </span>
-              <SButton tone="danger" disabled={writer.isPending} onClick={onClearOverride} data-budget-clear>
-                {L.stBudgetClear}
-              </SButton>
-            </div>
-          ) : null}
-        </SCard>
-        <SCard>
-          <SCardHeader title={L.stOverBudgetBehavior} right={L.obNote} />
-          <div style={{ padding: '4px 14px 8px' }}>
-            {POLICY_ROWS.map((r, i) => (
-              <div
-                key={r.titleKey}
-                title="No over-budget-policy field in budget.json — inert"
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 10,
-                  padding: '9px 0',
-                  borderBottom: i < POLICY_ROWS.length - 1 ? '1px solid var(--proto-alt)' : undefined,
-                  cursor: 'not-allowed',
-                }}
-              >
-                <RadioDot selected={false} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)' }}>
-                    {L[r.titleKey]}
-                    {r.def ? (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 600,
-                          padding: '1px 6px',
-                          borderRadius: 'var(--r-pill)',
-                          background: 'var(--proto-accent-bg)',
-                          color: 'var(--proto-accent)',
-                          marginLeft: 4,
-                        }}
-                      >
-                        {L.default}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 2 }}>{L[r.descKey]}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SCard>
-      </div>
-      <SCard>
-        <SCardHeader title={L.stCurrentSpend} right={scope ?? L.stBudgetScopeGlobal} />
-        <div style={{ padding: '12px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ font: `600 21px ${MONO}`, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
-              {formatBudgetUsd(today)}
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--proto-muted-3)' }}>/ {formatBudgetUsd(resolved.daily)}</span>
-          </div>
-          <div
-            style={{
-              height: 5,
-              borderRadius: 'var(--r-pill)',
-              background: 'var(--proto-line-2)',
-              overflow: 'hidden',
-              marginTop: 8,
-              position: 'relative',
-            }}
-          >
-            <div style={{ width: budgetBarPct(today, resolved.daily), height: '100%', background: 'var(--proto-accent)' }} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 14 }}>
-            <span style={{ font: `600 14px ${MONO}`, color: 'var(--proto-ink-2)' }}>{formatBudgetUsd(month)}</span>
-            <span style={{ fontSize: 10.5, color: 'var(--proto-muted-3)' }}>
-              {L.month} / {formatBudgetUsd(resolved.monthly)}
-            </span>
-          </div>
-          <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 7 }}>
-            <div style={{ width: budgetBarPct(month, resolved.monthly), height: '100%', background: 'var(--proto-accent-2)' }} />
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              background: 'var(--proto-amber-bg)',
-              border: '1px solid var(--proto-amber-border)',
-              borderRadius: 'var(--r-control)',
-              padding: '7px 10px',
-              marginTop: 13,
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
-            <span style={{ fontSize: 10.5, color: 'var(--proto-amber-fg)' }}>
-              {L.stObNote}
-            </span>
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--proto-faint)', marginTop: 10 }}>
-            {L.stBudgetFootNote}
-          </div>
-        </div>
-      </SCard>
+    <div style={PANEL_STYLE} data-settings-panel="budget">
+      <SpendSection scopeLabel={scope ?? L.stBudgetScopeGlobal} limits={resolved}
+        today={shown?.today ?? 0} month={shown?.month ?? 0} />
+      <LimitsSection scope={scope} projects={projects} budget={budget} resolved={resolved}
+        actions={actions} onScope={setScope} />
+      <PolicySection />
     </div>
   );
 }

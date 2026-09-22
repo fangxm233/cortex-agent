@@ -1,10 +1,20 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
-import { CONTROL_HEIGHT, Select, relativeAge } from '@/design';
-import { useVocab } from '@/i18n';
+import { Select, relativeAge } from '@/design';
+import { useVocab, type Vocab } from '@/i18n';
 import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
-import { SCard, SCardHeader, Toggle } from './settings-ui';
+import {
+  ROW_STYLE,
+  SButton,
+  SDot,
+  SPill,
+  SRow,
+  SRowGroup,
+  SSection,
+  S_CONTROL_STYLE,
+  Toggle,
+} from './settings-ui';
 import { AppUpdateCard } from './AppUpdateCard';
 import { UiSignOutCard } from './UiSignOutCard';
 import {
@@ -37,40 +47,33 @@ import {
 type SettingSource = ConfigSettingEntry['source'];
 
 const MONO = "'IBM Plex Mono',monospace";
-const ROW: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-  padding: '10px 14px',
-  borderBottom: '1px solid var(--proto-alt)',
+
+// Which setting a row writes, and where its current value came from, is an identifier rather than
+// prose: it gets its own mono line under the description instead of competing with the control.
+const KEY_LINE_STYLE: CSSProperties = {
+  font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4,
 };
-const TITLE: CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' };
-const DESC: CSSProperties = { fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 };
-const KEY: CSSProperties = {
-  font: `400 9px ${MONO}`,
-  color: 'var(--proto-faint)',
-  flex: 'none',
+const MONO_VALUE_STYLE: CSSProperties = {
+  font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)', flex: 'none',
 };
-// The cadence editor is one strip of three controls — number, unit, save. They only read as a strip
-// when all three take the same height, radius and type, so they are cut from one base rather than
-// each carrying its own padding.
-const DURATION_CONTROL: CSSProperties = {
-  height: CONTROL_HEIGHT.sm, boxSizing: 'border-box', padding: '0 8px',
-  border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)',
-  background: 'var(--proto-card)', font: `500 10px ${MONO}`,
+// Editors sit in the row's control slot as one strip. Their fields carry fixed widths so the
+// controls line up down the card rather than each sizing itself to its own value.
+const CONTROL_STRIP_STYLE: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, flex: 'none',
 };
-const DURATION_INPUT: CSSProperties = {
-  ...DURATION_CONTROL, width: 54, color: 'var(--proto-ink)',
-};
-const DURATION_SELECT: CSSProperties = {
-  ...DURATION_CONTROL, color: 'var(--proto-ink)', cursor: 'pointer',
-};
-const DURATION_BUTTON: CSSProperties = {
-  ...DURATION_CONTROL, color: 'var(--proto-muted)',
-};
-const NUMBER_INPUT: CSSProperties = {
-  ...DURATION_CONTROL, width: 70, color: 'var(--proto-ink)',
-};
+const NUMBER_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 96 };
+const DURATION_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 64 };
+const DURATION_SELECT: CSSProperties = { ...S_CONTROL_STYLE, width: 78, cursor: 'pointer' };
+
+const DURATION_UNITS = [
+  { value: 'sec', label: 'sec' },
+  { value: 'min', label: 'min' },
+  { value: 'hr', label: 'hr' },
+] satisfies Array<{ value: DurationUnit; label: string }>;
+
+function KeyLine({ children }: { children: ReactNode }) {
+  return <div style={KEY_LINE_STYLE}>{children}</div>;
+}
 
 export interface RuntimeSettingToggleRowProps {
   settingKey: WritableBooleanSettingKey;
@@ -87,50 +90,41 @@ export function RuntimeSettingToggleRow(props: RuntimeSettingToggleRowProps) {
     ? () => props.onToggle(props.settingKey, !props.value)
     : undefined;
   return (
-    <div
+    <SRow
       data-setting-key={props.settingKey}
       data-setting-value={props.source ? String(props.value) : 'missing'}
       data-setting-source={props.source ?? 'missing'}
-      style={ROW}
+      title={props.title}
+      desc={props.desc}
+      control={<Toggle on={props.value} onClick={onClick} inert={!onClick} />}
     >
-      <Toggle on={props.value} onClick={onClick} inert={!onClick} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{props.title}</div>
-        <div style={DESC}>{props.desc}</div>
-      </div>
-      <span style={KEY}>{`settings.${props.settingKey} · ${props.source ?? '—'}`}</span>
-    </div>
+      <KeyLine>{`settings.${props.settingKey} · ${props.source ?? '—'}`}</KeyLine>
+    </SRow>
   );
 }
 
-function SettingsToggleList({
-  descriptors,
-  settings,
-  pending,
-  onToggle,
-  threshold,
-}: {
-  descriptors: typeof NOTIFY_SETTINGS;
+function notifyRows(args: {
   settings: SettingsIndex;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
-  threshold?: number;
-}) {
-  const L = useVocab();
-  return descriptors.map((descriptor) => {
-    const entry = getSetting(settings, descriptor.setting);
-    const value = typeof entry?.value === 'boolean' ? entry.value : false;
-    const suffix = descriptor.setting === 'turnNotify' && threshold !== undefined ? ` · ${threshold}s` : '';
+  threshold: number | undefined;
+  L: Vocab;
+}): ReactNode[] {
+  return NOTIFY_SETTINGS.map((descriptor) => {
+    const entry = getSetting(args.settings, descriptor.setting);
+    const suffix = descriptor.setting === 'turnNotify' && args.threshold !== undefined
+      ? ` · ${args.threshold}s`
+      : '';
     return (
       <RuntimeSettingToggleRow
         key={descriptor.setting}
         settingKey={descriptor.setting}
-        value={value}
+        value={typeof entry?.value === 'boolean' ? entry.value : false}
         source={typeof entry?.value === 'boolean' ? entry.source : null}
-        title={L[descriptor.titleKey]}
-        desc={`${L[descriptor.descKey]}${suffix}`}
-        pending={pending}
-        onToggle={onToggle}
+        title={args.L[descriptor.titleKey]}
+        desc={`${args.L[descriptor.descKey]}${suffix}`}
+        pending={args.pending}
+        onToggle={args.onToggle}
       />
     );
   });
@@ -141,24 +135,25 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
   const slackChannel = getSetting(settings, 'adminChannel')?.value;
   const feishuChannel = getSetting(settings, 'feishuAdminChannel')?.value;
   return (
-    <SCard style={{ marginTop: 12 }}>
-      <SCardHeader title={L.stNotifyRoutingTitle} right={L.stNotifyRoutingRight} />
-      <RoutingRow
-        platform="Slack"
-        glyph="S"
-        present={hasAnyKey(snapshot.env, 'SLACK_')}
-        setting="adminChannel"
-        channel={typeof slackChannel === 'string' ? slackChannel : null}
-      />
-      <RoutingRow
-        platform="飞书"
-        glyph="飞"
-        present={hasAnyKey(snapshot.env, 'FEISHU_')}
-        setting="feishuAdminChannel"
-        channel={typeof feishuChannel === 'string' ? feishuChannel : null}
-        last
-      />
-    </SCard>
+    <SSection label={L.stNotifyRoutingTitle}
+      action={<span style={MONO_VALUE_STYLE}>{L.stNotifyRoutingRight}</span>}>
+      <SRowGroup>
+        <RoutingRow
+          platform="Slack"
+          glyph="S"
+          present={hasAnyKey(snapshot.env, 'SLACK_')}
+          setting="adminChannel"
+          channel={typeof slackChannel === 'string' ? slackChannel : null}
+        />
+        <RoutingRow
+          platform="飞书"
+          glyph="飞"
+          present={hasAnyKey(snapshot.env, 'FEISHU_')}
+          setting="feishuAdminChannel"
+          channel={typeof feishuChannel === 'string' ? feishuChannel : null}
+        />
+      </SRowGroup>
+    </SSection>
   );
 }
 
@@ -168,20 +163,25 @@ function RoutingRow(props: {
   present: boolean;
   setting: 'adminChannel' | 'feishuAdminChannel';
   channel: string | null;
-  last?: boolean;
 }) {
   return (
-    <div style={{ ...ROW, gap: 10, borderBottom: props.last ? undefined : ROW.borderBottom }}>
-      <PlatformAvatar glyph={props.glyph} />
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{props.platform}</span>
-      <PresencePill present={props.present} />
-      <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>
-        {`settings.${props.setting}: `}
-        <span style={{ color: props.channel ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
-          {props.channel ?? '—'}
+    <SRow
+      title={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <PlatformAvatar glyph={props.glyph} />
+          {props.platform}
+          <PresencePill present={props.present} />
         </span>
-      </span>
-    </div>
+      }
+      control={
+        <span style={MONO_VALUE_STYLE}>
+          {`settings.${props.setting}: `}
+          <span style={{ color: props.channel ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
+            {props.channel ?? '—'}
+          </span>
+        </span>
+      }
+    />
   );
 }
 
@@ -191,22 +191,24 @@ const NOTICE_LEVEL_COLOR: Record<SystemNoticeEntry['level'], string> = {
   error: 'var(--pill-failed-fg)',
 };
 
-function NoticeRow({ entry, last }: { entry: SystemNoticeEntry; last: boolean }) {
+const NOTICE_BODY_STYLE: CSSProperties = {
+  font: `400 11.5px ${MONO}`, color: 'var(--proto-muted-2)', lineHeight: 1.55,
+  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+};
+
+function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
   return (
-    <div style={{ ...ROW, gap: 9, alignItems: 'flex-start', padding: '9px 14px',
-      borderBottom: last ? undefined : ROW.borderBottom }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', flex: 'none', marginTop: 5,
-        background: NOTICE_LEVEL_COLOR[entry.level] }} />
+    <div style={{ ...ROW_STYLE, gap: 10, alignItems: 'flex-start' }}>
+      <span style={{ display: 'flex', paddingTop: 5 }}>
+        <SDot color={NOTICE_LEVEL_COLOR[entry.level]} size={7} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {entry.title ? (
-          <div style={{ fontSize: 11, fontWeight: 650, color: 'var(--proto-ink)' }}>{entry.title}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{entry.title}</div>
         ) : null}
-        <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)', lineHeight: 1.55,
-          marginTop: entry.title ? 1 : 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {entry.text}
-        </div>
+        <div style={{ ...NOTICE_BODY_STYLE, marginTop: entry.title ? 3 : 0 }}>{entry.text}</div>
       </div>
-      <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', flex: 'none', marginTop: 2 }}>
+      <span style={{ ...MONO_VALUE_STYLE, color: 'var(--proto-faint)', paddingTop: 2 }}>
         {relativeAge(entry.ts)}
       </span>
     </div>
@@ -215,7 +217,7 @@ function NoticeRow({ entry, last }: { entry: SystemNoticeEntry; last: boolean })
 
 function NoticeNote({ text }: { text: string }) {
   return (
-    <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--proto-muted-3)' }}>{text}</div>
+    <div style={{ padding: '13px 16px', fontSize: 11.5, color: 'var(--proto-muted-3)' }}>{text}</div>
   );
 }
 
@@ -228,15 +230,14 @@ function RecentNotifications() {
     ? L.stRecentNotifRight.replace('{n}', String(cap))
     : L.stRecentNotifRightUnknown;
   return (
-    <SCard style={{ marginTop: 12 }}>
-      <SCardHeader title={L.stRecentNotifications} right={right} />
-      {error ? <NoticeNote text={L.stRecentNotifError} /> : null}
-      {!error && loading ? <NoticeNote text={L.stRecentNotifLoading} /> : null}
-      {!error && !loading && entries.length === 0 ? <NoticeNote text={L.stRecentNotifEmpty} /> : null}
-      {!error && entries.map((entry, i) => (
-        <NoticeRow key={entry.id} entry={entry} last={i === entries.length - 1} />
-      ))}
-    </SCard>
+    <SSection label={L.stRecentNotifications} action={<span style={MONO_VALUE_STYLE}>{right}</span>}>
+      <SRowGroup>
+        {error ? <NoticeNote text={L.stRecentNotifError} /> : null}
+        {!error && loading ? <NoticeNote text={L.stRecentNotifLoading} /> : null}
+        {!error && !loading && entries.length === 0 ? <NoticeNote text={L.stRecentNotifEmpty} /> : null}
+        {!error && entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}
+      </SRowGroup>
+    </SSection>
   );
 }
 
@@ -249,13 +250,13 @@ export function NotificationsPanelView({
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
 }) {
+  const L = useVocab();
   const settings = indexSettings(snapshot.settings);
   const thresholdEntry = getSetting(settings, 'turnNotifyThresholdS');
   const threshold = typeof thresholdEntry?.value === 'number' ? thresholdEntry.value : undefined;
   return (
     <>
-      <SCard><SettingsToggleList descriptors={NOTIFY_SETTINGS} settings={settings} pending={pending}
-        onToggle={onToggle} threshold={threshold} /></SCard>
+      <SRowGroup>{notifyRows({ settings, pending, onToggle, threshold, L })}</SRowGroup>
       <NotificationRouting snapshot={snapshot} settings={settings} />
       <RecentNotifications />
     </>
@@ -267,41 +268,46 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   return <NotificationsPanelView snapshot={snapshot} pending={write.pending} onToggle={write.onToggle} />;
 }
 
-function ReadOnlyEnvToggleRow({ snapshot, title, desc }: {
+/** DEBUG is read from the process env, so the row reports presence instead of offering a control. */
+function ReadOnlyEnvRow({ snapshot, title, desc }: {
   snapshot: ConfigSnapshot;
   title: string;
   desc: string;
 }) {
+  const L = useVocab();
   const present = indexEnv(snapshot.env).DEBUG?.present === true;
   return (
-    <div data-env-key="DEBUG" data-env-present={String(present)} data-writable="false" style={ROW}>
-      <Toggle on={present} inert />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{title}</div>
-        <div style={DESC}>{desc}</div>
-      </div>
-      <span style={KEY}>DEBUG</span>
-    </div>
+    <SRow
+      data-env-key="DEBUG"
+      data-env-present={String(present)}
+      data-writable="false"
+      title={title}
+      desc={desc}
+      control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
+    >
+      <KeyLine>DEBUG</KeyLine>
+    </SRow>
   );
 }
 
-function AdvancedToggleList(props: {
+function advancedFlagRows(args: {
   snapshot: ConfigSnapshot;
   settings: SettingsIndex;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
-}) {
-  const L = useVocab();
+  L: Vocab;
+}): ReactNode[] {
   return ADVANCED_FLAGS.map((flag) => {
     if (flag.kind === 'env') {
-      return <ReadOnlyEnvToggleRow key={flag.env} snapshot={props.snapshot}
-        title={L[flag.titleKey]} desc={L[flag.descKey]} />;
+      return <ReadOnlyEnvRow key={flag.env} snapshot={args.snapshot}
+        title={args.L[flag.titleKey]} desc={args.L[flag.descKey]} />;
     }
-    const entry = getSetting(props.settings, flag.setting);
+    const entry = getSetting(args.settings, flag.setting);
     return <RuntimeSettingToggleRow key={flag.setting} settingKey={flag.setting}
       value={typeof entry?.value === 'boolean' ? entry.value : false}
       source={typeof entry?.value === 'boolean' ? entry.source : null}
-      title={L[flag.titleKey]} desc={L[flag.descKey]} pending={props.pending} onToggle={props.onToggle} />;
+      title={args.L[flag.titleKey]} desc={args.L[flag.descKey]}
+      pending={args.pending} onToggle={args.onToggle} />;
   });
 }
 
@@ -310,16 +316,43 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
   const entry = getSetting(settings, 'taskDispatchMaxConcurrent');
   const value = typeof entry?.value === 'number' ? entry.value : entry?.value === null ? null : undefined;
   return (
-    <div data-setting-key="taskDispatchMaxConcurrent" data-setting-value={value === undefined ? 'missing' : String(value)} style={ROW}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{L.advConc}</div>
-        <div style={DESC}>{L.stAdvConcNote}</div>
-      </div>
-      <span style={{ font: `500 10.5px ${MONO}`, color: value === undefined ? 'var(--proto-faint)' : 'var(--proto-ink)',
-        border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', padding: '4px 11px' }}>
-        {typeof value === 'number' ? value : value === null ? L.stAuto : '—'}
-      </span>
-      <span style={KEY}>{`settings.taskDispatchMaxConcurrent · ${entry?.source ?? '—'}`}</span>
+    <SRow
+      data-setting-key="taskDispatchMaxConcurrent"
+      data-setting-value={value === undefined ? 'missing' : String(value)}
+      title={L.advConc}
+      desc={L.stAdvConcNote}
+      control={
+        <SPill tone="neutral" mono>
+          {typeof value === 'number' ? value : value === null ? L.stAuto : '—'}
+        </SPill>
+      }
+    >
+      <KeyLine>{`settings.taskDispatchMaxConcurrent · ${entry?.source ?? '—'}`}</KeyLine>
+    </SRow>
+  );
+}
+
+function NumberControl(props: {
+  descriptor: NumberSettingDescriptor;
+  draft: string;
+  canSave: boolean;
+  withinRange: boolean;
+  onDraft: (draft: string) => void;
+  onSave: () => void;
+}) {
+  const L = useVocab();
+  const invalidTitle = `${L[props.descriptor.invalidKey]} (${numberSettingRangeLabel(props.descriptor)})`;
+  return (
+    <div style={CONTROL_STRIP_STYLE}>
+      <input
+        data-number-input={props.descriptor.setting} type="number" step={1} value={props.draft}
+        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
+        style={NUMBER_INPUT} onChange={(event) => props.onDraft(event.target.value)}
+      />
+      <SButton tone="neutral" data-number-save={props.descriptor.setting} disabled={!props.canSave}
+        title={props.withinRange ? undefined : invalidTitle} onClick={props.onSave}>
+        {L.stBuiltinSave}
+      </SButton>
     </div>
   );
 }
@@ -334,44 +367,24 @@ function NumberSettingRow(props: {
   const entry = getSetting(props.settings, props.descriptor.setting);
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(() => (current === null ? '' : String(current)));
-  useEffect(() => {
-    setDraft(current === null ? '' : String(current));
-  }, [current]);
+  useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
   const nextValue = parseWholeNumber(draft);
   const withinRange = numberSettingValid(props.descriptor, nextValue);
   const canSave = current !== null && withinRange && nextValue !== current && !props.pending;
   return (
-    <div data-setting-key={props.descriptor.setting}
+    <SRow
+      data-setting-key={props.descriptor.setting}
       data-setting-value={current === null ? 'missing' : String(current)}
-      data-setting-source={entry?.source ?? 'missing'} style={ROW}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{L[props.descriptor.titleKey]}</div>
-        <div style={DESC}>{L[props.descriptor.descKey]}</div>
-      </div>
-      <input
-        data-number-input={props.descriptor.setting}
-        type="number"
-        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min}
-        max={props.descriptor.max}
-        step={1}
-        value={draft}
-        style={NUMBER_INPUT}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-      <button
-        data-number-save={props.descriptor.setting}
-        type="button"
-        disabled={!canSave}
-        style={DURATION_BUTTON}
-        title={!withinRange
-          ? `${L[props.descriptor.invalidKey]} (${numberSettingRangeLabel(props.descriptor)})`
-          : undefined}
-        onClick={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }}
-      >
-        {L.stBuiltinSave}
-      </button>
-      <span style={KEY}>{`settings.${props.descriptor.setting} · ${entry?.source ?? '—'}`}</span>
-    </div>
+      data-setting-source={entry?.source ?? 'missing'}
+      title={L[props.descriptor.titleKey]} desc={L[props.descriptor.descKey]}
+      control={
+        <NumberControl descriptor={props.descriptor} draft={draft} canSave={canSave}
+          withinRange={withinRange} onDraft={setDraft}
+          onSave={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }} />
+      }
+    >
+      <KeyLine>{`settings.${props.descriptor.setting} · ${entry?.source ?? '—'}`}</KeyLine>
+    </SRow>
   );
 }
 
@@ -386,25 +399,18 @@ function DurationFields(props: {
   const L = useVocab();
   return (
     <>
-      <span style={KEY}>{L.stBuiltinInterval}</span>
+      <span style={MONO_VALUE_STYLE}>{L.stBuiltinInterval}</span>
       <input type="number" min={1} value={props.draft.value} style={DURATION_INPUT}
         onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
       <Select
-        data-duration-unit={props.settingKey}
-        aria-label={L.stBuiltinInterval}
-        value={props.draft.unit}
-        options={([
-          { value: 'sec', label: 'sec' },
-          { value: 'min', label: 'min' },
-          { value: 'hr', label: 'hr' },
-        ] satisfies Array<{ value: DurationUnit; label: string }>)}
+        data-duration-unit={props.settingKey} aria-label={L.stBuiltinInterval} density="bare"
+        value={props.draft.unit} options={DURATION_UNITS} style={DURATION_SELECT}
         onValueChange={(unit) => props.onDraft({ ...props.draft, unit })}
-        style={DURATION_SELECT}
       />
-      <button type="button" disabled={!props.canSave} style={DURATION_BUTTON}
+      <SButton tone="neutral" disabled={!props.canSave}
         title={props.invalid ? L.stBuiltinInvalidInterval : undefined} onClick={props.onSave}>
         {L.stBuiltinSave}
-      </button>
+      </SButton>
     </>
   );
 }
@@ -428,7 +434,7 @@ function DurationControl(props: {
   return (
     <div data-setting-key={props.descriptor.interval}
       data-setting-value={currentMs === null ? 'missing' : String(currentMs)}
-      style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      style={CONTROL_STRIP_STYLE}>
       <DurationFields settingKey={props.descriptor.interval} draft={draft}
         canSave={canSave} invalid={nextMs === null} onDraft={setDraft} onSave={save} />
     </div>
@@ -449,20 +455,23 @@ function BuiltinJobRow(props: {
   const onClick = enabledEntry && !props.pending
     ? () => props.onToggle(props.descriptor.enabled, !enabled) : undefined;
   return (
-    <div data-setting-key={props.descriptor.enabled}
-      data-setting-value={enabledEntry ? String(enabled) : 'missing'} style={ROW}>
-      <Toggle on={enabled} onClick={onClick} inert={!onClick} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{L[props.descriptor.titleKey]}</div>
-        <div style={DESC}>{L[props.descriptor.descKey]}</div>
-      </div>
-      <DurationControl descriptor={props.descriptor} entry={intervalEntry}
-        pending={props.pending} onSet={props.onSet} />
-    </div>
+    <SRow
+      data-setting-key={props.descriptor.enabled}
+      data-setting-value={enabledEntry ? String(enabled) : 'missing'}
+      title={L[props.descriptor.titleKey]}
+      desc={L[props.descriptor.descKey]}
+      control={
+        <div style={CONTROL_STRIP_STYLE}>
+          <DurationControl descriptor={props.descriptor} entry={intervalEntry}
+            pending={props.pending} onSet={props.onSet} />
+          <Toggle on={enabled} onClick={onClick} inert={!onClick} />
+        </div>
+      }
+    />
   );
 }
 
-function BuiltinJobsCard(props: {
+function BuiltinJobsSection(props: {
   settings: SettingsIndex;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
@@ -470,13 +479,14 @@ function BuiltinJobsCard(props: {
 }) {
   const L = useVocab();
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-      <SCardHeader title={L.stBuiltinJobsTitle} />
-      {BUILTIN_JOB_SETTINGS.map((descriptor) => (
-        <BuiltinJobRow key={descriptor.enabled} descriptor={descriptor} settings={props.settings}
-          pending={props.pending} onToggle={props.onToggle} onSet={props.onSet} />
-      ))}
-    </SCard>
+    <SSection label={L.stBuiltinJobsTitle}>
+      <SRowGroup>
+        {BUILTIN_JOB_SETTINGS.map((descriptor) => (
+          <BuiltinJobRow key={descriptor.enabled} descriptor={descriptor} settings={props.settings}
+            pending={props.pending} onToggle={props.onToggle} onSet={props.onSet} />
+        ))}
+      </SRowGroup>
+    </SSection>
   );
 }
 
@@ -484,44 +494,40 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
   const present = indexEnv(snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
   return (
-    <div style={{ ...ROW, borderBottom: undefined }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={TITLE}>{L.stGpuMock}</div>
-        <div style={DESC}>{L.advMock}</div>
-      </div>
-      <span style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-faint)',
-        border: '1px dashed var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '4px 11px' }}>
-        {present ? L.stSet : '—'}
-      </span>
-      <span style={KEY}>CORTEX_GPU_MONITOR_MOCK</span>
-    </div>
+    <SRow
+      title={L.stGpuMock}
+      desc={L.advMock}
+      control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
+    >
+      <KeyLine>CORTEX_GPU_MONITOR_MOCK</KeyLine>
+    </SRow>
   );
 }
 
-export function AdvancedPanelView({
-  snapshot,
-  pending,
-  onToggle,
-  onSet,
-}: {
+interface AdvancedPanelViewProps {
   snapshot: ConfigSnapshot;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
   onSet: RuntimeSettingWriter['onSet'];
-}) {
+}
+
+export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: AdvancedPanelViewProps) {
+  const L = useVocab();
   const settings = indexSettings(snapshot.settings);
   return (
     <>
-      <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-        <AdvancedToggleList snapshot={snapshot} settings={settings} pending={pending} onToggle={onToggle} />
+      <SRowGroup>
+        {advancedFlagRows({ snapshot, settings, pending, onToggle, L })}
+      </SRowGroup>
+      <SRowGroup>
         {ADVANCED_NUMBER_SETTINGS.map((descriptor) => (
           <NumberSettingRow key={descriptor.setting} descriptor={descriptor} settings={settings}
             pending={pending} onSet={onSet} />
         ))}
         <ConcurrencyRow settings={settings} />
         <GpuMockRow snapshot={snapshot} />
-      </SCard>
-      <BuiltinJobsCard settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
+      </SRowGroup>
+      <BuiltinJobsSection settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
       <AppUpdateCard />
       <UiSignOutCard />
     </>
