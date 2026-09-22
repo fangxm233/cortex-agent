@@ -103,8 +103,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | session-run-status.ts | model | Build session run status state |
 | session-stats.ts | model | Build session stats state |
 | SessionIdModal.tsx | view | Render session id modal |
-| SessionSelector.test.tsx | test | Test session selector |
-| SessionSelector.tsx | view | Render session selector |
+| SessionSelector.test.tsx | test | Test selection changes and keyboard trigger |
+| SessionSelector.tsx | view | Render keyboard-accessible session selector |
 | SessionStatsModal.tsx | view | Render session stats modal |
 | SubagentBlock.test.tsx | test | Test subagent block |
 | SubagentBlock.tsx | view | Render subagent block |
@@ -118,7 +118,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | TodoRail.test.tsx | test | Test todo rail |
 | TodoRail.tsx | view | Render todo rail |
 | tool-call-overflow.ts | model | Build tool call overflow state |
-| ToolCallsRow.tsx | view | Render tool calls row |
+| ToolCallsRow.test.tsx | test | Test persistent tool expansion toggle |
+| ToolCallsRow.tsx | view | Render focus-preserving tool calls row |
 | transcript-vm.test.ts | test | Test transcript vm |
 | transcript-vm.ts | model | Build transcript vm state |
 | useAssistantDeltaStream.test.tsx | test | Test use assistant delta stream |

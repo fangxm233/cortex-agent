@@ -22,13 +22,13 @@ Mobile screens, readable presentation views and native service adapters.
 | MBudgetScreen.tsx | screen | Edit mobile budget limits |
 | m-chat-attachments.ts | hook | Persist mobile chat drafts and attachments |
 | MChatAttachments.tsx | view | Render chat attachments and upload controls |
-| MChatComposerPresentation.tsx | view | Render composer menus and accessory controls |
+| MChatComposerPresentation.tsx | view | Render dismissible menus and composer controls |
 | MChatInlineThreadCard.tsx | view | Render inline session thread links |
 | MChatMessageActions.tsx | UI | Provide chat copy, edit and long-press actions |
 | MChatScreen.optimistic.test.tsx | test | Test optimistic chat and run status |
 | MChatScreen.tsx | screen | Connect mobile chat state and actions |
-| MChatSheets.test.tsx | test | Test chat selection sheets |
-| MChatSheets.tsx | view | Render chat context and selection sheets |
+| MChatSheets.test.tsx | test | Test chat sheets and menu Escape dismissal |
+| MChatSheets.tsx | view | Render chat sheets and dismissible More menu |
 | MChatView.test.tsx | test | Test chat shortcuts and attachment actions |
 | MChatView.tsx | view | Render readable mobile chat and tool surfaces |
 | MChatView.types.ts | type | Define chat view props and localized copy |
