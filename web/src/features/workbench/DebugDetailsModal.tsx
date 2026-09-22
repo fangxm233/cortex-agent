@@ -84,7 +84,7 @@ export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'def
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`pointer-events-none ${sizeClass} rounded border border-proto-line-2 bg-proto-card font-mono text-proto-muted opacity-0 shadow-sm transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent/30 ${className}`}
+      className={`pointer-events-none ${sizeClass} rounded-[var(--r-chip)] bg-[var(--glass-2)] shadow-[shadow:var(--shadow-card-subtle),0_0_0_1px_var(--proto-line-2)] font-mono text-proto-muted opacity-0 transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent/30 ${className}`}
     >
       {'{ }'}
     </button>

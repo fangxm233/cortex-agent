@@ -57,7 +57,7 @@ const errorOverlayStyle: CSSProperties = {
 const removeStyle: CSSProperties = {
   position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%',
   background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', fontSize: 9, display: 'flex',
-  alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--proto-card)',
+  alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 1.5px var(--proto-card)',
   boxSizing: 'border-box', cursor: 'pointer',
 };
 const thumbStyle: CSSProperties = {
@@ -67,7 +67,7 @@ const thumbStyle: CSSProperties = {
 function mediaInnerStyle(a: AttachmentUploadItem, canPreview: boolean): CSSProperties {
   return {
     position: 'absolute', inset: 0, borderRadius: 'var(--r-chip)',
-    border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
+    boxShadow: `0 0 0 1px ${a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-line-2)'}`,
     background: a.previewUrl ? 'var(--media-stage-bg)' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
     boxSizing: 'border-box', overflow: 'hidden', cursor: canPreview ? 'pointer' : 'default',
   };
@@ -131,25 +131,26 @@ function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
 
 const fileBaseStyle: CSSProperties = {
   position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 54,
-  background: 'var(--proto-rail)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
+  background: 'var(--glass-2)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
 };
 const fileNameStyle: CSSProperties = {
-  font: `500 10.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140,
+  font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140,
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
 function fileChipStyle(a: AttachmentUploadItem, preview: boolean): CSSProperties {
+  const ring = a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-line-2)';
   return {
     ...fileBaseStyle,
-    border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
+    boxShadow: `var(--shadow-card-subtle), 0 0 0 1px ${ring}`,
     cursor: preview ? 'pointer' : 'default',
   };
 }
 
 function FileIcon({ model }: { model: ChipModel }): JSX.Element {
   const style: CSSProperties = {
-    width: 26, height: 32, borderRadius: 5, background: model.colors.bg, color: model.colors.fg,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 8px ${mono}`, flex: 'none',
+    width: 26, height: 32, borderRadius: 'var(--r-chip)', background: model.colors.bg, color: model.colors.fg,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 9px ${mono}`, flex: 'none',
   };
   return <span style={style}>{model.ext}</span>;
 }
@@ -179,7 +180,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
         <span
           role={a.status === 'error' ? 'button' : undefined}
           onClick={a.status === 'error' ? (event) => { event.stopPropagation(); onRetry(a.id); } : undefined}
-          style={{ font: `400 9px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
+          style={{ font: `400 10.5px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
         >{fileStatus(a)}</span>
       </span>
       <RemoveButton id={a.id} onRemove={onRemove} />

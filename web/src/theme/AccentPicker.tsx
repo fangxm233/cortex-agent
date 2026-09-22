@@ -84,11 +84,13 @@ function HueSlider({ hue, copy, onChange }: {
   const thumbStyle: CSSProperties = {
     position: 'absolute', top: 0, left: `calc(${(value / 359) * 100}% - 7px)`,
     width: 14, height: 14, borderRadius: '50%', background: 'var(--accent-main)',
-    border: '2px solid var(--proto-card)', boxShadow: 'var(--shadow-switch-thumb)', pointerEvents: 'none',
+    // Inset: the thumb's `left` offset is computed against a 14px box, so the ring has to stay
+    // inside it the way the border it replaces did.
+    boxShadow: 'var(--shadow-switch-thumb), inset 0 0 0 2px var(--proto-card)', pointerEvents: 'none',
   };
   return (
     <div style={{ position: 'relative', height: 14, marginTop: 8 }}>
-      <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 999, background: 'var(--accent-spectrum)' }} />
+      <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--accent-spectrum)' }} />
       <span style={thumbStyle} />
       <input
         type="range" min={0} max={359} value={value}

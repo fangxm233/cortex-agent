@@ -32,7 +32,7 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
           <span style={{ marginLeft: 'auto', color: 'var(--proto-muted-3)' }}>›</span>
         </div>
         {subOpen && (
-          <div style={{ ...panelStyle, position: 'absolute', left: '100%', top: -5, minWidth: 168 }}>
+          <div style={{ ...submenuStyle, position: 'absolute', left: '100%', top: -5, minWidth: 168 }}>
             {node.items.map((child, index) => (
               <ItemRow key={child.kind === 'item' ? child.id : `sep-${index}`} node={child} onRun={onRun} />
             ))}
@@ -74,7 +74,7 @@ function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
     gap: 10,
     height: 27,
     padding: '0 9px',
-    borderRadius: 6,
+    borderRadius: 'var(--r-chip)',
     fontSize: 12.5,
     whiteSpace: 'nowrap',
     cursor: disabled ? 'default' : 'pointer',
@@ -83,15 +83,28 @@ function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
   };
 }
 
-const panelStyle: React.CSSProperties = {
-  background: 'var(--proto-card)',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 10,
-  boxShadow: 'var(--shadow-menu-strong)',
+const panelBase: React.CSSProperties = {
+  borderRadius: 'var(--r-float)',
+  boxShadow: 'var(--shadow-menu-strong), 0 0 0 1px var(--proto-line-2)',
   padding: 5,
   minWidth: 238,
   zIndex: 60,
 };
+
+// A floating glass sheet, like `design/Popover`: `--glass-2` over its own backdrop filter, with the
+// hairline ring carried by the shadow so the panel keeps its exact geometry over the blur. Unlike
+// `MenuChrome`'s opaque panel this one never scrolls, so the backdrop is sampled once per open.
+const panelStyle: React.CSSProperties = {
+  ...panelBase,
+  background: 'var(--glass-2)',
+  backdropFilter: 'var(--glass-filter)',
+  WebkitBackdropFilter: 'var(--glass-filter)',
+};
+
+// A submenu opens beside its parent, i.e. outside the parent's painted box but still inside the
+// backdrop root that parent's filter creates — so its own `backdrop-filter` would sample nothing
+// and leave bare translucency over live text. It stays opaque instead, like `MenuChrome`.
+const submenuStyle: React.CSSProperties = { ...panelBase, background: 'var(--proto-card)' };
 
 export function MenuBar({ menus }: { menus: MenuDef[] }): JSX.Element {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -128,7 +141,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }): JSX.Element {
                 height: BAR_ITEM_HEIGHT,
                 padding: '0 11px',
                 border: 0,
-                borderRadius: 7,
+                borderRadius: 'var(--r-chip)',
                 fontFamily: 'inherit',
                 fontSize: 13,
                 cursor: 'pointer',

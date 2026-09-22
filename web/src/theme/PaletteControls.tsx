@@ -45,10 +45,10 @@ function PresetChip({ preset, label, active, onPick }: {
       aria-pressed={active}
       onClick={() => onPick(preset.id)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-        padding: '4px 9px 4px 5px', borderRadius: 999, font: 'inherit', fontSize: 11, fontWeight: 600,
+        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', border: 0,
+        padding: '4px 9px 4px 5px', borderRadius: 'var(--r-pill)', font: 'inherit', fontSize: 11, fontWeight: 600,
         background: active ? 'var(--proto-accent-bg)' : 'var(--proto-gray)',
-        border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
+        boxShadow: `0 0 0 1px ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
         color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
       }}
     >
@@ -57,7 +57,7 @@ function PresetChip({ preset, label, active, onPick }: {
         data-preset-swatch
         style={{
           ...swatchVars(preset), width: 18, height: 18, borderRadius: '50%', flex: 'none',
-          border: '1px solid var(--proto-line-3)',
+          boxShadow: '0 0 0 1px var(--proto-line-3)',
         }}
       />
       {label}
@@ -81,8 +81,10 @@ function PresetRow({ copy, activePreset, onPickPreset, onReset }: {
         <button
           type="button" data-palette-reset onClick={onReset}
           style={{
-            marginLeft: 'auto', border: 0, padding: 0, background: 'transparent',
-            color: 'var(--proto-muted-2)', fontSize: 10, cursor: 'pointer', font: 'inherit',
+            // `font` must come first: as a shorthand it resets `font-size`, so declaring it after
+            // the size silently threw the size away and this action rendered at the body scale.
+            font: 'inherit', marginLeft: 'auto', border: 0, padding: 0, background: 'transparent',
+            color: 'var(--proto-accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}
         >
           {copy.reset}
@@ -125,13 +127,15 @@ function ParamSlider({ paramKey, label, value, onChange }: {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <span style={{ fontSize: 11, color: 'var(--proto-muted-2)', flex: 'none', width: 34 }}>{label}</span>
       <div style={{ position: 'relative', height: 14, flex: 1, minWidth: 0 }}>
-        <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 999, background: TRACKS[paramKey] }} />
+        <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 'var(--r-pill)', background: TRACKS[paramKey] }} />
         <span
           aria-hidden
           style={{
             position: 'absolute', top: 0, left: `calc(${ratio * 100}% - 7px)`,
             width: 14, height: 14, borderRadius: '50%', background: 'var(--proto-card)',
-            border: '2px solid var(--proto-ink)', boxShadow: 'var(--shadow-switch-thumb)',
+            // Inset: the thumb's `left` offset is computed against a 14px box, so the ring has to
+            // stay inside it the way the border it replaces did.
+            boxShadow: 'var(--shadow-switch-thumb), inset 0 0 0 2px var(--proto-ink)',
             pointerEvents: 'none',
           }}
         />
