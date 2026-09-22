@@ -37,6 +37,7 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
+import { glassPanelStyle } from '@/shell/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { usePaneState } from '@/shell/PaneStateProvider';
 import { useShellModals } from '@/shell/ShellModalsProvider';
@@ -117,7 +118,7 @@ function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string
           height: 9,
           borderRadius: '50%',
           background: dot.color,
-          border: '2px solid var(--proto-rail)',
+          border: '2px solid var(--glass-1)',
           ...(dot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
         }}
       />
@@ -552,10 +553,8 @@ export function LeftRail(): JSX.Element {
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--proto-rail)',
-        borderRight: '1px solid var(--proto-line)',
         minHeight: 0,
-        overflow: 'hidden',
+        ...glassPanelStyle,
       }}
     >
       {collapsed && renderCollapsedRail()}

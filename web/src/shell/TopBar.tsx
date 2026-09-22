@@ -95,8 +95,10 @@ export function TopBar(): JSX.Element {
     flex: 'none',
     display: windowActions.isFullscreen ? 'none' : 'flex',
     alignItems: 'center',
-    background: 'var(--proto-rail)',
-    borderBottom: '1px solid var(--proto-line)',
+    // Transparent on purpose: the bar is a strip of the mesh ground, not a panel. Its buttons are
+    // the only marks on it, so the panes below read as floating rather than as a docked layout with
+    // a header. Nothing here needs a divider — the gap under the bar does that job.
+    background: 'transparent',
   };
 
   return (

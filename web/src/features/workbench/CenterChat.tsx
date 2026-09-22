@@ -205,7 +205,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--proto-card)',
+        // No background of its own: the transcript reads directly on the workspace pane's glass,
+        // which is what makes the chat feel like it is on the ground rather than in a white box.
         minHeight: 0,
       }}
     >
