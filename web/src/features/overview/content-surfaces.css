@@ -14,8 +14,8 @@
   border-radius: var(--r-control);
   -webkit-tap-highlight-color: transparent;
 }
-.content-surface:is(button, [role='button']):not(:disabled):hover,
-.content-surface :where(button, a, [role='button']):not(:disabled):hover {
+.content-surface a:hover,
+.content-surface .content-text-action:not(:disabled):hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }

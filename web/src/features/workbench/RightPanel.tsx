@@ -1,6 +1,6 @@
 // input:  pane state, thread/task/machine resources, vocab
 // output: RightPanel
-// pos:    Glass context drawer with readable tabs and empty states
+// pos:    Context drawer with steady readable count badges
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -108,7 +108,7 @@ function PanelRailButton({ target, label, active, count = 0, pulse, onClick }: {
             justifyContent: 'center',
             background: 'var(--proto-accent)',
             color: 'var(--ink-solid-fg)',
-            ...(pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+            ...(pulse ? { animation: 'cxglow 1.6s ease-in-out infinite' } : {}),
           }}
         >
           {count}

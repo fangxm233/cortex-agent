@@ -58,12 +58,12 @@ Settings panels, shared controls, configuration writers and view models.
 | RuntimeSettingsPanels.tsx | view | Render runtime controls and readable status |
 | runtime-settings-writer.test.tsx | test | Test runtime setting commits |
 | runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
-| settings-kit.tsx | UI | Provide wrapping settings rows and controls |
+| settings-kit.tsx | UI | Provide readable settings rows and controls |
 | SettingsModal.tsx | entry | Render readable navigation and guarded sections |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
-| settings-style.css | style | Style controls, scrolling and adaptive layouts |
+| settings-style.css | style | Style readable controls and adaptive layouts |
 | settings-portals.css | style | Style settings dropdown and dialog portals |
 | settings-ui.tsx | UI | Provide settings form primitives |
 | TemplateDetailPane.tsx | view | Edit template details and assignments |

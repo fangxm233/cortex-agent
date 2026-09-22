@@ -119,7 +119,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                     borderRadius: 'var(--r-pill)',
                     // Amber, not accent: this is the pending-approvals count — the app's「需要你」colour.
                     background: 'var(--proto-amber)',
-                    color: 'var(--ink-solid-fg)',
+                    color: 'var(--amber-fill-fg)',
                     font: `600 11px ${MONO}`,
                     display: 'inline-flex',
                     alignItems: 'center',

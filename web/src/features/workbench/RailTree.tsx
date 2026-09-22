@@ -1,6 +1,6 @@
 // input:  rail-tree, rail-order, vocab, ProjectFolderIcon
 // output: RailTree
-// pos:    Dense project tree with opaque sticky project headers
+// pos:    Opaque project headers and readable attention badges
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
@@ -652,9 +652,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   borderRadius: 'var(--r-pill)',
                   background:
                     node.attentionTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                  // Not a hardcoded white: --ink-solid-fg flips with the theme, so the digit stays
-                  // legible on both fills in light and dark.
-                  color: 'var(--ink-solid-fg)',
+                  // Amber stays a light fill in both themes and needs a dark foreground.
+                  color: node.attentionTone === 'action' ? 'var(--amber-fill-fg)' : 'var(--ink-solid-fg)',
                   font: `600 11px ${mono}`,
                   display: 'inline-flex',
                   alignItems: 'center',

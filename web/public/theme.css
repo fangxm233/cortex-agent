@@ -83,8 +83,9 @@
   --proto-accent-2: var(--accent-mid);
   --proto-accent-strong: var(--accent-strong);
   --proto-amber: #c99a2e;
+  --amber-fill-fg: #241b0b;
   --proto-amber-fg: #8a5b06;
-  --proto-amber-text: #a96b0b;
+  --proto-amber-text: #98600a;
   --proto-amber-bg: #fdf9f0;
   --proto-amber-border: #efddb0;
   --proto-amber-accent: #c0a96e;
@@ -255,7 +256,7 @@
   --m-run-border: var(--accent-border);
   --m-amber: #c99a2e;
   --m-amber-ink: #8a5b06;
-  --m-amber-text: #a96b0b;
+  --m-amber-text: var(--proto-amber-text);
   --m-amber-bg: #f7ecce;
   --m-amber-border: #efddb0;
   --m-amber-card: #fdf9f0;
@@ -355,7 +356,7 @@
   --state-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
 
   --pill-running-bg: var(--accent-soft);
-  --pill-running-fg: var(--accent-main);
+  --pill-running-fg: color-mix(in srgb, var(--accent-main) 85%, var(--proto-ink) 15%);
   --pill-waiting-bg: rgba(201, 154, 46, 0.16);
   --pill-waiting-fg: #e2b95b;
   --pill-done-bg: rgba(76, 175, 125, 0.15);

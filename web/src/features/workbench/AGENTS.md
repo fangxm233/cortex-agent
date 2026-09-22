@@ -48,10 +48,11 @@ Desktop conversations, composer controls, session navigation and context panels.
 | InlineThreadCardProto.tsx | view | Render inline thread card proto |
 | interaction-vm.test.ts | test | Test interaction vm |
 | interaction-vm.ts | model | Build interaction vm state |
+| InteractionCards.test.tsx | test | Test interaction controls and readable metadata |
 | InteractionCards.tsx | view | Render questions and plan approvals |
 | left-rail-projects.test.ts | test | Test left rail projects |
 | left-rail-projects.ts | model | Build left rail projects state |
-| LeftRail.tsx | view | Render left rail |
+| LeftRail.tsx | view | Render navigation and readable attention counts |
 | MenuChrome.tsx | view | Render composer picker cards and rows |
 | MessageAttachmentCards.tsx | view | Render message attachment cards |
 | MessageEdit.tsx | view | Render message actions and inline editing |
@@ -74,13 +75,13 @@ Desktop conversations, composer controls, session navigation and context panels.
 | rail-tree.test.ts | test | Test rail tree |
 | rail-tree.ts | model | Build rail tree state |
 | RailTree.commission.test.tsx | test | Test rail tree.commission |
-| RailTree.tsx | view | Render project, session and schedule tree |
+| RailTree.tsx | view | Render opaque headers and readable attention |
 | reveal-pacing.test.ts | test | Test reveal pacing |
 | reveal-pacing.ts | model | Build reveal pacing state |
 | right-panel-vm.test.ts | test | Test right panel vm |
 | right-panel-vm.ts | model | Build right panel vm state |
 | RightMachinesTab.tsx | view | Render right machines tab |
-| RightPanel.tsx | view | Compose context tabs and cost summary |
+| RightPanel.tsx | view | Render context tabs and steady count badges |
 | RightThreadCard.test.tsx | test | Test right thread card |
 | RightThreadCard.tsx | view | Render right thread card |
 | RunListModal.tsx | view | Render run list modal |

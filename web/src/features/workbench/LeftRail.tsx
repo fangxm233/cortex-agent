@@ -1,3 +1,7 @@
+// input:  project/session resources, router, pane state
+// output: LeftRail, BrandBadge, GearIcon
+// pos:    Project navigation with readable attention counts
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -515,7 +519,7 @@ export function LeftRail(): JSX.Element {
           background="var(--proto-amber-bg)"
           onClick={() => approvals.open()}
         >
-          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--amber-fill-fg)', font: `600 11px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             {pendingCount}
           </span>
         </RailIconButton>
@@ -571,7 +575,7 @@ export function LeftRail(): JSX.Element {
           >
             <PlusGlyph size={13} />
             {L.wbNewSession}
-            <span style={{ position: 'absolute', right: 11, font: `500 9.5px ${mono}`, color: 'var(--ink-solid-fg-dim)' }}>⌘N</span>
+            <span style={{ position: 'absolute', right: 11, font: `500 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>⌘N</span>
           </div>
         </div>
 
