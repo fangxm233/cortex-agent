@@ -50,7 +50,8 @@ Settings panels, shared controls, configuration writers and view models.
 | PluginsPanel.tsx | view | Browse and manage plugins |
 | plugins-panel-vm.ts | model | Filter plugins and resolve usage and selection |
 | plugin-ui.tsx | UI | Render plugin metadata and status summaries |
-| ProfilesPanel.tsx | view | Browse and edit agent profiles |
+| ProfilesPanel.tsx | view | Browse and edit responsive agent profile rows |
+| ProfilesPanel.test.tsx | test | Check profile labels and action availability |
 | profiles-panel-vm.test.ts | test | Test profile form transitions and validation |
 | profiles-panel-vm.ts | model | Build profile forms and validation rules |
 | RuntimeSettingsPanels.test.tsx | test | Test runtime controls and save gates |
@@ -62,7 +63,7 @@ Settings panels, shared controls, configuration writers and view models.
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
 | SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
-| settings-style.css | style | Style shared settings controls and layouts |
+| settings-style.css | style | Style controls, scrolling and adaptive layouts |
 | settings-portals.css | style | Style settings dropdown and dialog portals |
 | settings-ui.tsx | UI | Provide settings form primitives |
 | TemplateDetailPane.tsx | view | Edit template details and assignments |
