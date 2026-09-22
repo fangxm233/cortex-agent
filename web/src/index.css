@@ -8,6 +8,12 @@
 
 /* Shared light/dark color tokens live in public/theme.css so the SPA and native shell use one source. */
 
+input::placeholder,
+textarea::placeholder {
+  color: var(--proto-muted-3);
+  opacity: 1;
+}
+
 /*
  * Prototype 1:1 base (design §8.6 RA / task 6d21).
  * The reset + the 16 `cx*` keyframes are copied VERBATIM from the prototype

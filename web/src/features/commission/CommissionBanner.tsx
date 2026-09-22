@@ -64,7 +64,7 @@ export function CommissionBanner({ commissionId }: { commissionId: string }): JS
       }}
     >
       <svg width={12} height={12} viewBox="0 0 14 14" fill="none" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}
-        stroke={gateCount > 0 ? 'var(--proto-amber)' : active ? 'var(--proto-accent)' : 'var(--proto-muted)'}>
+        stroke={gateCount > 0 ? 'var(--proto-amber-fg)' : active ? 'var(--proto-accent)' : 'var(--proto-muted)'}>
         <path d="M3.7 1.9v10.2" />
         <path d="M3.7 2.7h6.8L9.1 5l1.4 2.3H3.7z" />
       </svg>
@@ -77,7 +77,7 @@ export function CommissionBanner({ commissionId }: { commissionId: string }): JS
         </span>
       )}
       {gateCount > 0 && (
-        <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-amber)', flex: 'none' }}>
+        <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-amber-fg)', flex: 'none' }}>
           {L.wbCommissionGateCount.replace('{n}', String(gateCount))}
         </span>
       )}

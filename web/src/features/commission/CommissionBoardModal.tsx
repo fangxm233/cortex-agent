@@ -86,7 +86,7 @@ function ActionButton({ label, tone, disabled, onClick }: {
         opacity: disabled ? 0.5 : 1,
         background: hover && !disabled ? 'var(--proto-gray)' : 'var(--material-control-bg)',
         boxShadow: 'var(--material-control-shadow)',
-        color: tone === 'danger' ? 'var(--proto-amber)' : 'var(--proto-ink-2)',
+        color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)',
       }}
     >
       {label}
@@ -285,7 +285,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
                       background: 'var(--proto-amber-bg, var(--proto-gray))', color: 'var(--proto-ink)',
                     }}
                   >
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber-fg)', flex: 'none' }} />
                     <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {s.label ?? s.name ?? s.sessionId}
                     </span>

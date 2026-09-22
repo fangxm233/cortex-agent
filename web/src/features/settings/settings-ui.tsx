@@ -83,7 +83,7 @@ function toggleVisualState(on: boolean, inert?: boolean): CSSProperties {
   return {
     // Off is `--proto-line-3`, not `--proto-line`: the track has to stay visible as a shape on a
     // translucent card, where the fainter tint disappears into the pane.
-    background: on ? 'var(--proto-accent)' : 'var(--proto-line-3)',
+    backgroundColor: on ? 'var(--proto-accent)' : 'var(--proto-line-3)',
     backgroundImage: 'var(--material-sheen)',
     opacity: inert ? 0.85 : 1,
   };
@@ -111,7 +111,7 @@ function toggleStyle(
 function knobStyle(on: boolean): CSSProperties {
   return {
     position: 'absolute', top: 3, left: on ? 17 : 3, width: 16, height: 16,
-    borderRadius: '50%', background: 'var(--ink-solid-fg)', boxShadow: 'var(--material-control-shadow)',
+    borderRadius: '50%', background: on ? 'var(--ink-solid-fg)' : 'var(--proto-ink)', boxShadow: 'var(--material-control-shadow)',
     transition: 'left .15s',
   };
 }
@@ -227,11 +227,11 @@ const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperti
   // Accent is the primary fill; secondary actions share the quiet control surface.
   accent: {
     base: {
-      color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)',
+      color: 'var(--ink-solid-fg)', backgroundColor: 'var(--proto-accent)',
       backgroundImage: 'var(--material-sheen)',
       border: '1px solid transparent', boxShadow: 'var(--material-control-shadow)',
     },
-    hover: { background: 'var(--proto-accent-strong)' },
+    hover: { backgroundColor: 'var(--proto-accent-strong)' },
   },
   danger: {
     base: { color: 'var(--proto-danger)', background: 'var(--settings-control-fill, var(--material-control-bg))', border: '1px solid var(--proto-danger-bg)', boxShadow: 'var(--material-control-shadow)' },

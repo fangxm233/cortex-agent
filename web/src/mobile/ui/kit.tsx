@@ -285,7 +285,7 @@ export type PillTone = Tone;
 const PILL: Record<PillTone, { bg: string; fg: string }> = {
   running: { bg: MC.runBg, fg: MC.run },
   waiting: { bg: MC.amberBg, fg: MC.amberInk },
-  done: { bg: MC.doneBg, fg: MC.done },
+  done: { bg: MC.doneBg, fg: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
   failed: { bg: MC.failBg, fg: MC.fail },
   cancelled: { bg: MC.gray, fg: MC.grayInk },
 };

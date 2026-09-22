@@ -63,7 +63,7 @@ function actionLabel(kind: DecisionActionKind, L: Vocab): string {
 
 function DecBadge({ L }: { L: Vocab }): JSX.Element {
   return (
-    <span style={{ font: `600 11px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+    <span style={{ font: `600 11px ${mono}`, letterSpacing: '.06em', color: 'var(--pill-running-fg)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
       {L.wbDecBadge}
     </span>
   );

@@ -153,7 +153,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
       <div style={{ padding: '12px 14px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7 }}>
           {pending ? (
-            <Pill bg={tone ? tone.bg : MC.runBg} fg={tone ? tone.fg : MC.run} text={total > 1 ? `${copy.askPill} · ${Math.min(cur + 1, total)}/${total}` : copy.askPill} />
+            <Pill bg={tone ? tone.bg : MC.runBg} fg={tone ? tone.fg : 'var(--pill-running-fg)'} text={total > 1 ? `${copy.askPill} · ${Math.min(cur + 1, total)}/${total}` : copy.askPill} />
           ) : (
             <Pill bg={MC.doneBg} fg={MC.done} text={copy.answeredPill} />
           )}

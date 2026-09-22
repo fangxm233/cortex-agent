@@ -660,7 +660,7 @@ export function Composer({
                       border: 'none',
                       outline: 'none',
                       resize: 'none',
-                      background: 'var(--material-inset-bg)',
+                      background: 'transparent',
                       maxHeight: COMPOSER_MAX_HEIGHT,
                       overflowY: 'auto',
                     }}

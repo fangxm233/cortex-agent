@@ -111,15 +111,15 @@
   height: 26px;
   padding: 3px;
   border-radius: 999px;
-  background: var(--proto-line-3);
+  background-color: var(--proto-line-3);
   background-image: var(--material-sheen);
 }
 .mobile-settings-toggle[aria-checked="true"] .mobile-settings-toggle-track {
   justify-content: flex-end;
-  background: var(--proto-accent);
-  background-image: var(--material-sheen);
+  background-color: var(--proto-accent);
 }
-.mobile-settings-toggle-track > span { width: 20px; height: 20px; border-radius: 50%; background: var(--ink-solid-fg); box-shadow: var(--material-control-shadow); }
+.mobile-settings-toggle-track > span { width: 20px; height: 20px; border-radius: 50%; background: var(--proto-ink); box-shadow: var(--material-control-shadow); }
+.mobile-settings-toggle[aria-checked="true"] .mobile-settings-toggle-track > span { background: var(--ink-solid-fg); }
 
 .mobile-settings-sheet { position: absolute; inset: 0; z-index: 10; }
 .mobile-settings-sheet [data-mobile-sheet-scroll] { padding: 2px; }

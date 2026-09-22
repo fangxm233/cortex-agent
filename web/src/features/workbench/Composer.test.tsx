@@ -150,10 +150,11 @@ function enterCommand(renderer: ReactTestRenderer, command: string): void {
 }
 
 describe('Composer material', () => {
-  it('keeps the input stable on a filter-free card', () => {
+  it('shares the filter-free card material through a transparent input', () => {
     const tree = mountComposer(vi.fn());
     const input = tree.root.findByProps({ 'data-composer-input': true });
-    expect(input.props.style.background).toBe('var(--material-inset-bg)');
+    expect(input.props.style.background).toBe('transparent');
+    expect(input.props.style.color).toBe('var(--proto-ink)');
     const card = tree.root.find((node) => node.props.style?.background === 'var(--material-card-bg)');
     expect(card.props.style.backdropFilter).toBeUndefined();
     expect(card.props.style.boxShadow).toContain('var(--material-card-shadow)');
