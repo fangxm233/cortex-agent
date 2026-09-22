@@ -1,5 +1,5 @@
 // input:  hook view-model, settings atoms
-// output: hook detail, declaration form and test runner
+// output: hook detail, test controls and stable log surfaces
 // pos:    Responsive detail pane for desktop hooks
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -106,10 +106,10 @@ function ReadOnlyDeclaration({ hook }: { hook: HookDetail }) {
 
 // ── the test runner ───────────────────────────────────────────────────────────────────────────
 
-// Output, not input, but still code: opaque so the mesh never shows through a stack trace.
+// The log stays sealed while its frame and toolbar share the card material.
 const RESULT_CARD_STYLE: CSSProperties = {
-  marginTop: 10, background: 'var(--proto-card)', borderRadius: 'var(--r-control)',
-  boxShadow: 'none', overflow: 'hidden',
+  marginTop: 10, background: 'var(--material-card-bg)', borderRadius: 'var(--r-control)',
+  boxShadow: 'var(--material-card-shadow)', overflow: 'hidden',
 };
 
 function TestStream({ label, text, tone }: { label: string; text: string; tone?: 'danger' }) {
@@ -118,7 +118,7 @@ function TestStream({ label, text, tone }: { label: string; text: string; tone?:
   const color = empty ? 'var(--proto-muted-3)'
     : tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)';
   return (
-    <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px' }}>
+    <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px', background: 'var(--proto-card)' }}>
       <div style={{ font: `600 12px ${MONO}`, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
       <pre style={{
         margin: 0, font: `400 12px/1.65 ${MONO}`, color, whiteSpace: 'pre-wrap',
@@ -135,7 +135,7 @@ function TestResult({ result }: { result: HooksTestReturn }) {
     <div data-hook-test-result="" style={RESULT_CARD_STYLE}>
       <div style={{
         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px',
-        background: 'var(--proto-alt)', overflowWrap: 'anywhere', font: `500 12px ${MONO}`, color: 'var(--proto-muted)',
+        background: 'var(--material-inset-bg)', overflowWrap: 'anywhere', font: `500 12px ${MONO}`, color: 'var(--proto-muted)',
       }}>
         <span
           data-hook-test-exit={result.exitCode === null ? '' : String(result.exitCode)}
@@ -178,7 +178,7 @@ function PayloadField({ payload, error, onPayloadChange }: {
         value={payload}
         onChange={(e) => onPayloadChange(e.target.value)}
         rows={6}
-        style={{ ...(error ? CONTROL_ERROR_STYLE : S_CONTROL_STYLE), fontFamily: MONO, height: 'auto', resize: 'vertical', lineHeight: 1.6 }}
+        style={{ ...(error ? CONTROL_ERROR_STYLE : S_CONTROL_STYLE), background: 'var(--proto-card)', fontFamily: MONO, height: 'auto', resize: 'vertical', lineHeight: 1.6 }}
       />
       {error ? (
         <div data-hook-payload-error="" style={{ fontSize: 12, color: 'var(--proto-danger)', marginTop: 4 }}>

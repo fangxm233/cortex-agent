@@ -1,5 +1,5 @@
 // input:  skill queries, authoring actions, settings atoms
-// output: skill list, source editor and nested dialogs
+// output: skill list, stable source editor and glass dialogs
 // pos:    Responsive desktop plugin skills tab
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -16,7 +16,8 @@ import type { PluginAuthoringActions } from './usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const EDITOR: CSSProperties = {
-  ...S_CONTROL_STYLE, fontFamily: MONO, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre', overflowX: 'auto',
+  ...S_CONTROL_STYLE, background: 'var(--proto-card)',
+  fontFamily: MONO, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre', overflowX: 'auto',
 };
 const ACTIONS: CSSProperties = { display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' };
 const PATH_LINE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere', minWidth: 0 };

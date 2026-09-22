@@ -22,7 +22,7 @@ Settings panels, shared controls, configuration writers and view models.
 | custom-provider-vm.test.ts | test | Test custom provider drafts and validation |
 | custom-provider-vm.ts | model | Validate and build custom provider drafts |
 | desktop-panels.css | style | Style adaptive panels and retain glass stats |
-| HookDetailPane.tsx | view | Show hook details and test controls |
+| HookDetailPane.tsx | view | Show hook details, glass controls and stable logs |
 | HookEditorForm.tsx | view | Edit hook trigger, action and scope |
 | HooksPanel.tsx | view | Browse and manage hooks |
 | hooks-panel-vm.test.ts | test | Test hook filtering and editor rules |
@@ -45,7 +45,7 @@ Settings panels, shared controls, configuration writers and view models.
 | plugin-authoring-vm.test.ts | test | Test plugin authoring draft validation |
 | plugin-authoring-vm.ts | model | Build and validate MCP server drafts |
 | PluginMcpTab.tsx | view | Edit plugin MCP servers |
-| PluginSkillsTab.tsx | view | Browse and edit plugin skills |
+| PluginSkillsTab.tsx | view | Browse skills with sealed source editors |
 | PluginsPanel.container.test.tsx | test | Test plugin lifecycle and skill editing |
 | PluginsPanel.tsx | view | Browse and manage plugins |
 | plugins-panel-vm.ts | model | Filter plugins and resolve usage and selection |
@@ -66,7 +66,7 @@ Settings panels, shared controls, configuration writers and view models.
 | settings-style.css | style | Apply shared card and control materials |
 | settings-portals.css | style | Style glass dropdown and nested dialog portals |
 | settings-ui.tsx | UI | Provide glass cards and stable form controls |
-| TemplateDetailPane.tsx | view | Edit template details and assignments |
+| TemplateDetailPane.tsx | view | Edit sealed template source and assignments |
 | TemplatesPanel.tsx | view | Browse and manage thread templates |
 | templates-panel-vm.test.ts | test | Test template filtering and editor save gates |
 | templates-panel-vm.ts | model | Build template filters and editor state |

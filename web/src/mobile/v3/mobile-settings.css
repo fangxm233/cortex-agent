@@ -1,12 +1,11 @@
-/* input: shared settings tokens, mobile Settings markup */
-/* output: scoped mobile Settings layout and touch styles */
+/* input: shared settings material tokens, mobile Settings markup */
+/* output: compact glass mobile Settings and touch styles */
 /* pos: mobile Settings-only presentation overrides */
 /* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
 .settings-surface.mobile-settings {
   --settings-control-height: 44px;
   --settings-input-size: 16px;
-  --settings-card-fill: var(--m-card);
   --r-card: var(--settings-card-radius);
   --r-control: var(--settings-control-radius);
   --r-chip: var(--settings-control-radius);
@@ -113,12 +112,14 @@
   padding: 3px;
   border-radius: 999px;
   background: var(--proto-line-3);
+  background-image: var(--material-sheen);
 }
 .mobile-settings-toggle[aria-checked="true"] .mobile-settings-toggle-track {
   justify-content: flex-end;
   background: var(--proto-accent);
+  background-image: var(--material-sheen);
 }
-.mobile-settings-toggle-track > span { width: 20px; height: 20px; border-radius: 50%; background: var(--ink-solid-fg); }
+.mobile-settings-toggle-track > span { width: 20px; height: 20px; border-radius: 50%; background: var(--ink-solid-fg); box-shadow: var(--material-control-shadow); }
 
 .mobile-settings-sheet { position: absolute; inset: 0; z-index: 10; }
 .mobile-settings-sheet [data-mobile-sheet-scroll] { padding: 2px; }
@@ -131,4 +132,4 @@
 .mobile-settings [data-usage-threshold-reset] { width: 44px !important; height: 44px !important; }
 .mobile-settings [data-usage-threshold-input] { width: 100%; }
 .mobile-settings-number-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.mobile-settings-number-control input { width: 88px; border: 1px solid var(--m-hairline); background: var(--m-card); color: var(--m-ink); padding: 8px; }
+.mobile-settings-number-control input { width: 88px; border: 1px solid var(--settings-control-boundary); background: var(--material-control-bg); box-shadow: var(--material-control-shadow); color: var(--m-ink); padding: 8px; }

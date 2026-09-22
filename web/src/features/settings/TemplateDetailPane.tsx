@@ -1,5 +1,5 @@
 // input:  template view-model, settings atoms
-// output: template detail, validation and plugin forms
+// output: template detail, stable source editor and plugin forms
 // pos:    Responsive detail pane for desktop templates
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -126,6 +126,8 @@ const CODE_BLOCK_STYLE: CSSProperties = {
 
 const EDITOR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE,
+  // Source text needs a sealed reading surface, unlike the surrounding card.
+  background: 'var(--proto-card)',
   fontFamily: MONO,
   minHeight: 320,
   height: '100%',
