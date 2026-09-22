@@ -7,6 +7,7 @@ Thread presentation and supporting state modules.
 | ThreadArtifactPanel.tsx | view | Render ThreadArtifactPanel |
 | ThreadDetailModal.tsx | view | Render ThreadDetailModal |
 | ThreadDetailView.tsx | view | Render ThreadDetailView |
+| ThreadPipeline.test.tsx | test | Verify ThreadPipeline |
 | ThreadPipeline.tsx | view | Render ThreadPipeline |
 | ThreadStepChat.tsx | view | Render ThreadStepChat |
 | nested-threads.test.ts | test | Verify nested-threads |

@@ -4,6 +4,7 @@
  * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
 .content-surface { min-width: 0; color: var(--proto-ink); }
+.content-surface:is(button, [role='button']):focus-visible,
 .content-surface :where(button, a, input, textarea, select, [tabindex]):focus-visible {
   outline: 2px solid var(--proto-accent) !important;
   outline-offset: 2px;
@@ -13,6 +14,7 @@
   border-radius: var(--r-control);
   -webkit-tap-highlight-color: transparent;
 }
+.content-surface:is(button, [role='button']):not(:disabled):hover,
 .content-surface :where(button, a, [role='button']):not(:disabled):hover {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -20,6 +22,18 @@
 .content-surface :where(button, input, textarea, select):disabled { cursor: not-allowed; }
 .content-surface :where(input, textarea, select) { max-width: 100%; }
 .content-surface :where(p, pre) { overflow-wrap: anywhere; }
+.content-surface .content-text-action {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+.commission-board > div { flex-wrap: wrap; }
+.commission-columns { overflow: auto; }
+.commission-columns > div { min-width: 280px !important; }
+.issue-center > div:first-child { flex-wrap: wrap; overflow-wrap: anywhere; }
 
 .overview-header, .overview-stats { flex-wrap: wrap; }
 .overview-header { min-height: 50px; height: auto; padding-block: 10px; }
@@ -28,11 +42,12 @@
 .overview-actions { flex-wrap: wrap; }
 .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .overview-executions { grid-column: 1 / -1; }
+.overview-executions > div:first-child { flex-wrap: wrap; gap: 6px; }
 .overview-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
 .overview-table-row {
   display: grid;
   grid-template-columns: 104px minmax(180px, 1fr) 100px 72px 72px 104px 56px;
-  min-width: 716px;
+  min-width: 764px;
   gap: 8px;
 }
 .overview-table-row > * { min-width: 0; overflow-wrap: anywhere; }
@@ -41,12 +56,13 @@
 .thread-detail-header { padding-block: 10px !important; overflow-wrap: anywhere; }
 .thread-detail-content { flex-wrap: wrap; align-content: flex-start; }
 .thread-detail-content > [data-pipeline] { flex-basis: 360px; }
-.thread-artifact-column { width: min(440px, 100%) !important; flex: 1 1 340px !important; }
+.thread-artifact-column { min-width: 0; width: min(440px, 100%) !important; flex: 1 1 340px !important; }
 .thread-step-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 1024px) {
   .overview-grid { grid-template-columns: minmax(0, 1fr); }
   .overview-stats { gap: 16px !important; }
+  .commission-decisions { width: 300px !important; }
 }
 @media (max-width: 768px) {
   .overview-grid { padding: 12px !important; }

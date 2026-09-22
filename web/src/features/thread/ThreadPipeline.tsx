@@ -162,13 +162,13 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted)', marginTop: 5 }}>
           {sub.hasLine && sub.line}
           {sub.drillable && (
-            <span
+            <button type="button" className="content-text-action"
               data-drill-thread-id={sub.id}
               onClick={onOpen}
               style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
             >
               {L.thOpenSub} ›
-            </span>
+            </button>
           )}
         </div>
       )}

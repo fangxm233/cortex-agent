@@ -193,7 +193,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           >
             TASKS.yaml
           </span>
-          <span
+          <button type="button" className="content-text-action"
             onClick={onClose}
             style={{
               marginLeft: 'auto',
@@ -206,7 +206,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body grid (prototype L1471) */}
@@ -428,7 +428,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Actions (prototype L1531-1536) */}
             <div style={{ ...CARD, padding: '11px 14px', display: 'flex', gap: 8 }}>
               {tm.canUnblock && (
-                <span
+                <button type="button" className="content-text-action"
+                  disabled={pending}
                   onClick={() => !pending && onUnblock(task)}
                   style={{
                     flex: 1,
@@ -444,9 +445,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   }}
                 >
                   {L.mUnblock}
-                </span>
+                </button>
               )}
-              <span
+              <button type="button" className="content-text-action"
+                disabled={!tm.completable || pending}
                 data-complete-task-id={task.id}
                 onClick={() => tm.completable && !pending && onComplete(task)}
                 style={{
@@ -466,7 +468,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                 }}
               >
                 {tm.completeLabel}
-              </span>
+              </button>
             </div>
           </div>
         </div>

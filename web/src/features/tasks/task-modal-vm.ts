@@ -1,8 +1,7 @@
-// Framework-free desktop projection for the task detail modal. Shared facts own lifecycle,
-// safe claim fallback, completion source precedence, dependency joins and verification ordering;
-// this module retains only desktop labels, theme values and complete/unblock guards.
-// `why` / `doneWhen` remain raw TaskInfo fields rendered by TaskModal. The sole prototype data gap
-// here is gpu, which is absent from TaskInfo and therefore remains an honest "—".
+// input:  TaskInfo, task-detail-facts, task-time
+// output: TaskModalVm, buildTaskModalVm
+// pos:    Desktop task detail labels and presentation tokens
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import {
@@ -89,7 +88,7 @@ function approvalFields(task: TaskInfo): TaskModalField[] {
     {
       k: 'approved-at',
       v: task.approvedAt ?? '—',
-      vColor: task.approvedAt ? 'var(--state-done)' : 'var(--proto-faint)',
+      vColor: task.approvedAt ? 'var(--state-done)' : 'var(--proto-muted)',
     },
   ];
 }
@@ -102,10 +101,10 @@ function taskFields(task: TaskInfo, facts: TaskDetailFacts): TaskModalField[] {
     { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? 'var(--state-fail)' : 'var(--proto-ink)' },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
     ...approvalFields(task),
-    { k: 'completed-at', v: completedAt ?? '—', vColor: completedAt ? 'var(--state-done)' : 'var(--proto-faint)' },
+    { k: 'completed-at', v: completedAt ?? '—', vColor: completedAt ? 'var(--state-done)' : 'var(--proto-muted)' },
     { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
-    { k: 'gpu', v: '—', vColor: 'var(--proto-faint)' },
-    { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? 'var(--state-run)' : 'var(--proto-faint)' },
+    { k: 'gpu', v: '—', vColor: 'var(--proto-muted)' },
+    { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? 'var(--state-run)' : 'var(--proto-muted)' },
   ];
 }
 

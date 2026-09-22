@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: NotesButton presentation
+// pos:    Dense notes content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { CSSProperties } from 'react';
+import '../overview/content-surfaces.css';
 import type { NotesCopy } from './notes-copy';
 
 function buttonStyle(active: boolean): CSSProperties {
@@ -6,7 +12,7 @@ function buttonStyle(active: boolean): CSSProperties {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    border: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)',
+    border: active ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line-2)',
     borderRadius: 'var(--r-control)',
     padding: '4px 9px',
     // Raised glass rather than an opaque chip: this button sits on a header that is now translucent,
@@ -34,6 +40,7 @@ export function NotesButton({ count, active, copy, onClick }: {
 }) {
   return (
     <button
+      className="content-surface"
       type="button"
       data-notes-button=""
       aria-pressed={active}
@@ -42,8 +49,8 @@ export function NotesButton({ count, active, copy, onClick }: {
       style={buttonStyle(active)}
     >
       <NotesIcon />
-      <span style={{ fontSize: 10.5, fontWeight: 600 }}>{copy.title}</span>
-      <span style={{ font: "600 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>{count}</span>
+      <span style={{ fontSize: 11, fontWeight: 600 }}>{copy.title}</span>
+      <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>{count}</span>
     </button>
   );
 }

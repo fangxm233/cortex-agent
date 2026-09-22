@@ -37,7 +37,9 @@ function QuickInput({ copy, onAdd }: { copy: NotesCopy; onAdd: (text: string) =>
 
 function PreviewRow({ row, onOpen }: { row: NoteRowVm; onOpen: (id: string) => void }) {
   return (
-    <div onClick={(event) => { event.stopPropagation(); onOpen(row.id); }} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--proto-alt)', cursor: 'pointer' }}>
+    <div role="button" tabIndex={0}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(row.id); } }}
+      onClick={(event) => { event.stopPropagation(); onOpen(row.id); }} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--proto-alt)', cursor: 'pointer' }}>
       <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />
       <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{row.text}</span>
       <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', flex: 'none' }}>{row.timeLabel}</span>
@@ -67,10 +69,11 @@ export function NotesOverviewCard({
         {vm.previews.map((row) => <PreviewRow key={row.id} row={row} onOpen={onOpen} />)}
         {vm.activeCount === 0 && <div style={{ padding: '12px 0', color: 'var(--proto-muted)', fontSize: 11 }}>{copy.empty}</div>}
       </div>
-      <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '9px 14px', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)' }}>
+      <button type="button" className="content-text-action" onClick={(event) => { event.stopPropagation(); onOpen(); }}
+        style={{ width: '100%', borderTop: '1px solid var(--proto-line-2)', padding: '9px 14px', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)' }}>
         <span>{copy.viewAll} {vm.activeCount} ›</span>
         <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{copy.completed} {vm.completedCount}</span>
-      </div>
+      </button>
     </div>
   );
 }

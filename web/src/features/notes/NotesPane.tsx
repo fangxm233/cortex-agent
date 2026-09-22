@@ -115,11 +115,11 @@ function ActiveNoteRow({ row, copy, busy, actions, targeted, onSelect }: { row: 
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
         <Circle completed={false} disabled={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.45, minWidth: 0 }}>{row.text}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.45, minWidth: 0, overflowWrap: 'anywhere' }}>{row.text}</span>
         <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', flex: 'none' }}>{row.timeLabel}</span>
       </div>
       {targeted && (
-        <div data-note-actions={row.id} style={{ display: 'flex', gap: 6, marginTop: 8, paddingLeft: 24 }}>
+        <div data-note-actions={row.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, paddingLeft: 24 }}>
           <ActionButton label={copy.handoff} onClick={() => actions.onHandoff(row.text)} primary disabled={busy} />
           <ActionButton label={copy.edit} onClick={() => setEditing(true)} disabled={busy} />
           <ActionButton label={copy.delete} onClick={() => void actions.onDelete(row.id)} danger disabled={busy} />

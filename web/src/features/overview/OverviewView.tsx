@@ -163,19 +163,19 @@ export function OverviewView(): JSX.Element {
           padding: '0 20px',
         }}
       >
-        <span
+        <button type="button" className="content-text-action"
           onClick={() => navigate('/workbench')}
           style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
         >
           ‹
-        </span>
+        </button>
         <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{projName}</span>
         <span style={{ color: 'var(--proto-line-3)' }}>/</span>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.overview}</span>
         <span className="overview-actions" style={{ position: 'relative', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {/* Issues stat (24a): count from ISSUES.md, hidden at 0; click opens the 24b modal */}
           {issues.length > 0 && (
-            <span
+            <button type="button" className="content-text-action"
               data-issues-stat=""
               onClick={() => openIssues()}
               style={{
@@ -189,7 +189,7 @@ export function OverviewView(): JSX.Element {
               }}
             >
               <b style={{ color: 'var(--proto-accent)' }}>{issues.length}</b> {L.issuesStat}
-            </span>
+            </button>
           )}
           <span style={{ width: 1, height: 18, background: 'var(--proto-line)', flex: 'none' }} />
           <NotesButton
@@ -327,7 +327,9 @@ export function OverviewView(): JSX.Element {
         </div>
 
         {/* Project memory — REAL: memory viewer 7b now backed by the memory.tree/memory.file fs scope */}
-        <div style={{ ...CARD, cursor: 'pointer' }} onClick={() => navigate('/memory')}>
+        <div style={{ ...CARD, cursor: 'pointer' }} role="button" tabIndex={0}
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate('/memory'); } }}
+          onClick={() => navigate('/memory')}>
           <CardHeader title={L.projectMemory} right={L.ovGitBacked} />
           <div style={{ padding: '18px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>{L.ovOpenMemoryViewer} ›</div>
@@ -354,6 +356,9 @@ export function OverviewView(): JSX.Element {
               {issues.slice(0, 3).map((i, idx) => (
                 <div
                   key={i.id}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openIssues(i.id); } }}
                   onClick={() => openIssues(i.id)}
                   style={{
                     display: 'flex',
@@ -392,9 +397,10 @@ export function OverviewView(): JSX.Element {
                 </div>
               ))}
             </div>
-            <div
+            <button type="button" className="content-text-action"
               onClick={() => openIssues()}
               style={{
+                width: '100%',
                 borderTop: '1px solid var(--proto-line-2)',
                 padding: '9px 14px',
                 fontSize: 11,
@@ -404,7 +410,7 @@ export function OverviewView(): JSX.Element {
               }}
             >
               {L.isViewAll} {issues.length} ›
-            </div>
+            </button>
           </div>
         )}
 
@@ -454,12 +460,12 @@ export function OverviewView(): JSX.Element {
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
             <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.scheduleCard}</span>
             {/* + New — opens the New-schedule overlay (design 7c), real schedules.add */}
-            <span
+            <button type="button" className="content-text-action"
               onClick={() => openScheduleModal({ projectId: activeProjectId })}
               style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
             >
               + {L.newSchedule}
-            </span>
+            </button>
           </div>
           <div style={{ padding: '9px 14px 11px', display: 'flex', flexDirection: 'column', gap: 9 }}>
             {schedules.length === 0 && (
@@ -620,12 +626,12 @@ export function OverviewView(): JSX.Element {
                     {pill.text}
                   </span>
                 </span>
-                <span
+                <button type="button" className="content-text-action"
                   onClick={() => openExecutionLog(x.id)}
                   style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                 >
                   {L.ovLogs}
-                </span>
+                </button>
               </div>
             );
           })}
