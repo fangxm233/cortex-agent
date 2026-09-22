@@ -1,5 +1,11 @@
+// input:  React, SettingsModal, settings portal styles
+// output: SettingsProvider, useSettings
+// pos:    Settings overlay lifecycle and visual scope entry
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { SettingsModal } from './SettingsModal';
+import './settings-portals.css';
 
 interface SettingsContextValue {
   open: () => void;

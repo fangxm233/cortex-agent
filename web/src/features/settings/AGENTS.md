@@ -61,8 +61,9 @@ Settings panels, shared controls, configuration writers and view models.
 | SettingsModal.tsx | entry | Route settings sections and guard dirty forms |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
-| SettingsProvider.tsx | provider | Expose settings modal open and close actions |
+| SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
 | settings-style.css | style | Style shared settings controls and layouts |
+| settings-portals.css | style | Style settings dropdown and dialog portals |
 | settings-ui.tsx | UI | Provide settings form primitives |
 | TemplateDetailPane.tsx | view | Edit template details and assignments |
 | TemplatesPanel.tsx | view | Browse and manage thread templates |
