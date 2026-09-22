@@ -1,13 +1,13 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatSheets
-// pos:    Mobile ChatSheets presentation
+// pos:    Mobile chat sheets and Escape-dismissible More menu
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { SelectionRootRow } from '@/features/workbench/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
@@ -20,6 +20,11 @@ export function MoreMenu({ copy, onClose, onSessionId, onSessionStats }: {
   /** Absent until the session has finished a run — there is nothing to total up before that. */
   onSessionStats?: () => void;
 }): JSX.Element {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   // The header status line is ~10px mono and already ellipsised, so the desktop's second segment
   // does not fit there: on mobile the whole-session totals live behind this menu instead.
   const items = [

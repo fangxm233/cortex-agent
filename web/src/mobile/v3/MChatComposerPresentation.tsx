@@ -1,8 +1,8 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatComposerPresentation
-// pos:    Mobile ChatComposerPresentation presentation
+// pos:    Mobile composer controls and Escape-dismissible attach menu
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import { TodoRail } from '@/features/workbench/TodoRail';
 import { WaitRail } from '@/features/workbench/WaitRail';
@@ -63,6 +63,11 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
   commission?: { label: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   // Clears the floating composer card: its 20px bottom offset plus its ~94px height.
   return (
     <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>

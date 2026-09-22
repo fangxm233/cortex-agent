@@ -1,5 +1,9 @@
+// input:  Mobile chat sheets, attach menu, React test renderer
+// output: Selection, menu dismissal and listener cleanup tests
+// pos:    Mobile chat sheet and floating menu interaction coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MChatCopy } from './MChatView.types';
 import type { SelectionSheetRow, SelectionSheetVM } from './m-chat-vm';
 
@@ -10,7 +14,62 @@ vi.mock('@/mobile/ui/kit', async () => ({
   MBottomSheet: ({ children }: any) => <div data-bottom-sheet>{children}</div>,
 }));
 
-const { AgentSheet, SelectionSheet } = await import('./MChatSheets');
+const { AgentSheet, MoreMenu, SelectionSheet } = await import('./MChatSheets');
+const { AttachMenu } = await import('./MChatComposerPresentation');
+
+afterEach(() => { vi.unstubAllGlobals(); });
+
+const menuCopy = {
+  menuSessionId: 'Session ID', attachCamera: 'Take photo', attachLibrary: 'Photo library',
+  attachFile: 'Choose file', attachCommands: 'Commands',
+} as MChatCopy;
+const floatingMenus = [
+  { name: 'More', render: (onClose: () => void) => <MoreMenu copy={menuCopy} onClose={onClose} onSessionId={vi.fn()} /> },
+  { name: 'Attach', render: (onClose: () => void) => <AttachMenu copy={menuCopy} onClose={onClose} onCamera={vi.fn()} onLibrary={vi.fn()} onFile={vi.fn()} onCommands={vi.fn()} /> },
+];
+
+function press(target: EventTarget, key: string): void {
+  act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key })); });
+}
+
+describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
+  it('closes on Escape and outside click, ignoring other keys', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(render(onClose)); });
+    press(target, 'Enter');
+    expect(onClose).not.toHaveBeenCalled();
+    press(target, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    act(() => renderer.root.findAllByType('div')[0].props.onClick());
+    expect(onClose).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+    press(target, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the latest close callback and removes listeners between mounts', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const oldClose = vi.fn();
+    const newClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(render(oldClose)); });
+    act(() => renderer.update(render(newClose)));
+    press(target, 'Escape');
+    expect(oldClose).not.toHaveBeenCalled();
+    expect(newClose).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+    act(() => { renderer = create(render(newClose)); });
+    press(target, 'Escape');
+    expect(newClose).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+    press(target, 'Escape');
+    expect(newClose).toHaveBeenCalledTimes(2);
+  });
+});
 
 // `buildSelectionSheet` decides what the rows SAY (m-chat-vm.test); this is only about drawing them:
 // a root that lists the profiles and collapses the overrides, a pane behind each of those rows, and

@@ -1,6 +1,6 @@
 // input:  Tool calls, overflow measurement, debug details
 // output: ToolCallsRow
-// pos:    Compact tool chips and expandable transcript details
+// pos:    Focus-stable tool toggles and expandable debug details
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
@@ -142,19 +142,14 @@ function ExpandedToolCall({ call, onInspect }: {
   );
 }
 
-function ExpandedToolCalls({ calls, text, hover, selected, onCollapse, onHover, onInspect, onClose }: {
+function ExpandedToolCalls({ calls, selected, onInspect, onClose }: {
   calls: ToolCall[];
-  text: string;
-  hover: boolean;
   selected: DebugDetail | null;
-  onCollapse: () => void;
-  onHover: (hovered: boolean) => void;
   onInspect: Inspect;
   onClose: () => void;
 }): JSX.Element {
   return (
     <>
-      <ToolCallsSummaryRow calls={calls} text={text} expanded hover={hover} onToggle={onCollapse} onHover={onHover} />
       <div style={expandedPanelStyle}>
         {calls.map((call, index) => <ExpandedToolCall key={index} call={call} onInspect={onInspect} />)}
       </div>
@@ -186,11 +181,10 @@ export function ToolCallsRow({ calls, sessionId }: {
         : current);
     }).catch(() => {});
   };
-  if (!expanded) {
-    return <ToolCallsSummaryRow calls={calls} text={text} expanded={false} hover={hover} onToggle={() => setExpanded(true)} onHover={setHover} />;
-  }
   return (
-    <ExpandedToolCalls calls={calls} text={text} hover={hover} selected={selected}
-      onCollapse={() => setExpanded(false)} onHover={setHover} onInspect={inspect} onClose={() => setSelected(null)} />
+    <>
+      <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} onToggle={() => setExpanded((value) => !value)} onHover={setHover} />
+      {expanded ? <ExpandedToolCalls calls={calls} selected={selected} onInspect={inspect} onClose={() => setSelected(null)} /> : null}
+    </>
   );
 }

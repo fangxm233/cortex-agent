@@ -1,6 +1,6 @@
 // input:  selection-menu, tRPC, session selection, vocab
 // output: SessionSelector views and selection controls
-// pos:    Session model/profile controls with readable chip hints
+// pos:    Session model/profile chips with keyboard menu access
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import {
   type SelectionRootRow, type ThinkingOption,
 } from './selection-menu';
 import { AgentMenu } from './AgentMenu';
+import { MENU_FOCUS } from './MenuChrome';
 import { SelectionMenu, type SelectionPane } from './SelectionMenu';
 import { useSelectedSession } from './SelectedSessionProvider';
 import {
@@ -280,27 +281,33 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
 
   return (
     <span
-      data-chip="selection"
-      // The profile, because the chip itself has room for the model only. The environment is the
-      // agent chip's business, one place to the left.
-      title={`${L.wbProfile} · ${selection.effective.profileName}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
-      style={{
-        position: 'relative', font: CHIP_FONT,
-        border: `1.5px solid ${hover || overridden ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-        color: hover || overridden ? 'var(--proto-accent)' : 'var(--proto-muted)',
-        padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 280,
-      }}
+      style={{ position: 'relative', display: 'inline-flex', flex: 'none', maxWidth: 280 }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {parts.main}
-      </span>
-      {parts.sub ? (
-        <span style={{ color: 'var(--proto-muted)', flex: 'none' }}>· {parts.sub}</span>
-      ) : null}
+      <button
+        type="button"
+        data-chip="selection"
+        className={MENU_FOCUS}
+        aria-expanded={open}
+        // The chip shows the model; its tooltip names the profile.
+        title={`${L.wbProfile} · ${selection.effective.profileName}`}
+        onClick={(event) => { event.stopPropagation(); setOpen(!open); }}
+        style={{
+          font: CHIP_FONT, background: 'transparent',
+          border: `1.5px solid ${hover || overridden ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
+          color: hover || overridden ? 'var(--proto-accent)' : 'var(--proto-muted)',
+          padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, maxWidth: 280,
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {parts.main}
+        </span>
+        {parts.sub ? (
+          <span style={{ color: 'var(--proto-muted)', flex: 'none' }}>· {parts.sub}</span>
+        ) : null}
+      </button>
       {open ? (
         <SelectionMenu
           profiles={selection.profileOptions}

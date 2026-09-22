@@ -1,3 +1,7 @@
+// input:  SessionSelector, React test renderer, mocked session API
+// output: Session selection and keyboard trigger regression tests
+// pos:    Session chip semantics, dismissal and selection coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
@@ -165,6 +169,42 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
+
+  it('uses a focusable button beside the anchored menu, not around its buttons', () => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    const trigger = renderer.root.findByProps({ 'data-chip': 'selection' });
+    expect(trigger.type).toBe('button');
+    expect(trigger.props.type).toBe('button');
+    expect(trigger.props['aria-expanded']).toBe(false);
+    expect(trigger.props.className).toContain('focus-visible:outline');
+    open(renderer);
+    expect(trigger.props['aria-expanded']).toBe(true);
+    expect(trigger.findAllByType('button')).toHaveLength(1);
+    const menu = renderer.root.findByProps({ 'data-menu': 'selection' });
+    expect(menu.parent).not.toBe(trigger);
+    expect(trigger.parent?.props.style.position).toBe('relative');
+    act(() => renderer.unmount());
+  });
+
+  it('retreats on subpane Escape, closes on root Escape and on outside click', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    const escape = (): void => {
+      act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    };
+    open(renderer);
+    drill(renderer, 'model');
+    escape();
+    expect(renderer.root.findAllByProps({ 'data-selection-pane': 'model' })).toHaveLength(1);
+    expect(renderer.root.findByProps({ 'data-chip': 'selection' }).props['aria-expanded']).toBe(true);
+    escape();
+    expect(renderer.root.findByProps({ 'data-chip': 'selection' }).props['aria-expanded']).toBe(false);
+    open(renderer);
+    act(() => { target.dispatchEvent(new Event('click')); });
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
 
   it('updates local draft state before a session exists', () => {
     const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
