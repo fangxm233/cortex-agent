@@ -1,6 +1,6 @@
 // input:  Modal, project creation hook, vocabulary
 // output: NewProjectModal
-// pos:    Compact project creation dialog
+// pos:    Project creation on a shared glass surface
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useRef, useState } from 'react';
@@ -45,7 +45,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
       description={L.npHint}
       onOpenChange={(open) => { if (!open) onClose(); }}
       contentDataAttributes={{ 'data-modal': 'newproj' }}
-      bodyStyle={{ display: 'contents' }}
+      bodyStyle={{ overflowY: 'auto', minHeight: 0 }}
       contentStyle={{
         position: 'fixed',
         left: '50%',
@@ -55,13 +55,14 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         width: 540,
         maxWidth: 'calc(100vw - 40px)',
         maxHeight: 'calc(100dvh - 40px)',
-        background: 'var(--glass-2)',
+        background: 'var(--material-overlay-bg)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
-        overflow: 'auto',
+        overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
       }}
     >
         {/* header (L1410-1414) */}
@@ -90,7 +91,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         </div>
 
         {/* name field (L1415-1422) */}
-        <div style={{ padding: '16px 20px', background: 'var(--proto-card)' }}>
+        <div style={{ padding: '16px 20px', background: 'transparent' }}>
           <div
             style={{
               fontSize: 11,
@@ -110,6 +111,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               border: `1px solid ${error ? 'var(--proto-danger)' : 'var(--proto-line-3)'}`,
               borderRadius: 'var(--r-control)',
               padding: '9px 12px',
+              background: 'var(--material-inset-bg)',
             }}
           >
             <input
@@ -151,7 +153,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             padding: '16px 20px 16px',
             justifyContent: 'flex-end',
             borderTop: '1px solid var(--proto-line-2)',
-            background: 'var(--proto-card)',
+            background: 'transparent',
           }}
         >
           <button
@@ -168,7 +170,8 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               padding: '6px 13px',
               color: 'var(--proto-ink)',
               cursor: 'pointer',
-              background: cancelHover ? 'var(--proto-alt)' : 'transparent',
+              background: cancelHover ? 'var(--proto-alt)' : 'var(--material-control-bg)',
+              boxShadow: 'var(--material-control-shadow)',
             }}
           >
             {L.cancel}

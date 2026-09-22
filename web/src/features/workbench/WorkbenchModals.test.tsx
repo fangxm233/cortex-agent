@@ -92,10 +92,13 @@ describe('glass modal presentation', () => {
     const tree = render(node);
     expect(harness.modalProps.chrome).toBe('bare');
     expect(harness.modalProps.contentStyle).toMatchObject({
-      background: 'var(--glass-2)', backdropFilter: 'var(--glass-filter)',
-      boxShadow: 'var(--shadow-float)', maxWidth: 'calc(100vw - 40px)',
+      background: 'var(--material-overlay-bg)', backdropFilter: 'var(--glass-filter)',
+      boxShadow: 'var(--material-overlay-shadow)', maxWidth: 'calc(100vw - 40px)',
     });
     expect(tree.root.findByProps({ 'aria-label': 'Close' }).type).toBe('button');
+    expect(harness.modalProps.contentStyle.overflow).toBe('hidden');
+    expect(tree.root.findAll((node) => node.props.style?.background === 'var(--proto-card)')).toHaveLength(0);
+    act(() => tree.unmount());
   });
 });
 

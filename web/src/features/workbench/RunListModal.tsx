@@ -72,11 +72,11 @@ export function RunListModal({
         transform: 'translate(-50%,-50%)',
         width: 400,
         maxWidth: 'calc(100vw - 40px)',
-        background: 'var(--glass-2)',
+        background: 'var(--material-overlay-bg)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         overflow: 'hidden',
         zIndex: 61,
         display: 'flex',
@@ -118,12 +118,12 @@ export function RunListModal({
           </button>
         </div>
         {/* Column captions are design constants (mono uppercase in both languages), not copy. */}
-        <div style={{ ...GRID, background: 'var(--proto-card)', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
+        <div style={{ ...GRID, background: 'transparent', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
           <span>RUN</span>
           <span>FIRED</span>
           <span style={{ textAlign: 'right' }}>COST</span>
         </div>
-        <div style={{ background: 'var(--proto-card)', overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ background: 'transparent', overflowY: 'auto', minHeight: 0 }}>
           {row.runs.map((r, i) => {
             const active = r.sessionId === selectedSessionId;
             return (
@@ -155,7 +155,7 @@ export function RunListModal({
             );
           })}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--proto-card)', padding: '10px 18px 13px', borderTop: '1px solid var(--proto-line)', flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'transparent', padding: '10px 18px 13px', borderTop: '1px solid var(--proto-line)', flex: 'none' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)'  }}>
             {L.wbAllRuns.replace('{n}', String(row.runs.length))}
           </span>

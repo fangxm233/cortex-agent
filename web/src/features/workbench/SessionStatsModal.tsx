@@ -33,7 +33,7 @@ export function SessionStatsModal({
       description={L.wbSessionStatsHint}
       onOpenChange={(open) => { if (!open) onClose(); }}
       contentDataAttributes={{ 'data-modal': 'session-stats' }}
-      bodyStyle={{ display: 'contents' }}
+      bodyStyle={{ overflowY: 'auto', minHeight: 0 }}
       contentStyle={{
         position: 'fixed',
         left: '50%',
@@ -43,13 +43,14 @@ export function SessionStatsModal({
         width: 420,
         maxWidth: 'calc(100vw - 40px)',
         maxHeight: 'calc(100dvh - 40px)',
-        background: 'var(--glass-2)',
+        background: 'var(--material-overlay-bg)',
         backdropFilter: 'var(--glass-filter)',
         WebkitBackdropFilter: 'var(--glass-filter)',
         borderRadius: 'var(--r-float)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
-        overflow: 'auto',
+        overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>

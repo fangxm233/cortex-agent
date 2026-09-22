@@ -58,7 +58,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | MessageEdit.tsx | view | Render message actions and inline editing |
 | MessageStream.tsx | view | Render message stream |
 | model-label.ts | model | Build model label state |
-| NewProjectModal.tsx | view | Render new project modal |
+| NewProjectModal.tsx | view | Create projects on shared glass dialog surface |
 | optimistic-message.integration.test.tsx | test | Test optimistic message |
 | optimistic-message.test.ts | test | Test optimistic message |
 | optimistic-message.ts | model | Build optimistic message state |
@@ -84,7 +84,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | RightPanel.tsx | view | Render context tabs and steady count badges |
 | RightThreadCard.test.tsx | test | Test right thread card |
 | RightThreadCard.tsx | view | Render right thread card |
-| RunListModal.tsx | view | Render run list modal |
+| RunListModal.tsx | view | Browse runs inside a stationary glass dialog |
 | schedule-rail.test.ts | test | Test schedule rail |
 | schedule-rail.ts | model | Build schedule rail state |
 | scheduled-chat.ts | model | Build scheduled chat state |
@@ -102,7 +102,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | session-id.ts | model | Build session id state |
 | session-run-status.ts | model | Build session run status state |
 | session-stats.ts | model | Build session stats state |
-| SessionIdModal.tsx | view | Render session id modal |
+| SessionIdModal.tsx | view | Display and copy IDs on shared glass surface |
 | SessionSelector.test.tsx | test | Test selection changes and keyboard trigger |
 | SessionSelector.tsx | view | Render keyboard-accessible session selector |
 | SessionStatsModal.tsx | view | Render session totals on shared glass surface |
@@ -145,5 +145,5 @@ Desktop conversations, composer controls, session navigation and context panels.
 | wait-rail-vm.ts | model | Build wait rail vm state |
 | WaitRail.test.tsx | test | Test wait rail |
 | WaitRail.tsx | view | Render wait rail |
-| WorkbenchModals.test.tsx | test | Test dialog surfaces and modal interactions |
+| WorkbenchModals.test.tsx | test | Test shared glass bodies and modal interactions |
 | WorkbenchPage.tsx | view | Compose the desktop workbench |
