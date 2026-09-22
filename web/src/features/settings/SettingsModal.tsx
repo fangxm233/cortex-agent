@@ -1,7 +1,7 @@
-// input:  config queries, panels and login handoff
-// output: settings navigation and dirty-form protection
-// pos:    Desktop settings modal and section router
-// >>> Once updated, update this header and parent AGENTS.md <<<
+// input:  config queries, panels, login flow, settings-style.css
+// output: Scoped settings shell, navigation and dirty-form guard
+// pos:    Responsive desktop settings modal and section router
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';
@@ -24,6 +24,7 @@ import { AppearancePanel } from './AppearancePanel';
 import { AccountsPanel } from './AccountsPanel';
 import { PluginsPanel } from './PluginsPanel';
 import { UsagePanel } from '@/features/usage';
+import './settings-style.css';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -51,7 +52,9 @@ const MODAL_STYLE: CSSProperties = {
   background: 'var(--glass-2)',
   backdropFilter: 'var(--glass-filter)',
   WebkitBackdropFilter: 'var(--glass-filter)',
-  borderRadius: 'var(--r-float)',
+  borderRadius: 16,
+  border: '1px solid var(--proto-line-2)',
+  boxSizing: 'border-box',
   boxShadow: 'var(--shadow-float)',
   zIndex: 61,
   overflow: 'hidden',
@@ -89,15 +92,15 @@ function panelContentStyle(section: SettingsSectionKey): CSSProperties {
     minWidth: 0,
     minHeight: 0,
     overflow: bounded ? 'hidden' : 'auto',
-    padding: bounded ? '16px 20px 20px' : '20px 24px 24px',
+    padding: 'var(--settings-panel-padding, 20px)',
     display: bounded ? 'flex' : 'block',
     flexDirection: bounded ? 'column' : undefined,
   };
 }
 
-// The sheet's vertical rhythm: every panel's top-level cards sit 22px apart.
+// Every page shares the same compact section rhythm.
 const PANEL_STACK_STYLE: CSSProperties = {
-  display: 'flex', flexDirection: 'column', gap: 22, alignItems: 'stretch',
+  display: 'flex', flexDirection: 'column', gap: 'var(--settings-section-gap, 20px)', alignItems: 'stretch',
 };
 
 function resetDirty(open: boolean, setDirty: (dirty: boolean) => void): void {
@@ -129,7 +132,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     <RadixDialog.Root open={open} onOpenChange={(next) => dialogOpenChanged(next, requestClose)}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay style={BACKDROP_STYLE} className="animate-cxfade motion-reduce:animate-none" />
-        <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="animate-cxmodal focus:outline-none motion-reduce:animate-none">
+        <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="settings-surface settings-modal animate-cxmodal focus:outline-none motion-reduce:animate-none">
           <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
           <OpenSettingsBody open={open} onClose={requestClose} panelDirty={dirty}
             onPanelDirtyChange={setDirty} />
@@ -142,7 +145,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 // ── Navigation ──────────────────────────────────────────────────────────────
 
 const NAV_STYLE: CSSProperties = {
-  width: 216, flex: 'none', display: 'flex', flexDirection: 'column',
+  width: 'var(--settings-nav-width, 196px)', flex: 'none', display: 'flex', flexDirection: 'column',
   padding: '16px 10px 12px', borderRight: '1px solid var(--proto-line-2)',
   // A tint, not a fill: the nav has to read as the same pane as the content beside it, one shade
   // recessed. An opaque rail colour here would cut the sheet in two.
@@ -152,7 +155,7 @@ const NAV_STYLE: CSSProperties = {
 function navButtonStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
     width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 9,
-    height: 32, padding: '0 10px', flex: 'none',
+    minHeight: 34, padding: '6px 10px', flex: 'none',
     background: active ? 'var(--proto-accent-bg)' : 'transparent',
     color: active ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
     fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 600 : 500,
@@ -182,38 +185,44 @@ function NavGroupLabel({ children }: { children: string }) {
   );
 }
 
-function SettingsNav(props: {
+interface SettingsNavProps {
   section: SettingsSectionKey;
   blocked: boolean;
   onSelect: (key: SettingsSectionKey) => void;
-}) {
+}
+
+type NavEntry = ReturnType<typeof getSettingsNavGroups>[number]['entries'][number];
+
+function SettingsNavEntry({ entry, ...props }: SettingsNavProps & { entry: NavEntry }) {
+  const L = useVocab();
+  const active = entry.key === props.section;
+  const disabled = props.blocked && !active;
+  return (
+    <button className="settings-nav-button" type="button" disabled={disabled}
+      onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
+      title={disabled ? L.plUnsavedLeave : undefined} style={navButtonStyle(active, disabled)}>
+      <NavIcon path={entry.icon} active={active} />
+      <span className="settings-nav-label" style={{ flex: 1, minWidth: 0 }}>{entry.label}</span>
+    </button>
+  );
+}
+
+function SettingsNav(props: SettingsNavProps) {
   const L = useVocab();
   return (
-    <div style={NAV_STYLE}>
-      <div style={{ fontSize: 15, fontWeight: 650, letterSpacing: '-.01em', color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
+    <div className="settings-nav" style={NAV_STYLE}>
+      <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
         {L.settings}
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {getSettingsNavGroups(L).map((group) => (
           <div key={group.key}>
             <NavGroupLabel>{group.label}</NavGroupLabel>
-            {group.entries.map((entry) => {
-              const active = entry.key === props.section;
-              const disabled = props.blocked && !active;
-              return (
-                <button type="button" key={entry.key} disabled={disabled}
-                  onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
-                  title={disabled ? L.plUnsavedLeave : undefined}
-                  style={navButtonStyle(active, disabled)}>
-                  <NavIcon path={entry.icon} active={active} />
-                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.label}</span>
-                </button>
-              );
-            })}
+            {group.entries.map((entry) => <SettingsNavEntry key={entry.key} entry={entry} {...props} />)}
           </div>
         ))}
       </div>
-      <div style={{ padding: '10px 10px 0', font: `400 10px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
+      <div className="settings-nav-build" style={{ padding: '10px 10px 0', font: `400 10px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
         Cortex · {BUILD_STAMP}
       </div>
     </div>
@@ -234,7 +243,7 @@ function CloseButton({ onClose, blocked, label, title }: {
       aria-label={label} title={title}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        marginLeft: 'auto', width: 28, height: 28, border: 0, borderRadius: 'var(--r-chip)',
+        marginLeft: 'auto', width: 34, height: 34, border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
         background: hover && !blocked ? 'var(--proto-line-2)' : 'transparent',
         color: hover && !blocked ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
         display: 'grid', placeItems: 'center', padding: 0, fontSize: 14, flex: 'none',
@@ -253,9 +262,11 @@ function SettingsPanelHeader(props: {
   const L = useVocab();
   const meta = getSectionMeta(L, props.section);
   return (
-    <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px 0 24px', borderBottom: '1px solid var(--proto-line-2)' }}>
-      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-ink)', flex: 'none' }}>{meta.title}</span>
-      <span style={{ fontSize: 12, color: 'var(--proto-muted-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.sub}</span>
+    <div className="settings-panel-header" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--proto-line-2)' }}>
+      <div className="settings-panel-heading">
+        <span className="settings-panel-title">{meta.title}</span>
+        <span className="settings-panel-subtitle">{meta.sub}</span>
+      </div>
       <CloseButton onClose={props.onClose} blocked={props.closeBlocked} label={L.stEsc}
         title={props.closeBlocked ? L.plUnsavedLeave : L.stEsc} />
     </div>
@@ -335,9 +346,9 @@ function SettingsBody(props: SettingsBodyProps) {
   return (
     <>
       <SettingsNav section={section} blocked={props.panelDirty} onSelect={setSection} />
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="settings-content-frame" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <SettingsPanelHeader section={section} onClose={props.onClose} closeBlocked={props.panelDirty} />
-        <div style={panelContentStyle(section)}>
+        <div className={`settings-panel-content${isBoundedPanel(section) ? ' settings-panel-content--bounded' : ''}`} style={panelContentStyle(section)}>
           <SettingsSectionContent {...content} />
         </div>
       </div>

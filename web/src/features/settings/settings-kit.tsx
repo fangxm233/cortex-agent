@@ -1,22 +1,33 @@
-// input:  react, theme tokens
-// output: the settings row/card/control language shared by every panel
-// pos:    Prototype-faithful primitives for the settings sheet
-// >>> Once updated, update this header and parent AGENTS.md <<<
+// input:  react, theme tokens, settings-style.css
+// output: Settings row primitives, layout classes and card styles
+// pos:    Shared compact settings visual primitives
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import './settings-style.css';
+
+/** Add surface to each settings root, including portaled dialogs and mobile routes. */
+export const SETTINGS_CLASSES = {
+  surface: 'settings-surface', card: 'settings-card', control: 'settings-control',
+  stack: 'settings-stack', actions: 'settings-actions', hint: 'settings-hint', mono: 'settings-mono',
+  editorColumns: 'settings-editor-columns', listPane: 'settings-list-pane', detailPane: 'settings-detail-pane',
+} as const;
+
+export function settingsClassName(base: string, extra: unknown): string {
+  return typeof extra === 'string' ? `${base} ${extra}` : base;
+}
 
 const MONO = "'IBM Plex Mono',monospace";
 
 // ── Grouped rows ────────────────────────────────────────────────────────────
-// The sheet's unit of content is a card of hairline-separated rows, not a bordered box. The ring is
-// a shadow rather than a border so the card keeps its exact geometry when it sits on glass — a real
-// border would add a hard pixel that reads as a seam against the blur behind it.
+// A stable fill and one boundary keep grouped content quiet on the outer glass sheet.
 export const GROUP_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  borderRadius: 'var(--r-card)',
-  background: 'var(--glass-2)',
-  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
+  borderRadius: 'var(--settings-card-radius, 12px)',
+  background: 'var(--settings-card-fill, var(--proto-card))',
+  border: '1px solid var(--settings-boundary, var(--proto-line-2))',
+  boxShadow: 'none', boxSizing: 'border-box', minWidth: 0,
   overflow: 'hidden',
 };
 
@@ -25,14 +36,14 @@ function dividerStyle(last: boolean): CSSProperties {
 }
 
 /** A card of rows. Children are separated by hairlines; the last one is flush with the card edge. */
-export function SRowGroup({ children, style, ...rest }: {
+export function SRowGroup({ children, style, className, ...rest }: {
   children: ReactNode;
   style?: CSSProperties;
 } & Record<string, unknown>) {
   const items = Array.isArray(children) ? children.flat() : [children];
   const rows = items.filter((child) => child != null && child !== false);
   return (
-    <div {...rest} style={{ ...GROUP_STYLE, ...style }}>
+    <div {...rest} className={settingsClassName('settings-row-group', className)} style={{ ...GROUP_STYLE, ...style }}>
       {rows.map((child, index) => (
         // eslint-disable-next-line react/no-array-index-key
         <div key={index} style={dividerStyle(index === rows.length - 1)}>{child}</div>
@@ -42,16 +53,16 @@ export function SRowGroup({ children, style, ...rest }: {
 }
 
 export const ROW_STYLE: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px',
+  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
 };
 
 const ROW_TITLE_STYLE: CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' };
 const ROW_DESC_STYLE: CSSProperties = {
-  fontSize: 11.5, color: 'var(--proto-muted-2)', marginTop: 2, lineHeight: 1.5,
+  fontSize: 12, color: 'var(--proto-muted-2)', marginTop: 2, lineHeight: 1.5,
 };
 
 /** Title (+ optional description) on the left, a control on the right. */
-export function SRow({ title, desc, control, align = 'center', children, ...rest }: {
+export function SRow({ title, desc, control, align = 'center', children, className, ...rest }: {
   title: ReactNode;
   desc?: ReactNode;
   control?: ReactNode;
@@ -59,9 +70,9 @@ export function SRow({ title, desc, control, align = 'center', children, ...rest
   children?: ReactNode;
 } & Record<string, unknown>) {
   return (
-    <div {...rest} style={{ ...ROW_STYLE, alignItems: align }}>
+    <div {...rest} className={settingsClassName('settings-row', className)} style={{ ...ROW_STYLE, alignItems: align }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={ROW_TITLE_STYLE}>{title}</div>
+        <div className="settings-row-title" style={ROW_TITLE_STYLE}>{title}</div>
         {desc != null && <div style={ROW_DESC_STYLE}>{desc}</div>}
         {children}
       </div>
@@ -72,7 +83,7 @@ export function SRow({ title, desc, control, align = 'center', children, ...rest
 
 // ── Section heading ─────────────────────────────────────────────────────────
 const SECTION_LABEL_STYLE: CSSProperties = {
-  fontSize: 10.5, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
+  fontSize: 12, fontWeight: 600, letterSpacing: '.02em',
   color: 'var(--proto-muted)',
 };
 
@@ -84,7 +95,7 @@ export function SSection({ label, action, children }: {
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 8px' }}>
+      <div className="settings-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 8px' }}>
         <span style={SECTION_LABEL_STYLE}>{label}</span>
         {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
@@ -101,18 +112,18 @@ export interface SegmentOption<T extends string> {
 }
 
 const SEG_TRACK_STYLE: CSSProperties = {
-  display: 'flex', gap: 2, padding: 3, borderRadius: 'var(--r-control)',
-  background: 'var(--proto-line-2)', flex: 'none',
+  display: 'flex', gap: 2, padding: 3, borderRadius: 'var(--settings-control-radius, 8px)',
+  background: 'var(--proto-alt)', border: '1px solid var(--proto-line-2)', flex: 'none',
 };
 
 function segOptionStyle(active: boolean, mono: boolean, inert: boolean): CSSProperties {
   return {
-    height: 24, padding: '0 11px', border: 0, borderRadius: 'var(--r-chip)',
-    font: mono ? `500 11px ${MONO}` : undefined,
+    minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 6,
+    font: mono ? `500 12px ${MONO}` : undefined,
     fontFamily: mono ? undefined : 'inherit',
-    fontSize: mono ? undefined : 11.5, fontWeight: mono ? undefined : 600,
-    background: active ? 'var(--glass-2)' : 'transparent',
-    boxShadow: active ? 'var(--shadow-card-subtle)' : 'none',
+    fontSize: mono ? undefined : 13, fontWeight: mono ? undefined : 600,
+    background: active ? 'var(--settings-card-fill, var(--proto-card))' : 'transparent',
+    boxShadow: 'none',
     color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     cursor: inert ? 'default' : 'pointer', transition: 'background .12s, color .12s',
@@ -129,10 +140,10 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
   ariaLabel?: string;
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} style={SEG_TRACK_STYLE}>
+    <div className="settings-segmented" role="group" aria-label={ariaLabel} style={SEG_TRACK_STYLE}>
       {options.map((option) => (
         <button
-          key={option.id} type="button" aria-pressed={option.id === value} title={option.title}
+          className="settings-segment" key={option.id} type="button" aria-pressed={option.id === value} title={option.title}
           {...(dataAttr ? { [dataAttr]: option.id } : {})}
           onClick={onChange ? () => onChange(option.id) : undefined}
           style={segOptionStyle(option.id === value, Boolean(mono), !onChange)}
@@ -191,8 +202,8 @@ export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone
 
 function chipStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
-    height: 26, padding: '0 11px', border: 0, borderRadius: 'var(--r-chip)',
-    fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600,
+    minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
     background: active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)',
     color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
     display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -200,15 +211,15 @@ function chipStyle(active: boolean, disabled: boolean): CSSProperties {
   };
 }
 
-/** A standalone filter chip — the same capsule as a segment, but outside a track. */
-export function SChip({ active, disabled, onClick, children, ...rest }: {
+/** A standalone filter chip with the same target height as a segment. */
+export function SChip({ active, disabled, onClick, children, className, ...rest }: {
   active?: boolean;
   disabled?: boolean;
   onClick?: () => void;
   children: ReactNode;
 } & Record<string, unknown>) {
   return (
-    <button {...rest} type="button" aria-pressed={Boolean(active)} disabled={disabled}
+    <button {...rest} className={settingsClassName('settings-chip', className)} type="button" aria-pressed={Boolean(active)} disabled={disabled}
       onClick={onClick} style={chipStyle(Boolean(active), Boolean(disabled))}>
       {children}
     </button>
@@ -216,18 +227,18 @@ export function SChip({ active, disabled, onClick, children, ...rest }: {
 }
 
 // ── Select chip ─────────────────────────────────────────────────────────────
-/** The glass affordance a value opens a menu from: a ringed pill carrying a caret. */
-export function SSelectChip({ children, onClick, disabled, ...rest }: {
+/** A compact value control with one boundary and a trailing menu caret. */
+export function SSelectChip({ children, onClick, disabled, className, ...rest }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
 } & Record<string, unknown>) {
   return (
-    <button {...rest} type="button" disabled={disabled} onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
-      padding: '0 10px 0 12px', border: 0, borderRadius: 'var(--r-control)',
-      background: 'var(--glass-1)', boxShadow: '0 0 0 1px var(--proto-line)',
-      fontFamily: 'inherit', fontSize: 12.5, color: 'var(--proto-ink)', flex: 'none',
+    <button {...rest} className={settingsClassName('settings-select-chip', className)} type="button" disabled={disabled} onClick={onClick} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--settings-control-height, 34px)',
+      padding: '4px 10px', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--settings-control-radius, 8px)',
+      background: 'var(--settings-control-fill, var(--proto-card))', boxShadow: 'none',
+      fontFamily: 'inherit', fontSize: 13, color: 'var(--proto-ink)', flex: 'none',
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
     }}>
       {children}
@@ -247,7 +258,7 @@ const NOTICE_TONE: Record<SNoticeTone, { bg: string; fg: string; ring: string }>
 };
 
 /** An inline advisory strip. One shape, four tones — the tone is the whole message. */
-export function SNotice({ tone = 'muted', icon, action, children, ...rest }: {
+export function SNotice({ tone = 'muted', icon, action, children, className, ...rest }: {
   tone?: SNoticeTone;
   icon?: ReactNode;
   action?: ReactNode;
@@ -255,10 +266,10 @@ export function SNotice({ tone = 'muted', icon, action, children, ...rest }: {
 } & Record<string, unknown>) {
   const spec = NOTICE_TONE[tone];
   return (
-    <div {...rest} style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-      borderRadius: 'var(--r-card)', background: spec.bg,
-      boxShadow: `0 0 0 1px ${spec.ring}`, fontSize: 12.5, lineHeight: 1.6, color: spec.fg,
+    <div {...rest} className={settingsClassName('settings-notice', className)} style={{
+      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 16px',
+      borderRadius: 'var(--settings-card-radius, 12px)', background: spec.bg,
+      border: `1px solid ${spec.ring}`, fontSize: 12, lineHeight: 1.6, color: spec.fg,
     }}>
       {icon}
       <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
@@ -281,7 +292,7 @@ export function SDot({ color = 'var(--proto-amber)', pulse, size = 8 }: {
 
 // ── Text action ─────────────────────────────────────────────────────────────
 /** The accent text action a section heading or a stat card ends with. */
-export function SLinkAction({ onClick, tone = 'accent', disabled, children, ...rest }: {
+export function SLinkAction({ onClick, tone = 'accent', disabled, children, className, ...rest }: {
   onClick?: () => void;
   tone?: 'accent' | 'danger' | 'muted';
   disabled?: boolean;
@@ -291,7 +302,7 @@ export function SLinkAction({ onClick, tone = 'accent', disabled, children, ...r
   const color = tone === 'danger' ? 'var(--proto-danger)'
     : tone === 'muted' ? 'var(--proto-muted-2)' : 'var(--proto-accent)';
   return (
-    <button {...rest} type="button" disabled={disabled} onClick={onClick}
+    <button {...rest} className={settingsClassName('settings-link-action', className)} type="button" disabled={disabled} onClick={onClick}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         border: 0, background: 'transparent', padding: 0, fontFamily: 'inherit',
@@ -335,7 +346,7 @@ export function SKeyCap({ children }: { children: ReactNode }) {
 
 // ── Entity row ──────────────────────────────────────────────────────────────
 /** A standalone card for one entity in a list: status dot, name over mono meta, trailing controls. */
-export function SEntityRow({ dot, name, meta, trailing, dim, onClick, ...rest }: {
+export function SEntityRow({ dot, name, meta, trailing, dim, onClick, className, ...rest }: {
   dot?: ReactNode;
   name: ReactNode;
   meta?: ReactNode;
@@ -344,7 +355,7 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, ...rest }:
   onClick?: () => void;
 } & Record<string, unknown>) {
   return (
-    <div {...rest} role={onClick ? 'button' : undefined} onClick={onClick} style={{
+    <div {...rest} className={settingsClassName('settings-entity-row', className)} role={onClick ? 'button' : undefined} onClick={onClick} style={{
       ...GROUP_STYLE, flexDirection: 'row', alignItems: 'center', gap: 12,
       padding: '12px 16px', opacity: dim ? 0.55 : 1,
       cursor: onClick ? 'pointer' : undefined,
@@ -353,7 +364,7 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, ...rest }:
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{name}</div>
         {meta != null && (
-          <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere' }}>
             {meta}
           </div>
         )}
@@ -365,7 +376,7 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, ...rest }:
 
 /** The 13px/600 name an entity row leads with. */
 export function SEntityName({ children }: { children: ReactNode }) {
-  return <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{children}</span>;
+  return <span className="settings-entity-name" style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{children}</span>;
 }
 
 // ── Stat ────────────────────────────────────────────────────────────────────
@@ -379,15 +390,15 @@ export function SStat({ value, caption, action, percent, tone, footnote }: {
   footnote?: ReactNode;
 }) {
   return (
-    <div style={{ ...GROUP_STYLE, padding: '14px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+    <div className="settings-stat" style={{ ...GROUP_STYLE, padding: '12px 16px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{ font: `500 20px ${MONO}`, color: 'var(--proto-ink)' }}>{value}</span>
         {caption != null && <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{caption}</span>}
         {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
       {percent != null && <div style={{ marginTop: 12 }}><SMeter percent={percent} tone={tone} /></div>}
       {footnote != null && (
-        <div style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{footnote}</div>
+        <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{footnote}</div>
       )}
     </div>
   );

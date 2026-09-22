@@ -1,23 +1,23 @@
-// input:  react, the settings kit
-// output: the shell the bounded master–detail settings editors share — panes, headers, footers
-// pos:    Hooks and Templates build their two columns out of these; the atoms live in settings-kit
+// input:  react, settings-ui, settings-style.css
+// output: Master-detail pane styles, headers and wrapping footers
+// pos:    Shared responsive settings editor layout primitives
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { CSSProperties, ReactNode } from 'react';
 import { GROUP_STYLE, S_CONTROL_STYLE } from './settings-ui';
+import './settings-style.css';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// A field in error keeps its ring and only changes its colour. Swapping in a border instead would
-// shift the control by a pixel every time the user typed something invalid.
+// Error changes only the existing boundary, never the control geometry.
 export const CONTROL_ERROR_STYLE: CSSProperties = {
-  ...S_CONTROL_STYLE, boxShadow: '0 0 0 1px var(--proto-danger)',
+  ...S_CONTROL_STYLE, borderColor: 'var(--proto-danger)',
 };
 
-// Both columns are the same ringed glass card — fill, ring, radius from the kit — and differ only
-// in how they take space. A ring rather than a border is what lets the two panes sit 14px apart on
-// the sheet's glass without either edge reading as a seam.
+// Pair these styles with SETTINGS_CLASSES listPane/detailPane/editorColumns so
+// the surface's container query can stack editors when the content area is narrow.
 export function listPaneStyle(width: number): CSSProperties {
-  return { ...GROUP_STYLE, width, flex: 'none', minHeight: 0 };
+  return { ...GROUP_STYLE, width, maxWidth: '100%', flex: 'none', minHeight: 0 };
 }
 
 export const DETAIL_PANE_STYLE: CSSProperties = {
@@ -26,20 +26,20 @@ export const DETAIL_PANE_STYLE: CSSProperties = {
 
 /** The panel root inside the modal's bounded frame, and the row of panes it holds. */
 export const EDITOR_ROOT_STYLE: CSSProperties = {
-  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+  flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column',
 };
 
 export const EDITOR_COLUMNS_STYLE: CSSProperties = {
-  display: 'flex', gap: 14, flex: 1, minHeight: 0, alignItems: 'stretch',
+  display: 'flex', gap: 12, flex: 1, minWidth: 0, minHeight: 0, alignItems: 'stretch',
 };
 
 /** A pane header: a hairline under it, never a box around it. */
 export const PANE_HEADER_STYLE: CSSProperties = {
-  flex: 'none', padding: '12px 14px', borderBottom: '1px solid var(--proto-line-2)',
+  flex: 'none', padding: '12px 16px', borderBottom: '1px solid var(--proto-line-2)',
 };
 
 export const PANE_BODY_STYLE: CSSProperties = {
-  flex: 1, minHeight: 0, overflow: 'auto', padding: 14,
+  flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', padding: 16,
 };
 
 export const LIST_BODY_STYLE: CSSProperties = {
@@ -47,15 +47,15 @@ export const LIST_BODY_STYLE: CSSProperties = {
 };
 
 export const LIST_EMPTY_STYLE: CSSProperties = {
-  padding: '16px 10px', fontSize: 11.5, color: 'var(--proto-muted-3)', lineHeight: 1.7,
+  padding: '16px 12px', fontSize: 12, color: 'var(--proto-muted-3)', lineHeight: 1.7,
 };
 
 const PANE_TITLE_STYLE: CSSProperties = {
-  fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)',
+  fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)',
 };
 
 const PANE_COUNT_STYLE: CSSProperties = {
-  font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)',
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)',
 };
 
 const FILTER_ROW_STYLE: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6 };
@@ -78,14 +78,14 @@ export function ListHeader({ title, count, searchAttr, search, placeholder, onSe
   children: ReactNode;
 }) {
   return (
-    <div style={PANE_HEADER_STYLE}>
+    <div className="settings-pane-header" style={PANE_HEADER_STYLE}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
         <span style={PANE_TITLE_STYLE}>{title}</span>
         <span style={PANE_COUNT_STYLE}>{count}</span>
       </div>
       <div style={FILTER_ROW_STYLE}>{children}</div>
       <input
-        {...{ [searchAttr]: '' }} value={search} placeholder={placeholder}
+        className="settings-control" {...{ [searchAttr]: '' }} value={search} placeholder={placeholder}
         onChange={(event) => onSearch(event.target.value)}
         style={{ ...S_CONTROL_STYLE, marginTop: 9 }}
       />
@@ -94,20 +94,20 @@ export function ListHeader({ title, count, searchAttr, search, placeholder, onSe
 }
 
 const FOOTER_STYLE: CSSProperties = {
-  flex: 'none', borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px',
-  display: 'flex', alignItems: 'center', gap: 8,
+  flex: 'none', borderTop: '1px solid var(--proto-line-2)', padding: '12px 16px',
+  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
 };
 
-// Mono because a footer hint is always an identifier — a path, a reason code, an ordering rule.
+// Hints can be prose or paths; callers opt individual identifiers into mono.
 const FOOTER_HINT_STYLE: CSSProperties = {
-  flex: 1, minWidth: 0, font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-3)',
-  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  flex: '1 1 140px', minWidth: 0, fontSize: 12, color: 'var(--proto-muted-2)',
+  overflowWrap: 'anywhere',
 };
 
 /** One footer shape for both editors: the hint on the left, the actions pinned right. */
 export function PaneFooter({ hint, children }: { hint?: ReactNode; children?: ReactNode }) {
   return (
-    <div style={FOOTER_STYLE}>
+    <div className="settings-pane-footer" style={FOOTER_STYLE}>
       <div style={FOOTER_HINT_STYLE}>{hint}</div>
       {children}
     </div>
@@ -128,7 +128,7 @@ export function listRowStyle(
 ): CSSProperties {
   return {
     display: 'flex', alignItems: align, gap: 9, padding: '8px 10px',
-    borderRadius: 'var(--r-chip)', cursor: 'pointer',
+    borderRadius: 'var(--settings-control-radius, 8px)', cursor: 'pointer',
     background: selected ? 'var(--proto-accent-bg)' : 'transparent',
   };
 }

@@ -1,22 +1,23 @@
-// input:  react, theme tokens, settings-kit
-// output: settings form atoms — card, field row, control, button, toggle
-// pos:    Form-side primitives for the settings sheet; layout lives in settings-kit
-// >>> Once updated, update this header and parent AGENTS.md <<<
+// input:  react, theme tokens, settings-kit, settings-style.css
+// output: Settings cards, field rows, controls, buttons and toggles
+// pos:    Shared compact settings form primitives
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+
+import { settingsClassName } from './settings-kit';
+import './settings-style.css';
 
 export * from './settings-kit';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// Raised glass: settings cards sit still inside the settings sheet, so `--glass-2` composites over
-// the blur that sheet already produced. No filter of its own — the fill is a plain alpha blend. The
-// outline is a shadow ring rather than a border, because a border is laid out and a ring is not:
-// on glass the extra pixel shows up as a seam wherever two cards meet.
+// Cards are stable surfaces; only the outer settings sheet retains glass blur.
 export const CARD_STYLE: CSSProperties = {
-  background: 'var(--glass-2)',
-  borderRadius: 'var(--r-card)',
-  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
+  background: 'var(--settings-card-fill, var(--proto-card))',
+  borderRadius: 'var(--settings-card-radius, 12px)',
+  border: '1px solid var(--settings-boundary, var(--proto-line-2))',
+  boxShadow: 'none', boxSizing: 'border-box', minWidth: 0,
 };
 
 // Rest props are forwarded so callers can hang `data-*` hooks off the card. TypeScript does not
@@ -24,9 +25,10 @@ export const CARD_STYLE: CSSProperties = {
 export function SCard({
   children,
   style,
+  className,
   ...rest
 }: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
-  return <div {...rest} style={{ ...CARD_STYLE, ...style }}>{children}</div>;
+  return <div {...rest} className={settingsClassName('settings-card', className)} style={{ ...CARD_STYLE, ...style }}>{children}</div>;
 }
 
 // The header reads at the same 13px/600 as a row title: a card header IS a row, just one that
@@ -35,7 +37,7 @@ export function SCard({
 export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactNode }) {
   const plain = typeof right === 'string' || typeof right === 'number';
   return (
-    <div
+    <div className="settings-card-header"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -46,7 +48,7 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
     >
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{title}</span>
       {right != null ? (
-        <span style={{ marginLeft: 'auto', font: plain ? `400 10.5px ${MONO}` : undefined, color: plain ? 'var(--proto-muted-3)' : undefined }}>{right}</span>
+        <span style={{ marginLeft: 'auto', font: plain ? `400 12px ${MONO}` : undefined, color: plain ? 'var(--proto-muted-3)' : undefined }}>{right}</span>
       ) : null}
     </div>
   );
@@ -54,7 +56,7 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
 
 export function MonoKV({ k, value, valueColor }: { k: string; value: ReactNode; valueColor?: string }) {
   return (
-    <div style={{ display: 'flex' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       <span style={{ color: 'var(--proto-muted-3)' }}>{k}</span>
       <span style={{ marginLeft: 'auto', color: valueColor }}>{value}</span>
     </div>
@@ -121,7 +123,7 @@ export function Toggle(props: {
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <div onClick={props.onClick} role="switch"
+    <div className="settings-toggle" onClick={props.onClick} role="switch"
       tabIndex={props.onClick ? 0 : undefined}
       onKeyDown={props.onClick ? (event) => onActionKey(event, props.onClick) : undefined}
       aria-label={props.ariaLabel} aria-checked={props.on}
@@ -153,12 +155,11 @@ export function SSectionLabel({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 10.5,
-        fontWeight: 700,
-        letterSpacing: '.07em',
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: '.02em',
         color: 'var(--proto-muted)',
-        textTransform: 'uppercase',
-        margin: '16px 0 8px',
+        margin: '20px 0 8px',
       }}
     >
       {children}
@@ -168,7 +169,7 @@ export function SSectionLabel({ children }: { children: ReactNode }) {
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <span style={{ width: 96, flex: 'none', fontSize: 11.5, fontWeight: 600,
+    <span className="settings-field-label" style={{ width: 96, flex: 'none', fontSize: 12, fontWeight: 600,
       color: 'var(--proto-muted)', paddingTop: 7 }}>
       {children}
     </span>
@@ -178,7 +179,7 @@ function FieldLabel({ children }: { children: ReactNode }) {
 function FieldHint(props: { hint?: ReactNode; tone?: 'muted' | 'danger' }) {
   if (props.hint == null) return null;
   const color = props.tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-muted-2)';
-  return <div style={{ fontSize: 11, lineHeight: 1.6, marginTop: 4, color }}>{props.hint}</div>;
+  return <div className="settings-hint" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 4, color }}>{props.hint}</div>;
 }
 
 export function SFieldRow(props: {
@@ -188,7 +189,7 @@ export function SFieldRow(props: {
   hintTone?: 'muted' | 'danger';
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '4px 0' }}>
+    <div className="settings-field-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '4px 0' }}>
       <FieldLabel>{props.label}</FieldLabel>
       <div style={{ flex: 1, minWidth: 0 }}>
         {props.children}
@@ -201,17 +202,15 @@ export function SFieldRow(props: {
 export const S_CONTROL_STYLE: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  font: `400 11.5px ${MONO}`,
+  minWidth: 0,
+  minHeight: 'var(--settings-control-height, 34px)',
+  fontFamily: 'inherit', fontSize: 'var(--settings-input-size, 13px)', lineHeight: 1.5,
   color: 'var(--proto-ink)',
-  // Opaque, deliberately: a field you type into is the contract case for `--proto-card`. Text you
-  // are editing must not have the mesh showing through it. The outline is still a ring, so the
-  // field lines up with the ringed cards around it instead of sitting one pixel wider.
-  background: 'var(--proto-card)',
-  border: 0,
-  boxShadow: '0 0 0 1px var(--proto-line-3)',
-  borderRadius: 'var(--r-control)',
-  padding: '7px 11px',
-  outline: 'none',
+  background: 'var(--settings-control-fill, var(--proto-card))',
+  border: '1px solid var(--settings-control-boundary, var(--proto-line-3))',
+  boxShadow: 'none',
+  borderRadius: 'var(--settings-control-radius, 8px)',
+  padding: '6px 10px',
 };
 
 export const S_CONTROL_DISABLED_STYLE: CSSProperties = {
@@ -224,22 +223,21 @@ export const S_CONTROL_DISABLED_STYLE: CSSProperties = {
 export type SButtonTone = 'accent' | 'danger' | 'neutral';
 
 const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperties }> = {
-  // Only `accent` glows: `danger` is filled from the state palette rather than the accent, so a
-  // glow there would read as a second primary (same call as design/Button).
+  // Accent is the primary fill; secondary actions share the quiet control surface.
   accent: {
     base: {
       color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)',
-      border: '1px solid transparent', boxShadow: 'var(--accent-glow)',
+      border: '1px solid transparent', boxShadow: 'none',
     },
     hover: { background: 'var(--proto-accent-strong)' },
   },
   danger: {
-    base: { color: 'var(--proto-danger)', background: 'var(--glass-2)', border: 0, boxShadow: '0 0 0 1px var(--proto-danger-bg)' },
+    base: { color: 'var(--proto-danger)', background: 'var(--settings-control-fill, var(--proto-card))', border: '1px solid var(--proto-danger-bg)', boxShadow: 'none' },
     hover: { background: 'var(--proto-danger-bg)' },
   },
   neutral: {
-    base: { color: 'var(--proto-ink)', background: 'var(--glass-1)', border: 0, boxShadow: '0 0 0 1px var(--proto-line-3)' },
-    hover: { background: 'var(--glass-2)' },
+    base: { color: 'var(--proto-ink)', background: 'var(--settings-control-fill, var(--proto-card))', border: '1px solid var(--proto-line-3)', boxShadow: 'none' },
+    hover: { background: 'var(--proto-alt)' },
   },
 };
 
@@ -256,10 +254,7 @@ function focusedButtonStyle(
   disabled?: boolean,
 ): CSSProperties {
   if (!focused || disabled) return style;
-  // Compose rather than replace: the accent tone carries `--accent-glow` in its base shadow, and
-  // overwriting it would make the primary button go flat for as long as it holds focus.
-  const ring = '0 0 0 2px var(--proto-accent-bg)';
-  return { ...style, boxShadow: style.boxShadow ? `${ring}, ${style.boxShadow}` : ring };
+  return { ...style, outline: '2px solid var(--proto-accent)', outlineOffset: 2 };
 }
 
 function buttonBaseStyle(
@@ -269,8 +264,9 @@ function buttonBaseStyle(
   focused = false,
 ): CSSProperties {
   const spec = BUTTON_TONE[tone];
-  const base = { fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)',
-    padding: '7px 14px', flex: 'none', ...buttonDisabledStyle(disabled), ...spec.base };
+  const base = { fontSize: 13, fontWeight: 600, borderRadius: 'var(--settings-control-radius, 8px)',
+    minHeight: 'var(--settings-control-height, 34px)', lineHeight: 1.5,
+    padding: '6px 12px', flex: 'none', ...buttonDisabledStyle(disabled), ...spec.base };
   const hovered = hover && !disabled ? { ...base, ...spec.hover } : base;
   return focusedButtonStyle(hovered, focused, disabled);
 }
@@ -283,12 +279,13 @@ type SButtonProps = {
   style?: CSSProperties;
 } & Record<string, unknown>;
 
-export function SButton({ tone, disabled, onClick, children, style, ...rest }: SButtonProps) {
+export function SButton({ tone, disabled, onClick, children, style, className, ...rest }: SButtonProps) {
   const [hover, setHover] = useState(false);
   const [focused, setFocused] = useState(false);
   return (
     <button
       {...rest}
+      className={settingsClassName('settings-button', className)}
       type="button"
       disabled={Boolean(disabled)}
       aria-disabled={Boolean(disabled)}
