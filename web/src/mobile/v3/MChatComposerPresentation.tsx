@@ -1,3 +1,7 @@
+// input:  React, mobile presentation props, shared view models
+// output: MChatComposerPresentation
+// pos:    Mobile ChatComposerPresentation presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import { TodoRail } from '@/features/workbench/TodoRail';
@@ -43,8 +47,8 @@ function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   const reportsOnly = props.itemKey === 'browser' || props.itemKey === 'commission';
   return (
     <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
-      {props.icon}<span style={{ fontSize: 13, color: MC.ink }}>{props.label}</span>
-      {props.value != null && <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.run }}>{props.value}</span>}
+      {props.icon}<span style={{ fontSize: 13, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{props.label}</span>
+      {props.value != null && <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}`, color: MC.run, minWidth: 0, maxWidth: '55%', overflowWrap: 'anywhere', textAlign: 'right' }}>{props.value}</span>}
     </div>
   );
 }
@@ -124,7 +128,7 @@ function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | 
     <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ ...composerChipStyle, flex: '0 1 auto' }}>
       <span style={{ flex: '0 1 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {sub ? (
-        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: 'var(--proto-muted-3)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
+        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
       ) : null}
     </button>
   );
@@ -153,7 +157,7 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
       style={{ ...composerChipStyle, flex: '0 3 auto' }}
     >
       <span style={{
-        minWidth: 0, font: `500 11.5px ${MONO}`, color: followingDefault ? 'var(--proto-muted-3)' : MC.muted,
+        minWidth: 0, font: `500 11.5px ${MONO}`, color: followingDefault ? MC.muted : MC.muted,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {label}
@@ -256,7 +260,7 @@ export function MobileSlashMenu({ suggestions, onPick }: {
 }): JSX.Element {
   return (
     <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: MC.card, overflow: 'hidden', boxShadow: 'var(--shadow-menu-soft)' }}>
-      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 38, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: MC.muted }}>{suggestion.description}</span></div>)}
+      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
     </div>
   );
 }

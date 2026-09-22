@@ -1,5 +1,7 @@
-// @ds-adherence-ignore -- mobile inline thread card, 1:1 from Cortex_Glass_Mobile.dc.html L109-115
-// (raw px/font/svg by design, §8.3).
+// input:  React, mobile presentation props, shared view models
+// output: MobileThreadStepper
+// pos:    Compact mobile inline thread progress card
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, KeyboardEvent } from 'react';
 import type { ProtoPill } from '@/features/workbench/thread-card-proto';
 import type { MobileStepper, StepperNode } from './mobile-session-vm';
@@ -8,8 +10,10 @@ const mono = "'IBM Plex Mono',monospace";
 
 const cardStyle: CSSProperties = {
   borderRadius: 'var(--r-float)',
-  background: 'var(--glass-2)',
-  boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border), var(--accent-glow)',
+  background: 'var(--m-card)',
+  boxShadow: 'var(--shadow-card), 0 0 0 1px var(--proto-accent-border)',
+  minWidth: 0,
+  overflowWrap: 'anywhere',
   padding: '12px 14px',
   cursor: 'pointer',
 };
@@ -64,11 +68,12 @@ export function MobileThreadStepper({
           <circle cx="10.5" cy="7" r="1.9" />
           <path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
         </svg>
-        <span style={{ font: `600 12.5px ${mono}`, color: 'var(--m-ink)' }}>{card.name}</span>
+        <span style={{ font: `600 12.5px ${mono}`, color: 'var(--m-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.name}</span>
         <span
           style={{
             marginLeft: 'auto',
-            fontSize: 10.5,
+            flex: 'none',
+            fontSize: 11,
             fontWeight: 600,
             padding: '2px 9px',
             borderRadius: 'var(--r-pill)',
@@ -82,7 +87,7 @@ export function MobileThreadStepper({
 
       {/* Cost and sub-threads used to sit in a divided footer beside an `Open →` link; the card
           itself is the link now, so they ride the header block instead. */}
-      <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)', textAlign: 'right', marginTop: 4 }}>
+      <div style={{ font: `400 11px ${mono}`, color: 'var(--m-muted)', textAlign: 'right', marginTop: 4 }}>
         {meta}
       </div>
 
@@ -101,7 +106,7 @@ export function MobileThreadStepper({
         ))}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', justifyContent: 'space-between', marginTop: 6, font: `400 11px ${mono}`, color: 'var(--m-muted)' }}>
         {card.nodes.map((node, i) => (
           <span key={i} style={node.state === 'running' ? { color: 'var(--proto-accent)' } : undefined}>
             {nodeLabel(node, card.footer.elapsed)}

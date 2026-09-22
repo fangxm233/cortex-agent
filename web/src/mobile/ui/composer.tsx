@@ -1,3 +1,7 @@
+// input:  React, mobile presentation props, shared view models
+// output: composer
+// pos:    Mobile floating and fullscreen composer controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from './mobile-theme';
@@ -140,16 +144,16 @@ const composerShellStyle: CSSProperties = {
   zIndex: 4,
 };
 
-const COMPOSER_GLASS = 'var(--glass-ring-inset), var(--shadow-float)';
+const COMPOSER_GLASS = 'var(--shadow-chrome-float)';
 
 /** The tone/focus accent is an extra ring in the shadow stack rather than a border: a real border
  *  would resize the card the moment the field takes focus. */
 function composerCardStyle(tone: MComposerProps['tone'], focused: boolean): CSSProperties {
   const accent = tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : null;
   return {
-    borderRadius: 20, background: MC.glass,
+    borderRadius: 'var(--r-float)', background: MC.glass,
     backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
-    boxShadow: accent ? `${COMPOSER_GLASS}, 0 0 0 1.5px ${accent}` : COMPOSER_GLASS,
+    boxShadow: `${COMPOSER_GLASS}, 0 0 0 1px ${accent ?? MC.hairline}`,
     boxSizing: 'border-box', padding: '12px 12px 10px 14px',
   };
 }
@@ -165,7 +169,7 @@ function ComposerField(props: ComposerCardProps): JSX.Element {
         onFocus={() => props.onFocus(true)}
         onBlur={() => props.onFocus(false)}
         placeholder={props.placeholder}
-        style={{ flex: 1, minWidth: 0, resize: 'none', border: 'none', outline: 'none', background: 'transparent', padding: `${COMPOSER_PAD_V}px 0`, margin: 0, maxHeight: COMPOSER_MAX_H, fontSize: 15, lineHeight: `${COMPOSER_LINE_H}px`, color: MC.ink, fontFamily: 'inherit', boxSizing: 'border-box' }}
+        style={{ flex: 1, minWidth: 0, resize: 'none', border: 'none', outline: 'none', background: 'transparent', padding: `${COMPOSER_PAD_V}px 0`, margin: 0, maxHeight: COMPOSER_MAX_H, fontSize: 16, lineHeight: `${COMPOSER_LINE_H}px`, color: MC.ink, fontFamily: 'inherit', boxSizing: 'border-box' }}
       />
       {props.showExpand && <ExpandButton onClick={props.onExpand} />}
     </div>
@@ -260,11 +264,11 @@ const fullscreenShellStyle: CSSProperties = {
 const fullscreenCardStyle: CSSProperties = {
   flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden',
   border: `1.5px solid ${MC.run}`, borderRadius: 'var(--r-float)', background: MC.card,
-  boxShadow: 'var(--focus-ring-accent), var(--shadow-panel)', boxSizing: 'border-box',
+  boxShadow: 'var(--shadow-panel)', boxSizing: 'border-box',
 };
 const fullscreenTextareaStyle: CSSProperties = {
   flex: 1, minHeight: 0, resize: 'none', border: 'none', outline: 'none', background: 'transparent',
-  padding: '14px 40px 8px 16px', margin: 0, fontSize: 14.5, lineHeight: '22px', color: MC.ink,
+  padding: '14px 40px 8px 16px', margin: 0, fontSize: 16, lineHeight: '22px', color: MC.ink,
   fontFamily: 'inherit', boxSizing: 'border-box',
 };
 const fullscreenToolStyle: CSSProperties = {
@@ -296,7 +300,7 @@ function FullscreenTools({ props, insertSlash }: {
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderTop: `1px solid ${MC.divider}` }}>
       <button type="button" aria-label="Attach" onClick={props.onPlus} style={fullscreenToolStyle}><PlusGlyph /></button>
       <button type="button" aria-label="Slash command" onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
-      <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', font: `400 10px ${MONO}`, color: MC.faint }}>
+      <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', font: `400 11px ${MONO}`, color: MC.muted }}>
         {composerCountLabel(props.value, props.lineUnit ?? '行', props.charUnit ?? '字')}
       </span>
       {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={34} />}

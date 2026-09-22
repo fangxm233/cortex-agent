@@ -1,3 +1,7 @@
+// input:  React, mobile presentation props, shared view models
+// output: MChatMessageActions
+// pos:    Mobile ChatMessageActions presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/workbench/transcript-vm';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -133,7 +137,7 @@ function ActionGroup({ row, menu, copy, groupRef, top, safeTop }: {
   return (
     <div ref={groupRef} data-msg-menu-group="true" style={style}>
       <HeldBubbleCopy isUser={isUser} text={text} />
-      {timeLabel && <div style={{ flex: 'none', font: `500 10.5px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>{timeLabel}</div>}
+      {timeLabel && <div style={{ flex: 'none', font: `500 11px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>{timeLabel}</div>}
       <MessageMenuCard menu={menu} copy={copy} />
     </div>
   );

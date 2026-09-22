@@ -30,7 +30,7 @@ Mobile screens, readable presentation views and native service adapters.
 | MChatSheets.test.tsx | test | Test chat selection sheets |
 | MChatSheets.tsx | view | Render chat context and selection sheets |
 | MChatView.test.tsx | test | Test chat shortcuts and attachment actions |
-| MChatView.tsx | view | Render mobile chat header, stream and composer |
+| MChatView.tsx | view | Render readable mobile chat and tool surfaces |
 | MChatView.types.ts | type | Define chat view props and localized copy |
 | m-chat-vm.test.ts | test | Test mobile chat view state |
 | m-chat-vm.ts | model | Build chat rows, status and selection state |
@@ -46,7 +46,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-hooks-vm.test.ts | test | Test hook grouping and row construction |
 | m-hooks-vm.ts | model | Build mobile hook groups and rows |
 | MHotUpdateDialog.tsx | view | Render web asset update dialog |
-| MInteractionCards.tsx | view | Render question and plan approval cards |
+| MInteractionCards.tsx | view | Render readable question and plan approval cards |
 | MIssuesScreen.tsx | screen | Connect project issue data and actions |
 | MIssuesView.tsx | view | Render mobile project issues |
 | MMachinesScreen.tsx | screen | Connect machine data and actions |
@@ -78,6 +78,7 @@ Mobile screens, readable presentation views and native service adapters.
 | m-notification-routing.test.ts | test | Test notification target validation |
 | m-notification-routing.ts | utility | Validate notification targets and routes |
 | MNotificationToaster.tsx | view | Render notification toasts and banners |
+| mobile-chat-presentation.test.tsx | test | Guard chat input sizes and sealed card styling |
 | mobile-presentation.test.tsx | test | Guard mobile readability and surface styling |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |

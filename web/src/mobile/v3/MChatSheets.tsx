@@ -1,3 +1,7 @@
+// input:  React, mobile presentation props, shared view models
+// output: MChatSheets
+// pos:    Mobile ChatSheets presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
@@ -40,10 +44,10 @@ interface SessionIdRowProps {
 function SessionIdRow({ row, copy, copied, onCopy }: SessionIdRowProps): JSX.Element {
   return (
     <div>
-      <div style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
+      <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>{row.label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '10px 12px' }}>
-        <span style={{ flex: 1, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>{row.value}</span>
-        <span role="button" onClick={onCopy} style={{ flex: 'none', font: `600 9.5px ${MONO}`, color: copied ? MC.run : MC.muted, border: `1px solid ${copied ? MC.runBorder : 'var(--proto-line-3)'}`, borderRadius: 'var(--r-chip)', padding: '4px 9px', cursor: row.value === '—' ? 'default' : 'pointer', opacity: row.value === '—' ? 0.4 : 1 }}>{copied ? copy.copied : copy.copy}</span>
+        <span style={{ flex: 1, minWidth: 0, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>{row.value}</span>
+        <span role="button" onClick={onCopy} style={{ flex: 'none', font: `600 11px ${MONO}`, color: copied ? MC.run : MC.muted, border: `1px solid ${copied ? MC.runBorder : 'var(--proto-line-3)'}`, borderRadius: 'var(--r-chip)', padding: '4px 9px', cursor: row.value === '—' ? 'default' : 'pointer', opacity: row.value === '—' ? 0.4 : 1 }}>{copied ? copy.copied : copy.copy}</span>
       </div>
     </div>
   );
@@ -128,9 +132,9 @@ function SelectionRow({ row, last, copy, onPick }: {
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ font: `600 13px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
-          {row.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.profileCurrent}</span>}
+          {row.current && <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.profileCurrent}</span>}
         </div>
-        {row.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{row.sub}</div>}
+        {row.sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' }}>{row.sub}</div>}
       </div>
       {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
     </div>
@@ -153,7 +157,7 @@ function SelectionDrillRow({ row, last, onOpen }: {
       <span style={{ fontSize: 13, color: MC.body, flex: 'none' }}>{row.label}</span>
       <span style={{ marginLeft: 'auto', minWidth: 0, font: `600 12.5px ${MONO}`, color: row.overridden ? MC.run : MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
       {row.overridden && <span style={{ fontSize: 13, color: MC.run, flex: 'none' }}>•</span>}
-      <span style={{ fontSize: 15, color: MC.faint, flex: 'none' }}>›</span>
+      <span style={{ fontSize: 15, color: MC.muted, flex: 'none' }}>›</span>
     </div>
   );
 }
@@ -163,7 +167,7 @@ function SheetCard({ children }: { children: ReactNode }): JSX.Element {
 }
 
 function SheetNote({ text }: { text: string }): JSX.Element {
-  return <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
+  return <div style={{ font: `400 11px ${MONO}`, color: MC.muted, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
 }
 
 function SectionRows({ section, copy, onPick }: {
@@ -212,7 +216,7 @@ export function SelectionSheet({ vm, copy, pending, onClose, onPick }: {
         </>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span></div>
+          <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.profileSubtitle}</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
             {vm.sections[0] && (
               <div>
@@ -279,7 +283,7 @@ function OptionRow({ item, attr, last, current, onPick }: {
 }): JSX.Element {
   return (
     <div {...{ [attr]: item.value ?? '__off__' }} onClick={() => onPick(item.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
-      <div style={{ minWidth: 0, flex: 1 }}><span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
+      <div style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}><span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
       {item.value === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
     </div>
   );

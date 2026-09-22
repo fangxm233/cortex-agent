@@ -1,9 +1,7 @@
-// @ds-adherence-ignore -- 6b 计划全文阅读页, chrome extracted 1:1 from scheme-mobile.dc.html
-// sec-6 L132-167. Raw px/hex by design §8.3. Renders the REAL plan snapshot markdown with a
-// scroll-progress bar; the resident bottom action bar approves/rejects while pending and turns
-// into a read-only status stamp after sealing. Pure + presentational: the container
-// (MPlanReadScreen) owns data + mutations. Honest gap: the `由 X 生成` source line has no entity
-// field → only the real row time is shown.
+// input:  React, mobile presentation props, shared view models
+// output: MPlanReadView
+// pos:    Mobile PlanReadView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -92,20 +90,20 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             type="button"
             aria-label="Back"
             onClick={onBack}
-            style={{ border: 'none', background: 'transparent', color: MC.run, fontSize: 15, lineHeight: 1, padding: '0 2px', margin: 0, cursor: 'pointer', flex: 'none', minHeight: 44, minWidth: 30, display: 'flex', alignItems: 'center' }}
+            style={{ border: 'none', background: 'transparent', color: MC.run, fontSize: 15, lineHeight: 1, padding: '0 2px', margin: 0, cursor: 'pointer', flex: 'none', minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center' }}
           >
             ‹
           </button>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
-            <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {planMetaLine(model.filePath, model.lineCount, statusLabel, copy.lang)}
             </div>
           </div>
           {pending ? (
-            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.pendingPill}</span>
+            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: MC.amberInk, background: MC.amberBg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.pendingPill}</span>
           ) : (
-            <span style={{ marginLeft: 'auto', font: `600 9.5px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
+            <span style={{ marginLeft: 'auto', font: `600 11px ${MONO}`, color: stamp.fg, background: stamp.bg, padding: '2px 8px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
           )}
         </div>
         {pending && (
@@ -119,13 +117,13 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
       <div style={{ flex: 1, minHeight: 0, position: 'relative', background: 'var(--proto-card)' }}>
         <div ref={scrollRef} onScroll={onScroll} style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: '16px 18px 24px', boxSizing: 'border-box' }}>
           {/* `由 X 生成` source line has no entity field (GAP) — only the real row time shows. */}
-          {model.timeLabel && <div style={{ font: `400 10px ${MONO}`, color: MC.faint, paddingBottom: 8 }}>{model.timeLabel}</div>}
-          <div style={{ fontSize: 13, lineHeight: 1.7, color: MC.body }}>
+          {model.timeLabel && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, paddingBottom: 8 }}>{model.timeLabel}</div>}
+          <div style={{ fontSize: 13, lineHeight: 1.7, color: MC.body, overflowWrap: 'anywhere' }}>
             <ChatMarkdown text={model.planContent} />
           </div>
           {model.status === 'rejected' && model.feedback && (
             <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
-              <div style={{ font: `600 10px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{copy.feedbackLabel}</div>
+              <div style={{ font: `600 11px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{copy.feedbackLabel}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
             </div>
           )}
@@ -148,14 +146,14 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             <button
               type="button"
               onClick={onApprove}
-              style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-card)', background: MC.ink, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
+              style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
-              {approveSub && <span style={{ font: `400 9px ${MONO}`, color: MC.inkSolidFgDim }}>{approveSub}</span>}
+              {approveSub && <span style={{ font: `400 11px ${MONO}`, color: MC.inkSolidFgDim }}>{approveSub}</span>}
             </button>
           </div>
         ) : (
-          <div style={{ height: 48, borderRadius: 'var(--r-card)', background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13.5, fontWeight: 600 }}>
+          <div style={{ minHeight: 48, padding: '8px 12px', boxSizing: 'border-box', overflowWrap: 'anywhere', borderRadius: 'var(--r-control)', background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13.5, fontWeight: 600 }}>
             {stamp.text}
           </div>
         )}

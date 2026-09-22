@@ -1,3 +1,7 @@
+// input:  React, mobile presentation props, shared view models
+// output: MDecisionCards
+// pos:    Mobile DecisionCards presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -23,7 +27,7 @@ function actionLabel(kind: DecisionActionKind, L: Vocab): string {
 
 function Badge({ L }: { L: Vocab }): JSX.Element {
   return (
-    <span style={{ font: `700 8px ${MONO}`, letterSpacing: '.06em', color: MC.run, background: MC.runBg, border: `1px solid ${MC.runBorder}`, borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
+    <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: MC.run, background: MC.runBg, border: `1px solid ${MC.runBorder}`, borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
       {L.wbDecBadge}
     </span>
   );
@@ -32,7 +36,7 @@ function Badge({ L }: { L: Vocab }): JSX.Element {
 function Section({ label, text }: { label: string; text: string }): JSX.Element {
   return (
     <div style={{ marginTop: 13 }}>
-      <div style={{ font: `600 10px ${MONO}`, letterSpacing: '.05em', color: MC.faint, paddingBottom: 4 }}>{label}</div>
+      <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, paddingBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 13, lineHeight: 1.6, color: MC.body }}>
         <ChatMarkdown text={text} />
       </div>
@@ -46,7 +50,7 @@ type Mode = 'view' | 'explain' | 'revise';
 function Caret({ open }: { open: boolean }): JSX.Element {
   return (
     <span
-      style={{ width: 12, height: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.faint, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .16s ease' }}
+      style={{ width: 12, height: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.muted, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .16s ease' }}
     >
       <svg width={7} height={10} viewBox="0 0 7 10" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="M1.5 1 5.5 5l-4 4" />
@@ -100,11 +104,11 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
         role="button"
         data-decision-toggle={d.id}
         onClick={() => (open ? collapse() : setOpen(true))}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px' }}
+        style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '9px 11px', minHeight: 44, boxSizing: 'border-box' }}
       >
         <Badge L={L} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, lineHeight: 1.4, ...(open ? { overflowWrap: 'break-word' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{d.title}</span>
-        {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: '1 1 100px', lineHeight: 1.4, ...(open ? { overflowWrap: 'break-word' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{d.title}</span>
+        {chip && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
         <Caret open={open} />
       </div>
 
@@ -115,11 +119,11 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
           <Section label={L.wbDecReasoning} text={d.reasoning} />
           {d.actions.length > 0 && (
             <div style={{ marginTop: 14, border: `1px solid ${MC.hairline}`, background: MC.canvas, borderRadius: 'var(--r-control)', padding: '9px 12px' }}>
-              <div style={{ font: `600 10px ${MONO}`, letterSpacing: '.05em', color: MC.faint, paddingBottom: 5 }}>{L.wbDecLog}</div>
+              <div style={{ font: `600 11px ${MONO}`, letterSpacing: '.05em', color: MC.muted, paddingBottom: 5 }}>{L.wbDecLog}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {d.actions.map((a, i) => (
                   <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'baseline', fontSize: 12, lineHeight: 1.5 }}>
-                    <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, flex: 'none' }}>{messageTimeLabel(a.ts) ?? ''}</span>
+                    <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{messageTimeLabel(a.ts) ?? ''}</span>
                     <span style={{ fontWeight: 600, color: a.action === 'approve' ? MC.done : MC.sub, flex: 'none' }}>{actionLabel(a.action, L)}</span>
                     {a.message && <span style={{ color: MC.muted, overflowWrap: 'anywhere', minWidth: 0 }}>{a.message}</span>}
                   </div>
@@ -139,7 +143,7 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
                   <span
                     role="button"
                     onClick={approve}
-                    style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', background: busy ? MC.faint : MC.ink, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+                    style={{ flex: 1, height: 38, borderRadius: 'var(--r-control)', background: busy ? MC.muted : MC.inkSolid, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
                   >
                     ✓ {L.wbDecApprove}
                   </span>
@@ -155,12 +159,12 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-control)', padding: '8px 11px', fontSize: 13, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-control)', padding: '8px 11px', fontSize: 16, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <span
                     role="button"
                     onClick={send}
-                    style={{ height: 38, borderRadius: 'var(--r-control)', padding: '0 16px', background: canSend ? MC.ink : MC.faint, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
+                    style={{ height: 38, borderRadius: 'var(--r-control)', padding: '0 16px', background: canSend ? MC.inkSolid : MC.muted, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
                   >
                     {L.wbDecSend}
                   </span>
