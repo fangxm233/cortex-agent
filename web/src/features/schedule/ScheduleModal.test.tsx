@@ -1,3 +1,8 @@
+// input:  ScheduleModal, schedule form fixtures, React renderer
+// output: Schedule control and overlay regression tests
+// pos:    Schedule editor presentation coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
@@ -59,6 +64,20 @@ beforeEach(() => {
 });
 
 describe('ScheduleModal custom selections', () => {
+  it('keeps read-only edit controls readable and keyboard semantics explicit', () => {
+    const renderer = mount(defaultScheduleForm(null), vi.fn(), 'edit');
+    const type = renderer.root.findByProps({ 'data-sched-type-opt': 'daily' });
+    expect(type.type).toBe('button');
+    expect(type.props.disabled).toBe(true);
+    expect(type.props.style.opacity).toBeUndefined();
+    expect(type.props.className).toContain('focus-visible:outline');
+    const target = renderer.root.findByProps({ 'data-schedule-select': 'target' });
+    expect(target.props.disabled).toBe(true);
+    expect(renderer.root.findByProps({ role: 'dialog' }).props.style).toMatchObject({
+      width: 560, maxWidth: 'calc(100vw - 40px)', backdropFilter: 'var(--glass-filter)',
+    });
+  });
+
   it('emits typed patches for interval, profile, target and fallback fields', () => {
     const onChange = vi.fn();
     const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };

@@ -1,3 +1,8 @@
+// input:  ApprovalCenterModal, mocked approval queue
+// output: Approval presentation and queue handoff tests
+// pos:    Approval center interaction regression coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create } from 'react-test-renderer';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -50,6 +55,23 @@ beforeEach(() => {
 });
 
 describe('ApprovalCenterModal', () => {
+  it('keeps approval selection keyboard reachable with one boundary', () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => { renderer = create(<ApprovalCenterModal open onClose={vi.fn()} />); });
+    const selected = renderer.root.findByProps({ 'data-approval-id': 'apr-1' });
+    expect(selected.props.tabIndex).toBe(0);
+    expect(selected.props['aria-pressed']).toBe(true);
+    expect(selected.props.style.boxShadow).toBeUndefined();
+    const click = vi.fn();
+    const preventDefault = vi.fn();
+    act(() => selected.props.onKeyDown({ key: ' ', preventDefault, currentTarget: { click } }));
+    expect(click).toHaveBeenCalledOnce();
+    expect(preventDefault).toHaveBeenCalledOnce();
+    const close = renderer.root.findByProps({ 'aria-label': 'Close' });
+    expect(close.type).toBe('button');
+    act(() => renderer.unmount());
+  });
+
   it('keeps deny feedback and toast in the desktop surface while handing decisions to the queue', async () => {
     let renderer: ReturnType<typeof create>;
     await act(async () => {

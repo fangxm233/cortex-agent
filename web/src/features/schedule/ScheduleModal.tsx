@@ -1,3 +1,8 @@
+// input:  ScheduleForm, editable fields, Select, vocabulary
+// output: ScheduleModal
+// pos:    Schedule editor presentation and controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useEffect, type CSSProperties } from 'react';
 import { CONTROL_HEIGHT, Select } from '@/design';
 import { useVocab } from '@/i18n';
@@ -22,23 +27,25 @@ import {
 // (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
 
 const LABEL: CSSProperties = {
-  fontSize: 9.5,
-  fontWeight: 700,
-  letterSpacing: '.05em',
-  color: 'var(--proto-muted-3)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '.02em',
+  color: 'var(--proto-muted)',
 };
 
 // Every field of the form — the time input, the interval pair, and the four selects — sits in this
 // one cell. A select used to get a shorter, rounder box than the input beside it; sharing the cell
 // (and fixing its height rather than inferring one from padding) keeps the row aligned whatever the
 // control inside it is.
+const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 const CELL_BOX: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
   height: CONTROL_HEIGHT.md,
   boxSizing: 'border-box',
-  border: '1px solid var(--proto-line)',
+  border: '1px solid var(--proto-line-3)',
+  background: 'var(--proto-card)',
   borderRadius: 'var(--r-control)',
   padding: '0 10px',
 };
@@ -121,6 +128,8 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
       {/* card (prototype L1433) */}
       <div
         data-schedule-modal
+        role="dialog"
+        aria-label={editing ? L.scEditSchedule : L.scNewSchedule}
         data-sched-type={form.type}
         style={{
           position: 'fixed',
@@ -129,6 +138,10 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
           transform: 'translate(-50%,-50%)',
           animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
           width: 560,
+          maxWidth: 'calc(100vw - 40px)',
+          maxHeight: 'calc(100dvh - 40px)',
+          display: 'flex',
+          flexDirection: 'column',
           // Floating glass sheet, matching design/Modal: a top-level overlay is the one shape
           // `backdrop-filter` is affordable on, because the sheet holds still and the backdrop is
           // sampled once per open rather than on every scroll frame of the form inside it.
@@ -142,33 +155,39 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         }}
       >
         {/* header (prototype L1434) */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
+        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{editing ? L.scEditSchedule : L.scNewSchedule}</span>
-          <span
+          <button
+            type="button"
+            className={focusClass}
+            aria-label="Close"
             onClick={onCancel}
             style={{
               marginLeft: 'auto',
-              font: "500 9.5px 'IBM Plex Mono',monospace",
-              color: 'var(--proto-muted-3)',
+              font: "500 11px 'IBM Plex Mono',monospace",
+              color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 5,
-              padding: '2px 6px',
+              borderRadius: 'var(--r-chip)',
+              padding: '5px 8px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body (prototype L1435) */}
-        <div style={{ padding: '0 20px' }}>
+        <div style={{ padding: '0 20px 16px', background: 'var(--proto-card)', minHeight: 0, overflowY: 'auto' }}>
           {/* TYPE (prototype L1436-1442) */}
           <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
           <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
             {SCHED_TYPES.map((t: SchedType, i) => {
               const selected = form.type === t;
               return (
-                <span
+                <button
+                  type="button"
+                  className={focusClass}
+                  disabled={!editableFields.type}
                   key={t}
                   data-sched-type-opt={t}
                   aria-pressed={selected}
@@ -179,15 +198,14 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                     padding: '6px 0',
                     fontSize: 11.5,
                     fontWeight: 600,
-                    color: selected ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+                    color: selected ? 'var(--proto-accent)' : 'var(--proto-muted)',
                     background: selected ? 'var(--proto-accent-bg)' : undefined,
                     borderRight: i < SCHED_TYPES.length - 1 ? '1px solid var(--proto-line)' : undefined,
                     cursor: editableFields.type ? 'pointer' : 'default',
-                    opacity: !editableFields.type && !selected ? 0.45 : 1,
                   }}
                 >
                   {TYPE_LABELS[t]}
-                </span>
+                </button>
               );
             })}
           </div>
@@ -202,6 +220,8 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                   <div style={CELL_BOX}>
                     <input
                       value={form.time}
+                      className={focusClass}
+                      aria-label={L.scTime}
                       disabled={!editableFields.time}
                       onChange={(e) => onChange({ time: e.target.value })}
                       placeholder="09:00"
@@ -209,13 +229,12 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                         flex: 1,
                         minWidth: 0,
                         border: 'none',
-                        outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>24h</span>
+                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>24h</span>
                   </div>
                 </>
               )}
@@ -227,12 +246,13 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       type="number"
                       min={1}
                       value={form.intervalValue}
+                      className={focusClass}
+                      aria-label={L.scEvery}
                       disabled={!editableFields.interval}
                       onChange={(e) => onChange({ intervalValue: Number(e.target.value) })}
                       style={{
                         width: 44,
                         border: 'none',
-                        outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
                         color: 'var(--proto-ink)',
@@ -246,7 +266,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       disabled={!editableFields.interval}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
                       onValueChange={(intervalUnit) => onChange({ intervalUnit })}
-                      style={bareSelectStyle("400 10px 'IBM Plex Mono',monospace")}
+                      style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
                   </div>
                 </>
@@ -259,11 +279,12 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       type="number"
                       min={1}
                       value={form.delayValue}
+                      className={focusClass}
+                      aria-label={L.scIn}
                       onChange={(e) => onChange({ delayValue: Number(e.target.value) })}
                       style={{
                         width: 44,
                         border: 'none',
-                        outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
                         color: 'var(--proto-ink)',
@@ -276,7 +297,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       value={form.delayUnit}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
                       onValueChange={(delayUnit) => onChange({ delayUnit })}
-                      style={bareSelectStyle("400 10px 'IBM Plex Mono',monospace")}
+                      style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
                   </div>
                 </>
@@ -284,7 +305,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               {onceTimingUnavailable && (
                 <div
                   data-once-timing-note
-                  style={{ fontSize: 10.5, lineHeight: 1.45, color: 'var(--proto-muted-2)' }}
+                  style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--proto-muted)'  }}
                 >
                   {L.scOnceTimingUnavailable}
                 </div>
@@ -333,8 +354,10 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
 
           {/* MESSAGE (prototype L1447-1448) */}
           <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
+          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
             <textarea
+              className={focusClass}
+              aria-label={L.scMessage}
               value={form.message}
               disabled={!editableFields.message}
               onChange={(e) => onChange({ message: e.target.value })}
@@ -343,7 +366,6 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               style={{
                 width: '100%',
                 border: 'none',
-                outline: 'none',
                 resize: 'none',
                 background: 'transparent',
                 fontSize: 11.5,
@@ -356,7 +378,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
 
           {/* TARGET + FALLBACK (prototype L1449-1452) — not patchable via schedules.update, so
               edit mode shows them read-only (prefill from the persisted record). */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, opacity: editing ? 0.55 : 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
               <div style={CELL_BOX}>
@@ -397,17 +419,20 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         </div>
 
         {/* footer (prototype L1454-1458) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px 16px' }}>
+        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 10, padding: '16px 20px', borderTop: '1px solid var(--proto-line-2)', background: 'var(--proto-card)' }}>
           {nextRun && (
-            <span data-schedule-next-run style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
+            <span data-schedule-next-run style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
               {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{nextRun.clock}</b> · {L.scFooterIn} {nextRun.delta}
             </span>
           )}
-          <span
+          <button
+            type="button"
+            className={focusClass}
             onClick={onCancel}
             style={{
               marginLeft: 'auto',
-              fontSize: 11.5,
+              fontSize: 12,
+              flex: 'none',
               fontWeight: 600,
               border: '1px solid var(--proto-line-3)',
               borderRadius: 'var(--r-control)',
@@ -417,26 +442,26 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
             }}
           >
             {L.cancel}
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
+            className={focusClass}
+            disabled={!canCreate}
             data-action="create-schedule"
             onClick={() => canCreate && onCreate()}
             style={{
-              fontSize: 11.5,
+              fontSize: 12,
               fontWeight: 600,
+              flex: 'none',
               borderRadius: 'var(--r-control)',
               padding: '7px 15px',
-              color: 'var(--ink-solid-fg)',
-              background: 'var(--proto-accent)',
-              // Glow only while the action is actually available: a button dimmed to 0.55 that still
-              // throws accent light reads as live.
-              boxShadow: canCreate ? 'var(--accent-glow)' : 'none',
+              color: canCreate ? 'var(--ink-solid-fg)' : 'var(--proto-muted)',
+              background: canCreate ? 'var(--proto-accent)' : 'var(--proto-gray)',
               cursor: canCreate ? 'pointer' : 'not-allowed',
-              opacity: canCreate ? 1 : 0.55,
             }}
           >
             {editing ? L.scSaveSchedule : L.scCreateSchedule}
-          </span>
+          </button>
         </div>
       </div>
     </>
