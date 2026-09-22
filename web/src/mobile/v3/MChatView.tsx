@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatView
-// pos:    Mobile chat materials with stable sticky tool headers
+// pos:    Mobile chat with measured floating composer clearance
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
@@ -24,6 +24,7 @@ import {
 } from './MChatComposerPresentation';
 import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
+import { useComposerClearance } from './useComposerClearance';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
@@ -574,6 +575,7 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
 
 export function MChatView(props: MChatViewProps): JSX.Element {
   const { copy } = props;
+  const { composerRef, tailHeight } = useComposerClearance();
 
   // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
@@ -671,10 +673,11 @@ export function MChatView(props: MChatViewProps): JSX.Element {
               <SystemLine key={i} text={t} />
             ))}
             {/* Tail clearance for the floating composer, which no longer takes flow height. */}
-            <div style={{ height: 'calc(150px + env(safe-area-inset-bottom))', flex: 'none' }} />
+            <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
           </div>
         </div>
         <MComposer
+          shellRef={composerRef}
           placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh)}
           value={props.composerValue}
           onChange={props.onComposerChange}

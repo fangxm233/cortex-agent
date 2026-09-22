@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: composer
-// pos:    Mobile composer chrome and material secondary keys
+// pos:    Mobile composer chrome with measurable floating shell
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
@@ -114,6 +114,7 @@ function useAutosize(
 
 export interface MComposerProps {
   placeholder: string;
+  shellRef?: React.Ref<HTMLDivElement>;
   above?: ReactNode;
   commandMenu?: ReactNode;
   leading?: ReactNode;
@@ -226,7 +227,7 @@ export function MComposer(props: MComposerProps): JSX.Element {
   // positioned region the card is anchored inside, which the card itself no longer is.
   return (
     <>
-      <div style={composerShellStyle}>
+      <div ref={props.shellRef} data-composer-shell style={composerShellStyle}>
         {props.above}
         {!expanded ? props.commandMenu : null}
         <ComposerCard {...props} focused={focused} showExpand={multiline && !expanded} textareaRef={textareaRef} onFocus={setFocused} onExpand={() => setExpanded(true)} />

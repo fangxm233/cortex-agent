@@ -1,3 +1,7 @@
+// input:  Mobile chat views, React renderer, mocked session API
+// output: Chat actions and measured composer clearance tests
+// pos:    Verify mobile chat rendering and composer tail boundary
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -136,6 +140,40 @@ function renderChat(running: boolean, sendEnabled: boolean): string {
 
 beforeEach(() => {
   harness.queryCalls = [];
+});
+
+describe('MChatView floating composer clearance', () => {
+  it('reserves the whole shell as it grows and shrinks, without moving the composer', () => {
+    let height = 94;
+    const shell = { getBoundingClientRect: () => ({ height }) };
+    let resize!: () => void;
+    const observe = vi.fn(), disconnect = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback; }
+      observe = observe;
+      disconnect = disconnect;
+    });
+    let renderer!: ReactTestRenderer;
+    try {
+      act(() => { renderer = create(<MChatView {...baseProps} rows={[]}
+        status={{ running: false, tone: 'idle', text: 'idle' }} />, {
+        createNodeMock: (node) => node.props['data-composer-shell'] === true ? shell : null,
+      }); });
+      expect(observe).toHaveBeenCalledWith(shell, { box: 'border-box' });
+      // Single line, four/five lines, an attachment/reject strip, then cleared.
+      for (const [measured, reserved] of [[94, 150], [154, 210], [174, 230], [238.5, 294.5], [94, 150]]) {
+        act(() => { height = measured; resize(); });
+        expect(renderer.root.findByProps({ 'data-composer-clearance': true }).props.style.height)
+          .toBe(`calc(${reserved}px + env(safe-area-inset-bottom))`);
+      }
+      expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
+        .toBe('calc(20px + env(safe-area-inset-bottom))');
+    } finally {
+      act(() => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
 });
 
 describe('MChatView slash shortcuts', () => {

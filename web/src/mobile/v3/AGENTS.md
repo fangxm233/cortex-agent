@@ -29,8 +29,8 @@ Mobile screens, readable presentation views and native service adapters.
 | MChatScreen.tsx | screen | Connect mobile chat state and actions |
 | MChatSheets.test.tsx | test | Test chat sheets and menu Escape dismissal |
 | MChatSheets.tsx | view | Render glass chat sheets and More menu |
-| MChatView.test.tsx | test | Test chat shortcuts and attachment actions |
-| MChatView.tsx | view | Render chat materials and stable sticky headers |
+| MChatView.test.tsx | test | Test chat actions and measured tail clearance |
+| MChatView.tsx | view | Render chat with measured composer clearance |
 | MChatView.types.ts | type | Define chat view props and localized copy |
 | m-chat-vm.test.ts | test | Test mobile chat view state |
 | m-chat-vm.ts | model | Build chat rows, status and selection state |
@@ -129,3 +129,4 @@ Mobile screens, readable presentation views and native service adapters.
 | MUsageScreen.tsx | screen | Connect mobile usage data and policy actions |
 | MUsageView.test.tsx | test | Test mobile usage policy and refresh controls |
 | MUsageView.tsx | view | Render usage materials and inset policy controls |
+| useComposerClearance.ts | hook | Measure floating composer transcript clearance |
