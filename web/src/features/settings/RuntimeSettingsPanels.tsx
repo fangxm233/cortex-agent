@@ -406,7 +406,7 @@ function DurationFields(props: {
       <span style={MONO_VALUE_STYLE}>{L.stBuiltinInterval}</span>
       <input type="number" min={1} value={props.draft.value} style={DURATION_INPUT}
         onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
-      <Select
+      <Select popupClassName="settings-surface settings-select-popup"
         data-duration-unit={props.settingKey} aria-label={L.stBuiltinInterval} density="bare"
         value={props.draft.unit} options={DURATION_UNITS} style={DURATION_SELECT}
         onValueChange={(unit) => props.onDraft({ ...props.draft, unit })}

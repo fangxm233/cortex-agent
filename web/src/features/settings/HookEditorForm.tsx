@@ -290,7 +290,7 @@ function ResultField({ draft, errors, onDraftChange, err }: EditorSectionProps) 
       hint={locked ? L.hkResultLocked : err(errors.result)}
       hintTone={errors.result ? 'danger' : 'muted'}
     >
-      <Select
+      <Select popupClassName="settings-surface settings-select-popup"
         data-hook-field="result"
         data-hook-result-locked={locked ? '' : undefined}
         aria-label={L.hkFieldResult}

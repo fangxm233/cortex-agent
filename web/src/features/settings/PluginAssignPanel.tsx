@@ -229,6 +229,7 @@ function AckModal(props: {
   const L = useVocab();
   return (
     <Modal title={L.plAckTitle} description={L.plAckDesc} open={props.open} layer="nested"
+      contentClassName="settings-surface settings-nested-modal"
       contentDataAttributes={{ 'data-settings-dialog': '' }}
       onOpenChange={props.onOpenChange}
       footer={(
@@ -283,7 +284,7 @@ function AssignBody(props: PluginAssignViewProps) {
   return (
     <>
       {props.scopedTargets.length > 1 ? (
-        <Select data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
+        <Select popupClassName="settings-surface settings-select-popup" data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
           options={slotOptions(props.scopedTargets, L)} disabled={props.pending || state.dirty}
           onValueChange={props.onSelectTarget} style={TARGET_SELECT} />
       ) : null}

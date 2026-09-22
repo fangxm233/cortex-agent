@@ -216,7 +216,7 @@ function DefaultProfileRow({ current, names, onPick }: {
         title={L.stDefaultProfile}
         desc={L.stProfReadNote}
         control={onPick ? (
-          <Select
+          <Select popupClassName="settings-surface settings-select-popup"
             data-default-profile-select
             aria-label={L.stDefaultProfile}
             density="bare"
@@ -285,7 +285,7 @@ function ProfileChoice({
     );
   }
   return (
-    <Select
+    <Select popupClassName="settings-surface settings-select-popup"
       data-profile-field={field}
       data-profile-choice="select"
       aria-label={label}
@@ -439,7 +439,7 @@ function ProfileEditor({
           />
         </SFieldRow>
         <SFieldRow label={L.pfFieldBackend}>
-          <Select
+          <Select popupClassName="settings-surface settings-select-popup"
             data-profile-field="backend"
             aria-label={L.pfFieldBackend}
             value={draft.backend}
@@ -493,7 +493,7 @@ function ProfileEditor({
           />
         </SFieldRow>
         <SFieldRow label={L.pfFieldThinking} hint={hint('thinking')} hintTone={tone('thinking')}>
-          <Select
+          <Select popupClassName="settings-surface settings-select-popup"
             data-profile-field="thinking"
             aria-label={L.pfFieldThinking}
             value={draft.thinking}
@@ -507,7 +507,7 @@ function ProfileEditor({
         </SFieldRow>
         {draft.backend === 'claude' ? (
           <SFieldRow label={L.pfFieldClaudeBackend}>
-            <Select
+            <Select popupClassName="settings-surface settings-select-popup"
               data-profile-field="claudeBackend"
               aria-label={L.pfFieldClaudeBackend}
               value={draft.claudeBackend}

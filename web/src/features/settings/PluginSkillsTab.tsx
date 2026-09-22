@@ -172,7 +172,8 @@ function MoveSkillModal(props: {
   const nameBad = toSkill.length > 0 && !isCanonicalName(toSkill);
   const unchanged = toPluginId === props.plugin.id && toSkill === props.skill;
   return (
-    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
@@ -189,7 +190,7 @@ function MoveSkillModal(props: {
         </div>
       )}>
       <SFieldRow label={L.plSkillRenamePlugin}>
-        <Select value={toPluginId} onValueChange={setToPluginId} style={S_CONTROL_STYLE}
+        <Select popupClassName="settings-surface settings-select-popup" value={toPluginId} onValueChange={setToPluginId} style={S_CONTROL_STYLE}
           options={props.plugins.map((plugin) => ({ value: plugin.id, label: plugin.id }))} />
       </SFieldRow>
       <SFieldRow label={L.plSkillRenameName} hint={nameBad ? L.plNameInvalid : undefined} hintTone="danger">
@@ -209,7 +210,8 @@ function DeleteSkillModal(props: {
 }) {
   const L = useVocab();
   return (
-    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>

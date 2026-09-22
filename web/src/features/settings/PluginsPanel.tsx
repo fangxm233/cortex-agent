@@ -96,7 +96,8 @@ function CreatePluginModal(props: { actions: PluginAuthoringActions; onClose: ()
   const [description, setDescription] = useState('');
   const bad = id.length > 0 && !isCanonicalName(id);
   return (
-    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plNewPluginTitle}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plNewPluginTitle}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
@@ -131,7 +132,8 @@ function DeletePluginModal(props: {
   const L = useVocab();
   const managed = props.plugin.origin === 'managed';
   return (
-    <Modal open layer="nested" contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>

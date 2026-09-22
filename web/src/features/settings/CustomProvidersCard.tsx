@@ -116,7 +116,7 @@ function IdentityFields({ draft, creating, errors, set }: FieldsProps) {
         />
       </SFieldRow>
       <SFieldRow label={L.cpvFieldApi} hint={L.cpvApiHint}>
-        <Select
+        <Select popupClassName="settings-surface settings-select-popup"
           data-cpv-field="api"
           aria-label={L.cpvFieldApi}
           value={draft.api}

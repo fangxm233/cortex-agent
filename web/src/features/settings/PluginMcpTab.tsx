@@ -91,7 +91,7 @@ function ServerForm(props: {
           onChange={(event) => props.onChange({ name: event.target.value })} style={S_CONTROL_STYLE} />
       </SFieldRow>
       <SFieldRow label={L.plMcpTransport}>
-        <Select value={props.draft.type} options={transportOptions(L)} style={S_CONTROL_STYLE}
+        <Select popupClassName="settings-surface settings-select-popup" value={props.draft.type} options={transportOptions(L)} style={S_CONTROL_STYLE}
           onValueChange={(value: McpTransport) => props.onChange({ type: value })} />
       </SFieldRow>
       {stdio ? (
