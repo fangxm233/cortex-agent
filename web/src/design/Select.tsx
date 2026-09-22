@@ -35,9 +35,13 @@ const TRIGGER_CLASS =
   'inline-flex items-center justify-between gap-1g text-left outline-none ' +
   'focus-visible:ring-2 focus-visible:ring-proto-accent/40 disabled:cursor-not-allowed';
 
+// The popup is a floating glass sheet. It is the ONE surface here that blurs: the menu itself holds
+// still, while the rows in its viewport scroll unfiltered over the blur it has already produced.
+// Putting the filter on ITEM_CLASS instead would re-read the backdrop on every scroll frame.
 const CONTENT_CLASS =
-  'z-[100] overflow-hidden rounded-menu border border-proto-line bg-proto-card ' +
-  'font-mono text-[10px] text-proto-ink shadow-menu ' +
+  'z-[100] overflow-hidden rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'font-mono text-[10px] text-proto-ink shadow-[shadow:var(--shadow-float)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
@@ -60,7 +64,9 @@ const DENSITY_FONT: CSSProperties = {
 };
 
 const DENSITY_STYLE: Record<SelectDensity, CSSProperties> = {
-  compact: { ...DENSITY_FONT, padding: '2px 7px', borderRadius: 6 },
+  // `--r-chip`, not `--r-control`: at this height the trigger is a chip, and the control radius
+  // would clamp to a full pill and stop reading as a box with a value in it.
+  compact: { ...DENSITY_FONT, padding: '2px 7px', borderRadius: 'var(--r-chip)' },
   bare: {},
 };
 

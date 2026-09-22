@@ -24,7 +24,7 @@ export function SectionHeader({
       <div className="flex items-center gap-1g">
         <h2 className="text-body font-medium text-state-ink">{title}</h2>
         {count !== undefined && (
-          <MonoText muted className="rounded-card bg-surface-canvas-alt px-1g py-0.5g">
+          <MonoText muted className="rounded-[var(--r-chip)] bg-surface-canvas-alt px-1g py-0.5g">
             {count}
           </MonoText>
         )}

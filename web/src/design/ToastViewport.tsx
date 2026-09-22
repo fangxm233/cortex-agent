@@ -4,7 +4,8 @@ import { relativeAge, splitVisible, type ToastItem, type ToastLevel } from './to
 
 // The desktop bubble stack — a 1:1 build of scheme.dc.html section 18a (系统通知 toast), now the ONE
 // renderer for every on-screen bubble (action feedback and the live notification feed alike):
-//   · 380px 卡片, 圆角 11, proto-line 描边, 二级投影 (shadow-toast). 泡泡本体不上色、无左侧色条.
+//   · 380px 卡片, 圆角 --r-float, 浮层玻璃面 (--glass-2 + --glass-filter), 悬浮投影 (--shadow-float).
+//     描边由 --shadow-float 自带的 hairline ring 承担, 泡泡本体不上色、无左侧色条.
 //   · 24px 圆角方块 icon 承载级别色 (info=run 蓝 · success=绿 · warning=琥珀 · error=红, token 淡底).
 //   · 标题 12.5/600 ink · 正文一行 Plex Mono 10.5 灰 (最多两行) · 有 onActivate 时点击主体跳转.
 //   · 底部 2px 进度线 = 自动消失倒计时; 常驻 (duration=Infinity) 的不画线.
@@ -74,16 +75,21 @@ export function ToastBubble({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={activate ? () => { activate(); onDismiss(item.id); } : undefined}
+      // Blur lives on the bubble itself: it is a floating overlay, at most three of them are on
+      // screen (older ones fold into the "+N" pill below), and each one holds still for its whole
+      // dwell — nothing here is a scrolling surface re-reading the backdrop per frame.
       className={[
-        'relative w-[380px] overflow-hidden rounded-[11px] border border-proto-line bg-surface-card',
-        'px-[13px] pb-[12px] pt-[11px] shadow-toast animate-toast-in motion-reduce:animate-none',
+        'relative w-[380px] overflow-hidden rounded-[var(--r-float)] bg-[var(--glass-2)]',
+        '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)]',
+        'px-[13px] pb-[12px] pt-[11px] shadow-[shadow:var(--shadow-float)]',
+        'animate-toast-in motion-reduce:animate-none',
         activate ? 'cursor-pointer' : '',
       ].join(' ')}
     >
       <div className="flex items-start gap-[10px]">
         <span
           className={[
-            'flex h-[24px] w-[24px] flex-none items-center justify-center rounded-[7px] text-[11px] font-bold',
+            'flex h-[24px] w-[24px] flex-none items-center justify-center rounded-[var(--r-chip)] text-[11px] font-bold',
             ICON_TONE[item.level],
           ].join(' ')}
           aria-hidden
@@ -123,7 +129,11 @@ export function ToastBubble({
                     action.onClick();
                     onDismiss(item.id);
                   }}
-                  className="rounded-[6px] border border-proto-line bg-proto-card px-[8px] py-[3px] text-[10.5px] text-proto-muted transition-colors hover:text-proto-ink"
+                  // `--glass-2` with NO filter: it composites over the blur the bubble already
+                  // produced, so it reads as raised glass for the price of an alpha blend. Its
+                  // border stays — with no fill contrast left against the sheet, that hairline is
+                  // the only thing marking the button's edge.
+                  className="rounded-[6px] border border-proto-line bg-[var(--glass-2)] px-[8px] py-[3px] text-[10.5px] text-proto-muted transition-colors hover:text-proto-ink"
                 >
                   {action.label}
                 </button>
@@ -166,7 +176,14 @@ export function ToastViewport() {
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="pointer-events-auto flex items-center gap-[7px] rounded-full border border-proto-line bg-surface-card px-[12px] py-[5px] shadow-toast-pill"
+          // Same floating-sheet treatment as the bubbles it stands under; an opaque pill below a
+          // stack of glass ones reads as a different component. One small static element, so the
+          // blur costs the same as a bubble's.
+          className={[
+            'pointer-events-auto flex items-center gap-[7px] rounded-full bg-[var(--glass-2)]',
+            '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)]',
+            'px-[12px] py-[5px] shadow-[shadow:var(--shadow-float)]',
+          ].join(' ')}
         >
           <span className="font-mono text-[10.5px] font-semibold text-proto-muted">+{overflow}</span>
           <span className="text-[11px] text-proto-muted-2">more · click to expand</span>

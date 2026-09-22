@@ -4,6 +4,10 @@ import type { ReactNode } from 'react';
 // Side sheet built on Radix Dialog (same a11y guarantees as Modal: focus trap,
 // esc, aria-modal, focus restore). `side` anchors the panel left or right and
 // selects the matching slide animation. Token-only styling.
+//
+// The sheet is a floating glass surface: translucent `--glass-2` over its own `backdrop-filter`,
+// lifted by `--shadow-float`. That shadow carries a hairline ring, so the old `border-l`/`border-r`
+// seam is gone — a drawer over the backdrop is not a docked neighbour of anything.
 
 const OVERLAY_CLASS =
   'fixed inset-0 z-40 bg-state-ink/40 ' +
@@ -11,8 +15,8 @@ const OVERLAY_CLASS =
   'motion-reduce:animate-none';
 
 const SIDE_CLASS = {
-  right: 'right-0 border-l data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
-  left: 'left-0 border-r data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left',
+  right: 'right-0 data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
+  left: 'left-0 data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left',
 } as const;
 
 export type DrawerSide = keyof typeof SIDE_CLASS;
@@ -40,9 +44,14 @@ export function Drawer({
   open,
   onOpenChange,
 }: DrawerProps) {
+  // `backdrop-filter` belongs here and only here in this file: the sheet is a single floating
+  // overlay that does not move once open, so the blur is read once rather than per scroll frame.
+  // The body below scrolls INSIDE it and stays unfiltered.
   const contentClass =
     'fixed inset-y-0 z-50 flex h-full w-[92vw] max-w-md flex-col gap-2g ' +
-    'border-card bg-surface-card p-3g shadow-overlay focus:outline-none ' +
+    'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+    '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+    'p-3g shadow-[shadow:var(--shadow-float)] focus:outline-none ' +
     'motion-reduce:animate-none ' +
     SIDE_CLASS[side];
 
@@ -60,7 +69,7 @@ export function Drawer({
             </RadixDialog.Title>
             <RadixDialog.Close
               aria-label="Close"
-              className="-mr-1g -mt-1g rounded-card p-0.5g text-ui text-state-ink/60 transition-colors hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
+              className="-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-state-ink/60 transition-colors hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
             >
               ✕
             </RadixDialog.Close>

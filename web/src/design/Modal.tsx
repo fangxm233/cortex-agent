@@ -4,6 +4,12 @@ import type { CSSProperties, ReactNode } from 'react';
 // Radix owns focus trapping, Escape dismissal, aria-modal, scroll lock, and focus restore in both
 // chrome modes. Standard retains the token-styled shell; bare only removes visible design chrome so
 // approved prototype shells can keep their exact inline appearance without giving up dialog semantics.
+//
+// The standard panel is a floating glass sheet: `--glass-2` over its own `backdrop-filter`, lifted
+// by `--shadow-float`, whose hairline ring replaces the border it used to carry. This is the one
+// element in the file that may blur — it is a single overlay that holds still while the body
+// scrolls inside it, so the backdrop is sampled once per open rather than once per scroll frame.
+// `bare` is deliberately left unfiltered: its whole contract is that the call site owns the look.
 
 const OVERLAY_BASE_CLASS =
   'fixed inset-0 bg-state-ink/40 ' +
@@ -13,13 +19,15 @@ const OVERLAY_BASE_CLASS =
 const CONTENT_BASE_CLASS =
   'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ' +
   'flex max-h-[85vh] w-[90vw] flex-col gap-2g ' +
-  'rounded-card border border-card bg-surface-card p-3g shadow-overlay ' +
+  'rounded-[var(--r-float)] bg-[var(--glass-2)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'p-3g shadow-[shadow:var(--shadow-float)] ' +
   'focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out ' +
   'motion-reduce:animate-none ';
 
 const CLOSE_CLASS =
-  '-mr-1g -mt-1g rounded-card p-0.5g text-ui text-state-ink/60 transition-colors ' +
+  '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-state-ink/60 transition-colors ' +
   'hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none ' +
   'focus-visible:ring-2 focus-visible:ring-state-run/40';
 

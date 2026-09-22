@@ -25,7 +25,7 @@ export function ID({ value, copyable, className }: IDProps) {
       onClick={() => { void copy(value, true); }}
       title={copied ? 'Copied' : 'Copy'}
       className={[
-        'group inline-flex items-center gap-0.5g rounded-card px-0.5g font-mono text-ui',
+        'group inline-flex items-center gap-0.5g rounded-[var(--r-chip)] px-0.5g font-mono text-ui',
         'text-state-ink/60 transition-colors hover:bg-surface-canvas-alt hover:text-state-ink',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40',
         className,

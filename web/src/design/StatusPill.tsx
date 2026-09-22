@@ -1,7 +1,8 @@
 import { statusTone, type Tone } from './tone';
 
 // Token-driven status pill (design §5 pill palette). No hard-coded hex — the
-// bg/fg pair is selected from the tailwind `pill-<tone>-{bg,fg}` tokens.
+// bg/fg pair is selected from the tailwind `pill-<tone>-{bg,fg}` tokens, and the
+// radius is `--r-pill`, so the component finally is the shape its name claims.
 
 const TONE_CLASS: Record<Tone, string> = {
   running: 'bg-pill-running-bg text-pill-running-fg',
@@ -12,7 +13,7 @@ const TONE_CLASS: Record<Tone, string> = {
 };
 
 const BASE =
-  'inline-flex items-center rounded-card px-1g py-0.5g font-mono text-ui leading-none';
+  'inline-flex items-center rounded-[var(--r-pill)] px-1g py-0.5g font-mono text-ui leading-none';
 
 export interface StatusPillProps {
   /** Explicit tone; takes precedence over `status`. */

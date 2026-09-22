@@ -49,7 +49,7 @@ export function DegradedState({
   const hasBody = detail || actions || children;
   return (
     <div
-      className={['overflow-hidden rounded-card border border-card bg-surface-card shadow-card', className]
+      className={['overflow-hidden rounded-[var(--r-card)] border border-card bg-surface-card shadow-card', className]
         .filter(Boolean)
         .join(' ')}
     >

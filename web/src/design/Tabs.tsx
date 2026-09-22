@@ -20,7 +20,7 @@ export interface TabsProps {
 const LIST_CLASS = 'flex items-center gap-0.5g border-b border-card';
 
 const TRIGGER_CLASS =
-  'rounded-t-card px-2g py-1g text-ui font-medium text-state-ink/60 transition-colors ' +
+  'rounded-t-[var(--r-control)] px-2g py-1g text-ui font-medium text-state-ink/60 transition-colors ' +
   'hover:text-state-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40 ' +
   'data-[state=active]:bg-pill-running-bg data-[state=active]:text-pill-running-fg';
 
