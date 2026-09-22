@@ -4,6 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, MouseEvent } from 'react';
 import { MENU_FOCUS } from './MenuChrome';
+import { useVocab } from '@/i18n';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOf } from '@/features/media/doc-kind';
@@ -79,11 +80,12 @@ function mediaInnerStyle(a: AttachmentUploadItem, canPreview: boolean): CSSPrope
 }
 
 function RemoveButton({ id, onRemove }: { id: string; onRemove: (id: string) => void }): JSX.Element {
+  const L = useVocab();
   const remove = (event: MouseEvent): void => {
     event.stopPropagation();
     onRemove(id);
   };
-  return <button type="button" className={MENU_FOCUS} aria-label="Remove attachment" onClick={remove} style={removeStyle}>×</button>;
+  return <button type="button" className={MENU_FOCUS} aria-label={L.delete} onClick={remove} style={removeStyle}>×</button>;
 }
 
 function MediaContent({ a, model }: { a: AttachmentUploadItem; model: ChipModel }): JSX.Element {

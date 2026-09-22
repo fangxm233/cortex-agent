@@ -67,21 +67,21 @@ export function DraftProjectSelector({ disabled = false }: { disabled?: boolean 
   const orderedProjects = orderDraftProjects(projects, projectOrder);
   return (
     <span style={{ position: 'relative', display: 'block', margin: '0 auto 10px', width: 'fit-content' }}>
-    <button
-      type="button"
-      className={MENU_FOCUS}
-      disabled={disabled}
-      aria-expanded={open}
-      data-chip="project"
-      aria-label={L.switchProject}
-      aria-disabled={disabled || undefined}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={(event) => { event.stopPropagation(); if (!disabled) setOpen((value) => !value); }}
-      style={{ background: 'var(--proto-card)', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, width: 'fit-content' }}
-    >
-      {L.project} · {currentProjectId}
-    </button>
+      <button
+        type="button"
+        className={MENU_FOCUS}
+        disabled={disabled}
+        aria-expanded={open}
+        data-chip="project"
+        aria-label={L.switchProject}
+        aria-disabled={disabled || undefined}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={(event) => { event.stopPropagation(); if (!disabled) setOpen((value) => !value); }}
+        style={{ background: 'var(--proto-card)', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, width: 'fit-content' }}
+      >
+        {L.project} · {currentProjectId}
+      </button>
       {open && <ProjectMenu projects={orderedProjects} current={currentProjectId} onPick={(id) => { setOpen(false); setCurrentProject(id); }} />}
     </span>
   );

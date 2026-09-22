@@ -232,7 +232,7 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
-          font: `500 10.5px ${MONO}`,
+          font: `500 11px ${MONO}`,
           cursor: editable ? 'pointer' : 'default',
         }}
       >
@@ -307,7 +307,7 @@ function ComposerCommissionChip({ commission }: {
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
-          font: `500 10.5px ${MONO}`,
+          font: `500 11px ${MONO}`,
           cursor: editable ? 'pointer' : 'default',
         }}
       >

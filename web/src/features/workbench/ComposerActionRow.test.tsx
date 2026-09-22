@@ -7,6 +7,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
 import { DEFAULT_BROWSER_DEVICE } from './BrowserOptIn';
+import { MenuCard, MenuRow } from './MenuChrome';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
@@ -33,6 +34,27 @@ beforeEach(() => {
   // The browser page reads the connected devices when it opens; no device is the ordinary case.
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, data: { devices: [] } }) })));
   commissions.list = [];
+});
+
+describe('shared picker chrome', () => {
+  it('keeps selections semantic and disabled choices inert on an opaque surface', () => {
+    const onPick = vi.fn();
+    const renderer = create(
+      <MenuCard kind="test">
+        <MenuRow id="test" label="Choice" sub="Unavailable" active disabled
+          onPick={onPick} hover={null} setHover={vi.fn()} />
+      </MenuCard>,
+    );
+    const row = renderer.root.findByType('button');
+    expect(row.props['aria-pressed']).toBe(true);
+    expect(row.props.disabled).toBe(true);
+    expect(row.props.className).toContain('focus-visible:outline');
+    act(() => row.props.onClick({ stopPropagation: vi.fn() }));
+    expect(onPick).not.toHaveBeenCalled();
+    const card = renderer.root.findByProps({ 'data-menu': 'test' });
+    expect(card.props.style.background).toBe('var(--proto-card)');
+    expect(card.props.style.backdropFilter).toBeUndefined();
+  });
 });
 
 describe('ComposerSlashMenu', () => {
