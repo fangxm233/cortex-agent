@@ -566,6 +566,7 @@ function DetailPane({
         <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: '1 1 120px'  }}>
           {L.apFootNote}
         </span>
+        <div style={{ display: 'flex', gap: 10, marginLeft: 'auto', alignItems: 'center' }}>
         {!armed && (
           <>
             <HoverButton
@@ -579,10 +580,9 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--glass-2)',
+                background: 'var(--proto-card)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-danger-bg)' }}
             >
@@ -600,7 +600,6 @@ function DetailPane({
                 background: 'var(--proto-accent)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-accent-strong)' }}
             >
@@ -621,10 +620,9 @@ function DetailPane({
                 borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--glass-2)',
+                background: 'var(--proto-card)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-alt)' }}
             >
@@ -642,14 +640,14 @@ function DetailPane({
                 background: 'var(--proto-danger)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
-              hover={{ opacity: 0.88 }}
+              hover={{ filter: 'brightness(1.08)' }}
             >
               {L.denyConfirm}
             </HoverButton>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -677,7 +675,7 @@ function HoverButton({
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      style={{ ...base, ...(h && onClick ? hover : {}), opacity: 1,
+      style={{ ...base, ...(h && onClick ? hover : {}),
         ...(!onClick ? { background: 'var(--proto-gray)', color: 'var(--proto-muted)' } : {}) }}
     >
       {children}
