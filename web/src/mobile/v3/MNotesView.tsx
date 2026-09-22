@@ -101,6 +101,7 @@ function ActiveRow({ row, copy, busy, actionOpen, swipeOpen, actions, onActions,
   return (
     <div data-note-click={row.id} data-note-swipe={row.id} style={{ borderRadius: 'var(--r-card)', overflow: 'hidden', background: 'var(--proto-danger)', position: 'relative' }}>
       <button type="button" disabled={busy} onClick={() => void actions.onDelete(row.id)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 78, border: 0, background: 'var(--proto-danger)', color: 'var(--ink-solid-fg)', fontSize: 13, fontWeight: 600 }}>{copy.delete}</button>
+      {/* Opaque base occludes the permanent red swipe-delete layer; sheen stays on top. */}
       <div {...gestureHandlers} style={{ transform: `translateX(${offset}px)`, transition: offset === 0 || swipeOpen ? 'transform 180ms ease' : 'none', touchAction: 'pan-y', border: `1px solid ${actionOpen ? MC.runBorder : MC.divider}`, background: MC.card, backgroundImage: 'var(--material-sheen)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: '12px 14px', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <NoteCircle completed={false} busy={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />

@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: MPlanReadView
-// pos:    Mobile PlanReadView presentation
+// pos:    Stable mobile plan reading with material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
@@ -139,7 +139,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             <button
               type="button"
               onClick={onReject}
-              style={{ flex: 1, height: 48, borderRadius: 'var(--r-card)', border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
+              style={{ flex: 1, height: 48, borderRadius: 'var(--r-card)', border: '1.5px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
             >
               {copy.reject}
             </button>

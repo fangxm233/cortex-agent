@@ -1,6 +1,6 @@
 // input:  React, mobile presentation props, shared view models
 // output: composer
-// pos:    Mobile floating and fullscreen composer controls
+// pos:    Mobile composer chrome and material secondary keys
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
@@ -65,7 +65,7 @@ function SecondarySendKey({ enabled, onSend, size = 36 }: {
       aria-label="Send"
       disabled={!enabled}
       onClick={onSend}
-      style={{ ...circleKeyBase, width: size, height: size, background: MC.card, border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`, opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
+      style={{ ...circleKeyBase, width: size, height: size, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`, opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
     >
       <SendGlyph size={14} color={MC.ink} />
     </button>
@@ -273,7 +273,7 @@ const fullscreenTextareaStyle: CSSProperties = {
 };
 const fullscreenToolStyle: CSSProperties = {
   flex: 'none', width: 30, height: 30, borderRadius: '50%', border: `1px solid ${MC.hairline}`,
-  background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.muted,
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.muted,
   cursor: 'pointer',
 };
 

@@ -4,7 +4,7 @@ Shared mobile presentation frames, controls and formatting.
 
 | filename | role | function |
 |---|---|---|
-| composer.tsx | UI | Render readable floating and fullscreen composers |
+| composer.tsx | UI | Render composer chrome and material secondary keys |
 | format.ts | utility | Provide format |
 | kit.test.ts | test | Test kit |
 | kit.tsx | UI | Render mobile material cards, controls and sheets |

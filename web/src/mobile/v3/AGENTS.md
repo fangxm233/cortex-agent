@@ -82,7 +82,7 @@ Mobile screens, readable presentation views and native service adapters.
 | mobile-presentation.test.tsx | test | Guard mobile materials and scroll clearance |
 | mobile-settings.css | style | Style mobile settings layouts and touch controls |
 | MPlanReadScreen.tsx | screen | Connect plan reading and approval actions |
-| MPlanReadView.tsx | view | Render plans and approval controls |
+| MPlanReadView.tsx | view | Render stable plans and material approval controls |
 | MPlatformScreen.tsx | screen | Host shared platform settings |
 | MProfilesScreen.tsx | screen | Browse and edit mobile profiles |
 | MProfilesScreen.test.tsx | test | Check mobile profile actions and editor |
