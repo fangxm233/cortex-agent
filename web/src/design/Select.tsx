@@ -1,3 +1,8 @@
+// input:  Radix Select, React
+// output: Select, SelectProps, SelectOption
+// pos:    Accessible select trigger and portaled option list
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixSelect from '@radix-ui/react-select';
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 
@@ -29,6 +34,7 @@ export interface SelectProps<T extends SelectValue>
   onValueChange: (value: T) => void;
   placeholder?: string;
   density?: SelectDensity;
+  popupClassName?: string;
 }
 
 const TRIGGER_CLASS =
@@ -117,14 +123,13 @@ function SelectItem<T extends SelectValue>({
   );
 }
 
-function SelectPopup<T extends SelectValue>({
-  options,
-}: {
+function SelectPopup<T extends SelectValue>({ options, className = '' }: {
   options: readonly SelectOption<T>[];
+  className?: string;
 }): JSX.Element {
   return (
     <RadixSelect.Portal>
-      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={CONTENT_CLASS} style={CONTENT_STYLE}>
+      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${CONTENT_CLASS} ${className}`} style={CONTENT_STYLE}>
         <RadixSelect.ScrollUpButton className="py-0.5g text-center text-proto-muted-3">▴</RadixSelect.ScrollUpButton>
         <RadixSelect.Viewport>
           {options.map((option, index) => (
@@ -137,26 +142,15 @@ function SelectPopup<T extends SelectValue>({
   );
 }
 
-export function Select<T extends SelectValue>({
-  value,
-  options,
-  onValueChange,
-  placeholder = '',
-  density = 'compact',
-  className,
-  style,
-  disabled,
-  ...triggerProps
+export function Select<T extends SelectValue>({ value, options, onValueChange, placeholder = '',
+  density = 'compact', className, popupClassName, style, disabled, ...triggerProps
 }: SelectProps<T>): JSX.Element {
   const selectedIndex = optionIndex(options, value);
   const selected = options[selectedIndex];
   const rootValue = selectedIndex < 0 ? 'selection-unset' : optionKey(selectedIndex);
   return (
-    <RadixSelect.Root
-      value={rootValue}
-      disabled={disabled}
-      onValueChange={(key) => selectByKey(key, options, onValueChange)}
-    >
+    <RadixSelect.Root value={rootValue} disabled={disabled}
+      onValueChange={(key) => selectByKey(key, options, onValueChange)}>
       <RadixSelect.Trigger
         {...triggerProps}
         data-select-control
@@ -167,7 +161,7 @@ export function Select<T extends SelectValue>({
         <RadixSelect.Value>{selected?.label ?? placeholder}</RadixSelect.Value>
         <RadixSelect.Icon aria-hidden className="ml-auto text-[8px] text-proto-muted-3">▾</RadixSelect.Icon>
       </RadixSelect.Trigger>
-      <SelectPopup options={options} />
+      <SelectPopup options={options} className={popupClassName} />
     </RadixSelect.Root>
   );
 }

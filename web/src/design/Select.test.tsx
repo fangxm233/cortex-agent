@@ -1,3 +1,8 @@
+// input:  Select, react-test-renderer, Vitest
+// output: Select value and portal-scope regression checks
+// pos:    Verify shared select behavior and styling opt-in
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -44,6 +49,16 @@ function part(renderer: ReactTestRenderer, name: string) {
 }
 
 describe('Select', () => {
+  it('scopes popup styling only when the caller opts in', () => {
+    const options = [{ value: 'one', label: 'One' }];
+    const renderer = mount('one', options);
+    expect(part(renderer, 'content').props.className).not.toContain('settings-surface');
+    act(() => renderer.update(<Select value="one" options={options} onValueChange={() => {}}
+      popupClassName="settings-surface settings-select-popup" />));
+    expect(part(renderer, 'content').props.className).toContain('settings-surface settings-select-popup');
+    expect(part(renderer, 'trigger').props.popupClassName).toBeUndefined();
+  });
+
   it('maps empty public values to non-empty Radix keys and back', () => {
     const onValueChange = vi.fn();
     const renderer = mount('', [

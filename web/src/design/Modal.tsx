@@ -1,3 +1,8 @@
+// input:  Radix Dialog, React
+// output: Modal, ModalClose, modal styling helpers
+// pos:    Accessible dialogs with optional portaled styling
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactNode } from 'react';
 
@@ -75,6 +80,7 @@ export interface ModalProps {
   layer?: ModalLayer;
   showClose?: boolean;
   contentStyle?: CSSProperties;
+  contentClassName?: string;
   bodyStyle?: CSSProperties;
   contentDataAttributes?: ModalDataAttributes;
   overlayDataAttributes?: ModalDataAttributes;
@@ -109,9 +115,9 @@ function ModalBody({ children, chrome, bodyStyle }: Pick<ModalProps, 'children' 
 
 function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element {
   const { title, description, hideTitle, hideDescription, children, footer, bodyStyle,
-    contentStyle, contentDataAttributes, size = 'default', layer = 'default', showClose } = props;
+    contentStyle, contentClassName = '', contentDataAttributes, size = 'default', layer = 'default', showClose } = props;
   return (
-    <RadixDialog.Content {...contentDataAttributes} className={modalContentClass(size, layer)} style={contentStyle}>
+    <RadixDialog.Content {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`} style={contentStyle}>
       <ModalHeader title={title} hideTitle={hideTitle} showClose={showClose} />
       {description ? <RadixDialog.Description
         className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui text-state-ink/70 [overflow-wrap:anywhere]'}
@@ -123,11 +129,11 @@ function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element 
 }
 
 function BarePanel(props: ModalProps & { showClose: boolean }): JSX.Element {
-  const { title, description, children, contentStyle, bodyStyle, contentDataAttributes,
+  const { title, description, children, contentStyle, contentClassName = '', bodyStyle, contentDataAttributes,
     layer = 'default', showClose } = props;
   const style = { ...contentStyle, zIndex: BARE_LAYER[layer].content };
   return (
-    <RadixDialog.Content {...contentDataAttributes} className="focus:outline-none" style={style}>
+    <RadixDialog.Content {...contentDataAttributes} className={`focus:outline-none ${contentClassName}`} style={style}>
       <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       <RadixDialog.Description className="sr-only">{description ?? title}</RadixDialog.Description>
       {showClose ? <CloseControl /> : null}
