@@ -381,7 +381,7 @@
   --state-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
 
   --pill-running-bg: var(--accent-soft);
-  --pill-running-fg: color-mix(in srgb, var(--accent-main) 85%, var(--proto-ink) 15%);
+  --pill-running-fg: color-mix(in srgb, var(--accent-main) 80%, var(--proto-ink) 20%);
   --pill-waiting-bg: rgba(201, 154, 46, 0.16);
   --pill-waiting-fg: #e2b95b;
   --pill-done-bg: rgba(76, 175, 125, 0.15);

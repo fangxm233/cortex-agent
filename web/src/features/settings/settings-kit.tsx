@@ -159,7 +159,7 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
 export type SPillTone = 'accent' | 'amber' | 'success' | 'danger' | 'neutral';
 
 const PILL_TONE: Record<SPillTone, CSSProperties> = {
-  accent: { background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' },
+  accent: { background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' },
   amber: { background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)' },
   success: { background: 'var(--proto-success-bg)', color: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
   danger: { background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' },

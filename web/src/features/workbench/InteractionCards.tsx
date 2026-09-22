@@ -163,7 +163,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)' }}>{copy.askPill}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--pill-running-fg)' }}>{copy.askPill}</span>
         <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>AskUserQuestion</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
           {copy.ttlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
@@ -369,7 +369,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   return (
     <div style={{ ...cardMaterial, border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>{copy.planPendingPill}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' }}>{copy.planPendingPill}</span>
         <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>ExitPlanMode</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
           {copy.planTtl} {ttlSec != null ? formatTtl(ttlSec) : '30m'}

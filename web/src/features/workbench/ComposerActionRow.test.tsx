@@ -131,13 +131,13 @@ describe('ComposerActionRow ＋ menu', () => {
     vi.stubGlobal('document', { activeElement: trigger });
     openPlus(renderer);
     vi.stubGlobal('document', { activeElement: { dataset: { plusItem: 'attach' } } });
-    act(() => target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })));
+    act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
     expect(renderer.root.findAllByProps({ 'data-menu': 'plus' })).toHaveLength(0);
     expect(trigger.focus).toHaveBeenCalledWith({ preventScroll: true });
     trigger.focus.mockClear();
     vi.stubGlobal('document', { activeElement: trigger });
     openPlus(renderer);
-    act(() => target.dispatchEvent(new Event('click')));
+    act(() => { target.dispatchEvent(new Event('click')); });
     expect(trigger.focus).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
