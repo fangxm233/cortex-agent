@@ -122,8 +122,12 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
           <div
             style={{
-              background: 'var(--proto-gray)',
-              borderRadius: '14px 14px 4px 14px',
+              // Raised glass on the transcript, NOT a filter: this row scrolls, and blurring a
+              // scrolling surface re-reads the backdrop on every frame. The hairline is a shadow
+              // ring rather than a border so the bubble keeps its exact size.
+              background: 'var(--glass-2)',
+              boxShadow: 'var(--shadow-card-soft), 0 0 0 1px var(--proto-line)',
+              borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)',
               padding: '9px 14px',
               fontSize: 13.5,
               lineHeight: 1.55,
@@ -291,7 +295,7 @@ function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected
   const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted-3)' : 'var(--proto-success)';
   const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 10, opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
       <span style={{ fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
     </div>

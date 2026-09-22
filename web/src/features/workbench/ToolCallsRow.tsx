@@ -10,7 +10,8 @@ const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
 const chipStyle: CSSProperties = {
   font: `400 10.5px ${mono}`,
-  background: 'var(--proto-alt)',
+  // Glass tint, no filter: these chips live in the scrolling transcript.
+  background: 'var(--glass-2)',
   border: '1px solid var(--proto-line-2)',
   padding: '1px 6px',
   borderRadius: 4,
@@ -40,7 +41,7 @@ const expandedCallStyle: CSSProperties = {
 };
 const kindStyle: CSSProperties = {
   font: `600 9px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--proto-gray)', padding: '1.5px 7px',
+  background: 'var(--glass-2)', padding: '1.5px 7px',
   borderRadius: 5, flex: 'none',
 };
 const inputStyle: CSSProperties = {
@@ -81,9 +82,9 @@ function collapsedRowStyle(hover: boolean): CSSProperties {
 
 function expandedBoxStyle(hover: boolean): CSSProperties {
   return {
-    background: 'var(--proto-rail)',
+    background: 'var(--glass-2)',
     border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
-    borderRadius: 8, padding: '2px 0', cursor: 'pointer',
+    borderRadius: 'var(--r-control)', padding: '2px 0', cursor: 'pointer',
   };
 }
 

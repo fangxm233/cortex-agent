@@ -130,7 +130,7 @@ export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element
       aria-label={open ? L.label : undefined}
       style={{
         border: '1px solid var(--proto-line)',
-        borderRadius: 8,
+        borderRadius: 'var(--r-control)',
         background: 'var(--proto-alt)',
         marginBottom: 8,
         overflow: 'hidden',

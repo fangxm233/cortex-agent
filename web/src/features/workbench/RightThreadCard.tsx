@@ -122,7 +122,7 @@ export function SubtaskCard({ task, onOpen }: {
         gap: 7,
         border: '1px solid var(--proto-line-2)',
         background: 'var(--proto-rail)',
-        borderRadius: 8,
+        borderRadius: 'var(--r-chip)',
         padding: '7px 10px',
         cursor: 'pointer',
       }}
@@ -254,9 +254,11 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   return (
     <div
       style={{
-        background: 'var(--proto-card)',
+        // Raised glass inside the drawer: the sheet under it is translucent, so an opaque card
+        // would punch a white hole in it. No filter — the drawer already blurs, and this list scrolls.
+        background: 'var(--glass-2)',
         border: '1px solid var(--proto-line)',
-        borderRadius: 10,
+        borderRadius: 'var(--r-card)',
         boxShadow: 'var(--shadow-card-subtle)',
       }}
     >
@@ -279,7 +281,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
               fontSize: 10.5,
               fontWeight: 600,
               padding: '2px 8px',
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: pill.bg,
               color: pill.fg,
             }}

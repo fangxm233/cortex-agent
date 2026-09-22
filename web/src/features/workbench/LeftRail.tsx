@@ -97,7 +97,7 @@ function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string
         position: 'relative',
         width: 26,
         height: 26,
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         background: 'var(--brand-badge-bg)',
         border: '1px solid var(--brand-badge-border)',
         display: 'flex',
@@ -157,7 +157,7 @@ function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, chi
         width: 28,
         height: 28,
         border: 0,
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         background: 'transparent',
         color,
         display: 'grid',
@@ -494,7 +494,7 @@ export function LeftRail(): JSX.Element {
           width: 26,
           height: 26,
           border: 0,
-          borderRadius: 7,
+          borderRadius: 'var(--r-chip)',
           padding: 0,
           cursor: 'pointer',
           flex: 'none',
@@ -502,6 +502,7 @@ export function LeftRail(): JSX.Element {
           placeItems: 'center',
           color: 'var(--ink-solid-fg)',
           background: isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+          boxShadow: 'var(--accent-glow)',
         }}
       >
         <PlusGlyph size={14} />
@@ -527,7 +528,7 @@ export function LeftRail(): JSX.Element {
       <div style={{ flex: 1, minHeight: 8 }} />
       {hasPendingApprovals && (
         <RailIconButton label={pendingLabel} color="var(--proto-amber-fg)" onClick={() => approvals.open()}>
-          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             {pendingCount}
           </span>
         </RailIconButton>
@@ -586,13 +587,15 @@ export function LeftRail(): JSX.Element {
             gap: 7,
             height: 34,
             margin: '0 12px 10px',
-            borderRadius: 9,
+            borderRadius: 'var(--r-control)',
             flex: 'none',
             cursor: 'pointer',
             fontSize: 12.5,
             fontWeight: 600,
             color: 'var(--ink-solid-fg)',
             background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+            // The rail's one primary action: the glow is what separates it from the list it sits on.
+            boxShadow: 'var(--accent-glow)',
           }}
         >
           <PlusGlyph size={13} />
@@ -640,7 +643,7 @@ export function LeftRail(): JSX.Element {
                   padding: '9px 12px',
                   background: 'var(--proto-amber-bg)',
                   border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
-                  borderRadius: 9,
+                  borderRadius: 'var(--r-card)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
@@ -676,7 +679,7 @@ export function LeftRail(): JSX.Element {
             flex: 'none',
           }}
         >
-          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', overflow: 'hidden' }}>
             <span
               onClick={() => setTheme('light')}
               title={L.stThemeLight}

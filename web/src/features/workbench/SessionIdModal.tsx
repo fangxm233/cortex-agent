@@ -53,7 +53,7 @@ export function SessionIdModal({
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 480,
         background: 'var(--proto-card)',
-        borderRadius: 14,
+        borderRadius: 'var(--r-float)',
         boxShadow: 'var(--shadow-overlay-strong)',
         zIndex: 61,
         overflow: 'hidden',
@@ -97,7 +97,7 @@ export function SessionIdModal({
                   alignItems: 'center',
                   gap: 8,
                   border: '1px solid var(--proto-line)',
-                  borderRadius: 9,
+                  borderRadius: 'var(--r-control)',
                   padding: '9px 12px',
                   background: 'var(--proto-alt)',
                 }}

@@ -255,7 +255,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
             position: 'absolute', left: RAIL_W + CARD_GAP, top: cardTop ?? 0, width: CARD_W, maxWidth: CARD_W,
             opacity: cardTop == null ? 0 : 1, pointerEvents: 'none', boxSizing: 'border-box',
             display: 'flex', flexDirection: 'column', gap: 6,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 14,
+            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
             boxShadow: 'var(--shadow-overlay)', padding: '14px 16px',
           }}
         >

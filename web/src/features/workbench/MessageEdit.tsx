@@ -103,7 +103,7 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
           title={copied ? undefined : copy.copy}
           onClick={doCopy}
           style={{
-            width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', ...(copied ? { background: 'var(--proto-success-bg)' } : {}),
           }}
         >
@@ -118,7 +118,7 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
           onMouseLeave={() => setEditHover(false)}
           onClick={editDisabled ? undefined : onEdit}
           style={{
-            width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: editDisabled ? 'default' : 'pointer', opacity: editDisabled ? 0.3 : 1,
           }}
         >
@@ -161,7 +161,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
     <div
       style={{
         alignSelf: 'flex-end', width: '94%', boxSizing: 'border-box',
-        border: '1.5px solid var(--proto-accent)', borderRadius: '14px 14px 4px 14px',
+        border: '1.5px solid var(--proto-accent)', borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)',
         background: 'var(--proto-card)', boxShadow: 'var(--focus-ring-accent)',
         padding: '11px 14px 9px',
       }}
@@ -190,14 +190,14 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
         <span
           role="button"
           onClick={onCancel}
-          style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}
+          style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '5px 12px', cursor: 'pointer' }}
         >
           {copy.cancel}
         </span>
         <span
           role="button"
           onClick={submit}
-          style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', borderRadius: 8, padding: '6px 13px', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.5 }}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', borderRadius: 'var(--r-control)', padding: '6px 13px', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.5 }}
         >
           {copy.sendRewind}
         </span>
@@ -261,7 +261,7 @@ export function EditedBadge({ edited, ts, copy }: {
         <div
           style={{
             position: 'absolute', bottom: '100%', right: 0, marginBottom: 5, minWidth: 180, maxWidth: 420,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10,
+            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
             boxShadow: 'var(--shadow-panel-strong)', padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
           }}
         >

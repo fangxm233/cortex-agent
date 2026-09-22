@@ -90,6 +90,8 @@ export function DockPane(): JSX.Element | null {
         }
       />
 
+      {/* Opaque, and so is every body inside it: this pane shows documents, PDFs and live web
+          pages. A translucent stage would put the chat's text under the page you are reading. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: 'var(--proto-card)' }}>
         {state === null
           ? <DockCentered>{EMPTY_HINT}</DockCentered>
@@ -142,7 +144,7 @@ const PANE_STYLE: CSSProperties = {
 const ACTION_STYLE: CSSProperties = {
   width: 28,
   height: 28,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
   color: 'var(--proto-muted)',

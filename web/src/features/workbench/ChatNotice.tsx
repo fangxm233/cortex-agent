@@ -51,7 +51,7 @@ export interface ChatNoticeProps {
 
 function actionButtonStyle(color: string, disabled: boolean): CSSProperties {
   return {
-    border: `1px solid ${color}`, borderRadius: 7, background: 'transparent',
+    border: `1px solid ${color}`, borderRadius: 'var(--r-control)', background: 'transparent',
     color, padding: '5px 9px', fontSize: 12, fontWeight: 650,
     cursor: disabled ? 'default' : 'pointer', flex: 'none', alignSelf: 'center',
     opacity: disabled ? 0.5 : 1,
@@ -112,7 +112,7 @@ export function ChatNotice({
   const localizedText = localizedNoticeText(text, noticeAction, useVocabOptional());
   const style: CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
-    margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 9,
+    margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 'var(--r-card)',
     border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg,
     fontSize: 12.5, lineHeight: 1.55, overflowWrap: 'anywhere',
   };

@@ -65,7 +65,7 @@ function DecBadge({ L }: { L: Vocab }): JSX.Element {
 
 function Chip({ chip }: { chip: { label: string; fg: string; bg: string } }): JSX.Element {
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, padding: '2.5px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '2.5px 8px', borderRadius: 'var(--r-pill)', background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>
       {chip.label}
     </span>
   );
@@ -135,7 +135,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
   };
 
   return (
-    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
       {/* Header toggles disclosure; response actions live only in the expanded body. */}
       <div
         role="button"
@@ -156,7 +156,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
           <Section label={L.wbDecDecision} text={d.decision} />
           <Section label={L.wbDecReasoning} text={d.reasoning} />
           {d.actions.length > 0 && (
-            <div style={{ marginTop: 14, border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 10, padding: '10px 13px' }}>
+            <div style={{ marginTop: 14, border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 'var(--r-card)', padding: '10px 13px' }}>
               <div style={{ font: `600 10px ${mono}`, letterSpacing: '.05em', color: 'var(--proto-muted-3)', paddingBottom: 6 }}>{L.wbDecLog}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {d.actions.map((a, i) => (
@@ -174,14 +174,14 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
             <div style={{ marginTop: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {approved ? (
-                  <span style={{ height: 30, borderRadius: 8, background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, padding: '0 14px' }}>
+                  <span style={{ height: 30, borderRadius: 'var(--r-control)', background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, padding: '0 14px' }}>
                     ✓ {L.wbDecApproved}
                   </span>
                 ) : (
                   <span
                     role="button"
                     onClick={approve}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '7px 14px', color: 'var(--ink-solid-fg)', background: busy ? 'var(--proto-faint)' : 'var(--proto-ink)', cursor: busy ? 'not-allowed' : 'pointer', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 14px', color: 'var(--ink-solid-fg)', background: busy ? 'var(--proto-faint)' : 'var(--proto-ink)', cursor: busy ? 'not-allowed' : 'pointer', flex: 'none' }}
                   >
                     ✓ {L.wbDecApprove}
                   </span>
@@ -189,14 +189,14 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                 <span
                   role="button"
                   onClick={() => into('explain')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--proto-card)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 8, cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecExplain}
                 </span>
                 <span
                   role="button"
                   onClick={() => into('revise')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--proto-card)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 8, cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--glass-2)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecRevise}
                 </span>
@@ -217,12 +217,12 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 8, padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <span
                     role="button"
                     onClick={send}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '7px 16px', color: 'var(--ink-solid-fg)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-faint)', cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: 'var(--ink-solid-fg)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-faint)', cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none' }}
                   >
                     {L.wbDecSend}
                   </span>

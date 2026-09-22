@@ -68,7 +68,7 @@ export function RunListModal({
         width: 400,
         maxWidth: 'calc(100vw - 40px)',
         background: 'var(--proto-card)',
-        borderRadius: 14,
+        borderRadius: 'var(--r-float)',
         boxShadow: 'var(--shadow-overlay-strong)',
         zIndex: 61,
         display: 'flex',

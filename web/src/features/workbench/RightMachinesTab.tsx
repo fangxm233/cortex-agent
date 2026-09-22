@@ -178,7 +178,7 @@ function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boole
     <span style={{ display: 'inline-flex', color: iconColor }}>{MACHINE_ICON}</span>
     <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{machine.name}</span>
     <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, padding: '2px 8px',
-      borderRadius: 999, background: pill.bg, color: pill.fg }}>{pill.text}</span>
+      borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.fg }}>{pill.text}</span>
   </div>;
 }
 
@@ -199,8 +199,9 @@ function MachineCardMeta({ machine }: { machine: MachineInfo }) {
 function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
-  return <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-    borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)' }}>
+  // Same glass-on-glass rule as the thread cards: translucent fill, no filter of its own.
+  return <div style={{ background: 'var(--glass-2)', border: '1px solid var(--proto-line)',
+    borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-card-subtle)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
       style={{ padding: '11px 14px 9px', cursor: 'pointer',
         borderBottom: `1px solid ${open ? 'var(--proto-line-soft)' : 'transparent'}` }}>
@@ -228,7 +229,7 @@ function MachineListState({ loading, error, empty }: { loading: boolean; error: 
     color: 'var(--proto-danger)', padding: '24px 0' }}>{L.rpFailedLoadMachines}</div>;
   if (!empty) return null;
   return <div style={{ textAlign: 'center', padding: '26px 12px',
-    border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
+    border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
     <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.mNoMachines}</div>
     <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4,
       lineHeight: 1.6 }}>{L.rpNoMachinesHint}</div>

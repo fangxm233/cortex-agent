@@ -37,7 +37,7 @@ export function SessionStatsModal({
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 420,
         background: 'var(--proto-card)',
-        borderRadius: 14,
+        borderRadius: 'var(--r-float)',
         boxShadow: 'var(--shadow-overlay-strong)',
         zIndex: 61,
         overflow: 'hidden',

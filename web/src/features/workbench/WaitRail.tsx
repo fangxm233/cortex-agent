@@ -60,7 +60,7 @@ function Badge({ badge }: { badge: WaitRailBadge }): JSX.Element {
       style={{
         font: `600 9.5px ${MONO}`,
         padding: '1px 6px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         whiteSpace: 'nowrap',
         color: danger ? 'var(--proto-danger)' : 'var(--proto-amber)',
         background: danger ? 'var(--proto-danger-bg, transparent)' : 'transparent',
@@ -196,7 +196,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
       data-wait-rail={open ? 'expanded' : 'collapsed'}
       style={{
         border: '1px solid var(--proto-line)',
-        borderRadius: 8,
+        borderRadius: 'var(--r-control)',
         background: 'var(--proto-alt)',
         marginBottom: 8,
         overflow: 'hidden',

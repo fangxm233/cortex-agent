@@ -71,8 +71,10 @@ function PanelRailButton({ target, label, active, onClick }: {
         width: 30,
         height: 30,
         border: `1px solid ${active ? 'var(--proto-line)' : 'transparent'}`,
-        borderRadius: 7,
-        background: active ? 'var(--proto-card)' : 'transparent',
+        borderRadius: 'var(--r-chip)',
+        // Raised glass, not an opaque chip: the rail is translucent over the pane behind it, and a
+        // white tile on it reads as a hole. No filter — the pane it sits on already blurs.
+        background: active ? 'var(--glass-2)' : 'transparent',
         boxShadow: active ? 'inset 2px 0 var(--proto-accent)' : 'none',
         color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
         display: 'grid',
@@ -85,18 +87,21 @@ function PanelRailButton({ target, label, active, onClick }: {
     </button>;
 }
 
-function RightPanelRail({ active, labels, navigationLabel, expandLabel, onExpand, onSelect }: {
+function RightPanelRail({ active, labels, navigationLabel, expanded, toggleLabel, onToggle, onSelect }: {
   active: PanelTarget;
   labels: PanelLabels;
   navigationLabel: string;
-  expandLabel: string;
-  onExpand: () => void;
+  /** The rail no longer disappears when the drawer opens, so its chevron carries the drawer's state
+   *  and its click is a toggle rather than the expand-only action of the docked panel. */
+  expanded: boolean;
+  toggleLabel: string;
+  onToggle: () => void;
   onSelect: (target: PanelTarget) => void;
 }) {
   const workTargets: Tab[] = ['threads', 'tasks', 'machines'];
   return (
     <nav aria-label={navigationLabel} style={{ width: PANEL_RAIL_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '7px 0 8px' }}>
-      <PaneToggle side="right" expanded={false} label={expandLabel} onClick={onExpand} />
+      <PaneToggle side="right" expanded={expanded} label={toggleLabel} onClick={onToggle} />
       <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0' }} />
       {workTargets.map((target) => <PanelRailButton key={target} target={target} label={labels[target]} active={active === target} onClick={() => onSelect(target)} />)}
       <div style={{ marginTop: 'auto' }}>
@@ -126,14 +131,62 @@ export function RightPanel(): JSX.Element {
   };
   const collapseAction = <PaneToggle side="right" expanded label={L.rpCollapsePanel} onClick={() => setCollapsed(true)} />;
   return (
-    <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: collapsed ? PANEL_RAIL_WIDTH : PANEL_WIDTH, transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)', flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderTopRightRadius: 'var(--r-panel)', borderBottomRightRadius: 'var(--r-panel)' }}>
-      {collapsed && <RightPanelRail active={active} labels={labels} navigationLabel={L.rpPanelNavigation} expandLabel={L.rpExpandPanel} onExpand={() => setCollapsed(false)} onSelect={select} />}
-      <div style={{ display: collapsed ? 'none' : 'flex', flex: 1, minHeight: 0, width: '100%' }}>
+    <>
+      {/* Click-catcher: the drawer covers the workspace, so clicking the covered content is the
+          natural "I am done with this" gesture. It stops short of the icon rail, which stays live. */}
+      {!collapsed && (
+        <div
+          onClick={() => setCollapsed(true)}
+          style={{ position: 'absolute', inset: `0 ${PANEL_RAIL_WIDTH}px 0 0`, zIndex: 5, background: 'transparent', cursor: 'default' }}
+        />
+      )}
+      {/* The rail is permanent now: it is the drawer's handle, and a handle that vanishes when the
+          drawer opens leaves nothing to grab. Kept above the sheet so the entry slide passes behind it. */}
+      <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: PANEL_RAIL_WIDTH, flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', zIndex: 7, borderTopRightRadius: 'var(--r-panel)', borderBottomRightRadius: 'var(--r-panel)' }}>
+        <RightPanelRail
+          active={active}
+          labels={labels}
+          navigationLabel={L.rpPanelNavigation}
+          expanded={!collapsed}
+          toggleLabel={collapsed ? L.rpExpandPanel : L.rpCollapsePanel}
+          onToggle={() => setCollapsed(!collapsed)}
+          onSelect={select}
+        />
+      </aside>
+      {/* The context drawer FLOATS over the workspace instead of docking beside it — it is a thing
+          you consult and dismiss, not a third column the chat has to live around. Its width and
+          contents are unchanged; only where it sits is.
+          This sheet is the one `backdrop-filter` in the workbench: it is a top-level floating
+          overlay that does not move or repaint while the lists inside it scroll, so the blur is
+          composited once. Nothing inside it may blur.
+          `display` rather than unmounting: the notes draft and the panel's queries must survive a
+          collapse, and `display: none` also guarantees the blur costs nothing while closed (and
+          replays the entry animation on each open). */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          bottom: 10,
+          right: PANEL_RAIL_WIDTH + 10,
+          width: PANEL_WIDTH,
+          zIndex: 6,
+          display: collapsed ? 'none' : 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+          borderRadius: 'var(--r-float)',
+          background: 'var(--glass-2)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          boxShadow: 'var(--shadow-float)',
+          animation: 'cxdrawer 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+      >
         {notes.isOpen
           ? <NotesPane headerIcon={<PanelIcon target="notes" />} headerAction={collapseAction} visible={!collapsed} />
           : <RightWorkPanel tab={tab} onTabChange={setTab} headerAction={collapseAction} />}
       </div>
-    </aside>
+    </>
   );
 }
 
@@ -221,8 +274,8 @@ function BudgetBar({ budget }: { budget: ReturnType<typeof rightPanelBudget> }) 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
       <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.today}</span>
-      <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
-        <div style={{ width: `${budget.percent}%`, height: '100%', borderRadius: 999, background: 'var(--proto-accent)' }} />
+      <div style={{ flex: 1, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+        <div style={{ width: `${budget.percent}%`, height: '100%', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent)' }} />
       </div>
       <span style={{ font: "500 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{budget.todayLabel} / {budget.limitLabel}</span>
     </div>
@@ -235,7 +288,7 @@ function ThreadsTab({ groups, ready, now }: { groups: ThreadGroup[]; ready: bool
     <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 }}>
       {groups.map((group) => <ThreadGroupSection key={group.kind} group={group} label={group.kind === 'active' ? L.active : L.history} now={now} />)}
       {ready && groups.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
+        <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.rpNoActiveThreads}</div>
           <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>{L.rpNoActiveThreadsHint}</div>
         </div>
@@ -256,7 +309,9 @@ function RightWorkPanel({ tab, headerAction, onTabChange }: { tab: Tab; headerAc
   const data = useRightPanelData(tab);
   const counts = { threads: data.activeThreadCount, tasks: data.openTaskCount, machines: data.machineCount };
   return (
-    <div style={{ width: '100%', flex: 1, background: 'var(--proto-rail)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    // No background: the drawer sheet this fills IS the surface, and a tint on top of it would
+    // only mute the glass.
+    <div style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <RightTabs tab={tab} counts={counts} headerAction={headerAction} onTabChange={onTabChange} />
       <BudgetBar budget={data.budget} />
       {tab === 'threads' && <ThreadsTab groups={data.threadGroups} ready={data.threadsReady} now={data.now} />}

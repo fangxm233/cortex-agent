@@ -6,7 +6,7 @@ const mono = "'IBM Plex Mono',monospace";
 
 const typeChipStyle: CSSProperties = {
   font: `600 9px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--proto-gray)', padding: '1.5px 7px',
+  background: 'var(--glass-2)', padding: '1.5px 7px',
   borderRadius: 5, flex: 'none',
 };
 /** Outlined rather than filled, so the pair reads as one identity at two weights: the type is what
@@ -56,17 +56,20 @@ function headerStyle(hover: boolean, expanded: boolean): CSSProperties {
     position: 'sticky', top: 0, zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
     color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
-    background: 'var(--proto-rail)',
-    borderRadius: expanded ? '7px 7px 0 0' : 7,
+    // The header is sticky over its own scrolling body, so it has to OCCLUDE: `--proto-rail` is a
+    // 4%-alpha tint now and the rows would read straight through it. `--glass-2` is opaque enough
+    // to hide them without a filter, which a sticky element must never carry.
+    background: 'var(--glass-2)',
+    borderRadius: expanded ? 'var(--r-control) var(--r-control) 0 0' : 'var(--r-control)',
     padding: '6px 13px', cursor: 'pointer', minWidth: 0,
   };
 }
 
 function boxStyle(hover: boolean): CSSProperties {
   return {
-    background: 'var(--proto-rail)',
+    background: 'var(--glass-2)',
     border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
-    borderRadius: 8,
+    borderRadius: 'var(--r-control)',
   };
 }
 

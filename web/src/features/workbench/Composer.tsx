@@ -558,9 +558,19 @@ export function Composer({
           style={{
             position: 'relative',
             border: dragOver ? '1.5px dashed var(--proto-accent)' : '1.5px solid ' + composerBorder,
-            borderRadius: 12,
+            borderRadius: 'var(--r-float)',
+            // Opaque on purpose: the transcript scrolls UNDER this sheet, and a translucent composer
+            // would show message text sliding behind the line being typed.
             background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
-            boxShadow: dragOver ? 'none' : 'var(--shadow-card-soft)',
+            // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
+            // the ring IS the "press ⏎" affordance. Drag keeps its flattened look; the dashed
+            // border is the state cue there.
+            boxShadow: dragOver
+              ? 'none'
+              : canSend
+                ? 'var(--shadow-float), 0 0 0 1.5px var(--proto-accent-border)'
+                : 'var(--shadow-float)',
+            transition: 'box-shadow 150ms ease',
             padding: '10px 12px 10px 14px',
           }}
         >
@@ -684,6 +694,9 @@ export function Composer({
                           // Running: outlined/secondary so Stop stays the primary action.
                           background: running ? 'transparent' : sendBg,
                           border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
+                          // Glow only on the filled, armed state — a disabled or outlined send
+                          // button that still floated would read as the primary action it is not.
+                          boxShadow: !running && canSend ? 'var(--accent-glow)' : undefined,
                           boxSizing: 'border-box',
                           display: 'flex',
                           alignItems: 'center',
@@ -741,9 +754,10 @@ export function Composer({
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 3,
+                    // Stays opaque: it sits on top of the dimmed attachment row and has to hide it.
                     background: 'var(--panel-translucent-bg)',
                     border: '1px solid var(--proto-accent-border)',
-                    borderRadius: 10,
+                    borderRadius: 'var(--r-card)',
                     padding: '10px 18px',
                     boxShadow: 'var(--shadow-accent-soft)',
                     zIndex: 2,

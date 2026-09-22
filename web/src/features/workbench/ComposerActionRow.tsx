@@ -15,7 +15,7 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   const [hovered, setHovered] = useState<number | null>(null);
   if (suggestions.length === 0) return null;
   return (
-    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 12, boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
+    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
       {suggestions.map((suggestion, index) => (
         <div
           key={suggestion.command}
@@ -212,7 +212,7 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
           height: 30, maxWidth: 160, padding: '0 10px', boxSizing: 'border-box',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
@@ -230,7 +230,7 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
           style={{
             position: 'absolute', left: 0, bottom: 36, minWidth: 170,
             background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
+            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
             overflow: 'hidden', display: 'block',
           }}
         >
@@ -286,7 +286,7 @@ function ComposerCommissionChip({ commission }: {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
           height: 30, maxWidth: 180, padding: '0 10px', boxSizing: 'border-box',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
@@ -304,7 +304,7 @@ function ComposerCommissionChip({ commission }: {
           style={{
             position: 'absolute', left: 0, bottom: 36, minWidth: 190,
             background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
+            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
             overflow: 'hidden', display: 'block',
           }}
         >
@@ -372,7 +372,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
           style={{
             position: 'absolute', left: 0, bottom: 36, minWidth: 190,
             background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
+            borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59,
             overflow: 'hidden', display: 'block',
           }}
         >

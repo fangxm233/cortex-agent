@@ -76,7 +76,7 @@ const PATH_STYLE: CSSProperties = {
 const BUTTON_STYLE: CSSProperties = {
   width: 28,
   height: 28,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
   color: 'var(--proto-muted)',
@@ -92,7 +92,7 @@ const BUTTON_STYLE: CSSProperties = {
 const TOGGLE_STYLE: CSSProperties = {
   height: 22,
   padding: '0 8px',
-  borderRadius: 6,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   display: 'inline-flex',
   alignItems: 'center',

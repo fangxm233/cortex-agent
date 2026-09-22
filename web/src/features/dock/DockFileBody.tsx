@@ -77,7 +77,7 @@ function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
       style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, boxSizing: 'border-box' }}
     >
       {item.kind === 'video' ? (
-        <video src={src} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, background: 'var(--media-stage-bg)' }} />
+        <video src={src} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 'var(--r-chip)', background: 'var(--media-stage-bg)' }} />
       ) : (
         <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block', maxWidth: '100%', maxHeight: '100%' }}>
           <img
@@ -115,7 +115,7 @@ const CONTENT_STYLE = {
 const PAGER_BUTTON_STYLE: CSSProperties = {
   width: 28,
   height: 28,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
   color: 'var(--proto-muted)',

@@ -75,9 +75,11 @@ function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
   return (
     <pre style={{
       font: `500 12.5px ${mono}`,
+      // Stays a filled block, not glass: code is read character by character and a translucent
+      // ground under a monospace grid is exactly where legibility goes first.
       background: 'var(--proto-alt)',
       border: '1px solid var(--proto-line)',
-      borderRadius: 8,
+      borderRadius: 'var(--r-card)',
       padding: '10px 12px',
       overflow: 'auto',
       margin: '2px 0',

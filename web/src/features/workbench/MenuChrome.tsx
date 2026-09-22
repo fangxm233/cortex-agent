@@ -100,9 +100,11 @@ export function MenuCard({ kind, level, minWidth = 244, placement = 'above', ali
         position: 'absolute',
         ...(align === 'right' ? { right: 0 } : { left: 0 }),
         ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
+        // Opaque, not glass: a menu exists to hide what it covers, and it is also a scroller
+        // (`maxHeight` + `overflowY`) — the one shape a `backdrop-filter` must never take.
         background: 'var(--proto-card)',
         border: '1px solid var(--proto-line)',
-        borderRadius: 8,
+        borderRadius: 'var(--r-card)',
         boxShadow: 'var(--shadow-menu)',
         zIndex: 59,
         minWidth,

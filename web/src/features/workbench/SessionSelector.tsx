@@ -287,7 +287,7 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
         position: 'relative', font: CHIP_FONT,
         border: `1.5px solid ${hover || overridden ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
         color: hover || overridden ? 'var(--proto-accent)' : 'var(--proto-muted)',
-        padding: '0 12px', height: 30, borderRadius: 999, boxSizing: 'border-box', cursor: 'pointer',
+        padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 280,
       }}
     >
@@ -372,7 +372,7 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
         position: 'relative', font: CHIP_FONT,
         border: `1.5px solid ${lit ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
         color: lit ? 'var(--proto-accent)' : 'var(--proto-muted)',
-        padding: '0 12px', height: 30, borderRadius: 999, boxSizing: 'border-box', cursor: 'pointer',
+        padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', maxWidth: 180,
       }}
     >

@@ -212,7 +212,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
             style={{
               width: '100%', boxSizing: 'border-box', font: `400 10px ${mono}`,
               color: 'var(--proto-ink)', background: 'var(--proto-bg)',
-              border: '1px solid var(--proto-line)', borderRadius: 6, padding: '4px 7px', outline: 'none',
+              border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px', outline: 'none',
             }}
           />
         </div>

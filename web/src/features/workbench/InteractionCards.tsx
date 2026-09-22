@@ -123,10 +123,10 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
   // sealed — 13b right column: per-question ✓ rows
   if (!pending) {
     return (
-      <div style={{ border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', borderRadius: 10, padding: '13px 16px' }}>
+      <div style={{ border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>?</span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: 'var(--proto-gray)', color: 'var(--proto-muted-2)' }}>{copy.askAnsweredPill}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted-2)' }}>{copy.askAnsweredPill}</span>
           <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>AskUserQuestion</span>
           {model.timeLabel && <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>{model.timeLabel}</span>}
         </div>
@@ -150,11 +150,11 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
   return (
     <div
       {...(model.level ? { 'data-ask-level': model.level } : {})}
-      style={{ border: `1px solid ${tone ? tone.border : 'var(--proto-accent-border)'}`, background: 'var(--proto-rail)', borderRadius: 10, padding: '13px 16px' }}
+      style={{ border: `1px solid ${tone ? tone.border : 'var(--proto-accent-border)'}`, background: 'var(--glass-2)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)' }}>{copy.askPill}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)' }}>{copy.askPill}</span>
         <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>AskUserQuestion</span>
         <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
           {copy.ttlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
@@ -184,10 +184,10 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                       fontSize: 12,
                       fontWeight: on ? 600 : 500,
                       border: `1px solid ${on ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
-                      background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+                      background: on ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
                       color: 'var(--proto-accent)',
                       padding: '5px 12px',
-                      borderRadius: 8,
+                      borderRadius: 'var(--r-control)',
                       cursor: 'pointer',
                     }}
                   >
@@ -202,10 +202,10 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                   fontSize: 12,
                   fontWeight: otherOn ? 600 : 500,
                   border: `1px solid ${otherOn ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
-                  background: otherOn ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+                  background: otherOn ? 'var(--proto-accent-bg)' : 'var(--glass-2)',
                   color: 'var(--proto-accent)',
                   padding: '5px 12px',
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-control)',
                   cursor: 'pointer',
                 }}
               >
@@ -223,7 +223,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                   width: '100%',
                   boxSizing: 'border-box',
                   border: '1px solid var(--proto-accent-border)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-control)',
                   padding: '7px 11px',
                   fontSize: 12,
                   color: 'var(--proto-ink)',
@@ -244,7 +244,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
           style={{
             fontSize: 12,
             fontWeight: 600,
-            borderRadius: 8,
+            borderRadius: 'var(--r-control)',
             padding: '7px 16px',
             color: 'var(--ink-solid-fg)',
             background: canSubmit ? 'var(--proto-ink)' : 'var(--proto-faint)',
@@ -285,7 +285,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
     <div
       role="button"
       onClick={onOpenRead}
-      style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-accent-bg)', borderRadius: 8, padding: '9px 12px', cursor: 'pointer' }}
+      style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-accent-bg)', borderRadius: 'var(--r-control)', padding: '9px 12px', cursor: 'pointer' }}
     >
       <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.4" style={{ flex: 'none' }}>
         <path d="M3 1.5h5.5L11.5 4.5V12.5H3z" />
@@ -303,9 +303,9 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   if (!pending) {
     return (
       <>
-        <div style={{ border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)' }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: approved ? 'var(--proto-success-bg)' : 'var(--proto-gray)', color: approved ? 'var(--proto-success)' : 'var(--proto-muted-2)' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: approved ? 'var(--proto-success-bg)' : 'var(--proto-gray)', color: approved ? 'var(--proto-success)' : 'var(--proto-muted-2)' }}>
               {approved ? copy.planApprovedPill : rejected ? copy.planRejectedPill : model.status}
             </span>
             <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>ExitPlanMode</span>
@@ -338,7 +338,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         </div>
         {/* 4c — the reject feedback enters the flow as the user bubble (real result.feedback) */}
         {rejected && model.feedback && (
-          <div style={{ alignSelf: 'flex-end', maxWidth: '75%', background: 'var(--proto-gray)', borderRadius: '14px 14px 4px 14px', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+          <div style={{ alignSelf: 'flex-end', maxWidth: '75%', background: 'var(--glass-2)', borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', whiteSpace: 'pre-wrap', marginTop: 10 }}>
             {model.feedback}
           </div>
         )}
@@ -348,9 +348,9 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
 
   // pending — 13c left/middle columns (feedback box only after 请求修改)
   return (
-    <div style={{ border: '1px solid var(--proto-accent-border)', background: 'var(--proto-card)', borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--proto-accent-border)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)' }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>{copy.planPendingPill}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>{copy.planPendingPill}</span>
         <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>ExitPlanMode</span>
         <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
           {copy.planTtl} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
@@ -373,7 +373,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               border: '1.5px solid var(--proto-amber)',
               boxShadow: 'var(--focus-ring-amber)',
               background: 'var(--proto-card)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '8px 11px',
               fontSize: 12,
               lineHeight: 1.55,
@@ -394,14 +394,14 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
             <span
               role="button"
               onClick={() => { onFeedbackOpen(false); setFeedback(''); }}
-              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 8, flex: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--glass-2)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
             >
               {copy.cancel}
             </span>
             <span
               role="button"
               onClick={canReturn ? () => onReject(feedback.trim()) : undefined}
-              style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '7px 16px', color: 'var(--ink-solid-fg)', background: canReturn ? 'var(--proto-ink)' : 'var(--proto-faint)', flex: 'none', cursor: canReturn ? 'pointer' : 'not-allowed' }}
+              style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: 'var(--ink-solid-fg)', background: canReturn ? 'var(--proto-ink)' : 'var(--proto-faint)', flex: 'none', cursor: canReturn ? 'pointer' : 'not-allowed' }}
             >
               {copy.confirmReturn}
             </span>
@@ -411,14 +411,14 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
             <span
               role="button"
               onClick={() => onFeedbackOpen(true)}
-              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 8, flex: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--glass-2)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
             >
               {copy.requestChanges}
             </span>
             <span
               role="button"
               onClick={busy ? undefined : onApprove}
-              style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '7px 16px', color: 'var(--ink-solid-fg)', background: busy ? 'var(--proto-faint)' : 'var(--proto-ink)', flex: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
+              style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: 'var(--ink-solid-fg)', background: busy ? 'var(--proto-faint)' : 'var(--proto-ink)', flex: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
             >
               {copy.approvePlan}
             </span>

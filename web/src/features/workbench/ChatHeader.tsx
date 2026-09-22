@@ -112,9 +112,11 @@ export function ChatHeader({
                 right: 0,
                 top: 24,
                 minWidth: 132,
+                // Menus stay opaque: they have to hide what they cover, and a blurred popover is
+                // blur the shells pay for on every one of these — the drawer is the blur budget.
                 background: 'var(--proto-card)',
                 border: '1px solid var(--proto-line)',
-                borderRadius: 9,
+                borderRadius: 'var(--r-card)',
                 boxShadow: 'var(--shadow-menu-strong)',
                 overflow: 'hidden',
                 zIndex: 40,

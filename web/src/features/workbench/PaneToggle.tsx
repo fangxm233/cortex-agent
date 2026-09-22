@@ -24,7 +24,7 @@ export function PaneToggle({ side, expanded, label, onClick }: {
         width: 28,
         height: 28,
         border: '1px solid var(--proto-line)',
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         background: 'transparent',
         color: 'var(--proto-muted-2)',
         display: 'grid',

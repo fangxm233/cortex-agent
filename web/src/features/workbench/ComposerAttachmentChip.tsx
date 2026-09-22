@@ -66,7 +66,7 @@ const thumbStyle: CSSProperties = {
 
 function mediaInnerStyle(a: AttachmentUploadItem, canPreview: boolean): CSSProperties {
   return {
-    position: 'absolute', inset: 0, borderRadius: 8,
+    position: 'absolute', inset: 0, borderRadius: 'var(--r-chip)',
     border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
     background: a.previewUrl ? 'var(--media-stage-bg)' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
     boxSizing: 'border-box', overflow: 'hidden', cursor: canPreview ? 'pointer' : 'default',
@@ -131,7 +131,7 @@ function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
 
 const fileBaseStyle: CSSProperties = {
   position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 54,
-  background: 'var(--proto-rail)', borderRadius: 8, padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
+  background: 'var(--proto-rail)', borderRadius: 'var(--r-chip)', padding: '0 12px 0 8px', flex: 'none', boxSizing: 'border-box',
 };
 const fileNameStyle: CSSProperties = {
   font: `500 10.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140,

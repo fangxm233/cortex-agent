@@ -55,7 +55,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 14, boxShadow: 'var(--shadow-overlay-strong)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 'var(--r-float)', boxShadow: 'var(--shadow-overlay-strong)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         {/* header — title · meta · status pill · ✕ · progress bar (6b header, desktop chrome) */}
         <div style={{ flex: 'none', padding: '14px 18px 12px', borderBottom: '1px solid var(--proto-line-2)' }}>
@@ -67,21 +67,21 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
               </div>
             </div>
             {pending ? (
-              <span style={{ font: `600 9.5px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2.5px 9px', borderRadius: 999, flex: 'none' }}>{copy.planPendingPill}</span>
+              <span style={{ font: `600 9.5px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2.5px 9px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{copy.planPendingPill}</span>
             ) : (
-              <span style={{ font: `600 9.5px ${mono}`, color: stamp.fg, background: stamp.bg, padding: '2.5px 9px', borderRadius: 999, flex: 'none' }}>{statusLabel}</span>
+              <span style={{ font: `600 9.5px ${mono}`, color: stamp.fg, background: stamp.bg, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', flex: 'none' }}>{statusLabel}</span>
             )}
             <span
               role="button"
               aria-label="Close"
               onClick={onClose}
-              style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
+              style={{ width: 26, height: 26, borderRadius: 'var(--r-chip)', border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
             >
               ✕
             </span>
           </div>
           {pending && (
-            <div style={{ height: 3, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden', marginTop: 10 }}>
+            <div style={{ height: 3, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden', marginTop: 10 }}>
               <div style={{ width: `${pct}%`, height: '100%', background: 'var(--proto-accent)' }} />
             </div>
           )}
@@ -95,7 +95,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
               <ChatMarkdown text={model.planContent} />
             </div>
             {model.status === 'rejected' && model.feedback && (
-              <div style={{ marginTop: 16, border: '1px solid var(--proto-amber-border)', background: 'var(--proto-amber-bg)', borderRadius: 10, padding: '10px 13px' }}>
+              <div style={{ marginTop: 16, border: '1px solid var(--proto-amber-border)', background: 'var(--proto-amber-bg)', borderRadius: 'var(--r-card)', padding: '10px 13px' }}>
                 <div style={{ font: `600 10px ${mono}`, color: 'var(--proto-amber-text)', paddingBottom: 4 }}>{copy.feedbackHint.split(' · ')[0]}</div>
                 <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
               </div>
@@ -112,21 +112,21 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
               <span
                 role="button"
                 onClick={onRequestChanges}
-                style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 8, cursor: 'pointer', flex: 'none' }}
+                style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
               >
                 {copy.requestChanges}
               </span>
               <span
                 role="button"
                 onClick={onApprove}
-                style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+                style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
               >
                 <span>{copy.approvePlan}</span>
                 {approveSub && <span style={{ font: `400 9px ${mono}`, color: 'var(--ink-solid-fg-dim)' }}>{approveSub}</span>}
               </span>
             </div>
           ) : (
-            <div style={{ height: 36, borderRadius: 9, background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600 }}>
+            <div style={{ height: 36, borderRadius: 'var(--r-control)', background: stamp.bg, color: stamp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600 }}>
               {stamp.text}
             </div>
           )}

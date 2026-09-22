@@ -28,7 +28,7 @@ const smallPlayStyle: CSSProperties = {
 
 function thumbStageStyle(url: string | null, width: number, height: number): CSSProperties {
   return {
-    position: 'relative', width, height, borderRadius: 12, border: '1px solid var(--proto-line)',
+    position: 'relative', width, height, borderRadius: 'var(--r-card)', border: '1px solid var(--proto-line)',
     background: url ? 'var(--media-stage-bg)' : stageFallback, boxSizing: 'border-box', flex: 'none',
     overflow: 'hidden', cursor: 'pointer',
   };
@@ -63,8 +63,8 @@ function MediaThumb({ a, width, height }: {
 }
 
 const userFileStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-gray)',
-  borderRadius: 10, padding: '8px 12px 8px 9px',
+  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--glass-2)',
+  borderRadius: 'var(--r-card)', padding: '8px 12px 8px 9px',
 };
 
 function FileBadge({ type, name, agent = false }: {
@@ -110,7 +110,7 @@ function ActionBtn({ title, onClick, children }: {
   children: ReactNode;
 }): JSX.Element {
   return (
-    <span role="button" title={title} onClick={onClick} style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}>
+    <span role="button" title={title} onClick={onClick} style={{ width: 26, height: 26, borderRadius: 'var(--r-chip)', border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}>
       {children}
     </span>
   );
@@ -118,7 +118,7 @@ function ActionBtn({ title, onClick, children }: {
 
 function OpenBtn({ onClick, children }: { onClick: () => void; children: ReactNode }): JSX.Element {
   return (
-    <span role="button" onClick={onClick} style={{ height: 26, borderRadius: 7, border: '1px solid var(--proto-accent-border)', background: 'var(--proto-rail)', color: 'var(--proto-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}>
+    <span role="button" onClick={onClick} style={{ height: 26, borderRadius: 'var(--r-chip)', border: '1px solid var(--proto-accent-border)', background: 'var(--proto-rail)', color: 'var(--proto-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}>
       {children} ↗
     </span>
   );
@@ -126,7 +126,7 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: ReactNo
 
 const agentFileStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)', borderRadius: 10, padding: '9px 10px',
+  background: 'var(--glass-2)', borderRadius: 'var(--r-card)', padding: '9px 10px',
   boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box', maxWidth: '100%',
 };
 const agentNameStyle: CSSProperties = {
@@ -213,7 +213,7 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const source = (): void => openDoc({ kind: 'text', name: a.name, path: a.path, mimeType: 'text/plain' });
   const download = (): void => dl(a.path, a.name.toLowerCase().endsWith('.html') ? a.name : `${a.name}.html`);
   return (
-    <div ref={hostRef} style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
+    <div ref={hostRef} style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
       <ViewHeader a={a} source={source} download={download} dock={toDock} expand={expand} canPin={dock.canDock} />
       <div style={{ background: 'var(--proto-card)' }}>
         {visible ? <HtmlBody item={item} mode="inline" /> : <div style={{ height: 160 }} />}
@@ -223,7 +223,7 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
 }
 
 const agentMediaStyle: CSSProperties = {
-  position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid var(--proto-line)',
+  position: 'relative', maxWidth: 320, borderRadius: 'var(--r-card)', border: '1px solid var(--proto-line)',
   overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
 };
 const largePlayStyle: CSSProperties = {
@@ -253,7 +253,7 @@ function MediaDownload({ a, onDownload }: {
 }): JSX.Element {
   const L = useVocab();
   return (
-    <span role="button" title={L.wbFileDownload} onClick={(event) => { event.stopPropagation(); onDownload(a.path, a.name); }} style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}>
+    <span role="button" title={L.wbFileDownload} onClick={(event) => { event.stopPropagation(); onDownload(a.path, a.name); }} style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 'var(--r-chip)', background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}>
       ↓
     </span>
   );

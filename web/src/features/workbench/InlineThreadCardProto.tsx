@@ -70,7 +70,7 @@ function NodeCell({ row }: { row: ProtoRow }) {
 
 function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => void }) {
   return (
-    <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 8 }}>
+    <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 'var(--r-control)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px' }}>
         <span style={{ color: 'var(--proto-muted-2)', fontSize: 9 }}>{sub.chev}</span>
         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={sub.iconColor} strokeWidth="1.8">
@@ -87,7 +87,7 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
             fontSize: 9.5,
             fontWeight: 600,
             padding: '1.5px 7px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             background: sub.pillBg,
             color: sub.pillColor,
           }}
@@ -108,8 +108,8 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
                 alignItems: 'center',
                 gap: 7,
                 border: '1px solid var(--proto-line-2)',
-                background: 'var(--proto-card)',
-                borderRadius: 7,
+                background: 'var(--glass-2)',
+                borderRadius: 'var(--r-chip)',
                 padding: '5.5px 9px',
                 marginTop: 6,
               }}
@@ -152,7 +152,7 @@ function InlineCardHeader({ card, onOpen }: { card: ProtoCard; onOpen: () => voi
       </svg>
       <span style={{ font: `600 12px ${mono}`, color: 'var(--proto-ink)' }}>{card.name}</span>
       <span style={{ font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.id}</span>
-      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: card.pill.bg, color: card.pill.color }}>{card.pillText}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: card.pill.bg, color: card.pill.color }}>{card.pillText}</span>
       <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.meta}</span>
       <span onClick={onOpen} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>Open →</span>
     </div>
@@ -182,7 +182,7 @@ function InlineRow({ row, onOpenNested }: { row: ProtoRow; onOpenNested: () => v
 
 function InlineCardView({ card, onOpen }: { card: ProtoCard; onOpen: () => void }) {
   return (
-    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', borderRadius: 10, overflow: 'hidden' }}>
+    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', background: 'var(--glass-2)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <InlineCardHeader card={card} onOpen={onOpen} />
       <div style={{ padding: '10px 14px 6px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>

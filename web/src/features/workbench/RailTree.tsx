@@ -187,8 +187,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               alignItems: 'center',
               gap: 6,
               padding: '0 8px',
-              borderRadius: 7,
+              borderRadius: 'var(--r-control)',
               border: '1px solid var(--proto-accent-border)',
+              // Opaque: a filter field sits over the very rows it filters, and text-on-text is
+              // exactly what a translucent input would give here.
               background: 'var(--proto-card)',
             }}
           >
@@ -254,7 +256,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                 zIndex: 20,
                 minWidth: 118,
                 padding: 4,
-                borderRadius: 9,
+                borderRadius: 'var(--r-card)',
                 background: 'var(--proto-card)',
                 border: '1px solid var(--proto-line-3)',
                 boxShadow: 'var(--shadow-menu)',
@@ -314,7 +316,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           // 28 = the folder glyph's 4 + its 17 + the row gap: every session title starts exactly
           // under its project's name.
           padding: `5px 8px 5px ${indent}px`,
-          borderRadius: 7,
+          borderRadius: 'var(--r-chip)',
           cursor: 'pointer',
           background: row.selected
             ? 'var(--proto-accent-bg)'
@@ -396,7 +398,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           gap: 6,
           minHeight: 26,
           padding: '4px 8px 4px 40px',
-          borderRadius: 7,
+          borderRadius: 'var(--r-chip)',
           cursor: 'pointer',
           fontSize: 12.5,
           color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
@@ -443,7 +445,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             height: 26,
             boxSizing: 'border-box',
             padding: '4px 8px 4px 28px',
-            borderRadius: 7,
+            borderRadius: 'var(--r-chip)',
             cursor: 'pointer',
             fontSize: 12.5,
             opacity: closed ? 0.6 : 1,
@@ -567,15 +569,24 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             // 4 + the scroller's 8 puts the folder glyph on x=12, the same left margin the section
             // header and the new-session button already use.
             padding: '0 8px 0 4px',
-            borderRadius: 8,
+            borderRadius: 'var(--r-chip)',
             cursor: 'pointer',
             opacity: dragId === node.id ? 0.45 : 1,
-            boxShadow: overId === node.id ? 'inset 0 2px 0 0 var(--proto-accent)' : undefined,
-            background: node.current
-              ? 'var(--proto-line-2)'
-              : hovered
-                ? 'var(--proto-gray)'
-                : 'var(--proto-rail)',
+            // The current project used to be a 5% tint on a 4% tint — invisible now that both are
+            // alpha. It reads as a ring instead, which also leaves the fill free to do the sticky
+            // job. Drag-over keeps the slot, it is the more urgent of the two.
+            boxShadow: overId === node.id
+              ? 'inset 0 2px 0 0 var(--proto-accent)'
+              : node.current
+                ? '0 0 0 1px var(--proto-line-2)'
+                : undefined,
+            // This row is `sticky`: the whole tree scrolls under it, so it has to be a raised
+            // surface rather than a tint. `--glass-2` with no filter of its own — it is a row in a
+            // scroller, and blurring one of those is what makes the shells stutter. Hover stacks a
+            // second tint over that fill so the cue cannot make the row LESS opaque than at rest.
+            background: hovered
+              ? 'linear-gradient(var(--proto-gray), var(--proto-gray)), var(--glass-2)'
+              : 'var(--glass-2)',
           }}
         >
           {/* The folder glyph IS the drag handle. A separate grip column cost 17px of permanent

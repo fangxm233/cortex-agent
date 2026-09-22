@@ -23,7 +23,7 @@ function ProjectMenu({ projects, current, onPick }: {
 }): JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   return (
-    <div data-menu="project" style={{ position: 'absolute', left: 0, bottom: 36, minWidth: 200, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 8, boxShadow: 'var(--shadow-menu)', zIndex: 59, overflow: 'hidden' }}>
+    <div data-menu="project" style={{ position: 'absolute', left: 0, bottom: 36, minWidth: 200, background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', boxShadow: 'var(--shadow-menu)', zIndex: 59, overflow: 'hidden' }}>
       {projects.map((project) => (
         <div
           key={project.id}
@@ -65,7 +65,7 @@ export function DraftProjectSelector({ disabled = false }: { disabled?: boolean 
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); if (!disabled) setOpen((value) => !value); }}
-      style={{ position: 'relative', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 999, boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, margin: '0 auto 10px', width: 'fit-content' }}
+      style={{ position: 'relative', font: CHIP_FONT, border: `1.5px solid ${hover && !disabled ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`, color: hover && !disabled ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 'var(--r-pill)', boxSizing: 'border-box', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', opacity: disabled ? 0.55 : 1, margin: '0 auto 10px', width: 'fit-content' }}
     >
       {L.project} · {currentProjectId}
       {open && <ProjectMenu projects={orderedProjects} current={currentProjectId} onPick={(id) => { setOpen(false); setCurrentProject(id); }} />}

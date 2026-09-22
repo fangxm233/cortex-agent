@@ -49,7 +49,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 540,
         background: 'var(--proto-card)',
-        borderRadius: 14,
+        borderRadius: 'var(--r-float)',
         boxShadow: 'var(--shadow-overlay-strong)',
         zIndex: 61,
         overflow: 'hidden',
@@ -96,7 +96,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               alignItems: 'center',
               gap: 8,
               border: '1.5px solid var(--proto-accent-border)',
-              borderRadius: 9,
+              borderRadius: 'var(--r-control)',
               padding: '9px 12px',
             }}
           >
@@ -145,7 +145,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               fontSize: 11.5,
               fontWeight: 600,
               border: '1px solid var(--proto-line-3)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '6px 13px',
               color: 'var(--proto-ink)',
               cursor: 'pointer',
@@ -159,10 +159,12 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '7px 15px',
               color: 'var(--ink-solid-fg)',
               background: creatable ? 'var(--proto-accent)' : 'var(--proto-accent-border)',
+              // The accent fill floats only when it is armed; the disabled tint must stay flat.
+              boxShadow: creatable ? 'var(--accent-glow)' : undefined,
               cursor: creatable && !isPending ? 'pointer' : 'default',
             }}
           >
