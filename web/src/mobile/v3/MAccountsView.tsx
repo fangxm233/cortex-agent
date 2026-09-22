@@ -1,18 +1,18 @@
-// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
+// input:  accounts VM, custom providers, mobile controls
+// output: MAccountsView
+// pos:    Mobile account status and authentication actions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab, type Vocab } from '@/i18n';
 import {
-  MCard,
-  MDrillHeader,
-  MGroupLabel,
   MPill,
-  MScreen,
-  MScrollBody,
   MC,
   MONO,
 } from '@/mobile/ui/kit';
+import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
+  MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
 import type {
   AccountActionTarget,
   AccountCredentialVm,
@@ -31,10 +31,10 @@ function Metadata({ value }: { value: AccountCredentialVm }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
       <span><MPill tone={value.tone}>{L[value.labelKey]}</MPill></span>
-      <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
+      <span style={{ fontSize: 12, color: MC.muted, overflowWrap: 'anywhere' }}>
         {L.accountsSource}: {value.source ?? '—'}
       </span>
-      {value.expiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
+      {value.expiresAt ? <span style={{ fontSize: 12, color: MC.muted, overflowWrap: 'anywhere' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
     </div>
   );
 }
@@ -108,14 +108,14 @@ function ClaudeCard({ account, actionsDisabled, onLogin, onLogout }: ClaudeCardP
   const L = useVocab();
   return (
     <MCard>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <ProviderIcon provider="claude-code" label="Claude Code" size={16} />
         <span style={{ fontSize: 14, fontWeight: 700, color: MC.ink }}>Claude Code</span>
         {account.inUse ? <MPill tone="done">{L.accountsInUse}</MPill> : null}
       </div>
       {account.slots.map((slot, index) => (
         <div key={slot.authType} style={{ padding: '9px 0', borderTop: index > 0 ? `1px solid ${MC.divider}` : undefined }}>
-          <div style={{ font: `600 11px ${MONO}`, color: MC.ink, marginBottom: 7 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: MC.ink, marginBottom: 7 }}>
             {authTypeLabel(L, slot.authType, 'claude')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -148,7 +148,7 @@ function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <ProviderIcon provider={provider.provider} label={provider.label} size={15} />
         <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.label}</span>
-        <span style={{ font: `400 9px ${MONO}`, color: MC.muted }}>{provider.provider}</span>
+        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.provider}</span>
         {provider.loginTypes.map(authType => <MPill key={authType} tone="running">{authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}</MPill>)}
       </div>
       <div style={{ marginTop: 8 }}><Metadata value={metadata} /></div>
@@ -178,15 +178,15 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
     <MCard>
       <div data-custom-provider={provider.name} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.name}</span>
-        <span style={{ font: `400 9px ${MONO}`, color: MC.muted }}>{provider.api}</span>
+        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.api}</span>
         {provider.routed ? null : <MPill tone="waiting">{L.cpvUnrouted}</MPill>}
         <MPill tone="cancelled">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</MPill>
       </div>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
+        <span style={{ font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
           {provider.upstreamUrl ?? '—'}
         </span>
-        <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
+        <span style={{ font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
           {provider.models.map(model => model.id).join(', ')}
         </span>
       </div>
@@ -246,7 +246,7 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
         background: MC.card, color: MC.run, fontSize: 10, fontWeight: 650 }}>
       {L.accountsSyncModels}
     </button>
-  ) : <span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>;
+  ) : <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>;
   const header = (
     <MDrillHeader onBack={onBack} trailing={trailing}>
       <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>

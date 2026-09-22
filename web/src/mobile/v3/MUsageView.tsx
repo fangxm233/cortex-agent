@@ -1,4 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 uses its dedicated scheme tokens and metrics
+// input:  usage VM, policy controls, mobile Settings primitives
+// output: MUsageView
+// pos:    Mobile provider usage and throttle policy controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,
@@ -12,7 +15,9 @@ import type {
 } from '@/features/usage';
 import { usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
-import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { MC, MONO } from '@/mobile/ui/kit';
+import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
+  MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
 
 export interface MUsageCopy {
   title: string;
@@ -46,15 +51,15 @@ export interface MUsageCopy {
   };
 }
 
-const META: CSSProperties = { font: `400 9.5px ${MONO}`, color: MC.muted };
-const LABEL: CSSProperties = { fontSize: 9.5, fontWeight: 700, color: MC.faint, textTransform: 'uppercase' };
+const META: CSSProperties = { fontSize: 12, color: MC.muted };
+const LABEL: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.muted };
 const POLICY_INPUT: CSSProperties = {
-  width: 86,
+  width: '100%',
   borderRadius: 'var(--r-chip)',
   border: `1px solid ${MC.divider}`,
   background: MC.card,
   color: MC.ink,
-  font: `500 10px ${MONO}`,
+  fontSize: 16,
   padding: '7px 22px 7px 8px',
   boxSizing: 'border-box',
 };
@@ -84,23 +89,8 @@ function PolicyToggle(props: {
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-label={`Usage throttle ${targetKey(props.target)}`}
-      aria-checked={props.enabled}
-      aria-disabled={props.disabled}
-      disabled={props.disabled}
-      onClick={props.onClick}
-      style={{
-        width: 38, height: 22, borderRadius: 'var(--r-pill)', border: 0, padding: 2,
-        display: 'flex', alignItems: 'center', justifyContent: props.enabled ? 'flex-end' : 'flex-start',
-        background: props.enabled ? MC.run : MC.divider, cursor: props.disabled ? 'default' : 'pointer',
-        opacity: props.disabled ? 0.55 : 1,
-      }}
-    >
-      <span style={{ width: 18, height: 18, borderRadius: '50%', background: MC.card }} />
-    </button>
+    <MSettingsToggle label={`Usage throttle ${targetKey(props.target)}`}
+      value={props.enabled} disabled={props.disabled} onChange={props.onClick} />
   );
 }
 
@@ -111,9 +101,10 @@ function PolicyThresholdInput(props: {
   onChange: (value: string) => void;
 }) {
   return (
-    <div style={{ position: 'relative', width: 86 }}>
+    <div style={{ position: 'relative', width: 100 }}>
       <input
         data-usage-threshold-input={targetKey(props.target)}
+        aria-label={`Usage threshold ${targetKey(props.target)}`}
         type="number"
         min={1}
         max={100}
@@ -124,7 +115,7 @@ function PolicyThresholdInput(props: {
         onChange={(event) => props.onChange(event.target.value)}
         style={{ ...POLICY_INPUT, opacity: props.disabled ? 0.55 : 1 }}
       />
-      <span style={{ position: 'absolute', right: 8, top: 7, font: `500 10px ${MONO}`, color: MC.muted }}>%</span>
+      <span style={{ position: 'absolute', right: 8, top: 12, font: `500 12px ${MONO}`, color: MC.muted }}>%</span>
     </div>
   );
 }
@@ -204,14 +195,14 @@ function PolicyControlsRow(props: WindowPolicyBlockProps & PolicyThresholdButton
   setDraft: (value: string) => void;
 }) {
   return (
-    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <PolicyToggle
         target={props.policy.target} enabled={props.policy.enabled} disabled={props.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
           enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
         })}
       />
-      <span style={{ fontSize: 11, fontWeight: 600, color: MC.ink }}>{props.copy.policy.enabled}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{props.copy.policy.enabled}</span>
       <span style={META}>{props.copy.policy.threshold}</span>
       <PolicyThresholdInput target={props.policy.target} value={props.draft} disabled={props.disabled} onChange={props.setDraft} />
       <PolicyThresholdButtons {...props} />
@@ -253,8 +244,8 @@ function WindowRow(props: WindowRowProps) {
   return (
     <div data-usage-window={props.window.type} style={{ padding: '9px 0', borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
-        <span style={{ marginLeft: 'auto', font: `600 10px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
+        <span style={{ marginLeft: 'auto', font: `600 13px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
       </div>
       <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
         <div className="usage-meter-fill" style={{ width: props.window.utilizationWidth, height: '100%', background: MC.run }} />
@@ -290,7 +281,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   const state = props.fallback.enabled ? props.copy.policy.enabled : props.copy.policy.disabled;
   return (
     <div data-usage-legacy-fallback={props.fallback.target.provider} style={{ marginTop: 10, border: `1px solid ${MC.divider}`, borderRadius: 'var(--r-chip)', padding: '8px 10px' }}>
-      <div style={{ fontSize: 10.5, fontWeight: 650, color: MC.ink }}>{props.copy.policy.legacyFallbackTitle}</div>
+      <div style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{props.copy.policy.legacyFallbackTitle}</div>
       <div style={{ ...META, marginTop: 3 }}>{props.copy.policy.legacyFallbackBody}</div>
       <div style={{ ...META, marginTop: 3 }}>{`${state} · ${props.fallback.thresholdPercent}%`}</div>
       <button
@@ -322,7 +313,7 @@ function QuotaBlock(props: QuotaBlockProps) {
       <div style={LABEL}>{props.copy.quota}</div>
       {props.provider.quotaState === 'available'
         ? props.provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} {...props} />)
-        : <div style={{ marginTop: 7, fontSize: 10.5, color: MC.muted }}>{props.copy.neverObserved}</div>}
+        : <div style={{ marginTop: 8, fontSize: 12, color: MC.muted }}>{props.copy.neverObserved}</div>}
       {props.provider.legacyFallback
         ? (
           <LegacyFallbackNotice
@@ -343,7 +334,7 @@ function SpendBlock({ provider, copy }: { provider: ProviderUsageView; copy: MUs
   return (
     <section data-usage-spend={provider.provider} style={{ borderTop: `1px solid ${MC.divider}`, padding: '10px 13px' }}>
       <div style={LABEL}>{copy.gatewaySpend}</div>
-      <div style={{ display: 'flex', gap: 22, marginTop: 7 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
         <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{copy.today}</small></span>
         <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{copy.month}</small></span>
       </div>
@@ -369,7 +360,7 @@ function ProviderCard(props: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{provider.displayName}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
           <span style={META}>{provider.modes.join(' · ')}</span>
           <Observation provider={provider} copy={copy} />
         </div>
@@ -383,7 +374,7 @@ function ProviderCard(props: {
 
 function ErrorFeedback({ label, error }: { label: string; error: { message: string } | null }) {
   if (!error) return null;
-  return <div role="alert" style={{ color: MC.fail, fontSize: 10.5 }}>{label}: {error.message}</div>;
+  return <div role="alert" style={{ color: MC.fail, fontSize: 12 }}>{label}: {error.message}</div>;
 }
 
 function RefreshButton({ copy, pending, onRefresh }: { copy: MUsageCopy; pending: boolean; onRefresh: () => void }) {

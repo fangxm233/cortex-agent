@@ -1,8 +1,11 @@
+// input:  usage controller, navigation, mobile usage view
+// output: MUsageScreen
+// pos:    Mobile usage screen wiring
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { MScreen } from '@/mobile/ui/kit';
 import { MUsageView, type MUsageCopy } from './MUsageView';
 
 const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
@@ -41,7 +44,6 @@ export function MUsageScreen() {
   const copy = pickCopy(useLang(), COPY);
   const usage = useUsage();
   return (
-    <MScreen label="1l-u 用量">
       <MUsageView
         view={usage.view}
         copy={copy}
@@ -56,6 +58,5 @@ export function MUsageScreen() {
         onRefresh={usage.refresh}
         onSavePolicy={usage.savePolicy}
       />
-    </MScreen>
   );
 }

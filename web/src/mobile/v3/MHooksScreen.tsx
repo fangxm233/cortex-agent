@@ -1,7 +1,7 @@
-// Drilled from 1l 设置 (`Hooks · N` row). NON-Tab drill page — the shell hides the Tab bar for
-// /m/settings/hooks and hardware back returns to /m/settings (mobile-navigation PARENT_RULES).
-// Real tRPC: `hooks.list` — the full registry read model (declaration + source + load order +
-// mountsOn + scriptExists). Read-only by design: mutating a hook lives on desktop settings.
+// input:  hooks query, navigation, mobile hook views
+// output: MHooksScreen
+// pos:    Mobile hook inspection screen wiring
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -9,7 +9,8 @@ import type { HooksOverview } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { MScreen, MC } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
+import { MSettingsPage } from './MSettingsControls';
 import { MHooksView, type MHooksCopy } from './MHooksView';
 import { buildMHooksVm } from './m-hooks-vm';
 
@@ -124,9 +125,11 @@ export function MHooksScreen() {
   );
 
   return (
-    <MScreen label="1l-h 钩子">
+    <>
       {hooksQuery.isLoading ? (
-        <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.title}</div>
+        <MSettingsPage title={copy.title} onBack={() => navigate('/m/settings')}>
+          <div style={{ color: MC.muted, fontSize: 13 }}>{copy.title}</div>
+        </MSettingsPage>
       ) : (
         <MHooksView
           vm={vm}
@@ -137,6 +140,6 @@ export function MHooksScreen() {
           onCloseSheet={() => setOpenKey(null)}
         />
       )}
-    </MScreen>
+    </>
   );
 }

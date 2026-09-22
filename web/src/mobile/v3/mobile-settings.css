@@ -1,0 +1,133 @@
+/* input: shared settings tokens, mobile Settings markup */
+/* output: scoped mobile Settings layout and touch styles */
+/* pos: mobile Settings-only presentation overrides */
+/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+
+.settings-surface.mobile-settings {
+  --settings-control-height: 44px;
+  --settings-input-size: 16px;
+  --settings-card-fill: var(--m-card);
+  --r-card: var(--settings-card-radius);
+  --r-control: var(--settings-control-radius);
+  --r-chip: var(--settings-control-radius);
+  color: var(--m-ink);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mobile-settings-frame {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.mobile-settings :where(div, span, label, section, header, button, input, select, textarea) {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mobile-settings-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.mobile-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--settings-section-gap);
+  padding: 12px 14px calc(20px + env(safe-area-inset-bottom) + var(--m-tabbar-clearance, 0px));
+}
+
+.mobile-settings-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: none;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+}
+
+.mobile-settings-heading { flex: 1 1 100px; font-size: 16px; font-weight: 650; }
+.mobile-settings-header-actions { max-width: 100%; margin-left: auto; }
+.mobile-settings .mobile-settings-back { width: 44px; flex: none; padding: 0; font-size: 24px !important; border: 0; background: transparent; color: var(--proto-accent); }
+
+/* Inline styles belong to the existing mobile views and reused Platform panel.
+   These touch/focus overrides are deliberately confined to Settings. */
+.mobile-settings :is(button, [role="button"], summary) {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  touch-action: manipulation;
+}
+.mobile-settings button { min-width: 44px; font-size: 13px !important; }
+.mobile-settings button:not(:disabled):hover { filter: brightness(.97); }
+.mobile-settings [data-accent-picker] button { height: auto !important; }
+.mobile-settings [data-accent-picker] button > span { min-height: 28px; }
+.mobile-settings :is(input:not([type="range"]):not([type="checkbox"]), select, textarea) {
+  max-width: 100%;
+  min-height: 44px;
+  border-radius: 8px !important;
+  font-size: 16px !important;
+  font-family: inherit !important;
+}
+.mobile-settings :is(button, input, select, textarea, a, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--proto-accent) !important;
+  outline-offset: 2px;
+}
+.mobile-settings :is(button, input, select, textarea):disabled { cursor: not-allowed; opacity: .55; }
+.mobile-settings :is(pre, code) { overflow-wrap: anywhere; }
+.mobile-settings pre { max-width: 100%; overflow-x: auto; }
+
+.mobile-settings-row { flex-wrap: wrap; }
+.mobile-settings-row > :first-child { flex-basis: 140px !important; }
+.mobile-settings-row-stacked { flex-direction: column; align-items: stretch !important; }
+.mobile-settings-row-stacked > :first-child { flex-basis: auto !important; }
+.mobile-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mobile-settings-actions > * { max-width: 100%; }
+
+/* A 44px hit box around a compact 44x26 track; status green is not a toggle color. */
+.mobile-settings .mobile-settings-toggle {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.mobile-settings-toggle-track {
+  display: flex;
+  align-items: center;
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--proto-line-3);
+}
+.mobile-settings-toggle[aria-checked="true"] .mobile-settings-toggle-track {
+  justify-content: flex-end;
+  background: var(--proto-accent);
+}
+.mobile-settings-toggle-track > span { width: 20px; height: 20px; border-radius: 50%; background: var(--ink-solid-fg); }
+
+.mobile-settings-sheet { position: absolute; inset: 0; z-index: 10; }
+.mobile-settings-sheet [data-mobile-sheet-scroll] { padding: 2px; }
+.mobile-settings .ps-panel { gap: 20px; }
+.mobile-settings .ps-grid { grid-template-columns: minmax(0, 1fr); }
+.mobile-settings-choice { flex-wrap: wrap; }
+.mobile-settings-choice > :first-child { flex-basis: 140px !important; }
+.mobile-settings-segment { flex-wrap: wrap; max-width: 100%; }
+.mobile-settings-profile-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; align-items: end; }
+.mobile-settings [data-usage-policy-controls] { flex-wrap: wrap; }
+.mobile-settings [data-usage-threshold-reset] { width: 44px !important; height: 44px !important; }
+.mobile-settings [data-usage-threshold-input] { width: 100%; }
+.mobile-settings-number-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mobile-settings-number-control input { width: 88px; border: 1px solid var(--m-hairline); background: var(--m-card); color: var(--m-ink); padding: 8px; }

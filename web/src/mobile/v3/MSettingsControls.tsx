@@ -1,19 +1,58 @@
-import type { CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+// input:  react, mobile kit, shared settings styles
+// output: Mobile Settings frames, cards, rows and form controls
+// pos:    Settings-only mobile presentation primitives
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
+import '@/features/settings/settings-style.css';
+import './mobile-settings.css';
 
-export const MSET_TITLE: CSSProperties = { fontSize: 13.5, fontWeight: 600, color: MC.ink };
-export const MSET_SUB: CSSProperties = { fontSize: 10.5, color: MC.muted, lineHeight: 1.45, marginTop: 2 };
-export const MSET_KEY: CSSProperties = { font: `400 9px ${MONO}`, color: MC.faint };
+export function MSettingsFrame(props: { label?: string; header?: ReactNode; children: ReactNode }) {
+  return <div className="settings-surface mobile-settings mobile-settings-frame" data-screen-label={props.label}>
+    {props.header}
+    <div className="mobile-settings-scroll">{props.children}</div>
+  </div>;
+}
+
+export function MSettingsHeader(props: { onBack: () => void; trailing?: ReactNode; children: ReactNode }) {
+  return <header className="mobile-settings-header">
+    <button type="button" aria-label="Back" onClick={props.onBack} className="mobile-settings-back">‹</button>
+    <div className="mobile-settings-heading">{props.children}</div>
+    {props.trailing && <div className="mobile-settings-header-actions">{props.trailing}</div>}
+  </header>;
+}
+
+export function MSettingsBody({ children }: { children: ReactNode; gap?: number }) {
+  return <div className="mobile-settings-body">{children}</div>;
+}
+
+export function MSettingsGroupLabel({ children }: { children: ReactNode }) {
+  return <div style={{ fontSize: 13, fontWeight: 600, color: MC.muted }}>{children}</div>;
+}
+
+export function MSettingsSurfaceCard(props: ComponentProps<typeof MCard>) {
+  return <MCard {...props} radius={12} style={{ ...props.style, boxShadow: 'none', overflow: 'visible' }} />;
+}
+
+export function MSettingsSheet(props: ComponentProps<typeof MBottomSheet>) {
+  return <div className="settings-surface mobile-settings mobile-settings-sheet">
+    <MBottomSheet {...props} />
+  </div>;
+}
+
+export const MSET_TITLE: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.ink };
+export const MSET_SUB: CSSProperties = { fontSize: 12, color: MC.muted, lineHeight: 1.5, marginTop: 4 };
+export const MSET_KEY: CSSProperties = { fontSize: 13, fontWeight: 500, color: MC.muted };
 
 export function MSettingsPage(props: { title: string; onBack: () => void; children: ReactNode; trailing?: ReactNode }) {
   return (
-    <MScreen label={`Settings · ${props.title}`} header={
-      <MDrillHeader onBack={props.onBack} trailing={props.trailing}>
-        <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.title}</span>
-      </MDrillHeader>
+    <MSettingsFrame label={`Settings · ${props.title}`} header={
+      <MSettingsHeader onBack={props.onBack} trailing={props.trailing}>
+        <span>{props.title}</span>
+      </MSettingsHeader>
     }>
-      <MScrollBody>{props.children}</MScrollBody>
-    </MScreen>
+      <MSettingsBody>{props.children}</MSettingsBody>
+    </MSettingsFrame>
   );
 }
 
@@ -21,7 +60,7 @@ export function MSettingsCard(props: { children: ReactNode; title?: string; note
   return (
     <div>
       {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 700 }}>{props.title}</div>}
-      <MCard padding={0} style={{ overflow: 'hidden' }}>{props.children}</MCard>
+      <MSettingsSurfaceCard padding={0}>{props.children}</MSettingsSurfaceCard>
       {props.note && <div style={{ ...MSET_SUB, padding: '6px 3px 0' }}>{props.note}</div>}
     </div>
   );
@@ -29,11 +68,12 @@ export function MSettingsCard(props: { children: ReactNode; title?: string; note
 
 export function MSettingsRow(props: {
   title: ReactNode; sub?: ReactNode; trailing?: ReactNode; last?: boolean; onClick?: () => void;
-  dataKey?: string;
+  dataKey?: string; stacked?: boolean;
 }) {
   return (
     <div data-settings-row={props.dataKey} onClick={props.onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px',
+      className={props.stacked ? 'mobile-settings-row mobile-settings-row-stacked' : 'mobile-settings-row'}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px',
         borderBottom: props.last ? undefined : `1px solid ${MC.divider}`,
         cursor: props.onClick ? 'pointer' : undefined }}>
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -50,11 +90,8 @@ export function MSettingsToggle(props: { value: boolean; disabled?: boolean; lab
   return (
     <button type="button" role="switch" aria-checked={props.value} aria-label={props.label}
       disabled={!active} onClick={() => { if (active) props.onChange?.(!props.value); }}
-      style={{ width: 44, height: 26, border: 0, borderRadius: 'var(--r-pill)', padding: 2,
-        background: props.value ? MC.done : 'var(--proto-line-3)', opacity: props.disabled ? 0.55 : 1,
-        display: 'flex', justifyContent: props.value ? 'flex-end' : 'flex-start' }}>
-      <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--ink-solid-bg)',
-        boxShadow: 'var(--shadow-switch-thumb)' }} />
+      className="mobile-settings-toggle">
+      <span aria-hidden="true" className="mobile-settings-toggle-track"><span /></span>
     </button>
   );
 }
@@ -62,16 +99,17 @@ export function MSettingsToggle(props: { value: boolean; disabled?: boolean; lab
 export function MSettingsButton(props: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return (
     <button type="button" onClick={props.onClick} disabled={props.disabled}
-      style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 'var(--r-chip)',
+      className="mobile-settings-button"
+      style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 8,
         background: props.danger ? MC.failBg : MC.runBg, color: props.danger ? MC.fail : MC.run,
-        fontSize: 11, fontWeight: 600, padding: '7px 10px', opacity: props.disabled ? 0.5 : 1 }}>
+        fontSize: 13, fontWeight: 600, padding: '8px 12px', opacity: props.disabled ? 0.5 : 1 }}>
       {props.children}
     </button>
   );
 }
 
 const FIELD: CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${MC.hairline}`,
-  borderRadius: 'var(--r-chip)', background: MC.card, color: MC.ink, padding: '9px 10px', font: `400 12px ${MONO}` };
+  borderRadius: 8, minHeight: 44, background: MC.card, color: MC.ink, padding: '8px 12px', fontSize: 16, fontFamily: 'inherit' };
 
 interface MSettingsControlFeedback {
   label: string;

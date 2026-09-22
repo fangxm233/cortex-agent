@@ -1,6 +1,11 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1k L556-599)
+// input:  machine VMs, localized copy, mobile Settings controls
+// output: MMachinesView
+// pos:    Mobile machine cards and expandable telemetry
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
-import { MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
+  MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MachineDetailVm, MachineGpuRow, MachineRunRow } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
 
@@ -37,12 +42,12 @@ export interface MMachineDetailPanel {
   uptime: string;
 }
 
-const META: React.CSSProperties = { font: `400 9.5px ${MONO}`, color: MC.muted };
+const META: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted };
 
 // ── header trailing: daemon · N/M 在线 (real online/total; scheme L564) ──────────
 function DaemonStatus({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: MC.done }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: MC.done }}>
       <MDot color={MC.done} size={6} />
       {copy.daemon} · {vm.onlineCount}/{vm.total} {copy.onlineWord}
     </span>
@@ -69,7 +74,7 @@ function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
     <div style={{ marginTop: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META }}>
         <span style={{ color: MC.body, fontWeight: 600 }}>{gpu.index}</span>
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
           {gpu.name}
         </span>
         <Bar percent={gpu.utilPercent} />
@@ -113,7 +118,7 @@ function CardStatics({ card, copy, uptime }: { card: MMachineCard; copy: MMachin
     <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ ...META, color: MC.faint }}>{parts.join(' · ')}</div>
       {card.cortexPath && (
-        <div style={{ ...META, color: MC.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ ...META, color: MC.faint, overflowWrap: 'anywhere' }}>
           {copy.path} {card.cortexPath}
         </div>
       )}
@@ -173,8 +178,8 @@ function OnlineCard({
         style={{ padding: '11px 13px 9px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{card.name}</span>
-          <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>{card.os}</span>
+          <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{card.name}</span>
+          <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
             <MPill tone="done">{copy.online}</MPill>
           </span>
@@ -249,8 +254,8 @@ function OfflineCard({
     <MCard tone="fail" padding="11px 13px">
       <div role="button" aria-expanded={expanded} onClick={() => onToggle(card.name)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ font: `600 12.5px ${MONO}`, color: MC.sub }}>{card.name}</span>
-          <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>{card.os}</span>
+          <span style={{ font: `600 13px ${MONO}`, color: MC.sub }}>{card.name}</span>
+          <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
           <span style={{ marginLeft: 'auto', flex: 'none' }}>
             <MPill tone="failed">{copy.offline}</MPill>
           </span>
@@ -277,7 +282,7 @@ function OfflineCard({
 // ── footer registry line (scheme L594) ──────────────────────────────────────────
 function RegistryFooter({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '2px 4px', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '2px 4px', fontSize: 12, color: MC.faint }}>
       <span>
         machines.json · {vm.total} {copy.registered}
       </span>
@@ -312,10 +317,9 @@ export function MMachinesView({
   addDisabled?: boolean;
 }) {
   return (
-    <>
-      <MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} copy={copy} />}>
+    <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} copy={copy} />}>
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
-      </MDrillHeader>
+      </MDrillHeader>}>
       <MScrollBody gap={10}>
         {vm.cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>
@@ -349,6 +353,6 @@ export function MMachinesView({
         </button>}
         {vm.cards.length > 0 && <RegistryFooter vm={vm} copy={copy} />}
       </MScrollBody>
-    </>
+    </MSettingsFrame>
   );
 }

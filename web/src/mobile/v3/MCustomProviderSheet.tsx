@@ -1,9 +1,13 @@
-// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
+// input:  provider draft, validation, mobile Settings sheet
+// output: MCustomProviderSheet
+// pos:    Mobile custom provider editor sheet
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { ReactNode } from 'react';
 import type { CustomProviderApi } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
+import { MSettingsSheet as MBottomSheet } from './MSettingsControls';
 import {
   CUSTOM_PROVIDER_API_OPTIONS,
   customProviderFieldErrorCopy,
@@ -14,14 +18,15 @@ import {
 
 const CONTROL_STYLE = {
   width: '100%',
-  border: '1.5px solid var(--proto-line-3)',
-  borderRadius: 'var(--r-card)',
+  border: '1px solid var(--proto-line-3)',
+  borderRadius: 8,
   background: 'var(--proto-card)',
   padding: '11px 14px',
-  font: `400 13.5px ${MONO}`,
+  fontSize: 16,
+  fontFamily: 'inherit',
   color: MC.ink,
   boxSizing: 'border-box' as const,
-  outline: 'none',
+  minHeight: 44,
 };
 
 function Field({ label, hint, danger, children }: {
@@ -31,13 +36,13 @@ function Field({ label, hint, danger, children }: {
   children: ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 11 }}>
-      <span style={{ font: `600 10px ${MONO}`, color: MC.muted }}>{label}</span>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.muted }}>{label}</span>
       {children}
       {hint ? (
-        <span style={{ font: `400 9.5px ${MONO}`, color: danger ? MC.fail : MC.faint }}>{hint}</span>
+        <span style={{ fontSize: 12, color: danger ? MC.fail : MC.muted }}>{hint}</span>
       ) : null}
-    </div>
+    </label>
   );
 }
 
@@ -61,7 +66,7 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
   return (
     <MBottomSheet onClose={onClose} behind={behind}>
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
+        <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
           {creating ? L.cpvCreateTitle : L.cpvEditTitle}
         </span>
       </div>
@@ -107,8 +112,8 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
       <button
         type="button" data-cpv-action="save" onClick={onSave} disabled={!savable}
         style={{
-          width: '100%', height: 48, border: 'none', borderRadius: 'var(--r-card)',
-          background: MC.ink, boxShadow: savable ? 'var(--accent-glow)' : undefined,
+          width: '100%', minHeight: 44, border: 'none', borderRadius: 8,
+          background: 'var(--proto-accent)',
           color: 'var(--ink-solid-fg)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600,
           marginTop: 2, opacity: savable ? 1 : 0.45, cursor: savable ? 'pointer' : 'default',

@@ -1,9 +1,14 @@
+// input:  machines resource, navigation, mobile machine views
+// output: MMachinesScreen
+// pos:    Mobile machine status screen wiring
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';
 import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { MScreen, MC } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
+import { MSettingsPage } from './MSettingsControls';
 import {
   useMachinesResource,
   type MachineDetailResource,
@@ -95,10 +100,11 @@ export function MMachinesScreen() {
   const panel = detailPanel(expanded ? resource.detailFor(expanded) : undefined);
   const requestAdd = useAddMachine(resource);
   // retry-connect / view-logs remain inert: no browser-safe daemon operation exists.
-  return <MScreen label="1k 机器">{resource.loading
-    ? <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
+  return <>{resource.loading
+    ? <MSettingsPage title={copy.title} onBack={() => navigate('/m/settings')}>
+        <div style={{ color: MC.muted, fontSize: 13 }}>{copy.empty}</div></MSettingsPage>
     : <MMachinesView vm={vm} copy={copy} onBack={() => navigate('/m/settings')}
       expanded={expanded} onToggle={(name) => setExpanded((old) => old === name ? null : name)}
       panel={panel} onAdd={requestAdd} addDisabled={resource.addPending} />}
-  </MScreen>;
+  </>;
 }

@@ -1,6 +1,11 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
+// input:  daemon VM, restart callbacks, mobile Settings controls
+// output: MDaemonView
+// pos:    Mobile daemon status and guarded restart actions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type CSSProperties } from 'react';
-import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
+  MSettingsBody as MScrollBody, MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
 import { rebuildStatusTone, type DaemonRebuildVm } from '@/features/daemon/daemon-vm';
 import type { Tone } from '@/design/tone';
@@ -70,8 +75,8 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
         }}
       >
         <MDot color={dotColor(rebuildStatusTone(rebuild.status))} pulse={rebuild.running} />
-        <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.rebuildTitle}</span>
-        <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
+        <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.rebuildTitle}</span>
+        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>
           {copy.rebuildProgress(rebuild.completed, rebuild.total)} · {rebuild.elapsed}
         </span>
         <span style={{ marginLeft: 'auto' }}>
@@ -84,7 +89,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
-          font: `400 10px/1.4 ${MONO}`,
+          font: `400 12px/1.5 ${MONO}`,
         }}
       >
         {rebuild.steps.map((step) => (
@@ -96,7 +101,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
           </div>
         ))}
       </div>
-      <div style={{ padding: '0 13px 10px', font: `400 9px ${MONO}`, color: MC.faint, wordBreak: 'break-word' }}>
+      <div style={{ padding: '0 13px 12px', fontSize: 12, color: MC.muted, wordBreak: 'break-word' }}>
         {copy.rebuildTriggerLabel} {rebuild.reason}
         {rebuild.detail ? ` · ${rebuild.detail}` : ''}
       </div>
@@ -120,14 +125,14 @@ function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCo
         />
         <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{proc.name}</span>
         {proc.label && (
-          <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted }}>{proc.label}</span>
+          <span style={{ fontSize: 13, color: MC.muted }}>{proc.label}</span>
         )}
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.muted }}>
+        <span style={{ marginLeft: 'auto', font: `400 12px ${MONO}`, color: MC.muted }}>
           pid {proc.pid ?? dash}
           {proc.port != null ? ` · :${proc.port}` : ''}
         </span>
       </div>
-      <div style={{ font: `400 9.5px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
+      <div style={{ font: `400 12px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
         {copy.uptimeLabel} {proc.uptime ?? dash}
         {proc.extras.map((extra) => ` · ${extra.key} ${extra.value}`).join('')}
       </div>
@@ -285,9 +290,8 @@ export function MDaemonView({
 }) {
   const pending = restartState === 'pending';
   return (
-    <MScreen label="1r Daemon 状态">
-      <MDrillHeader onBack={onBack}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+    <MScreen label="1r Daemon 状态" header={<MDrillHeader onBack={onBack}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
             {copy.title}
           </span>
@@ -296,8 +300,7 @@ export function MDaemonView({
             <MPill tone={mConnTone(connStatus)}>{copy[CONN_LABEL[connStatus]]}</MPill>
           </span>
         </div>
-      </MDrillHeader>
-
+      </MDrillHeader>}>
       <MScrollBody gap={10}>
         {/* Process card — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
@@ -310,7 +313,7 @@ export function MDaemonView({
               alignItems: 'center',
               gap: 12,
               padding: '10px 13px',
-              font: `400 10px ${MONO}`,
+              fontSize: 13,
               color: MC.muted,
               flexWrap: 'wrap',
               borderTop: `1px solid ${MC.divider}`,
@@ -335,13 +338,13 @@ export function MDaemonView({
               borderBottom: `1px solid ${MC.divider}`,
             }}
           >
-            <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.recentTitle}</span>
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+            <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.recentTitle}</span>
+            <span style={{ marginLeft: 'auto', font: `400 12px ${MONO}`, color: MC.muted }}>
               executions.list
             </span>
           </div>
           {vm.lastRestart === null && vm.events.length === 0 ? (
-            <div style={{ padding: '14px 13px', font: `400 10px ${MONO}`, color: MC.faint }}>
+            <div style={{ padding: '12px', fontSize: 12, color: MC.muted }}>
               {copy.recentEmpty}
             </div>
           ) : (
@@ -351,7 +354,7 @@ export function MDaemonView({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 7,
-                font: `400 10px/1.5 ${MONO}`,
+                font: `400 12px/1.5 ${MONO}`,
               }}
             >
               {/* Real lastRestart from system.daemonStatus (rendered first, above recent executions) */}
@@ -369,7 +372,7 @@ export function MDaemonView({
               ))}
             </div>
           )}
-          <div style={{ padding: '0 13px 10px', font: `400 9px ${MONO}`, color: MC.faint }}>
+          <div style={{ padding: '0 13px 12px', fontSize: 12, color: MC.muted }}>
             {copy.recentGap}
           </div>
         </MCard>
@@ -378,7 +381,7 @@ export function MDaemonView({
         <MCard padding="12px 13px">
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.softRestart}</span>
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted }}>
               {copy.softNote(vm.threadCount)}
             </span>
           </div>
@@ -398,15 +401,15 @@ export function MDaemonView({
               onConfirm={onHardRestart}
             />
           </div>
-          <div style={{ font: `400 9px ${MONO}`, color: MC.faint, marginTop: 8 }}>{copy.footerNote}</div>
+          <div style={{ fontSize: 12, color: MC.muted, marginTop: 8 }}>{copy.footerNote}</div>
           {restartState === 'success' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
               <MDot color={MC.done} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: MC.done }}>{copy.sent}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: MC.done }}>{copy.sent}</span>
             </div>
           )}
           {restartState === 'error' && (
-            <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: MC.fail }}>{copy.failed}</div>
+            <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MC.fail }}>{copy.failed}</div>
           )}
         </MCard>
 
@@ -419,7 +422,7 @@ export function MDaemonView({
             <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN, width: '100%' }}>
               {copy.disconnect}
             </button>
-            <div style={{ font: `400 9px ${MONO}`, color: MC.faint, marginTop: 8, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: MC.muted, marginTop: 8, textAlign: 'center' }}>
               {copy.disconnectNote}
             </div>
           </MCard>
