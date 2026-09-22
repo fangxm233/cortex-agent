@@ -1,8 +1,8 @@
 // input:  ComposerActionRow, mocked device and commission queries
-// output: Toolbar and picker regression tests
+// output: Toolbar, picker and Escape focus regression tests
 // pos:    Verify compact action controls and selection behavior
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
@@ -35,6 +35,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, data: { devices: [] } }) })));
   commissions.list = [];
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('shared picker chrome', () => {
   it('keeps selections semantic and disabled choices inert on a stationary glass surface', () => {
@@ -121,6 +123,24 @@ function openPlus(renderer: ReactTestRenderer): void {
 }
 
 describe('ComposerActionRow ＋ menu', () => {
+  it('returns focus from a menu item on Escape but not on outside clicks', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const { renderer } = renderRow(null);
+    const trigger = { isConnected: true, focus: vi.fn() };
+    vi.stubGlobal('document', { activeElement: trigger });
+    openPlus(renderer);
+    vi.stubGlobal('document', { activeElement: { dataset: { plusItem: 'attach' } } });
+    act(() => target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })));
+    expect(renderer.root.findAllByProps({ 'data-menu': 'plus' })).toHaveLength(0);
+    expect(trigger.focus).toHaveBeenCalledWith({ preventScroll: true });
+    trigger.focus.mockClear();
+    vi.stubGlobal('document', { activeElement: trigger });
+    openPlus(renderer);
+    act(() => target.dispatchEvent(new Event('click')));
+    expect(trigger.focus).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
 
   it('offers a device page rather than a bare toggle, and picking this host names it', () => {
     // Where the browser runs matters as much as whether it runs: the server draws on the server's

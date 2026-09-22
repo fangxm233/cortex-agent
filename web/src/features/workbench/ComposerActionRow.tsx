@@ -1,6 +1,6 @@
 // input:  React, browser and commission options, slash suggestions
 // output: ComposerActionRow, ComposerSlashMenu, control types
-// pos:    Compact composer toolbar and glass action pickers
+// pos:    Glass toolbar pickers with Escape focus restoration
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
@@ -49,7 +49,12 @@ function useDismissMenu(open: boolean, close: () => void): void {
   useEffect(() => {
     // No window under SSR or a node test environment; the menu simply keeps no global listeners.
     if (!open || typeof window === 'undefined') return;
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') close(); };
+    const trigger = typeof document === 'undefined' ? null : document.activeElement as HTMLElement | null;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      close();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('click', close);
     return () => {

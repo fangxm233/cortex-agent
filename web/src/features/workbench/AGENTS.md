@@ -29,8 +29,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | composer-slash.ts | model | Build composer slash state |
 | Composer.test.tsx | test | Test composer input material and actions |
 | Composer.tsx | view | Render filter-free composer and stable input |
-| ComposerActionRow.test.tsx | test | Test menu surfaces and action selection |
-| ComposerActionRow.tsx | view | Render compact controls and glass action menus |
+| ComposerActionRow.test.tsx | test | Test menu surfaces, selection and Escape focus |
+| ComposerActionRow.tsx | view | Render glass action menus with focus return |
 | ComposerAttachmentChip.tsx | view | Render material chips and stable media previews |
 | ComposerSendFailure.tsx | view | Render composer send failure |
 | ComposerStatusLine.tsx | view | Render composer status line |
