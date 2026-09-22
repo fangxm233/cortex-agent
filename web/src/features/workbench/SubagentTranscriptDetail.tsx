@@ -1,4 +1,9 @@
+// input:  tRPC subagent transcript, fallback rows, row renderer
+// output: SubagentTranscriptDetail, active transcript registry
+// pos:    Lazy subagent details and readable loading feedback
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, type ReactNode } from 'react';
+import { MENU_FOCUS } from './MenuChrome';
 import { useQuery } from '@tanstack/react-query';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -46,7 +51,7 @@ function detailRows(sessionId: string, messages: TranscriptMessage[] | undefined
 }
 
 function StatusLine({ children }: { children: ReactNode }): JSX.Element {
-  return <div style={{ fontSize: 11.5, color: 'var(--proto-muted-3)' }}>{children}</div>;
+  return <div style={{ fontSize: 11.5, color: 'var(--proto-muted)' }}>{children}</div>;
 }
 
 export function SubagentTranscriptDetail({ sessionId, subagentId, fallbackRows = [], render }: {
@@ -82,6 +87,7 @@ export function SubagentTranscriptDetail({ sessionId, subagentId, fallbackRows =
           {lang === 'zh' ? '详情加载失败。' : 'Failed to load detail.'}{' '}
           <button
             type="button"
+            className={MENU_FOCUS}
             onClick={() => { void query.refetch(); }}
             style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--proto-accent)', cursor: 'pointer' }}
           >

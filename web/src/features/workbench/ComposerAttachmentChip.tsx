@@ -1,4 +1,9 @@
+// input:  Upload item, media viewers, attachment presentation
+// output: ComposerAttachmentChip
+// pos:    Compact attachment previews and readable upload status
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, MouseEvent } from 'react';
+import { MENU_FOCUS } from './MenuChrome';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOf } from '@/features/media/doc-kind';
@@ -39,8 +44,8 @@ function chipModel(a: AttachmentUploadItem): ChipModel {
 
 const mediaWrapStyle: CSSProperties = { position: 'relative', width: 54, height: 54, flex: 'none' };
 const mediaExtStyle: CSSProperties = {
-  position: 'absolute', left: 4, bottom: 3, font: `500 8px ${mono}`, color: 'var(--proto-muted-2)',
-  background: 'var(--media-label-bg)', padding: '1px 4px', borderRadius: 3,
+  position: 'absolute', left: 4, bottom: 3, font: `500 11px ${mono}`, color: 'var(--proto-muted)',
+  background: 'var(--media-label-bg)', padding: '1px 4px', borderRadius: 'var(--r-chip)',
 };
 const playStyle: CSSProperties = {
   position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 19,
@@ -49,14 +54,14 @@ const playStyle: CSSProperties = {
 };
 const uploadOverlayStyle: CSSProperties = {
   position: 'absolute', inset: 0, background: 'var(--media-label-bg-soft)', display: 'flex',
-  alignItems: 'center', justifyContent: 'center', font: `600 9px ${mono}`, color: 'var(--proto-accent)',
+  alignItems: 'center', justifyContent: 'center', font: `600 11px ${mono}`, color: 'var(--proto-accent)',
 };
 const errorOverlayStyle: CSSProperties = {
-  ...uploadOverlayStyle, cursor: 'pointer', font: `600 8px ${mono}`, color: 'var(--proto-danger)',
+  ...uploadOverlayStyle, border: 0, padding: 0, width: '100%', cursor: 'pointer', font: `600 11px ${mono}`, color: 'var(--proto-danger)',
 };
 const removeStyle: CSSProperties = {
   position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%',
-  background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', fontSize: 9, display: 'flex',
+  border: 0, padding: 0, background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', fontSize: 11, display: 'flex',
   alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 1.5px var(--proto-card)',
   boxSizing: 'border-box', cursor: 'pointer',
 };
@@ -78,7 +83,7 @@ function RemoveButton({ id, onRemove }: { id: string; onRemove: (id: string) => 
     event.stopPropagation();
     onRemove(id);
   };
-  return <span onClick={remove} style={removeStyle}>×</span>;
+  return <button type="button" className={MENU_FOCUS} aria-label="Remove attachment" onClick={remove} style={removeStyle}>×</button>;
 }
 
 function MediaContent({ a, model }: { a: AttachmentUploadItem; model: ChipModel }): JSX.Element {
@@ -103,7 +108,7 @@ function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: st
     );
   }
   if (a.status !== 'error') return null;
-  return <span onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>retry</span>;
+  return <button type="button" className={MENU_FOCUS} onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>retry</button>;
 }
 
 function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
@@ -150,7 +155,7 @@ function fileChipStyle(a: AttachmentUploadItem, preview: boolean): CSSProperties
 function FileIcon({ model }: { model: ChipModel }): JSX.Element {
   const style: CSSProperties = {
     width: 26, height: 32, borderRadius: 'var(--r-chip)', background: model.colors.bg, color: model.colors.fg,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 9px ${mono}`, flex: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 10.5px ${mono}`, flex: 'none',
   };
   return <span style={style}>{model.ext}</span>;
 }
@@ -171,7 +176,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
 }): JSX.Element {
   const statusColor = a.status === 'uploading'
     ? 'var(--proto-accent)'
-    : a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted-3)';
+    : a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted)';
   return (
     <div role={onOpen ? 'button' : undefined} title={onOpen ? model.name : undefined} onClick={onOpen} style={fileChipStyle(a, !!onOpen)}>
       <FileIcon model={model} />
@@ -180,7 +185,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
         <span
           role={a.status === 'error' ? 'button' : undefined}
           onClick={a.status === 'error' ? (event) => { event.stopPropagation(); onRetry(a.id); } : undefined}
-          style={{ font: `400 10.5px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
+          style={{ font: `400 11px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
         >{fileStatus(a)}</span>
       </span>
       <RemoveButton id={a.id} onRemove={onRemove} />

@@ -1,4 +1,9 @@
+// input:  Notice level, localized text, notice and auth actions
+// output: ChatNotice, noticeTone, notice types
+// pos:    Compact transcript notices with focused action controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
+import { MENU_FOCUS } from './MenuChrome';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, useVocabOptional, type Vocab } from '@/i18n';
@@ -70,7 +75,7 @@ function NoticeActionButton({
   if (!onAction) return null;
   return (
     <button
-      type="button" data-notice-action={action.kind} disabled={done}
+      type="button" className={MENU_FOCUS} data-notice-action={action.kind} disabled={done}
       onClick={() => onAction(action)}
       style={actionButtonStyle(tone.fg, done)}
     >
@@ -92,7 +97,7 @@ function AuthActionButton({
   if (!activate) return null;
   return (
     <button
-      type="button" data-auth-notice-action onClick={() => activate(action)}
+      type="button" className={MENU_FOCUS} data-auth-notice-action onClick={() => activate(action)}
       style={actionButtonStyle(TONES.error.fg, false)}
     >
       {label ?? L.authLoginAgain}

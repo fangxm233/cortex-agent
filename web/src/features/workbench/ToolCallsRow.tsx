@@ -1,4 +1,9 @@
+// input:  Tool calls, overflow measurement, debug details
+// output: ToolCallsRow
+// pos:    Compact tool chips and expandable transcript details
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from './chat-content';
@@ -9,16 +14,16 @@ import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflo
 const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
 const chipStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`,
+  font: `400 11px ${mono}`,
   // Glass tint, no filter: these chips live in the scrolling transcript.
   background: 'var(--glass-2)',
   border: '1px solid var(--proto-line-2)',
   padding: '1px 6px',
-  borderRadius: 4,
+  borderRadius: 'var(--r-chip)',
   flex: 'none',
 };
 const overflowStyle: CSSProperties = {
-  font: `500 10.5px ${mono}`,
+  font: `500 11px ${mono}`,
   color: 'var(--proto-muted)',
   flex: 'none',
 };
@@ -34,7 +39,7 @@ const measureStyle: CSSProperties = {
 const expandedPanelStyle: CSSProperties = {
   background: 'var(--glass-2)',
   border: '1px solid var(--proto-line)',
-  borderRadius: 10,
+  borderRadius: 'var(--r-card)',
   padding: '2px 0',
   // Closes the row gap the summary row's own tuck opens, so the panel hangs off that row.
   marginTop: -6,
@@ -45,12 +50,12 @@ const expandedCallStyle: CSSProperties = {
   padding: '6px 13px', borderTop: '1px solid var(--proto-line-2)',
 };
 const kindStyle: CSSProperties = {
-  font: `600 9px ${mono}`, color: 'var(--proto-muted)',
+  font: `600 11px ${mono}`, color: 'var(--proto-muted)',
   background: 'var(--glass-2)', padding: '1.5px 7px',
-  borderRadius: 5, flex: 'none',
+  borderRadius: 'var(--r-chip)', flex: 'none',
 };
 const inputStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`, color: 'var(--proto-ink-2)',
+  font: `400 11px ${mono}`, color: 'var(--proto-ink-2)',
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 };
 
@@ -78,8 +83,9 @@ function detailFor(call: ToolCall): DebugDetail | null {
 
 function collapsedRowStyle(hover: boolean): CSSProperties {
   return {
+    ...MENU_BUTTON_STYLE, padding: 0, background: 'transparent',
     display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP, fontSize: 11.5,
-    color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
+    color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
     flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
     cursor: 'pointer',
   };
@@ -107,8 +113,8 @@ function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover }
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div style={{ margin: '-8px 0' }}>
-      <div onClick={onToggle} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
-        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
+      <button type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
+        <span style={{ fontSize: 9, color: 'var(--proto-muted)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span style={{ flex: 'none' }}>{text}</span>
         <span ref={containerRef} style={collapsedCallsStyle}>
           {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
@@ -118,7 +124,7 @@ function ToolCallsSummaryRow({ calls, text, expanded, hover, onToggle, onHover }
             <span style={overflowStyle}>+{calls.length}</span>
           </span>
         </span>
-      </div>
+      </button>
     </div>
   );
 }

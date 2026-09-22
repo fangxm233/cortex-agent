@@ -1,3 +1,7 @@
+// input:  Transcript rows, interaction actions, edit context
+// output: MessageStream, ChatRows, InteractionRowCard, edit types
+// pos:    Streaming transcript with readable compact metadata
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
@@ -66,7 +70,7 @@ function Divider({ text }: { text: string }): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-faint)' }}>{text}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-muted)' }}>{text}</div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
     </div>
   );
@@ -127,7 +131,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
               // ring rather than a border so the bubble keeps its exact size.
               background: 'var(--glass-2)',
               boxShadow: 'var(--shadow-card-soft), 0 0 0 1px var(--proto-line)',
-              borderRadius: '16px 16px 5px 16px',
+              borderRadius: 'var(--r-float) var(--r-float) var(--r-chip) var(--r-float)',
               padding: '10px 14px',
               fontSize: 13.5,
               lineHeight: 1.55,
@@ -148,7 +152,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}
         >
           {timeLabel && (
-            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', whiteSpace: 'nowrap', flex: 'none' }}>
               {timeLabel}
             </span>
           )}
@@ -214,20 +218,20 @@ function SystemHintRow({ origin, text, ts, pending, debug }: {
         aria-hidden="true"
         style={{ width: 3, alignSelf: 'stretch', minHeight: 14, borderRadius: 2, background: 'var(--proto-line)', flex: 'none' }}
       />
-      <span style={{ font: `600 10px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
+      <span style={{ font: `600 11px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
         {systemOriginLabel(origin, L)}
       </span>
       {summary && (
         <span
           title={summary}
-          style={{ fontSize: 11.5, color: 'var(--proto-faint)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{ fontSize: 11.5, color: 'var(--proto-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {summary}
         </span>
       )}
       <span style={{ flex: 1 }} />
       {timeLabel && (
-        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', whiteSpace: 'nowrap', flex: 'none' }}>
           {timeLabel}
         </span>
       )}
@@ -292,11 +296,11 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
 
 /** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
 function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
-  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted-3)' : 'var(--proto-success)';
+  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted)' : 'var(--proto-success)';
   const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
       <span style={{ fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
     </div>
   );

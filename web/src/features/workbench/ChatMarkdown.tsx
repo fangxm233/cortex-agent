@@ -1,3 +1,7 @@
+// input:  Markdown blocks, inline nodes, KaTeX
+// output: ChatMarkdown
+// pos:    Transcript prose, opaque code blocks and wide tables
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -31,7 +35,7 @@ const INLINE_RENDERERS: InlineRenderers = {
   bold: (node, key) => <strong key={key} style={{ fontWeight: 650 }}>{node.text}</strong>,
   italic: (node, key) => <em key={key}>{node.text}</em>,
   code: (node, key) => (
-    <code key={key} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 4, padding: '1px 5px' }}>
+    <code key={key} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 'var(--r-chip)', padding: '1px 5px' }}>
       {node.text}
     </code>
   ),
