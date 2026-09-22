@@ -3,7 +3,7 @@
 // pos:    Compact message controls and readable edit feedback
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
-import { MENU_FOCUS } from './MenuChrome';
+import { MENU_FOCUS, MENU_SURFACE } from './MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
@@ -174,7 +174,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
       style={{
         alignSelf: 'flex-end', width: '94%', boxSizing: 'border-box',
         border: '1.5px solid var(--proto-accent)', borderRadius: 'var(--r-card) var(--r-card) var(--r-chip) var(--r-card)',
-        background: 'var(--proto-card)', boxShadow: 'var(--focus-ring-accent)',
+        background: 'var(--material-card-bg)', boxShadow: 'var(--focus-ring-accent), var(--material-card-shadow)',
         padding: '11px 14px 9px',
       }}
     >
@@ -192,7 +192,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
         }}
         rows={1}
         style={{
-          width: '100%', border: 'none', outline: 'none', resize: 'none', background: 'transparent',
+          width: '100%', border: 'none', outline: 'none', resize: 'none', background: 'var(--material-inset-bg)',
           fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', fontFamily: 'inherit',
           padding: 0, margin: 0, display: 'block', overflow: 'hidden', boxSizing: 'border-box',
         }}
@@ -203,7 +203,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
           type="button" className={MENU_FOCUS}
           role="button"
           onClick={onCancel}
-          style={{ background: 'transparent', marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '5px 12px', cursor: 'pointer' }}
+          style={{ background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '5px 12px', cursor: 'pointer' }}
         >
           {copy.cancel}
         </button>
@@ -279,8 +279,8 @@ export function EditedBadge({ edited, ts, copy }: {
         <div
           style={{
             position: 'absolute', bottom: '100%', right: 0, marginBottom: 5, minWidth: 180, maxWidth: 420,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
-            boxShadow: 'var(--shadow-menu-soft)', padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
+            ...MENU_SURFACE, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+            padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
           }}
         >
           <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: '.05em', paddingBottom: 4 }}>

@@ -58,7 +58,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
         role="dialog"
         aria-label={model.title}
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--glass-2)', backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)', borderRadius: 'var(--r-float)', boxShadow: 'var(--shadow-float)' , display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--material-overlay-bg)', backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)', borderRadius: 'var(--r-float)', boxShadow: 'var(--material-overlay-shadow)' , display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         {/* header — title · meta · status pill · ✕ · progress bar (6b header, desktop chrome) */}
         <div style={{ flex: 'none', padding: '14px 18px 12px', borderBottom: '1px solid var(--proto-line-2)' }}>
@@ -91,7 +91,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
           )}
         </div>
 
-        {/* body — the real plan snapshot as markdown */}
+        {/* Keep the long-form reading surface stable; chrome shares the glass shell. */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative', background: 'var(--proto-card)' }}>
           <div ref={scrollRef} onScroll={onScroll} style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: '18px 22px 28px', boxSizing: 'border-box' }}>
             {model.timeLabel && <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , paddingBottom: 8 }}>{model.timeLabel}</div>}
@@ -109,7 +109,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
         </div>
 
         {/* resident action bar (pending) / status stamp (sealed) */}
-        <div style={{ flex: 'none', background: 'var(--proto-card)', borderTop: '1px solid var(--proto-line-2)', padding: '12px 18px' }}>
+        <div style={{ flex: 'none', background: 'transparent', borderTop: '1px solid var(--proto-line-2)', padding: '12px 18px' }}>
           {pending ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1 }}>{copy.approveHint}</span>
@@ -117,7 +117,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
                 type="button"
                 className={focusClass}
                 onClick={onRequestChanges}
-                style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
               >
                 {copy.requestChanges}
               </button>

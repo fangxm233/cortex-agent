@@ -1,6 +1,6 @@
 // input:  Interaction models, answer state, notice tones, TTL
 // output: DeskAskCard, DeskPlanCard, D_INT_COPY
-// pos:    Question and plan interaction cards
+// pos:    Filter-free question and plan material cards
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState } from 'react';
@@ -17,6 +17,9 @@ import {
   formatTtl,
 } from './interaction-vm';
 import { useTtlSeconds } from './useInteractionTtl';
+
+const cardMaterial = { background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' };
+const controlMaterial = { background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)' };
 
 const mono = "'IBM Plex Mono',monospace";
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
@@ -129,7 +132,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
   // sealed — 13b right column: per-question ✓ rows
   if (!pending) {
     return (
-      <div style={{ border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}>
+      <div style={{ ...cardMaterial, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
           <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>?</span>
           <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-gray)', color: 'var(--proto-muted)' }}>{copy.askAnsweredPill}</span>
@@ -156,7 +159,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
   return (
     <div
       {...(model.level ? { 'data-ask-level': model.level } : {})}
-      style={{ border: `1px solid ${tone ? tone.border : 'var(--proto-accent-border)'}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', padding: '13px 16px' }}
+      style={{ ...cardMaterial, border: `1px solid ${tone ? tone.border : 'var(--proto-accent-border)'}`, borderRadius: 'var(--r-card)', padding: '13px 16px' }}
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
@@ -192,7 +195,8 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                       fontSize: 12,
                       fontWeight: on ? 600 : 500,
                       border: `1px solid ${on ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
-                      background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)' ,
+                      ...controlMaterial,
+                      background: on ? 'var(--proto-accent-bg)' : controlMaterial.background,
                       color: 'var(--proto-accent)',
                       padding: '5px 12px',
                       borderRadius: 'var(--r-control)',
@@ -212,7 +216,8 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                   fontSize: 12,
                   fontWeight: otherOn ? 600 : 500,
                   border: `1px solid ${otherOn ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
-                  background: otherOn ? 'var(--proto-accent-bg)' : 'var(--proto-card)' ,
+                  ...controlMaterial,
+                  background: otherOn ? 'var(--proto-accent-bg)' : controlMaterial.background,
                   color: 'var(--proto-accent)',
                   padding: '5px 12px',
                   borderRadius: 'var(--r-control)',
@@ -239,7 +244,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
                   padding: '7px 11px',
                   fontSize: 12,
                   color: 'var(--proto-ink)',
-                  background: 'var(--proto-card)',
+                  background: 'var(--material-inset-bg)',
                 }}
               />
             )}
@@ -317,7 +322,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   if (!pending) {
     return (
       <>
-        <div style={{ border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
+        <div style={{ ...cardMaterial, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
             <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: approved ? 'var(--proto-success-bg)' : 'var(--proto-gray)', color: approved ? 'var(--proto-success)' : 'var(--proto-muted)' }}>
               {approved ? copy.planApprovedPill : rejected ? copy.planRejectedPill : model.status}
@@ -352,7 +357,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         </div>
         {/* 4c — the reject feedback enters the flow as the user bubble (real result.feedback) */}
         {rejected && model.feedback && (
-          <div style={{ alignSelf: 'flex-end', maxWidth: '75%', background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)' , borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+          <div style={{ alignSelf: 'flex-end', maxWidth: '75%', ...cardMaterial, border: '1px solid var(--proto-line-2)' , borderRadius: 'var(--r-card) var(--r-card) 4px var(--r-card)', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', whiteSpace: 'pre-wrap', marginTop: 10 }}>
             {model.feedback}
           </div>
         )}
@@ -362,7 +367,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
 
   // pending — 13c left/middle columns (feedback box only after 请求修改)
   return (
-    <div style={{ border: '1px solid var(--proto-accent-border)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
+    <div style={{ ...cardMaterial, border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-alt)' }}>
         <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>{copy.planPendingPill}</span>
         <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>ExitPlanMode</span>
@@ -387,7 +392,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               width: '100%',
               boxSizing: 'border-box',
               border: '1px solid var(--proto-amber)',
-              background: 'var(--proto-card)',
+              background: 'var(--material-inset-bg)',
               borderRadius: 'var(--r-control)',
               padding: '8px 11px',
               fontSize: 12,
@@ -409,7 +414,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               type="button"
               className={focusClass}
               onClick={() => { onFeedbackOpen(false); setFeedback(''); }}
-              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
+              style={{ ...controlMaterial, fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
             >
               {copy.cancel}
             </button>
@@ -429,7 +434,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
               type="button"
               className={focusClass}
               onClick={() => onFeedbackOpen(true)}
-              style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
+              style={{ ...controlMaterial, fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', color: 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', flex: 'none', cursor: 'pointer' }}
             >
               {copy.requestChanges}
             </button>

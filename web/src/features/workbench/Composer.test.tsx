@@ -1,3 +1,7 @@
+// input:  Composer, mocked session and attachment state
+// output: Composer material and action regression tests
+// pos:    Verify composer inputs, commands and pending actions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -144,6 +148,18 @@ function enterCommand(renderer: ReactTestRenderer, command: string): void {
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: command } }));
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
 }
+
+describe('Composer material', () => {
+  it('keeps the input stable on a filter-free card', () => {
+    const tree = mountComposer(vi.fn());
+    const input = tree.root.findByProps({ 'data-composer-input': true });
+    expect(input.props.style.background).toBe('var(--material-inset-bg)');
+    const card = tree.root.find((node) => node.props.style?.background === 'var(--material-card-bg)');
+    expect(card.props.style.backdropFilter).toBeUndefined();
+    expect(card.props.style.boxShadow).toContain('var(--material-card-shadow)');
+    act(() => tree.unmount());
+  });
+});
 
 describe('Composer commission capsule', () => {
   afterEach(() => { harness.queries = {}; });

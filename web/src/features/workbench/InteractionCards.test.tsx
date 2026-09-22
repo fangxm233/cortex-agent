@@ -40,6 +40,8 @@ describe('interaction presentation', () => {
     const tree = mount(<DeskAskCard model={ask} state={emptyDeskAsk} copy={copy}
       onState={onState} onSubmit={vi.fn()} busy={false} />);
     const [option, , submit] = tree.root.findAllByType('button');
+    expect(option.props.style.background).toBe('var(--material-control-bg)');
+    expect(option.props.style.backdropFilter).toBeUndefined();
     expect(option.props['aria-pressed']).toBe(false);
     expect(option.props.className).toContain('focus-visible:outline');
     expect(submit.props.disabled).toBe(true);
@@ -51,9 +53,24 @@ describe('interaction presentation', () => {
     const tree = mount(<DeskAskCard model={{ ...ask, status: 'answered' }} state={emptyDeskAsk}
       copy={copy} onState={vi.fn()} onSubmit={vi.fn()} busy={false} />);
     const card = tree.root.findAllByType('div')[0];
-    expect(card.props.style.background).toBe('var(--proto-card)');
+    expect(card.props.style.background).toBe('var(--material-card-bg)');
+    expect(card.props.style.boxShadow).toBe('var(--material-card-shadow)');
+    expect(card.props.style.backdropFilter).toBeUndefined();
     expect(card.props.style.opacity).toBeUndefined();
     expect(tree.root.findAllByType('button')).toHaveLength(0);
+  });
+
+  it('keeps feedback input stable and requires text before returning a plan', () => {
+    const onReject = vi.fn();
+    const tree = mount(<DeskPlanCard model={plan} copy={copy} feedbackOpen
+      onFeedbackOpen={vi.fn()} onApprove={vi.fn()} onReject={onReject} onOpenRead={vi.fn()} busy={false} />);
+    const input = tree.root.findByType('textarea');
+    expect(input.props.style.background).toBe('var(--material-inset-bg)');
+    const confirm = tree.root.findAllByType('button').at(-1)!;
+    expect(confirm.props.disabled).toBe(true);
+    act(() => input.props.onChange({ target: { value: ' Keep the logs ' } }));
+    act(() => confirm.props.onClick());
+    expect(onReject).toHaveBeenCalledWith('Keep the logs');
   });
 
   it('keeps reading available but disables a busy plan approval', () => {

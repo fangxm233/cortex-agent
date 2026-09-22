@@ -27,8 +27,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | composer-draft.ts | model | Build composer draft state |
 | composer-slash.test.ts | test | Test composer slash |
 | composer-slash.ts | model | Build composer slash state |
-| Composer.test.tsx | test | Test composer |
-| Composer.tsx | view | Render composer |
+| Composer.test.tsx | test | Test composer input material and actions |
+| Composer.tsx | view | Render filter-free composer and stable input |
 | ComposerActionRow.test.tsx | test | Test menu surfaces and action selection |
 | ComposerActionRow.tsx | view | Render compact controls and glass action menus |
 | ComposerAttachmentChip.tsx | view | Render composer attachment chip |
@@ -41,21 +41,22 @@ Desktop conversations, composer controls, session navigation and context panels.
 | DebugDetailsModal.tsx | view | Inspect full diagnostic values |
 | decision-vm.test.ts | test | Test decision vm |
 | decision-vm.ts | model | Build decision vm state |
-| DecisionCards.test.tsx | test | Test decision cards |
-| DecisionCards.tsx | view | Render decision cards |
+| DecisionCards.test.tsx | test | Test decision materials and response behavior |
+| DecisionCards.tsx | view | Render material decision cards and responses |
 | DraftProjectSelector.test.tsx | test | Test draft project selector |
 | DraftProjectSelector.tsx | view | Select draft project from a glass picker |
 | InlineThreadCardProto.tsx | view | Render inline thread card proto |
 | interaction-vm.test.ts | test | Test interaction vm |
 | interaction-vm.ts | model | Build interaction vm state |
-| InteractionCards.test.tsx | test | Test interaction controls and readable metadata |
-| InteractionCards.tsx | view | Render questions and plan approvals |
+| InteractionCards.test.tsx | test | Test card materials and interaction controls |
+| InteractionCards.tsx | view | Render material question and approval cards |
 | left-rail-projects.test.ts | test | Test left rail projects |
 | left-rail-projects.ts | model | Build left rail projects state |
 | LeftRail.tsx | view | Render navigation and readable attention counts |
 | MenuChrome.tsx | view | Share glass menu shells and unfiltered rows |
 | MessageAttachmentCards.tsx | view | Render message attachment cards |
-| MessageEdit.tsx | view | Render message actions and inline editing |
+| MessageEdit.tsx | view | Render material editor and message actions |
+| MessageEdit.test.tsx | test | Test editor materials and keyboard actions |
 | MessageStream.tsx | view | Render message stream |
 | model-label.ts | model | Build model label state |
 | NewProjectModal.tsx | view | Create projects on shared glass dialog surface |
@@ -64,7 +65,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | optimistic-message.ts | model | Build optimistic message state |
 | PaneToggle.tsx | view | Render pane toggle |
 | plan-read-vm.ts | model | Build plan read vm state |
-| PlanReadOverlay.tsx | view | Render plan read overlay |
+| PlanReadOverlay.tsx | view | Render glass plan chrome and stable reading |
 | profile-menu.test.ts | test | Test profile menu |
 | profile-menu.ts | model | Build profile menu state |
 | project-menu.test.ts | test | Test project menu |

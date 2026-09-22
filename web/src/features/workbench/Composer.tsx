@@ -566,9 +566,9 @@ export function Composer({
             style={{
               position: 'relative',
               borderRadius: 'var(--r-float)',
-              // Opaque on purpose: the transcript scrolls UNDER this sheet, and a translucent composer
-              // would show message text sliding behind the line being typed.
-              background: 'var(--proto-card)',
+              // CenterChat gives the composer its own grid row, outside the transcript scroller.
+              // A filter-free card also lets its floating menus sample the workspace backdrop.
+              background: 'var(--material-card-bg)',
               // Floating-sheet lift, plus an accent ring the moment the draft is actually sendable —
               // the ring IS the "press ⏎" affordance. Drag keeps its flattened look; the dashed edge
               // is the state cue there, drawn as an outline so entering the drag state costs no layout.
@@ -577,8 +577,8 @@ export function Composer({
               boxShadow: dragOver
                 ? 'none'
                 : composerRing
-                  ? 'var(--shadow-chrome-float), 0 0 0 1.5px var(--proto-accent-border)'
-                  : 'var(--shadow-chrome-float), 0 0 0 1px var(--proto-line)',
+                  ? 'var(--material-card-shadow), 0 0 0 1.5px var(--proto-accent-border)'
+                  : 'var(--material-card-shadow), 0 0 0 1px var(--proto-line)',
               transition: 'box-shadow .15s',
               padding: '12px 12px 10px 16px',
             }}
@@ -660,7 +660,7 @@ export function Composer({
                       border: 'none',
                       outline: 'none',
                       resize: 'none',
-                      background: 'transparent',
+                      background: 'var(--material-inset-bg)',
                       maxHeight: COMPOSER_MAX_HEIGHT,
                       overflowY: 'auto',
                     }}

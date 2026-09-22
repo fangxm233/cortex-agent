@@ -60,7 +60,8 @@ describe('DecisionCard responses', () => {
     const toggleButton = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });
     expect(toggleButton.type).toBe('button');
     expect(toggleButton.props['aria-expanded']).toBe(false);
-    expect(toggleButton.parent?.props.style.background).toBe('var(--proto-card)');
+    expect(toggleButton.parent?.props.style.background).toBe('var(--material-card-bg)');
+    expect(toggleButton.parent?.props.style.backdropFilter).toBeUndefined();
     expect(toggleButton.parent?.props.style.opacity).toBeUndefined();
     toggle(tree);
     expect(toggleButton.props['aria-expanded']).toBe(true);
@@ -72,6 +73,9 @@ describe('DecisionCard responses', () => {
     const tree = mount(dec(), actions);
     toggle(tree);
     act(() => { findButton(tree.root, 'Revise').props.onClick(); });
+    expect(tree.root.findByType('textarea').props.style.background).toBe('var(--material-inset-bg)');
+    expect(findButton(tree.root, 'Revise').props['aria-pressed']).toBe(true);
+    expect(findButton(tree.root, 'Revise').props.style.background).toBe('var(--proto-accent-bg)');
     expect(findButton(tree.root, 'Send').props.disabled).toBe(true);
     act(() => { findButton(tree.root, 'Send').props.onClick(); });
     expect(actions.respond).not.toHaveBeenCalled();

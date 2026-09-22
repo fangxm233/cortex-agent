@@ -1,6 +1,6 @@
 // input:  DecisionItem, transcript mutations, ChatMarkdown
 // output: DecisionCard, DecisionCardGroup, useDecisionActions
-// pos:    Expandable decision records and response controls
+// pos:    Material decision records and response controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useCallback, useState } from 'react';
@@ -141,7 +141,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
   };
 
   return (
-    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 'var(--r-card)' , boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)' , boxSizing: 'border-box' }}>
       {/* Header toggles disclosure; response actions live only in the expanded body. */}
       <button
         type="button"
@@ -201,7 +201,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                   className={focusClass}
                   aria-pressed={mode === 'explain'}
                   onClick={() => into('explain')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--proto-card)' , color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecExplain}
                 </button>
@@ -210,7 +210,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                   className={focusClass}
                   aria-pressed={mode === 'revise'}
                   onClick={() => into('revise')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--proto-card)' , color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
                 >
                   {L.wbDecRevise}
                 </button>
@@ -234,7 +234,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--proto-card)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <button
                     type="button"
