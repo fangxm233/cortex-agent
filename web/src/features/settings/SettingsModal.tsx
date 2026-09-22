@@ -9,8 +9,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
+import { BUILD_STAMP } from '@/lib/build-info';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
-import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './settings-nav';
+import { getSettingsNavGroups, getSectionMeta, type SettingsSectionKey } from './settings-nav';
 import { McpPanel } from './SettingsPanels';
 import { PlatformPanel } from './PlatformPanel';
 import { MachinesPanel } from './MachinesPanel';
@@ -33,6 +34,9 @@ const BACKDROP_STYLE: CSSProperties = {
   zIndex: 60,
 };
 
+// The sheet is a row, not a column: the nav owns the title and the content pane owns its own
+// header. That is the prototype's arrangement, and it is also why the sheet no longer needs a
+// full-width chrome bar — the only thing that spanned both columns was the word "Settings".
 const MODAL_STYLE: CSSProperties = {
   position: 'fixed',
   left: '50%',
@@ -52,7 +56,6 @@ const MODAL_STYLE: CSSProperties = {
   zIndex: 61,
   overflow: 'hidden',
   display: 'flex',
-  flexDirection: 'column',
 };
 
 const SR_ONLY: CSSProperties = {
@@ -76,6 +79,9 @@ function isBoundedPanel(section: SettingsSectionKey): boolean {
   return section === 'hooks' || section === 'templates' || section === 'plugins';
 }
 
+// Bounded panels (the master–detail editors) own their height and need a flex frame to stretch in.
+// Scrolling ones stay a block, so the stack inside them measures at its natural height instead of
+// being compressed by the scroller — a flex column here would shrink every card to fit.
 function panelContentStyle(section: SettingsSectionKey): CSSProperties {
   const bounded = isBoundedPanel(section);
   return {
@@ -83,12 +89,16 @@ function panelContentStyle(section: SettingsSectionKey): CSSProperties {
     minWidth: 0,
     minHeight: 0,
     overflow: bounded ? 'hidden' : 'auto',
-    padding: '16px 22px',
-    background: 'var(--proto-alt)',
-    display: bounded ? 'flex' : undefined,
+    padding: bounded ? '16px 20px 20px' : '20px 24px 24px',
+    display: bounded ? 'flex' : 'block',
     flexDirection: bounded ? 'column' : undefined,
   };
 }
+
+// The sheet's vertical rhythm: every panel's top-level cards sit 22px apart.
+const PANEL_STACK_STYLE: CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 22, alignItems: 'stretch',
+};
 
 function resetDirty(open: boolean, setDirty: (dirty: boolean) => void): void {
   if (!open) setDirty(false);
@@ -129,27 +139,47 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   );
 }
 
-function SettingsHeader(props: { onClose: () => void; closeBlocked: boolean }) {
-  const L = useVocab();
-  return (
-    <div style={{ height: 48, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 18px', background: 'var(--glass-2)' }}>
-      <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.settings}</span>
-      <button type="button" disabled={props.closeBlocked} onClick={props.onClose}
-        title={props.closeBlocked ? L.plUnsavedLeave : undefined}
-        style={{ marginLeft: 'auto', font: `500 9.5px ${MONO}`, color: 'var(--proto-muted-3)', background: 'transparent', border: '1px solid var(--proto-line)', borderRadius: 5, padding: '2px 6px', cursor: props.closeBlocked ? 'not-allowed' : 'pointer' }}>
-        {L.stEsc}
-      </button>
-    </div>
-  );
-}
+// ── Navigation ──────────────────────────────────────────────────────────────
+
+const NAV_STYLE: CSSProperties = {
+  width: 216, flex: 'none', display: 'flex', flexDirection: 'column',
+  padding: '16px 10px 12px', borderRight: '1px solid var(--proto-line-2)',
+  // A tint, not a fill: the nav has to read as the same pane as the content beside it, one shade
+  // recessed. An opaque rail colour here would cut the sheet in two.
+  background: 'var(--proto-alt)',
+};
 
 function navButtonStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
-    width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 8,
-    padding: '7px 10px',
+    width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 9,
+    height: 32, padding: '0 10px', flex: 'none',
     background: active ? 'var(--proto-accent-bg)' : 'transparent',
-    borderRadius: 'var(--r-chip)', cursor: disabled ? 'not-allowed' : 'pointer',
+    color: active ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 600 : 500,
+    borderRadius: 'var(--r-control)', cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.4 : 1, textAlign: 'left',
   };
+}
+
+function NavIcon({ path, active }: { path: string; active: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+      style={{ flex: 'none', color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)' }}>
+      <path d={path} />
+    </svg>
+  );
+}
+
+function NavGroupLabel({ children }: { children: string }) {
+  return (
+    <div style={{
+      fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
+      color: 'var(--proto-faint)', padding: '12px 10px 5px', flex: 'none',
+    }}>
+      {children}
+    </div>
+  );
 }
 
 function SettingsNav(props: {
@@ -159,22 +189,80 @@ function SettingsNav(props: {
 }) {
   const L = useVocab();
   return (
-    <div style={{ width: 210, flex: 'none', borderRight: '1px solid var(--proto-line)', background: 'var(--proto-rail)', padding: '10px 8px', overflow: 'auto' }}>
-      {getSettingsNav(L).map((entry) => {
-        const active = entry.key === props.section;
-        const disabled = props.blocked && !active;
-        return (
-          <button type="button" key={entry.key} disabled={disabled}
-            onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
-            title={disabled ? L.plUnsavedLeave : undefined}
-            style={navButtonStyle(active, disabled)}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: active ? 'var(--proto-accent)' : 'var(--proto-ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.label}</span>
-          </button>
-        );
-      })}
+    <div style={NAV_STYLE}>
+      <div style={{ fontSize: 15, fontWeight: 650, letterSpacing: '-.01em', color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
+        {L.settings}
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+        {getSettingsNavGroups(L).map((group) => (
+          <div key={group.key}>
+            <NavGroupLabel>{group.label}</NavGroupLabel>
+            {group.entries.map((entry) => {
+              const active = entry.key === props.section;
+              const disabled = props.blocked && !active;
+              return (
+                <button type="button" key={entry.key} disabled={disabled}
+                  onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
+                  title={disabled ? L.plUnsavedLeave : undefined}
+                  style={navButtonStyle(active, disabled)}>
+                  <NavIcon path={entry.icon} active={active} />
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '10px 10px 0', font: `400 10px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
+        Cortex · {BUILD_STAMP}
+      </div>
     </div>
   );
 }
+
+// ── Content header ──────────────────────────────────────────────────────────
+
+function CloseButton({ onClose, blocked, label, title }: {
+  onClose: () => void;
+  blocked: boolean;
+  label: string;
+  title?: string;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button type="button" data-settings-close disabled={blocked} onClick={onClose}
+      aria-label={label} title={title}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{
+        marginLeft: 'auto', width: 28, height: 28, border: 0, borderRadius: 'var(--r-chip)',
+        background: hover && !blocked ? 'var(--proto-line-2)' : 'transparent',
+        color: hover && !blocked ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+        display: 'grid', placeItems: 'center', padding: 0, fontSize: 14, flex: 'none',
+        cursor: blocked ? 'not-allowed' : 'pointer', opacity: blocked ? 0.4 : 1,
+      }}>
+      ✕
+    </button>
+  );
+}
+
+function SettingsPanelHeader(props: {
+  section: SettingsSectionKey;
+  onClose: () => void;
+  closeBlocked: boolean;
+}) {
+  const L = useVocab();
+  const meta = getSectionMeta(L, props.section);
+  return (
+    <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px 0 24px', borderBottom: '1px solid var(--proto-line-2)' }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-ink)', flex: 'none' }}>{meta.title}</span>
+      <span style={{ fontSize: 12, color: 'var(--proto-muted-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.sub}</span>
+      <CloseButton onClose={props.onClose} blocked={props.closeBlocked} label={L.stEsc}
+        title={props.closeBlocked ? L.plUnsavedLeave : L.stEsc} />
+    </div>
+  );
+}
+
+// ── Section routing ─────────────────────────────────────────────────────────
 
 interface SectionContentProps {
   section: SettingsSectionKey;
@@ -211,10 +299,10 @@ function IndependentSettingsPanel(props: IndependentPanelProps) {
 function ConfiguredSettingsPanel(props: SectionContentProps) {
   const L = useVocab();
   if (props.configLoading) {
-    return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.stLoadingConfig}</div>;
+    return <div style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.stLoadingConfig}</div>;
   }
   if (props.configError) {
-    return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-danger)' }}>{L.stFailedLoadConfig} {props.configError.message}</div>;
+    return <div style={{ fontSize: 12, color: 'var(--proto-danger)' }}>{L.stFailedLoadConfig} {props.configError.message}</div>;
   }
   if (!props.snapshot) return null;
   return <PanelBody {...props} snapshot={props.snapshot} />;
@@ -222,13 +310,9 @@ function ConfiguredSettingsPanel(props: SectionContentProps) {
 
 function SettingsSectionContent(props: SectionContentProps) {
   const independent = ['appearance', 'accounts', 'usage', 'plugins'].includes(props.section);
-  return independent ? <IndependentSettingsPanel {...props} /> : <ConfiguredSettingsPanel {...props} />;
-}
-
-function SettingsSectionTitle({ section }: { section: SettingsSectionKey }) {
-  const L = useVocab();
-  if (section === 'usage') return null;
-  return <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{getSectionMeta(L, section).title}</div>;
+  const panel = independent ? <IndependentSettingsPanel {...props} /> : <ConfiguredSettingsPanel {...props} />;
+  if (isBoundedPanel(props.section)) return panel;
+  return <div style={PANEL_STACK_STYLE}>{panel}</div>;
 }
 
 interface SettingsBodyProps {
@@ -250,11 +334,10 @@ function SettingsBody(props: SettingsBodyProps) {
   };
   return (
     <>
-      <SettingsHeader onClose={props.onClose} closeBlocked={props.panelDirty} />
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        <SettingsNav section={section} blocked={props.panelDirty} onSelect={setSection} />
+      <SettingsNav section={section} blocked={props.panelDirty} onSelect={setSection} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <SettingsPanelHeader section={section} onClose={props.onClose} closeBlocked={props.panelDirty} />
         <div style={panelContentStyle(section)}>
-          <SettingsSectionTitle section={section} />
           <SettingsSectionContent {...content} />
         </div>
       </div>

@@ -674,6 +674,12 @@ export const enBase = {
   stNavHooks: 'Hooks',
   stNavAdvanced: 'Advanced',
 
+  // ── Settings nav group headings ──
+  stGroupWorkspace: 'Workspace',
+  stGroupAgent: 'Agent',
+  stGroupResources: 'Resources',
+  stGroupSystem: 'System',
+
   // ── Settings section meta subs ──
   stMetaAppearanceSub: 'Language, theme, palette, accent color, and motion. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',

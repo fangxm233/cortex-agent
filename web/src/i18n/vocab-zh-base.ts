@@ -670,6 +670,12 @@ export const zhBase = {
   stNavHooks: '钩子',
   stNavAdvanced: '高级',
 
+  // ── Settings nav group headings ──
+  stGroupWorkspace: '工作区',
+  stGroupAgent: '智能体',
+  stGroupResources: '资源',
+  stGroupSystem: '系统',
+
   // ── Settings section meta subs ──
   stMetaAppearanceSub: '语言、主题、配色、强调色与动效。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',

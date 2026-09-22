@@ -322,8 +322,7 @@ describe('Settings dirty guard', () => {
     await click(pluginToggle(renderer, 'beta'));
 
     const appearance = renderer.root.findByProps({ 'data-settings-nav': 'appearance' });
-    const close = renderer.root.findAllByType('button')
-      .find((node) => node.children.join('') === 'esc');
+    const close = renderer.root.findByProps({ 'data-settings-close': true });
     expect(appearance.props.disabled).toBe(true);
     expect(close?.props.disabled).toBe(true);
     await cleanup(renderer, queryClient);
