@@ -1,6 +1,6 @@
 // input:  WaitpointInfo, wait-rail-vm, session identity
 // output: WaitRail, WaitRailProps
-// pos:    Compact waitpoint status rail with readable signal log
+// pos:    Waitpoint status rail, inline or floating over the transcript
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
@@ -12,6 +12,7 @@ import {
   type WaitRailLanguage,
   type WaitRailRow,
 } from './wait-rail-vm';
+import { railSurface } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
@@ -168,6 +169,8 @@ export interface WaitRailProps {
   waitpoints: WaitpointInfo[];
   onCancel: (waitpointId: string) => void;
   cancelling?: boolean;
+  /** Hung over the scrolling transcript (mobile), so it takes the composer's frosted chrome. */
+  floating?: boolean;
 }
 
 /**
@@ -178,7 +181,7 @@ export interface WaitRailProps {
  * Only armed waitpoints appear. A waitpoint that fires or expires posts its own notice into the
  * transcript, so keeping it here too would tell the same story twice.
  */
-export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false }: WaitRailProps): JSX.Element | null {
+export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false, floating = false }: WaitRailProps): JSX.Element | null {
   const [open, toggle] = useExpanded(sessionId);
   const vm = waitRailViewModel(waitpoints, Date.now(), lang);
   if (!vm) return null;
@@ -198,14 +201,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
   return (
     <div
       data-wait-rail={open ? 'expanded' : 'collapsed'}
-      style={{
-        border: '1px solid var(--proto-line)',
-        borderRadius: 'var(--r-control)',
-        background: 'var(--proto-alt)',
-        marginBottom: 8,
-        overflow: 'hidden',
-        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
-      }}
+      style={railSurface(floating)}
     >
       {!open && (
         <button

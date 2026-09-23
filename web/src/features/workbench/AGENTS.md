@@ -72,6 +72,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | project-menu.ts | model | Build project menu state |
 | ProjectFolderIcon.tsx | view | Render project folder icon |
 | rail-order.test.ts | test | Test rail order |
+| rail-surface.ts | style | Share inline and floating composer rail surfaces |
 | rail-order.ts | model | Build rail order state |
 | rail-tree.test.ts | test | Test rail tree |
 | rail-tree.ts | model | Build rail tree state |
@@ -117,7 +118,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | todo-vm.test.ts | test | Test todo vm |
 | todo-vm.ts | model | Build todo vm state |
 | TodoRail.test.tsx | test | Test todo rail |
-| TodoRail.tsx | view | Render todo rail |
+| TodoRail.tsx | view | Render todo rail inline or floating |
 | tool-call-overflow.ts | model | Build tool call overflow state |
 | ToolCallsRow.test.tsx | test | Test tool group spacing and collapse behavior |
 | ToolCallsRow.tsx | view | Render spaced material chips and tool groups |
@@ -145,6 +146,6 @@ Desktop conversations, composer controls, session navigation and context panels.
 | wait-rail-vm.test.ts | test | Test wait rail vm |
 | wait-rail-vm.ts | model | Build wait rail vm state |
 | WaitRail.test.tsx | test | Test wait rail |
-| WaitRail.tsx | view | Render wait rail |
+| WaitRail.tsx | view | Render wait rail inline or floating |
 | WorkbenchModals.test.tsx | test | Test shared glass bodies and modal interactions |
 | WorkbenchPage.tsx | view | Compose the desktop workbench |

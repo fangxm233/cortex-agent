@@ -101,7 +101,7 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (
     <>
-      {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} /> : null}
+      {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} floating /> : null}
       {props.sessionId && props.waitpoints ? (
         <WaitRail
           sessionId={props.sessionId}
@@ -109,6 +109,7 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
           waitpoints={props.waitpoints.waitpoints}
           onCancel={props.waitpoints.cancel}
           cancelling={props.waitpoints.cancelling}
+          floating
         />
       ) : null}
       {mode}
