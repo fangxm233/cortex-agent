@@ -82,8 +82,16 @@ function detailFor(call: ToolCall): DebugDetail | null {
   };
 }
 
-/** Touch rows keep the same chrome and only grow to a finger-sized hit target. */
+/** Touch rows keep the same chrome and only grow to a finger-sized hit target. The extra height is
+ *  handed back through a negative margin (as desktop does with its own -8px), so the visible gap to
+ *  the neighbouring prose stays close to desktop instead of adding ~14px of empty target each side. */
 const TOUCH_ROW_HEIGHT = 44;
+const TOUCH_SLACK = 14;
+
+/** Only the summary row carries the slack: an open panel ends the group, so its edge stays put. */
+function touchMargin(expanded: boolean): string {
+  return expanded ? `-${TOUCH_SLACK}px 0 0` : `-${TOUCH_SLACK}px 0`;
+}
 
 function collapsedRowStyle(hover: boolean, touch: boolean): CSSProperties {
   return {
@@ -197,7 +205,7 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
   };
   const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
   return (
-    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: touch ? 0 : '-8px 0' }}>
+    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: touch ? touchMargin(expanded) : '-8px 0' }}>
       <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
       {expanded ? <ExpandedToolCalls calls={calls} selected={selected} touch={touch} onInspect={inspect} onClose={() => setSelected(null)} onCollapse={collapse} /> : null}
     </div>

@@ -101,8 +101,9 @@ describe('ToolCallsRow', () => {
     const toggle = renderer.root.findByType('button');
     expect(toggle.props.style.minHeight).toBe(44);
     expect(toggle.props.onMouseEnter).toBeUndefined();
-    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe(0);
+    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe('-14px 0');
     act(() => toggle.props.onClick());
+    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe('-14px 0 0');
     expect(renderer.root.findByType(DebugInspectButton).props.visible).toBe(true);
     act(() => renderer.unmount());
   });
