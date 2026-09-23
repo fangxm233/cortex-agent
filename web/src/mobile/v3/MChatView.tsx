@@ -1,22 +1,21 @@
 // input:  React, mobile presentation props, shared view models
 // output: MChatView
-// pos:    Mobile chat with measured floating composer clearance
+// pos:    Mobile chat with shared transcript blocks and composer clearance
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
-import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
+import { SubagentBlock } from '@/features/workbench/SubagentBlock';
+import { ToolCallsRow } from '@/features/workbench/ToolCallsRow';
+import { DecisionCardGroup } from '@/features/workbench/DecisionCards';
 import { useVocab } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/workbench/transcript-vm';
-import { modelLabel } from '@/features/workbench/model-label';
 import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
-import { toolChips } from '@/mobile/screens/mobile-session-vm';
-import { MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
-import { MDecisionCardGroup } from './MDecisionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
 import {
@@ -115,76 +114,6 @@ function MChatStatusLine({ status, project }: MChatHeaderProps): JSX.Element {
 }
 
 // The ⋯ menu exposes the Session ID sheet plus, once the session has run, its whole-session stats.
-// ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
-const MOBILE_TOOL_GAP = 7;
-const mobileToolChipStyle = {
-  font: `400 11px ${MONO}`, background: MC.glassRaised,
-  border: '1px solid var(--proto-line)', padding: '1px 7px', borderRadius: 5, flex: 'none',
-} as const;
-const mobileToolStripStyle = {
-  display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP,
-  flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative',
-} as const;
-const mobileToolMeasureStyle = {
-  ...mobileToolStripStyle,
-  position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
-  width: 'max-content', overflow: 'visible',
-} as const;
-const mobileToolOverflowStyle = {
-  font: `500 11px ${MONO}`, color: 'var(--proto-muted)', flex: 'none',
-} as const;
-
-function MobileToolChip({ name }: { name: string }): JSX.Element {
-  return <span style={mobileToolChipStyle}>{name}</span>;
-}
-
-function CollapsedToolCalls({ count, calls, unit, onExpand }: {
-  count: number;
-  calls: { kind: string; input: string }[];
-  unit: string;
-  onExpand: () => void;
-}): JSX.Element {
-  const labels = calls.map((call) => call.kind);
-  const { containerRef, measureRef, layout } = useToolCallOverflow(labels, MOBILE_TOOL_GAP);
-  const chips = toolChips(calls, layout);
-  return (
-    <div onClick={onExpand} style={{ display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP, minHeight: 44, fontSize: 12, color: MC.muted, flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer' }}>
-      <span style={{ fontSize: 8.5, flex: 'none' }}>▸</span>
-      <span style={{ flex: 'none' }}>{count} {unit}</span>
-      <span ref={containerRef} style={mobileToolStripStyle}>
-        {chips.names.map((name, index) => <MobileToolChip key={index} name={name} />)}
-        {chips.overflow > 0 ? <span style={mobileToolOverflowStyle}>+{chips.overflow}</span> : null}
-        <span ref={measureRef} aria-hidden="true" style={mobileToolMeasureStyle}>
-          {labels.map((name, index) => <MobileToolChip key={index} name={name} />)}
-          <span style={mobileToolOverflowStyle}>+{calls.length}</span>
-        </span>
-      </span>
-    </div>
-  );
-}
-
-function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
-  count: number;
-  calls: { kind: string; input: string }[];
-  unit: string;
-  onCollapse: () => void;
-}): JSX.Element {
-  return (
-    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-chip)', overflow: 'hidden' }}>
-      <div onClick={onCollapse} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: MC.muted, padding: '6px 11px', minHeight: 44, boxSizing: 'border-box', cursor: 'pointer' }}>
-        <span style={{ fontSize: 8.5 }}>▾</span>
-        <span>{count} {unit}</span>
-      </div>
-      {calls.map((call, index) => (
-        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: `1px solid ${MC.divider}` }}>
-          <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{call.kind}</span>
-          <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{call.input}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /**
  * One native subagent's work, folded away by default.
  *
@@ -195,10 +124,10 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
  * could no longer tell which calls belonged to which step. Rows the mobile block has no form for
  * (nested subagents, notices, interactions) are still skipped.
  */
-function MSubagentRows({ rows, unit }: { rows: ChatRow[]; unit: string }): JSX.Element {
+function MSubagentRows({ rows, sessionId }: { rows: ChatRow[]; sessionId?: string }): JSX.Element {
   return <>{rows.map((row, index) => {
     if (row.kind === 'tools' && row.count > 0) {
-      return <ToolCallsRow key={index} count={row.count} calls={row.calls} unit={unit} />;
+      return <MToolCallsRow key={index} row={row} sessionId={sessionId} />;
     }
     if (row.kind === 'assistant' && row.text) {
       return <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6,
@@ -210,77 +139,37 @@ function MSubagentRows({ rows, unit }: { rows: ChatRow[]; unit: string }): JSX.E
   })}</>;
 }
 
-function MSubagentDetail({ row, unit, sessionId }: {
-  row: Extract<ChatRow, { kind: 'subagent' }>; unit: string; sessionId?: string;
+function MSubagentDetail({ row, sessionId }: {
+  row: Extract<ChatRow, { kind: 'subagent' }>; sessionId?: string;
 }): JSX.Element {
   if (row.detailMode !== 'lazy' || !row.hasDetails || !sessionId) {
-    return <MSubagentRows rows={row.children} unit={unit} />;
+    return <MSubagentRows rows={row.children} sessionId={sessionId} />;
   }
   return <SubagentTranscriptDetail sessionId={sessionId} subagentId={row.id}
     fallbackRows={row.children}
-    render={(rows) => <MSubagentRows rows={rows} unit={unit} />} />;
+    render={(rows) => <MSubagentRows rows={rows} sessionId={sessionId} />} />;
 }
 
-function MSubagentBlock({ row, unit, sessionId }: {
+/** The desktop subagent card in its touch form; only the body renderer stays mobile-specific. */
+function MSubagentBlock({ row, sessionId }: {
   row: Extract<ChatRow, { kind: 'subagent' }>;
-  unit: string;
   sessionId?: string;
 }): JSX.Element {
-  const L = useVocab();
-  const [expanded, setExpanded] = useState(false);
-  const label = row.description || row.agentType || L.subagentFallbackLabel;
   return (
-    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 'var(--r-chip)' }}>
-      <div
-        onClick={() => setExpanded(!expanded)}
-        role="button"
-        aria-expanded={expanded}
-        style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, padding: '6px 11px', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--r-chip) var(--r-chip) 0 0', fontSize: 11.5, color: MC.muted, background: MC.card, minWidth: 0 }}
-      >
-        <MDot
-          color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-success)'}
-          pulse={row.status === 'running'}
-        />
-        <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
-          {row.agentType || L.subagentFallbackLabel}
-        </span>
-        {row.model ? (
-          <span style={{ font: `600 11px ${MONO}`, color: MC.muted, border: '1px solid var(--proto-line-2)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
-            {modelLabel(row.model)}
-          </span>
-        ) : null}
-        <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: '1 1 100px' }}>{label}</span>
-        <span style={{ font: `400 11px ${MONO}`, flex: 'none', marginLeft: 'auto' }}>{`${row.toolCount} ${unit}`}</span>
-      </div>
-      {expanded && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: `1px solid ${MC.hairline}` }}>
-          {row.prompt ? (
-            <div>
-              <div style={{ font: `600 11px ${MONO}`, color: MC.muted, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                {L.subagentPromptLabel}
-              </div>
-              <pre style={{ margin: 0, font: `400 11px/1.55 ${MONO}`, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                {row.prompt}
-              </pre>
-            </div>
-          ) : null}
-          <MSubagentDetail row={row} unit={unit} sessionId={sessionId} />
-        </div>
-      )}
-    </div>
+    <SubagentBlock agentType={row.agentType} description={row.description} prompt={row.prompt}
+      model={row.model} status={row.status} toolCount={row.toolCount} touch>
+      <MSubagentDetail row={row} sessionId={sessionId} />
+    </SubagentBlock>
   );
 }
 
-function ToolCallsRow({ count, calls, unit }: {
-  count: number;
-  calls: { kind: string; input: string }[];
-  unit: string;
+/** The desktop tool group in its touch form. */
+function MToolCallsRow({ row, sessionId }: {
+  row: Extract<ChatRow, { kind: 'tools' }>;
+  sessionId?: string;
 }): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  if (!expanded) {
-    return <CollapsedToolCalls count={count} calls={calls} unit={unit} onExpand={() => setExpanded(true)} />;
-  }
-  return <ExpandedToolCalls count={count} calls={calls} unit={unit} onCollapse={() => setExpanded(false)} />;
+  const calls = row.calls.map((call) => ({ label: call.kind, kind: call.kind, input: call.input, ...(call.debug ? { debug: call.debug } : {}) }));
+  return <ToolCallsRow calls={calls} sessionId={sessionId} touch />;
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
@@ -386,9 +275,8 @@ function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): J
   );
 }
 
-export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
+export function MChatStream({ rows, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
-  toolCallsUnit: string;
   copyLabel: string;
   copiedLabel: string;
   interactions?: MChatInteractions;
@@ -491,13 +379,13 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           )}
           {row.kind === 'subagent' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <MSubagentBlock row={row} unit={toolCallsUnit} sessionId={streamKey} />
+              <MSubagentBlock row={row} sessionId={streamKey} />
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'tools' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />
+              <MToolCallsRow row={row} sessionId={streamKey} />
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
@@ -531,7 +419,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                 </div>
               )}
               {row.decisions && row.decisions.length > 0 && (
-                <MDecisionCardGroup decisions={row.decisions} sessionId={streamKey} />
+                <DecisionCardGroup decisions={row.decisions} sessionId={streamKey} touch />
               )}
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
@@ -658,7 +546,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <div ref={contentRef} style={{ padding: 'calc(72px + env(safe-area-inset-top)) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream
               rows={props.rows}
-              toolCallsUnit={copy.toolCallsUnit}
               copyLabel={copy.copy}
               copiedLabel={copy.copied}
               interactions={props.interactions}

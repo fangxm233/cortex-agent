@@ -14,7 +14,6 @@ import type {
 
 export interface MChatCopy {
   composerPh: string;
-  toolCallsUnit: string;
   menuSessionId: string;
   menuSessionStats: string;
   sessionIdTitle: string;

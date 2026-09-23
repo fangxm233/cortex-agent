@@ -33,6 +33,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 vi.mock('@/lib/trpc', () => ({
+  useTRPCClient: () => ({ sessions: { debugDetails: { query: vi.fn() } } }),
   useTRPC: () => ({
     sessions: {
       subagentTranscript: {
@@ -44,12 +45,13 @@ vi.mock('@/lib/trpc', () => ({
 
 import { LangProvider } from '@/i18n';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
+import { SubagentBlock } from '@/features/workbench/SubagentBlock';
+import { ToolCallsRow } from '@/features/workbench/ToolCallsRow';
 import { MChatStream, MChatView, type MChatCopy } from './MChatView';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 
 const copy: MChatCopy = {
   composerPh: 'composer',
-  toolCallsUnit: 'tools',
   menuSessionId: 'session-id',
   menuSessionStats: 'session-stats',
   sessionIdTitle: 'session-id',
@@ -261,7 +263,7 @@ describe('MChatStream assistant turn copy', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
         </LangProvider>,
       );
     });
@@ -289,17 +291,19 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
         </LangProvider>,
       );
     });
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    expect(renderer.root.findByType(SubagentBlock).props.touch).toBe(true);
+    expect(renderer.root.findAllByType(ToolCallsRow).map((row) => row.props.touch)).toEqual([true, true]);
 
     const text = (node: any): string => typeof node === 'string' ? node
       : Array.isArray(node) ? node.map(text).join('')
       : node?.children ? text(node.children) : '';
     const rendered = text(renderer.toJSON());
-    const order = ['first note', '2 tools', 'second note', '1 tools']
+    const order = ['first note', '2 tool calls', 'second note', '1 tool call']
       .map((needle) => rendered.indexOf(needle));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -315,7 +319,7 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" streamKey="s1" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" streamKey="s1" />
         </LangProvider>,
       );
     });
@@ -325,7 +329,7 @@ describe('MChatStream subagent prompt', () => {
     expect(harness.queryCalls).toHaveLength(1);
     expect(harness.queryCalls[0].input).toEqual({ sessionId: 's1', subagentId: 'tu_lazy' });
 
-    const toolRow = renderer.root.findAll((node) => typeof node.props.onClick === 'function')[1];
+    const toolRow = renderer.root.findByProps({ 'data-tool-calls': true }).findByType('button');
     act(() => toolRow.props.onClick());
 
     const rendered = JSON.stringify(renderer.toJSON());

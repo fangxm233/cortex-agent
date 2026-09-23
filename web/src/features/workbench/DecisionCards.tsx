@@ -1,9 +1,9 @@
 // input:  DecisionItem, transcript mutations, ChatMarkdown
 // output: DecisionCard, DecisionCardGroup, useDecisionActions
-// pos:    Material decision records and response controls
+// pos:    Decision records and responses for desktop and touch transcripts
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -105,9 +105,14 @@ function Caret({ open }: { open: boolean }): JSX.Element {
   );
 }
 
+/** Touch layout keeps the same chrome: a finger-sized header and response buttons that share the
+ *  card width, since a phone has no room for a trailing collapse button (the header collapses). */
+const TOUCH_HEADER_HEIGHT = 44;
+const TOUCH_BUTTON: CSSProperties = { flex: 1, height: 38, padding: '0 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
 /** One decision: a collapsed one-line record that expands in place into the full reasoning and
  *  the response row. Nothing overlays the transcript, so no portal or stacking games are needed. */
-export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActions }): JSX.Element {
+export function DecisionCard({ d, actions, touch = false }: { d: DecisionItem; actions?: DecisionActions; touch?: boolean }): JSX.Element {
   const L = useVocab();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('view');
@@ -124,6 +129,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
     text,
   );
   const canSend = !busy && composed !== null;
+  const touchButton = touch ? TOUCH_BUTTON : undefined;
 
   const collapse = (): void => { setOpen(false); setMode('view'); setText(''); };
   const toggle = (): void => { if (open) collapse(); else setOpen(true); };
@@ -149,10 +155,10 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
         aria-expanded={open}
         data-decision-toggle={d.id}
         onClick={toggle}
-        style={{ width: '100%', textAlign: 'left', borderRadius: 'var(--r-card)', display: 'flex', alignItems: 'center', gap: 9, minHeight: 38, padding: '6px 11px', boxSizing: 'border-box', cursor: 'pointer' }}
+        style={{ width: '100%', textAlign: 'left', borderRadius: 'var(--r-card)', display: 'flex', alignItems: 'center', gap: 9, minHeight: touch ? TOUCH_HEADER_HEIGHT : 38, padding: '6px 11px', boxSizing: 'border-box', cursor: 'pointer', ...(touch ? { flexWrap: 'wrap' as const } : {}) }}
       >
         <DecBadge L={L} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, flex: touch ? '1 1 100px' : 1, lineHeight: 1.4, ...(touch && open ? { overflowWrap: 'break-word' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{d.title}</span>
         {chip && <Chip chip={chip} />}
         <Caret open={open} />
       </button>
@@ -180,9 +186,9 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
 
           {actions && (
             <div style={{ marginTop: 13 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: touch ? 'nowrap' : 'wrap', alignItems: 'center', gap: 8 }}>
                 {approved ? (
-                  <span style={{ height: 30, borderRadius: 'var(--r-control)', background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, padding: '0 14px' }}>
+                  <span style={{ ...touchButton, height: touch ? 38 : 30, borderRadius: 'var(--r-control)', background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, padding: '0 14px' }}>
                     ✓ {L.wbDecApproved}
                   </span>
                 ) : (
@@ -191,7 +197,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                     className={focusClass}
                     disabled={busy}
                     onClick={approve}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 14px', color: busy ? 'var(--proto-muted)' : 'var(--ink-solid-fg)', background: busy ? 'var(--proto-gray)' : 'var(--proto-ink)' , cursor: busy ? 'not-allowed' : 'pointer', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 14px', color: busy ? 'var(--proto-muted)' : 'var(--ink-solid-fg)', background: busy ? 'var(--proto-gray)' : 'var(--proto-ink)' , cursor: busy ? 'not-allowed' : 'pointer', flex: 'none', ...touchButton }}
                   >
                     ✓ {L.wbDecApprove}
                   </button>
@@ -201,7 +207,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                   className={focusClass}
                   aria-pressed={mode === 'explain'}
                   onClick={() => into('explain')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'explain' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'explain' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none', ...touchButton }}
                 >
                   {L.wbDecExplain}
                 </button>
@@ -210,19 +216,23 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                   className={focusClass}
                   aria-pressed={mode === 'revise'}
                   onClick={() => into('revise')}
-                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none' }}
+                  style={{ fontSize: 12, fontWeight: 600, border: `1px solid ${mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-line-3)'}`, background: mode === 'revise' ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: mode === 'revise' ? 'var(--proto-accent)' : 'var(--proto-ink)', padding: '6px 13px', borderRadius: 'var(--r-control)', cursor: 'pointer', flex: 'none', ...touchButton }}
                 >
                   {L.wbDecRevise}
                 </button>
-                <span style={{ flex: 1 }} />
-                <button
-                  type="button"
-                  className={focusClass}
-                  onClick={collapse}
-                  style={{ fontSize: 12, fontWeight: 500, color: 'var(--proto-muted)', padding: '6px 10px', borderRadius: 'var(--r-control)' , cursor: 'pointer', flex: 'none' }}
-                >
-                  {L.wbDecCollapse}
-                </button>
+                {touch ? null : (
+                  <>
+                    <span style={{ flex: 1 }} />
+                    <button
+                      type="button"
+                      className={focusClass}
+                      onClick={collapse}
+                      style={{ fontSize: 12, fontWeight: 500, color: 'var(--proto-muted)', padding: '6px 10px', borderRadius: 'var(--r-control)' , cursor: 'pointer', flex: 'none' }}
+                    >
+                      {L.wbDecCollapse}
+                    </button>
+                  </>
+                )}
               </div>
               {mode !== 'view' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 9, alignItems: 'flex-end' }}>
@@ -234,14 +244,14 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                    style={{ flex: 1, minWidth: 0, resize: 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ flex: 1, minWidth: 0, resize: touch ? 'none' : 'vertical', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '7px 11px', fontSize: touch ? 16 : 12, lineHeight: 1.5, color: 'var(--proto-ink)', background: 'var(--material-inset-bg)', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <button
                     type="button"
                     className={focusClass}
                     disabled={!canSend}
                     onClick={send}
-                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: canSend ? 'var(--ink-solid-fg)' : 'var(--proto-muted)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-gray)' , cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none' }}
+                    style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '7px 16px', color: canSend ? 'var(--ink-solid-fg)' : 'var(--proto-muted)', background: canSend ? 'var(--proto-ink)' : 'var(--proto-gray)' , cursor: canSend ? 'pointer' : 'not-allowed', flex: 'none', ...(touch ? { height: 38 } : {}) }}
                   >
                     {L.wbDecSend}
                   </button>
@@ -256,12 +266,12 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
 }
 
 /** Hung under the agent text like the file group — chat-wide, one card per decision. */
-export function DecisionCardGroup({ decisions, sessionId }: { decisions: DecisionItem[]; sessionId?: string }): JSX.Element {
+export function DecisionCardGroup({ decisions, sessionId, touch = false }: { decisions: DecisionItem[]; sessionId?: string; touch?: boolean }): JSX.Element {
   const actions = useDecisionActions(sessionId ?? '');
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, marginTop: 10 }}>
       {decisions.map((d) => (
-        <DecisionCard key={d.id} d={d} actions={sessionId ? actions : undefined} />
+        <DecisionCard key={d.id} d={d} actions={sessionId ? actions : undefined} touch={touch} />
       ))}
     </div>
   );

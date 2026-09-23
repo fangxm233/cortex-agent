@@ -1,5 +1,4 @@
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
-import type { ToolCallOverflowLayout } from '@/features/workbench/tool-call-overflow';
 import { formatUsd } from '@/lib/format';
 
 function hhmm(d: Date): string {
@@ -79,21 +78,5 @@ export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
       cost: formatUsd(detail.totalCostUsd),
       subCount: detail.children.length,
     },
-  };
-}
-
-export interface ToolChips {
-  names: string[];
-  overflow: number;
-}
-
-/** Width-derived visible tool names + overflow count for the collapsed tool-calls row. */
-export function toolChips(
-  calls: { kind: string; input: string }[],
-  layout: ToolCallOverflowLayout,
-): ToolChips {
-  return {
-    names: calls.slice(0, layout.visibleCount).map((call) => call.kind),
-    overflow: layout.hiddenCount,
   };
 }

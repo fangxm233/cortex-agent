@@ -1,6 +1,6 @@
 // input:  React, subagent metadata, nested transcript content
 // output: SubagentBlock
-// pos:    Foldable subagent card with an opaque sticky header
+// pos:    Foldable subagent card for desktop and touch transcripts
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from './MenuChrome';
@@ -56,11 +56,16 @@ const promptLabelStyle: CSSProperties = {
   textTransform: 'uppercase', letterSpacing: '.05em',
 };
 
-function headerStyle(hover: boolean, expanded: boolean): CSSProperties {
+/** Touch headers grow to a finger-sized target and let the description take its own line on a
+ *  phone rather than shrink to a few letters beside the chips. */
+const TOUCH_HEADER_HEIGHT = 44;
+
+function headerStyle(hover: boolean, expanded: boolean, touch: boolean): CSSProperties {
   return {
     ...MENU_BUTTON_STYLE,
     position: 'sticky', top: 0, zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
+    ...(touch ? { flexWrap: 'wrap', minHeight: TOUCH_HEADER_HEIGHT, boxSizing: 'border-box' } : {}),
     color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
     // Sticky text must occlude the scrolling body at every glass strength, without a filter.
     background: 'var(--proto-card)',
@@ -86,13 +91,15 @@ function boxStyle(hover: boolean): CSSProperties {
  * rows with the same renderer the top level uses — the caller passes them in as `children` rather
  * than the block reaching back into the row renderer, which would be a cycle.
  */
-export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, children }: {
+export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, touch = false, children }: {
   agentType: string | null;
   description: string | null;
   prompt: string | null;
   model: string | null;
   status: 'running' | 'done';
   toolCount: number;
+  /** Mobile transcript: finger-sized wrapping header and no hover state. */
+  touch?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const L = useVocab();
@@ -106,11 +113,11 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
         type="button"
         className={MENU_FOCUS}
         onClick={() => setExpanded(!expanded)}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onMouseEnter={touch ? undefined : () => setHover(true)}
+        onMouseLeave={touch ? undefined : () => setHover(false)}
         role="button"
         aria-expanded={expanded}
-        style={headerStyle(hover, expanded)}
+        style={headerStyle(hover, expanded, touch)}
       >
         <span
           style={statusDotStyle(status === 'running')}
@@ -118,7 +125,7 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
         />
         <span style={typeChipStyle}>{agentType || L.subagentFallbackLabel}</span>
         {model ? <span style={modelChipStyle}>{modelLabel(model)}</span> : null}
-        <span style={descStyle}>{label}</span>
+        <span style={touch ? { ...descStyle, flex: '1 1 100px' } : descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
       </button>
       {expanded ? (

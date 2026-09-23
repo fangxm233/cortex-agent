@@ -43,6 +43,24 @@ describe('SubagentBlock', () => {
     expect(rendered).toContain('child output');
   });
 
+  it('touch headers wrap at a finger-sized height without hover state', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <SubagentBlock agentType="explore" description="Inspect renderers" prompt={null} model={null} status="done" toolCount={2} touch>
+            <div>child output</div>
+          </SubagentBlock>
+        </LangProvider>,
+      );
+    });
+    const header = renderer.root.findByProps({ role: 'button' });
+    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'var(--proto-card)' });
+    expect(header.props.onMouseEnter).toBeUndefined();
+    act(() => header.props.onClick());
+    expect(JSON.stringify(renderer.toJSON())).toContain('child output');
+  });
+
   it('keeps one outer turn-copy action after an expanded subagent', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });

@@ -22,9 +22,9 @@ const calls: ToolCall[] = [
   { kind: 'read', label: 'read file.ts', input: 'file.ts', debug: { toolRef: 'tool-1' } },
   { kind: 'bash', label: 'bash pwd', input: 'pwd' },
 ];
-function mount(items = calls): ReactTestRenderer {
+function mount(items = calls, touch = false): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
-  act(() => { renderer = create(<LangProvider><ToolCallsRow calls={items} sessionId="s1" /></LangProvider>); });
+  act(() => { renderer = create(<LangProvider><ToolCallsRow calls={items} sessionId="s1" touch={touch} /></LangProvider>); });
   return renderer;
 }
 
@@ -93,6 +93,17 @@ describe('ToolCallsRow', () => {
     act(() => renderer.root.findByType(DebugInspectButton).props.onClick({ stopPropagation: vi.fn() }));
     expect(harness.query).not.toHaveBeenCalled();
     expect(renderer.root.findByType(DebugDetailsModal).props.detail.toolResult).toEqual(toolResult);
+    act(() => renderer.unmount());
+  });
+
+  it('touch rows keep the same chrome with a finger-sized target and visible inspection', () => {
+    const renderer = mount(calls, true);
+    const toggle = renderer.root.findByType('button');
+    expect(toggle.props.style.minHeight).toBe(44);
+    expect(toggle.props.onMouseEnter).toBeUndefined();
+    expect(renderer.root.findByProps({ 'data-tool-calls': true }).props.style.margin).toBe(0);
+    act(() => toggle.props.onClick());
+    expect(renderer.root.findByType(DebugInspectButton).props.visible).toBe(true);
     act(() => renderer.unmount());
   });
 });

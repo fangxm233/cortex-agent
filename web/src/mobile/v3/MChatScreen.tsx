@@ -88,7 +88,6 @@ const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 const COPY: { en: MChatCopy; zh: MChatCopy } = {
   zh: {
     composerPh: '输入消息，/ 调用命令',
-    toolCallsUnit: '次工具调用',
     menuSessionId: '会话 ID',
     menuSessionStats: '会话统计',
     sessionIdTitle: '会话 ID',
@@ -128,7 +127,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
   },
   en: {
     composerPh: 'Message, / for commands',
-    toolCallsUnit: 'tool calls',
     menuSessionId: 'Session ID',
     menuSessionStats: 'Session stats',
     sessionIdTitle: 'Session ID',

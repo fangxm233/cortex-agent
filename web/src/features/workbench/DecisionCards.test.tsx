@@ -35,9 +35,9 @@ function findButton(root: ReactTestInstance, text: string): ReactTestInstance {
   return hit[0];
 }
 
-function mount(d: DecisionItem, actions?: DecisionActions): ReactTestRenderer {
+function mount(d: DecisionItem, actions?: DecisionActions, touch = false): ReactTestRenderer {
   let tree!: ReactTestRenderer;
-  act(() => { tree = create(<LangProvider><DecisionCard d={d} actions={actions} /></LangProvider>); });
+  act(() => { tree = create(<LangProvider><DecisionCard d={d} actions={actions} touch={touch} /></LangProvider>); });
   return tree;
 }
 
@@ -94,5 +94,15 @@ describe('DecisionCard responses', () => {
     act(() => { findButton(tree.root, 'Explain').props.onClick(); });
     act(() => { findButton(tree.root, 'Send').props.onClick(); });
     expect(actions.respond).toHaveBeenCalledWith('ab12cd34', 'explain', 'Please explain the decision "Use SQLite"');
+  });
+
+  it('touch layout shares the card width between responses and collapses from the header', () => {
+    const tree = mount(dec(), fakeActions(), true);
+    expect(tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' }).props.style.minHeight).toBe(44);
+    toggle(tree);
+    for (const text of ['✓ Approve', 'Explain', 'Revise']) {
+      expect(findButton(tree.root, text).props.style).toMatchObject({ flex: 1, height: 38 });
+    }
+    expect(findButtons(tree.root, 'Collapse')).toHaveLength(0);
   });
 });

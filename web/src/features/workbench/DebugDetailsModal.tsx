@@ -71,10 +71,12 @@ function DebugDetailsContent({ detail }: { detail: DebugDetail }): JSX.Element {
   );
 }
 
-export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'default', className = '' }: {
+export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'default', visible = false, className = '' }: {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   compact?: boolean;
   hoverGroup?: 'default' | 'tool-call';
+  /** Always shown instead of revealed on hover — touch screens have no hover to reveal it. */
+  visible?: boolean;
   className?: string;
 }): JSX.Element {
   const L = useVocab();
@@ -83,13 +85,14 @@ export function DebugInspectButton({ onClick, compact = false, hoverGroup = 'def
   const hoverClass = hoverGroup === 'tool-call'
     ? 'group-hover/tool-call:pointer-events-auto group-hover/tool-call:opacity-100'
     : 'group-hover:pointer-events-auto group-hover:opacity-100';
+  const revealClass = visible ? '' : `pointer-events-none opacity-0 transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100`;
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`pointer-events-none ${sizeClass} rounded-[var(--r-chip)] bg-proto-card border border-proto-line-2 font-mono text-proto-muted opacity-0 transition-opacity ${hoverClass} focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent ${className}`}
+      className={`${sizeClass} rounded-[var(--r-chip)] bg-proto-card border border-proto-line-2 font-mono text-proto-muted ${revealClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent ${className}`}
     >
       {'{ }'}
     </button>
