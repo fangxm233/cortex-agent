@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { groupSessions } from './session-groups';
+import { projectInitials, sessionStamp } from './session-groups';
 
 function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   const created = p.createdAt ?? '2026-07-06T00:00:00.000Z';
@@ -29,78 +29,35 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
 }
 
 // Local wall-clock anchors (constructed from components so the test is timezone-agnostic —
-// grouping + meta both use the machine's local calendar day / clock).
+// the stamp uses the machine's local calendar day / clock).
 const now = new Date(2026, 6, 6, 15, 0, 0); // Mon Jul 6 2026 15:00 local
 const todayMorning = new Date(2026, 6, 6, 7, 5, 0);
-const todayLate = new Date(2026, 6, 6, 11, 20, 0);
 const yesterday = new Date(2026, 6, 5, 21, 38, 0);
 const older = new Date(2026, 6, 1, 12, 0, 0);
+const lastYear = new Date(2025, 11, 30, 9, 4, 0);
 
-describe('groupSessions', () => {
-  it('partitions into TODAY / YESTERDAY / EARLIER by local calendar day', () => {
-    const sessions = [
-      mk({ sessionId: 'a', lastUsedAt: older.toISOString() }),
-      mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }),
-      mk({ sessionId: 'c', lastUsedAt: todayMorning.toISOString() }),
-    ];
-    const groups = groupSessions(sessions, now);
-    expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY', 'EARLIER']);
-    expect(groups[0].items.map((s) => s.sessionId)).toEqual(['c']);
-    expect(groups[1].items.map((s) => s.sessionId)).toEqual(['b']);
-    expect(groups[2].items.map((s) => s.sessionId)).toEqual(['a']);
+describe('sessionStamp', () => {
+  it('shows a bare clock for today and yesterday', () => {
+    expect(sessionStamp(mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }), now)).toBe('07:05');
+    expect(sessionStamp(mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }), now)).toBe('21:38');
   });
 
-  it('omits empty groups and preserves TODAY/YESTERDAY/EARLIER order', () => {
-    const sessions = [mk({ sessionId: 'c', lastUsedAt: todayMorning.toISOString() })];
-    const groups = groupSessions(sessions, now);
-    expect(groups.map((g) => g.label)).toEqual(['TODAY']);
-  });
-
-  it('sorts items within a group most-recent first', () => {
-    const sessions = [
-      mk({ sessionId: 'early', lastUsedAt: todayMorning.toISOString() }),
-      mk({ sessionId: 'late', lastUsedAt: todayLate.toISOString() }),
-    ];
-    const groups = groupSessions(sessions, now);
-    expect(groups[0].items.map((s) => s.sessionId)).toEqual(['late', 'early']);
+  it('adds the date before yesterday, and the year once it differs', () => {
+    expect(sessionStamp(mk({ sessionId: 'c', lastUsedAt: older.toISOString() }), now)).toBe('07-01 12:00');
+    expect(sessionStamp(mk({ sessionId: 'd', lastUsedAt: lastYear.toISOString() }), now)).toBe('2025-12-30 09:04');
   });
 
   it('falls back to createdAt when lastUsedAt is empty', () => {
-    const s = mk({ sessionId: 'x', createdAt: todayMorning.toISOString(), lastUsedAt: '' });
-    const groups = groupSessions([s], now);
-    expect(groups[0].label).toBe('TODAY');
+    const s = mk({ sessionId: 'x', createdAt: older.toISOString(), lastUsedAt: '' });
+    expect(sessionStamp(s, now)).toBe('07-01 12:00');
   });
 });
 
-describe('groupSessions unread ordering', () => {
-  it('floats unread sessions to the top of their group, keeping recency order within each half', () => {
-    const now = new Date('2026-07-06T12:00:00.000Z');
-    const groups = groupSessions(
-      [
-        mk({ sessionId: 'read-new', lastUsedAt: '2026-07-06T11:00:00.000Z' }),
-        mk({ sessionId: 'unread-old', lastUsedAt: '2026-07-06T08:00:00.000Z', unread: true }),
-        mk({ sessionId: 'unread-new', lastUsedAt: '2026-07-06T10:00:00.000Z', unread: true }),
-        mk({ sessionId: 'read-old', lastUsedAt: '2026-07-06T07:00:00.000Z' }),
-      ],
-      now,
-    );
-    expect(groups[0].label).toBe('TODAY');
-    expect(groups[0].items.map((s) => s.sessionId)).toEqual([
-      'unread-new', 'unread-old', 'read-new', 'read-old',
-    ]);
-  });
-
-  it('unread ordering stays inside each day group (no cross-group hoisting)', () => {
-    const now = new Date('2026-07-06T12:00:00.000Z');
-    const groups = groupSessions(
-      [
-        mk({ sessionId: 'today-read', lastUsedAt: '2026-07-06T09:00:00.000Z' }),
-        mk({ sessionId: 'yesterday-unread', lastUsedAt: '2026-07-05T09:00:00.000Z', unread: true }),
-      ],
-      now,
-    );
-    expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
-    expect(groups[0].items[0].sessionId).toBe('today-read');
-    expect(groups[1].items[0].sessionId).toBe('yesterday-unread');
+describe('projectInitials', () => {
+  it('takes the first letter of the first two segments, else the first two chars', () => {
+    expect(projectInitials('orchard-nav-sim')).toBe('ON');
+    expect(projectInitials('grasp_lab')).toBe('GL');
+    expect(projectInitials('nimbus')).toBe('NI');
+    expect(projectInitials('--')).toBe('?');
   });
 });

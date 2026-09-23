@@ -155,8 +155,8 @@ export function sessionMatchesFilter(s: SessionInfo, filter: string): boolean {
   return sessionTitle(s).toLowerCase().includes(filter.toLowerCase());
 }
 
-/** Unread first, then most recent — the order inside every folder. */
-function orderSessions(sessions: SessionInfo[]): SessionInfo[] {
+/** Unread first, then most recent — the order inside every folder, and the mobile session list. */
+export function orderSessions(sessions: SessionInfo[]): SessionInfo[] {
   return [...sessions].sort(
     (a, b) => Number(!!b.unread) - Number(!!a.unread) || effectiveMs(b) - effectiveMs(a),
   );

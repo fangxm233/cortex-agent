@@ -1,8 +1,8 @@
-// Pure view-model for the 1a 会话列表 screen (scheme-mobile.dc.html 1a L86-128). Maps real
-// `sessions.list` (origin='direct', scoped to the current project) into day-grouped rows. Reuses the
-// desktop `groupSessions` bucketing so mobile + desktop agree on TODAY/YESTERDAY/EARLIER.
+// Pure view-model for the 1a 会话列表 screen. Maps real `sessions.list` (origin='direct', scoped to
+// the current project) into one flat row list, in the same order as a desktop rail folder (unread
+// first, then most recent). Each row carries its own relative time, so there are no day buckets.
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { groupSessions, type SessionGroupLabel } from '@/features/workbench/session-groups';
+import { orderSessions } from '@/features/workbench/rail-tree';
 import { relTimeZh } from '@/mobile/ui/format';
 
 export type MSessionStatus = ReturnType<typeof sessionStatusLine>;
@@ -16,14 +16,7 @@ export interface MSessionRow {
   /** Real agent-turn count; null when unknown. */
   numTurns: number | null;
   unread: boolean;
-  /** Carried on the row so a group header can count its live rows without a second lookup. */
   status: MSessionStatus;
-}
-
-export interface MSessionGroup {
-  /** Stable key → the view maps it to a localized label (今天/昨天/更早). */
-  key: SessionGroupLabel;
-  rows: MSessionRow[];
 }
 
 /**
@@ -66,10 +59,7 @@ function toRow(s: SessionInfo, now: number): MSessionRow {
   };
 }
 
-/** Day-grouped rows for the 会话 list, newest bucket first, empty buckets dropped. */
-export function buildSessionGroups(sessions: SessionInfo[], now: number = Date.now()): MSessionGroup[] {
-  return groupSessions(sessions, now).map((g) => ({
-    key: g.label,
-    rows: g.items.map((s) => toRow(s, now)),
-  }));
+/** Rows for the 会话 list, in desktop rail-folder order. */
+export function buildSessionRows(sessions: SessionInfo[], now: number = Date.now()): MSessionRow[] {
+  return orderSessions(sessions).map((s) => toRow(s, now));
 }

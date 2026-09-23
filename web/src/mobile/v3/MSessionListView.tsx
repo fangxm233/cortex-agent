@@ -1,25 +1,16 @@
 // input:  React, mobile kit, presentation props
 // output: MSessionListView
-// pos:    Mobile material date groups and scheduled entry
+// pos:    Mobile session list card and scheduled entry
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { MScreen, MTabHeader, MScrollBody, MDot, MC, MONO } from '@/mobile/ui/kit';
-import type { MSessionGroup, MSessionRow, MSessionStatus } from './m-session-list-vm';
+import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
 
 export interface MSessionListCopy {
   title: string;
-  today: string;
-  yesterday: string;
-  earlier: string;
   empty: string;
-  /** Group-header count, `{n}` → the group's session count. */
-  sessionCount: string;
-}
-
-function groupLabel(copy: MSessionListCopy, key: MSessionGroup['key']): string {
-  return key === 'TODAY' ? copy.today : key === 'YESTERDAY' ? copy.yesterday : copy.earlier;
 }
 
 function isLive(status: MSessionStatus): boolean {
@@ -256,54 +247,17 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
   );
 }
 
-// One day bucket shares one material; rows stay unfilled and never sample blur.
-function DayGroup({
-  group,
-  copy,
-  onOpen,
-}: {
-  group: MSessionGroup;
-  copy: MSessionListCopy;
-  onOpen: (id: string) => void;
-}) {
-  const liveCount = group.rows.filter((row) => isLive(row.status)).length;
-  return (
-    <div
-      style={{
-        borderRadius: 'var(--r-float)',
-        background: 'var(--material-card-bg)',
-        boxShadow: '0 0 0 1px var(--proto-line), var(--material-card-shadow)',
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 8px' }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: MC.ink }}>{groupLabel(copy, group.key)}</span>
-        {liveCount > 0 && (
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              font: `600 11px ${MONO}`,
-              color: 'var(--proto-accent)',
-            }}
-          >
-            <MDot color="var(--proto-accent)" size={6} pulse />
-            {liveCount}
-          </span>
-        )}
-        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
-          {copy.sessionCount.replace('{n}', String(group.rows.length))}
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', padding: '0 6px 6px' }}>
-        {group.rows.map((row) => (
-          <Row key={row.id} row={row} onOpen={onOpen} />
-        ))}
-      </div>
-    </div>
-  );
-}
+// The whole list shares one material; rows stay unfilled and never sample blur. Rows carry their own
+// relative time, so day buckets would only split one list into several cards.
+const LIST_CARD: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  padding: 6,
+  borderRadius: 'var(--r-float)',
+  background: 'var(--material-card-bg)',
+  boxShadow: '0 0 0 1px var(--proto-line), var(--material-card-shadow)',
+  overflow: 'hidden',
+};
 
 const FAB_STYLE: CSSProperties = {
   position: 'absolute',
@@ -325,7 +279,7 @@ const FAB_STYLE: CSSProperties = {
 };
 
 export function MSessionListView({
-  groups,
+  rows,
   copy,
   presence,
   newLabel,
@@ -333,7 +287,7 @@ export function MSessionListView({
   onOpen,
   onNew,
 }: {
-  groups: MSessionGroup[];
+  rows: MSessionRow[];
   copy: MSessionListCopy;
   /** Live link state → the brand tile's presence dot. */
   presence: ConnectionStatus;
@@ -362,14 +316,17 @@ export function MSessionListView({
       }
     >
       <MScrollBody gap={14} padding="0 16px 0">
-        {groups.length === 0 && (
+        {rows.length === 0 ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
+        ) : (
+          <div style={LIST_CARD}>
+            {rows.map((row) => (
+              <Row key={row.id} row={row} onOpen={onOpen} />
+            ))}
+          </div>
         )}
-        {groups.map((g) => (
-          <DayGroup key={g.key} group={g} copy={copy} onOpen={onOpen} />
-        ))}
       </MScrollBody>
     </MScreen>
   );

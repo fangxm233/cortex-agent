@@ -7,14 +7,15 @@ import { describe, expect, it } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { MC, MCard, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
 import { MTasksView, type MTasksCopy } from './MTasksView';
+import type { MSessionRow } from './m-session-list-vm';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 
 const noop = () => {};
 const taskCopy = { title: 'Tasks', done: 'Done' } as MTasksCopy;
-const sessionCopy: MSessionListCopy = {
-  title: 'Sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier',
-  empty: 'Empty', sessionCount: '{n} sessions',
-};
+const sessionCopy: MSessionListCopy = { title: 'Sessions', empty: 'Empty' };
+const sessionRow = (id: string, title: string): MSessionRow => ({
+  id, title, time: '3h', running: false, numTurns: null, unread: false, status: { kind: 'idle', text: '' },
+});
 
 describe('mobile presentation', () => {
   it('keeps useful labels readable and cards unblurred', () => {
@@ -41,7 +42,7 @@ describe('mobile presentation', () => {
   });
 
   it('keeps only the title header and scheduled entry above sessions', () => {
-    const tree = create(<MSessionListView groups={[]} copy={sessionCopy} presence="connected"
+    const tree = create(<MSessionListView rows={[]} copy={sessionCopy} presence="connected"
       newLabel="New" scheduled={{ unread: 2, onOpen: noop }} onOpen={noop} onNew={noop} />);
     expect(tree.root.findByType(MScreen).props.header.type).toBe(MTabHeader);
     expect(tree.root.findByProps({ 'aria-label': 'Scheduled' }).props.onClick).toBe(noop);
@@ -49,13 +50,16 @@ describe('mobile presentation', () => {
     tree.unmount();
   });
 
-  it('preserves date buckets and floating-tab clearance', () => {
-    const tree = create(<MSessionListView groups={[{ key: 'TODAY', rows: [] }, { key: 'YESTERDAY', rows: [] }]}
+  it('keeps every session in one card and floating-tab clearance', () => {
+    const tree = create(<MSessionListView rows={[sessionRow('a', 'First'), sessionRow('b', 'Second')]}
       copy={sessionCopy} presence="connected" newLabel="New" onOpen={noop} onNew={noop} />);
     const json = JSON.stringify(tree.toJSON());
-    expect(json).toContain('Today');
-    expect(json).toContain('Yesterday');
+    expect(json).toContain('First');
+    expect(json).toContain('Second');
     expect(json).not.toContain('backdropFilter');
+    const cards = tree.root.findAll((node) => node.type === 'div'
+      && node.props.style?.background === 'var(--material-card-bg)');
+    expect(cards).toHaveLength(1);
     const body = tree.root.findByType(MScrollBody);
     expect(JSON.stringify(body.findAllByType('div').map((node) => node.props.style)))
       .toContain('var(--m-tabbar-clearance, 0px)');

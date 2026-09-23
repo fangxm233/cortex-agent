@@ -75,7 +75,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | rail-surface.ts | style | Share inline and floating composer rail surfaces |
 | rail-order.ts | model | Build rail order state |
 | rail-tree.test.ts | test | Test rail tree |
-| rail-tree.ts | model | Build rail tree state |
+| rail-tree.ts | model | Build rail tree state and session order |
 | RailTree.commission.test.tsx | test | Test rail tree.commission |
 | RailTree.tsx | view | Render opaque headers and glass sort menu |
 | reveal-pacing.test.ts | test | Test reveal pacing |
@@ -99,8 +99,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | selection-menu.test.ts | test | Test selection menu |
 | selection-menu.ts | model | Build selection menu state |
 | SelectionMenu.tsx | view | Render model selection and inset filter input |
-| session-groups.test.ts | test | Test session groups |
-| session-groups.ts | model | Build session groups state |
+| session-groups.test.ts | test | Test session stamps and initials |
+| session-groups.ts | model | Format session stamps and project initials |
 | session-id.ts | model | Build session id state |
 | session-run-status.ts | model | Build session run status state |
 | session-stats.ts | model | Build session stats state |

@@ -6,7 +6,7 @@ import type {
   SessionInfo,
   ThreadInfo,
 } from '@cortex-agent/ui-contract';
-import { buildRailTree, projectOfSession, sessionMatchesFilter, type RailTreeInput } from './rail-tree';
+import { buildRailTree, orderSessions, projectOfSession, sessionMatchesFilter, type RailTreeInput } from './rail-tree';
 
 const NOW = Date.parse('2026-07-16T12:00:00');
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -107,6 +107,26 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   dragged: false,
   now: NOW,
   ...over,
+});
+
+describe('orderSessions', () => {
+  it('floats unread sessions first, keeping recency order within each half', () => {
+    const ordered = orderSessions([
+      session('p', { sessionId: 'read-new', lastUsedAt: ago(1 * HOUR) }),
+      session('p', { sessionId: 'unread-old', lastUsedAt: ago(4 * HOUR), unread: true }),
+      session('p', { sessionId: 'unread-new', lastUsedAt: ago(2 * HOUR), unread: true }),
+      session('p', { sessionId: 'read-old', lastUsedAt: ago(5 * DAY) }),
+    ]);
+    expect(ordered.map((s) => s.sessionId)).toEqual(['unread-new', 'unread-old', 'read-new', 'read-old']);
+  });
+
+  it('falls back to createdAt when lastUsedAt is empty', () => {
+    const ordered = orderSessions([
+      session('p', { sessionId: 'used', lastUsedAt: ago(2 * HOUR) }),
+      session('p', { sessionId: 'fresh', createdAt: ago(MIN), lastUsedAt: '' }),
+    ]);
+    expect(ordered.map((s) => s.sessionId)).toEqual(['fresh', 'used']);
+  });
 });
 
 describe('buildRailTree bucketing', () => {

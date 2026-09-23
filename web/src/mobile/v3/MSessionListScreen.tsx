@@ -15,26 +15,12 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
-import { buildSessionGroups } from './m-session-list-vm';
+import { buildSessionRows } from './m-session-list-vm';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 
 const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
-  en: {
-    title: 'Sessions',
-    today: 'Today',
-    yesterday: 'Yesterday',
-    earlier: 'Earlier',
-    empty: 'No sessions yet',
-    sessionCount: '{n} sessions',
-  },
-  zh: {
-    title: '会话',
-    today: '今天',
-    yesterday: '昨天',
-    earlier: '更早',
-    empty: '暂无会话',
-    sessionCount: '{n} 个会话',
-  },
+  en: { title: 'Sessions', empty: 'No sessions yet' },
+  zh: { title: '会话', empty: '暂无会话' },
 };
 
 const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
@@ -79,7 +65,7 @@ export function MSessionListScreen() {
     trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
   );
   const sessions = sessionsQuery.data ?? [];
-  const groups = useMemo(() => buildSessionGroups(sessions), [sessions]);
+  const rows = useMemo(() => buildSessionRows(sessions), [sessions]);
   const scheduleRows = useMemo(
     () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? [], Date.now()),
     [schedulesQuery.data, scheduledQuery.data],
@@ -98,7 +84,7 @@ export function MSessionListScreen() {
   return (
     <>
       <MSessionListView
-        groups={groups}
+        rows={rows}
         copy={copy}
         presence={presence}
         newLabel={L.wbNewSession}
