@@ -5,6 +5,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
+import { MobileOverlayHost } from './ui/overlay-host';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
@@ -48,17 +49,19 @@ function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
         '--m-tabbar-clearance': onTabRoute ? 'calc(88px + env(safe-area-inset-bottom))' : '0px',
       } as CSSProperties}
     >
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <AnimatedOutlet />
-      </div>
-      {onTabRoute && (
-        <BottomTabBar
-          vocab={vocab}
-          activeId={activeTabId(pathname)}
-          needsYouCount={needsYouCount}
-          onNavigate={onTab}
-        />
-      )}
+      <MobileOverlayHost>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <AnimatedOutlet />
+        </div>
+        {onTabRoute && (
+          <BottomTabBar
+            vocab={vocab}
+            activeId={activeTabId(pathname)}
+            needsYouCount={needsYouCount}
+            onNavigate={onTab}
+          />
+        )}
+      </MobileOverlayHost>
     </div>
   );
 }

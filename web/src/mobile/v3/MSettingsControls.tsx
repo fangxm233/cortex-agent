@@ -35,9 +35,7 @@ export function MSettingsSurfaceCard(props: ComponentProps<typeof MCard>) {
 }
 
 export function MSettingsSheet(props: ComponentProps<typeof MBottomSheet>) {
-  return <div className="settings-surface mobile-settings mobile-settings-sheet">
-    <MBottomSheet {...props} />
-  </div>;
+  return <MBottomSheet {...props} className="settings-surface mobile-settings mobile-settings-sheet" />;
 }
 
 export const MSET_TITLE: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.ink };

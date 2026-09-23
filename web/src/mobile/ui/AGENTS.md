@@ -9,3 +9,4 @@ Shared mobile presentation frames, controls and formatting.
 | kit.test.ts | test | Test kit |
 | kit.tsx | UI | Render mobile material cards, controls and sheets |
 | mobile-theme.ts | utility | Define palette and stable reading surfaces |
+| overlay-host.tsx | UI | Lift sheets above the floating Tab bar |
