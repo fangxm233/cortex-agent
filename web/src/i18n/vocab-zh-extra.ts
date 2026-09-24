@@ -101,6 +101,8 @@ export const zhExtra = {
   usageMonth: '本月',
   usageUnavailable: '不可用',
   usagePolicyTitle: '限流阈值',
+  usageThrottleAt: '限流',
+  usageThrottleOff: '不限流',
   usagePolicyEnabled: '启用',
   usagePolicyDisabled: '关闭',
   usagePolicyThreshold: '阈值',

@@ -27,6 +27,7 @@
   align-items: start;
 }
 .settings-surface .settings-adaptive-cards > * { min-width: 0; }
+.settings-surface .settings-usage-windows { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
 .settings-surface .settings-detail-fields { container: settings-detail-fields / inline-size; }
 .settings-surface .settings-secret-fields {
   display: flex;

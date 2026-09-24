@@ -1,10 +1,10 @@
 // input:  usage resource, policy draft, settings atoms
-// output: desktop provider quota and policy controls
-// pos:    Readable provider quotas, policy fields and feedback
+// output: desktop provider quota tiles with collapsible throttle controls
+// pos:    Readable provider quotas; throttle policy summarized inline, edited on demand
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import '@/features/settings/desktop-panels.css';
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import {
   SButton,
@@ -97,11 +97,14 @@ function ThresholdField(props: {
   target: UsagePolicyTarget;
   value: string;
   onChange: (value: string) => void;
+  onSubmit: () => void;
 }) {
+  const L = useVocab();
   return (
     <div style={{ position: 'relative', width: 84, flex: 'none' }}>
       <input
         data-usage-threshold-input={targetKey(props.target)}
+        aria-label={L.usagePolicyThreshold}
         type="number"
         min={1}
         max={100}
@@ -110,6 +113,7 @@ function ThresholdField(props: {
         value={props.value}
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Enter') props.onSubmit(); }}
         style={props.disabled ? POLICY_INPUT_DISABLED : POLICY_INPUT}
       />
       <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', font: `500 12px ${MONO}`, color: 'var(--proto-muted-2)' }}>%</span>
@@ -131,36 +135,11 @@ interface PolicyThresholdButtonsProps {
   onSavePolicy: SavePolicyHandler;
 }
 
-interface WindowPolicyBlockProps {
+interface PolicyEditorProps {
   policy: UsageWindowPolicyView;
   controlsState: ReturnType<typeof useUsage>['policyControlsState'];
   isPolicySaving: PendingPolicyGetter;
-  getPolicyError: PolicyErrorGetter;
   onSavePolicy: SavePolicyHandler;
-}
-
-function PolicyControlsRow(props: PolicyThresholdButtonsProps & {
-  disabled: boolean;
-  draft: string;
-  setDraft: (value: string) => void;
-}) {
-  const L = useVocab();
-  const key = targetKey(props.policy.target);
-  const onClick = props.disabled
-    ? undefined
-    : () => props.onSavePolicy(props.policy.target, {
-        enabled: !props.policy.enabled,
-        thresholdPercent: props.policy.thresholdPercent,
-      });
-  return (
-    <div data-usage-policy-controls={key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-      <Toggle on={props.policy.enabled} onClick={onClick} ariaLabel={`Usage throttle ${key}`} inert={props.disabled} />
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.usagePolicyEnabled}</span>
-      <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
-      <ThresholdField disabled={props.disabled} target={props.policy.target} value={props.draft} onChange={props.setDraft} />
-      <PolicyThresholdButtons {...props} />
-    </div>
-  );
 }
 
 function ResetIcon() {
@@ -172,8 +151,17 @@ function ResetIcon() {
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flex: 'none', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 function saveThreshold(props: PolicyThresholdButtonsProps): void {
-  if (props.parsedThreshold === null) return;
+  if (props.saveDisabled || props.parsedThreshold === null) return;
   props.onSavePolicy(props.policy.target, {
     enabled: props.policy.enabled, thresholdPercent: props.parsedThreshold,
   });
@@ -210,46 +198,79 @@ function PolicyError({ target, message }: { target: UsagePolicyTarget; message: 
   );
 }
 
-function WindowPolicyBlock(props: WindowPolicyBlockProps) {
+/** The collapsed throttle summary; it opens the editor below the reset line. */
+function PolicySummary(props: { policy: UsageWindowPolicyView; open: boolean; onToggle: () => void }) {
   const L = useVocab();
+  const { policy } = props;
+  return (
+    <button
+      type="button" data-usage-policy-expand={targetKey(policy.target)} aria-expanded={props.open}
+      title={L.usagePolicyTitle} onClick={props.onToggle}
+      style={{
+        ...META_TEXT, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
+        border: 0, background: 'transparent', padding: '2px 0', cursor: 'pointer',
+        color: props.open ? 'var(--proto-ink)' : policy.enabled ? 'var(--proto-muted)' : 'var(--proto-muted-2)',
+      }}
+    >
+      {policy.enabled ? `${L.usageThrottleAt} ${policy.thresholdPercent}%` : L.usageThrottleOff}
+      <ChevronIcon open={props.open} />
+    </button>
+  );
+}
+
+function PolicyEditor(props: PolicyEditorProps) {
+  const L = useVocab();
+  const key = targetKey(props.policy.target);
   const pending = props.isPolicySaving(props.policy.target);
-  const error = props.getPolicyError(props.policy.target);
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
   const state = policyActionState(props.controlsState !== 'ready', pending, parsedThreshold, props.policy);
+  const buttons: PolicyThresholdButtonsProps = {
+    policy: props.policy, pending, parsedThreshold,
+    saveDisabled: state.saveDisabled, resetDisabled: state.resetDisabled, onSavePolicy: props.onSavePolicy,
+  };
+  const onToggle = state.disabled
+    ? undefined
+    : () => props.onSavePolicy(props.policy.target, {
+        enabled: !props.policy.enabled,
+        thresholdPercent: props.policy.thresholdPercent,
+      });
   return (
-    <div
-      data-usage-policy-row={targetKey(props.policy.target)} data-usage-policy-provider={props.policy.target.provider}
-      data-usage-policy-window-type={props.policy.target.windowType ?? ''} data-usage-policy-window-label={props.policy.target.windowLabel ?? ''}
-      style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--proto-line-2)' }}
-    >
-      <div style={POLICY_TEXT}>{L.usagePolicyTitle}</div>
-      <PolicyControlsRow
-        policy={props.policy} disabled={state.disabled} draft={draft} setDraft={setDraft}
-        pending={pending} parsedThreshold={parsedThreshold}
-        saveDisabled={state.saveDisabled} resetDisabled={state.resetDisabled}
-        onSavePolicy={props.onSavePolicy}
-      />
-      {error ? <PolicyError target={props.policy.target} message={error.message} /> : null}
+    <div data-usage-policy-controls={key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+      <Toggle on={props.policy.enabled} onClick={onToggle} ariaLabel={`Usage throttle ${key}`} inert={state.disabled} />
+      <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
+      <ThresholdField disabled={state.disabled} target={props.policy.target} value={draft} onChange={setDraft}
+        onSubmit={() => saveThreshold(buttons)} />
+      <PolicyThresholdButtons {...buttons} />
     </div>
   );
 }
 
 function WindowFootnote(props: { window: UsageWindowView; usage: ReturnType<typeof useUsage> }) {
+  const [expanded, setExpanded] = useState(false);
+  const { policy } = props.window;
+  const error = policy ? props.usage.getPolicyError(policy.target) : null;
+  const open = expanded || error !== null;
+  const reset = <ResetLine window={props.window} />;
+  if (!policy) return reset;
   return (
-    <>
-      <ResetLine window={props.window} />
-      {props.window.policy
+    <div
+      data-usage-policy-row={targetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
+      data-usage-policy-window-type={policy.target.windowType ?? ''} data-usage-policy-window-label={policy.target.windowLabel ?? ''}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        {reset}
+        <PolicySummary policy={policy} open={open} onToggle={() => setExpanded(!open)} />
+      </div>
+      {open
         ? (
-          <WindowPolicyBlock
-            policy={props.window.policy}
-            controlsState={props.usage.policyControlsState}
-            isPolicySaving={props.usage.isPolicySaving}
-            getPolicyError={props.usage.getPolicyError}
-            onSavePolicy={props.usage.savePolicy}
+          <PolicyEditor
+            policy={policy} controlsState={props.usage.policyControlsState}
+            isPolicySaving={props.usage.isPolicySaving} onSavePolicy={props.usage.savePolicy}
           />
         )
         : null}
-    </>
+      {error ? <PolicyError target={policy.target} message={error.message} /> : null}
+    </div>
   );
 }
 
@@ -264,6 +285,7 @@ function WindowStat(props: { window: UsageWindowView; usage: ReturnType<typeof u
         caption={view.label}
         percent={view.utilization === null ? undefined : view.utilization * 100}
         tone={SEVERITY_FILL[view.severity]}
+        marker={view.policy?.enabled ? view.policy.thresholdPercent : undefined}
         footnote={detailed ? <WindowFootnote window={view} usage={props.usage} /> : undefined}
       />
     </div>
@@ -307,12 +329,16 @@ function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: R
       <SSection label={L.usageQuota}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {provider.quotaState === 'available'
-            ? provider.windows.map((window) => (
-              <WindowStat
-                key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`}
-                window={window} usage={usage}
-              />
-            ))
+            ? (
+              <div className="settings-adaptive-cards settings-usage-windows">
+                {provider.windows.map((window) => (
+                  <WindowStat
+                    key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`}
+                    window={window} usage={usage}
+                  />
+                ))}
+              </div>
+            )
             : <SNotice tone="muted">{L.usageNeverObserved}</SNotice>}
           {provider.legacyFallback
             ? (
@@ -411,8 +437,7 @@ function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }): ReactN
     );
   }
   if (usage.view.providers.length === 0) return <SNotice tone="muted">{L.usageEmpty}</SNotice>;
-  // One column: a quota window now carries its throttle controls inline (toggle, threshold field
-  // and two buttons need ~370px), which a 400px masonry column cannot hold without wrapping them.
+  // One column of provider cards; each card lays its quota windows out as an adaptive grid.
   return (
     <div data-usage-cards style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {usage.view.providers.map((provider) => <ProviderCard key={provider.key} provider={provider} usage={usage} />)}

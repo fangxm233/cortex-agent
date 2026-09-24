@@ -318,16 +318,28 @@ export function SLinkAction({ onClick, tone = 'accent', disabled, children, clas
 }
 
 // ── Meter ───────────────────────────────────────────────────────────────────
-/** A spend/quota bar. The track is a line tint so it reads as recessed on glass. */
-export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6 }: {
+/** A spend/quota bar. The track is a line tint so it reads as recessed on glass. An optional
+ *  marker draws a thin tick at a percentage, e.g. where a limit kicks in. */
+export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6, marker }: {
   percent: number;
   tone?: string;
   height?: number;
+  marker?: number;
 }) {
   const width = Math.max(0, Math.min(100, percent));
-  return (
+  const track = (
     <div style={{ height, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden' }}>
       <div style={{ width: `${width}%`, height: '100%', borderRadius: 'var(--r-pill)', background: tone, transition: 'width .2s' }} />
+    </div>
+  );
+  if (marker == null) return track;
+  return (
+    <div style={{ position: 'relative' }}>
+      {track}
+      <span data-meter-marker aria-hidden="true" style={{
+        position: 'absolute', top: -2, bottom: -2, width: 2, borderRadius: 1,
+        left: `calc(${Math.max(0, Math.min(100, marker))}% - 1px)`, background: 'var(--proto-muted-2)', opacity: 0.7,
+      }} />
     </div>
   );
 }
@@ -383,12 +395,13 @@ export function SEntityName({ children }: { children: ReactNode }) {
 
 // ── Stat ────────────────────────────────────────────────────────────────────
 /** A headline number over its meter: the shape budget and usage both report in. */
-export function SStat({ value, caption, action, percent, tone, footnote }: {
+export function SStat({ value, caption, action, percent, tone, marker, footnote }: {
   value: ReactNode;
   caption?: ReactNode;
   action?: ReactNode;
   percent?: number;
   tone?: string;
+  marker?: number;
   footnote?: ReactNode;
 }) {
   return (
@@ -398,7 +411,7 @@ export function SStat({ value, caption, action, percent, tone, footnote }: {
         {caption != null && <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{caption}</span>}
         {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
-      {percent != null && <div style={{ marginTop: 12 }}><SMeter percent={percent} tone={tone} /></div>}
+      {percent != null && <div style={{ marginTop: 12 }}><SMeter percent={percent} tone={tone} marker={marker} /></div>}
       {footnote != null && (
         <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{footnote}</div>
       )}

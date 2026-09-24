@@ -101,6 +101,8 @@ export const enExtra = {
   usageMonth: 'this month',
   usageUnavailable: 'Unavailable',
   usagePolicyTitle: 'Rate-limit threshold',
+  usageThrottleAt: 'Throttle at',
+  usageThrottleOff: 'No throttle',
   usagePolicyEnabled: 'Enabled',
   usagePolicyDisabled: 'Disabled',
   usagePolicyThreshold: 'Threshold',

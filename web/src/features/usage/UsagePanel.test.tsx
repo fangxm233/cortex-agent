@@ -205,6 +205,10 @@ function resetButton(renderer: ReactTestRenderer, key: string) {
   return renderer.root.findByProps({ 'data-usage-threshold-reset': key });
 }
 
+function expand(renderer: ReactTestRenderer, key: string) {
+  act(() => renderer.root.findByProps({ 'data-usage-policy-expand': key }).props.onClick());
+}
+
 beforeEach(() => {
   currentUsage = usage;
   currentConfig = baseConfig;
@@ -235,16 +239,40 @@ describe('desktop Settings Usage panel', () => {
       expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
       expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
       expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ 'data-usage-policy-expand': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
       currentConfig = baseConfig;
       harness.configLoading = false;
       harness.configError = null;
     }
   });
 
+  it('summarizes each row threshold and keeps its editor collapsed until expanded', () => {
+    const renderer = mount();
+    const fiveHour = targetKey('anthropic', 'five_hour');
+    const fable = targetKey('anthropic', 'model_scoped', 'Fable');
+    const summary = (key: string) => renderer.root.findByProps({ 'data-usage-policy-expand': key });
+    const label = (key: string) => summary(key).children.filter((child) => typeof child === 'string').join('');
+
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fiveHour })).toHaveLength(0);
+    expect(label(fiveHour)).toBe('Throttle at 76%');
+    expect(label(fable)).toBe('No throttle');
+    expect(summary(fiveHour).props['aria-expanded']).toBe(false);
+
+    expand(renderer, fiveHour);
+    expect(summary(fiveHour).props['aria-expanded']).toBe(true);
+    expect(thresholdInput(renderer, fiveHour).props.value).toBe('76');
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fable })).toHaveLength(0);
+
+    expand(renderer, fiveHour);
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fiveHour })).toHaveLength(0);
+  });
+
   it('saves exact row targets, clears legacy fallback, and keeps fallback resets explicit in cache', async () => {
     const renderer = mount();
     const fiveHour = targetKey('anthropic', 'five_hour');
     const overage = targetKey('anthropic', 'seven_day_overage_included');
+    expand(renderer, fiveHour);
+    expand(renderer, overage);
 
     act(() => thresholdInput(renderer, fiveHour).props.onChange({ target: { value: '83' } }));
     await act(async () => { await saveButton(renderer, fiveHour).props.onClick(); });
@@ -282,6 +310,7 @@ describe('desktop Settings Usage panel', () => {
     let resolveFiveHour!: () => void;
     harness.deferredPolicySaves[fiveHour] = new Promise<void>((resolve) => { resolveFiveHour = resolve; });
     const renderer = mount();
+    for (const key of [fiveHour, sevenDay, codexPrimary]) expand(renderer, key);
 
     act(() => thresholdInput(renderer, fiveHour).props.onChange({ target: { value: '84' } }));
     await act(async () => {

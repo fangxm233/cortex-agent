@@ -1,8 +1,8 @@
 // input:  usage VM, policy controls, mobile Settings primitives
 // output: MUsageView
-// pos:    Mobile usage material cards and inset policy fields
+// pos:    Mobile usage material cards; throttle policy summarized inline, edited on demand
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,
   UsagePolicyControlsState,
@@ -45,6 +45,8 @@ export interface MUsageCopy {
     save: string;
     saving: string;
     resetDefault: string;
+    throttleAt: string;
+    throttleOff: string;
     legacyFallbackTitle: string;
     legacyFallbackBody: string;
     clearLegacy: string;
@@ -96,26 +98,30 @@ function PolicyToggle(props: {
 
 function PolicyThresholdInput(props: {
   target: UsagePolicyTarget;
+  label: string;
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
+  onSubmit: () => void;
 }) {
   return (
-    <div style={{ position: 'relative', width: 100 }}>
+    <div style={{ position: 'relative', width: 84 }}>
       <input
         data-usage-threshold-input={targetKey(props.target)}
-        aria-label={`Usage threshold ${targetKey(props.target)}`}
+        aria-label={props.label}
         type="number"
         min={1}
         max={100}
         step="0.1"
         inputMode="decimal"
+        enterKeyHint="done"
         value={props.value}
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Enter') props.onSubmit(); }}
         style={{ ...POLICY_INPUT, opacity: props.disabled ? 0.55 : 1 }}
       />
-      <span style={{ position: 'absolute', right: 8, top: 12, font: `500 12px ${MONO}`, color: MC.muted }}>%</span>
+      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', font: `500 12px ${MONO}`, color: MC.muted }}>%</span>
     </div>
   );
 }
@@ -130,13 +136,16 @@ interface PolicyThresholdButtonsProps {
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
 }
 
+function saveThreshold(props: PolicyThresholdButtonsProps): void {
+  if (props.saveDisabled || props.parsedThreshold === null) return;
+  props.onSavePolicy(props.policy.target, { enabled: props.policy.enabled, thresholdPercent: props.parsedThreshold });
+}
+
 function PolicySaveButton(props: PolicyThresholdButtonsProps) {
   return (
     <button
       type="button" data-usage-threshold-save={targetKey(props.policy.target)} disabled={props.saveDisabled}
-      onClick={() => props.parsedThreshold !== null && props.onSavePolicy(props.policy.target, {
-        enabled: props.policy.enabled, thresholdPercent: props.parsedThreshold,
-      })}
+      onClick={() => saveThreshold(props)}
       style={{
         border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg,
         color: MC.run, fontSize: 10.5, fontWeight: 650,
@@ -153,6 +162,15 @@ function ResetIcon() {
     <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
       <path d="M3 3v5h5" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flex: 'none', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}>
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
 }
@@ -176,11 +194,7 @@ function PolicyResetButton(props: PolicyThresholdButtonsProps) {
   );
 }
 
-function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
-  return <><PolicySaveButton {...props} /><PolicyResetButton {...props} /></>;
-}
-
-interface WindowPolicyBlockProps {
+interface PolicyEditorProps {
   policy: UsageWindowPolicyView;
   copy: MUsageCopy;
   policyControlsState: UsagePolicyControlsState;
@@ -189,52 +203,87 @@ interface WindowPolicyBlockProps {
   onSavePolicy: (target: UsagePolicyTarget, draft: UsagePolicyDraft) => void;
 }
 
-function PolicyControlsRow(props: WindowPolicyBlockProps & PolicyThresholdButtonsProps & {
-  disabled: boolean;
-  draft: string;
-  setDraft: (value: string) => void;
-}) {
-  return (
-    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
-      <PolicyToggle
-        target={props.policy.target} enabled={props.policy.enabled} disabled={props.disabled}
-        onClick={() => props.onSavePolicy(props.policy.target, {
-          enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
-        })}
-      />
-      <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{props.copy.policy.enabled}</span>
-      <span style={META}>{props.copy.policy.threshold}</span>
-      <PolicyThresholdInput target={props.policy.target} value={props.draft} disabled={props.disabled} onChange={props.setDraft} />
-      <PolicyThresholdButtons {...props} />
-    </div>
-  );
-}
-
-function WindowPolicyBlock(props: WindowPolicyBlockProps) {
+function PolicyEditor(props: PolicyEditorProps) {
   const pending = props.isPolicySaving(props.policy.target);
-  const error = props.getPolicyError(props.policy.target);
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
   const state = policyActionState(props.policyControlsState !== 'ready', pending, parsedThreshold, props.policy);
-  const buttonProps = {
+  const buttons: PolicyThresholdButtonsProps = {
     policy: props.policy, pending, parsedThreshold, copy: props.copy,
     saveDisabled: state.saveDisabled, resetDisabled: state.resetDisabled,
     onSavePolicy: props.onSavePolicy,
   };
   return (
-    <div
-      data-usage-policy-row={targetKey(props.policy.target)} data-usage-policy-provider={props.policy.target.provider}
-      data-usage-policy-window-type={props.policy.target.windowType ?? ''} data-usage-policy-window-label={props.policy.target.windowLabel ?? ''}
-      style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${MC.divider}` }}
-    >
-      <div style={META}>{props.copy.policy.title}</div>
-      <PolicyControlsRow {...props} {...buttonProps} disabled={state.disabled} draft={draft} setDraft={setDraft} />
-      {error ? <div data-usage-policy-error={targetKey(props.policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
+    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
+      <PolicyToggle
+        target={props.policy.target} enabled={props.policy.enabled} disabled={state.disabled}
+        onClick={() => props.onSavePolicy(props.policy.target, {
+          enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
+        })}
+      />
+      <span style={{ ...META, marginLeft: 'auto' }}>{props.copy.policy.threshold}</span>
+      <PolicyThresholdInput target={props.policy.target} label={props.copy.policy.threshold} value={draft}
+        disabled={state.disabled} onChange={setDraft} onSubmit={() => saveThreshold(buttons)} />
+      <PolicySaveButton {...buttons} />
+      <PolicyResetButton {...buttons} />
     </div>
   );
 }
 
-interface WindowRowProps extends Omit<WindowPolicyBlockProps, 'policy'> {
+/** The collapsed throttle summary; it opens the editor below the reset line. */
+function PolicySummary(props: { policy: UsageWindowPolicyView; copy: MUsageCopy; open: boolean; onToggle: () => void }) {
+  const { policy, copy } = props;
+  return (
+    <button
+      type="button" data-usage-policy-expand={targetKey(policy.target)} aria-expanded={props.open}
+      aria-label={copy.policy.title} onClick={props.onToggle}
+      style={{
+        ...META, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
+        border: 0, background: 'transparent', padding: '4px 0 4px 8px', cursor: 'pointer',
+        color: props.open ? MC.ink : policy.enabled ? MC.sub : MC.muted,
+      }}
+    >
+      {policy.enabled ? `${copy.policy.throttleAt} ${policy.thresholdPercent}%` : copy.policy.throttleOff}
+      <ChevronIcon open={props.open} />
+    </button>
+  );
+}
+
+function WindowPolicy(props: PolicyEditorProps & { reset: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const { policy } = props;
+  const error = props.getPolicyError(policy.target);
+  const open = expanded || error !== null;
+  return (
+    <div
+      data-usage-policy-row={targetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
+      data-usage-policy-window-type={policy.target.windowType ?? ''} data-usage-policy-window-label={policy.target.windowLabel ?? ''}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+        {props.reset ? <span style={META}>{props.reset}</span> : null}
+        <PolicySummary policy={policy} copy={props.copy} open={open} onToggle={() => setExpanded(!open)} />
+      </div>
+      {open ? <PolicyEditor {...props} /> : null}
+      {error ? <div data-usage-policy-error={targetKey(policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
+    </div>
+  );
+}
+
+interface WindowRowProps extends Omit<PolicyEditorProps, 'policy'> {
   window: UsageWindowView;
+}
+
+function WindowMeter({ window }: { window: UsageWindowView }) {
+  const marker = window.policy?.enabled ? Math.max(0, Math.min(100, window.policy.thresholdPercent)) : null;
+  return (
+    <div style={{ position: 'relative', marginTop: 6 }}>
+      <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+        <div className="usage-meter-fill" style={{ width: window.utilizationWidth, height: '100%', background: MC.run }} />
+      </div>
+      {marker === null
+        ? null
+        : <span data-meter-marker aria-hidden="true" style={{ position: 'absolute', top: -2, bottom: -2, width: 2, borderRadius: 1, left: `calc(${marker}% - 1px)`, background: MC.muted, opacity: 0.7 }} />}
+    </div>
+  );
 }
 
 function WindowRow(props: WindowRowProps) {
@@ -247,22 +296,10 @@ function WindowRow(props: WindowRowProps) {
         <span style={{ fontSize: 13, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
         <span style={{ marginLeft: 'auto', font: `600 13px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
       </div>
-      <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
-        <div className="usage-meter-fill" style={{ width: props.window.utilizationWidth, height: '100%', background: MC.run }} />
-      </div>
-      {reset ? <div style={{ ...META, marginTop: 5 }}>{reset}</div> : null}
+      <WindowMeter window={props.window} />
       {props.window.policy
-        ? (
-          <WindowPolicyBlock
-            policy={props.window.policy}
-            copy={props.copy}
-            policyControlsState={props.policyControlsState}
-            isPolicySaving={props.isPolicySaving}
-            getPolicyError={props.getPolicyError}
-            onSavePolicy={props.onSavePolicy}
-          />
-        )
-        : null}
+        ? <WindowPolicy {...props} policy={props.window.policy} reset={reset} />
+        : reset ? <div style={{ ...META, marginTop: 5 }}>{reset}</div> : null}
     </div>
   );
 }
@@ -302,7 +339,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   );
 }
 
-interface QuotaBlockProps extends Omit<WindowPolicyBlockProps, 'policy'> {
+interface QuotaBlockProps extends Omit<PolicyEditorProps, 'policy'> {
   provider: ProviderUsageView;
 }
 

@@ -127,5 +127,5 @@ Mobile screens, readable presentation views and native service adapters.
 | MUpdateProvider.tsx | provider | Connect mobile update dialogs |
 | MUsageScreen.tsx | screen | Connect mobile usage data and policy actions |
 | MUsageView.test.tsx | test | Test mobile usage policy and refresh controls |
-| MUsageView.tsx | view | Render usage materials and inset policy controls |
+| MUsageView.tsx | view | Render usage materials with collapsible throttle controls |
 | useComposerClearance.ts | hook | Measure floating composer transcript clearance |
