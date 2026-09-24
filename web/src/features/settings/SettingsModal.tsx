@@ -1,5 +1,5 @@
 // input:  config queries, panels, login flow, material tokens
-// output: Glass settings shell, legible nav and dirty-form guard
+// output: Glass settings shell, legible nav, panel header action slot and dirty-form guard
 // pos:    Responsive settings shell with readable navigation
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -24,6 +24,7 @@ import { AppearancePanel } from './AppearancePanel';
 import { AccountsPanel } from './AccountsPanel';
 import { PluginsPanel } from './PluginsPanel';
 import { UsagePanel } from '@/features/usage';
+import { SettingsHeaderSlotContext } from './settings-kit';
 import './settings-style.css';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -244,7 +245,7 @@ function CloseButton({ onClose, blocked, label, title }: {
       aria-label={label} title={title}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        marginLeft: 'auto', width: 34, height: 34, border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
+        width: 34, height: 34, border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
         background: hover && !blocked ? 'var(--proto-line-2)' : 'transparent',
         color: hover && !blocked ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
         display: 'grid', placeItems: 'center', padding: 0, fontSize: 14, flex: 'none',
@@ -259,6 +260,7 @@ function SettingsPanelHeader(props: {
   section: SettingsSectionKey;
   onClose: () => void;
   closeBlocked: boolean;
+  actionsRef: (node: HTMLDivElement | null) => void;
 }) {
   const L = useVocab();
   const meta = getSectionMeta(L, props.section);
@@ -268,6 +270,8 @@ function SettingsPanelHeader(props: {
         <span className="settings-panel-title">{meta.title}</span>
         <span className="settings-panel-subtitle">{meta.sub}</span>
       </div>
+      <div ref={props.actionsRef} data-settings-header-actions
+        style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }} />
       <CloseButton onClose={props.onClose} blocked={props.closeBlocked} label={L.stEsc}
         title={props.closeBlocked ? L.plUnsavedLeave : L.stEsc} />
     </div>
@@ -336,6 +340,7 @@ interface SettingsBodyProps {
 function SettingsBody(props: SettingsBodyProps) {
   const trpc = useTRPC();
   const [section, setSection] = useState<SettingsSectionKey>('appearance');
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null);
   const config = useQuery(trpc.config.get.queryOptions({}));
   const cost = useQuery(trpc.cost.summary.queryOptions({}));
   const content = {
@@ -348,9 +353,11 @@ function SettingsBody(props: SettingsBodyProps) {
     <>
       <SettingsNav section={section} blocked={props.panelDirty} onSelect={setSection} />
       <div className="settings-content-frame" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <SettingsPanelHeader section={section} onClose={props.onClose} closeBlocked={props.panelDirty} />
+        <SettingsPanelHeader section={section} onClose={props.onClose} closeBlocked={props.panelDirty} actionsRef={setHeaderSlot} />
         <div className={`settings-panel-content${isBoundedPanel(section) ? ' settings-panel-content--bounded' : ''}`} style={panelContentStyle(section)}>
-          <SettingsSectionContent {...content} />
+          <SettingsHeaderSlotContext.Provider value={headerSlot}>
+            <SettingsSectionContent {...content} />
+          </SettingsHeaderSlotContext.Provider>
         </div>
       </div>
     </>

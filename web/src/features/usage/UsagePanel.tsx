@@ -1,5 +1,5 @@
 // input:  usage resource, policy draft, settings atoms
-// output: desktop provider quota tiles with collapsible throttle controls
+// output: desktop provider quota tiles, header refresh and collapsible throttle controls
 // pos:    Readable provider quotas; throttle policy summarized inline, edited on demand
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -11,6 +11,7 @@ import {
   SCard,
   SCardHeader,
   SDot,
+  SHeaderActions,
   SNotice,
   SSection,
   SStat,
@@ -415,7 +416,15 @@ function RefreshToolbar({ usage }: { usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-      {usage.refreshError ? <span style={{ ...POLICY_TEXT, color: 'var(--proto-danger)' }}>{L.usageRefreshError}: {usage.refreshError.message}</span> : null}
+      {usage.refreshError
+        ? (
+          <span title={usage.refreshError.message} style={{
+            ...POLICY_TEXT, color: 'var(--proto-danger)', maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {L.usageRefreshError}: {usage.refreshError.message}
+          </span>
+        )
+        : null}
       <SButton tone="neutral" data-usage-refresh aria-busy={usage.isRefreshing} onClick={usage.refresh}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <RefreshIcon spinning={usage.isRefreshing} />
@@ -449,7 +458,7 @@ export function UsagePanel() {
   const usage = useUsage();
   return (
     <>
-      <div data-usage-header><RefreshToolbar usage={usage} /></div>
+      <SHeaderActions><div data-usage-header><RefreshToolbar usage={usage} /></div></SHeaderActions>
       <UsageContent usage={usage} />
     </>
   );

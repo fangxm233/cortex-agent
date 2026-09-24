@@ -1,9 +1,10 @@
 // input:  react, material tokens, settings-style.css
-// output: Glass rows, compact controls and solid status text
+// output: Glass rows, compact controls, header action slot and solid status text
 // pos:    Readable settings feedback, rows and control primitives
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import './settings-style.css';
 
 /** Add surface to each settings root, including portaled dialogs and mobile routes. */
@@ -18,6 +19,16 @@ export function settingsClassName(base: string, extra: unknown): string {
 }
 
 const MONO = "'IBM Plex Mono',monospace";
+
+// ── Header actions ──────────────────────────────────────────────────────────
+/** The panel header's action slot, provided by the settings sheet that hosts the panel. */
+export const SettingsHeaderSlotContext = createContext<HTMLElement | null>(null);
+
+/** Panel-level actions (e.g. refresh): drawn in the host header beside close, else inline. */
+export function SHeaderActions({ children }: { children: ReactNode }) {
+  const slot = useContext(SettingsHeaderSlotContext);
+  return slot ? createPortal(children, slot) : <>{children}</>;
+}
 
 // ── Grouped rows ────────────────────────────────────────────────────────────
 // Cards transmit the sheet's tint without adding a backdrop-filter per row.
