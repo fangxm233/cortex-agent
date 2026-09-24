@@ -7,6 +7,6 @@ Shared mobile presentation frames, controls and formatting.
 | composer.tsx | UI | Render measurable floating composer chrome |
 | format.ts | utility | Provide format |
 | kit.test.ts | test | Test kit |
-| kit.tsx | UI | Render mobile material cards, controls and sheets |
-| mobile-theme.ts | utility | Define palette and stable reading surfaces |
+| kit.tsx | UI | Render floating glass header, cards, controls and sheets |
+| mobile-theme.ts | utility | Define palette, reading surfaces and chrome edges |
 | overlay-host.tsx | UI | Lift sheets above the floating Tab bar |

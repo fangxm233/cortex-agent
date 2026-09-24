@@ -493,7 +493,7 @@ export function MProjectView(props: MProjectViewProps) {
     </div>
   );
   return (
-    <MScreen label="1e 项目" header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
+    <MScreen label="1e 项目" floatingHeader header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
       <MScrollBody gap={10}>
         <PrimaryProjectCards props={props} />
         <ProjectSwitchCards props={props} />

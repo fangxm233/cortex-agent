@@ -1,11 +1,11 @@
 // input:  React, mobile kit, presentation props
 // output: MSessionListView
-// pos:    Mobile session list card and scheduled entry
+// pos:    Mobile session tiles under a floating glass header
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
-import { MScreen, MTabHeader, MScrollBody, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MDot, MC, MONO, M_FLOAT_SURFACE } from '@/mobile/ui/kit';
 import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
 
 export interface MSessionListCopy {
@@ -74,8 +74,9 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
   );
 }
 
-// The Scheduled entry (scheme-mobile 8a): a glass square in the header; unread schedules ride as a
-// badge (blue — failed runs have no data source, so the badge never turns red here).
+// The Scheduled entry (scheme-mobile 8a): a bare clock key in the header pill (the pill is already
+// the frame); unread schedules ride as a badge (blue — failed runs have no data source, so the badge
+// never turns red here).
 function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
   return (
     <div style={{ position: 'relative', flex: 'none' }}>
@@ -87,8 +88,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
           width: 44,
           height: 44,
           borderRadius: 'var(--r-control)',
-          background: 'var(--glass-2)',
-          boxShadow: '0 0 0 1px var(--proto-line)',
+          background: 'transparent',
           border: 0,
           color: 'var(--proto-muted)',
           display: 'grid',
@@ -97,7 +97,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
           padding: 0,
         }}
       >
-        <svg width={16} height={16} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <svg width={18} height={18} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.4}>
           <circle cx="7" cy="7" r="5.6" />
           <path d="M7 4v3.2l2.2 1.3" />
         </svg>
@@ -107,14 +107,13 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
           aria-label={`${unread} unread scheduled`}
           style={{
             position: 'absolute',
-            top: -3,
-            right: -4,
+            top: 4,
+            right: 2,
             background: MC.run,
             color: 'var(--ink-solid-fg)',
             font: `600 11px ${MONO}`,
             padding: '1px 4.5px',
             borderRadius: 'var(--r-pill)',
-            border: `1.5px solid ${MC.canvas}`,
           }}
         >
           {unread}
@@ -170,6 +169,25 @@ const STATUS_COLOR: Record<MSessionStatus['kind'], string> = {
   idle: MC.muted,
 };
 
+// Each session is its own floating glass tile: the list has no container, so the mesh shows between
+// tiles and there is no endless card edge. A live tile takes an accent wash and ring; the rest keep
+// the shared pane.
+const TILE: CSSProperties = {
+  ...M_FLOAT_SURFACE,
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  borderRadius: 'var(--r-card)',
+  cursor: 'pointer',
+  overflow: 'hidden',
+};
+
+const LIVE_TILE: CSSProperties = {
+  background: 'color-mix(in srgb, var(--proto-accent) 9%, var(--m-float-bg))',
+  boxShadow: '0 0 0 1px var(--m-run-border), var(--m-float-shadow)',
+};
+
 function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
   const kind = row.status.kind;
   const live = isLive(row.status);
@@ -181,15 +199,10 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
     <div
       onClick={() => onOpen(row.id)}
       style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        minHeight: quiet ? 44 : 48,
-        padding: quiet ? '0 10px 0 29px' : '0 10px 0 12px',
-        borderRadius: 'var(--r-card)',
-        background: live ? 'var(--proto-accent-bg)' : undefined,
-        cursor: 'pointer',
+        ...TILE,
+        ...(live ? LIVE_TILE : null),
+        minHeight: showStatus ? 54 : 46,
+        padding: quiet ? '0 12px 0 31px' : '0 12px 0 14px',
       }}
     >
       {live && (
@@ -197,10 +210,10 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
           style={{
             position: 'absolute',
             left: 0,
-            top: 10,
-            bottom: 10,
+            top: 12,
+            bottom: 12,
             width: 3,
-            borderRadius: 2,
+            borderRadius: '0 2px 2px 0',
             background: 'var(--proto-accent)',
           }}
         />
@@ -210,8 +223,8 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
         <div
           style={{
             fontSize: 14,
-            fontWeight: quiet ? 400 : 600,
-            color: live ? 'var(--proto-accent)' : quiet ? MC.muted : MC.ink,
+            fontWeight: quiet ? 450 : 600,
+            color: live ? 'var(--proto-accent)' : quiet ? MC.body : MC.ink,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -227,7 +240,7 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              marginTop: 1,
+              marginTop: 2,
             }}
           >
             {row.status.text}
@@ -246,18 +259,6 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
     </div>
   );
 }
-
-// The whole list shares one material; rows stay unfilled and never sample blur. Rows carry their own
-// relative time, so day buckets would only split one list into several cards.
-const LIST_CARD: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  padding: 6,
-  borderRadius: 'var(--r-float)',
-  background: 'var(--material-card-bg)',
-  boxShadow: '0 0 0 1px var(--proto-line), var(--material-card-shadow)',
-  overflow: 'hidden',
-};
 
 const FAB_STYLE: CSSProperties = {
   position: 'absolute',
@@ -301,6 +302,7 @@ export function MSessionListView({
   return (
     <MScreen
       label="1a 会话列表"
+      floatingHeader
       header={
         <MTabHeader
           title={copy.title}
@@ -315,17 +317,13 @@ export function MSessionListView({
         </button>
       }
     >
-      <MScrollBody gap={14} padding="0 16px 0">
+      <MScrollBody gap={6} padding="12px 12px 0">
         {rows.length === 0 ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
         ) : (
-          <div style={LIST_CARD}>
-            {rows.map((row) => (
-              <Row key={row.id} row={row} onOpen={onOpen} />
-            ))}
-          </div>
+          rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)
         )}
       </MScrollBody>
     </MScreen>

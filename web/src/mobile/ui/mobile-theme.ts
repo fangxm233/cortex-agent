@@ -1,6 +1,6 @@
 // input:  Shared CSS theme tokens
-// output: MC, MONO
-// pos:    Mobile palette and stable reading surface aliases
+// output: MC, MONO, floating chrome insets
+// pos:    Mobile palette, reading surface aliases and floating chrome edges
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 // BLUR BUDGET: only stationary chrome, a sheet, or a small open overlay samples
@@ -46,3 +46,8 @@ export const MC = {
 } as const;
 
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
+
+/** Top edge of floating tab-screen chrome (the header pill), below the OS status bar. */
+export const M_FLOAT_TOP = 'calc(8px + env(safe-area-inset-top))';
+/** Bottom edge of the floating Tab bar, above the home indicator. */
+export const M_TABBAR_BOTTOM = 'max(26px, calc(10px + env(safe-area-inset-bottom)))';

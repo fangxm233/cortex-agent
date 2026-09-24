@@ -187,7 +187,7 @@ export function MTasksView({ groups, scope, copy, expandedIds, onToggleExpand, o
   onOpenApprovals: () => void;
 }) {
   return (
-    <MScreen label="1d 任务" header={<MTabHeader title={copy.title} qn={scope} />}>
+    <MScreen label="1d 任务" floatingHeader header={<MTabHeader title={copy.title} qn={scope} />}>
       <MScrollBody gap={6}>
         {groups.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>}
         {groups.map((group, index) => {

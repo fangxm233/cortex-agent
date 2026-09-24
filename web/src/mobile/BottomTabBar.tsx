@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
-import { MONO } from './ui/mobile-theme';
+import { MONO, M_TABBAR_BOTTOM } from './ui/mobile-theme';
 import { type Vocab } from '@/i18n';
 
 const ACTIVE = 'var(--proto-accent)';
@@ -60,7 +60,7 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
         position: 'absolute',
         left: 14,
         right: 14,
-        bottom: 'max(26px, calc(10px + env(safe-area-inset-bottom)))',
+        bottom: M_TABBAR_BOTTOM,
         height: 62,
         borderRadius: 22,
         // One of the three places on mobile that may blur (see MC's blur budget): the Tab bar is

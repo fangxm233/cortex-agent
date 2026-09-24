@@ -24,7 +24,7 @@ describe('mobile presentation', () => {
     expect(label.props.style).toMatchObject({ fontSize: 11, color: MC.muted });
     expect(tree.root.findByType(MPill).findByType('span').props.style.fontSize).toBe(11);
     expect(tree.root.findByType(MCard).findByType('div').props.style).toMatchObject({
-      background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
+      background: 'var(--m-float-bg)', boxShadow: 'var(--m-float-ring), var(--m-float-shadow)',
     });
     expect(tree.root.findByType(MCard).findByType('div').props.style.backdropFilter).toBeUndefined();
     expect(MC.card).toBe('var(--m-card)');
@@ -50,19 +50,18 @@ describe('mobile presentation', () => {
     tree.unmount();
   });
 
-  it('keeps every session in one card and floating-tab clearance', () => {
+  it('renders each session as an unblurred tile under a floating glass header', () => {
     const tree = create(<MSessionListView rows={[sessionRow('a', 'First'), sessionRow('b', 'Second')]}
       copy={sessionCopy} presence="connected" newLabel="New" onOpen={noop} onNew={noop} />);
-    const json = JSON.stringify(tree.toJSON());
-    expect(json).toContain('First');
-    expect(json).toContain('Second');
-    expect(json).not.toContain('backdropFilter');
-    const cards = tree.root.findAll((node) => node.type === 'div'
-      && node.props.style?.background === 'var(--material-card-bg)');
-    expect(cards).toHaveLength(1);
     const body = tree.root.findByType(MScrollBody);
-    expect(JSON.stringify(body.findAllByType('div').map((node) => node.props.style)))
-      .toContain('var(--m-tabbar-clearance, 0px)');
+    const bodyJson = JSON.stringify(body.findAllByType('div').map((node) => node.props.style));
+    expect(bodyJson).not.toContain('backdropFilter');
+    const tiles = body.findAll((node) => node.type === 'div' && node.props.style?.background === 'var(--m-float-bg)');
+    expect(tiles).toHaveLength(2);
+    expect(bodyJson).toContain('var(--m-header-clearance, 0px)');
+    expect(bodyJson).toContain('var(--m-tabbar-clearance, 0px)');
+    const header = tree.root.findByProps({ 'data-floating-header': 'true' });
+    expect(header.findByProps({ 'data-tab-header': 'true' }).props.style.backdropFilter).toBe('var(--glass-filter)');
     tree.unmount();
   });
 });

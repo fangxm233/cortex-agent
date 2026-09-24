@@ -7,6 +7,7 @@ import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
 import { MobileOverlayHost } from './ui/overlay-host';
 import { activeTabId, isTabRoute } from './mobile-tabs';
+import { M_TABBAR_BOTTOM } from './ui/mobile-theme';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { MNotificationProvider } from './v3/MNotificationProvider';
@@ -47,6 +48,9 @@ function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
         // The Tab bar floats over the outlet, so screens cannot discover its height by layout.
         // Publish it here; MScrollBody spends it as tail padding (0 off a Tab route).
         '--m-tabbar-clearance': onTabRoute ? 'calc(88px + env(safe-area-inset-bottom))' : '0px',
+        // Where the Tab bar's lower edge sits; floating-header screens clip their scroller there so
+        // rows never show through the strip beneath the bar.
+        '--m-tabbar-bottom': onTabRoute ? M_TABBAR_BOTTOM : '0px',
       } as CSSProperties}
     >
       <MobileOverlayHost>
