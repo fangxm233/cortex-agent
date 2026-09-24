@@ -11,6 +11,7 @@ import { MockAdapter } from '../../src/platform/testing.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/index.js';
 import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
 const NOW = 1_000_000_000_000;
 
@@ -231,6 +232,47 @@ test('thread entry is requeued while a live direct session holds the channel', a
 
   assert.equal(calls.resume.length, 0, 'thread avoids interleaving with an interactive turn');
   assert.deepEqual(calls.requeued, [entry], 'busy thread remains durable for the idle wake');
+});
+
+/** Registers a background subagent child on `channel` the way a Claude child run does, and drops the
+ *  stubbed busy checks so the dispatcher's real ones read the live registry. */
+function withChildOnChannel(deps: any, channel: string): () => void {
+  runRegistry.register({
+    threadId: null, channel, agentSlotId: null, executionId: null, registryKey: 'resume-child',
+    kind: 'local', kill: () => true, backend: 'claude', trackSessionId: null, subagent: true,
+  });
+  delete deps.channelBusy;
+  delete deps.directSessionBusy;
+  return () => runRegistry.remove('resume-child');
+}
+
+test('direct entry still resumes while only a background subagent of it is running', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  const { deps, calls } = baseDeps([
+    { kind: 'direct', provider: 'provider-a', channel: 'C-sub', userMessage: 'orig', recordedAt: NOW },
+  ]);
+  const cleanup = withChildOnChannel(deps, 'C-sub');
+  try {
+    await dispatchPendingResumes(adapter as any, deps);
+  } finally {
+    cleanup();
+  }
+  assert.equal(calls.route.length, 1, 'a child is not the conversation, so the channel is idle');
+});
+
+test('thread entry is not held back by a subagent child on the channel', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  const { deps, calls } = baseDeps([
+    { kind: 'thread', threadId: 'thr_a', channel: 'C-sub', userMessage: 'go', recordedAt: NOW },
+  ]);
+  const cleanup = withChildOnChannel(deps, 'C-sub');
+  try {
+    await dispatchPendingResumes(adapter as any, deps);
+  } finally {
+    cleanup();
+  }
+  assert.equal(calls.resume.length, 1);
+  assert.deepEqual(calls.requeued, []);
 });
 
 test('multiple rate-limited threads on the SAME channel all resume (no self-skip)', async () => {

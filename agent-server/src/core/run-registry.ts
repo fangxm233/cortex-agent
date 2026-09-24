@@ -41,6 +41,10 @@ export interface RunningExecution {
   run?: SteerableRun;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
   trackSessionId?: string | null;
+  /** An Agent-tool child. It registers on its parent's channel so channel-wide cancel reaches it,
+   *  and it outlives the parent's turn, but it is not the conversation: "is this channel busy"
+   *  checks must not count it. */
+  subagent?: boolean;
   /** Backend resume target snapshot from spawn time. */
   backendSessionId?: string | null;
   /** Live agent-turn count of the in-flight run (adapter `turn_progress`/`turn_complete`), updated
@@ -101,6 +105,7 @@ export class RunRegistry {
       trackSessionId: exec.trackSessionId ?? null,
       backendSessionId: exec.backendSessionId ?? null,
       numTurns: exec.numTurns ?? null,
+      subagent: exec.subagent ?? false,
     };
 
     this.byKey.set(key, entry);
@@ -182,6 +187,12 @@ export class RunRegistry {
   getByChannel(channel: string): RunningExecution[] {
     const set = this.byChannel.get(channel);
     return set ? Array.from(set) : [];
+  }
+
+  /** Live executions on a channel that are the channel's own work — everything except the subagent
+   *  children riding on it. What a busy check means by "something is running here". */
+  getOwnByChannel(channel: string): RunningExecution[] {
+    return this.getByChannel(channel).filter((entry) => !entry.subagent);
   }
 
   /**
