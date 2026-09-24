@@ -100,7 +100,7 @@ function WrittenByFooter({ artifact }: { artifact: DetailArtifact }) {
 
 function WriterChip({ writer }: { writer: DetailArtifact['writtenBy'][number] }) {
   return (
-    <span style={{ font: `${writer.active ? 500 : 400} 11px 'IBM Plex Mono',monospace`, background: writer.active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', backgroundImage: 'var(--material-sheen)', border: `1px solid ${writer.active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`, color: writer.active ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '2px 7px', borderRadius: 'var(--r-control)' }}>
+    <span style={{ font: `${writer.active ? 500 : 400} 11px 'IBM Plex Mono',monospace`, background: writer.active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', border: `1px solid ${writer.active ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`, color: writer.active ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '2px 7px', borderRadius: 'var(--r-control)' }}>
       {writer.label}{writer.active && ' ●'}
     </span>
   );

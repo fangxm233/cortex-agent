@@ -183,7 +183,6 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               padding: '1.5px 8px',
               borderRadius: 'var(--r-pill)',
               background: tm.pill.bg,
-              backgroundImage: 'var(--material-sheen)',
               color: tm.pill.fg,
             }}
           >
@@ -464,7 +463,6 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   padding: '7px 0',
                   color: 'var(--ink-solid-fg)',
                   background: tm.completeBg,
-                  backgroundImage: 'var(--material-sheen)',
                   cursor: tm.completable && !pending ? 'pointer' : 'not-allowed',
                   opacity: pending ? 0.6 : 1,
                 }}

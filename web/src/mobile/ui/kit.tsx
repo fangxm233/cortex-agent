@@ -236,7 +236,7 @@ export function MScrollBody({
 }
 
 // ── MCard — lightweight material, with no per-card backdrop sampling ──────────
-// Scrolling lists use a translucent fill and sheen, not blur. Reading and sticky
+// Scrolling lists use a flat translucent fill, not blur. Reading and sticky
 // occlusion surfaces keep MC.card explicitly; changing that token would leak text.
 export type CardTone = 'default' | 'blue' | 'amber' | 'fail';
 const CARD_BORDER: Record<CardTone, string> = {
@@ -300,7 +300,6 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
         padding: '2px 8px',
         borderRadius: 'var(--r-pill)',
         background: c.bg,
-        backgroundImage: 'var(--material-sheen)',
         color: c.fg,
         flex: 'none',
         whiteSpace: 'nowrap',

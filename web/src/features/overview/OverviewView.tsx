@@ -622,7 +622,7 @@ export function OverviewView(): JSX.Element {
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now))}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, backgroundImage: 'var(--material-sheen)', color: pill.color }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
                     {pill.dot ? '• ' : ''}
                     {pill.text}
                   </span>

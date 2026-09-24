@@ -24,7 +24,7 @@ function HotUpdateActions(props: Pick<HotUpdateDialogProps, 'onApply' | 'onDismi
       <button
         type="button"
         onClick={props.onApply}
-        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink [background-image:var(--material-sheen)] px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
+        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
       >
         重启 App
       </button>

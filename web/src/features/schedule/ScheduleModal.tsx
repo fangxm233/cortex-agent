@@ -457,7 +457,6 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               padding: '7px 15px',
               color: canCreate ? 'var(--ink-solid-fg)' : 'var(--proto-muted)',
               background: canCreate ? 'var(--proto-accent)' : 'var(--proto-gray)',
-              backgroundImage: 'var(--material-sheen)',
               cursor: canCreate ? 'pointer' : 'not-allowed',
             }}
           >

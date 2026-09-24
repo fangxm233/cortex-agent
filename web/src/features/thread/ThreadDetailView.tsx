@@ -23,7 +23,7 @@ export interface ThreadDetailViewProps {
 
 function StatusPill({ vm }: { vm: ThreadDetailVm }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: vm.pill.bg, backgroundImage: 'var(--material-sheen)', color: vm.pill.fg }}>
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: vm.pill.bg, color: vm.pill.fg }}>
       {vm.pill.text}
     </span>
   );

@@ -99,7 +99,7 @@ export function MSettingsButton(props: { children: ReactNode; onClick: () => voi
     <button type="button" onClick={props.onClick} disabled={props.disabled}
       className="mobile-settings-button"
       style={{ border: `1px solid ${props.danger ? MC.failBorder : MC.runBorder}`, borderRadius: 8,
-        background: props.danger ? MC.failBg : MC.runBg, backgroundImage: 'var(--material-sheen)',
+        background: props.danger ? MC.failBg : MC.runBg,
         boxShadow: 'var(--material-control-shadow)', color: props.danger ? MC.fail : MC.run,
         fontSize: 13, fontWeight: 600, padding: '8px 12px', opacity: props.disabled ? 0.5 : 1 }}>
       {props.children}

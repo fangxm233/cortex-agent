@@ -37,7 +37,7 @@ function AppUpdateActions(props: AppUpdateDialogProps) {
         type="button"
         onClick={props.onInstall}
         disabled={props.busy}
-        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink [background-image:var(--material-sheen)] px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
+        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
       >
         {props.busy ? '正在处理…' : installCtaLabel(props.update.kind)}
       </button>

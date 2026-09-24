@@ -30,7 +30,7 @@ function StatusPill({ status }: { status: CommissionInfo['status'] }): JSX.Eleme
   const color = status === 'active' ? 'var(--proto-accent)' : 'var(--proto-muted)';
   const bg = status === 'active' ? 'var(--proto-accent-bg)' : 'var(--proto-gray)';
   return (
-    <span style={{ font: `500 11px ${mono}`, color, background: bg, backgroundImage: 'var(--material-sheen)', borderRadius: 'var(--r-control)', padding: '2px 6px', flex: 'none' }}>
+    <span style={{ font: `500 11px ${mono}`, color, background: bg, borderRadius: 'var(--r-control)', padding: '2px 6px', flex: 'none' }}>
       {label}
     </span>
   );

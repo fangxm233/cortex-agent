@@ -303,7 +303,6 @@ function PendingList({
               onClick={() => onSelect(e.id)}
               style={{
                 background: sel ? 'var(--proto-accent-bg)' : 'var(--material-card-bg)',
-                backgroundImage: 'var(--material-sheen)',
                 boxShadow: 'var(--material-card-shadow)',
                 border: `1px solid ${sel ? 'var(--proto-accent)' : 'var(--proto-line-2)'}`,
                 borderRadius: 'var(--r-card)',
@@ -416,7 +415,6 @@ function DetailPane({
               padding: '2px 9px',
               borderRadius: 'var(--r-pill)',
               background: detail.pill.bg,
-              backgroundImage: 'var(--material-sheen)',
               color: detail.pill.fg,
               flex: 'none',
               marginTop: 2,

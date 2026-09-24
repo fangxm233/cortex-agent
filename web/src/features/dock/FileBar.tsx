@@ -48,7 +48,6 @@ export function FileBarToggle({ on, label, title, onClick, ...rest }: {
         ...TOGGLE_STYLE,
         borderColor: on ? 'var(--proto-accent)' : 'var(--proto-line)',
         background: on ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-        backgroundImage: 'var(--material-sheen)',
         boxShadow: 'var(--material-control-shadow)',
         color: on ? 'var(--proto-accent)' : 'var(--proto-muted)',
       }}

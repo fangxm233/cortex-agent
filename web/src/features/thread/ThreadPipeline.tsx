@@ -152,7 +152,6 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
             padding: '1.5px 7px',
             borderRadius: 'var(--r-pill)',
             background: sub.pill.bg,
-            backgroundImage: 'var(--material-sheen)',
             color: sub.pill.fg,
           }}
         >

@@ -129,35 +129,29 @@
   --glass-2: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / var(--glass-a2));
   --glass-filter: blur(var(--glass-blur)) saturate(1.7);
 
-  /* Material contract: *-bg values are BACKGROUND SHORTHANDS, not colors; do not pass them to
-     background-color or color-mix(). Only --material-sheen is a background-image. Shadows are
-     box-shadow values. No material background adds blur: overlays opt into --glass-filter and
-     scrims may use --material-scrim-filter as backdrop-filter (including the WebKit property).
-     Controls occlude more than cards; inset surfaces sit lower without another frosted layer.
-     All base colors follow the live palette and become opaque when glass alphas reach 1. */
-  /* Keep light sheen below the filled danger action's contrast headroom. */
-  --material-sheen-top: rgba(255, 255, 255, calc(0.1 * var(--material-sheen-strength)));
-  --material-sheen-bottom: rgba(16, 24, 40, calc(0.025 * var(--material-sheen-strength)));
-  --material-edge: rgba(255, 255, 255, 0.65);
-  --material-sheen: linear-gradient(180deg, var(--material-sheen-top), transparent 48%, var(--material-sheen-bottom));
-  --material-card-bg: var(--material-sheen), var(--glass-2);
-  --material-control-bg: var(--material-sheen), color-mix(in srgb, var(--proto-card) 65%, var(--glass-2));
-  --material-inset-bg: var(--material-sheen), color-mix(in srgb, var(--surface-raised) 55%, var(--glass-2));
-  --material-overlay-bg: var(--material-sheen), color-mix(in srgb, var(--proto-card) 20%, var(--glass-2));
-  --material-card-shadow: inset 0 1px 0 var(--material-edge), var(--shadow-card-soft);
-  --material-control-shadow: inset 0 1px 0 var(--material-edge), var(--shadow-card-subtle);
-  --material-overlay-shadow: inset 0 1px 0 var(--material-edge), var(--shadow-menu-strong);
+  /* Material contract: *-bg values are flat translucent fills and shadows are box-shadow values.
+     Materials are deliberately flat — no gloss gradient and no lit inner edge — so glass reads as
+     frosted translucency rather than a physical, lit object. No material background adds blur:
+     overlays opt into --glass-filter and scrims may use --material-scrim-filter as backdrop-filter
+     (including the WebKit property). Controls occlude more than cards; inset surfaces sit lower
+     without another frosted layer. All fills follow the live palette and become opaque when glass
+     alphas reach 1. */
+  --material-card-bg: var(--glass-2);
+  --material-control-bg: color-mix(in srgb, var(--proto-card) 65%, var(--glass-2));
+  --material-inset-bg: color-mix(in srgb, var(--surface-raised) 55%, var(--glass-2));
+  --material-overlay-bg: color-mix(in srgb, var(--proto-card) 20%, var(--glass-2));
+  --material-card-shadow: var(--shadow-card-soft);
+  --material-control-shadow: var(--shadow-card-subtle);
+  --material-overlay-shadow: var(--shadow-menu-strong);
   --material-scrim-filter: blur(min(4px, var(--glass-blur)));
 
-  --shadow-panel-float: 0 18px 50px rgba(16, 24, 40, 0.12), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
-  --shadow-float: 0 18px 48px rgba(16, 24, 40, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.6);
+  --shadow-panel-float: 0 18px 50px rgba(16, 24, 40, 0.12);
+  --shadow-float: 0 18px 48px rgba(16, 24, 40, 0.18), 0 0 0 1px var(--proto-line);
   --accent-glow: 0 8px 28px color-mix(in srgb, var(--accent-main) 22%, transparent);
 
   /* Chrome that floats over the ground rather than over content — the mobile tab bar, the chat
-     header pill. A shallower lift than `--shadow-float` (which is for sheets covering real content)
-     plus `--glass-ring-inset`, the inner highlight that gives a glass pill its lit top edge. */
+     header pill. A shallower lift than `--shadow-float` (which is for sheets covering real content). */
   --shadow-chrome-float: 0 10px 30px rgba(16, 24, 40, 0.1);
-  --glass-ring-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
   /* A solid round key (Stop) lifted off the surface it sits on. */
   --shadow-key-lift: 0 4px 12px rgba(16, 24, 40, 0.2);
   /* The amber attention card carries its own tinted lift so it reads as urgent, not just coloured. */
@@ -354,17 +348,11 @@
   --glass-1: oklch(calc(0.235 + 0.45 * var(--bg-light)) calc(0.017 * var(--bg-chroma)) var(--bg-hue) / var(--glass-a1));
   --glass-2: oklch(calc(0.272 + 0.45 * var(--bg-light)) calc(0.019 * var(--bg-chroma)) var(--bg-hue) / var(--glass-a2));
 
-  /* Dark sheen is deliberately much quieter than light, not a white wash over every layer. */
-  --material-sheen-top: rgba(255, 255, 255, calc(0.035 * var(--material-sheen-strength)));
-  --material-sheen-bottom: rgba(0, 0, 0, calc(0.06 * var(--material-sheen-strength)));
-  --material-edge: rgba(255, 255, 255, 0.09);
-
-  --shadow-panel-float: 0 18px 50px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
-  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-panel-float: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--proto-line);
   --accent-glow: 0 8px 28px color-mix(in srgb, var(--accent-main) 28%, transparent);
 
   --shadow-chrome-float: 0 10px 30px rgba(0, 0, 0, 0.42);
-  --glass-ring-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   --shadow-key-lift: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-amber-lift: 0 6px 18px rgba(201, 154, 46, 0.14);
 
@@ -476,33 +464,29 @@
 }
 
 /* ── Glass level ──────────────────────────────────────────────────────────────
-   `data-glass` on <html>, owned by src/theme, beside `data-theme`. It sets pane alphas, blur and
-   material sheen strength; the colours themselves are derived above, so a level change never re-hues
-   anything. `strong` is the SHIPPED DEFAULT, which is why the bare `:root` carries its values and
-   why the ink ramp is calibrated against it, with the other levels checked as well.
+   `data-glass` on <html>, owned by src/theme, beside `data-theme`. It sets only pane alphas and
+   blur; the colours themselves are derived above, so a level change never re-hues anything.
+   `strong` is the SHIPPED DEFAULT, which is why the bare `:root` carries its values and why the ink
+   ramp is calibrated against it, with the other levels checked as well.
    `off` is the escape hatch: fully opaque panes and no `backdrop-filter` at all, for low-end GPUs
    and anyone who just wants flat surfaces. */
 :root,
 :root[data-glass='strong'] {
-  --material-sheen-strength: 1;
   --glass-a1: 0.42;
   --glass-a2: 0.7;
   --glass-blur: 32px;
 }
 :root[data-glass='medium'] {
-  --material-sheen-strength: 0.8;
   --glass-a1: 0.64;
   --glass-a2: 0.82;
   --glass-blur: 22px;
 }
 :root[data-glass='subtle'] {
-  --material-sheen-strength: 0.5;
   --glass-a1: 0.86;
   --glass-a2: 0.92;
   --glass-blur: 12px;
 }
 :root[data-glass='off'] {
-  --material-sheen-strength: 0.18;
   --material-scrim-filter: none;
   --glass-a1: 1;
   --glass-a2: 1;

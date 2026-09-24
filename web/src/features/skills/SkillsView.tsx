@@ -24,7 +24,6 @@ function SkillChip({ name }: { name: string }): JSX.Element {
         fontWeight: 500,
         color: 'var(--proto-accent)',
         background: 'var(--proto-accent-bg)',
-        backgroundImage: 'var(--material-sheen)',
         border: '1px solid var(--proto-accent-border)',
         borderRadius: 'var(--r-chip)',
         padding: '3px 8px',

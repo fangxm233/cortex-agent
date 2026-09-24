@@ -47,7 +47,7 @@ describe('Shared presentation', () => {
     for (const node of [glass, opaque]) expect(classes(node)).toContain('p-2g');
   });
 
-  it('textures controls without boxing ghost actions or changing status color pairs', () => {
+  it('gives controls flat materials without boxing ghost actions or changing status color pairs', () => {
     const secondary = create(<Button>Cancel</Button>).root.findByType('button');
     const ghost = create(<Button variant="ghost">More</Button>).root.findByType('button');
     const pill = create(<StatusPill tone="failed" label="Failed" />).root.findByType('span');
@@ -55,7 +55,7 @@ describe('Shared presentation', () => {
     expect(classes(secondary)).not.toContain('backdrop-filter');
     expect(classes(ghost)).not.toContain('material-');
     expect(classes(pill)).toContain('bg-pill-failed-bg text-pill-failed-fg');
-    expect(classes(pill)).toContain('bg-[image:var(--material-sheen)]');
+    expect(classes(pill)).not.toContain('bg-[image:');
     expect(classes(pill)).not.toMatch(/shadow|backdrop-filter/);
   });
 

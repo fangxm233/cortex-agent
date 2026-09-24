@@ -275,7 +275,7 @@ const FAB_STYLE: CSSProperties = {
   alignItems: 'center',
   gap: 8,
   cursor: 'pointer',
-  boxShadow: 'var(--accent-glow), var(--glass-ring-inset)',
+  boxShadow: 'var(--accent-glow)',
 };
 
 export function MSessionListView({

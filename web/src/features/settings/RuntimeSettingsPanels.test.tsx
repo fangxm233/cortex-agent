@@ -130,7 +130,7 @@ describe('runtime settings panel save gates', () => {
 });
 
 describe('settings control material transitions', () => {
-  it('keeps the primary sheen on a color longhand through repeated hover cycles', () => {
+  it('keeps the flat primary fill on a color longhand through repeated hover cycles', () => {
     const renderer = create(<SButton tone="accent">Save</SButton>);
     const button = () => renderer.root.findByType('button');
     for (let cycle = 0; cycle < 2; cycle++) {
@@ -138,7 +138,7 @@ describe('settings control material transitions', () => {
         act(() => { button().props[hover ? 'onMouseEnter' : 'onMouseLeave'](); });
         expect(button().props.style.background).toBeUndefined();
         expect(button().props.style.backgroundColor).toBe(`var(--proto-accent${hover ? '-strong' : ''})`);
-        expect(button().props.style.backgroundImage).toBe('var(--material-sheen)');
+        expect(button().props.style.backgroundImage).toBeUndefined();
       }
     }
     renderer.unmount();
@@ -157,7 +157,7 @@ describe('settings control material transitions', () => {
     renderer.unmount();
   });
 
-  it('keeps the switch sheen and uses a contrasting off thumb across state changes', () => {
+  it('keeps the switch fill flat and uses a contrasting off thumb across state changes', () => {
     const renderer = create(<Toggle on={false} onClick={() => {}} />);
     for (const on of [false, true, false, true]) {
       act(() => { renderer.update(<Toggle on={on} onClick={() => {}} />); });
@@ -165,7 +165,7 @@ describe('settings control material transitions', () => {
       expect(track.props['aria-checked']).toBe(on);
       expect(track.props.style.background).toBeUndefined();
       expect(track.props.style.backgroundColor).toBe(on ? 'var(--proto-accent)' : 'var(--proto-line-3)');
-      expect(track.props.style.backgroundImage).toBe('var(--material-sheen)');
+      expect(track.props.style.backgroundImage).toBeUndefined();
       expect(track.findByType('span').props.style.background).toBe(on ? 'var(--ink-solid-fg)' : 'var(--proto-ink)');
     }
     renderer.unmount();

@@ -1,6 +1,6 @@
-// input:  Status tones, semantic color pairs and material sheen
+// input:  Status tones and semantic color pairs
 // output: StatusPill, StatusPillProps
-// pos:    Semantic status labels with restrained surface texture
+// pos:    Semantic status labels on flat tinted fills
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { statusTone, type Tone } from './tone';
@@ -18,8 +18,7 @@ const TONE_CLASS: Record<Tone, string> = {
 };
 
 const BASE =
-  'inline-flex items-center rounded-[var(--r-pill)] px-1g py-0.5g font-mono text-ui leading-none ' +
-  'bg-[image:var(--material-sheen)]';
+  'inline-flex items-center rounded-[var(--r-pill)] px-1g py-0.5g font-mono text-ui leading-none';
 
 export interface StatusPillProps {
   /** Explicit tone; takes precedence over `status`. */

@@ -33,7 +33,6 @@ const HEADER_STYLE: CSSProperties = {
   overflowWrap: 'anywhere',
   padding: '13px 18px',
   borderBottom: '1px solid var(--log-border)',
-  backgroundImage: 'var(--material-sheen)',
 };
 
 const PILL_STYLE: CSSProperties = {
@@ -42,7 +41,6 @@ const PILL_STYLE: CSSProperties = {
   padding: '1.5px 7px',
   borderRadius: 'var(--r-pill)',
   background: 'var(--log-border)',
-  backgroundImage: 'var(--material-sheen)',
   color: 'var(--proto-accent-2)',
 };
 
@@ -62,7 +60,6 @@ const FOOTER_STYLE: CSSProperties = {
   flexWrap: 'wrap',
   padding: '11px 18px',
   borderTop: '1px solid var(--log-border)',
-  backgroundImage: 'var(--material-sheen)',
 };
 
 export function LogDrawerView({
@@ -127,7 +124,6 @@ export function LogDrawerView({
             padding: '4px 12px',
             cursor: killDisabled ? 'default' : 'pointer',
             background: 'transparent',
-            backgroundImage: 'var(--material-sheen)',
           }}
         >
           {L.exKillRun}

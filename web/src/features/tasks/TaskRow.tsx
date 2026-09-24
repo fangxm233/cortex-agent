@@ -122,7 +122,6 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
           padding: '1.5px 7px',
           borderRadius: 'var(--r-pill)',
           ...META_STYLE[meta.kind],
-          backgroundImage: 'var(--material-sheen)',
           ...(meta.kind === 'blocked' ? BLOCKED_META_STYLE : {}),
         }}
       >

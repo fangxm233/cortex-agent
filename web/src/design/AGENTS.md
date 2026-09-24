@@ -22,8 +22,8 @@ Shared UI controls, overlays, feedback and status presentation.
 | SectionHeader.tsx | component | Render readable titles, guidance and actions |
 | Select.test.tsx | test | Check select values, materials and caller styles |
 | Select.tsx | component | Render stable controls and glass option overlays |
-| StatusPill.tsx | component | Render lightly textured semantic status labels |
-| Tabs.tsx | component | Render keyboard tabs with textured active states |
+| StatusPill.tsx | component | Render flat semantic status labels |
+| Tabs.tsx | component | Render keyboard tabs with tinted active states |
 | toast-store.test.ts | test | Check toast store lifecycle |
 | toast-store.ts | store | Manage notification state |
 | Toast.tsx | provider | Provide toast notifications |

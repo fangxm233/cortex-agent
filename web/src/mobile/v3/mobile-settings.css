@@ -112,7 +112,6 @@
   padding: 3px;
   border-radius: 999px;
   background-color: var(--proto-line-3);
-  background-image: var(--material-sheen);
 }
 .mobile-settings-toggle[aria-checked="true"] .mobile-settings-toggle-track {
   justify-content: flex-end;

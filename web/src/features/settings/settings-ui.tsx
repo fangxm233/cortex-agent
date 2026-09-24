@@ -84,7 +84,6 @@ function toggleVisualState(on: boolean, inert?: boolean): CSSProperties {
     // Off is `--proto-line-3`, not `--proto-line`: the track has to stay visible as a shape on a
     // translucent card, where the fainter tint disappears into the pane.
     backgroundColor: on ? 'var(--proto-accent)' : 'var(--proto-line-3)',
-    backgroundImage: 'var(--material-sheen)',
     opacity: inert ? 0.85 : 1,
   };
 }
@@ -228,7 +227,6 @@ const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperti
   accent: {
     base: {
       color: 'var(--ink-solid-fg)', backgroundColor: 'var(--proto-accent)',
-      backgroundImage: 'var(--material-sheen)',
       border: '1px solid transparent', boxShadow: 'var(--material-control-shadow)',
     },
     hover: { backgroundColor: 'var(--proto-accent-strong)' },

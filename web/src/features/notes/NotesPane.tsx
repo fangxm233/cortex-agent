@@ -97,7 +97,7 @@ function ActionButton({ label, onClick, primary = false, danger = false, disable
 }) {
   const color = danger ? 'var(--proto-danger)' : primary ? 'var(--ink-solid-fg)' : 'var(--proto-muted)';
   return (
-    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--material-control-bg)', backgroundImage: 'var(--material-sheen)', boxShadow: primary ? 'var(--accent-glow)' : 'var(--material-control-shadow)', color, fontSize: 11, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--material-control-bg)', boxShadow: primary ? 'var(--accent-glow)' : 'var(--material-control-shadow)', color, fontSize: 11, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {label}
     </button>
   );

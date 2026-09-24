@@ -178,7 +178,7 @@ export function SPill({ tone = 'neutral', mono, children, ...rest }: {
       font: mono ? `600 9.5px ${MONO}` : undefined,
       fontSize: mono ? undefined : 10, fontWeight: mono ? undefined : 600,
       lineHeight: 1.5, padding: '1.5px 7px', borderRadius: 'var(--r-pill)',
-      whiteSpace: 'nowrap', ...PILL_TONE[tone], backgroundImage: 'var(--material-sheen)',
+      whiteSpace: 'nowrap', ...PILL_TONE[tone],
     }}>
       {children}
     </span>
@@ -206,7 +206,6 @@ function chipStyle(active: boolean, disabled: boolean): CSSProperties {
     minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
     fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
     background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-    backgroundImage: active ? 'var(--material-sheen)' : undefined,
     boxShadow: 'var(--material-control-shadow)',
     color: active ? 'var(--settings-selected-ink, var(--proto-accent))' : 'var(--proto-muted)',
     display: 'inline-flex', alignItems: 'center', gap: 5,

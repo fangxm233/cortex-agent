@@ -77,7 +77,7 @@ p { margin: 0; }
 .fact-dot { color: var(--proto-accent); }
 .button { border: 1px solid var(--proto-line); border-radius: 8px; padding: 8px 14px; min-height: 36px; font-size: 12px; font-weight: 600; color: var(--proto-ink-2); background: var(--material-control-bg); box-shadow: var(--material-control-shadow); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .button:hover:not(:disabled) { background: var(--proto-gray); }
-.primary { background: var(--proto-accent); background-image: var(--material-sheen); border-color: var(--proto-accent); color: var(--ink-solid-fg); }
+.primary { background: var(--proto-accent); border-color: var(--proto-accent); color: var(--ink-solid-fg); }
 .primary:hover:not(:disabled) { background: var(--proto-accent-strong); border-color: var(--proto-accent-strong); }
 .wide { width: 100%; }
 .remote-choice { width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 20px 24px; color: var(--proto-ink); font: inherit; }
