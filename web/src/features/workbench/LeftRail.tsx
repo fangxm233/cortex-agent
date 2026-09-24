@@ -1,6 +1,6 @@
 // input:  project/session resources, router, pane state
 // output: LeftRail, BrandBadge, GearIcon
-// pos:    Project navigation with readable attention counts
+// pos:    Resizable project navigation with readable attention counts
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -42,9 +42,10 @@ import { glassPanelStyle } from '@/shell/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { usePaneState } from '@/shell/PaneStateProvider';
 import { useShellModals } from '@/shell/ShellModalsProvider';
+import { RailResizeHandle } from './RailResizeHandle';
+import { loadRailWidth, saveRailWidth } from './rail-width';
 
 const mono = "'IBM Plex Mono',monospace";
-const RAIL_WIDTH = 300;
 // A 30px square of content inside 8px gutters — the buttons are the widest thing the collapsed
 // column ever holds.
 const RAIL_COLLAPSED_WIDTH = 46;
@@ -228,6 +229,15 @@ export function LeftRail(): JSX.Element {
   const [runModalId, setRunModalId] = useState<string | null>(null);
   const markMany = useMarkManyRead();
   const [hover, setHover] = useState<string | null>(null);
+  // Expanded width is the user's to set (drag the gutter); the collapse animation is switched off
+  // while a drag is live, or every move would ease in 220ms behind the pointer.
+  const [railWidth, setRailWidth] = useState(loadRailWidth);
+  const [resizing, setResizing] = useState(false);
+  const onRailResize = (width: number, done: boolean): void => {
+    setRailWidth(width);
+    setResizing(!done);
+    if (done) saveRailWidth(width);
+  };
 
   const toggleId = (
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,
@@ -527,150 +537,155 @@ export function LeftRail(): JSX.Element {
     </nav>
   );
 
+  // The wrapper exists for the resize handle: the pane clips (overflow:hidden), and the handle has
+  // to reach past its rim into the gutter.
   return (
-    <div
-      data-pane="left"
-      data-collapsed={collapsed || undefined}
-      style={{
-        width: collapsed ? RAIL_COLLAPSED_WIDTH : RAIL_WIDTH,
-        transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)',
-        flex: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        ...glassPanelStyle,
-      }}
-    >
-      {collapsed && renderCollapsedRail()}
-      {/* The expanded tree stays mounted at its full width while collapsed, so it keeps its scroll
-          position and the pane slides out of view instead of reflowing into the fold's width. */}
+    <div style={{ position: 'relative', flex: 'none', display: 'flex', minHeight: 0 }}>
       <div
-        ref={treeScrollRef}
-        style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}
+        data-pane="left"
+        data-collapsed={collapsed || undefined}
+        style={{
+          width: collapsed ? RAIL_COLLAPSED_WIDTH : railWidth,
+          transition: resizing ? 'none' : 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+          flex: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          ...glassPanelStyle,
+        }}
       >
-        {/* The rail has exactly one primary action, so it gets a full row rather than a text link
-            competing with a section heading. The wrapper carries the column's top inset: the brand
-            block moved to the top strip, which is where the rail's first row used to get its air. */}
-        <div style={{ padding: '14px 12px 10px', flex: 'none' }}>
-          <div
-            {...hp('newsess')}
-            role="button"
-            onClick={onNewSession}
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 7,
-              height: 36,
-              borderRadius: 'var(--r-control)',
-              cursor: 'pointer',
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: 'var(--ink-solid-fg)',
-              background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
-              // The rail's one primary action: the glow is what separates it from the list it sits on.
-              boxShadow: 'var(--accent-glow)',
-            }}
-          >
-            <PlusGlyph size={13} />
-            {L.wbNewSession}
-            <span style={{ position: 'absolute', right: 11, font: `500 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>⌘N</span>
+        {collapsed && renderCollapsedRail()}
+        {/* The expanded tree stays mounted at its full width while collapsed, so it keeps its scroll
+            position and the pane slides out of view instead of reflowing into the fold's width. */}
+        <div
+          ref={treeScrollRef}
+          style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: railWidth }}
+        >
+          {/* The rail has exactly one primary action, so it gets a full row rather than a text link
+              competing with a section heading. The wrapper carries the column's top inset: the brand
+              block moved to the top strip, which is where the rail's first row used to get its air. */}
+          <div style={{ padding: '14px 12px 10px', flex: 'none' }}>
+            <div
+              {...hp('newsess')}
+              role="button"
+              onClick={onNewSession}
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 7,
+                height: 36,
+                borderRadius: 'var(--r-control)',
+                cursor: 'pointer',
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: 'var(--ink-solid-fg)',
+                background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+                // The rail's one primary action: the glow is what separates it from the list it sits on.
+                boxShadow: 'var(--accent-glow)',
+              }}
+            >
+              <PlusGlyph size={13} />
+              {L.wbNewSession}
+              <span style={{ position: 'absolute', right: 11, font: `500 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>⌘N</span>
+            </div>
           </div>
+
+          <RailTree
+            nodes={tree.projects}
+            projectCount={projects.length}
+            sort={sort}
+            onSort={onSort}
+            filter={filter}
+            onFilter={setFilter}
+            searchOpen={searchOpen}
+            onToggleSearch={onToggleSearch}
+            onNewProject={() => shellModals.openNewProject()}
+            onToggleProject={toggleProject}
+            onToggleSchedules={toggleSchedules}
+            onToggleCommissions={toggleCommissions}
+            onToggleCommission={toggleCommission}
+            onOpenCommission={commissionBoard.openCommission}
+            onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
+            onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
+            onShowFewer={showFewer}
+            onOpenSession={onOpenSession}
+            onNewSessionIn={newSessionIn}
+            onOverview={onOverview}
+            onScheduleRow={onScheduleRow}
+            onReorder={onReorder}
+            now={now}
+          />
+
+          {/* attention zone — everything that appears intermittently and asks for attention stacks
+              here, at the foot of the column, so the rows above keep a fixed layout no matter what
+              the system is doing. */}
+          {(rateLimitStatus || hasPendingApprovals) && (
+            <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
+              <RailRateLimitStatus status={rateLimitStatus} />
+              {hasPendingApprovals && (
+                <div
+                  {...hp('approval')}
+                  onClick={() => approvals.open()}
+                  style={{
+                    padding: '10px 12px',
+                    background: 'var(--proto-amber-bg)',
+                    border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
+                    borderRadius: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    flex: 'none',
+                    // Urgent, not merely coloured: the tinted lift is what pulls the card off the rail.
+                    boxShadow: 'var(--shadow-amber-lift)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--proto-amber)',
+                      flex: 'none',
+                      animation: 'cxpulse 2s ease-in-out infinite',
+                    }}
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
+                  <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <RailTree
-          nodes={tree.projects}
-          projectCount={projects.length}
-          sort={sort}
-          onSort={onSort}
-          filter={filter}
-          onFilter={setFilter}
-          searchOpen={searchOpen}
-          onToggleSearch={onToggleSearch}
-          onNewProject={() => shellModals.openNewProject()}
-          onToggleProject={toggleProject}
-          onToggleSchedules={toggleSchedules}
-          onToggleCommissions={toggleCommissions}
-          onToggleCommission={toggleCommission}
-          onOpenCommission={commissionBoard.openCommission}
-          onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
-          onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
-          onShowFewer={showFewer}
-          onOpenSession={onOpenSession}
-          onNewSessionIn={newSessionIn}
-          onOverview={onOverview}
-          onScheduleRow={onScheduleRow}
-          onReorder={onReorder}
-          now={now}
-        />
 
-        {/* attention zone — everything that appears intermittently and asks for attention stacks
-            here, at the foot of the column, so the rows above keep a fixed layout no matter what
-            the system is doing. */}
-        {(rateLimitStatus || hasPendingApprovals) && (
-          <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
-            <RailRateLimitStatus status={rateLimitStatus} />
-            {hasPendingApprovals && (
-              <div
-                {...hp('approval')}
-                onClick={() => approvals.open()}
-                style={{
-                  padding: '10px 12px',
-                  background: 'var(--proto-amber-bg)',
-                  border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
-                  borderRadius: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  flex: 'none',
-                  // Urgent, not merely coloured: the tinted lift is what pulls the card off the rail.
-                  boxShadow: 'var(--shadow-amber-lift)',
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'var(--proto-amber)',
-                    flex: 'none',
-                    animation: 'cxpulse 2s ease-in-out infinite',
-                  }}
-                />
-                <div style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
-                <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
-              </div>
-            )}
-          </div>
+        {runModalRow && (
+          <RunListModal
+            row={runModalRow}
+            selectedSessionId={selectedSessionId ?? null}
+            onOpenRun={(sessionId) => {
+              setRunModalId(null);
+              const project = projectOfSession(sessionId, directSessions, scheduledSessions);
+              if (project) openSession(project, sessionId);
+            }}
+            onManage={
+              runModalRow.schedule
+                ? () => {
+                    setRunModalId(null);
+                    scheduleModal.openEdit(runModalRow.schedule!);
+                  }
+                : undefined
+            }
+            onMarkAllRead={markMany.markManyRead}
+            markAllPending={markMany.pending}
+            onClose={() => setRunModalId(null)}
+          />
         )}
+
       </div>
-
-
-      {runModalRow && (
-        <RunListModal
-          row={runModalRow}
-          selectedSessionId={selectedSessionId ?? null}
-          onOpenRun={(sessionId) => {
-            setRunModalId(null);
-            const project = projectOfSession(sessionId, directSessions, scheduledSessions);
-            if (project) openSession(project, sessionId);
-          }}
-          onManage={
-            runModalRow.schedule
-              ? () => {
-                  setRunModalId(null);
-                  scheduleModal.openEdit(runModalRow.schedule!);
-                }
-              : undefined
-          }
-          onMarkAllRead={markMany.markManyRead}
-          markAllPending={markMany.pending}
-          onClose={() => setRunModalId(null)}
-        />
-      )}
-
+      {!collapsed && <RailResizeHandle width={railWidth} onResize={onRailResize} />}
     </div>
   );
 }

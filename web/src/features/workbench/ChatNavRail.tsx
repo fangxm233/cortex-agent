@@ -22,10 +22,14 @@ import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-
 
 const mono = "'IBM Plex Mono',monospace";
 
-/** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter. */
-const RAIL_W = 26;
+/** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter
+ *  (MessageStream's GUTTER): inset + the fully swollen tick must not reach the text. */
+const RAIL_W = 32;
+/** Air between the pane's edge and the ticks, so they read as marks on the transcript rather than
+ *  a notch cut into the pane's rim. */
+const TICK_INSET = 10;
 const TICK_MIN = 10;
-const TICK_MAX = 26;
+const TICK_MAX = 22;
 /** How far the pull reaches, counted in ticks rather than pixels, so the same shape comes out of a
  *  roomy rail and a compressed one. Just under three: the settled tick takes the whole swell, its
  *  neighbour about two thirds of it, the one past that almost none — a step big enough to see
@@ -231,7 +235,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
                   onJump(m.row);
                 }}
                 style={{
-                  width: RAIL_W, height: step, padding: 0, margin: 0, border: 0, background: 'transparent',
+                  width: RAIL_W, height: step, padding: `0 0 0 ${TICK_INSET}px`, boxSizing: 'border-box', margin: 0, border: 0, background: 'transparent',
                   display: 'flex', alignItems: 'center', cursor: 'pointer', flex: 'none',
                 }}
               >

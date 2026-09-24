@@ -41,7 +41,7 @@ export function DockPane(): JSX.Element | null {
 
   bodyOrder.current = syncBodyOrder(bodyOrder.current, state?.tabs ?? []);
 
-  // Divider drag: the resizable region is the chat pane + this pane (the two rails are fixed-width),
+  // Divider drag: the resizable region is the chat pane + this pane (the rails hold still meanwhile),
   // measured from this pane and its preceding sibling at drag start.
   const onResizeStart = (e: React.MouseEvent): void => {
     e.preventDefault();

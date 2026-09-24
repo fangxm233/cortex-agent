@@ -52,7 +52,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | InteractionCards.tsx | view | Render material question and approval cards |
 | left-rail-projects.test.ts | test | Test left rail projects |
 | left-rail-projects.ts | model | Build left rail projects state |
-| LeftRail.tsx | view | Render navigation and readable attention counts |
+| LeftRail.tsx | view | Render resizable navigation and readable attention counts |
 | MenuChrome.tsx | view | Share glass menu shells and unfiltered rows |
 | MessageAttachmentCards.tsx | view | Render material frames and stable media bodies |
 | MessageEdit.tsx | view | Render material editor and message actions |
@@ -76,7 +76,11 @@ Desktop conversations, composer controls, session navigation and context panels.
 | rail-order.ts | model | Build rail order state |
 | rail-tree.test.ts | test | Test rail tree |
 | rail-tree.ts | model | Build rail tree state and session order |
+| rail-width.test.ts | test | Test rail width clamping and parsing |
+| rail-width.ts | model | Persist the left rail's adjustable width |
 | RailTree.commission.test.tsx | test | Test flat project rows and commission actions |
+| RailResizeHandle.test.tsx | test | Test rail divider drag and reset |
+| RailResizeHandle.tsx | view | Render the drag divider between rail and workspace |
 | RailTree.tsx | view | Render flat project rows and glass sort menu |
 | reveal-pacing.test.ts | test | Test reveal pacing |
 | reveal-pacing.ts | model | Build reveal pacing state |
