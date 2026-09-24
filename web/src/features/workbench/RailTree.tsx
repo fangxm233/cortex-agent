@@ -1,6 +1,6 @@
 // input:  rail-tree, rail-order, vocab, ProjectFolderIcon
 // output: RailTree
-// pos:    Opaque project headers and readable attention badges
+// pos:    Flat project rows and readable session hierarchy
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
@@ -358,7 +358,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 13,
+            fontSize: 12.5,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -368,7 +368,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         >
           {row.title}
         </span>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-2)', flex: 'none' }}>
           {row.age}
         </span>
       </div>
@@ -551,11 +551,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           data-project-row={node.id}
           onClick={() => props.onToggleProject(node.id)}
           style={{
-            // Sticky keeps the owning project visible while scrolling a long folder; it is lifted
-            // during a drag so the pinned row cannot overlap the drag image.
-            position: dragId ? 'relative' : 'sticky',
-            top: 0,
-            zIndex: 2,
+            // Transparent rows scroll with their sessions so text cannot overlap underneath.
+            position: 'relative',
             display: 'flex',
             alignItems: 'center',
             gap: 7,
@@ -570,19 +567,15 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             borderRadius: 'var(--r-chip)',
             cursor: 'pointer',
             opacity: dragId === node.id ? 0.45 : 1,
-            // The current project used to be a 5% tint on a 4% tint — invisible now that both are
-            // alpha. It reads as a ring instead, which also leaves the fill free to do the sticky
-            // job. Drag-over keeps the slot, it is the more urgent of the two.
+            // Only drag-over needs a marker; the current project uses a light accent tint.
             boxShadow: overId === node.id
               ? 'inset 0 2px 0 0 var(--proto-accent)'
-              : node.current
-                ? '0 0 0 1px var(--proto-line-2)'
-                : undefined,
-            // A sticky header must occlude scrolling rows. The opaque card is the base in both
-            // states; the hover tint never replaces it. No filter on this scrolling surface.
-            background: hovered
-              ? 'linear-gradient(var(--proto-gray), var(--proto-gray)), var(--proto-card)'
-              : 'var(--proto-card)',
+              : undefined,
+            background: node.current
+              ? 'var(--proto-accent-bg)'
+              : hovered
+                ? 'var(--proto-gray)'
+                : 'transparent',
           }}
         >
           {/* The folder glyph IS the drag handle. A separate grip column cost 17px of permanent
@@ -603,7 +596,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              fontWeight: node.current || node.attention > 0 ? 600 : 400,
+              fontWeight: node.current || node.attention > 0 ? 600 : 500,
               color: node.current || node.attention > 0
                 ? 'var(--proto-ink)'
                 : node.empty
@@ -697,7 +690,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             {/* the guide line, not a chevron, is what says "these belong to that folder" */}
             <span
               aria-hidden="true"
-              style={{ position: 'absolute', left: 14, top: 0, bottom: 8, width: 1, background: 'var(--proto-line)' }}
+              style={{ position: 'absolute', left: 14, top: 0, bottom: 8, width: 1, background: 'var(--proto-line)', opacity: 0.55 }}
             />
             {/* Commissions sit ABOVE the loose sessions: they are the standing work of the project,
                 and a long task that scrolls under eight ad-hoc chats stops being an anchor. */}

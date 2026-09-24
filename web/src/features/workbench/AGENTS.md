@@ -76,8 +76,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | rail-order.ts | model | Build rail order state |
 | rail-tree.test.ts | test | Test rail tree |
 | rail-tree.ts | model | Build rail tree state and session order |
-| RailTree.commission.test.tsx | test | Test rail tree.commission |
-| RailTree.tsx | view | Render opaque headers and glass sort menu |
+| RailTree.commission.test.tsx | test | Test flat project rows and commission actions |
+| RailTree.tsx | view | Render flat project rows and glass sort menu |
 | reveal-pacing.test.ts | test | Test reveal pacing |
 | reveal-pacing.ts | model | Build reveal pacing state |
 | right-panel-vm.test.ts | test | Test right panel vm |
