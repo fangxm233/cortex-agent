@@ -1,3 +1,7 @@
+// input:  DockPane, DockProvider, react-test-renderer
+// output: dock lifetime and surface regression tests
+// pos:    Verify persistent tabs and document opacity boundaries
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Reorder } from 'motion/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -69,6 +73,22 @@ function bodyDisplay(renderer: ReactTestRenderer, id: string): string {
 }
 
 describe('DockPane tab lifetime', () => {
+  it('keeps glass chrome ancestors clear but web pages and file viewers opaque', () => {
+    const renderer = mount();
+    action(renderer, 'web');
+    navigate(renderer, 'http://127.0.0.1:5173/');
+    const body = activeBody(renderer);
+    expect(renderer.root.findByProps({ 'data-pane': 'dock' }).props.style.background).toBe('transparent');
+    expect(body.parent!.parent!.props.style.background).toBeUndefined();
+    expect(body.props.style.background).toBe('transparent');
+    expect(body.findByType('iframe').props.style.background).toBe('var(--proto-card)');
+    expect(renderer.root.findByProps({ 'aria-label': 'New tab' }).props.className).toBe('dock-control');
+    expect(renderer.root.findByProps({ 'data-close-dock': '' }).props.className).toBe('dock-control');
+    action(renderer, 'file');
+    expect(activeBody(renderer).props.style.background).toBe('var(--proto-card)');
+    act(() => renderer.unmount());
+  });
+
   it('hides rather than unmounting a web frame across a file switch and a dock close', () => {
     const renderer = mount();
     action(renderer, 'web');

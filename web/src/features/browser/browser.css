@@ -1,0 +1,155 @@
+/* input:  shared theme material, radius and colour tokens
+ * output: embedded browser presentation classes
+ * pos:    Filter-free browser chrome and responsive controls
+ * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+.browser-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  font: 500 11.5px 'IBM Plex Mono', monospace;
+  color: var(--proto-muted);
+}
+
+.browser-toolbar, .browser-navigation, .browser-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.browser-toolbar {
+  flex: none;
+  flex-wrap: wrap;
+  padding: 8px;
+  border-bottom: 1px solid var(--proto-line);
+  background: var(--material-card-bg);
+}
+.browser-navigation { flex: none; }
+.browser-tools { flex-wrap: wrap; min-width: 0; }
+.browser-control {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--r-control);
+  background: var(--material-control-bg);
+  box-shadow: var(--material-control-shadow);
+  color: var(--proto-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.browser-control:hover:not(:disabled) {
+  background: var(--proto-accent-bg);
+  color: var(--proto-ink);
+  border-color: var(--proto-accent);
+}
+.browser-control:is([aria-expanded='true'], [aria-pressed='true']) {
+  background: var(--proto-accent-bg);
+  color: var(--proto-accent);
+  border-color: var(--proto-accent);
+}
+.browser-control:focus-visible {
+  outline: 2px solid var(--proto-accent);
+  outline-offset: -2px;
+}
+.browser-control:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+.browser-icon { width: 28px; flex: none; padding: 0; font-size: 16px; }
+.browser-tools select { max-width: 100%; }
+.browser-tools option { background: var(--proto-card); color: var(--proto-ink); }
+.browser-address {
+  flex: 1 1 190px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--r-control);
+  background: var(--material-inset-bg);
+}
+.browser-address:focus-within { outline: 2px solid var(--proto-accent); outline-offset: -2px; }
+.browser-address input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--proto-ink);
+  font: inherit;
+}
+.browser-address input::placeholder { color: var(--proto-muted); }
+.browser-origin {
+  flex: 0 1 auto;
+  max-width: 45%;
+  padding: 3px 6px;
+  border-radius: var(--r-chip);
+  background: var(--proto-accent-bg);
+  color: var(--proto-accent);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browser-ports {
+  flex: none;
+  max-height: 190px;
+  overflow: auto;
+  border-bottom: 1px solid var(--proto-line);
+  background: var(--material-inset-bg);
+}
+.browser-devices { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+.browser-device { max-width: 100%; overflow-wrap: anywhere; }
+.browser-port-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: calc(100% - 16px);
+  margin: 0 8px 6px;
+  padding: 6px 8px;
+  text-align: left;
+  box-shadow: none;
+}
+.browser-port-number { flex: none; color: var(--proto-accent); }
+.browser-port-process { flex: 1; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-port-address { overflow-wrap: anywhere; min-width: 0; }
+.browser-ports-note { padding: 10px 12px; overflow-wrap: anywhere; }
+.browser-notice {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--proto-line);
+  background: var(--material-inset-bg);
+  overflow-wrap: anywhere;
+}
+.browser-notice > span { flex: 1; min-width: 0; }
+.browser-error { color: var(--proto-danger); }
+.browser-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: safe center;
+  background: var(--material-inset-bg);
+}
+.browser-empty { margin: auto; max-width: 320px; padding: 32px 24px; text-align: center; }
+.browser-empty-icon { display: block; font-size: 24px; margin-bottom: 12px; color: var(--proto-accent); }
+.browser-empty strong { color: var(--proto-ink); }
+.browser-empty p { margin: 8px 0 0; line-height: 1.7; }
+
+/* Keep the address readable rather than squeezing it between fixed controls. */
+@container (max-width: 560px) {
+  .browser-address { order: -1; flex-basis: 100%; }
+  .browser-tools { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-control { transition: none; }
+}

@@ -1,23 +1,18 @@
-// input:  BrowserTabState, forwarding API, external navigation
+// input:  BrowserTabState, forwarding API, browser presentation
 // output: WebBody
-// pos:    Persistent browser preview with material toolbar
+// pos:    Persistent browser preview with extracted glass chrome
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
-import { openExternalUrl } from '@/lib/external-navigation';
 import {
   canForward, listDeviceRemotePorts, listForwardDevices, listRemotePorts, openDeviceForward,
-  startForward, type ForwardDevice, type ListeningPort,
+  startForward,
 } from './forward';
 import {
-  FRAME_REFUSED_HINT,
   VIEWPORT_PRESETS,
   WEB_SANDBOX,
   applyBrowserTitle,
   browserItemName,
-  browserTabForwardSource,
-  canGoBack,
-  canGoForward,
   currentUrl,
   frameRefusedEmbedding,
   goBack,
@@ -26,23 +21,14 @@ import {
   previewOriginConflict,
   pushHistory,
   type BrowserTabState,
-  type ViewportPreset,
 } from './browser-target';
 import { matchFrameTitleMessage } from './frame-title';
+import { BrowserToolbar } from './BrowserToolbar';
+import { BrowserEmpty, BrowserNotice, PortsPanel, type PortPickerState } from './BrowserPanels';
+import './browser.css';
 
-const MONO = "'IBM Plex Mono',monospace";
-const CONTROL_FOCUS = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-proto-accent';
-const EMPTY_HINT = 'Enter a port or a URL. Remote dev servers appear here once forwarded.';
 const INVALID_ADDRESS = 'Not a previewable address — use http(s), a host:port, or a bare port.';
 const ORIGIN_CONFLICT = 'Refused: that is this app’s own origin. Previewing it would hand the page your session.';
-
-interface PortPickerState {
-  open: boolean;
-  ports: ListeningPort[] | null;
-  error: string | null;
-  device: string;
-  devices: ForwardDevice[];
-}
 
 const EMPTY_PORTS: PortPickerState = { open: false, ports: null, error: null, device: '', devices: [] };
 
@@ -175,7 +161,7 @@ export function WebBody({ tab, active, onUpdate }: {
   const viewport = VIEWPORT_PRESETS.find((preset) => preset.id === tab.viewportId) ?? VIEWPORT_PRESETS[0]!;
 
   return (
-    <div data-browser-workspace={tab.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div data-browser-workspace={tab.id} className="browser-workspace">
       <BrowserToolbar
         tab={tab}
         url={url}
@@ -189,10 +175,10 @@ export function WebBody({ tab, active, onUpdate }: {
         onViewport={(viewportId) => onUpdate((entry) => ({ ...entry, viewportId }))}
         onTogglePorts={togglePorts}
       />
-      {ports.open && <PortsPanel state={ports} onDevice={pickDevice} onPort={openPort} />}
+      {ports.open && <PortsPanel id={`browser-ports-${tab.id}`} state={ports} onDevice={pickDevice} onPort={openPort} />}
       <BrowserNotice tab={tab} url={url} />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--proto-gray)', display: 'flex', justifyContent: 'center' }}>
-        {url === null ? <div style={EMPTY_STYLE}>{EMPTY_HINT}</div> : (
+      <div className="browser-stage">
+        {url === null ? <BrowserEmpty /> : (
           // The frame keeps an opaque fill: it renders a real page, which has to occlude the colour
           // mesh the way any document body does.
           <iframe
@@ -258,118 +244,3 @@ function failForward(tab: BrowserTabState, operationId: number, message: string)
   if (tab.forward?.status !== 'connecting' || tab.forward.operationId !== operationId) return tab;
   return { ...tab, forward: null, rejected: message };
 }
-
-function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDraft, onNavigate, onResetDraft, onViewport, onTogglePorts }: {
-  tab: BrowserTabState;
-  url: string | null;
-  inputRef: React.RefObject<HTMLInputElement>;
-  portsOpen: boolean;
-  onStep: (dir: 'back' | 'forward') => void;
-  onReload: () => void;
-  onDraft: (draft: string) => void;
-  onNavigate: () => void;
-  onResetDraft: () => void;
-  onViewport: (id: ViewportPreset['id']) => void;
-  onTogglePorts: () => void;
-}): JSX.Element {
-  const origin = browserTabForwardSource(tab);
-  return (
-    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderBottom: '1px solid var(--proto-line)', background: 'var(--material-card-bg)' }}>
-      <NavBtn title="Back" disabled={!canGoBack(tab.history)} onClick={() => onStep('back')}>‹</NavBtn>
-      <NavBtn title="Forward" disabled={!canGoForward(tab.history)} onClick={() => onStep('forward')}>›</NavBtn>
-      <NavBtn title="Reload" disabled={url === null} onClick={onReload}>⟳</NavBtn>
-      <div className="focus-within:ring-2 focus-within:ring-proto-accent" style={ADDRESS_FIELD_STYLE}>
-        {origin && (
-          <span data-forward-origin={origin} title={`Forwarded from ${origin}`} style={ADDRESS_BADGE_STYLE}>
-            {origin}<span style={{ opacity: 0.65 }}>→</span>
-          </span>
-        )}
-        <input
-          ref={inputRef}
-          value={tab.draft}
-          spellCheck={false}
-          placeholder="Port or http://host:port"
-          onChange={(event) => onDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') onNavigate();
-            if (event.key === 'Escape') onResetDraft();
-          }}
-          style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, border: 'none', background: 'transparent', color: 'var(--proto-ink)', font: `500 12px ${MONO}`, outline: 'none' }}
-        />
-      </div>
-      <select className={CONTROL_FOCUS} title="Viewport width" value={tab.viewportId} onChange={(event) => onViewport(event.target.value as ViewportPreset['id'])} style={SELECT_STYLE}>
-        {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-      </select>
-      <button type="button" className={CONTROL_FOCUS} title="Ports listening on the server or a connected device" onClick={onTogglePorts} style={{ ...PORT_BUTTON, border: portsOpen ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: portsOpen ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', color: portsOpen ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>Ports</button>
-      <NavBtn title="Open in system browser" disabled={url === null} onClick={() => { if (url) void openExternalUrl(url); }}>↗</NavBtn>
-    </div>
-  );
-}
-
-function PortsPanel({ state, onDevice, onPort }: {
-  state: PortPickerState;
-  onDevice: (device: string) => void;
-  onPort: (port: number) => Promise<void>;
-}): JSX.Element {
-  return (
-    <div style={{ flex: 'none', maxHeight: 190, overflow: 'auto', borderBottom: '1px solid var(--proto-line)', background: 'var(--material-inset-bg)' }}>
-      {state.devices.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid var(--proto-line)' }}>
-          <DeviceTab active={state.device === ''} onClick={() => onDevice('')}>server</DeviceTab>
-          {state.devices.map((device) => <DeviceTab key={device.device} active={state.device === device.device} onClick={() => onDevice(device.device)}>{device.device}</DeviceTab>)}
-        </div>
-      )}
-      {state.error ? <PortsNote>{state.error}</PortsNote>
-        : state.ports === null ? <PortsNote>Loading…</PortsNote>
-          : state.ports.length === 0 ? <PortsNote>Nothing is listening on {state.device === '' ? 'the server’s' : `${state.device}’s`} loopback.</PortsNote>
-            : state.ports.map((port) => <PortRow key={`${state.device}:${port.port}`} port={port} onClick={() => void onPort(port.port)} />)}
-      {!canForward() && <PortsNote>Forwarding needs the desktop app — these open as plain localhost here.</PortsNote>}
-    </div>
-  );
-}
-
-function BrowserNotice({ tab, url }: { tab: BrowserTabState; url: string | null }): JSX.Element | null {
-  if (tab.refused && url) {
-    return (
-      <div style={NOTICE_STYLE}>
-        <span>{FRAME_REFUSED_HINT}</span>
-        <button type="button" className={CONTROL_FOCUS} data-action="open-external" onClick={() => void openExternalUrl(url)} style={NOTICE_BUTTON}>↗</button>
-      </div>
-    );
-  }
-  if (!tab.rejected) return null;
-  return <div style={{ ...NOTICE_STYLE, color: 'var(--proto-danger)' }}>{tab.rejected}</div>;
-}
-
-function PortRow({ port, onClick }: { port: ListeningPort; onClick: () => void }): JSX.Element {
-  return (
-    <button type="button" className={CONTROL_FOCUS} onClick={onClick} style={PORT_ROW_STYLE}>
-      <span style={{ flex: 'none', width: 54, color: 'var(--proto-accent)' }}>{port.port}</span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--proto-muted)' }}>{port.process ?? ''}</span>
-      <span style={{ flex: 'none', color: 'var(--proto-muted)' }}>{port.address}</span>
-    </button>
-  );
-}
-
-function DeviceTab({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" className={CONTROL_FOCUS} onClick={onClick} style={{ ...DEVICE_BUTTON, border: active ? '1px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)', color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{children}</button>;
-}
-
-function PortsNote({ children }: { children: React.ReactNode }): JSX.Element {
-  return <div style={{ padding: '10px 12px', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}` }}>{children}</div>;
-}
-
-function NavBtn({ children, title, disabled, onClick }: { children: React.ReactNode; title: string; disabled?: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" className={CONTROL_FOCUS} title={title} disabled={disabled} onClick={onClick} style={{ ...SMALL_BUTTON, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'default' : 'pointer' }}>{children}</button>;
-}
-
-const ADDRESS_FIELD_STYLE: React.CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-inset-bg)' };
-const ADDRESS_BADGE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', maxWidth: '45%', height: 20, padding: '0 6px', borderRadius: 'var(--r-chip)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', font: `600 11px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const SMALL_BUTTON: React.CSSProperties = { width: 28, height: 28, flex: 'none', borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
-const SELECT_STYLE: React.CSSProperties = { height: 28, borderRadius: 'var(--r-control)', border: '1px solid var(--proto-line)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}`, cursor: 'pointer' };
-const PORT_BUTTON: React.CSSProperties = { height: 28, flex: 'none', padding: '0 8px', borderRadius: 'var(--r-control)', font: `600 11.5px ${MONO}`, cursor: 'pointer' };
-const DEVICE_BUTTON: React.CSSProperties = { height: 24, padding: '0 8px', borderRadius: 'var(--r-chip)', font: `600 11px ${MONO}`, cursor: 'pointer' };
-const PORT_ROW_STYLE: React.CSSProperties = { display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '6px 12px', border: 'none', borderBottom: '1px solid var(--proto-line)', background: 'transparent', color: 'var(--proto-ink)', font: `500 11px ${MONO}`, cursor: 'pointer', textAlign: 'left' };
-const NOTICE_STYLE: React.CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}` };
-const NOTICE_BUTTON: React.CSSProperties = { border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)', background: 'transparent', color: 'var(--proto-accent)', font: `600 11.5px ${MONO}`, padding: '2px 7px', cursor: 'pointer' };
-const EMPTY_STYLE: React.CSSProperties = { margin: 'auto', padding: '32px 24px', textAlign: 'center', color: 'var(--proto-muted)', font: `500 11.5px ${MONO}`, maxWidth: 320 };

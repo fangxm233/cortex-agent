@@ -1,6 +1,6 @@
 // input:  DockProvider, DockTabStrip, DockFileBody, WebBody
 // output: DockPane
-// pos:    Opaque split dock preserving mounted tab bodies
+// pos:    Glass dock chrome preserving opaque document bodies
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
@@ -90,13 +90,12 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <button type="button" data-close-dock="" title="Close the dock" aria-label="Close the dock" onClick={closeDock} style={ACTION_STYLE}>×</button>
+          <button type="button" className="dock-control" data-close-dock="" title="Close the dock" aria-label="Close the dock" onClick={closeDock}>×</button>
         }
       />
 
-      {/* Opaque, and so is every body inside it: this pane shows documents, PDFs and live web
-          pages. A translucent stage would put the chat's text under the page you are reading. */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: 'var(--proto-card)' }}>
+      {/* Chrome lets the workspace sheet show through; documents own their opaque fill. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {state === null
           ? <DockCentered>{EMPTY_HINT}</DockCentered>
           : bodyOrder.current.map((id) => (
@@ -124,7 +123,7 @@ function DockTabBody({ state, id, onUpdateWeb }: {
     flexDirection: 'column',
     minHeight: 0,
     overflow: 'hidden',
-    background: isFileTab(tab) ? dockFileBackground(tab.item) : 'var(--proto-card)',
+    background: isFileTab(tab) ? dockFileBackground(tab.item) : 'transparent',
     display: active ? 'flex' : 'none',
   };
   return (
@@ -140,24 +139,7 @@ const PANE_STYLE: CSSProperties = {
   minWidth: 0,
   flexDirection: 'column',
   minHeight: 0,
-  background: 'var(--proto-card)',
+  background: 'transparent',
   borderLeft: '1px solid var(--proto-line)',
   position: 'relative',
-};
-
-const ACTION_STYLE: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 'var(--r-chip)',
-  border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)',
-  color: 'var(--proto-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 16,
-  padding: 0,
-  cursor: 'pointer',
-  flex: 'none',
-  userSelect: 'none',
 };

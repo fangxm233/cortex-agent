@@ -1,0 +1,91 @@
+/* input:  shared theme material, radius and colour tokens
+ * output: dock tab strip and action presentation classes
+ * pos:    Filter-free dock chrome above opaque document viewers
+ * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+.dock-strip {
+  height: 50px;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--material-card-bg);
+  border-bottom: 1px solid var(--proto-line);
+}
+.dock-tab-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+}
+.dock-tab-actions { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 0; }
+.dock-tab-item {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-width: 96px;
+  max-width: 210px;
+  height: 32px;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--r-control);
+  position: relative;
+  cursor: grab;
+  overflow: hidden;
+  background: var(--material-inset-bg);
+}
+.dock-tab-item[data-selected='true'] {
+  background: var(--material-control-bg);
+  border-color: var(--proto-accent);
+  box-shadow: var(--material-control-shadow);
+}
+.dock-tab-select {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  padding: 0 2px 0 7px;
+  border: none;
+  background: transparent;
+  color: var(--proto-muted);
+  font: 500 11px 'IBM Plex Mono', monospace;
+  cursor: inherit;
+  text-align: left;
+}
+.dock-tab-select[aria-pressed='true'] { color: var(--proto-ink); }
+.dock-control {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--r-control);
+  background: var(--material-control-bg);
+  box-shadow: var(--material-control-shadow);
+  color: var(--proto-muted);
+  font: 500 16px 'IBM Plex Mono', monospace;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.dock-tab-close {
+  width: 24px;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+}
+:is(.dock-control, .dock-tab-select) { transition: background-color 140ms ease, color 140ms ease; }
+:is(.dock-control, .dock-tab-select):hover:not(:disabled) { background: var(--proto-accent-bg); color: var(--proto-accent); }
+:is(.dock-control, .dock-tab-select):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: -2px; }
+.dock-control:disabled { opacity: 0.4; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.dock-control, .dock-tab-select) { transition: none; }
+}
