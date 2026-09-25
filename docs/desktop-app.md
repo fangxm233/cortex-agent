@@ -113,6 +113,8 @@ The desktop app uses the same three-pane workbench as the browser. The left rail
 
 Thread cards open a modal with the live pipeline, individual steps, nested threads, and the persisted artifact. Execution rows open a drawer with live logs and cancellation controls. `⌘K` on macOS or `Ctrl+K` on Linux and Windows opens the command palette.
 
+Code blocks in chat show a copy button while the pointer is over them; on touch screens the button stays visible. On Windows, text copied in the app with `Ctrl+C`, the context menu, or a copy button appears in Clipboard History (`Win+V`) like a copy from any other application. WebView2 writes these copies from its own browser process, which Windows leaves out of the history, so the app shell writes the same data back under its own window. Content its writer marks as excluded from history stays excluded (`desktop/src-tauri/src/clipboard_history.rs`).
+
 ### Plugin settings
 
 **Settings → Plugins** inventories plugins installed on the connected Cortex server and assigns them to agent definitions or template slots. Each entry shows its portable or legacy format, manifest metadata, skills, validation issues, and a sanitized summary of portable root `mcp.json` servers. The desktop shell does not maintain a separate local catalog because it renders the same server-backed SPA as the browser (`web/src/features/settings/SettingsModal.tsx:81-112`; `web/src/features/settings/panels/PluginsPanel.tsx:365-800`).

@@ -111,6 +111,8 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 线程卡片会打开 modal，显示实时 pipeline、各步骤、嵌套线程与持久化 artifact。执行条目会打开带实时日志和取消控制的 drawer。在 macOS 上按 `⌘K`，或在 Linux 与 Windows 上按 `Ctrl+K`，可打开命令面板。
 
+对话中的代码块在指针悬停时显示复制按钮；触屏设备上该按钮常驻显示。在 Windows 上，通过 `Ctrl+C`、右键菜单或复制按钮在应用内复制的内容，会像其他应用的复制一样出现在剪贴板历史（`Win+V`）中。WebView2 从自己的浏览器进程写入这些内容，Windows 不会把它们记入历史，因此应用壳会以自身窗口重新写入同一份数据。写入方标记为不记入历史的内容仍保持排除（`desktop/src-tauri/src/clipboard_history.rs`）。
+
 ### 插件设置 {#plugin-settings}
 
 **Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins，并把它们分配给 agent definition 或 template slot。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx:81-112`；`web/src/features/settings/panels/PluginsPanel.tsx:365-800`）。
