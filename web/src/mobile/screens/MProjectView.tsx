@@ -1,11 +1,13 @@
 // input:  React, mobile kit, presentation props
 // output: MProjectView
-// pos:    Mobile project cards with readable project initials
+// pos:    Mobile project cards with readable project initials; header Usage + Settings keys
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import type { ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
 import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
+import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import type { MProjectSwitchRow } from './m-project-vm';
 import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit';
 import type { NotesCopy } from '@/features/notes/notes-copy';
@@ -27,6 +29,7 @@ export interface MProjectCopy {
   threadsWaiting: string;
   handle: string;
   memory: string;
+  usage: string;
   settings: string;
   switchProject: string;
   running: string;
@@ -75,15 +78,21 @@ export interface MProjectViewProps {
   onAddNote: (text: string) => Promise<unknown>;
   onApprovals: () => void;
   onMemory: () => void;
+  onUsage: () => void;
   onSettings: () => void;
   onSwitch: (id: string) => void;
   onNewProject: () => void;
 }
 
-// Header trailing gear → settings (机器/设置 moved off the body: the tab body is project-scoped
-// only; global system entries live behind this single entry point. Daemon status intentionally NOT
-// shown here — it lives inside settings and its daemon drill-in).
-function SettingsGear({ label, onClick }: { label: string; onClick: () => void }) {
+const ICON_STROKE = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const;
+
+function HeaderIconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -100,22 +109,37 @@ function SettingsGear({ label, onClick }: { label: string; onClick: () => void }
         color: MC.sub,
         cursor: 'pointer',
         padding: 0,
+        flex: 'none',
       }}
     >
-      <svg
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
+      {children}
+    </button>
+  );
+}
+
+// Header trailing keys. Usage mirrors the desktop top bar: it is checked far more often than the
+// rest of Settings, so it gets its own key (same gauge glyph as its settings row) beside the gear.
+// The gear → settings (机器/设置 moved off the body: the tab body is project-scoped only; global
+// system entries live behind this single entry point. Daemon status intentionally NOT shown here —
+// it lives inside settings and its daemon drill-in).
+function UsageKey({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <HeaderIconButton label={label} onClick={onClick}>
+      <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" {...ICON_STROKE}>
+        <path d={getSettingsNavIcon('usage')} />
+      </svg>
+    </HeaderIconButton>
+  );
+}
+
+function SettingsGear({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <HeaderIconButton label={label} onClick={onClick}>
+      <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" {...ICON_STROKE}>
         <circle cx="12" cy="12" r="3.2" />
         <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
       </svg>
-    </button>
+    </HeaderIconButton>
   );
 }
 
@@ -489,7 +513,10 @@ export function MProjectView(props: MProjectViewProps) {
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
       <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
-      <SettingsGear label={props.copy.settings} onClick={props.onSettings} />
+      <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
+        <UsageKey label={props.copy.usage} onClick={props.onUsage} />
+        <SettingsGear label={props.copy.settings} onClick={props.onSettings} />
+      </div>
     </div>
   );
   return (

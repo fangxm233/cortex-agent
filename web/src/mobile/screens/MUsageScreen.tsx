@@ -1,8 +1,8 @@
-// input:  usage controller, navigation, mobile usage view
+// input:  usage controller, navigation (+ entry origin in location state), mobile usage view
 // output: MUsageScreen
 // pos:    Mobile usage screen wiring
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
@@ -41,8 +41,13 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
   },
 };
 
+// Usage is reachable both from its Settings row and from the Project header's Usage key; back
+// returns to whichever opened it.
+export interface UsageNavState { from?: 'project' }
+
 export function MUsageScreen() {
   const navigate = useNavigate();
+  const fromProject = (useLocation().state as UsageNavState | null)?.from === 'project';
   const copy = pickCopy(useLang(), COPY);
   const usage = useUsage();
   return (
@@ -56,7 +61,7 @@ export function MUsageScreen() {
         policyControlsState={usage.policyControlsState}
         isPolicySaving={usage.isPolicySaving}
         getPolicyError={usage.getPolicyError}
-        onBack={() => navigate('/m/settings', { replace: true })}
+        onBack={() => navigate(fromProject ? '/m/project' : '/m/settings', { replace: true })}
         onRefresh={usage.refresh}
         onSavePolicy={usage.savePolicy}
       />

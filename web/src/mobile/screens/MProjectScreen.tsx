@@ -14,6 +14,7 @@ import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync
 import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
+import type { UsageNavState } from './MUsageScreen';
 import { threadCountsForProject, buildProjectSwitchRows, pendingApprovalCounts } from './m-project-vm';
 import { MNewProjectView, type MNewProjectCopy } from './MNewProjectView';
 import { useCreateProject } from '@/features/projects/useCreateProject';
@@ -40,6 +41,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     threadsWaiting: 'threads paused',
     handle: 'Review',
     memory: 'Project memory',
+    usage: 'Usage',
     settings: 'Settings',
     switchProject: 'SWITCH PROJECT',
     running: 'running',
@@ -63,6 +65,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     threadsWaiting: '线程暂停等待',
     handle: '处理',
     memory: '项目记忆',
+    usage: '用量',
     settings: '设置',
     switchProject: '切换项目',
     running: '运行中',
@@ -204,7 +207,8 @@ export function MProjectScreen() {
     copy: pickCopy(lang, COPY), current, pendingApprovals: scopedApprovals + approvalCounts.global, globalPendingApprovals: approvalCounts.global, issues,
     notesVm, notesCopy: NOTES_COPY[lang], notesBusy, switchRows, rateLimitStatus: rate,
     onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: addNote,
-    onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
+    onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'),
+    onUsage: () => navigate('/m/settings/usage', { state: { from: 'project' } satisfies UsageNavState }), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
   };
   return <><MProjectView {...viewProps} /><ProjectOverlays rate={rate} rateOpen={rateOpen} closeRate={() => setRateOpen(false)} project={project} /></>;
 }
