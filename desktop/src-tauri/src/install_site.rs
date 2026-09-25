@@ -339,7 +339,7 @@ pub fn detect() -> InstallSite {
 fn read_windows_install_location() -> Option<PathBuf> {
     const KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Cortex";
     for root in ["HKCU", "HKLM"] {
-        let out = std::process::Command::new("reg")
+        let out = crate::no_console_window(&mut std::process::Command::new("reg"))
             .args(["query", &format!(r"{root}\{KEY}"), "/v", "InstallLocation"])
             .output()
             .ok()?;

@@ -311,12 +311,24 @@ fn reveal_path(path: String) -> Result<(), String> {
     reveal_with_os(&path)
 }
 
+/// A GUI process that starts a console program (`reg`, `cmd`) gets a console window flashed on
+/// screen for it on Windows unless the child is created without one. A no-op elsewhere.
+pub(crate) fn no_console_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 /// Launch an OS opener process fire-and-forget (never wait): file managers like Windows Explorer
 /// return non-zero exit codes even on success, so we only care that the process launched, not its
 /// exit status. Args are passed directly (no shell), so a path can never be interpreted as a command.
 #[allow(dead_code)]
 fn spawn_detached(program: &str, args: &[&str]) -> Result<(), String> {
-    std::process::Command::new(program)
+    no_console_window(&mut std::process::Command::new(program))
         .args(args)
         .spawn()
         .map(|_| ())

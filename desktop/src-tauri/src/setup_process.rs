@@ -107,7 +107,8 @@ fn pump_stream(
 
 fn setup_command(program: &str, args: &[impl AsRef<OsStr>]) -> Command {
     let mut command = Command::new(program);
-    command.args(args).stdin(Stdio::null());
+    // Output is piped to the setup UI; on Windows `npm.cmd` would otherwise flash a console.
+    crate::no_console_window(&mut command).args(args).stdin(Stdio::null());
     if let Some(path) = login_path() {
         command.env("PATH", path);
     }
