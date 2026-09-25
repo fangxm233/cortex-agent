@@ -629,7 +629,9 @@ export function LeftRail(): JSX.Element {
                   {...hp('approval')}
                   onClick={() => approvals.open()}
                   style={{
-                    padding: '10px 12px',
+                    // Matches the rate-limit banner above it (RailRateLimitStatus): one flat row height.
+                    height: 34,
+                    padding: '0 12px',
                     background: 'var(--proto-amber-bg)',
                     border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
                     borderRadius: 12,

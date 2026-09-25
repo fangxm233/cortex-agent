@@ -36,7 +36,9 @@ const RailBannerTrigger = forwardRef<
       title={label}
       style={{
         width: '100%',
-        padding: '9px 12px',
+        // Same fixed height as the approvals banner stacked beneath it (LeftRail attention zone).
+        height: 34,
+        padding: '0 12px',
         border: '1px solid var(--pill-waiting-bg)',
         background: 'var(--pill-waiting-bg)',
         color: 'var(--pill-waiting-fg)',
