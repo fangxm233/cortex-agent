@@ -9,8 +9,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "//build": "Typecheck, boundary check and bundle run concurrently, not in sequence: vite build does not typecheck, so the three share no inputs and `&&` only served to add their times together. Every exit code is captured and OR'd, because a bare `wait` reports success even when a job failed — which would let a type error or a boundary violation through the daemon's rebuild pipeline silently. A failed check can now leave a bundle in dist/, but the non-zero exit aborts the pipeline before it is installed.",
-    "build": "tsc --noEmit & tscpid=$!; pnpm run depcruise & dcpid=$!; vite build & vitepid=$!; wait $tscpid; tscrc=$?; wait $dcpid; dcrc=$?; wait $vitepid; viterc=$?; exit $((tscrc||dcrc||viterc))",
+    "//build": "Typecheck, boundary check and bundle run concurrently; any failing job fails the build. See scripts/build.mjs.",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --validate --ignore-known && node scripts/check-feature-cycles.mjs",
     "lint": "pnpm run depcruise",
