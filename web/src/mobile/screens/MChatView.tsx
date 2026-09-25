@@ -463,7 +463,13 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
 
 export function MChatView(props: MChatViewProps): JSX.Element {
   const { copy } = props;
-  const { composerRef, tailHeight } = useComposerClearance();
+  const { composerRef, tailHeight, shellHeight } = useComposerClearance();
+  // The transcript dissolves over the 48px above the floating shell instead of sliding under it
+  // legibly, so the composer's blur samples the ground rather than smeared text. The fade ends at the
+  // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
+  // clear of it, so a transcript scrolled to the end stays fully opaque.
+  const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
+  const transcriptFade = `linear-gradient(to bottom, #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
 
   // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
@@ -541,7 +547,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate' }}>
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade }}>
           {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
           <div ref={contentRef} style={{ padding: 'calc(72px + env(safe-area-inset-top)) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream

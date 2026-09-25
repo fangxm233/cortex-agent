@@ -152,6 +152,8 @@
   /* Chrome that floats over the ground rather than over content — the mobile tab bar, the chat
      header pill. A shallower lift than `--shadow-float` (which is for sheets covering real content). */
   --shadow-chrome-float: 0 10px 30px rgba(16, 24, 40, 0.1);
+  /* Its upward counterpart, for chrome docked at the bottom over scrolling content (the composer). */
+  --shadow-chrome-rise: 0 -4px 18px -6px rgba(16, 24, 40, 0.1);
   /* A solid round key (Stop) lifted off the surface it sits on. */
   --shadow-key-lift: 0 4px 12px rgba(16, 24, 40, 0.2);
   /* The amber attention card carries its own tinted lift so it reads as urgent, not just coloured. */
@@ -360,6 +362,7 @@
   --accent-glow: 0 8px 28px color-mix(in srgb, var(--accent-main) 28%, transparent);
 
   --shadow-chrome-float: 0 10px 30px rgba(0, 0, 0, 0.42);
+  --shadow-chrome-rise: 0 -4px 18px -6px rgba(0, 0, 0, 0.34);
   --shadow-key-lift: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-amber-lift: 0 6px 18px rgba(201, 154, 46, 0.14);
 

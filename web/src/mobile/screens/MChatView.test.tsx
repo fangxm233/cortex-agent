@@ -167,6 +167,10 @@ describe('MChatView floating composer clearance', () => {
         act(() => { height = measured; resize(); });
         expect(renderer.root.findByProps({ 'data-composer-clearance': true }).props.style.height)
           .toBe(`calc(${reserved}px + env(safe-area-inset-bottom))`);
+        // The transcript fade ends at the shell top and follows it as the shell grows.
+        const edge = `calc(100% - ${measured + 20}px - env(safe-area-inset-bottom))`;
+        expect(renderer.root.findByProps({ 'data-transcript-scroller': true }).props.style.maskImage)
+          .toBe(`linear-gradient(to bottom, #000 calc(${edge} - 48px), transparent ${edge})`);
       }
       expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
         .toBe('calc(20px + env(safe-area-inset-bottom))');

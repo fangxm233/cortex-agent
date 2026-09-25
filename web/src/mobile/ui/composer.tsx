@@ -145,16 +145,20 @@ const composerShellStyle: CSSProperties = {
   zIndex: 4,
 };
 
-const COMPOSER_GLASS = 'var(--shadow-chrome-float)';
+const COMPOSER_LIFT = 'var(--shadow-chrome-rise), var(--shadow-chrome-float)';
 
-/** The tone/focus accent is an extra ring in the shadow stack rather than a border: a real border
- *  would resize the card the moment the field takes focus. */
+/** The card is the one chrome you write in, so it sits a step more solid than the header pill: the
+ *  raised glass fill, an ink-tinted ring (the chips' own outline) rather than a near-white hairline
+ *  that vanishes on a light ground, and a shallow upward shadow so its top edge separates from the
+ *  transcript above it, not only its bottom from the ground. The tone/focus accent replaces that
+ *  ring in the shadow stack rather than being a border: a real border would resize the card the
+ *  moment the field takes focus. */
 function composerCardStyle(tone: MComposerProps['tone'], focused: boolean): CSSProperties {
   const accent = tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : null;
   return {
-    borderRadius: 'var(--r-float)', background: MC.glass,
+    borderRadius: 'var(--r-float)', background: MC.glassRaised,
     backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter,
-    boxShadow: `${COMPOSER_GLASS}, 0 0 0 1px ${accent ?? MC.hairline}`,
+    boxShadow: `${COMPOSER_LIFT}, 0 0 0 1px ${accent ?? 'var(--proto-line-3)'}`,
     boxSizing: 'border-box', padding: '12px 12px 10px 14px',
   };
 }

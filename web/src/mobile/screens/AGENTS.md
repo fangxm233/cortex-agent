@@ -22,7 +22,7 @@ Entry points by group (the `Screen` is the routed one in each):
 - **Chat** — `MChatScreen` / `MChatView` (+ `.types`) / `m-chat-vm`, with `MChatSheets`,
   `MChatAttachments` + `m-chat-attachments`, `MChatComposerPresentation`,
   `MChatInlineThreadCard`, `MChatMessageActions`, `MInteractionCards`, `useComposerClearance`
-  (floating-composer transcript clearance) and the drill-in `MPlanReadScreen` / `MPlanReadView`.
+  (floating-composer transcript clearance and fade edge) and the drill-in `MPlanReadScreen` / `MPlanReadView`.
   Tool calls, subagents and decisions render through the SHARED `features/session` blocks
   (`ToolCallsRow`, `SubagentBlock`, `DecisionCardGroup`) — there is no mobile twin of them.
 - **Sessions & projects** — `MSessionListScreen` / `MSessionListView` / `m-session-list-vm`,
