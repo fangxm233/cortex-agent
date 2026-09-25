@@ -11,6 +11,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | BrowserOptIn.tsx | view | Provide browser session controls |
 | CenterChat.tsx | view | Compose selected-session conversation |
 | chat-content.ts | model | Build chat content state |
+| ChatDropOverlay.test.tsx | test | Test pane-wide drop overlay |
+| ChatDropOverlay.tsx | view | Render pane-wide file-drop cue |
 | chat-nav.test.ts | test | Test chat nav |
 | chat-nav.ts | model | Build chat nav state |
 | ChatHeader.tsx | view | Render chat title and glass action menu |

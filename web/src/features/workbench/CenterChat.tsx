@@ -260,6 +260,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       ref={chatDropTargetRef}
       data-pane="center"
       style={{
+        // Positioning context for the pane-wide file-drop overlay the composer portals in here.
+        position: 'relative',
         flexGrow: grow,
         flexShrink: 1,
         flexBasis: 0,
