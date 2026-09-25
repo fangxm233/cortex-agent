@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { layoutDestination } from './responsive-route';
 
 const harness = vi.hoisted(() => ({ mobile: false, routes: [] as RouteObject[], listeners: new Set<() => void>() }));
-vi.mock('@/i18n', async (original) => ({
+vi.mock('@/lib/use-mobile-layout', async (original) => ({
   ...await original<object>(),
   useIsMobile: () => useSyncExternalStore(
     (listener) => { harness.listeners.add(listener); return () => { harness.listeners.delete(listener); }; },
@@ -20,9 +20,9 @@ vi.mock('@/mobile/MobileShell', () => ({ MobileShell: () => <Outlet /> }));
 vi.mock('@/features/workbench/WorkbenchPage', () => ({ WorkbenchPage: () => <span>workbench</span> }));
 vi.mock('@/features/tasks/TasksPage', () => ({ TasksPage: () => <span>tasks</span> }));
 vi.mock('@/features/provider-setup/ProviderSetupPage', () => ({ ProviderSetupPage: () => <span>setup</span> }));
-vi.mock('@/mobile/v3/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
-vi.mock('@/mobile/v3/MTasksScreen', () => ({ MTasksScreen: () => <span>mobile tasks</span> }));
-vi.mock('@/mobile/v3/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
+vi.mock('@/mobile/screens/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
+vi.mock('@/mobile/screens/MTasksScreen', () => ({ MTasksScreen: () => <span>mobile tasks</span> }));
+vi.mock('@/mobile/screens/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
 // Capture the real combined route table, replacing only rendered pages with probes.
 import './router';
 

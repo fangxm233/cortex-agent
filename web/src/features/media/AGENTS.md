@@ -16,6 +16,7 @@ Media presentation and supporting state modules.
 | pdf-pager.test.ts | test | Verify pdf-pager |
 | pdf-pager.ts | utility | Provide pdf-pager |
 | pdf-worker.ts | utility | Provide pdf-worker |
+| preview-item.ts | type | The preview item shape handed to the dock through `design/dock-intake` |
 | useDownloadFile.ts | utility | Provide useDownloadFile |
 | useMediaSrc.ts | utility | Provide useMediaSrc |
 | useViewHeight.ts | utility | Provide useViewHeight |

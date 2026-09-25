@@ -23,7 +23,7 @@ import {
 // L1291-1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source; the
 // prototype's static mock is made interactive: TYPE drives which field cell shows, MESSAGE is
 // editable, PROFILE/TARGET/FALLBACK/DAY/unit are real controls, and Create schedule fires the real
-// `schedules.add` mutation (owned by ScheduleModalProvider). The DAILY state is the visual-diff bar
+// `schedules.add` mutation (owned by useScheduleEditorController). The DAILY state is the visual-diff bar
 // (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
 
 const LABEL: CSSProperties = {

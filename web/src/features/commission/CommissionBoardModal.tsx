@@ -4,13 +4,13 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useCallback, useState } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { MarkdownView } from '@/features/memory/MarkdownView';
-import { fetchCommissionAssetObjectUrl } from '@/lib/files';
-import { DecisionCardGroup } from '@/features/workbench/DecisionCards';
+import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
+import { fetchCommissionAssetObjectUrl } from './commission-assets';
 
 const mono = "'IBM Plex Mono',monospace";
 

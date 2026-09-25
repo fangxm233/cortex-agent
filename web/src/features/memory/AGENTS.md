@@ -7,8 +7,6 @@ Memory presentation and supporting state modules.
 | MarkdownView.tsx | view | Render MarkdownView |
 | MemoryPage.tsx | view | Render MemoryPage |
 | MemoryView.tsx | view | Render memory reading pane and transparent tree |
-| markdown.test.ts | test | Verify markdown |
-| markdown.ts | utility | Provide markdown |
 | memory-tree.test.ts | test | Verify memory-tree |
 | memory-tree.ts | utility | Provide memory-tree |
 | memory-vm.test.ts | test | Verify memory-vm |

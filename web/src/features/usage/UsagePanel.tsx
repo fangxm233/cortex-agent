@@ -3,7 +3,7 @@
 // pos:    Readable provider quotas; throttle policy summarized inline, edited on demand
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
-import '@/features/settings/desktop-panels.css';
+import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import {
@@ -18,7 +18,7 @@ import {
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
   Toggle,
-} from '@/features/settings/settings-ui';
+} from '@/features/settings/ui/settings-ui';
 import { policyActionState, usePolicyThresholdDraft } from './usage-policy-controls';
 import { useUsage } from './useUsage';
 import {

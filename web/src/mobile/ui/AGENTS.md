@@ -1,12 +1,11 @@
 Please update me when files in this folder change.
 
-Shared mobile presentation frames, controls and formatting.
+The mobile kit: shared presentational frames, controls and formatting every screen composes.
+Pure — no data, no tRPC. Primitives features also render (`MBottomSheet`, the `MC`/`MONO`
+tokens, the overlay host) live in `design/`; `kit.tsx` re-exports them so screens import one kit.
 
 | filename | role | function |
 |---|---|---|
-| composer.tsx | UI | Render measurable floating composer chrome |
-| format.ts | utility | Provide format |
-| kit.test.ts | test | Test kit |
-| kit.tsx | UI | Render floating glass header, cards, controls and sheets |
-| mobile-theme.ts | utility | Define palette, reading surfaces and chrome edges |
-| overlay-host.tsx | UI | Lift sheets above the floating Tab bar |
+| kit.tsx | UI | `MScreen`, `MTabHeader`, `MDrillHeader`, `MScrollBody`, `MCard`, `MPill`, `MDot`, `MSegmented`, `MGroupLabel` — floating glass header, cards and controls |
+| composer.tsx | UI | `MComposer` + `ComposerFullscreen`: measurable floating composer chrome and its line/char count labels |
+| format.ts | utility | `relTimeZh`, `fmtMoney`, and `pickCopy` (the screen-local COPY-table picker) |

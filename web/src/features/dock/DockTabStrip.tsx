@@ -6,7 +6,7 @@ import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';
 import { browserTabChip, browserTabForwardSource, currentUrl, type BrowserTabChip } from '@/features/browser/browser-target';
-import { attachmentFileExt } from '@/features/workbench/attachment-presentation';
+import { attachmentFileExt } from '@/features/attachments/attachment-presentation';
 import { dockTabLabel, isFileTab, type DockState, type DockTab } from './dock-tabs';
 import './dock-chrome.css';
 

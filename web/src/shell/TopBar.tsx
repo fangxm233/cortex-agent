@@ -7,14 +7,14 @@ import './top-bar.css';
 import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
 import { useTheme, useSetTheme } from '@/theme';
-import { useSettings } from '@/features/settings/SettingsProvider';
+import { useSettings } from '@/features/settings/useSettings';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
-import { BrandBadge, GearIcon } from '@/features/workbench/LeftRail';
+import { BrandBadge, GearIcon } from '@/features/workbench/rail/LeftRail';
 import { usePaneState } from './PaneStateProvider';
 import { useNavigationHistory } from './NavigationHistoryProvider';
-import { useShellModals } from './ShellModalsProvider';
+import { useShellModals } from './useShellModals';
 import { MenuBar } from './menu/MenuBar';
 import { formatAccel } from './menu/menu-model';
 import { useAppMenus } from './menu/useAppMenus';
@@ -242,7 +242,7 @@ export function TopBar(): JSX.Element {
         accel={formatAccel('mod+k', usesCommandKey())}
         // The palette's open state lives in AppShell's own `useCommandPalette` instance, so the
         // established way to reach it from elsewhere is the synthetic key event (precedent:
-        // shell/menu/useAppMenus.ts, features/workbench/CenterChat.tsx).
+        // shell/menu/useAppMenus.ts, features/workbench/chat/CenterChat.tsx).
         onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }))}
       />
 

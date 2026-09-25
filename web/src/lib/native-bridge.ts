@@ -24,6 +24,22 @@ export interface NativeNotificationStatus {
   completionNotifications?: boolean;
 }
 
+/** One channel of a native update check: what the shell found for `ui` / `shell`. */
+export interface ChannelOutcome<T> {
+  status: 'available' | 'current' | 'skipped' | 'error';
+  update?: T;
+  reason?: string;
+}
+
+/** Raw `check_for_updates` payload. Mirrors update_checks.rs, including the nullable fields the
+ *  native side serialises; the update feature parses this into its own richer report. */
+export interface NativeCheckReport {
+  ui: ChannelOutcome<{ version: string; fromVersion: string | null; size: number }>;
+  shell: ChannelOutcome<{
+    version: string; releaseUrl: string | null; notes: string | null; size: number; kind: string;
+  }>;
+}
+
 export interface NativeNotificationAction {
   actionId: string;
   scope: string;
@@ -50,7 +66,7 @@ interface NativeCommandMap {
   'plugin:cortex-notifications|ack_action': { args: { actionId: string }; result: unknown };
   'plugin:cortex-notifications|visible_session': { args: { sessionId: string }; result: unknown };
   disconnect: { args: undefined; result: unknown };
-  check_for_updates: { args: undefined; result: import('@/features/update/manual-update-check').NativeCheckReport };
+  check_for_updates: { args: undefined; result: NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
   skip_app_update: { args: undefined; result: unknown };

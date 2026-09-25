@@ -1,0 +1,990 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTRPC } from '@/lib/trpc';
+import { useLang, useVocab } from '@/i18n';
+import { pickCopy } from '@/mobile/ui/format';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import {
+  resolveTurns,
+  currentTurnElapsedMs,
+  formatElapsed,
+  rewindStats,
+} from '@/features/session/transcript/transcript-vm';
+import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
+import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
+import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
+import { useSessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
+import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
+import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
+import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
+import { useMarkSessionRead } from '@/features/session/live/useMarkSessionRead';
+import { useSessionCompact } from '@/features/session/live/useSessionCompact';
+import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
+import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
+import { sessionSpanMs, sessionStatsView } from '@/features/session/list/session-stats';
+import {
+  agentChipParts, buildAgentOptions, buildProfileOptions, effectiveSelection, hasAgentChoice,
+  profileChange, selectionChipParts,
+} from '@/features/session/list/selection-menu';
+import {
+  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
+  type SlashAction, type SlashActionHandlers, type SlashSuggestion,
+} from '@/features/session/composer/composer-slash';
+import {
+  applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionAgent, resolveTransitionSelection,
+  seedDraftSelection,
+  type DraftSelection, type PendingCreatedSession, type SelectionChange,
+} from '@/features/session/state/selected-session';
+
+import {
+  draftStorageKey,
+  loadDraft,
+  saveDraft,
+  clearDraft,
+  mergeRestoredDraft,
+  type ComposerDraft,
+} from '@/features/session/composer/composer-draft';
+import {
+  askCardModel,
+  planCardModel,
+  emptyAskAnswers,
+  currentQuestionIndex,
+  commitAnswer,
+  toggleSelected,
+  confirmSelected,
+  askComplete,
+  mergedAnswers,
+  type AskAnswerState,
+  type AskCardModel,
+  type PlanCardModel,
+} from '@/features/session/interaction/interaction-vm';
+import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
+import { MChatInlineThreadCard } from './MChatInlineThreadCard';
+import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
+import {
+  commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
+  useSessionCommission,
+} from '@/features/commission/CommissionOptIn';
+import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
+import { M_INT_COPY } from './MInteractionCards';
+import type { RejectPlanNavState } from './MPlanReadScreen';
+import { useProjectSessions } from '@/features/projects/useProjectSessions';
+import {
+  buildMobileChatRows,
+  chatHeaderStatus,
+  interactionHeaderStatus,
+  effectiveProfileName,
+  selectionChipLabel,
+  buildAgentSheet,
+  buildSelectionSheet,
+  type SelectionSheetRow,
+  type PendingAttachmentVM,
+} from './m-chat-vm';
+import { usePersistedMobileChatDraft } from './m-chat-attachments';
+import { attachmentSendAllowed, attachmentType } from '@/features/attachments/types';
+import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
+const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
+
+const COPY: { en: MChatCopy; zh: MChatCopy } = {
+  zh: {
+    composerPh: '输入消息，/ 调用命令',
+    menuSessionId: '会话 ID',
+    menuSessionStats: '会话统计',
+    sessionIdTitle: '会话 ID',
+    sessionStatsTitle: '会话统计',
+    sessionStatsHint: '整个对话的累计值。工作时长与 turns 只算本会话自己的 run；花费还包含它们派出的子代理。',
+    cortexIdLabel: 'Cortex ID',
+    backendUuidLabel: '后端 UUID',
+    copy: '复制',
+    copied: '已复制',
+    attachCamera: '拍照',
+    attachLibrary: '照片图库',
+    attachFile: '选择文件',
+    attachBrowser: '浏览器',
+    attachCommission: '委托',
+    attachCommands: '命令',
+
+    attachPlaceholder: '补充说明…',
+    profileTitle: 'Profile',
+    profileSubtitle: '仅本会话 · 热更新',
+    profileCurrent: '当前',
+    profileFooter: '切换仅影响本会话后续 turn · 运行中线程不受影响 · 全局默认在设置',
+    selectionAgent: 'agent',
+    selectionAgentDefault: '默认',
+    selectionAgentFollow: '跟随全局默认',
+    selectionAgentCrossBackend: '仅限新对话 · {backend}',
+    selectionModel: '模型',
+    selectionThinking: '思考强度',
+    selectionMode: '计费路由',
+    selectionFollow: '跟随 profile',
+    selectionFollowAll: '全部跟随 profile',
+    selectionHiddenModels: '{n} 个模型本会话不可用',
+    selectionHiddenProfiles: '{n} 个 profile 本会话不可用',
+    selectionHiddenNoProfile: '{n} 个模型无可用 profile',
+    selectionPending: '正在加载模型…',
+    lineUnit: '行',
+    charUnit: '字',
+  },
+  en: {
+    composerPh: 'Message, / for commands',
+    menuSessionId: 'Session ID',
+    menuSessionStats: 'Session stats',
+    sessionIdTitle: 'Session ID',
+    sessionStatsTitle: 'Session stats',
+    sessionStatsHint: 'Totals for the whole conversation. Active time and turns count this session\u2019s own runs; cost also includes the subagents they spawned.',
+    cortexIdLabel: 'Cortex ID',
+    backendUuidLabel: 'Backend UUID',
+    copy: 'Copy',
+    copied: 'Copied',
+    attachCamera: 'Take photo',
+    attachLibrary: 'Photo library',
+    attachFile: 'Choose file',
+    attachBrowser: 'Browser',
+    attachCommission: 'Commission',
+    attachCommands: 'Commands',
+
+    attachPlaceholder: 'Add a note…',
+    profileTitle: 'Profile',
+    profileSubtitle: 'This session · hot-swap',
+    profileCurrent: 'current',
+    profileFooter: 'Applies to this session’s next turns only · running threads unaffected · global default in Settings',
+    selectionAgent: 'agent',
+    selectionAgentDefault: 'default',
+    selectionAgentFollow: 'follow the host default',
+    selectionAgentCrossBackend: 'new conversation only · {backend}',
+    selectionModel: 'model',
+    selectionThinking: 'thinking',
+    selectionMode: 'route',
+    selectionFollow: 'follow profile',
+    selectionFollowAll: 'follow the profile for everything',
+    selectionHiddenModels: '{n} models unavailable this session',
+    selectionHiddenProfiles: '{n} profiles unavailable this session',
+    selectionHiddenNoProfile: '{n} models have no profile',
+    selectionPending: 'loading models…',
+    lineUnit: 'lines',
+    charUnit: 'chars',
+  },
+};
+
+// sec-7 message edit + rewind copy (7a long-press menu · 7b edit mode · 已编辑/原消息 · regen note).
+const EDIT_COPY: { en: MChatEditCopy; zh: MChatEditCopy } = {
+  zh: {
+    menuCopy: '复制',
+    menuEdit: '编辑消息',
+    editingBadge: '编辑中',
+    willRewind: (replies, toolCalls) => `将被回退 · ${replies} 条回复 · ${toolCalls} 次工具调用`,
+    editBarTitle: '编辑消息 — 发送将回退后续回复',
+    edited: '已编辑',
+    original: '原消息',
+    regenNote: '由编辑重新生成',
+  },
+  en: {
+    menuCopy: 'Copy',
+    menuEdit: 'Edit message',
+    editingBadge: 'Editing',
+    willRewind: (replies, toolCalls) => `Will rewind · ${replies} repl${replies === 1 ? 'y' : 'ies'} · ${toolCalls} tool call${toolCalls === 1 ? '' : 's'}`,
+    editBarTitle: 'Editing message — send rewinds later replies',
+    edited: 'edited',
+    original: 'Original message',
+    regenNote: 'Regenerated from edit',
+  },
+};
+
+export function MChatScreen(): JSX.Element {
+  const trpc = useTRPC();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const lang = useLang();
+  const vocab = useVocab();
+  const copy = pickCopy(lang, COPY);
+  const { currentProjectId } = useCurrentProject();
+  const { sessionId: routeParam } = useParams<{ sessionId: string }>();
+  const isDraft = routeParam === 'new';
+
+  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
+  // Scheduled runs open on the same page (scheme-mobile 8d) — the Scheduled sheet navigates here,
+  // so the active-session membership must include them.
+  const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
+  const active = useMemo(() => {
+    const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
+    return list.find((s) => s.sessionId === routeParam) ?? null;
+  }, [sessionsQuery.data, scheduledSessionsQuery.data, routeParam]);
+  const sessionId = isDraft ? '' : (active?.sessionId ?? routeParam ?? '');
+  // Un-adopted scheduled run (8d): title「schedule 名 · run #n」+ reply-adopts hint; replying
+  // converts it to a normal session server-side (nothing special to send).
+  const isScheduledRun = active?.origin === 'scheduled';
+  const schedulesQuery = useQuery({
+    ...trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
+    enabled: !!active?.scheduleId,
+  });
+  const runTitle = useMemo(() => {
+    if (!isScheduledRun || !active?.scheduleId) return null;
+    const sched = (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null;
+    const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
+    return scheduledRunTitle(sched, runs, active.sessionId);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data]);
+
+  const transcriptQuery = useTranscriptQuery(sessionId);
+  // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.
+  const {
+    liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns, contextUsage, todos,
+    streamingText, pendingUser,
+  } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
+    deltas: true,
+    transcript: transcriptQuery.data ?? null,
+    contextUsage: active?.contextUsage ?? null,
+    todos: active?.todos ?? null,
+  });
+  // A sent message shows in the stream on the frame it is sent (same reconciliation the desktop
+  // chat uses), instead of vanishing until the server echoes it back.
+  const optimistic = useOptimisticUserMessages({
+    sessionId,
+    isDraft,
+    projectId: currentProjectId ?? 'general',
+    transcript: transcriptQuery.data ?? null,
+    liveTail,
+    pendingUser,
+    getMessageSnapshot,
+  });
+  const compactAction = useSessionCompact(sessionId, {
+    running,
+    hasBackendHistory: !!active?.backendSessionId,
+  });
+  // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
+  // the answer/approve/reject actions.
+  const interactionActions = useInteractionActions(sessionId);
+  // Unread write side (mirrors desktop CenterChat): viewing a session stamps it read (debounced,
+  // visibility-gated), re-arming on live activity so a reply landing under the user's eyes never
+  // stays unread. onSuccess invalidates sessions.list → clears the marker + project switcher badge.
+  useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
+  const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
+  const rows = useMemo(
+    () => buildMobileChatRows(transcript, liveTail, {
+      streaming, running, streamingText, pendingUser: optimistic.pendingUser,
+      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
+    }),
+    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun],
+  );
+  const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
+  const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
+
+  // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
+  // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
+  // is still working and the user must stay free to type anything. Its card still renders inline
+  // in the stream and stays tappable there.
+  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId, active?.waitingOn ?? 0);
+  const pendingInteraction = useMemo(() => {
+    for (const r of rows) {
+      if (r.kind !== 'interaction' || r.detail?.status !== 'pending') continue;
+      if (r.detail.kind === 'ask-user' && r.detail.payload.blocking === false) continue;
+      return { detail: r.detail, ts: r.ts ?? null };
+    }
+    return null;
+  }, [rows]);
+  const pendingAskModel = pendingInteraction?.detail.kind === 'ask-user'
+    ? askCardModel(pendingInteraction.detail, pendingInteraction.ts)
+    : null;
+  const pendingPlanModel = pendingInteraction?.detail.kind === 'plan-approval'
+    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts)
+    : null;
+
+  // Session-local progressive answers per ask card (5b: 答一题进一题, the entity resolves once
+  // when the LAST question is answered).
+  const [askStates, setAskStates] = useState<Record<string, AskAnswerState>>({});
+  const askStateOf = (id: string): AskAnswerState => askStates[id] ?? emptyAskAnswers;
+  const commitAndMaybeSubmit = (model: AskCardModel, next: AskAnswerState): void => {
+    setAskStates((prev) => ({ ...prev, [model.requestId]: next }));
+    if (askComplete(model, next)) interactionActions.answerQuestion(model.requestId, mergedAnswers(model, next));
+  };
+  const onAskPick = (model: AskCardModel, label: string): void => {
+    const st = askStateOf(model.requestId);
+    const q = model.questions[currentQuestionIndex(model, st)];
+    if (q) commitAndMaybeSubmit(model, commitAnswer(st, q.question, label));
+  };
+  const onAskToggle = (model: AskCardModel, label: string): void => {
+    setAskStates((prev) => ({ ...prev, [model.requestId]: toggleSelected(askStateOf(model.requestId), label) }));
+  };
+  const onAskConfirmMulti = (model: AskCardModel): void => {
+    const st = askStateOf(model.requestId);
+    const q = model.questions[currentQuestionIndex(model, st)];
+    if (q && st.selected.length > 0) commitAndMaybeSubmit(model, confirmSelected(st, q.question));
+  };
+
+  // 5a reject mode — armed by the card's 驳回并反馈 or by the reading page's router state.
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as RejectPlanNavState | null;
+    if (st?.rejectPlan) {
+      setRejectingId(st.rejectPlan);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+  // Auto-disarm when the plan resolves elsewhere (Slack / desktop / timeout).
+  const pendingPlanId = pendingPlanModel?.requestId ?? null;
+  useEffect(() => {
+    if (rejectingId && rejectingId !== pendingPlanId) setRejectingId(null);
+  }, [rejectingId, pendingPlanId]);
+
+  const onOpenRead = (m: PlanCardModel): void => navigate(`/m/session/${sessionId}/plan/${m.requestId}`);
+
+  // ── profiles (1p) ──
+  const configQuery = useQuery(trpc.config.get.queryOptions({}));
+  const profiles = configQuery.data?.profiles?.profiles ?? [];
+  const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  // The environment is its own axis, so it is its own sheet — opened from its own capsule.
+  const [agentOpen, setAgentOpen] = useState(false);
+  // Only fetched once the sheet is opened: on a cold PI host the catalog costs a provider scan, and
+  // the chip itself reads the profile. See domain/ui-service/query/models.
+  const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: selectionOpen }));
+  const [draftSelection, setDraftSelection] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
+  // Same seed as the desktop composer (SelectedSessionProvider): a new conversation opens on the
+  // last engine chosen on this host, profile included. Without it a mobile draft stayed at
+  // `profileName: null` and the created session had no profile of its own to come back to.
+  useEffect(() => {
+    if (!isDraft || draftSelection.profileName || draftSelection.override || draftSelection.agentName) return;
+    const snapshot = configQuery.data?.profiles;
+    if (!snapshot) return;
+    const seeded = seedDraftSelection(
+      configQuery.data?.selectionDefault, snapshot.profiles, snapshot.defaultProfile,
+    );
+    if (seeded) setDraftSelection(seeded);
+  }, [isDraft, draftSelection.profileName, draftSelection.override, draftSelection.agentName,
+    configQuery.data]);
+  // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
+  // spawns, so a live session can report it but never change it.
+  const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
+  const [browserSheetOpen, setBrowserSheetOpen] = useState(false);
+  const [browserDevices, setBrowserDevices] = useState<ForwardDevice[]>([]);
+  // Read when the sheet opens rather than held: devices come and go, and a stale list would offer a
+  // machine that is no longer connected.
+  useEffect(() => {
+    if (!browserSheetOpen) return;
+    let alive = true;
+    listForwardDevices().then((d) => { if (alive) setBrowserDevices(d); }).catch(() => { if (alive) setBrowserDevices([]); });
+    return () => { alive = false; };
+  }, [browserSheetOpen]);
+  // Commission mode, same creation-time rule as the browser and for the same reason: it decides
+  // which plan tools and which skill the process spawns with.
+  const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
+  // The sheet's titles are gone once it closes, so the chip needs the chosen commission's title
+  // fetched back — otherwise it would fall back to the bare id.
+  const draftCommissionTitle = useCommissionTitle(draftCommission);
+  const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
+  const commissionOptions = useCommissionOptions(commissionSheetOpen);
+  const sessionCommission = useSessionCommission(active);
+  // settings.commissionEnabled — the feature's kill switch. With it off a draft composer offers no
+  // entry point; a live session's read-only capsule is unaffected.
+  const commissionEnabled = useCommissionEnabled();
+  const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
+  const transition = resolveTransitionSelection(
+    { profileName: active?.profileName, override: active?.selectionOverride },
+    pendingCreatedSession,
+    sessionId,
+  );
+  const effectiveProfile = effectiveProfileName(
+    isDraft ? draftSelection.profileName : transition.profileName,
+    profiles,
+    defaultProfile,
+  );
+  const selectionOverride = isDraft ? draftSelection.override : transition.override;
+  // The environment axis, resolved the same way: the row answers for itself once it exists.
+  const agents = configQuery.data?.agents ?? [];
+  const agentName = (isDraft
+    ? draftSelection.agentName
+    : resolveTransitionAgent(active?.agentName, pendingCreatedSession, sessionId)) ?? null;
+  // The profile is the base; the session's own model/thinking choice sits on top of it. One shared
+  // resolver with the desktop composer, so the two surfaces cannot disagree about what will run.
+  const effective = effectiveSelection(profiles, effectiveProfile, selectionOverride);
+  const chipParts = selectionChipParts(effective);
+  const hasHistory = transcript.turns.length > 0 || liveTail.length > 0;
+  const profileOptions = buildProfileOptions(profiles, effectiveProfile, {
+    currentBackend: effective.backend, hasHistory,
+  });
+  // What the environment capsule says, through the same arithmetic the desktop chip runs.
+  const agentChip = agentChipParts(
+    buildAgentOptions(agents, profiles, {
+      agentName, currentBackend: effective.backend, hasHistory,
+    }),
+    agentName,
+  );
+
+  useEffect(() => {
+    if (!pendingCreatedSession) return;
+    const authoritativeArrived = active?.sessionId === pendingCreatedSession.sessionId;
+    const movedElsewhere = !isDraft && sessionId !== pendingCreatedSession.sessionId;
+    if (authoritativeArrived || movedElsewhere) setPendingCreatedSession(null);
+  }, [active?.sessionId, isDraft, pendingCreatedSession, sessionId]);
+
+  // ── mutations ──
+  const sendMut = useMutation(trpc.sessions.send.mutationOptions());
+  // The created session is adopted in the send's onAccepted, not here: promoting the optimistic row
+  // onto the new session id and navigating to it must land in one render, or the row blinks out
+  // while the draft scope is already gone.
+  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
+  const setSelectionMut = useMutation(
+    trpc.sessions.setSelection.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
+    }),
+  );
+  const setAgentMut = useMutation(
+    trpc.sessions.setAgent.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
+    }),
+  );
+  // Stop: cancel the agent(s) running on this session's channel (reuses the desktop Composer's
+  // sessions.cancel path). `running` collapses to idle as the live stream quiets.
+  const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
+  const onStop = (): void => {
+    if (!sessionId || cancelMut.isPending) return;
+    cancelMut.mutate({ sessionId });
+  };
+  // sec-7 message edit + rewind: submit fires the real `sessions.rewind` mutation; the transcript +
+  // rail refetch on settle (and again on the `session.rewound` event / regeneration stream).
+  const rewindMut = useMutation(trpc.sessions.rewind.mutationOptions({
+    onSettled: () => {
+      if (!sessionId) return;
+      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+      queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+      invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
+    },
+  }));
+
+  // ── local UI state ──
+  const [text, setText] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [sessionIdOpen, setSessionIdOpen] = useState(false);
+  const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
+  // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
+  const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
+  // Where the held bubble was when the press fired — the 7a overlay floats its copy there.
+  const [msgMenuAnchorTop, setMsgMenuAnchorTop] = useState<number | null>(null);
+  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
+  const [originalSheet, setOriginalSheet] = useState<{ text: string } | null>(null);
+  // Composer text before the edit hijacked it — restored on × cancel (原样退出).
+  const preEditText = useRef('');
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [contextUsageOpen, setContextUsageOpen] = useState(false);
+  const [systemLines, setSystemLines] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftKey = draftStorageKey({ isDraft, sessionId, projectId: currentProjectId });
+  const draftUploadId = useRef<string | null>(null);
+  const uploadIdentityRef = useRef<string | null>(null);
+  if (uploadIdentityRef.current !== draftKey) {
+    uploadIdentityRef.current = draftKey;
+    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
+  }
+  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
+  const attachmentUploads = useAttachmentUploads({ scope: draftKey, bucket: uploadSessionId });
+  const uploads = attachmentUploads.items;
+  const draftKeyRef = useRef<string | null | undefined>(undefined);
+  usePersistedMobileChatDraft({
+    draftKey, isDraft, text, uploads, setText,
+    replaceRestored: attachmentUploads.replaceRestored, draftUploadId, draftKeyRef,
+  });
+  const addFiles = attachmentUploads.addFiles;
+
+  const pickFiles = (accept: string, capture?: string): void => {
+    const el = fileInputRef.current;
+    if (!el) return;
+    el.accept = accept;
+    if (capture) el.setAttribute('capture', capture);
+    else el.removeAttribute('capture');
+    el.click();
+  };
+
+  const doneMetas = attachmentUploads.completed;
+  const attachmentsReady = !attachmentUploads.hasNonDone;
+  const hasText = !!text.trim();
+
+  // ── sec-7 edit mode (7b) ──
+  const editingRow = editingRowIdx != null ? rows[editingRowIdx] : null;
+  const editArmed = !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
+  const cancelEdit = (): void => {
+    setEditingRowIdx(null);
+    setText(preEditText.current);
+    preEditText.current = '';
+  };
+  const startEdit = (rowIndex: number): void => {
+    const r = rows[rowIndex];
+    if (!r || r.kind !== 'user' || r.turnIndex === undefined || running) return;
+    preEditText.current = text;
+    setRejectingId(null);
+    setEditingRowIdx(rowIndex);
+    setText(r.text);
+  };
+  // Disarm when the anchored row stops being an editable user row (transcript reshaped) or a turn
+  // starts running (a scheduled/other-client message landed).
+  useEffect(() => {
+    if (editingRowIdx == null) return;
+    const r = rows[editingRowIdx];
+    const valid = !!r && r.kind === 'user' && r.turnIndex !== undefined;
+    if (!valid || running) cancelEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, running, editingRowIdx]);
+  const editing: MEditMode | null = editArmed
+    ? { rowIndex: editingRowIdx!, ...rewindStats(rows, editingRowIdx!), onCancel: cancelEdit }
+    : null;
+
+  // ── sec-7 long-press menu (7a) ──
+  const heldRow = msgMenuIdx != null ? rows[msgMenuIdx] : null;
+  const msgMenu: MMsgMenu | null =
+    heldRow && (heldRow.kind === 'user' || heldRow.kind === 'assistant')
+      ? {
+          rowIndex: msgMenuIdx!,
+          anchorTop: msgMenuAnchorTop,
+          onCopy: () => { void navigator.clipboard?.writeText(heldRow.text).catch(() => {}); },
+          ...(heldRow.kind === 'user' && heldRow.turnIndex !== undefined
+            ? { onEdit: () => startEdit(msgMenuIdx!), editDisabled: running || rewindMut.isPending }
+            : {}),
+          onClose: () => setMsgMenuIdx(null),
+        }
+      : null;
+
+  // 5a reject / 5b free-text answer: the composer routes to the interaction, text required.
+  const rejectArmed = !editArmed && !!rejectingId && rejectingId === pendingPlanId;
+  const interactionMode = rejectArmed || !!pendingAskModel;
+  const sendEnabled = editArmed
+    ? hasText && attachmentsReady && !rewindMut.isPending
+    : interactionMode
+      ? hasText && attachmentsReady && !interactionActions.busy
+      : attachmentSendAllowed(text, uploads) && (!!sessionId || isDraft)
+        && !sendMut.isPending && !createAndSendMut.isPending;
+
+  // A rejected send clears the composer optimistically too, so its content has to come back rather
+  // than disappear with the row. Still on the same scope → merge it into the live composer (text
+  // typed while the send was in flight is kept, below the restored text); moved on → merge it into
+  // that scope's stored draft so it is there when the user returns.
+  const restoreRejectedSend = (sent: ComposerDraft, sentKey: string | null, error: Error): void => {
+    if (draftKeyRef.current !== sentKey) {
+      saveDraft(sentKey, mergeRestoredDraft(loadDraft(sentKey) ?? { text: '', attachments: [] }, sent));
+      return;
+    }
+    if (sent.draftUploadId) draftUploadId.current = sent.draftUploadId;
+    setText((current) => [sent.text, current].filter((v) => v.length > 0).join('\n'));
+    attachmentUploads.mergeRestored(sent.attachments);
+    setSystemLines((prev) => [...prev, lang === 'zh'
+      ? `发送失败 · ${error.message} · 内容已退回输入框`
+      : `send failed · ${error.message} · text restored to the composer`]);
+  };
+
+  const slashProfiles = profileOptions.map(
+    (profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }),
+  );
+  const slashAvailability = {
+    newDisabled: attachmentUploads.hasNonDone,
+    cancelDisabled: !running || cancelMut.isPending,
+    compactDisabled: !active?.contextCompactionSupported || compactAction.disabled || compactAction.pending,
+    settingsDisabled: attachmentUploads.hasNonDone,
+  };
+  const slashSuggestions = editArmed || rejectArmed || pendingAskModel
+    ? []
+    : buildSlashSuggestions(text, slashProfiles, slashAvailability);
+  const slashHandlers: SlashActionHandlers = {
+    onNew: () => navigate('/m/session/new'),
+    onCancel: () => { if (running) onStop(); },
+    onCompact: compactAction.onCompact,
+    onProfile: (name) => applySelection(profileChange(profileOptions, effective, name), name),
+    onSettings: () => navigate('/m/settings'),
+  };
+  const consumeSlashText = (): void => {
+    saveDraft(draftKey, {
+      text: '', attachments: doneMetas,
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    });
+    setText('');
+  };
+  const executeSlashAction = (action: SlashAction): void => {
+    consumeSlashText();
+    runSlashAction(action, slashHandlers);
+  };
+  const handleSlashInput = (value: string): boolean => {
+    const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
+    if (resolution.kind === 'none') return false;
+    if (resolution.kind === 'action') executeSlashAction(resolution.action);
+    const feedbackKey = slashFeedbackKey(resolution);
+    if (feedbackKey) setSystemLines((prev) => [...prev, vocab[feedbackKey]]);
+    return true;
+  };
+  const onSlashPick = (suggestion: SlashSuggestion): void => {
+    if (suggestion.disabled) return;
+    if (suggestion.action) executeSlashAction(suggestion.action);
+    else setText(`${suggestion.command} `);
+  };
+
+  const onSend = (): void => {
+    const t = text.trim();
+    // 7b — send = rewind to the edited turn and regenerate with the new text.
+    if (editArmed) {
+      if (!sendEnabled) return;
+      const er = editingRow as Extract<typeof rows[number], { kind: 'user' }>;
+      rewindMut.mutate({ sessionId, turnIndex: er.turnIndex!, text: t });
+      setEditingRowIdx(null);
+      setText(preEditText.current);
+      preEditText.current = '';
+      return;
+    }
+    // 5a — send = reject with the typed feedback (required).
+    if (rejectArmed) {
+      if (!sendEnabled) return;
+      interactionActions.rejectPlan(rejectingId!, t);
+      setRejectingId(null);
+      setText('');
+      return;
+    }
+    // 5b — typed text answers the CURRENT question of the pending ask card.
+    if (pendingAskModel) {
+      if (!sendEnabled) return;
+      const st = askStateOf(pendingAskModel.requestId);
+      const q = pendingAskModel.questions[currentQuestionIndex(pendingAskModel, st)];
+      if (q) commitAndMaybeSubmit(pendingAskModel, commitAnswer(st, q.question, t));
+      setText('');
+      return;
+    }
+    if (handleSlashInput(t)) return;
+    if (!sendEnabled) return;
+    // The row is enqueued before the mutation is awaited, so the message is on screen on the same
+    // frame the composer clears — the send no longer looks dropped while the server round-trips.
+    const sent: ComposerDraft = {
+      text: t,
+      attachments: doneMetas,
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    };
+    const sentKey = draftKey;
+    const mutation = runOptimisticMutation<
+      { sessionId: string; acceptedAt: string } | { accepted: boolean; acceptedAt: string }
+    >({
+      message: optimistic.prepare(t, doneMetas),
+      mutate: () => isDraft
+        ? createAndSendMut.mutateAsync({
+            projectId: currentProjectId ?? 'general',
+            profileName: draftSelection.profileName ?? undefined,
+            ...(draftSelection.override ? { selection: draftSelection.override } : {}),
+            ...(draftSelection.agentName ? { agentName: draftSelection.agentName } : {}),
+            text: t,
+            draftUploadId: sent.draftUploadId,
+            ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
+            ...(commissionEnabled && commissionRequestOf(draftCommission)
+              ? { commission: commissionRequestOf(draftCommission) } : {}),
+            ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
+          } as never)
+        : sendMut.mutateAsync({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never),
+      onEnqueue: optimistic.enqueue,
+      onAccepted: (entry, data) => {
+        if (!('sessionId' in data)) {
+          optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt });
+          return;
+        }
+        optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
+        draftUploadId.current = null;
+        setPendingCreatedSession({
+          sessionId: data.sessionId,
+          profileName: draftSelection.profileName,
+          override: draftSelection.override,
+          agentName: draftSelection.agentName ?? null,
+        });
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        navigate(`/m/session/${data.sessionId}`, { replace: true });
+      },
+      onRejected: (entry) => optimistic.reject(entry.clientId),
+    });
+    // Draft consumed optimistically; rejected sends restore against the same upload bucket.
+    clearDraft(draftKey);
+    setText('');
+    attachmentUploads.reset();
+    void mutation.then((result) => {
+      if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, result.error);
+    });
+  };
+
+  // The sheet owns its own dismissal now — a pick inside a pane returns to its root and stays open,
+  // a profile pick closes it — so this only sends what was chosen.
+  function onPickSelection(row: SelectionSheetRow): void {
+    applySelection(row.change, row.label);
+  }
+
+  /** Send an engine change and, once it has landed, note it in the stream. */
+  function applySelection(change: SelectionChange | null, label: string): void {
+    if (!change) return;
+    const from = selectionChipLabel(effective);
+    // The line is written once the change has actually landed, so a refusal leaves no trace claiming
+    // it did. The draft has nothing to refuse it, so it writes immediately.
+    const note = (): void => setSystemLines((prev) => [...prev, lang === 'zh'
+      ? `引擎切换 ${from} → ${label} · 下一 turn 生效`
+      : `engine ${from} → ${label} · takes effect next turn`]);
+    if (isDraft) {
+      setDraftSelection((prev) => applyDraftSelection(prev, change));
+      note();
+      return;
+    }
+    if (!sessionId) return;
+    // Two axes, two endpoints — the server keeps the environment and the engine apart, and so must
+    // the client. `undefined` is how "follow the host default" is said over the wire.
+    const { agentName: pickedAgent, ...engine } = change;
+    if (pickedAgent !== undefined) {
+      setAgentMut.mutate({ sessionId, agentName: pickedAgent ?? undefined }, { onSuccess: note });
+    }
+    if (Object.keys(engine).length > 0) {
+      setSelectionMut.mutate({ sessionId, ...engine }, { onSuccess: note });
+    }
+  }
+
+  // Shared facts classify foreground/background/idle/fresh; mobile maps its own copy. Interaction
+  // remains the highest-priority override, followed by browser startup, then the ordinary run line.
+  const cost = active?.costUsd ?? null;
+  // Whole-session totals — the ⋯ menu's「会话统计」sheet. Same vm as desktop; only `summary` goes
+  // unused here, because the mobile header line has no room for a second segment.
+  const sessionStats = useMemo(
+    () => sessionStatsView(active?.totals ?? null, sessionSpanMs(active?.createdAt, active?.lastUsedAt), {
+      scope: vocab.wbSessionScope, turnsUnit: vocab.wbTurnsUnit, runsUnit: vocab.wbRunsUnit,
+      runsLabel: vocab.wbStatRuns, turnsLabel: vocab.wbStatTurns, activeLabel: vocab.wbStatActive,
+      spanLabel: vocab.wbStatSpan, costLabel: vocab.wbStatCost, subagentLabel: vocab.wbStatSubagent,
+    }),
+    [active?.totals, active?.createdAt, active?.lastUsedAt, vocab],
+  );
+  const hasRun = !isDraft && turns != null;
+  const runStatus = deriveSessionRunStatus({
+    running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
+  });
+  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit, waitingOn: (n: number) => (lang === 'zh' ? `等 ${n} 个信号` : `waiting on ${n}`) };
+  const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
+  const browserStarting = browserStartupPending({
+    running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
+    turnProgressStarted: liveTurns !== null || streaming,
+  });
+  const status = pendingInteraction
+    ? interactionHeaderStatus(
+        pendingInteraction.detail.kind,
+        pendingAskModel ? currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) : 0,
+        pendingAskModel?.questions.length ?? 1,
+        lang,
+      )
+    : browserStarting && statusBrowserDevice
+      ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
+      : chatHeaderStatus(runStatus, turns, elapsed, cost, statusCopy, active?.waitingOn ?? 0);
+
+  // ── interaction props for the view ──
+  const intCopy = pickCopy(lang, M_INT_COPY);
+  const interactions: MChatInteractions = {
+    copy: intCopy,
+    askState: askStateOf,
+    onAskPick,
+    onAskToggle,
+    onAskConfirmMulti,
+    onAskCustom: () => {}, // typed text already routes to the current question (5b placeholder)
+    rejectingId: rejectArmed ? rejectingId : null,
+    onApprove: (m) => interactionActions.approvePlan(m.requestId),
+    onRejectStart: (m) => setRejectingId(m.requestId),
+    onOpenRead,
+    onCancelResume: interactionActions.cancelResume,
+    resumeCancelled: interactionActions.resumeCancelled,
+  };
+  const rejectBar: MRejectBar | undefined = rejectArmed && pendingPlanModel
+    ? {
+        title: lang === 'zh'
+          ? `驳回「${pendingPlanModel.title}」— 说明原因后发送`
+          : `Rejecting "${pendingPlanModel.title}" — explain, then send`,
+        chips: lang === 'zh'
+          ? ['范围太大', '先做 dry-run', '成本超预期', '步骤顺序不对']
+          : ['Scope too big', 'Dry-run first', 'Over budget', 'Wrong step order'],
+        onChipTap: (chip) => setText((t) => (t ? `${t}${lang === 'zh' ? '；' : '; '}${chip}` : chip)),
+        onCancel: () => setRejectingId(null),
+      }
+    : undefined;
+  const composerPlaceholder = rejectArmed
+    ? (lang === 'zh' ? '说明驳回原因…' : 'Reason for rejecting…')
+    : pendingAskModel
+      ? (lang === 'zh'
+          ? `点选项，或直接输入回答 Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`
+          : `Tap an option, or type your answer to Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`)
+      : undefined;
+  const title = isDraft
+    ? (lang === 'zh' ? '新会话' : 'New session')
+    : (runTitle ?? active?.label ?? active?.name ?? routeParam ?? '');
+  // 8d hint above the composer: replying extracts the run into a normal session.
+  const schedHint = isScheduledRun
+    ? (lang === 'zh'
+        ? '发送消息后提取为普通会话 · schedule 下次 run 不受影响'
+        : 'Replying converts this run into a normal session · the schedule\'s next run is unaffected')
+    : null;
+  const attachmentsVM: PendingAttachmentVM[] = uploads.map((upload) => {
+    const type = attachmentType(upload);
+    return {
+      id: upload.id,
+      name: upload.file?.name ?? upload.meta?.name ?? 'file',
+      progress: upload.progress,
+      status: upload.status,
+      type: type === 'image' || type === 'video' ? type : 'file',
+      previewUrl: upload.previewUrl,
+    };
+  });
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) addFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <MChatView
+        title={title}
+        status={status}
+        project={currentProjectId ?? undefined}
+        rows={rows}
+        copy={copy}
+        onBack={() => navigate('/m/sessions')}
+        moreOpen={moreOpen}
+        onMoreToggle={() => setMoreOpen((o) => !o)}
+        onMoreClose={() => setMoreOpen(false)}
+        sessionIdOpen={sessionIdOpen}
+        onSessionIdOpen={() => setSessionIdOpen(true)}
+        onSessionIdClose={() => setSessionIdOpen(false)}
+        sessionStatsRows={sessionStats?.rows ?? null}
+        sessionStatsOpen={sessionStatsOpen}
+        onSessionStatsOpen={() => setSessionStatsOpen(true)}
+        onSessionStatsClose={() => setSessionStatsOpen(false)}
+        cortexId={active?.name ?? null}
+        backendUuid={active?.backendSessionId ?? null}
+        inlineThreadCard={
+          sessionId ? (
+            <MChatInlineThreadCard
+              sessionId={sessionId}
+              subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
+              openLabel={lang === 'zh' ? '打开' : 'Open'}
+            />
+          ) : undefined
+        }
+        systemLines={schedHint ? [...systemLines, schedHint] : systemLines}
+        interactions={interactions}
+        rejectBar={rejectBar}
+        editCopy={pickCopy(lang, EDIT_COPY)}
+        msgMenu={msgMenu}
+        onLongPress={(rowIndex, anchorTop) => { setMsgMenuAnchorTop(anchorTop); setMsgMenuIdx(rowIndex); }}
+        editing={editing}
+        onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
+        originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
+        streamKey={sessionId}
+        sessionId={sessionId}
+        todos={todos}
+        todoLang={lang}
+        waitpoints={waitpoints}
+        composerValue={text}
+        onComposerChange={setText}
+        onSend={onSend}
+        slashSuggestions={slashSuggestions}
+        onSlashPick={onSlashPick}
+        sendEnabled={sendEnabled}
+        composerPlaceholder={composerPlaceholder}
+        onStop={onStop}
+        stopEnabled={!cancelMut.isPending}
+        selectionChipLabel={chipParts.main}
+        selectionChipSub={chipParts.sub}
+        browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
+        onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
+        browserSheet={browserSheetOpen ? {
+          items: [
+            { device: null, label: vocab.wbBrowserOffOption, sub: '' },
+            { device: DEFAULT_BROWSER_DEVICE, label: DEFAULT_BROWSER_DEVICE, sub: vocab.wbBrowserThisHost },
+            ...browserDevices.map((d) => ({ device: d.device, label: d.device, sub: d.platform })),
+          ],
+          title: vocab.wbBrowser,
+          onClose: () => setBrowserSheetOpen(false),
+          onPick: (device: string | null) => { setDraftBrowserDevice(device); setBrowserSheetOpen(false); },
+        } : undefined}
+        commissionValue={isDraft
+          ? (commissionEnabled ? draftCommission : null)
+          : (sessionCommission?.value ?? null)}
+        commissionLabel={isDraft
+          ? (commissionEnabled
+            ? (draftCommission === 'new' ? vocab.wbCommissionNewOption : draftCommissionTitle)
+            : null)
+          : (sessionCommission?.label ?? (sessionCommission ? vocab.wbCommissionUnnamed : null))}
+        onOpenCommission={isDraft && commissionEnabled ? () => setCommissionSheetOpen(true) : undefined}
+        commissionSheet={commissionSheetOpen ? {
+          items: commissionOptions.map((o) => ({ value: o.value, label: o.label, sub: o.sub })),
+          title: vocab.wbCommissionMode,
+          onClose: () => setCommissionSheetOpen(false),
+          onPick: (value: string | null) => { setDraftCommission(value); setCommissionSheetOpen(false); },
+        } : undefined}
+        onOpenSelection={() => setSelectionOpen(true)}
+        agentChip={hasAgentChoice(agents)
+          ? { label: agentChip.name ?? copy.selectionAgentDefault, followingDefault: agentChip.followingDefault }
+          : null}
+        onOpenAgent={() => setAgentOpen(true)}
+        contextUsage={contextUsage}
+        contextUsageSupported={!!active?.contextCompactionSupported}
+        contextUsageLang={lang}
+        contextCompactAction={active?.contextCompactionSupported ? compactAction : undefined}
+        contextUsageOpen={contextUsageOpen}
+        onContextUsageOpen={() => setContextUsageOpen(true)}
+        onContextUsageClose={() => setContextUsageOpen(false)}
+        attachments={attachmentsVM}
+        onRemoveAttachment={attachmentUploads.remove}
+        onRetryAttachment={attachmentUploads.retry}
+        onPlus={() => setAttachMenuOpen((o) => !o)}
+        attachMenuOpen={attachMenuOpen}
+        onAttachClose={() => setAttachMenuOpen(false)}
+        onCamera={() => pickFiles('image/*', 'environment')}
+        onLibrary={() => pickFiles('image/*,video/*')}
+        onFile={() => pickFiles('*/*')}
+        selectionSheet={
+          selectionOpen
+            ? {
+              vm: buildSelectionSheet({
+                profiles,
+                catalog: catalogQuery.data,
+                effective,
+                override: selectionOverride,
+                hasHistory,
+                defaultProfile,
+                copy: {
+                  profile: copy.profileTitle,
+                  model: copy.selectionModel,
+                  thinking: copy.selectionThinking,
+                  mode: copy.selectionMode,
+                  followProfile: copy.selectionFollow,
+                  followAll: copy.selectionFollowAll,
+                  hiddenModels: copy.selectionHiddenModels,
+                  hiddenProfiles: copy.selectionHiddenProfiles,
+                  hiddenNoProfile: copy.selectionHiddenNoProfile,
+                },
+              }),
+              pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),
+              onClose: () => setSelectionOpen(false),
+              onPick: onPickSelection,
+            }
+            : undefined
+        }
+        agentSheet={
+          agentOpen && hasAgentChoice(agents)
+            ? {
+              rows: buildAgentSheet({
+                agents,
+                profiles,
+                agentName,
+                currentBackend: effective.backend,
+                hasHistory,
+                copy: {
+                  agentDefault: copy.selectionAgentDefault,
+                  agentFollowDefault: copy.selectionAgentFollow,
+                  agentCrossBackend: copy.selectionAgentCrossBackend,
+                },
+              }),
+              title: copy.selectionAgent,
+              onClose: () => setAgentOpen(false),
+              onPick: onPickSelection,
+            }
+            : undefined
+        }
+      />
+    </>
+  );
+}

@@ -1,13 +1,15 @@
 // input:  native shell flags (desktop-config) + the browser viewport media query
-// output: useMobileLayout() — true when the mobile layout should render
+// output: useMobileLayout() / useIsMobile() — true when the mobile layout should render
 // pos:    The single source of truth for the mobile/desktop LAYOUT switch. Native mobile is always
 //         mobile, native desktop is always desktop, and an ordinary browser follows the viewport
 //         (≤ MOBILE_MAX_WIDTH). Language is never consulted here — the language is a separate,
 //         server-owned knob (i18n/lang.ts); this hook only describes the layout.
 
 import { useSyncExternalStore } from 'react';
-import { MOBILE_MAX_WIDTH } from '@/i18n/lang';
 import { isDesktopShell, isMobileShell } from './desktop-config';
+
+/** Browser layout boundary; matches Tailwind's default `md` breakpoint. */
+export const MOBILE_MAX_WIDTH = 767;
 
 /** The viewport media query separating the mobile layout from the desktop one. */
 export const MOBILE_LAYOUT_QUERY = `(max-width: ${MOBILE_MAX_WIDTH}px)`;
@@ -71,4 +73,12 @@ export function useMobileLayout(): boolean {
   if (isMobileShell()) return true;
   if (isDesktopShell()) return false;
   return viewport;
+}
+
+/**
+ * Alias of {@link useMobileLayout} for call sites that read as a question about the device rather
+ * than about the layout. Same value, same subscription — the two names are interchangeable.
+ */
+export function useIsMobile(): boolean {
+  return useMobileLayout();
 }

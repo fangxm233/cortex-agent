@@ -1,5 +1,5 @@
-import { LeftRail } from '@/features/workbench/LeftRail';
-import { RightPanel } from '@/features/workbench/RightPanel';
+import { LeftRail } from '@/features/workbench/rail/LeftRail';
+import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
 import { SkillsView } from './SkillsView';
 import { AppFrame } from '@/shell/AppFrame';
 import { WorkspacePanel } from '@/shell/GlassPanel';

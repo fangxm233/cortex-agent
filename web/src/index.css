@@ -20,6 +20,10 @@ textarea::placeholder {
  * `<style>` block (design/ref/prototype.dc.html lines 14-36). The keyframe
  * NAMES are literal — the prototype's inline `animation:cx…` shorthand across
  * the DOM depends on these exact global names. Do not rename.
+ *
+ * tailwind.config.ts carries the same 16 names for the `animate-cx*` utilities;
+ * these are the ones the inline `animation: cx…` styles resolve against, which
+ * Tailwind cannot see. Both copies are live — keep them identical.
  */
 @layer base {
   :root[data-theme-transition],

@@ -8,7 +8,7 @@ Cortex is an autonomous research agent system for robotics and AI/ML. It runs as
 |-----------|---------|
 | `agent-server/` | Main server application (TypeScript, Node.js >=20). Slack/Feishu bot, LLM orchestration, scheduling, task system, MCP tools. |
 | `client/` | Remote agent client (TypeScript, Node.js >=20). Connects to agent-server via WebSocket and executes bash/read/write/edit/glob/grep commands locally. |
-| `web/` | Vite + React SPA; browser-responsive desktop/mobile layouts share one router. Built to `web/dist`, served by the in-core UI host and native shells. |
+| `web/` | Vite + React SPA; browser-responsive desktop/mobile layouts share one router. Built to `web/dist`, served by the in-core UI host and native shells. Structure map + enforced import rules: `web/AGENTS.md`. |
 | `desktop/` | Tauri v2 desktop shell. Loads `web/dist` via asset protocol in a native webview. Exposes `get_connection_config` / `set_connection_config` Tauri commands plus `window.__CORTEX_DESKTOP_CONFIG` for injecting `{serverUrl, token}` into the SPA. |
 | `packages/` | Shared/deployment packages: `ui-contract` provides Web UI tRPC types; `deepseek-relay-worker` is the authenticated, fixed-upstream Cloudflare Worker used when the agent-server host cannot reach DeepSeek directly. |
 | `benchmark/` | Installable adapters and reproducibility tooling for external benchmark harnesses. |

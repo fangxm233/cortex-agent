@@ -1,9 +1,9 @@
 import { DockPane } from '@/features/dock/DockPane';
 import { useDock } from '@/features/dock/DockProvider';
-import { LeftRail } from './LeftRail';
-import { CenterChat } from './CenterChat';
-import { RightPanel } from './RightPanel';
-import { useSettings } from '@/features/settings/SettingsProvider';
+import { LeftRail } from '@/features/workbench/rail/LeftRail';
+import { CenterChat } from '@/features/workbench/chat/CenterChat';
+import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
+import { useSettings } from '@/features/settings/useSettings';
 import { AppFrame } from '@/shell/AppFrame';
 import { WorkspacePanel } from '@/shell/GlassPanel';
 

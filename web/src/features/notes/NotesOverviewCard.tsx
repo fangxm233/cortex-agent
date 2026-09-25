@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type FormEvent } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import type { NotesCopy } from './notes-copy';
 import type { NoteRowVm, NotesVm } from './notes-vm';
 

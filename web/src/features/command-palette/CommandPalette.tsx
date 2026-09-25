@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { useSettings } from '@/features/settings/SettingsProvider';
+import { useSettings } from '@/features/settings/useSettings';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 

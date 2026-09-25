@@ -30,6 +30,8 @@ export {
   type ModalSize,
 } from './Modal';
 export { Drawer, DrawerClose, type DrawerProps, type DrawerSide } from './Drawer';
+export { MBottomSheet, shouldFlingClose } from './BottomSheet';
+export { useBackDismiss, armBackGuard, type BackGuardHost } from './use-back-dismiss';
 export { Popover, PopoverClose, type PopoverProps } from './Popover';
 export { Select, type SelectDensity, type SelectOption, type SelectProps, type SelectValue } from './Select';
 export { CONTROL_HEIGHT } from './controls';

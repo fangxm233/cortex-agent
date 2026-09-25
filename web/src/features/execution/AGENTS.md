@@ -4,9 +4,9 @@ Execution presentation and supporting state modules.
 
 | filename | role | function |
 |---|---|---|
-| ExecutionLogDrawer.tsx | view | Render ExecutionLogDrawer |
-| ExecutionLogDrawerProvider.tsx | utility | Provide ExecutionLogDrawerProvider |
-| LogDrawerView.test.tsx | test | Verify log contrast and accessible actions |
-| LogDrawerView.tsx | view | Render stable log and highlighted toolbar chrome |
-| execution-log-view.test.ts | test | Verify execution-log-view |
-| execution-log-view.ts | utility | Provide execution-log-view |
+| ExecutionDrawer.tsx | view | The drawer container: execution queries, kill action, opaque status chrome |
+| ExecutionDrawerView.tsx | view | Hooks-free drawer presentation: stable log and highlighted toolbar |
+| ExecutionDrawerView.test.tsx | test | Verify log contrast and accessible actions |
+| execution-drawer-view.ts | model | Map an execution to drawer title, pill, meta and notice |
+| execution-drawer-view.test.ts | test | Verify the drawer view-model |
+| useExecutionDrawer.tsx | adapter | Modal-registry key, `useExecutionDrawer()` opener and the drawer's host |

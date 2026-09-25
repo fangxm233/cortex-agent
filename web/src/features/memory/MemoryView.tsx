@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useMemo, useState, type CSSProperties } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';

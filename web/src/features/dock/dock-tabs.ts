@@ -1,6 +1,5 @@
 import { browserTabLabel, type BrowserTabState } from '@/features/browser/browser-target';
-import type { MediaItem } from '@/features/media/MediaViewer';
-import type { DocItem } from '@/features/media/DocViewer';
+import type { DocItem, MediaItem } from '@/features/media/preview-item';
 
 // THE DOCK holds one ordered list of tabs, and a tab is either a docked FILE PREVIEW or a live WEB
 // PAGE. That single list is what makes the pane's tab strip able to switch between the two without

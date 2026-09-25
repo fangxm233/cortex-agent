@@ -2,19 +2,19 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVocab } from '@/i18n';
 import { useToastOptional } from '@/design/Toast';
-import { useSettings } from '@/features/settings/SettingsProvider';
-import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
+import { useSettings } from '@/features/settings/useSettings';
+import { useScheduleModal } from '@/features/schedule/useScheduleModal';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { DRAFT_SENTINEL } from '@/features/workbench/selected-session';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
 import { useDock } from '@/features/dock/DockProvider';
 import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
 import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
-import { useManualUpdateCheck } from '@/features/update/useManualUpdateCheck';
+import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
 import { usePaneState } from '../PaneStateProvider';
-import { useShellModals } from '../ShellModalsProvider';
+import { useShellModals } from '../useShellModals';
 import { useWindowActions, type WindowActions } from './useWindowActions';
 import type { MenuDef, MenuNode } from './menu-model';
 
@@ -110,7 +110,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
           kind: 'item', id: 'edit.palette', accelDisplayOnly: true, label: L.mEditPalette, accel: 'mod+k',
           // The palette's open state lives in AppShell's own `useCommandPalette` instance, so the
           // established way to reach it from elsewhere is the synthetic key event (precedent:
-          // features/workbench/CenterChat.tsx).
+          // features/workbench/chat/CenterChat.tsx).
           run: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true })),
         },
         {

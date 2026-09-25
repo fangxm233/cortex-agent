@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useEffect, useMemo, useState } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
@@ -12,9 +12,9 @@ import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { DRAFT_SENTINEL } from '@/features/workbench/selected-session';
-import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
+import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
+import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
+import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
 import { defaultSelectedId, toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
 
 // Issues modal (design sec-24 24b), isomorphic to the approval center 7a overlay: backdrop +

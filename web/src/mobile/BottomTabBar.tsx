@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
-import { MONO, M_TABBAR_BOTTOM } from './ui/mobile-theme';
+import { MONO, M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
 import { type Vocab } from '@/i18n';
 
 const ACTIVE = 'var(--proto-accent)';

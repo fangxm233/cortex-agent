@@ -16,11 +16,11 @@ vi.mock('@/lib/desktop-platform', () => ({
   desktopPlatform: () => 'linux',
 }));
 vi.mock('@/theme', () => ({ useTheme: () => 'light', useSetTheme: () => actions.theme }));
-vi.mock('@/features/settings/SettingsProvider', () => ({
+vi.mock('@/features/settings/useSettings', () => ({
   useSettings: () => ({ open: actions.settings, openSection: actions.settingsSection }),
 }));
 vi.mock('@/features/connection/ConnectionStatusProvider', () => ({ useConnectionStatus: () => 'connected' }));
-vi.mock('@/features/workbench/LeftRail', () => ({
+vi.mock('@/features/workbench/rail/LeftRail', () => ({
   BrandBadge: ({ label, onClick }: { label: string; onClick: () => void }) => <button aria-label={label} onClick={onClick} />,
   GearIcon: () => <svg />,
 }));
@@ -28,7 +28,7 @@ vi.mock('./PaneStateProvider', () => ({ usePaneState: () => ({ railCollapsed: fa
 vi.mock('./NavigationHistoryProvider', () => ({
   useNavigationHistory: () => ({ canBack: true, canForward: true, back: actions.back, forward: actions.forward }),
 }));
-vi.mock('./ShellModalsProvider', () => ({ useShellModals: () => ({ openDaemonStatus: actions.daemon }) }));
+vi.mock('./useShellModals', () => ({ useShellModals: () => ({ openDaemonStatus: actions.daemon }) }));
 vi.mock('./menu/useAppMenus', () => ({ useAppMenus: () => ({
   menus: ['File', 'Edit', 'View', 'Help'].map((label) => ({ id: label, label, items: [] })),
   windowActions: { ...actions, isFullscreen: false, isMaximized: false },

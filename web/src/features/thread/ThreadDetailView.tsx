@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import type { ReactNode } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { buildThreadDetailVm, type DetailStepSub, type ThreadDetailVm } from './thread-detail-vm';

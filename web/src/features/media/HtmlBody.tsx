@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
 import { authHeaders } from '@/lib/desktop-config';
 import { useTheme } from '@/theme';
-import type { DocItem } from './DocViewer';
+import type { DocItem } from './preview-item';
 import { useViewHeight } from './useViewHeight';
 import {
   VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, VIEW_HEIGHT_MAX, VIEW_HEIGHT_MAX_EXPANDED, wrapViewDocument,

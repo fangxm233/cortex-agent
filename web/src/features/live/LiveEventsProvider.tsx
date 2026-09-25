@@ -29,8 +29,8 @@ import {
 // is published too, so the daemon badge needs no probe of its own and every consumer shares a single
 // reconnect signal (`reconnectEpoch`) instead of each tracking its own.
 //
-// NOT merged: `executions.log` (a different procedure, executionId-scoped, high-volume, and only open
-// while the log drawer is).
+// NOT merged: the execution log drawer. It holds no subscription at all — there is no execution.*
+// lifecycle event, so it polls `executions.get` while the run is running and stops when it ends.
 //
 // Owning the only stream also means owning its recovery: a terminal error on the subscribe request
 // ends the tRPC observable for good, so this provider re-opens it on a backoff (`liveRetryDelayMs`)

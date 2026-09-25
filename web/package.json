@@ -9,9 +9,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "//build": "Typecheck and bundle run concurrently, not in sequence: vite build does not typecheck, so the two share no inputs and `&&` only served to add their times together. Both exit codes are captured and OR'd, because a bare `wait` reports success even when a job failed — which would let a type error through the daemon's rebuild pipeline silently. A failed typecheck can now leave a bundle in dist/, but the non-zero exit aborts the pipeline before it is installed.",
-    "build": "tsc --noEmit & tscpid=$!; vite build & vitepid=$!; wait $tscpid; tscrc=$?; wait $vitepid; viterc=$?; exit $((tscrc||viterc))",
+    "//build": "Typecheck, boundary check and bundle run concurrently, not in sequence: vite build does not typecheck, so the three share no inputs and `&&` only served to add their times together. Every exit code is captured and OR'd, because a bare `wait` reports success even when a job failed — which would let a type error or a boundary violation through the daemon's rebuild pipeline silently. A failed check can now leave a bundle in dist/, but the non-zero exit aborts the pipeline before it is installed.",
+    "build": "tsc --noEmit & tscpid=$!; pnpm run depcruise & dcpid=$!; vite build & vitepid=$!; wait $tscpid; tscrc=$?; wait $dcpid; dcrc=$?; wait $vitepid; viterc=$?; exit $((tscrc||dcrc||viterc))",
     "typecheck": "tsc --noEmit",
+    "depcruise": "depcruise src --validate --ignore-known && node scripts/check-feature-cycles.mjs",
+    "lint": "pnpm run depcruise",
     "preview": "vite preview",
     "test": "vitest run"
   },
@@ -44,6 +46,7 @@
     "@types/react-test-renderer": "18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "dependency-cruiser": "^17.3.10",
     "postcss": "^8.4.49",
     "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.17",

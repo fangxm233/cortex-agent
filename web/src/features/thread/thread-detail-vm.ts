@@ -18,7 +18,7 @@ import {
   type ThreadDetailFacts,
   type ThreadDetailStepFacts,
 } from './thread-detail-facts';
-import { formatUsd } from '@/lib/format';
+import { formatDurationShort, formatUsd } from '@/lib/format';
 
 export interface DetailPill {
   bg: string;
@@ -58,18 +58,10 @@ function fmtHM(iso: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatDuration(durationS: number): string {
-  const total = Math.round(durationS);
-  if (total < 60) return `${total}s`;
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return s === 0 ? `${m}m` : `${m}m ${s}s`;
-}
-
 /** Collapsed step meta "39m · $2.10" (duration then cost); the stage is in the title. */
 function stepMeta(item: ThreadDetailStepFacts): string {
   const parts: string[] = [];
-  if (item.durationSeconds != null) parts.push(formatDuration(item.durationSeconds));
+  if (item.durationSeconds != null) parts.push(formatDurationShort(item.durationSeconds));
   if (item.step.costUsd != null) parts.push(formatUsd(item.step.costUsd));
   return parts.join(' · ');
 }

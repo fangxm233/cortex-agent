@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { useUpdateGating } from '@/features/update/useUpdateGating';
-import { subscribeManualCheckResult } from '@/features/update/manual-update-check';
+import { useUpdateGating } from '@/lib/useUpdateGating';
+import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
 import {
   getAppUpdateSnapshot,
   installAppUpdate,
@@ -61,7 +61,8 @@ export function useAppUpdate(): AppUpdateState {
   const update = useUpdateGating(candidate);
   const installState = useAppInstall(pending?.version ?? update?.version ?? null, setHiddenVersion);
   useAppUpdateBridge();
-  useEffect(() => subscribeManualCheckResult(({ shell }) => {
+  // A manual check republishes whatever the shell channel found, dismissal and all.
+  useEffect(() => subscribeManualCheckResult<unknown, AppUpdateInfo>(({ shell }) => {
     if (!shell.update) return;
     setHiddenVersion(null);
     publishAppUpdate(shell.update);

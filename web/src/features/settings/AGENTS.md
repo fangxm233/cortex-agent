@@ -1,85 +1,77 @@
 Please update me when files in this folder change.
 
-Settings panels, shared controls, configuration writers and view models.
+The settings modal and everything in it (79 files), filed by layer: `panels/` renders, `controllers/` talks to tRPC, `vm/` computes,
+`ui/` supplies the shared cards and controls.
 
 | filename | role | function |
 |---|---|---|
-| AGENTS.md | index | Index settings files |
-| AccountsPanel.test.tsx | test | Test account settings and model rescans |
-| AccountsPanel.tsx | view | Render provider accounts and login actions |
-| accounts-vm.test.ts | test | Test account status and grouping |
-| accounts-vm.ts | model | Build account status and provider groups |
-| AppearancePanel.tsx | view | Render appearance controls and glass previews |
-| AppUpdateCard.test.tsx | test | Test native silent-update preferences |
-| AppUpdateCard.tsx | view | Show update preferences and readable status |
-| AuthLoginEntry.test.tsx | test | Test settings authentication entry |
-| BudgetPanel.test.tsx | test | Test budget editor interaction gates |
-| BudgetPanel.tsx | view | Edit global and project budgets |
-| budget-vm.test.ts | test | Test budget scope and value construction |
-| budget-vm.ts | model | Build scoped budget drafts and write arguments |
-| CustomProvidersCard.test.tsx | test | Test custom provider editing |
-| CustomProvidersCard.tsx | view | Manage custom providers |
-| custom-provider-vm.test.ts | test | Test custom provider drafts and validation |
-| custom-provider-vm.ts | model | Validate and build custom provider drafts |
-| desktop-panels.css | style | Style adaptive panels and retain glass stats |
-| HookDetailPane.tsx | view | Show hook details, glass controls and stable logs |
-| HookEditorForm.tsx | view | Edit hook trigger, action and scope |
-| HooksPanel.tsx | view | Browse and manage hooks |
-| hooks-panel-vm.test.ts | test | Test hook filtering and editor rules |
-| hooks-panel-vm.ts | model | Build hook filters, forms and validation |
-| MachinesPanel.tsx | view | Show machines and connection guidance |
-| master-detail-ui.tsx | UI | Provide glass editor panes and solid counts |
-| PlatformConnectionFields.tsx | view | Edit platform connection credentials |
-| platform-env.test.ts | test | Test environment and runtime setting helpers |
-| platform-env.ts | utility | Index config and validate runtime values |
-| PlatformPanel.test.tsx | test | Test platform settings interactions |
-| PlatformPanel.tsx | view | Edit platform connections and runtime settings |
-| PlatformRuntimeFields.tsx | view | Edit notification routing and skill settings |
-| platform-settings.css | style | Style shared platform editor fields |
-| platform-settings-vm.ts | model | Build platform patches and field labels |
-| platform-ui.ts | style | Share platform field, hint and block styles |
-| PluginAssignPanel.container.test.tsx | test | Test plugin assignment and dirty guards |
-| PluginAssignPanel.tsx | view | Edit agent and template plugin assignments |
-| plugin-assign-vm.test.ts | test | Test plugin assignment drafts |
-| plugin-assign-vm.ts | model | Build and validate plugin assignment drafts |
-| plugin-authoring-vm.test.ts | test | Test plugin authoring draft validation |
-| plugin-authoring-vm.ts | model | Build and validate MCP server drafts |
-| PluginMcpTab.tsx | view | Edit plugin MCP servers |
-| PluginSkillsTab.tsx | view | Browse skills with sealed source editors |
-| PluginsPanel.container.test.tsx | test | Test plugin lifecycle and skill editing |
-| PluginsPanel.tsx | view | Browse readable plugin rows and nested dialogs |
-| plugins-panel-vm.ts | model | Filter plugins and resolve usage and selection |
-| plugin-ui.tsx | UI | Render glass plugin tiles and inset summaries |
-| ProfilesPanel.tsx | view | Browse and edit responsive agent profile rows |
-| ProfilesPanel.test.tsx | test | Check profile labels and action availability |
-| profiles-panel-vm.test.ts | test | Test profile form transitions and validation |
-| profiles-panel-vm.ts | model | Build profile forms and validation rules |
-| RuntimeSettingsPanels.test.tsx | test | Test runtime controls and save gates |
-| RuntimeSettingsPanels.tsx | view | Render runtime controls and readable status |
-| runtime-settings-writer.test.tsx | test | Test runtime setting commits |
-| runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
-| settings-kit.tsx | UI | Provide glass rows, raised controls, badges and header actions |
-| SettingsModal.tsx | entry | Render glass shell, nav, initial section, header slot and guards |
-| settings-nav.ts | model | Define grouped settings navigation |
-| SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
-| SettingsProvider.test.tsx | test | Test default and direct section entry |
-| SettingsProvider.tsx | provider | Provide settings overlay, direct section entry and styling |
-| settings-style.css | style | Apply glass materials and solid small-text colors |
-| settings-portals.css | style | Style glass dropdown and nested dialog portals |
-| settings-ui.tsx | UI | Provide glass cards and stable form controls |
-| TemplateDetailPane.tsx | view | Edit sealed template source and assignments |
-| TemplatesPanel.tsx | view | Browse and manage thread templates |
-| templates-panel-vm.test.ts | test | Test template filtering and editor save gates |
-| templates-panel-vm.ts | model | Build template filters and editor state |
-| UiSignOutCard.tsx | view | Offer browser session sign-out |
-| useAccountsController.test.tsx | test | Test account controller actions |
-| useAccountsController.ts | hook | Manage account queries and actions |
-| useBudgetWriter.test.tsx | test | Test budget write and clear operations |
-| useBudgetWriter.ts | hook | Write and clear scoped budgets |
-| useCustomProvidersController.test.tsx | test | Test custom provider controller actions |
-| useCustomProvidersController.ts | hook | Manage custom provider queries and edits |
-| usePlatformSettings.test.tsx | test | Test serialized platform writes and feedback |
-| usePlatformSettings.ts | hook | Serialize platform writes and safe feedback |
-| usePluginAuthoring.ts | hook | Manage plugin authoring actions |
-| useProfilesController.test.tsx | test | Test profile controller actions |
-| useProfilesController.ts | hook | Manage profile queries and edits |
+| SettingsModal.tsx | entry | The glass modal shell: grouped nav column, caller-chosen first section, header action slot, the selected section's panel, dirty-navigation guards |
+| useSettings.tsx | entry | The registry key and `useSettings()` (`open`, `openSection(key)`, `close`) / `SettingsModalHost`, mounted by `shell/ShellModals`; loads the portal styles |
+| settings-nav.ts | core | `SettingsSectionKey`, the grouped nav model (`getSettingsNavGroups(L)`) and per-section glyphs (`getSettingsNavIcon`) |
+| AuthLoginEntry.test.tsx, useSettings.test.tsx | test | vitest, colocated |
+
+## The layering
+
+| dir | what goes there |
+|---|---|
+| `panels/` | One panel per settings section — the rendering, and the container that wires it (31 files) |
+| `controllers/` | `use*Controller` / writer hooks: the only place this feature's tRPC queries, mutations, query keys and invalidations live |
+| `vm/` | Pure view-models: snapshot in, render-ready object out. No React, no tRPC. Where the unit tests are |
+| `ui/` | The shared settings kit and its styles (see below) — the row language the mobile settings screens reuse |
+
+## Container / View convention
+
+`PluginsPanel.tsx` is the canonical example, and reads top to bottom as the three layers:
+
+- **`PluginsPanel()`** — the container. Runs `useQuery`, calls `usePluginAuthoring()` from
+  `controllers/`, holds selection state, renders the View. Not render-testable alone.
+- **`PluginsPanelView(props)`** — exported beside it, presentational, props only. This is
+  what a render test mounts, and why `PluginsPanel.container.test.tsx` can drive the whole
+  panel against a faked adapter with no server.
+- **`vm/plugins-panel-vm.ts`** — pure: `PLUGIN_TABS`, `filterPlugins`, `pluginUsage`,
+  `resolvePluginSelection`. Display logic goes here first; it is the cheapest thing to test.
+
+`XPanel.tsx` (+ `XPanelView`) / `controllers/useXController.ts` / `vm/x-vm.ts` is the shape
+every other panel follows. `mobile/screens` does the same split as `M*Screen` / `M*View`.
+
+## panels/ by section
+
+- **Appearance** — `AppearancePanel` (renders `theme/PaletteControls` + `AccentPicker`).
+- **Platform** — `PlatformPanel`, `PlatformConnectionFields`, `PlatformRuntimeFields`,
+  `SettingsPanels` (shared badges + the read-only MCP panel).
+- **Accounts & providers** — `AccountsPanel`, `CustomProvidersCard`, `UiSignOutCard`.
+- **Profiles / budget / machines** — `ProfilesPanel`, `BudgetPanel`, `MachinesPanel`.
+- **Templates** — `TemplatesPanel` (list + `TemplatesPanelView`) and `TemplateDetailPane` (sealed
+  source editor, validation, references, plugin assignments).
+- **Plugins** — `PluginsPanel`, `PluginAssignPanel`, `PluginSkillsTab`, `PluginMcpTab`.
+- **Hooks** — `HooksPanel` (list + `HooksPanelView`), `HookDetailPane` (detail, test runner),
+  `HookEditorForm` (trigger, action, scope).
+- **Runtime** — `RuntimeSettingsPanels`.
+- **Update** — `AppUpdateCard`.
+- **`*.test.tsx`** — colocated: Accounts, AppUpdateCard, Budget, CustomProviders, Platform,
+  Profiles, RuntimeSettingsPanels, and the two `.container.test.tsx` (Plugins, PluginAssign).
+
+## ui/
+
+- `settings-kit.tsx` — the row language: `SRowGroup`, `SRow`, `SSection`, `SSegmented`, raised
+  controls, badges and the header-action slot. `settings-ui.tsx` (`SButton`, `SCard`,
+  `SFieldRow`, …) re-exports it.
+- `master-detail-ui.tsx` — the list/detail pane shells Hooks and Templates share; `plugin-ui.tsx`
+  plugin tiles; `platform-ui.ts` platform field/hint/block styles.
+- CSS: `settings-style.css` (glass materials, small-text ink — also imported by mobile),
+  `settings-portals.css` (dropdowns and nested dialogs portalled out of the modal),
+  `desktop-panels.css` (adaptive panel layout, also used by `usage/UsagePanel`),
+  `platform-settings.css`.
+
+## controllers/ and vm/
+
+- **controllers/** — `useAccountsController`, `useCustomProvidersController`,
+  `useProfilesController`, `useTemplatesController`, `useHooksController`,
+  `usePluginAuthoring`, `usePlatformSettings`, `useBudgetWriter`, `runtime-settings-writer`.
+- **vm/** — `accounts-vm`, `budget-vm`, `custom-provider-vm`, `hooks-panel-vm`,
+  `platform-env`, `platform-settings-vm`, `plugin-assign-vm`, `plugin-authoring-vm`,
+  `plugins-panel-vm`, `profiles-panel-vm`, `templates-panel-vm` — each with a colocated test
+  except `platform-settings-vm` and `plugins-panel-vm` (covered through their panels).
+
+`settings↔usage` is the one allow-listed feature cycle; six of the frozen
+`components-not-direct-trpc` baseline entries are panels under this directory.

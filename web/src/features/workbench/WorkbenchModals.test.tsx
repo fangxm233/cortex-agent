@@ -6,7 +6,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import type { ScheduleRow } from './schedule-rail';
+import type { ScheduleRow } from '@/features/session/list/schedule-rail';
 
 const harness = vi.hoisted(() => ({
   modalProps: null as any,
@@ -47,10 +47,10 @@ vi.mock('@/i18n', () => ({
   }),
 }));
 
-import { NewProjectModal } from './NewProjectModal';
-import { RunListModal } from './RunListModal';
-import { SessionIdModal } from './SessionIdModal';
-import { SessionStatsModal } from './SessionStatsModal';
+import { NewProjectModal } from '@/features/projects/NewProjectModal';
+import { RunListModal } from '@/features/workbench/rail/RunListModal';
+import { SessionIdModal } from '@/features/workbench/chat/SessionIdModal';
+import { SessionStatsModal } from '@/features/workbench/composer/SessionStatsModal';
 
 function render(node: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;

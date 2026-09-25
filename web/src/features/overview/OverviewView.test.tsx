@@ -63,15 +63,15 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('@/features/execution/ExecutionLogDrawerProvider', () => ({
-  useExecutionLogDrawer: () => ({ open: vi.fn() }),
+vi.mock('@/features/execution/useExecutionDrawer', () => ({
+  useExecutionDrawer: () => ({ open: vi.fn() }),
 }));
 
-vi.mock('@/features/schedule/ScheduleModalProvider', () => ({
+vi.mock('@/features/schedule/useScheduleModal', () => ({
   useScheduleModal: () => ({ open: vi.fn(), openEdit: adapter.openEdit, close: vi.fn() }),
 }));
 
-vi.mock('@/features/issues/IssuesProvider', () => ({
+vi.mock('@/features/issues/useIssues', () => ({
   useIssues: () => ({ open: vi.fn() }),
 }));
 

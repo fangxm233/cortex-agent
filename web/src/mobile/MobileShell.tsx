@@ -5,17 +5,13 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
-import { MobileOverlayHost } from './ui/overlay-host';
+import { MobileOverlayHost } from '@/design/mobile-overlay-host';
 import { activeTabId, isTabRoute } from './mobile-tabs';
-import { M_TABBAR_BOTTOM } from './ui/mobile-theme';
+import { M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
-import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
-import { MNotificationProvider } from './v3/MNotificationProvider';
-import { MUpdateProvider } from './v3/MUpdateProvider';
-import { MediaViewerProvider } from '@/features/media/MediaViewer';
-import { DocViewerProvider } from '@/features/media/DocViewer';
-import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
-import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
+import { ShellProviders } from '@/shell/ShellProviders';
+import { MNotificationMount } from './screens/MNotificationMount';
+import { MUpdateMount } from './screens/MUpdateMount';
 import { useViewportHeight } from './use-viewport-height';
 
 const shellStyle: CSSProperties = {
@@ -70,21 +66,15 @@ function MobileFrame({ pathname, vocab, needsYouCount, onTab }: {
   );
 }
 
+// The shared set (shell/ShellProviders) plus this chrome's two headless adapters. No dock: nothing
+// on a phone can host one, so the preview viewers stay in modal mode.
 function MobileProviders({ children }: { children: ReactNode }) {
   return (
-    <LiveEventsProvider>
-      <ConnectionStatusProvider>
-        <CurrentProjectProvider>
-          <MediaViewerProvider>
-            <DocViewerProvider>
-              {children}
-              <MNotificationProvider />
-              <MUpdateProvider />
-            </DocViewerProvider>
-          </MediaViewerProvider>
-        </CurrentProjectProvider>
-      </ConnectionStatusProvider>
-    </LiveEventsProvider>
+    <ShellProviders>
+      {children}
+      <MNotificationMount />
+      <MUpdateMount />
+    </ShellProviders>
   );
 }
 

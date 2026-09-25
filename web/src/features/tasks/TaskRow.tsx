@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type CSSProperties } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import { displayClaimId } from './task-claim';

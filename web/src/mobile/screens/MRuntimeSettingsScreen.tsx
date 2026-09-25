@@ -1,0 +1,192 @@
+// input:  runtime settings writer, config snapshot, controls
+// output: MNotificationsScreen, MAdvancedScreen
+// pos:    Mobile runtime settings and notification preferences
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
+import { useVocab } from '@/i18n';
+import { useTRPC } from '@/lib/trpc';
+import { MC } from '@/mobile/ui/kit';
+import { MNativeNotificationsCard } from './MNativeNotificationsCard';
+import {
+  ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
+  durationDraftFromMs, durationDraftToMs, getSetting, numberSettingValid,
+  hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
+  type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
+  type SettingToggleDescriptor, type SettingsIndex,
+} from '@/features/settings/vm/platform-env';
+import {
+  useRuntimeSettingWrite,
+  type RuntimeSettingWriter,
+} from '@/features/settings/controllers/runtime-settings-writer';
+import {
+  MSET_KEY, MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage,
+  MSettingsRow, MSettingsSelect, MSettingsToggle,
+} from './MSettingsControls';
+
+function ToggleRow(props: {
+  descriptor: SettingToggleDescriptor; settings: SettingsIndex; pending: boolean;
+  onToggle: RuntimeSettingWriter['onToggle'];
+}) {
+  const L = useVocab();
+  const entry = getSetting(props.settings, props.descriptor.setting);
+  const value = typeof entry?.value === 'boolean' ? entry.value : false;
+  return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
+    sub={`${L[props.descriptor.descKey]} · ${entry?.source ?? '—'}`}
+    trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
+      disabled={!entry || props.pending} onChange={(next) => props.onToggle(props.descriptor.setting, next)} />} />;
+}
+
+function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
+  const L = useVocab();
+  const settings = indexSettings(props.snapshot.settings);
+  const slack = getSetting(settings, 'adminChannel')?.value;
+  const feishu = getSetting(settings, 'feishuAdminChannel')?.value;
+  return <>
+    <MSettingsCard>{NOTIFY_SETTINGS.map((descriptor) => <ToggleRow key={descriptor.setting}
+      descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle} />)}</MSettingsCard>
+    <MSettingsCard title={L.stNotifyRoutingTitle}>
+      <MSettingsRow title="Slack" sub={hasAnyKey(props.snapshot.env, 'SLACK_') ? String(slack ?? '—') : '—'} />
+      <MSettingsRow title="飞书" sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
+    </MSettingsCard>
+  </>;
+}
+
+function EnvFlagRow(props: {
+  descriptor: Extract<AdvancedFlag, { kind: 'env' }>;
+  snapshot: ConfigSnapshot;
+}) {
+  const L = useVocab();
+  const value = indexEnv(props.snapshot.env)[props.descriptor.env]?.present === true;
+  return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
+    sub={`${L[props.descriptor.descKey]} · ${props.descriptor.env}`}
+    trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
+}
+
+function NumberSettingRow(props: {
+  descriptor: NumberSettingDescriptor;
+  settings: SettingsIndex;
+  write: RuntimeSettingWriter;
+}) {
+  const L = useVocab();
+  const entry = getSetting(props.settings, props.descriptor.setting);
+  const current = typeof entry?.value === 'number' ? entry.value : null;
+  const [draft, setDraft] = useState(current === null ? '' : String(current));
+  useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
+  const value = parseWholeNumber(draft);
+  const valid = numberSettingValid(props.descriptor, value);
+  return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
+    sub={L[props.descriptor.descKey]} trailing={
+    <div className="mobile-settings-number-control">
+      <input type="number" aria-label={L[props.descriptor.titleKey]} value={draft} onChange={(event) => setDraft(event.target.value)}
+        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
+        step={1} />
+      <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
+        onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
+    </div>} />;
+}
+
+function AdvancedReadOnly(props: { snapshot: ConfigSnapshot; settings: SettingsIndex }) {
+  const L = useVocab();
+  const concurrencyEntry = getSetting(props.settings, 'taskDispatchMaxConcurrent');
+  const concurrency = concurrencyEntry?.value;
+  const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
+  const concurrencyLabel = !concurrencyEntry ? '—' : typeof concurrency === 'number' ? concurrency : L.stAuto;
+  return <>
+    <MSettingsRow title={L.advConc} sub={L.stAdvConcNote}
+      trailing={<span style={MSET_KEY}>{concurrencyLabel}</span>} />
+    <MSettingsRow title={L.stGpuMock} sub={L.advMock} last
+      trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />
+  </>;
+}
+
+function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
+  const settings = indexSettings(props.snapshot.settings);
+  return <MSettingsCard>
+    {ADVANCED_FLAGS.map((flag) => flag.kind === 'env'
+      ? <EnvFlagRow key={`env:${flag.env}`} descriptor={flag} snapshot={props.snapshot} />
+      : <ToggleRow key={flag.setting} descriptor={flag} settings={settings}
+          pending={props.write.pending} onToggle={props.write.onToggle} />)}
+    {ADVANCED_NUMBER_SETTINGS.map((descriptor) => <NumberSettingRow key={descriptor.setting}
+      descriptor={descriptor} settings={settings} write={props.write} />)}
+    <AdvancedReadOnly snapshot={props.snapshot} settings={settings} />
+  </MSettingsCard>;
+}
+
+function JobInterval(props: {
+  descriptor: BuiltinJobSettingDescriptor; entry: ConfigSettingEntry | undefined;
+  write: RuntimeSettingWriter;
+}) {
+  const L = useVocab();
+  const current = typeof props.entry?.value === 'number' ? props.entry.value : null;
+  const initial = current === null ? { value: 1, unit: 'min' as const } : durationDraftFromMs(current);
+  const [draft, setDraft] = useState(initial);
+  useEffect(() => { if (current !== null) setDraft(durationDraftFromMs(current)); }, [current]);
+  const next = durationDraftToMs(draft.value, draft.unit);
+  return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: '0 13px 11px' }}>
+    <MSettingsField label={L.stBuiltinInterval} type="number" min={1} value={draft.value}
+      onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} />
+    <MSettingsSelect label="Unit" value={draft.unit}
+      onChange={(event) => setDraft({ ...draft, unit: event.target.value as typeof draft.unit })}>
+      <option value="sec">sec</option><option value="min">min</option><option value="hr">hr</option>
+    </MSettingsSelect>
+    <div style={{ gridColumn: '1 / -1' }}><MSettingsButton
+      disabled={current === null || next === null || next === current || props.write.pending}
+      onClick={() => { if (next !== null) props.write.onSet(props.descriptor.interval, next); }}>
+      {L.stBuiltinSave}
+    </MSettingsButton></div>
+  </div>;
+}
+
+function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: SettingsIndex; write: RuntimeSettingWriter }) {
+  const L = useVocab();
+  const enabled = getSetting(props.settings, props.descriptor.enabled);
+  const interval = getSetting(props.settings, props.descriptor.interval);
+  const value = typeof enabled?.value === 'boolean' ? enabled.value : false;
+  return <div style={{ borderBottom: '1px solid var(--m-divider)' }}>
+    <MSettingsRow title={L[props.descriptor.titleKey]} sub={L[props.descriptor.descKey]} last
+      trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
+        disabled={!enabled || props.write.pending}
+        onChange={(next) => props.write.onToggle(props.descriptor.enabled, next)} />} />
+    <JobInterval descriptor={props.descriptor} entry={interval} write={props.write} />
+  </div>;
+}
+
+function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
+  const L = useVocab();
+  const settings = indexSettings(props.snapshot.settings);
+  return <>
+    <AdvancedFlags snapshot={props.snapshot} write={props.write} />
+    <MSettingsCard title={L.stBuiltinJobsTitle}>
+      {BUILTIN_JOB_SETTINGS.map((descriptor) => <JobRow key={descriptor.enabled}
+        descriptor={descriptor} settings={settings} write={props.write} />)}
+    </MSettingsCard>
+    <div style={MSET_KEY}>settings · config.set</div>
+  </>;
+}
+
+function RuntimeScreen({ kind }: { kind: 'notifications' | 'advanced' }) {
+  const trpc = useTRPC();
+  const L = useVocab();
+  const navigate = useNavigate();
+  const query = useQuery(trpc.config.get.queryOptions({}));
+  const write = useRuntimeSettingWrite();
+  const title = kind === 'notifications' ? L.stNavNotifications : L.stNavAdvanced;
+  let content;
+  if (query.isLoading) content = <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>;
+  else if (query.isError || !query.data) content = <MSettingsCard>
+    <div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div>
+  </MSettingsCard>;
+  else content = kind === 'notifications'
+    ? <NotificationsContent snapshot={query.data} write={write} />
+    : <AdvancedContent snapshot={query.data} write={write} />;
+  return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
+    {kind === 'notifications' && <MNativeNotificationsCard />}
+    {content}
+  </MSettingsPage>;
+}
+
+export function MNotificationsScreen() { return <RuntimeScreen kind="notifications" />; }
+export function MAdvancedScreen() { return <RuntimeScreen kind="advanced" />; }

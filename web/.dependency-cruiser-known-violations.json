@@ -1,0 +1,974 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/features/auth/LoginFlowModal.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/command-palette/CommandPalette.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/commission/CommissionBanner.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/commission/CommissionOptIn.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/commission/useCommissionBoard.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/execution/ExecutionDrawer.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/issues/IssueCenterModal.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/live/LiveEventsProvider.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/memory/MemoryView.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/overview/OverviewView.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/projects/CurrentProjectProvider.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/provider-setup/ProviderSetupPage.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/rate-limit/RateLimitStatus.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/session/interaction/DecisionCards.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/session/state/SelectedSessionProvider.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/session/transcript/SubagentTranscriptDetail.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/session/transcript/ToolCallsRow.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/BudgetPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/PluginAssignPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/PluginMcpTab.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/PluginSkillsTab.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/panels/PluginsPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/settings/SettingsModal.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/skills/SkillsView.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/tasks/TaskModal.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/tasks/TasksPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/tasks/useTaskModal.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/thread/ThreadStepChat.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/chat/CenterChat.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/chat/InlineThreadCard.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/composer/Composer.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/composer/SessionSelector.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/rail/LeftRail.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/right-panel/RightPanel.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/features/workbench/right-panel/RightThreadCard.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/MobileShell.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MBudgetScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MChatInlineThreadCard.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MChatScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MDaemonScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MHooksScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MIssuesScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MMcpScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MMemoryFileScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MMemoryScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MNotificationMount.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MPlanReadScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MPlatformScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MProjectScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MRuntimeSettingsScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MSessionListScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MSettingsScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MTaskDetailScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MTasksScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/mobile/screens/MThreadsScreen.tsx",
+    "to": "src/lib/trpc.ts",
+    "unresolvedTo": "@/lib/trpc",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "components-not-direct-trpc"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "src/shell/menu/useAppMenus.ts",
+    "to": "src/shell/useShellModals.tsx",
+    "unresolvedTo": "../useShellModals",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/shell/useShellModals.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/shell/ShortcutsModal.tsx",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/shell/menu/useAppMenus.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  }
+]

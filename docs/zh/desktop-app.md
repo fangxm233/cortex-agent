@@ -113,7 +113,7 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 ### 插件设置 {#plugin-settings}
 
-**Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins，并把它们分配给 agent definition 或 template slot。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx:81-112`；`web/src/features/settings/PluginsPanel.tsx:365-800`）。
+**Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins，并把它们分配给 agent definition 或 template slot。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx:81-112`；`web/src/features/settings/panels/PluginsPanel.tsx:365-800`）。
 
 普通 template slot 可以使用 agent defaults，也可以自定义完整 plugin snapshot。Shell binding 与 `__active__` slot 只读。加入至少含一个有效、已盘点 `mcp.json` server 的 portable plugin 时必须先确认才能保存；assignment edit 尚未保存时，target navigation 与 Settings modal 关闭都会被阻止。如果编辑期间 server data 发生变化，页面会保留并标记 stale draft，重置后才能继续保存。该页面只管理 assignment，package directory 的安装、更新与删除由 server administrator 完成。Package 格式、runtime behavior 与 trusted-code boundary 见[技能与插件](./skills-and-plugins.md)。
 
@@ -127,7 +127,7 @@ Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话
 
 待回答问题和待审批计划各自发出通知。会话通知点击后打开对应对话，冷启动也可恢复目标；审批中心条目则打开审批页面并选中条目。原生端保存点击目标，直到页面处理完成，并在重连及定期刷新时核对待处理请求。锁屏通知隐藏私密内容。后台连接要求 HTTPS，仍受 Android Doze、厂商省电策略、网络及用户强制停止影响，不能保证强制停止后继续送达。待交互详情目前要求会话使用 Web channel（`NotificationsPlugin.kt`；`Protocol.kt`）。
 
-后台服务同样负责 turn 完成提醒。当一个 direct session 的运行在服务器上进入完成终态，且该会话不再运行、不在等待回答、也没有后台任务占用时，通知显示会话名称和一句提示，邀请你打开查看，不获取任何 transcript 文本。被取消、失败以及仍在等待的运行保持静默，正在屏幕上查看的会话也不会弹出提醒。首次连接某台服务器只记录已有运行而不提醒，因此启用功能不会重放旧对话。后台服务负责这类提醒期间，页面不再重复发送；关闭本设备开关，或使用早于该能力的应用壳与缓存页面时，仍由页面实时消息流生成（`Completions.kt`；`Reconciler.kt`；`web/src/mobile/v3/MNotificationProvider.tsx`）。
+后台服务同样负责 turn 完成提醒。当一个 direct session 的运行在服务器上进入完成终态，且该会话不再运行、不在等待回答、也没有后台任务占用时，通知显示会话名称和一句提示，邀请你打开查看，不获取任何 transcript 文本。被取消、失败以及仍在等待的运行保持静默，正在屏幕上查看的会话也不会弹出提醒。首次连接某台服务器只记录已有运行而不提醒，因此启用功能不会重放旧对话。后台服务负责这类提醒期间，页面不再重复发送；关闭本设备开关，或使用早于该能力的应用壳与缓存页面时，仍由页面实时消息流生成（`Completions.kt`；`Reconciler.kt`；`web/src/mobile/screens/MNotificationMount.tsx`）。
 
 Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloads collection，并显示系统完成通知。
 

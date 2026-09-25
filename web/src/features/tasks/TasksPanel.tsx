@@ -10,7 +10,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { groupTasks, type TaskGroupKind } from './group-tasks';
 import { TaskRow } from './TaskRow';
-import { useTaskModal } from './TaskModalProvider';
+import { useTaskModal } from './useTaskModal';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
 const GROUP_LABEL_STYLE = {

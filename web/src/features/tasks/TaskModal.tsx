@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useQuery } from '@tanstack/react-query';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useTRPC } from '@/lib/trpc';

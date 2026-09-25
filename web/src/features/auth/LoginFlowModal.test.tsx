@@ -37,6 +37,7 @@ vi.mock('@/design', () => ({
       ))}
     </div>
   ),
+  MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
 }));
 
 vi.mock('@/lib/desktop-config', async importOriginal => ({
@@ -46,10 +47,6 @@ vi.mock('@/lib/desktop-config', async importOriginal => ({
 
 vi.mock('@/lib/external-navigation', () => ({
   openExternalUrl: async (url: string) => { harness.externalUrls.push(url); },
-}));
-
-vi.mock('@/mobile/ui/kit', () => ({
-  MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -137,7 +134,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-import { ChatNotice } from '@/features/workbench/ChatNotice';
+import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { LoginFlowModal, type LoginFlowModalProps } from './LoginFlowModal';
 import { LoginFlowProvider } from './LoginFlowProvider';
 

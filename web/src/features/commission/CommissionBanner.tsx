@@ -4,12 +4,12 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useMemo, useState } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
-import { useCommissionBoard } from './CommissionBoardModalProvider';
+import { useCommissionBoard } from './useCommissionBoard';
 
 const mono = "'IBM Plex Mono',monospace";
 

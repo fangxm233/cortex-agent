@@ -4,15 +4,15 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
-import './content-surfaces.css';
+import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
-import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
-import { useIssues } from '@/features/issues/IssuesProvider';
+import { useExecutionDrawer } from '@/features/execution/useExecutionDrawer';
+import { useScheduleModal } from '@/features/schedule/useScheduleModal';
+import { useIssues } from '@/features/issues/useIssues';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NotesButton } from '@/features/notes/NotesButton';
 import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
@@ -83,7 +83,7 @@ export function OverviewView(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { open: openExecutionLog } = useExecutionLogDrawer();
+  const { open: openExecutionDrawer } = useExecutionDrawer();
   const { open: openScheduleModal, openEdit: openScheduleEditor } = useScheduleModal();
   const { open: openIssues } = useIssues();
   const notes = useNotes();
@@ -628,7 +628,7 @@ export function OverviewView(): JSX.Element {
                   </span>
                 </span>
                 <button type="button" className="content-text-action"
-                  onClick={() => openExecutionLog(x.id)}
+                  onClick={() => openExecutionDrawer(x.id)}
                   style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                 >
                   {L.ovLogs}

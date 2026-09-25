@@ -5,7 +5,7 @@ Task material cards, detail sheets and supporting state modules.
 | filename | role | function |
 |---|---|---|
 | TaskModal.tsx | view | Render task cards and keyboard-accessible actions |
-| TaskModalProvider.tsx | utility | Provide TaskModalProvider |
+| useTaskModal.tsx | adapter | Modal-registry key, `useTaskModal()` opener and the modal's host |
 | TaskRow.tsx | view | Render TaskRow |
 | TasksPage.tsx | view | Render TasksPage |
 | TasksPanel.tsx | view | Render TasksPanel |

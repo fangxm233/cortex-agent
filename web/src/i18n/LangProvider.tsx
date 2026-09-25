@@ -1,14 +1,13 @@
-// input:  native shell flags + browser viewport, cached language, and (optionally) the server sync
-// output: LangProvider + useLang/useSetLang/useVocab/useLangSource/useIsMobile hooks
+// input:  cached language and (optionally) the server sync
+// output: LangProvider + useLang/useSetLang/useVocab/useLangSource hooks
 // pos:    Holds the active language. The VALUE is owned by the server (config/preferences.json →
 //         `lang`), because the same knob decides what Cortex speaks in the conversation; this
 //         provider just holds it, caches it for first paint, and writes changes back through the
-//         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available. `isMobile`,
-//         exposed as useIsMobile, is the LAYOUT switch (lib/use-mobile-layout.ts) and is
-//         independent of the language value.
+//         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available. The
+//         mobile/desktop LAYOUT switch is a separate, language-independent knob —
+//         useIsMobile/useMobileLayout in lib/use-mobile-layout.ts.
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useMobileLayout } from '@/lib/use-mobile-layout';
 import { pickVocab, readStoredLang, storeLang, type Lang } from './lang';
 import { type Vocab } from './vocab';
 
@@ -18,7 +17,6 @@ export type LangSource = 'env' | 'file' | 'default' | 'cache';
 interface LangContextValue {
   lang: Lang;
   vocab: Vocab;
-  isMobile: boolean;
   source: LangSource;
   setLang: (lang: Lang) => void;
 }
@@ -48,7 +46,6 @@ export function LangProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ lang: Lang; source: LangSource }>(
     () => ({ lang: readStoredLang(), source: 'cache' }),
   );
-  const isMobile = useMobileLayout();
   const writerRef = useRef<((lang: Lang) => void) | null>(null);
 
   const setLang = useCallback((next: Lang) => {
@@ -68,8 +65,8 @@ export function LangProvider({ children }: { children: ReactNode }) {
   }), []);
 
   const value = useMemo<LangContextValue>(
-    () => ({ lang: state.lang, vocab: pickVocab(state.lang), isMobile, source: state.source, setLang }),
-    [state.lang, state.source, isMobile, setLang],
+    () => ({ lang: state.lang, vocab: pickVocab(state.lang), source: state.source, setLang }),
+    [state.lang, state.source, setLang],
   );
 
   return (
@@ -116,10 +113,4 @@ export function useVocab(): Vocab {
 export function useVocabOptional(): Vocab {
   const ctx = useContext(LangContext);
   return ctx?.vocab ?? pickVocab(readStoredLang());
-}
-
-// The active mobile LAYOUT: native mobile shell, or a browser viewport ≤ MOBILE_MAX_WIDTH. Native
-// desktop is always false. Language-independent — the language is a separate, server-owned knob.
-export function useIsMobile(): boolean {
-  return useLangContext().isMobile;
 }

@@ -4,11 +4,12 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { Popover } from '@/design/Popover';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MBottomSheet } from '@/design';
+import { MC, MONO } from '@/design/mobile-tokens';
 import type { Lang } from '@/i18n';
 import type { RateLimitProviderView, RateLimitView } from './rate-limit-vm';
 

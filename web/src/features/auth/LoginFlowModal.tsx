@@ -3,7 +3,7 @@
 // pos:    Provider authentication with shared material controls
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
-import '../overview/content-surfaces.css';
+import '@/design/content-surfaces.css';
 import {
   useEffect,
   useMemo,
@@ -20,11 +20,11 @@ import type {
   LoginFlowNotice,
   LoginFlowState,
 } from '@cortex-agent/ui-contract';
-import { Button, Modal, Select, type SelectOption } from '@/design';
-import { useIsMobile, useVocab, type Vocab } from '@/i18n';
+import { Button, MBottomSheet, Modal, Select, type SelectOption } from '@/design';
+import { useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
+import { useIsMobile } from '@/lib/use-mobile-layout';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
-import { MBottomSheet } from '@/mobile/ui/kit';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
 
 const FLOW_POLL_MS = 500;

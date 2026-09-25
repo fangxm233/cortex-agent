@@ -6,31 +6,31 @@ import {
   mobileRoutePath,
   type MobileRouteId,
 } from './mobile-route-manifest';
-import { MSessionListScreen } from './v3/MSessionListScreen';
-import { MChatScreen } from './v3/MChatScreen';
-import { MPlanReadScreen } from './v3/MPlanReadScreen';
-import { MThreadsScreen } from './v3/MThreadsScreen';
-import { MTasksScreen } from './v3/MTasksScreen';
-import { MProjectScreen } from './v3/MProjectScreen';
-import { MApprovalsScreen } from './v3/MApprovalsScreen';
-import { MIssuesScreen } from './v3/MIssuesScreen';
-import { MNotesScreen } from './v3/MNotesScreen';
-import { MThreadDetailScreen } from './v3/MThreadDetailScreen';
-import { MTaskDetailScreen } from './v3/MTaskDetailScreen';
-import { MMemoryScreen } from './v3/MMemoryScreen';
-import { MMemoryFileScreen } from './v3/MMemoryFileScreen';
-import { MMachinesScreen } from './v3/MMachinesScreen';
-import { MSettingsScreen } from './v3/MSettingsScreen';
-import { MAccountsScreen } from './v3/MAccountsScreen';
-import { MHooksScreen } from './v3/MHooksScreen';
-import { MDaemonScreen } from './v3/MDaemonScreen';
-import { MUsageScreen } from './v3/MUsageScreen';
-import { MAppearanceScreen } from './v3/MAppearanceScreen';
-import { MPlatformScreen } from './v3/MPlatformScreen';
-import { MProfilesScreen } from './v3/MProfilesScreen';
-import { MBudgetScreen } from './v3/MBudgetScreen';
-import { MMcpScreen } from './v3/MMcpScreen';
-import { MAdvancedScreen, MNotificationsScreen } from './v3/MRuntimeSettingsScreen';
+import { MSessionListScreen } from './screens/MSessionListScreen';
+import { MChatScreen } from './screens/MChatScreen';
+import { MPlanReadScreen } from './screens/MPlanReadScreen';
+import { MThreadsScreen } from './screens/MThreadsScreen';
+import { MTasksScreen } from './screens/MTasksScreen';
+import { MProjectScreen } from './screens/MProjectScreen';
+import { MApprovalsScreen } from './screens/MApprovalsScreen';
+import { MIssuesScreen } from './screens/MIssuesScreen';
+import { MNotesScreen } from './screens/MNotesScreen';
+import { MThreadDetailScreen } from './screens/MThreadDetailScreen';
+import { MTaskDetailScreen } from './screens/MTaskDetailScreen';
+import { MMemoryScreen } from './screens/MMemoryScreen';
+import { MMemoryFileScreen } from './screens/MMemoryFileScreen';
+import { MMachinesScreen } from './screens/MMachinesScreen';
+import { MSettingsScreen } from './screens/MSettingsScreen';
+import { MAccountsScreen } from './screens/MAccountsScreen';
+import { MHooksScreen } from './screens/MHooksScreen';
+import { MDaemonScreen } from './screens/MDaemonScreen';
+import { MUsageScreen } from './screens/MUsageScreen';
+import { MAppearanceScreen } from './screens/MAppearanceScreen';
+import { MPlatformScreen } from './screens/MPlatformScreen';
+import { MProfilesScreen } from './screens/MProfilesScreen';
+import { MBudgetScreen } from './screens/MBudgetScreen';
+import { MMcpScreen } from './screens/MMcpScreen';
+import { MAdvancedScreen, MNotificationsScreen } from './screens/MRuntimeSettingsScreen';
 
 const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   sessions: <MSessionListScreen />,

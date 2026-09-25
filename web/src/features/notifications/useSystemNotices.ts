@@ -5,7 +5,7 @@ import { SYSTEM_LIVE_EVENTS } from '@/features/live/live-events';
 // broadcasts (startup, restart, profile/config/machine hot-reload, disk, rate-limit) via the
 // encapsulated `emitSystemNotice` seam. Unlike DM replies these carry a server-classified level and
 // no session, so there is no membership gate — every system.notice surfaces as a toast. All shaping
-// (buildSystemNotice) lives in the caller (NotificationProvider). Mirrors useDmNotifications.
+// (buildSystemNotice) lives in the caller (NotificationMount). Mirrors useDmNotifications.
 
 /** The `system.notice` event payload we surface as a toast. */
 export interface SystemNoticeMessage {

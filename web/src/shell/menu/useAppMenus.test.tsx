@@ -14,16 +14,16 @@ vi.mock('@/i18n', async () => {
   return { useVocab: () => en };
 });
 vi.mock('@/design/Toast', () => ({ useToastOptional: () => null }));
-vi.mock('@/features/settings/SettingsProvider', () => ({ useSettings: () => ({ open: vi.fn() }) }));
-vi.mock('@/features/schedule/ScheduleModalProvider', () => ({ useScheduleModal: () => ({ open: vi.fn() }) }));
+vi.mock('@/features/settings/useSettings', () => ({ useSettings: () => ({ open: vi.fn() }) }));
+vi.mock('@/features/schedule/useScheduleModal', () => ({ useScheduleModal: () => ({ open: vi.fn() }) }));
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({ useCurrentProject: () => ({ currentProjectId: null }) }));
-vi.mock('@/features/workbench/SelectedSessionProvider', () => ({
+vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
   useSelectedSession: () => ({ selectedSessionId: null, setSelectedSession: vi.fn() }),
 }));
 vi.mock('@/features/dock/DockProvider', () => ({ useDock: () => ({ open: true, canDock: true, toggleDock: vi.fn() }) }));
 vi.mock('@/theme/ThemeProvider', () => ({ useTheme: () => 'dark', useSetTheme: () => vi.fn() }));
 vi.mock('../PaneStateProvider', () => ({ usePaneState: () => ({ toggleRail: vi.fn(), togglePanel: vi.fn() }) }));
-vi.mock('../ShellModalsProvider', () => ({ useShellModals: () => ({
+vi.mock('../useShellModals', () => ({ useShellModals: () => ({
   openNewProject: vi.fn(), openAbout: vi.fn(), openDaemonStatus: vi.fn(), openShortcuts: vi.fn(),
 }) }));
 vi.mock('./useWindowActions', () => ({ useWindowActions: () => ({
