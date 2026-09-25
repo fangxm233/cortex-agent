@@ -1,6 +1,6 @@
-// input:  pane state, app menus, connection status, theme
+// input:  pane state, app menus, connection status, theme, settings sections
 // output: TopBar, TOP_BAR_HEIGHT
-// pos:    Responsive window chrome with all actions retained
+// pos:    Responsive window chrome with all actions retained and a direct Usage entry
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import './top-bar.css';
@@ -8,6 +8,7 @@ import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
 import { useTheme, useSetTheme } from '@/theme';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { BrandBadge, GearIcon } from '@/features/workbench/LeftRail';
@@ -26,7 +27,7 @@ export const TOP_BAR_HEIGHT = 44;
 const mono = "'IBM Plex Mono',monospace";
 
 // The bar is the app's one always-visible surface, so everything that must survive a collapsed rail
-// lives here: the brand block with its connectivity dot, the palette entry, theme and Settings.
+// lives here: the brand block with its connectivity dot, the palette entry, theme, Usage and Settings.
 //
 // Everything here is window-scoped. Session-scoped controls (Browser, Notes, ⋯) stay in ChatHeader.
 
@@ -92,6 +93,16 @@ function ArrowGlyph({ forward }: { forward?: boolean }): JSX.Element {
   );
 }
 
+// Same glyph as the Usage row in the settings nav, so the key and the page it opens read as one thing.
+// Drawn at the gear's size: the two sit side by side and share a full-bleed 24px frame.
+function UsageGlyph(): JSX.Element {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" {...strokeProps}>
+      <path d={getSettingsNavIcon('usage')} />
+    </svg>
+  );
+}
+
 function SearchGlyph(): JSX.Element {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
@@ -151,7 +162,7 @@ export function TopBar(): JSX.Element {
   const history = useNavigationHistory();
   const theme = useTheme();
   const setTheme = useSetTheme();
-  const { open: openSettings } = useSettings();
+  const { open: openSettings, openSection: openSettingsSection } = useSettings();
   // Live UI↔server connectivity for the brand badge (green connected / amber (re)connecting /
   // red disconnected).
   const connStatus = useConnectionStatus();
@@ -271,6 +282,11 @@ export function TopBar(): JSX.Element {
             ☾
           </button>
         </div>
+        {/* Usage is checked far more often than anything else in Settings, so it gets its own key
+            that opens the sheet already on that page. */}
+        <IconButton label={L.stNavUsage} onClick={() => openSettingsSection('usage')}>
+          <UsageGlyph />
+        </IconButton>
         {/* Settings is a gear key, not a word: a label here made the cluster read as competing texts. */}
         <IconButton label={L.settings} onClick={openSettings}>
           <GearIcon />

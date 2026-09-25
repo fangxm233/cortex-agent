@@ -1,5 +1,5 @@
 // input:  vocab
-// output: grouped settings navigation — keys, labels, icons and section meta
+// output: grouped settings navigation — keys, labels, icons, per-section icon and section meta
 // pos:    Single source for the desktop settings nav and the mobile settings list
 // >>> Once updated, update this header and parent AGENTS.md <<<
 
@@ -90,7 +90,7 @@ const NAV_ICONS: Record<SettingsSectionKey, string> = {
   mcp: 'M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3zM9 9h6v6H9zM12 4V2M12 22v-2M4 12H2M22 12h-2',
   hooks: 'M9.5 17H7.5a5 5 0 0 1 0-10h2M14.5 7h2a5 5 0 0 1 0 10h-2M8.5 12h7',
   budget: 'M3.5 8.5a2 2 0 0 1 2-2h11M3.5 8.5v8a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-13a2 2 0 0 1-2-2zM16.8 13.5h.01',
-  usage: 'M3.5 20.5h17M7 20.5v-7M12 20.5V6.5M17 20.5v-4.5',
+  usage: 'M3.34 19a10 10 0 1 1 17.32 0M12 14l4-4',
   machines: 'M4 4.5h16v5.5H4zM4 14h16v5.5H4zM7.5 7.2h.01M7.5 16.8h.01M11 7.2h5M11 16.8h5',
   advanced: 'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z',
 };
@@ -115,6 +115,11 @@ const NAV_GROUPS: { key: SettingsGroupKey; keys: SettingsSectionKey[] }[] = [
 
 function navEntry(L: Vocab, key: SettingsSectionKey): SettingsNavEntry {
   return { key, label: L[NAV_LABEL_KEYS[key]], icon: NAV_ICONS[key] };
+}
+
+/** Returns one section's glyph, for entries outside the nav that open straight into that section. */
+export function getSettingsNavIcon(key: SettingsSectionKey): string {
+  return NAV_ICONS[key];
 }
 
 /** Returns the nav as grouped sections, in display order. */

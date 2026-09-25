@@ -59,10 +59,11 @@ Settings panels, shared controls, configuration writers and view models.
 | runtime-settings-writer.test.tsx | test | Test runtime setting commits |
 | runtime-settings-writer.ts | hook | Commit runtime setting values and toggles |
 | settings-kit.tsx | UI | Provide glass rows, raised controls, badges and header actions |
-| SettingsModal.tsx | entry | Render glass shell, nav, header action slot and guards |
+| SettingsModal.tsx | entry | Render glass shell, nav, initial section, header slot and guards |
 | settings-nav.ts | model | Define grouped settings navigation |
 | SettingsPanels.tsx | view | Render platform badges and read-only MCP panel |
-| SettingsProvider.tsx | provider | Provide settings overlay actions and styling |
+| SettingsProvider.test.tsx | test | Test default and direct section entry |
+| SettingsProvider.tsx | provider | Provide settings overlay, direct section entry and styling |
 | settings-style.css | style | Apply glass materials and solid small-text colors |
 | settings-portals.css | style | Style glass dropdown and nested dialog portals |
 | settings-ui.tsx | UI | Provide glass cards and stable form controls |

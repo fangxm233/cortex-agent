@@ -17,7 +17,7 @@ Desktop application frame, window chrome, navigation, and shell dialogs.
 | PaneStateProvider.tsx | state | Persist rail and context pane visibility |
 | ShellModalsProvider.tsx | state | Coordinate shell dialog visibility |
 | ShortcutsModal.tsx | view | List app menu keyboard shortcuts |
-| TopBar.tsx | view | Render responsive window actions and search |
+| TopBar.tsx | view | Render responsive window actions, search and Usage key |
 | TopBar.test.tsx | test | Verify compact chrome retains labeled controls |
 | top-bar.css | style | Compact top bar labels and menu spacing |
 | WindowControls.tsx | view | Render native window caption actions |

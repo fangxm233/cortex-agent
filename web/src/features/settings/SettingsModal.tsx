@@ -1,6 +1,6 @@
 // input:  config queries, panels, login flow, material tokens
 // output: Glass settings shell, legible nav, panel header action slot and dirty-form guard
-// pos:    Responsive settings shell with readable navigation
+// pos:    Responsive settings shell with readable navigation and a caller-chosen first section
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
@@ -78,6 +78,8 @@ const SR_ONLY: CSSProperties = {
 export interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
+  /** Section selected when the sheet opens; the nav takes over from there. */
+  initialSection?: SettingsSectionKey;
 }
 
 function isBoundedPanel(section: SettingsSectionKey): boolean {
@@ -123,7 +125,7 @@ function OpenSettingsBody(props: SettingsBodyProps & { open: boolean }) {
   return <SettingsBody {...bodyProps} />;
 }
 
-export function SettingsModal({ open, onClose }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, initialSection = 'appearance' }: SettingsModalProps) {
   const L = useVocab();
   // A panel holding an unsaved committed-on-save draft blocks nav and close. Today that is the
   // plugin assignment form, which lives in the templates editor.
@@ -137,7 +139,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
         <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="settings-surface settings-modal animate-cxmodal focus:outline-none motion-reduce:animate-none">
           <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
           <OpenSettingsBody open={open} onClose={requestClose} panelDirty={dirty}
-            onPanelDirtyChange={setDirty} />
+            onPanelDirtyChange={setDirty} initialSection={initialSection} />
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
@@ -202,6 +204,7 @@ function SettingsNavEntry({ entry, ...props }: SettingsNavProps & { entry: NavEn
   return (
     <button className="settings-nav-button" type="button" disabled={disabled}
       onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
+      aria-current={active ? 'page' : undefined}
       title={disabled ? L.plUnsavedLeave : undefined} style={navButtonStyle(active, disabled)}>
       <NavIcon path={entry.icon} active={active} />
       <span className="settings-nav-label" style={{ flex: 1, minWidth: 0 }}>{entry.label}</span>
@@ -333,13 +336,15 @@ function SettingsSectionContent(props: SectionContentProps) {
 
 interface SettingsBodyProps {
   onClose: () => void;
+  initialSection: SettingsSectionKey;
   panelDirty: boolean;
   onPanelDirtyChange: (dirty: boolean) => void;
 }
 
 function SettingsBody(props: SettingsBodyProps) {
   const trpc = useTRPC();
-  const [section, setSection] = useState<SettingsSectionKey>('appearance');
+  // The body mounts per open, so the initial section applies each time the sheet opens.
+  const [section, setSection] = useState<SettingsSectionKey>(props.initialSection);
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null);
   const config = useQuery(trpc.config.get.queryOptions({}));
   const cost = useQuery(trpc.cost.summary.queryOptions({}));

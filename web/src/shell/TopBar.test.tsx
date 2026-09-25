@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TopBar } from './TopBar';
 
 const actions = vi.hoisted(() => ({
-  theme: vi.fn(), settings: vi.fn(), rail: vi.fn(), back: vi.fn(), forward: vi.fn(),
+  theme: vi.fn(), settings: vi.fn(), settingsSection: vi.fn(), rail: vi.fn(), back: vi.fn(), forward: vi.fn(),
   daemon: vi.fn(), minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn(),
 }));
 vi.mock('@/i18n', () => ({ useVocab: () => new Proxy({}, { get: (_, key) => String(key) }) }));
@@ -16,7 +16,9 @@ vi.mock('@/lib/desktop-platform', () => ({
   desktopPlatform: () => 'linux',
 }));
 vi.mock('@/theme', () => ({ useTheme: () => 'light', useSetTheme: () => actions.theme }));
-vi.mock('@/features/settings/SettingsProvider', () => ({ useSettings: () => ({ open: actions.settings }) }));
+vi.mock('@/features/settings/SettingsProvider', () => ({
+  useSettings: () => ({ open: actions.settings, openSection: actions.settingsSection }),
+}));
 vi.mock('@/features/connection/ConnectionStatusProvider', () => ({ useConnectionStatus: () => 'connected' }));
 vi.mock('@/features/workbench/LeftRail', () => ({
   BrandBadge: ({ label, onClick }: { label: string; onClick: () => void }) => <button aria-label={label} onClick={onClick} />,
@@ -49,16 +51,17 @@ describe('responsive TopBar', () => {
     act(() => view.unmount());
   });
 
-  it('keeps navigation, theme, settings and caption actions keyboard reachable', () => {
+  it('keeps navigation, theme, usage, settings and caption actions keyboard reachable', () => {
     const view = create(<TopBar />);
     const labels = ['tbToggleRail', 'tbBack', 'tbForward', 'stThemeLight', 'stThemeDark',
-      'settings', 'winMinimize', 'winMaximize', 'winClose'];
+      'stNavUsage', 'settings', 'winMinimize', 'winMaximize', 'winClose'];
     labels.forEach((label) => {
       const button = view.root.findAllByType('button').find((node) => node.props['aria-label'] === label)!;
       expect(button).toBeDefined();
       act(() => button.props.onClick());
     });
     expect(actions.theme.mock.calls).toEqual([['light'], ['dark']]);
+    expect(actions.settingsSection.mock.calls).toEqual([['usage']]);
     ['rail', 'back', 'forward', 'settings', 'minimize', 'toggleMaximize', 'close'].forEach((key) => {
       expect(actions[key as keyof typeof actions]).toHaveBeenCalledOnce();
     });
