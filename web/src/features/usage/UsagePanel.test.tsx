@@ -331,6 +331,13 @@ describe('desktop Settings Usage panel', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('write failed');
   });
 
+  it('re-collects once when the page opens, and not again on re-render', () => {
+    const renderer = mount();
+    expect(harness.mutations).toEqual([{ kind: 'system.refreshUsage', args: {} }]);
+    act(() => renderer.update(<LangProvider><UsagePanel /></LangProvider>));
+    expect(harness.mutations).toHaveLength(1);
+  });
+
   it('invokes system.refreshUsage on every click and writes the returned snapshot', () => {
     const renderer = mount();
     const refresh = renderer.root.findByProps({ 'data-usage-refresh': true });
@@ -338,7 +345,9 @@ describe('desktop Settings Usage panel', () => {
     act(() => refresh.props.onClick());
     act(() => refresh.props.onClick());
 
+    // The first entry is the refresh on open.
     expect(harness.mutations).toEqual([
+      { kind: 'system.refreshUsage', args: {} },
       { kind: 'system.refreshUsage', args: {} },
       { kind: 'system.refreshUsage', args: {} },
     ]);
@@ -353,6 +362,6 @@ describe('desktop Settings Usage panel', () => {
     expect(refresh.props.disabled).toBeFalsy();
     act(() => refresh.props.onClick());
     act(() => refresh.props.onClick());
-    expect(harness.mutations).toHaveLength(2);
+    expect(harness.mutations).toHaveLength(3);
   });
 });

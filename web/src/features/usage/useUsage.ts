@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConfigSnapshot,
@@ -260,6 +260,18 @@ export function useUsage(): UsageFeatureState {
   const controlsState = readPolicyControlsState(configQuery.isLoading, configQuery.isError, providerRateLimits);
   const saveMutation = useMutation(trpc.config.setProviderRateLimitPolicy.mutationOptions()) as unknown as PolicyMutation;
   const policySave = usePolicySave(controlsState, saveMutation, queryClient, configOptions.queryKey);
+  const runRefresh = () => refresh.mutate({} as unknown as Parameters<typeof refresh.mutate>[0]);
+
+  // Only the Usage pages mount this hook, and opening one means the user wants current numbers, so
+  // it re-collects once on open instead of showing a snapshot up to one collection interval old.
+  // The ref keeps StrictMode's effect replay from collecting twice.
+  const refreshedOnOpen = useRef(false);
+  useEffect(() => {
+    if (refreshedOnOpen.current) return;
+    refreshedOnOpen.current = true;
+    runRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     view: buildUsageView(query.data as SystemUsageStatus | undefined, readViewPolicyConfig(controlsState, providerRateLimits), nowSec, lang),
@@ -270,7 +282,7 @@ export function useUsage(): UsageFeatureState {
     policyControlsState: controlsState,
     isPolicySaving: policySave.isPolicySaving,
     getPolicyError: policySave.getPolicyError,
-    refresh: () => refresh.mutate({} as unknown as Parameters<typeof refresh.mutate>[0]),
+    refresh: runRefresh,
     savePolicy: policySave.savePolicy,
   };
 }
