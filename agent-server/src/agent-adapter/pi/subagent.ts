@@ -10,7 +10,7 @@ import {
 import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
 import type {
   ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentEndStatus, SubagentResult,
-  SubagentTask,
+  SubagentTask, SubagentUsage,
 } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import type { ChildSessionFactory } from './child-session.js';
@@ -94,6 +94,14 @@ export interface ForeignSubagentRequest {
 
 export type RunForeignSubagent = (request: ForeignSubagentRequest) => Promise<SubagentResult>;
 
+/** One nested PI child's spend, handed to the host when that child ends. The ledger's unit is the
+ *  child, not the message: a run of eight children files eight records, each naming who answered. */
+export interface SubagentUsageReport {
+  provider: string;
+  model: string;
+  usage: SubagentUsage;
+}
+
 export interface SubagentToolDeps {
   /** PI agent dir whose auth/models the `pi` children use. */
   agentDir: string;
@@ -102,12 +110,17 @@ export interface SubagentToolDeps {
   ensureRoles(): void;
   /** Creates one nested in-process PI session per `pi` child. */
   createSession: ChildSessionFactory;
-  /** The Cortex extensions a child session runs with, closed over the child's env. */
-  childExtensions: (env: NodeJS.ProcessEnv) => InlineExtension[];
+  /** The Cortex extensions a child session runs with, closed over the child's env and the provider
+   *  the child declared (null when only PI's resolver will know it). */
+  childExtensions: (env: NodeJS.ProcessEnv, childProvider: string | null) => InlineExtension[];
   /** The parent session's env; each child's env is derived from it. */
   parentEnv: NodeJS.ProcessEnv;
   /** Receives every forwarded child event for the parent's transcript. Absent: no attribution. */
   onEvent?: (notice: SubagentNotice) => void;
+  /** Receives each finished nested PI child's spend so it reaches the cost ledger. Absent: the
+   *  child's tokens stay in the tool result and are never accounted. Children on another backend
+   *  are not reported here: the daemon runner records those as runs of their own. */
+  onUsage?: (report: SubagentUsageReport) => void;
   /** Runs children whose backend is not `pi`. Absent: such a task is an error, not a silent
    *  downgrade — a role asking for `claude` must not quietly answer from a PI model. */
   runForeignSubagent?: RunForeignSubagent;
@@ -121,6 +134,21 @@ export interface SubagentToolDeps {
 export type {
   SubagentResult, SubagentUsage, SubagentDetails,
 } from '@core/agents/subagent/types.js';
+
+/**
+ * Hand a nested PI child's spend to the host, once, as the child ends.
+ *
+ * Reported only when the child's own messages named the provider that answered: without one the
+ * ledger has nowhere honest to file the record, and a child that never reached a provider spent
+ * nothing to file. An aborted child files nothing — its accumulator dies with the cancelled run.
+ * Best-effort by contract: accounting must never fail a subagent that already did its work.
+ */
+function reportChildUsage(deps: SubagentToolDeps, result: SubagentResult): void {
+  if (!deps.onUsage || !result.provider || result.usage.turns === 0) return;
+  try {
+    deps.onUsage({ provider: result.provider, model: result.model ?? '', usage: result.usage });
+  } catch { /* best-effort */ }
+}
 
 function fallbackModel(ctx: ExtensionContext) {
   return ctx.model ? { id: ctx.model.id, provider: ctx.model.provider } : null;
@@ -161,6 +189,7 @@ function buildRunChild(
           childExtensions: deps.childExtensions, signal, forward,
         })
         : await runForeignChild(ctx, deps, task, role, backend, ref, signal);
+      if (backend === 'pi') reportChildUsage(deps, result);
       seal(endStatusOf(result));
       return result;
     } catch (error) {

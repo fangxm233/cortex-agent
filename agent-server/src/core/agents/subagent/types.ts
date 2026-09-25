@@ -33,6 +33,8 @@ export interface SubagentResult {
   output: string;
   usage: SubagentUsage;
   model?: string;
+  /** The provider that answered, as the child's own messages reported it (pi children only). */
+  provider?: string;
   /** Which backend actually ran the child; absent on results built before dispatch. */
   backend?: Backend;
   stopReason?: string;
@@ -55,6 +57,7 @@ export interface ChildAccumulator {
   output: string;
   usage: SubagentUsage;
   model?: string;
+  provider?: string;
   stopReason?: string;
   errorMessage?: string;
 }

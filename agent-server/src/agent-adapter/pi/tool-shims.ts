@@ -1,6 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
@@ -12,9 +13,10 @@ import {
   createMcpBridgeDeps, installMcpBridge, type OpenBundledMcpServer,
 } from './mcp-bridge.js';
 import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
+import { createQuotaProbe } from './quota-probe.js';
 import {
   createSubagentStopTool, createSubagentTool,
-  type RunForeignSubagent, type SubagentToolDeps,
+  type RunForeignSubagent, type SubagentToolDeps, type SubagentUsageReport,
 } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
@@ -22,6 +24,10 @@ import { webSearchTool } from './web-search.js';
 export interface ToolShimHooks {
   /** Receives each event a subagent forwards for the parent's transcript. */
   onSubagentEvent?: (notice: SubagentNotice) => void;
+  /** Reports provider quota read off a nested child's responses; set only for runs that report it. */
+  onProviderQuota?: (reading: CodexQuotaReading) => void;
+  /** Receives each finished nested PI child's spend, for the cost ledger. */
+  onSubagentUsage?: (report: SubagentUsageReport) => void;
   /** Nested session factory for subagents; tests substitute a fake. */
   createChildSession?: ChildSessionFactory;
   /** Runs children whose backend is not `pi`. Supplied by the host (D10); absent ⇒ the `agent`
@@ -122,21 +128,57 @@ export function childExtensions(
   ];
 }
 
+/**
+ * The quota probe a nested child session runs with, or null when the child must not report.
+ *
+ * The host labels every reading with the provider *this run* was routed as (the adapter's
+ * `quotaReporter`), so a child that reached a different provider would have its quota filed under
+ * the parent's — throttling a provider that never produced the reading. A child's provider is only
+ * known here when it inherited the session's model outright; the moment a role or task names a
+ * model, PI's resolver picks the provider later and this side cannot prove they match. So the
+ * probe goes on inheriting children only, and an overridden child simply reports nothing.
+ *
+ * One extension serves every child: PI hands each bound session its own `pi`, so a single factory
+ * registers one listener per child rather than sharing state between them.
+ */
+function childQuotaProbe(
+  hooks: ToolShimHooks,
+): (sessionProvider: string | null, childProvider: string | null) => InlineExtension | null {
+  if (!hooks.onProviderQuota) return () => null;
+  const extension: InlineExtension = {
+    name: 'cortex-quota-probe',
+    factory: createQuotaProbe(hooks.onProviderQuota),
+  };
+  return (sessionProvider, childProvider) => (
+    sessionProvider && childProvider === sessionProvider ? extension : null
+  );
+}
+
 function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: ToolShimHooks): void {
   const agentDir = env.PI_CODING_AGENT_DIR ?? PI_AGENT_DIR;
+  // The provider this session's own model is on, known once the session starts. A child that
+  // inherited it is the only one whose quota readings can be filed under this run's provider.
+  let sessionProvider: string | null = null;
+  const quotaProbe = childQuotaProbe(hooks);
   const deps: SubagentToolDeps = {
     agentDir,
     ensureRoles: () => ensurePIAgentRoles({ legacyDir: path.join(agentDir, 'agents') }),
     createSession: hooks.createChildSession ?? createChildSession,
     // The child inherits this session's opener: it is the same daemon, hosting the same bundles.
-    childExtensions: (childEnv) => childExtensions(childEnv, hooks.openBundledMcpServer),
+    childExtensions: (childEnv, childProvider) => {
+      const extensions = childExtensions(childEnv, hooks.openBundledMcpServer);
+      const probe = quotaProbe(sessionProvider, childProvider);
+      return probe ? [...extensions, probe] : extensions;
+    },
     parentEnv: env,
     onEvent: hooks.onSubagentEvent,
+    onUsage: hooks.onSubagentUsage,
     runForeignSubagent: hooks.runForeignSubagent,
     startBackgroundSubagent: hooks.startBackgroundSubagent,
     stopBackgroundSubagent: hooks.stopBackgroundSubagent,
   };
   pi.on('session_start', (_event, ctx) => {
+    sessionProvider = ctx.model?.provider ?? null;
     pi.registerTool(createSubagentTool(deps, runtimeCatalog(ctx, env, deps)));
     const stopTool = createSubagentStopTool(deps);
     if (stopTool) pi.registerTool(stopTool);

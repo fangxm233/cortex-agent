@@ -348,6 +348,10 @@ export class PISession {
 
   private handleRawEvent(event: PiRawEvent): void {
     if (!this.alive) return;
+    // A backgrounded child can settle after the turn that spawned it. With no turn open there is
+    // no run to file its spend under, and folding it into the parser's pending total would bill it
+    // to whichever turn comes next — so it is left unaccounted, as it was before children reported.
+    if (event.type === 'cortex_subagent_usage' && this.turnStream === null) return;
     this.resetIdleTimer();
     this.bumpTurnIdleTimer();
     this.observeLoop(event);

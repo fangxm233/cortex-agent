@@ -26,8 +26,10 @@ export interface PiChildRequest {
   fallbackModel?: PiModelFallback | null;
   /** Nested session factory; tests substitute a fake. */
   createSession?: ChildSessionFactory;
-  /** The Cortex extensions the child loads, closed over the child's own env. */
-  childExtensions: (env: NodeJS.ProcessEnv) => InlineExtension[];
+  /** The Cortex extensions the child loads, closed over the child's own env and the provider the
+   *  child declared — null whenever the selection names a model without one, which is the only
+   *  honest answer before PI's resolver has run. */
+  childExtensions: (env: NodeJS.ProcessEnv, childProvider: string | null) => InlineExtension[];
   signal?: AbortSignal;
   forward?: ChildEventForwarder;
 }
@@ -69,7 +71,10 @@ export async function runPiChild(request: PiChildRequest): Promise<SubagentResul
     model: selection.model ?? null,
     tools: roleToolsForBackend(role, 'pi'),
     appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
-    extensions: request.childExtensions(buildChildEnv(request.parentEnv, request.agentDir)),
+    extensions: request.childExtensions(
+      buildChildEnv(request.parentEnv, request.agentDir),
+      selection.provider ?? null,
+    ),
   });
   try {
     const result = await collectChild(handle, task, request.signal, request.forward);
@@ -116,6 +121,7 @@ export function childResult(task: SubagentTask, accumulator: ChildAccumulator): 
     output: accumulator.output,
     usage: accumulator.usage,
     model: accumulator.model,
+    provider: accumulator.provider,
     backend: 'pi',
     stopReason: accumulator.stopReason,
     errorMessage: accumulator.errorMessage,
@@ -176,5 +182,8 @@ function recordAssistantMessage(
   if (message.role !== 'assistant') return;
   accumulator.output = textFromMessage(message) || accumulator.output;
   accumulator.model = stringOrPrevious(message.model, accumulator.model);
+  // Read off the child's own messages, never inherited from the parent: a child may run on another
+  // provider entirely, and a guessed name would file its spend under a provider it never used.
+  accumulator.provider = stringOrPrevious(message.provider, accumulator.provider);
   recordTerminalState(accumulator, message);
 }

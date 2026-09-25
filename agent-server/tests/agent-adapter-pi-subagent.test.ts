@@ -7,6 +7,7 @@ import {
   createSubagentTool,
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
+  type SubagentUsageReport,
 } from '../src/agent-adapter/pi/subagent.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
@@ -69,6 +70,7 @@ interface TerminalState {
   stopReason?: string;
   errorMessage?: string;
   model?: string;
+  provider?: string;
 }
 
 interface Harness {
@@ -81,6 +83,8 @@ interface Harness {
   /** Only the children that got a session. */
   sessions: FakeChildSession[];
   notices: SubagentNotice[];
+  /** One entry per child that reported spend, in completion order. */
+  usageReports: SubagentUsageReport[];
   /** Call indexes the factory rejects instead of serving. */
   failAt: Set<number>;
   tool: any;
@@ -129,6 +133,7 @@ function createHarness(
   const childEnvs: NodeJS.ProcessEnv[] = [];
   const sessions: FakeChildSession[] = [];
   const notices: SubagentNotice[] = [];
+  const usageReports: SubagentUsageReport[] = [];
   const failAt = new Set<number>();
 
   const deps: SubagentToolDeps = {
@@ -153,6 +158,7 @@ function createHarness(
       return [];
     },
     parentEnv: parentEnv(agentDir),
+    onUsage: (report) => { usageReports.push(report); },
     ...(options.attributed === false ? {} : { onEvent: (notice) => { notices.push(notice); } }),
   };
 
@@ -163,6 +169,7 @@ function createHarness(
     childEnvs,
     sessions,
     notices,
+    usageReports,
     failAt,
     tool: createSubagentTool(deps) as any,
     cleanup: () => fs.rmSync(root, { recursive: true, force: true }),
@@ -205,6 +212,7 @@ function assistantEvent(
       usage,
       stopReason: terminal.stopReason ?? 'stop',
       ...(terminal.model ? { model: terminal.model } : {}),
+      ...(terminal.provider ? { provider: terminal.provider } : {}),
       ...(terminal.errorMessage ? { errorMessage: terminal.errorMessage } : {}),
     },
   };
@@ -292,6 +300,75 @@ test('single child runs on a nested session with the role scope, a stripped env,
     });
     assert.deepEqual(result.details.results[0].usage, result.details.usage);
     assert.equal(harness.sessions[0].disposeCalls, 1);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('a finished child reports its spend once, named by the provider that answered it', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-usage', singleParams(), undefined, undefined, context(harness.root),
+    );
+    await waitForPrompts(harness, 1);
+    const child = harness.sessions[0];
+    child.emit(assistantEvent(
+      'thinking', { input: 100, output: 40, cost: { total: 0.25 } },
+      { provider: 'openai-codex', model: 'gpt-5-codex' },
+    ));
+    child.finish(
+      'done', { input: 50, output: 20, cacheRead: 10, cost: { total: 0.5 } },
+      { provider: 'openai-codex', model: 'gpt-5-codex' },
+    );
+    await run;
+
+    assert.deepEqual(harness.usageReports, [{
+      provider: 'openai-codex',
+      model: 'gpt-5-codex',
+      usage: {
+        input: 150, output: 60, cacheRead: 10, cacheWrite: 0,
+        cost: 0.75, contextTokens: 0, turns: 2,
+      },
+    }]);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('every child of a parallel batch files its own spend', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-usage-parallel',
+      { parallel: [singleParams(), singleParams({ description: 'Second' })] },
+      undefined,
+      undefined,
+      context(harness.root),
+    );
+    await waitForPrompts(harness, 2);
+    harness.sessions[0].finish('a', { input: 8, cost: { total: 0.25 } }, { provider: 'openai-codex' });
+    harness.sessions[1].finish('b', { input: 4, cost: { total: 0.5 } }, { provider: 'openai-codex' });
+    await run;
+
+    assert.deepEqual(
+      harness.usageReports.map((report) => [report.provider, report.usage.input, report.usage.cost]),
+      [['openai-codex', 8, 0.25], ['openai-codex', 4, 0.5]],
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('a child that never reached a provider files nothing', async () => {
+  const harness = createHarness();
+  harness.failAt.add(0);
+  try {
+    const result = await harness.tool.execute(
+      'tool-usage-failed', singleParams(), undefined, undefined, context(harness.root),
+    );
+    assert.equal(result.details.results[0].stopReason, 'error');
+    assert.deepEqual(harness.usageReports, []);
   } finally {
     harness.cleanup();
   }
