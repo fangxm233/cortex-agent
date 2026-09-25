@@ -9,6 +9,8 @@ export const sessionsListInput = z.object({
 export const sessionsTranscriptInput = z.object({
   sessionId: z.string(),
   compactSubagents: z.boolean().optional(),
+  /** Cursor from a previous response. Asks for the rows that changed since it, not the transcript. */
+  since: z.string().max(64).optional(),
 });
 
 export const sessionsSubagentTranscriptInput = z.object({

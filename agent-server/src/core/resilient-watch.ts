@@ -1,5 +1,4 @@
-import { readFileSync, watch, type FSWatcher } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { statSync, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
 
 export const WATCH_FALLBACK_MS = 5_000;
@@ -118,9 +117,12 @@ export function createSnapshotWatchMonitor(options: SnapshotWatchOptions): Watch
   return monitor;
 }
 
+/** Stat stamp, not a content hash: this runs per fs event and per 5s polling tick, and the
+ *  callers only need "did this file change" — which mtime/ctime/size/inode answer directly. */
 function fileStamp(filePath: string): string | null {
   try {
-    return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+    const stat = statSync(filePath);
+    return `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.ino}`;
   } catch {
     return null;
   }

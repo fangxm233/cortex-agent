@@ -262,6 +262,9 @@ export interface SessionsListParams {
 export interface SessionsTranscriptParams {
   sessionId: string;
   compactSubagents?: boolean;
+  /** Cursor from a previous response's `cursor`. Compact reads only; a matching cursor is answered
+   *  with a `delta` instead of the whole transcript. */
+  since?: string;
 }
 
 export interface SessionsSubagentTranscriptParams {
@@ -1158,6 +1161,20 @@ export interface TranscriptSubagentSummary {
   structurallyOpen: boolean;
 }
 
+/** Rows that changed since a client's cursor, addressed by flat position across the transcript. */
+export interface TranscriptDeltaRow {
+  /** Position in the flattened row stream (turns concatenated in order). */
+  index: number;
+  turnIndex: number;
+  message: TranscriptMessage;
+}
+
+export interface TranscriptDelta {
+  changed: TranscriptDeltaRow[];
+  /** Row count now. A client drops anything at or past it, which is how a rewind shortens. */
+  total: number;
+}
+
 export interface SessionTranscript {
   sessionId: string;
   turns: TranscriptTurn[];
@@ -1166,6 +1183,12 @@ export interface SessionTranscript {
   pendingUserMessages?: PendingTranscriptUserMessage[];
   /** Compact opt-in only. Present even when empty; absent on full transcript responses. */
   subagentSummaries?: TranscriptSubagentSummary[];
+  /** Compact opt-in only. Pass back as `since` to get the next response as a delta. Absent when
+   *  the server cannot serve deltas for this read. */
+  cursor?: string;
+  /** Present INSTEAD of a populated `turns` when the response answers a `since` cursor. A client
+   *  that does not understand it must not send `since`. */
+  delta?: TranscriptDelta;
 }
 
 export interface SessionSubagentTranscript {
@@ -2899,8 +2922,10 @@ export interface UiServiceDeps {
      *  facade/test fixtures need not provide it (the handler no-ops when absent). */
     markRead?(sessionId: string): Promise<void>;
   };
-  /** Capability hint for sessions.list; execution revalidates inside orchestration. */
-  supportsSessionCompaction?: (session: Session) => boolean;
+  /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
+   *  the two fields the answer depends on so the list can answer it once per distinct profile
+   *  instead of once per row. */
+  supportsSessionCompaction?: (session: Pick<Session, 'backend' | 'profileName'>) => boolean;
   /** Latest task-list snapshot for a session (in-memory registry). Optional so facade/test
    *  fixtures need not provide it — absent means the session reports no task list. */
   getSessionTodos?: (sessionId: string) => TodoSnapshot | null;
@@ -2916,6 +2941,12 @@ export interface UiServiceDeps {
       options?: { includeToolDebug?: boolean },
     ): Promise<SessionHistory | null>;
     getCompactHistory?(sessionId: string): Promise<import('@store/conversation-history-repo.js').CompactConversationHistory | null>;
+    /** Compact history plus the cursor that makes the next read a delta. Optional: a store without
+     *  it simply never serves deltas. */
+    getCompactHistoryAt?(sessionId: string): Promise<{
+      value: import('@store/conversation-history-repo.js').CompactConversationHistory | null;
+      cursor: string;
+    }>;
     getSubagentHistory?(sessionId: string, subagentId: string): Promise<import('@store/conversation-history-repo.js').SubagentConversationHistory>;
     getToolDebugDetails?(
       sessionId: string,

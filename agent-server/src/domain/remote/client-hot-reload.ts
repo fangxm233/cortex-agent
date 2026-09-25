@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { execSync } from 'child_process';
+import { runFile, runShell } from '@core/exec-async.js';
 import {
   setClientUpdateHooks,
   getOnlineDevices,
@@ -91,20 +91,22 @@ function loadBundleFromDir(dir: string, version: string): ClientBundle | null {
   return { version, hash: h.digest('hex'), files };
 }
 
-/** Dev mode: bundle straight from the client repo (esbuild, sub-second). */
-function buildDevBundle(): ClientBundle | null {
+/** Dev mode: bundle straight from the client repo (esbuild, sub-second).
+ *  Async: the build can take a while and this runs inside the server process. */
+async function buildDevBundle(): Promise<ClientBundle | null> {
   const repo = resolveClientRepo();
   if (!repo) {
     log.warn('Dev mode: client repo not found — client hot-reload idle');
     return null;
   }
-  try {
+  {
     const start = Date.now();
-    execSync('npm run bundle', { cwd: repo, encoding: 'utf8', timeout: 120000, stdio: 'pipe' });
+    const built = await runShell('npm run bundle', { cwd: repo, timeoutMs: 120000 });
+    if (!built.ok) {
+      log.error(`Client bundle build failed: ${(built.stderr || built.error || '').trim()}`);
+      return null;
+    }
     log.info(`Client bundle built in ${Date.now() - start}ms`);
-  } catch (err) {
-    log.error(`Client bundle build failed: ${(err as Error).message}`);
-    return null;
   }
   let version = 'dev';
   try {
@@ -114,15 +116,15 @@ function buildDevBundle(): ClientBundle | null {
 }
 
 /** Release mode: latest published client package, bundle files cached per version. */
-function fetchReleaseBundle(): ClientBundle | null {
+async function fetchReleaseBundle(): Promise<ClientBundle | null> {
   let version = '';
-  try {
-    version = execSync('npm view @cortex-agent/client version', {
-      encoding: 'utf8', timeout: 30000, stdio: 'pipe',
-    }).trim();
-  } catch (err) {
-    log.warn(`Release mode: npm registry unreachable — client hot-reload idle (${(err as Error).message})`);
-    return null;
+  {
+    const probed = await runFile('npm', ['view', '@cortex-agent/client', 'version'], { timeoutMs: 30000 });
+    if (!probed.ok) {
+      log.warn(`Release mode: npm registry unreachable — client hot-reload idle (${(probed.stderr || probed.error || '').trim()})`);
+      return null;
+    }
+    version = probed.stdout.trim();
   }
   if (!version) return null;
 
@@ -133,10 +135,12 @@ function fetchReleaseBundle(): ClientBundle | null {
   let tmp: string | null = null;
   try {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-client-bundle-'));
-    execSync(`npm pack @cortex-agent/client@${version}`, { cwd: tmp, encoding: 'utf8', timeout: 60000, stdio: 'pipe' });
+    const packed = await runFile('npm', ['pack', `@cortex-agent/client@${version}`], { cwd: tmp, timeoutMs: 60000 });
+    if (!packed.ok) throw new Error(`npm pack failed: ${(packed.stderr || packed.error || '').trim()}`);
     const tgz = fs.readdirSync(tmp).find((f) => f.endsWith('.tgz'));
     if (!tgz) throw new Error('npm pack produced no tgz');
-    execSync(`tar -xzf ${JSON.stringify(tgz)}`, { cwd: tmp, encoding: 'utf8', timeout: 30000, stdio: 'pipe' });
+    const untarred = await runFile('tar', ['-xzf', tgz], { cwd: tmp, timeoutMs: 30000 });
+    if (!untarred.ok) throw new Error(`tar failed: ${(untarred.stderr || untarred.error || '').trim()}`);
     fs.mkdirSync(cacheDir, { recursive: true });
     for (const name of BUNDLE_FILES) {
       fs.copyFileSync(path.join(tmp, 'package', 'dist', name), path.join(cacheDir, name));
@@ -150,7 +154,7 @@ function fetchReleaseBundle(): ClientBundle | null {
   return loadBundleFromDir(cacheDir, version);
 }
 
-function resolveBundle(): ClientBundle | null {
+async function resolveBundle(): Promise<ClientBundle | null> {
   return isDevMode() ? buildDevBundle() : fetchReleaseBundle();
 }
 
@@ -237,8 +241,8 @@ function onUpdateResult(device: string, result: { ok: boolean; hash?: string; er
 function initClientHotReload(notify: (text: string) => void): void {
   _notify = notify;
   setClientUpdateHooks({ onHello, onUpdateResult });
-  setImmediate(() => {
-    const bundle = resolveBundle();
+  setImmediate(async () => {
+    const bundle = await resolveBundle();
     if (!bundle) return;
     _bundle = bundle;
     log.info(`Client bundle ready: ${short(bundle.hash)} (v${bundle.version})`);

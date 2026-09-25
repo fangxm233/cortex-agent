@@ -128,6 +128,8 @@ Desktop conversations, composer controls, session navigation and context panels.
 | tool-call-overflow.ts | model | Build tool call overflow state |
 | ToolCallsRow.test.tsx | test | Test tool group spacing and collapse behavior |
 | ToolCallsRow.tsx | view | Render spaced material chips and tool groups |
+| transcript-delta.test.ts | test | Test delta merge, truncation and bail-out |
+| transcript-delta.ts | model | Fold a cursor delta onto the cached transcript |
 | transcript-vm.test.ts | test | Test transcript vm |
 | transcript-vm.ts | model | Build transcript vm state |
 | useAssistantDeltaStream.test.tsx | test | Test use assistant delta stream |
@@ -149,6 +151,7 @@ Desktop conversations, composer controls, session navigation and context panels.
 | useSessionWaitpoints.ts | hook | Manage session waitpoints |
 | useThreadsLiveSync.ts | hook | Manage threads live sync |
 | useToolCallOverflow.ts | hook | Manage tool call overflow |
+| useTranscriptQuery.ts | hook | Read sessions.transcript, refetching as a delta when possible |
 | wait-rail-vm.test.ts | test | Test wait rail vm |
 | wait-rail-vm.ts | model | Build wait rail vm state |
 | WaitRail.test.tsx | test | Test wait rail |

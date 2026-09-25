@@ -90,6 +90,9 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 vi.mock('@/lib/trpc', () => ({
+  // The transcript hook holds a raw client so it can ask for a delta; the mocked useQuery above
+  // never runs its queryFn, so this only has to exist.
+  useTRPCClient: () => ({ sessions: { transcript: { query: vi.fn() } } }),
   useTRPC: () => {
     const query = (kind: string) => ({
       queryOptions: (input: unknown) => ({ __kind: kind, input }),

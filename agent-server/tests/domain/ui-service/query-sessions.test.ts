@@ -67,6 +67,40 @@ test('sessions.list exposes persisted context usage and uses null for legacy ses
   assert.equal(byId['s2'], null);
 });
 
+test('sessions.list resolves compaction support once per profile, not once per session', async () => {
+  // Resolving a profile is not free — it revalidates profiles.json — so a rail holding hundreds of
+  // sessions must not ask once per row. Three distinct (backend, profileName) pairs, 120 rows.
+  const many = Array.from({ length: 120 }, (_, i) => ({
+    ...mockSessions[i % mockSessions.length],
+    sessionId: `bulk-${i}`,
+    name: `cortex-bulk-${i}`,
+    projectId: 'proj1',
+    origin: 'direct' as const,
+  }));
+  const asked: string[] = [];
+  const result = await handleSessionsList(makeDeps({
+    sessionStore: {
+      listByProject: async () => many,
+      listByOrigin: async () => many,
+      listResumable: async () => many,
+      getById: async () => null,
+    },
+    supportsSessionCompaction: (session) => {
+      asked.push(`${session.backend}/${session.profileName ?? ''}`);
+      return session.backend === 'pi';
+    },
+  }), { projectId: 'proj1' });
+
+  assert.equal(result.length, 120);
+  assert.deepEqual([...new Set(asked)].sort(), ['claude/pi', 'pi/', 'pi/default']);
+  assert.equal(asked.length, 3, `resolved the profile ${asked.length} times for 120 sessions`);
+  // The answer still lands on every row.
+  assert.deepEqual(
+    [...new Set(result.map((session) => `${session.backend}=${session.contextCompactionSupported}`))].sort(),
+    ['claude=false', 'pi=true'],
+  );
+});
+
 test('sessions.list with resumable=true returns only non-scheduled sessions', async () => {
   const result = await handleSessionsList(makeDeps(), { resumable: true });
   assert.equal(result.length, 2);

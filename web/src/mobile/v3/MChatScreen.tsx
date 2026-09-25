@@ -15,6 +15,7 @@ import { scheduledRunTitle } from '@/features/workbench/schedule-rail';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
 import { useSessionWaitpoints } from '@/features/workbench/useSessionWaitpoints';
+import { useTranscriptQuery } from '@/features/workbench/useTranscriptQuery';
 import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
@@ -224,10 +225,7 @@ export function MChatScreen(): JSX.Element {
     return scheduledRunTitle(sched, runs, active.sessionId);
   }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data]);
 
-  const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
-    enabled: !!sessionId,
-  });
+  const transcriptQuery = useTranscriptQuery(sessionId);
   // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.
   const {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns, contextUsage, todos,

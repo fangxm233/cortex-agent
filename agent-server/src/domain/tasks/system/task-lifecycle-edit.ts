@@ -191,6 +191,23 @@ async function withTaskFileMutationLockAsync<T>(
   try { return await mutate(); } finally { release(); }
 }
 
+/** Multi-project async twin of `withTaskFileMutationLocks`: acquires in sorted order and releases
+ *  in reverse, so cross-project mutations cannot deadlock against each other. */
+async function withTaskFileMutationLocksAsync<T>(
+  projects: string[], mutate: () => Promise<T>,
+): Promise<T> {
+  const existing = [...new Set(projects)]
+    .filter((project) => fs.existsSync(getTasksPath(project)))
+    .sort();
+  const releases: Array<() => void> = [];
+  try {
+    for (const project of existing) releases.push(await acquireTaskFileMutationLockAsync(project));
+    return await mutate();
+  } finally {
+    for (const release of releases.reverse()) release();
+  }
+}
+
 function sweepTaskOrphans(tasksPath: string): void {
   try {
     const dir = path.dirname(tasksPath);
@@ -392,6 +409,10 @@ function editTaskUnlocked(project: string, options: any = {}): TaskLineTransform
 const editTask = (project: string, options: any = {}): TaskLineTransformResult =>
   withTaskFileMutationLock(project, () => editTaskUnlocked(project, options));
 
+/** Async twin of `editTask` for the server's per-message edit path. */
+const editTaskAsync = async (project: string, options: any = {}): Promise<TaskLineTransformResult> =>
+  withTaskFileMutationLockAsync(project, async () => editTaskUnlocked(project, options));
+
 // Base of the TASKS.yaml write path: this module owns the file I/O and the line-level primitives;
 // task-state / task-completion / task-mutations / task-process build on top of it. There is no
 // barrel for this folder on purpose — task-store.ts and the CLI import each sub-module directly.
@@ -400,6 +421,7 @@ export {
   _resetTemplateNameCacheForTests,
   clearDependsOnAll,
   editTask,
+  editTaskAsync,
   findTask,
   findTaskById,
   getTasksPath,
@@ -410,6 +432,7 @@ export {
   withTaskFileMutationLock,
   withTaskFileMutationLockAsync,
   withTaskFileMutationLocks,
+  withTaskFileMutationLocksAsync,
   writeTasks,
 };
 export type { TaskLineTransformResult };

@@ -1,7 +1,7 @@
 import { todayISO } from '@core/utils.js';
 import type { Task, TaskGenerationExpectation } from '@core/task-parser.js';
 import {
-  findTask, getTasksPath, readTasks, withTaskFileMutationLock, writeTasks,
+  findTask, getTasksPath, readTasks, withTaskFileMutationLock, withTaskFileMutationLockAsync, writeTasks,
 } from './task-lifecycle-edit.js';
 import * as fs from 'node:fs';
 
@@ -297,6 +297,15 @@ function lockTaskMutation<T extends (...args: any[]) => any>(mutation: T): T {
   )) as T;
 }
 
+/** Async twin of `lockTaskMutation`. The mutation body itself is synchronous, so this only swaps
+ *  the cross-process mutation lock's blocking wait for its async twin. The server takes this path
+ *  (per-message / per-dispatch mutations); the standalone CLI keeps the sync one. */
+function lockTaskMutationAsync<T extends (...args: any[]) => Promise<any>>(mutation: (...args: any[]) => any) {
+  return ((...args: any[]) => withTaskFileMutationLockAsync(
+    args[1], async () => mutation(...args),
+  ));
+}
+
 const claimTask = lockTaskMutation(claimTaskUnlocked);
 const unclaimTask = lockTaskMutation(unclaimTaskUnlocked);
 const pauseTask = lockTaskMutation(pauseTaskUnlocked);
@@ -309,16 +318,39 @@ const pendingTask = lockTaskMutation(pendingTaskUnlocked);
 const unblockTask = lockTaskMutation(unblockTaskUnlocked);
 const reopenTask = lockTaskMutation(reopenTaskUnlocked);
 
+const claimTaskAsync = lockTaskMutationAsync(claimTaskUnlocked);
+const unclaimTaskAsync = lockTaskMutationAsync(unclaimTaskUnlocked);
+const pauseTaskAsync = lockTaskMutationAsync(pauseTaskUnlocked);
+const resumeTaskAsync = lockTaskMutationAsync(resumeTaskUnlocked);
+const requestApprovalTaskAsync = lockTaskMutationAsync(requestApprovalTaskUnlocked);
+const approveTaskAsync = lockTaskMutationAsync(approveTaskUnlocked);
+const clearApprovalTaskAsync = lockTaskMutationAsync(clearApprovalTaskUnlocked);
+const blockTaskAsync = lockTaskMutationAsync(blockTaskUnlocked);
+const pendingTaskAsync = lockTaskMutationAsync(pendingTaskUnlocked);
+const unblockTaskAsync = lockTaskMutationAsync(unblockTaskUnlocked);
+const reopenTaskAsync = lockTaskMutationAsync(reopenTaskUnlocked);
+
 export {
   approveTask,
+  approveTaskAsync,
   blockTask,
+  blockTaskAsync,
   claimTask,
+  claimTaskAsync,
   clearApprovalTask,
+  clearApprovalTaskAsync,
   pauseTask,
+  pauseTaskAsync,
   pendingTask,
+  pendingTaskAsync,
   reopenTask,
+  reopenTaskAsync,
   requestApprovalTask,
+  requestApprovalTaskAsync,
   resumeTask,
+  resumeTaskAsync,
   unblockTask,
+  unblockTaskAsync,
   unclaimTask,
+  unclaimTaskAsync,
 };

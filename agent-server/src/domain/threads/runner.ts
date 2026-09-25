@@ -923,7 +923,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
           // would otherwise hold the lock across the whole child-wait — starving sibling
           // managers — and the terminal auto-release can't recover it (re-entry completes under
           // a new executionId that no longer matches the original owner). See registry.ts.
-          executionRegistry.releaseExecutionLocks(stepCtx.execution.id);
+          await executionRegistry.releaseExecutionLocksAsync(stepCtx.execution.id);
           const n = threadStore.get(threadId)?.metadata?.waitingOn?.length ?? 0;
           if (ctx.stream) ctx.stream.emitText(`${Icons.processing} Thread suspended — waiting on ${n} child thread(s)`);
           break;

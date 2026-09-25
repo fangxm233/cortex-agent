@@ -42,4 +42,8 @@ jobs:
 
       - name: Publish package
         working-directory: agent-server
-        run: npm publish --access public
+        # --tag latest is required, not cosmetic: CalVer same-day re-releases use a YYYY.M.D-N
+        # suffix, which semver classifies as a prerelease. npm >= 11 refuses to publish one
+        # without an explicit tag, and the step above always pulls the newest npm. For a plain
+        # YYYY.M.D version this is exactly npm's default behaviour.
+        run: npm publish --access public --tag latest

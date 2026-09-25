@@ -92,7 +92,7 @@ async function main() {
 
   // Step 3: Ship the managed bundle to ~/.cortex/client/current/
   console.log('[3/4] Deploying client bundle...');
-  const bundle = resolveBundle();
+  const bundle = await resolveBundle();
   if (!bundle) {
     log.error('No client bundle available (dev: client repo build failed; release: npm registry unreachable).');
     process.exit(1);

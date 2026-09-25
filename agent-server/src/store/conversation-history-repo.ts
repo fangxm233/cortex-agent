@@ -2,8 +2,8 @@ import * as path from 'path';
 import { createReadStream, promises as fs } from 'fs';
 import { createInterface } from 'node:readline';
 import { STORE_DIR } from '@core/paths.js';
+import { isOverDebugToolWarningChars } from '@core/debug-mode.js';
 import {
-  estimateCompactHistoryBytes,
   projectCompactHistory,
   projectSubagentHistory,
   type CompactConversationHistory,
@@ -13,6 +13,7 @@ import {
   ConversationHistoryAccumulator,
   readHistoryAccumulator,
   readHistoryStream,
+  resumeHistoryAccumulator,
 } from './conversation-history-reader.js';
 import type { ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
@@ -232,34 +233,29 @@ export interface ConversationHistoryRepoOptions {
 
 export type { CompactConversationHistory, CompactConversationEvent, CompactSubagentSummary, SubagentConversationHistory } from './conversation-display-projection.js';
 
+/**
+ * One session's resident read model: the accumulator holding the fold of the file's first
+ * `accumulator.bytesConsumed` bytes, plus the compact projection derived from it.
+ *
+ * `epoch` is NOT bumped by appends. An append only ever extends the file, so a model built from a
+ * prefix stays correct and is brought current by folding the new bytes; invalidating on every
+ * append is what used to make this cache miss on exactly the sessions that needed it. Only a
+ * REWRITE (rewind / clear) makes the fold unusable, and only that bumps the epoch.
+ */
 interface CompactCacheEntry {
-  generation: number;
+  epoch: number;
   bytes: number;
   accumulator: ConversationHistoryAccumulator;
-  value: CompactConversationHistory;
-}
-
-interface ScannedCompactHistory {
-  accumulator: ConversationHistoryAccumulator;
-  value: CompactConversationHistory;
+  /** Memoized projection; recomputed only when the accumulator's revision moves. */
+  projection: { revision: number; value: CompactConversationHistory } | null;
 }
 
 const DEFAULT_COMPACT_CACHE_ENTRIES = 32;
-const DEFAULT_COMPACT_CACHE_BYTES = 32 * 1024 * 1024;
-
-function estimateCacheEntryBytes(
-  value: CompactConversationHistory,
-  accumulator: ConversationHistoryAccumulator,
-): number {
-  const retained = accumulator.snapshot();
-  const retainedBytes = retained ? Buffer.byteLength(JSON.stringify(retained), 'utf8') : 0;
-  return retainedBytes + estimateCompactHistoryBytes(value);
-}
-
-function appendedCacheBytes(serializedLine: string): number {
-  if (serializedLine.startsWith('{"type":"debug-tool-result"')) return 0;
-  return Buffer.byteLength(serializedLine, 'utf8') + 256;
-}
+/** Total resident budget for folded transcripts. Sized to hold several long sessions at once:
+ *  a session whose model is dropped here is re-folded from byte 0 on every read (~1s of
+ *  synchronous JSON parsing for a 40MB transcript, measured), so the budget is the difference
+ *  between a warm read (~1ms) and a repeated full scan. */
+const DEFAULT_COMPACT_CACHE_BYTES = 128 * 1024 * 1024;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -361,7 +357,10 @@ function parseRawLine(line: string): RawEvent | null {
 export class ConversationHistoryRepo {
   /** Per-session serial write chain — keeps concurrent appends from interleaving a line. */
   private writeChains = new Map<string, Promise<void>>();
-  private generations = new Map<string, number>();
+  /** Bumped only when a session's file is REWRITTEN (rewind / clear) — never by an append. */
+  private rewriteEpochs = new Map<string, number>();
+  /** In-flight model refresh per session, so concurrent reads share one fold instead of racing. */
+  private refreshChains = new Map<string, Promise<CompactCacheEntry | null>>();
   private compactCache = new Map<string, CompactCacheEntry>();
   private compactCacheBytes = 0;
   private dirReady = false;
@@ -384,13 +383,13 @@ export class ConversationHistoryRepo {
     this.dirReady = true;
   }
 
-  private currentGeneration(sessionId: string): number {
-    return this.generations.get(sessionId) ?? 0;
+  private currentEpoch(sessionId: string): number {
+    return this.rewriteEpochs.get(sessionId) ?? 0;
   }
 
-  private bumpGeneration(sessionId: string): number {
-    const next = this.currentGeneration(sessionId) + 1;
-    this.generations.set(sessionId, next);
+  private bumpEpoch(sessionId: string): number {
+    const next = this.currentEpoch(sessionId) + 1;
+    this.rewriteEpochs.set(sessionId, next);
     return next;
   }
 
@@ -405,39 +404,16 @@ export class ConversationHistoryRepo {
     this.compactCache.delete(sessionId);
   }
 
-  private readCompactCache(sessionId: string): CompactConversationHistory | null | undefined {
-    const cached = this.compactCache.get(sessionId);
-    if (!cached) return undefined;
-    if (cached.generation !== this.currentGeneration(sessionId)) {
-      this.dropCompactCache(sessionId);
-      return undefined;
-    }
-    this.compactCache.delete(sessionId);
-    this.compactCache.set(sessionId, cached);
-    return cached.value;
-  }
-
-  private markCompactCacheGeneration(sessionId: string, generation: number): void {
-    const cached = this.compactCache.get(sessionId);
-    if (!cached) return;
-    cached.generation = generation;
-    this.compactCache.delete(sessionId);
-    this.compactCache.set(sessionId, cached);
-  }
-
-  private storeCompactCache(
-    sessionId: string,
-    value: CompactConversationHistory | null,
-    generation: number,
-    accumulator?: ConversationHistoryAccumulator,
-    estimatedBytes?: number,
-  ): void {
-    if (value === null || !accumulator) return this.dropCompactCache(sessionId);
-    const bytes = estimatedBytes ?? estimateCacheEntryBytes(value, accumulator);
+  private storeCompactCache(sessionId: string, entry: CompactCacheEntry): void {
     this.dropCompactCache(sessionId);
-    if (bytes > this.compactCacheByteLimit) return;
-    this.compactCache.set(sessionId, { generation, bytes, accumulator, value });
-    this.compactCacheBytes += bytes;
+    // A transcript that alone exceeds the WHOLE budget is not retained. This is the total-budget
+    // invariant, not an independent per-file size cap: without it `trimCompactCache` (which walks
+    // insertion order) would evict every other session trying to make room and then evict this
+    // entry too, leaving the cache empty — measurably worse than not admitting it. Raising the
+    // budget is what makes longer sessions cacheable; this line only bounds a single outlier.
+    if (entry.bytes > this.compactCacheByteLimit) return;
+    this.compactCache.set(sessionId, entry);
+    this.compactCacheBytes += entry.bytes;
     this.trimCompactCache();
   }
 
@@ -452,38 +428,105 @@ export class ConversationHistoryRepo {
     }
   }
 
-  private updateCompactCacheAfterAppend(sessionId: string, serializedLine: string, generation: number): void {
-    const cached = this.compactCache.get(sessionId);
-    if (!cached) return;
-    try {
-      cached.accumulator.consumeLine(serializedLine.slice(0, -1));
-      const history = cached.accumulator.snapshot();
-      const bytes = cached.bytes + appendedCacheBytes(serializedLine);
-      this.storeCompactCache(
-        sessionId,
-        history ? projectCompactHistory(history) : null,
-        generation,
-        cached.accumulator,
-        bytes,
-      );
-    } catch {
-      this.dropCompactCache(sessionId);
-    }
+  /**
+   * Bring the session's resident model level with the file on disk and return it.
+   *
+   * Cold: fold the whole file once. Warm: fold only the bytes appended since the model's cursor —
+   * which is the whole point, because a chat session's transcript is re-read at event rate and
+   * re-parsing it end to end is what saturated the event loop.
+   *
+   * Refreshes are serialized per session rather than shared: a caller that has already awaited an
+   * append must not be handed a fold that started before it. Queueing costs nothing once warm —
+   * the refresh behind it finds the model current and only stats the file — and it keeps
+   * read-your-writes, which a shared in-flight promise would quietly break.
+   *
+   * A rewrite landing mid-fold is caught by the epoch check and the fold is discarded (one retry,
+   * then the caller gets whatever the retry saw).
+   */
+  private ensureModel(sessionId: string): Promise<CompactCacheEntry | null> {
+    const prev = this.refreshChains.get(sessionId) ?? Promise.resolve(null);
+    const run: Promise<CompactCacheEntry | null> = prev
+      .catch(() => null)
+      .then(() => this.refreshModel(sessionId))
+      .finally(() => {
+        if (this.refreshChains.get(sessionId) === run) this.refreshChains.delete(sessionId);
+      });
+    this.refreshChains.set(sessionId, run);
+    return run;
   }
 
+  private async refreshModel(sessionId: string): Promise<CompactCacheEntry | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const epoch = this.currentEpoch(sessionId);
+      const filePath = sessionFilePath(this.historyDir, sessionId);
+      let size: number;
+      try {
+        size = (await fs.stat(filePath)).size;
+      } catch {
+        this.dropCompactCache(sessionId); // absent file — nothing to model
+        return null;
+      }
+      let entry = this.compactCache.get(sessionId);
+      // A file that SHRANK was rewritten behind our back: the fold is not a prefix of it any more.
+      if (entry && (entry.epoch !== epoch || size < entry.accumulator.bytesConsumed)) entry = undefined;
+      // Take the entry OUT of the budget before touching it. `bytes` grows as the fold advances, so
+      // an in-place update would later be subtracted at its new size and leave the total adrift.
+      this.dropCompactCache(sessionId);
+      try {
+        if (!entry) {
+          const accumulator = await this.compactHistoryAccumulatorReader(sessionId, filePath, { includeToolDebug: false });
+          // A reader that does not report a cursor cannot be resumed — folding from 0 next time
+          // would replay every row into the same model. Serve it, but never keep it.
+          if (accumulator.bytesConsumed === 0 && size > 0) return { epoch, bytes: size, accumulator, projection: null };
+          entry = { epoch, bytes: accumulator.bytesConsumed, accumulator, projection: null };
+        } else if (size > entry.accumulator.bytesConsumed) {
+          await resumeHistoryAccumulator(entry.accumulator, filePath);
+          entry.bytes = entry.accumulator.bytesConsumed;
+          entry.projection = null;
+        }
+      } catch {
+        this.dropCompactCache(sessionId);
+        return null;
+      }
+      if (this.currentEpoch(sessionId) !== epoch) {
+        this.dropCompactCache(sessionId);
+        continue; // rewritten while we folded — rebuild against the new file
+      }
+      // An empty session has nothing to keep warm and costs nothing to re-fold; leaving it out
+      // keeps the budget for transcripts where resuming actually saves work.
+      if (entry.accumulator.eventCount === 0) {
+        this.dropCompactCache(sessionId);
+        return entry;
+      }
+      this.storeCompactCache(sessionId, entry); // re-inserting is also what refreshes LRU order
+      return entry; // returned even when the budget refused it: correct, just not retained
+    }
+    return null;
+  }
+
+  /** The compact projection of a current model, recomputed only when the fold actually moved. */
+  private compactOf(entry: CompactCacheEntry): CompactConversationHistory | null {
+    const revision = entry.accumulator.revision;
+    if (entry.projection && entry.projection.revision === revision) return entry.projection.value;
+    const history = entry.accumulator.snapshot();
+    if (!history) {
+      entry.projection = null;
+      return null;
+    }
+    const value = projectCompactHistory(history, entry.accumulator.eventRevisions());
+    entry.projection = { revision, value };
+    return value;
+  }
+
+  /** Append one line. The resident model is deliberately NOT updated here: the file is the single
+   *  source of truth and the next read folds the new bytes off it, so an in-memory copy can never
+   *  drift from — or double-count against — what a concurrent read already folded. */
   private append(sessionId: string, ev: RawEvent): Promise<void> {
-    const generation = this.bumpGeneration(sessionId);
     const serializedLine = JSON.stringify(ev) + '\n';
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(async () => {
       await this.ensureDir();
-      try {
-        await fs.appendFile(sessionFilePath(this.historyDir, sessionId), serializedLine, 'utf8');
-      } catch (error) {
-        this.dropCompactCache(sessionId);
-        throw error;
-      }
-      this.updateCompactCacheAfterAppend(sessionId, serializedLine, generation);
+      await fs.appendFile(sessionFilePath(this.historyDir, sessionId), serializedLine, 'utf8');
     });
     this.writeChains.set(sessionId, next);
     return next;
@@ -492,15 +535,6 @@ export class ConversationHistoryRepo {
   private async readHistoryFile(sessionId: string): Promise<string | null> {
     try {
       return await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
-    } catch {
-      return null;
-    }
-  }
-
-  private async readStreamHistory(sessionId: string): Promise<SessionHistory | null> {
-    const filePath = sessionFilePath(this.historyDir, sessionId);
-    try {
-      return await readHistoryStream(sessionId, filePath, { includeToolDebug: false });
     } catch {
       return null;
     }
@@ -516,49 +550,6 @@ export class ConversationHistoryRepo {
     if (!removed) return null;
     await fs.writeFile(sessionFilePath(this.historyDir, sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
     return removed;
-  }
-
-  private async scanCompactHistory(sessionId: string): Promise<ScannedCompactHistory | null> {
-    const filePath = sessionFilePath(this.historyDir, sessionId);
-    try {
-      const accumulator = await this.compactHistoryAccumulatorReader(sessionId, filePath, { includeToolDebug: false });
-      const history = accumulator.snapshot();
-      return history ? { accumulator, value: projectCompactHistory(history) } : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async stableCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const generation = this.currentGeneration(sessionId);
-      const history = await this.scanCompactHistory(sessionId);
-      if (this.currentGeneration(sessionId) !== generation) {
-        await this.awaitWriteChain(sessionId);
-        const cached = this.readCompactCache(sessionId);
-        if (cached !== undefined) return cached;
-        continue;
-      }
-      this.storeCompactCache(sessionId, history?.value ?? null, generation, history?.accumulator);
-      return history?.value ?? null;
-    }
-    await this.awaitWriteChain(sessionId);
-    const cached = this.readCompactCache(sessionId);
-    if (cached !== undefined) return cached;
-    return this.serializedCompactHistory(sessionId);
-  }
-
-  private async serializedCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
-    let history: ScannedCompactHistory | null = null;
-    const generation = this.currentGeneration(sessionId);
-    const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
-    const next = prev.catch(() => {}).then(async () => { history = await this.scanCompactHistory(sessionId); });
-    this.writeChains.set(sessionId, next);
-    await next;
-    if (this.currentGeneration(sessionId) === generation) {
-      this.storeCompactCache(sessionId, history?.value ?? null, generation, history?.accumulator);
-    }
-    return history?.value ?? null;
   }
 
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
@@ -669,18 +660,21 @@ export class ConversationHistoryRepo {
    * (for the edit marker + attachment reuse), or null when the turn does not exist.
    */
   async truncateFromTurn(sessionId: string, turnIndex: number): Promise<{ text: string; ts: string; attachments?: RawEvent['attachments'] } | null> {
-    const generation = this.bumpGeneration(sessionId);
     let removed: { text: string; ts: string; attachments?: RawEvent['attachments'] } | null = null;
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(async () => {
       try {
         removed = await this.rewriteTruncatedSession(sessionId, turnIndex);
       } catch (error) {
+        this.bumpEpoch(sessionId);
         this.dropCompactCache(sessionId);
         throw error;
       }
-      if (removed) this.dropCompactCache(sessionId);
-      else this.markCompactCacheGeneration(sessionId, generation);
+      // An out-of-range rewind rewrote nothing, so the resident fold is still a valid prefix.
+      if (removed) {
+        this.bumpEpoch(sessionId);
+        this.dropCompactCache(sessionId);
+      }
     });
     this.writeChains.set(sessionId, next);
     await next;
@@ -697,12 +691,14 @@ export class ConversationHistoryRepo {
     options: HistoryReadOptions = {},
   ): Promise<SessionHistory | null> {
     await this.awaitWriteChain(sessionId);
-    // Streamed rather than read whole. Both routes retain the same amount — the file never has to
-    // exist as one string — but streaming is markedly faster on the transcripts that matter:
-    // measured end to end on a 25MB session, 812ms against 2071ms, with peak RSS 69MB against 75MB.
-    // The exception is a session whose individual rows run to tens of MB (one such file out of
-    // 1919 here): readline reassembles each row from chunks, so that one peaks at 118MB / 3.2s
-    // against 48MB / 2.4s. Retained heap is unchanged either way (3.12MB vs 3.10MB).
+    // The resident model is folded WITHOUT tool DEBUG payloads, which is what every transcript read
+    // asks for — those reads share it and pay only for the bytes appended since the last one.
+    // A DEBUG read wants the lossless inputs the model dropped, so it still streams the file whole;
+    // it is rare (server DEBUG only) and never on the UI's hot path.
+    if (options.includeToolDebug === false) {
+      const entry = await this.ensureModel(sessionId);
+      return entry?.accumulator.snapshot() ?? null;
+    }
     try {
       return await readHistoryStream(sessionId, sessionFilePath(this.historyDir, sessionId), options);
     } catch {
@@ -712,14 +708,26 @@ export class ConversationHistoryRepo {
 
   async getCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
     await this.awaitWriteChain(sessionId);
-    const cached = this.readCompactCache(sessionId);
-    return cached !== undefined ? cached : this.stableCompactHistory(sessionId);
+    const entry = await this.ensureModel(sessionId);
+    return entry ? this.compactOf(entry) : null;
+  }
+
+  /**
+   * The compact projection plus the cursor a caller needs to ask for the next delta. The cursor is
+   * `<epoch>:<revision>`: the epoch changes when the session is rewritten, which is precisely when
+   * a held cursor stops meaning anything and the caller must take a full snapshot again.
+   */
+  async getCompactHistoryAt(sessionId: string): Promise<{ value: CompactConversationHistory | null; cursor: string }> {
+    await this.awaitWriteChain(sessionId);
+    const entry = await this.ensureModel(sessionId);
+    if (!entry) return { value: null, cursor: `${this.currentEpoch(sessionId)}:0` };
+    return { value: this.compactOf(entry), cursor: `${entry.epoch}:${entry.accumulator.revision}` };
   }
 
   async getSubagentHistory(sessionId: string, subagentId: string): Promise<SubagentConversationHistory> {
     await this.awaitWriteChain(sessionId);
-    const history = await this.readStreamHistory(sessionId);
-    const projected = projectSubagentHistory(history, subagentId);
+    const entry = await this.ensureModel(sessionId);
+    const projected = projectSubagentHistory(entry?.accumulator.snapshot() ?? null, subagentId);
     return { ...projected, sessionId };
   }
 
@@ -732,6 +740,11 @@ export class ConversationHistoryRepo {
     const stream = createReadStream(sessionFilePath(this.historyDir, sessionId), { encoding: 'utf8' });
     const lines = createInterface({ input: stream, crlfDelay: Infinity });
     let details: HistoryDebugDetails | null = null;
+    // Same size policy as the fold: the rows we already read ARE the payload, so their combined
+    // line length is the measure. Nothing is re-serialized to weigh it.
+    let chars = 0;
+    const stamp = (value: HistoryDebugDetails): HistoryDebugDetails =>
+      isOverDebugToolWarningChars(chars) ? { ...value, overCharacterThreshold: true } : value;
     try {
       for await (const line of lines) {
         if (!line.includes(toolRef)) continue;
@@ -739,15 +752,17 @@ export class ConversationHistoryRepo {
         try { event = JSON.parse(line) as RawEvent; } catch { continue; }
         if (event.toolUseId !== toolRef) continue;
         if (event.type === 'tool') {
+          chars += line.length;
           details = { ...(details ?? {}), toolRef, toolInput: event.fullInput };
         } else if (event.type === 'debug-tool-result') {
-          return {
+          chars += line.length;
+          return stamp({
             ...(details ?? {}), toolRef,
             toolResult: { content: event.text ?? '', isError: event.isError === true },
-          };
+          });
         }
       }
-      return details;
+      return details ? stamp(details) : null;
     } catch {
       return null;
     } finally {
@@ -809,12 +824,11 @@ export class ConversationHistoryRepo {
   }
 
   async clear(sessionId: string): Promise<void> {
-    const generation = this.bumpGeneration(sessionId);
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(async () => {
+      this.bumpEpoch(sessionId);
       this.dropCompactCache(sessionId);
       try { await fs.unlink(sessionFilePath(this.historyDir, sessionId)); } catch { /* already gone */ }
-      this.markCompactCacheGeneration(sessionId, generation);
     });
     this.writeChains.set(sessionId, next);
     await next;
@@ -828,10 +842,10 @@ export class ConversationHistoryRepo {
   }
 
   private async clearOneSession(sessionId: string): Promise<number> {
-    const generation = this.bumpGeneration(sessionId);
     let removed = 0;
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
     const next = prev.catch(() => {}).then(async () => {
+      this.bumpEpoch(sessionId);
       this.dropCompactCache(sessionId);
       try {
         await fs.unlink(sessionFilePath(this.historyDir, sessionId));
@@ -839,7 +853,6 @@ export class ConversationHistoryRepo {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
-      this.markCompactCacheGeneration(sessionId, generation);
     });
     this.writeChains.set(sessionId, next);
     await next;

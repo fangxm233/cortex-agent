@@ -1,6 +1,8 @@
 import * as fs from 'node:fs';
-import { execSync, spawn } from 'node:child_process';
+import * as os from 'node:os';
+import { spawn } from 'node:child_process';
 import { getSettings } from '@core/settings.js';
+import { runFile } from '@core/exec-async.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
@@ -31,7 +33,8 @@ export function isUpdateDevMode(): boolean {
 
 export interface CheckServerUpdateDeps {
   prompt: UpdatePrompt;
-  getLatest?: () => string | null;
+  /** May be async: the default implementation shells out to `npm view` without blocking. */
+  getLatest?: () => string | null | Promise<string | null>;
   spawnInstall?: () => void;
   loadState?: () => UpdateState | null;
   saveState?: (s: UpdateState) => void;
@@ -40,17 +43,17 @@ export interface CheckServerUpdateDeps {
 
 // ── Default implementations ─────────────────────────────────────
 
-function defaultGetLatest(): string | null {
-  try {
-    const result = execSync('npm view @cortex-agent/server version', {
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: 'pipe',
-    }).trim();
-    return result || null;
-  } catch {
-    return null;
-  }
+/** Async: `npm view` is a network round trip and must not stall the event loop (it used to run
+ *  via execSync with a 15s timeout, on a timer that fires 60s after boot). */
+async function defaultGetLatest(): Promise<string | null> {
+  const result = await runFile('npm', ['view', '@cortex-agent/server', 'version'], {
+    timeoutMs: 15000,
+    // Outside any project checkout, so a local .npmrc cannot redirect the registry lookup.
+    cwd: os.tmpdir(),
+  });
+  if (!result.ok) return null;
+  const version = result.stdout.trim();
+  return version || null;
 }
 
 /** Keep the reported stderr small enough to sit in a dialog and in the status snapshot. */
@@ -128,7 +131,7 @@ export async function checkServerUpdate(
   const now = deps.now ?? defaultNow;
 
   // 2. Fetch latest version
-  const latestVersion = getLatest();
+  const latestVersion = await getLatest();
   if (latestVersion === null) {
     return { action: null, latestVersion: null };
   }

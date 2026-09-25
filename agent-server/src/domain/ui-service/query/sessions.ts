@@ -9,6 +9,8 @@ import type {
   SessionSubagentTranscript,
   TranscriptTurn,
   TranscriptMessage,
+  TranscriptDelta,
+  TranscriptDeltaRow,
   TranscriptDebugDetails,
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
@@ -22,7 +24,7 @@ import {
 } from '@store/session-totals.js';
 import type { HistoryEvent } from '@store/conversation-history-repo.js';
 import { projectCompactHistory, projectSubagentHistory } from '@store/conversation-display-projection.js';
-import { isDebugMode, isDebugToolOverWarningThreshold } from '@core/debug-mode.js';
+import { isDebugMode } from '@core/debug-mode.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
@@ -89,6 +91,21 @@ export async function handleSessionsList(
     const live = totalsBySession.get(sessionId);
     totalsBySession.set(sessionId, addTotalsAcc(live ?? emptyTotalsAcc(), carried));
   }
+
+  // Every row asks the same question — can this session's profile compact? — and the answer is a
+  // function of (backend, profileName) alone, of which a list holds a handful. Asking per row made
+  // a 300-session list resolve (and revalidate) profiles.json 300 times per request.
+  const compactionByProfile = new Map<string, boolean>();
+  const supportsCompaction = (session: { backend: string; profileName: string | null }): boolean => {
+    if (!deps.supportsSessionCompaction) return false;
+    const key = `${session.backend}\u0000${session.profileName ?? ''}`;
+    const known = compactionByProfile.get(key);
+    if (known !== undefined) return known;
+    const supported = deps.supportsSessionCompaction(session);
+    compactionByProfile.set(key, supported);
+    return supported;
+  };
+
   const resolveNumTurns = (
     sessionId: string | undefined,
     inTurn: boolean,
@@ -161,7 +178,7 @@ export async function handleSessionsList(
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos?.(s.sessionId) ?? null,
-      contextCompactionSupported: deps.supportsSessionCompaction?.(s) ?? false,
+      contextCompactionSupported: supportsCompaction({ backend: s.backend, profileName: s.profileName ?? null }),
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
@@ -212,8 +229,9 @@ const INTERACTION_TTL_MS = 30 * 60 * 1000;
 function transcriptDebugDetails(ev: HistoryEvent): TranscriptMessage['debug'] {
   if (!isDebugMode() || ev.debug === undefined) return undefined;
   if (ev.type !== 'tool') return ev.debug;
-  const warned = ev.debug.overCharacterThreshold === true
-    || isDebugToolOverWarningThreshold(ev.debug);
+  // Stamped by the fold from the row's own serialized size; the query trusts it rather than
+  // re-weighing the parsed input once per tool row per request.
+  const warned = ev.debug.overCharacterThreshold === true;
   if (!ev.debug.toolRef && !warned) return undefined;
   return {
     ...(ev.debug.toolRef ? { toolRef: ev.debug.toolRef } : {}),
@@ -346,6 +364,67 @@ async function compactHistory(deps: UiServiceDeps, sessionId: string) {
   return history ? projectCompactHistory(history) : null;
 }
 
+/** Compact history plus the cursor a client passes back as `since`. Stores that cannot produce a
+ *  cursor simply do not get deltas — every response stays a full transcript. */
+async function compactHistoryAt(deps: UiServiceDeps, sessionId: string) {
+  if (deps.conversationHistory.getCompactHistoryAt) {
+    return deps.conversationHistory.getCompactHistoryAt(sessionId);
+  }
+  return { value: await compactHistory(deps, sessionId), cursor: undefined };
+}
+
+/** A row whose rendered form depends on wall-clock time or live server state rather than on the
+ *  stored history, so its revision cannot say whether it changed. Always re-sent in a delta. */
+function isVolatileRow(event: EventWithElapsed): boolean {
+  // Only a PENDING interaction is derived: its card can expire on the clock or flip when the
+  // server stops holding the question open. Once resolved the row renders from stored fields.
+  return event.type === 'interaction' && !!event.id && (event.status ?? 'pending') === 'pending';
+}
+
+/**
+ * Rows added or changed since `sinceRev`. Walks the whole event stream — `elapsedMs` is a
+ * difference against the PREVIOUS row, so the running timestamp has to be carried across rows that
+ * are not being sent — but only builds a DTO for the rows it emits, which is the part that costs.
+ */
+function transcriptDeltaRows(
+  deps: UiServiceDeps,
+  events: EventWithElapsed[],
+  revs: readonly number[],
+  sinceRev: number,
+): TranscriptDeltaRow[] {
+  const changed: TranscriptDeltaRow[] = [];
+  let previousMs: number | null = null;
+  events.forEach((event, index) => {
+    const elapsed = eventElapsedMs(event, previousMs);
+    previousMs = nextPreviousMs(event);
+    if ((revs[index] ?? 0) <= sinceRev && !isVolatileRow(event)) return;
+    changed.push({ index, turnIndex: event.turnIndex, message: messageFromEvent(deps, event, elapsed) });
+  });
+  return changed;
+}
+
+/** `<epoch>:<revision>`; a differing epoch means the session was rewritten and the cursor is void. */
+function parseCursor(cursor: string | undefined): { epoch: string; revision: number } | null {
+  if (!cursor) return null;
+  const at = cursor.lastIndexOf(':');
+  if (at <= 0) return null;
+  const revision = Number(cursor.slice(at + 1));
+  return Number.isSafeInteger(revision) && revision >= 0 ? { epoch: cursor.slice(0, at), revision } : null;
+}
+
+function transcriptDelta(
+  deps: UiServiceDeps,
+  events: EventWithElapsed[],
+  revs: readonly number[] | undefined,
+  since: string | undefined,
+  cursor: string | undefined,
+): TranscriptDelta | null {
+  const from = parseCursor(since);
+  const now = parseCursor(cursor);
+  if (!from || !now || !revs || from.epoch !== now.epoch || from.revision > now.revision) return null;
+  return { changed: transcriptDeltaRows(deps, events, revs, from.revision), total: events.length };
+}
+
 async function subagentHistory(deps: UiServiceDeps, sessionId: string, subagentId: string) {
   if (deps.conversationHistory.getSubagentHistory) {
     return deps.conversationHistory.getSubagentHistory(sessionId, subagentId);
@@ -390,14 +469,20 @@ async function compactTranscript(
   params: SessionsTranscriptParams,
   pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
 ): Promise<SessionTranscript> {
-  const history = await compactHistory(deps, params.sessionId);
-  return sessionTranscript(
-    deps,
-    params.sessionId,
-    history?.events ?? [],
-    pendingMessages(pendingSnapshot, history?.committedSourceIds),
-    history?.subagentSummaries ?? [],
-  );
+  const { value: history, cursor } = await compactHistoryAt(deps, params.sessionId);
+  const events = history?.events ?? [];
+  const pendingUserMessages = pendingMessages(pendingSnapshot, history?.committedSourceIds);
+  const subagentSummaries = history?.subagentSummaries ?? [];
+  // Pending messages and subagent summaries are per-session, not per-row, and small: they ride
+  // every response whole, so a delta only ever has to describe transcript ROWS.
+  const delta = cursor === undefined
+    ? null
+    : transcriptDelta(deps, events, history?.eventRevs, params.since, cursor);
+  // Built only when it is going to be sent — assembling every row's DTO is the server-side cost a
+  // delta exists to avoid, so the whole-transcript path must not run underneath it.
+  if (delta) return { sessionId: params.sessionId, turns: [], pendingUserMessages, subagentSummaries, cursor, delta };
+  const base = sessionTranscript(deps, params.sessionId, events, pendingUserMessages, subagentSummaries);
+  return cursor === undefined ? base : { ...base, cursor };
 }
 
 export async function handleSessionsTranscript(
@@ -427,10 +512,9 @@ export async function handleSessionsDebugDetails(
   params: SessionsDebugDetailsParams,
 ): Promise<TranscriptDebugDetails | null> {
   if (!isDebugMode() || !deps.conversationHistory.getToolDebugDetails) return null;
-  const details = await deps.conversationHistory.getToolDebugDetails(params.sessionId, params.ref);
-  if (!details) return null;
-  if (!isDebugToolOverWarningThreshold(details)) return details;
-  return { ...details, overCharacterThreshold: true };
+  // The store stamps `overCharacterThreshold` while it reads the rows, so there is nothing left
+  // to derive here.
+  return await deps.conversationHistory.getToolDebugDetails(params.sessionId, params.ref);
 }
 
 // ── sessions.pendingInteraction ───────────────────────────────────

@@ -3,32 +3,32 @@ import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import type { EventBus } from '@events/index.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import {
-  approveTask as lifecycleApproveTask,
-  blockTask as lifecycleBlockTask,
-  claimTask as lifecycleClaimTask,
-  clearApprovalTask as lifecycleClearApprovalTask,
-  pauseTask as lifecyclePauseTask,
-  requestApprovalTask as lifecycleRequestApprovalTask,
-  resumeTask as lifecycleResumeTask,
-  unblockTask as lifecycleUnblockTask,
-  unclaimTask as lifecycleUnclaimTask,
+  approveTaskAsync as lifecycleApproveTask,
+  blockTaskAsync as lifecycleBlockTask,
+  claimTaskAsync as lifecycleClaimTask,
+  clearApprovalTaskAsync as lifecycleClearApprovalTask,
+  pauseTaskAsync as lifecyclePauseTask,
+  requestApprovalTaskAsync as lifecycleRequestApprovalTask,
+  resumeTaskAsync as lifecycleResumeTask,
+  unblockTaskAsync as lifecycleUnblockTask,
+  unclaimTaskAsync as lifecycleUnclaimTask,
 } from './system/task-state.js';
 import {
-  completeTask as lifecycleCompleteTask,
-  uncompleteTask as lifecycleUncompleteTask,
+  completeTaskAsync as lifecycleCompleteTask,
+  uncompleteTaskAsync as lifecycleUncompleteTask,
 } from './system/task-completion.js';
 import {
-  addTask as lifecycleAddTask,
-  batchEdit as lifecycleBatchEdit,
-  decomposeTask as lifecycleDecomposeTask,
+  addTaskAsync as lifecycleAddTask,
+  batchEditAsync as lifecycleBatchEdit,
+  decomposeTaskAsync as lifecycleDecomposeTask,
 } from './system/task-mutations.js';
-import { editTask as lifecycleEditTask } from './system/task-lifecycle-edit.js';
+import { editTaskAsync as lifecycleEditTask } from './system/task-lifecycle-edit.js';
 import {
-  acquireLock,
+  acquireLockAsync,
   assertLockHeld,
   getOwnerIdentity,
   isProjectLocked,
-  releaseLock,
+  releaseLockAsync,
 } from './system/task-lock.js';
 
 interface ClaimTaskOptions {
@@ -69,8 +69,8 @@ interface AddTaskRequest {
 const SYSTEM_LOCK_RETRY_MS = 50;
 let systemLockSequence = 0;
 
-function addTaskRecord(request: AddTaskRequest): any {
-  return lifecycleAddTask(
+async function addTaskRecord(request: AddTaskRequest): Promise<any> {
+  return await lifecycleAddTask(
     request.project, request.text, request.why, request.doneWhen,
     request.priority, request.template, request.dependsOn, request.plan,
   );
@@ -78,14 +78,15 @@ function addTaskRecord(request: AddTaskRequest): any {
 
 async function acquireSystemProjectLock(project: string): Promise<string> {
   const owner = `system:${process.pid}:${++systemLockSequence}`;
-  while (!acquireLock(project, { owner }).acquired) {
+  // Async lock: a contended cross-process mutation lock must not park the event loop here.
+  while (!(await acquireLockAsync(project, { owner })).acquired) {
     await new Promise((resolve) => setTimeout(resolve, SYSTEM_LOCK_RETRY_MS));
   }
   return owner;
 }
 
-function releaseSystemProjectLock(project: string, owner: string): void {
-  const result = releaseLock(project, owner);
+async function releaseSystemProjectLock(project: string, owner: string): Promise<void> {
+  const result = await releaseLockAsync(project, owner);
   if (!result.released) throw new Error(result.message || `Failed to release project lock for ${project}`);
 }
 
@@ -118,14 +119,14 @@ export class TaskMutator {
   }
 
   async claim(taskId: string, agent: string, options: ClaimTaskOptions = {}): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleClaimTask(
+      const result = await lifecycleClaimTask(
         task.text, task.project, agent, taskId, options.generation ?? null,
       );
       if (result.success) {
-        this.store.refresh(); this.store.commitAndPush(`task-store: claim ${taskId} by ${agent}`);
+        this.store.refresh(); await this.store.commitAndPush(`task-store: claim ${taskId} by ${agent}`);
         this.bus?.publish({ type: 'task.claimed', taskId, by: agent });
       }
       return result;
@@ -133,14 +134,14 @@ export class TaskMutator {
   }
 
   async unclaim(taskId: string, options: OwnedMutationOptions = {}): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleUnclaimTask(
+      const result = await lifecycleUnclaimTask(
         task.text, task.project, taskId, options.ownership,
       );
       if (result.success) {
-        this.store.refresh(); this.store.commitAndPush(`task-store: unclaim ${taskId}`);
+        this.store.refresh(); await this.store.commitAndPush(`task-store: unclaim ${taskId}`);
         this.bus?.publish({ type: 'task.unclaimed', taskId });
       }
       return result;
@@ -148,15 +149,15 @@ export class TaskMutator {
   }
 
   async complete(taskId: string, note?: string, options: CompleteTaskOptions = {}): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.getByIdFresh(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleCompleteTask(
+      const result = await lifecycleCompleteTask(
         task.text, task.project, note || '', taskId,
         options.skipVerify ?? false, options.skipVerifyReason ?? null, options.ownership,
       );
       if (result.success) {
-        this.store.refresh(); this.store.commitAndPush(`task-store: complete ${taskId}`);
+        this.store.refresh(); await this.store.commitAndPush(`task-store: complete ${taskId}`);
         this.bus?.publish({
           type: 'task.completed', taskId,
           ...(options.ownership ? { dispatchGeneration: options.ownership.generation } : {}),
@@ -168,24 +169,24 @@ export class TaskMutator {
   }
 
   async uncomplete(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleUncompleteTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: uncomplete ${taskId}`); }
+      const result = await lifecycleUncompleteTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: uncomplete ${taskId}`); }
       return result;
     });
   }
 
   async block(taskId: string, reason: string, options: OwnedMutationOptions = {}): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.getByIdFresh(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleBlockTask(
+      const result = await lifecycleBlockTask(
         task.text, task.project, reason, taskId, options.ownership,
       );
       if (result.success) {
-        this.store.refresh(); this.store.commitAndPush(`task-store: block ${taskId}`);
+        this.store.refresh(); await this.store.commitAndPush(`task-store: block ${taskId}`);
         // DR-0014 §8: a blocked task is a child's escalation — wake its waiting manager.
         this.bus?.publish({
           type: 'task.blocked', taskId, reason,
@@ -198,12 +199,12 @@ export class TaskMutator {
   }
 
   async unblock(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleUnblockTask(task.text, task.project, taskId);
+      const result = await lifecycleUnblockTask(task.text, task.project, taskId);
       if (result.success) {
-        this.store.refresh(); this.store.commitAndPush(`task-store: unblock ${taskId}`);
+        this.store.refresh(); await this.store.commitAndPush(`task-store: unblock ${taskId}`);
         this.bus?.publish({ type: 'task.unblocked', taskId });
       }
       return result;
@@ -211,61 +212,61 @@ export class TaskMutator {
   }
 
   async pause(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecyclePauseTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: pause ${taskId}`); }
+      const result = await lifecyclePauseTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: pause ${taskId}`); }
       return result;
     });
   }
 
   async resume(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleResumeTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: resume ${taskId}`); }
+      const result = await lifecycleResumeTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: resume ${taskId}`); }
       return result;
     });
   }
 
   async requestApproval(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleRequestApprovalTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: requestApproval ${taskId}`); }
+      const result = await lifecycleRequestApprovalTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: requestApproval ${taskId}`); }
       return result;
     });
   }
 
   async approve(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleApproveTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: approve ${taskId}`); }
+      const result = await lifecycleApproveTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: approve ${taskId}`); }
       return result;
     });
   }
 
   async clearApproval(taskId: string): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleClearApprovalTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: clearApproval ${taskId}`); }
+      const result = await lifecycleClearApprovalTask(task.text, task.project, taskId);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: clearApproval ${taskId}`); }
       return result;
     });
   }
 
   async batchEdit(project: string, taskIds: string[], options: any): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const lockError = assertLockHeld(project, getOwnerIdentity());
       if (lockError) return { success: false, message: lockError };
-      const result = lifecycleBatchEdit(project, taskIds, options);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: batch-edit ${taskIds.length} tasks in ${project}`); }
+      const result = await lifecycleBatchEdit(project, taskIds, options);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: batch-edit ${taskIds.length} tasks in ${project}`); }
       return result;
     });
   }
@@ -288,38 +289,38 @@ export class TaskMutator {
       plan: options.plan || null,
     };
     if (options.system) return this.addSystemTask(request);
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const lockError = assertLockHeld(project, getOwnerIdentity());
       if (lockError) return { success: false, message: lockError };
-      const result = addTaskRecord(request);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: add task to ${project}`); }
+      const result = await addTaskRecord(request);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: add task to ${project}`); }
       return result;
     });
   }
 
   private async addSystemTask(request: AddTaskRequest): Promise<any> {
     const owner = await acquireSystemProjectLock(request.project);
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       let result: any;
       try {
-        result = addTaskRecord(request);
+        result = await addTaskRecord(request);
       } finally {
-        releaseSystemProjectLock(request.project, owner);
+        await releaseSystemProjectLock(request.project, owner);
       }
       if (result.success) {
         this.store.refresh();
-        this.store.commitAndPush(`task-store: add task to ${request.project}`);
+        await this.store.commitAndPush(`task-store: add task to ${request.project}`);
       }
       return result;
     });
   }
 
   async edit(project: string, options: any): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const lockError = assertLockHeld(project, getOwnerIdentity());
       if (lockError) return { success: false, message: lockError };
-      const result = lifecycleEditTask(project, options);
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: edit task in ${project}`); }
+      const result = await lifecycleEditTask(project, options);
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: edit task in ${project}`); }
       return result;
     });
   }
@@ -331,14 +332,14 @@ export class TaskMutator {
     taskId?: string | null,
     options: DecomposeTaskOptions = {},
   ): Promise<any> {
-    return this.store.runExclusive(() => {
+    return this.store.runExclusive(async () => {
       const lockError = decomposeLockError(project, options);
       if (lockError) return { success: false, message: lockError };
-      const result = lifecycleDecomposeTask(project, taskText, subtasks, taskId || null, {
+      const result = await lifecycleDecomposeTask(project, taskText, subtasks, taskId || null, {
         keepParent: options.keepParent,
         ownership: options.ownership,
       });
-      if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: decompose task in ${project}${options.keepParent ? ' (keep-parent)' : ''}`); }
+      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: decompose task in ${project}${options.keepParent ? ' (keep-parent)' : ''}`); }
       return result;
     });
   }

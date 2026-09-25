@@ -833,22 +833,26 @@ process.on('SIGTERM', async () => {
     startAllRemoteClients,
   );
 
-  // DR-0013: server auto-update — first check after 60s, then every 24h
-  setTimeout(async () => {
+  // DR-0013: server auto-update — first check after 60s, then every 24h.
+  // Both timers are unref'd so they never hold the process open, and the default latest-version
+  // probe is async (runFile), so neither blocks the event loop.
+  const bootUpdateCheck = setTimeout(async () => {
     try {
       await checkServerUpdate({ prompt: updatePrompt });
     } catch (e) {
       log.error(`Server auto-update check failed: ${(e as Error).message}`);
     }
   }, 60_000);
+  bootUpdateCheck.unref?.();
 
-  setInterval(async () => {
+  const dailyUpdateCheck = setInterval(async () => {
     try {
       await checkServerUpdate({ prompt: updatePrompt });
     } catch (e) {
       log.error(`Server auto-update check failed: ${(e as Error).message}`);
     }
   }, 24 * 60 * 60 * 1000);
+  dailyUpdateCheck.unref?.();
 
   await scheduler.start();
 

@@ -14,39 +14,37 @@ function makeDeps(history: SessionHistory | null): UiServiceDeps {
   } as unknown as UiServiceDeps;
 }
 
-test('sessions.transcript exposes debug metadata and derives large-tool warnings from server env', async (t) => {
+test('sessions.transcript exposes debug metadata and forwards the folded large-tool warning', async (t) => {
   const previous = process.env.DEBUG;
-  const previousThreshold = process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
   t.onTestFinished(() => {
     if (previous === undefined) delete process.env.DEBUG;
     else process.env.DEBUG = previous;
-    if (previousThreshold === undefined) delete process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
-    else process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = previousThreshold;
   });
-  const history: SessionHistory = {
+  const makeHistory = (debug: Record<string, unknown>): SessionHistory => ({
     sessionId: 'sess-debug',
     events: [
       { type: 'user', text: 'visible', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0, debug: { agentMessage: 'system context\nvisible' } },
-      { type: 'tool', toolName: 'Bash', toolInput: 'echo …', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, debug: { toolRef: 'toolu_1', toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } } },
+      { type: 'tool', toolName: 'Bash', toolInput: 'echo …', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, debug },
     ],
-  } as SessionHistory;
+  } as SessionHistory);
+  const payload = { toolRef: 'toolu_1', toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } };
 
   delete process.env.DEBUG;
-  const hidden = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  const hidden = await handleSessionsTranscript(makeDeps(makeHistory(payload)), { sessionId: 'sess-debug' });
   assert.ok(hidden.turns[0].messages.every((message) => !('debug' in message)), 'disabled responses contain no sensitive debug key');
 
   process.env.DEBUG = '1';
-  process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '1000';
-  const visible = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  const visible = await handleSessionsTranscript(makeDeps(makeHistory(payload)), { sessionId: 'sess-debug' });
   assert.deepEqual(visible.turns[0].messages[0].debug, { agentMessage: 'system context\nvisible' });
-  assert.deepEqual(visible.turns[0].messages[1].debug, { toolRef: 'toolu_1' });
+  assert.deepEqual(visible.turns[0].messages[1].debug, { toolRef: 'toolu_1' }, 'the full payload stays behind the on-demand fetch');
 
-  process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '10';
-  const warned = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  // The size verdict is stamped by the fold, from the row's own bytes. The query forwards it and
+  // never re-weighs the parsed input — that measurement was 4.65% of the server's CPU.
+  const warnedHistory = makeHistory({ ...payload, overCharacterThreshold: true });
+  const warned = await handleSessionsTranscript(makeDeps(warnedHistory), { sessionId: 'sess-debug' });
   assert.deepEqual(warned.turns[0].messages[1].debug, {
     toolRef: 'toolu_1', overCharacterThreshold: true,
   });
-  assert.ok(!('overCharacterThreshold' in history.events[1].debug!), 'derived warning is not persisted');
 });
 
 test('sessions.transcript reports the system origin on user rows and nowhere else', async () => {
@@ -328,4 +326,103 @@ test('legacy interaction rows (subtype/text, no id) materialize as before with n
   assert.equal(msg.subtype, 'ask-user-answered');
   assert.equal(msg.text, 'Q → A');
   assert.equal(msg.interaction, undefined);
+});
+
+// ── cursor-based delta reads ──────────────────────────────────────────────────
+// The transcript is what the live SSE tail converges onto, so it is re-read at event rate. These
+// guard the protocol that keeps that re-read proportional to what changed.
+
+type CompactFixture = {
+  events: { type: string; text?: string; toolName?: string; ts: string; turnIndex: number; id?: string; kind?: string; status?: string }[];
+  eventRevs: number[];
+};
+
+function makeCursorDeps(model: () => { compact: CompactFixture; cursor: string }): UiServiceDeps {
+  return {
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => {
+        const { compact, cursor } = model();
+        return { value: { sessionId: 'sess-delta', committedSourceIds: [], subagentSummaries: [], ...compact }, cursor };
+      },
+    },
+  } as unknown as UiServiceDeps;
+}
+
+test('sessions.transcript answers a matching cursor with only the rows that changed', async () => {
+  const compact: CompactFixture = {
+    events: [
+      { type: 'user', text: 'one', ts: '2026-09-09T00:00:00.000Z', turnIndex: 0 },
+      { type: 'assistant', text: 'answer one', ts: '2026-09-09T00:00:02.000Z', turnIndex: 0 },
+    ],
+    eventRevs: [1, 2],
+  };
+  let cursor = 'e1:2';
+  const deps = makeCursorDeps(() => ({ compact, cursor }));
+
+  const full = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true });
+  assert.equal(full.cursor, 'e1:2');
+  assert.equal(full.delta, undefined, 'a read without a cursor is a whole transcript');
+  assert.deepEqual(full.turns.map((turn) => turn.messages.map((m) => m.text)), [['one', 'answer one']]);
+
+  // The assistant row grows (a streaming partial collapsing into it) and a new turn opens.
+  compact.events[1].text = 'answer one, expanded';
+  compact.eventRevs[1] = 3;
+  compact.events.push({ type: 'user', text: 'two', ts: '2026-09-09T00:00:05.000Z', turnIndex: 1 });
+  compact.eventRevs.push(4);
+  cursor = 'e1:4';
+
+  const delta = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true, since: full.cursor });
+  assert.deepEqual(delta.turns, [], 'a delta response carries no turns');
+  assert.equal(delta.cursor, 'e1:4');
+  assert.deepEqual(delta.delta!.changed.map((row) => [row.index, row.turnIndex, row.message.text]), [
+    [1, 0, 'answer one, expanded'],
+    [2, 1, 'two'],
+  ]);
+  assert.equal(delta.delta!.total, 3);
+  // Elapsed is a difference against the PREVIOUS row, including one the delta does not re-send.
+  assert.equal(delta.delta!.changed[1].message.elapsedMs, 3000);
+});
+
+test('sessions.transcript re-sends nothing when a cursor is already current', async () => {
+  const compact: CompactFixture = {
+    events: [{ type: 'user', text: 'only', ts: '2026-09-09T00:00:00.000Z', turnIndex: 0 }],
+    eventRevs: [1],
+  };
+  const deps = makeCursorDeps(() => ({ compact, cursor: 'e1:1' }));
+  const unchanged = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true, since: 'e1:1' });
+  assert.deepEqual(unchanged.delta, { changed: [], total: 1 });
+});
+
+test('sessions.transcript falls back to a whole transcript when the cursor is void', async () => {
+  const compact: CompactFixture = {
+    events: [{ type: 'user', text: 'after rewind', ts: '2026-09-09T00:00:00.000Z', turnIndex: 0 }],
+    eventRevs: [1],
+  };
+  const deps = makeCursorDeps(() => ({ compact, cursor: 'e2:1' }));
+
+  // A rewind moved the epoch: the revision the client holds no longer addresses these rows.
+  const rebuilt = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true, since: 'e1:9' });
+  assert.equal(rebuilt.delta, undefined);
+  assert.deepEqual(rebuilt.turns.map((turn) => turn.messages.map((m) => m.text)), [['after rewind']]);
+  assert.equal(rebuilt.cursor, 'e2:1');
+
+  const garbage = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true, since: 'nonsense' });
+  assert.equal(garbage.delta, undefined, 'an unparseable cursor is treated as no cursor');
+});
+
+test('sessions.transcript keeps re-sending interaction rows, whose rendering is time-dependent', async () => {
+  const compact: CompactFixture = {
+    events: [
+      { type: 'user', text: 'ask me', ts: '2026-09-09T00:00:00.000Z', turnIndex: 0 },
+      { type: 'interaction', id: 'int-1', kind: 'ask-user', status: 'pending', text: 'which one?', ts: '2026-09-09T00:00:01.000Z', turnIndex: 0 },
+    ],
+    eventRevs: [1, 2],
+  };
+  const deps = makeCursorDeps(() => ({ compact, cursor: 'e1:2' }));
+  const delta = await handleSessionsTranscript(deps, { sessionId: 'sess-delta', compactSubagents: true, since: 'e1:2' });
+  // The stored row did not change, but its status derives from wall clock + live server state, so
+  // a revision comparison alone would let the card go stale.
+  assert.deepEqual(delta.delta!.changed.map((row) => row.index), [1]);
+  assert.equal(delta.delta!.changed[0].message.interaction!.status, 'expired');
 });

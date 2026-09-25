@@ -19,6 +19,9 @@ export interface CompactConversationHistory {
   events: CompactConversationEvent[];
   committedSourceIds: string[];
   subagentSummaries: CompactSubagentSummary[];
+  /** Server-internal, positionally aligned with `events`: the source row's revision. Present only
+   *  when the caller supplied revisions; it is what lets a transcript read answer "since X". */
+  eventRevs?: number[];
 }
 
 export interface SubagentConversationHistory {
@@ -33,6 +36,7 @@ interface SummaryState extends CompactSubagentSummary {
 
 interface CompactState {
   events: CompactConversationEvent[];
+  eventRevs: number[];
   summaries: Map<string, SummaryState>;
   summaryOrder: string[];
   previousMs: number | null;
@@ -72,6 +76,7 @@ function copyEvent(event: HistoryEvent, elapsed: number | null): CompactConversa
 function createCompactState(): CompactState {
   return {
     events: [],
+    eventRevs: [],
     summaries: new Map<string, SummaryState>(),
     summaryOrder: [],
     previousMs: null,
@@ -162,17 +167,18 @@ function consumeChildEvent(state: CompactState, event: HistoryEvent): void {
   markDetail(summary, event);
 }
 
-function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: number | null): void {
+function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: number | null, rev: number): void {
   state.events.push(copyEvent(event, elapsed));
+  state.eventRevs.push(rev);
 }
 
-function consumeCompactEvent(state: CompactState, event: HistoryEvent): void {
+function consumeCompactEvent(state: CompactState, event: HistoryEvent, rev = 0): void {
   const elapsed = elapsedMs(state.previousMs, event.ts);
   state.previousMs = nextPreviousMs(event.ts);
   if (event.type === 'user') consumeTurnBoundary(state);
   openSpawnSummaries(state, event);
   if (event.subagentId && !isStructuralSpawnTool(event)) consumeChildEvent(state, event);
-  if (keepCompactEvent(state, event)) pushCompactEvent(state, event, elapsed);
+  if (keepCompactEvent(state, event)) pushCompactEvent(state, event, elapsed, rev);
 }
 
 function summarize(state: CompactState): CompactSubagentSummary[] {
@@ -200,15 +206,24 @@ function sealReportedEnds(state: CompactState, history: SessionHistory): void {
   }
 }
 
-export function projectCompactHistory(history: SessionHistory): CompactConversationHistory {
+/**
+ * Fold a parsed history into the compact read model. `sourceRevs` is positional against
+ * `history.events`; supply it and the result carries the revision of each surviving row, which is
+ * what a delta read compares against a client cursor.
+ */
+export function projectCompactHistory(
+  history: SessionHistory,
+  sourceRevs?: readonly number[],
+): CompactConversationHistory {
   const state = createCompactState();
-  for (const event of history.events) consumeCompactEvent(state, event);
+  history.events.forEach((event, index) => consumeCompactEvent(state, event, sourceRevs?.[index] ?? 0));
   sealReportedEnds(state, history);
   return {
     sessionId: history.sessionId,
     events: state.events,
     committedSourceIds: history.committedSourceIds ?? [],
     subagentSummaries: summarize(state),
+    ...(sourceRevs ? { eventRevs: state.eventRevs } : {}),
   };
 }
 
