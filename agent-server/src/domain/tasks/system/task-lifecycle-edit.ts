@@ -232,7 +232,7 @@ function _resetTemplateNameCacheForTests(): void {
 
 function validateTemplateName(name: string): string | null {
   if (FORBIDDEN_TEMPLATES.has(name)) {
-    return `Template '${name}' is forbidden. The 'default' and 'scheduler' templates are single-agent templates with no review pipeline and are not allowed for task dispatch. Use a multi-agent review template instead (e.g. stage-gate, coder-review, analyst-review).`;
+    return `Template '${name}' is forbidden. The 'default' and 'scheduler' templates are single-agent templates with no review pipeline and are not allowed for task dispatch. Use a multi-agent review template instead (e.g. stage-gate, coder-review, execute-review).`;
   }
   const valid = getValidTemplateNames();
   if (valid.size === 0) return null;
