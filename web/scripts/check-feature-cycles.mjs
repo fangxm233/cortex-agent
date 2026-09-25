@@ -21,7 +21,7 @@
 //
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,17 +30,18 @@ const ALLOWLIST = path.join(WEB_DIR, 'scripts', 'feature-cycles-allowlist.json')
 const FEATURE_RE = /^src\/features\/([^/]+)\//;
 const IS_TEST = /\.test\.tsx?$/;
 
-/** Locate the depcruise CLI without going through npx (offline-safe). */
+/** Locate the depcruise CLI without going through npx (offline-safe). The package's `exports`
+ *  map hides `package.json` from `require.resolve`, so walk the resolver's search paths instead. */
 function depcruiseBin() {
   const require = createRequire(import.meta.url);
-  try {
-    const pkgPath = require.resolve('dependency-cruiser/package.json');
+  for (const dir of require.resolve.paths('dependency-cruiser') ?? []) {
+    const pkgPath = path.join(dir, 'dependency-cruiser', 'package.json');
+    if (!existsSync(pkgPath)) continue;
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-    const bin = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin.depcruise;
-    return path.join(path.dirname(pkgPath), bin);
-  } catch {
-    return null;
+    const bin = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.depcruise;
+    return bin ? path.join(path.dirname(pkgPath), bin) : null;
   }
+  return null;
 }
 
 function loadGraph() {
@@ -51,7 +52,9 @@ function loadGraph() {
   const [cmd, args] = bin
     ? [process.execPath, [bin, 'src', '--output-type', 'json']]
     : ['npx', ['depcruise', 'src', '--output-type', 'json']];
-  const run = spawnSync(cmd, args, { cwd: WEB_DIR, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  // `npx` is a .cmd shim on Windows, which only a shell can start.
+  const shell = !bin && process.platform === 'win32';
+  const run = spawnSync(cmd, args, { cwd: WEB_DIR, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, shell });
   // depcruise exits non-zero when rules are violated; the graph on stdout is still valid.
   if (!run.stdout) {
     console.error('check-feature-cycles: could not run depcruise');
