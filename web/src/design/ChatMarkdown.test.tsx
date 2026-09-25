@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { describe, expect, it, vi } from 'vitest';
 import { ChatMarkdown } from './ChatMarkdown';
 
 describe('ChatMarkdown math', () => {
@@ -43,5 +44,22 @@ describe('ChatMarkdown math', () => {
     expect(html).not.toContain('width="1000000em"');
     expect(html).not.toContain('border-right-width:1000000em');
     expect(html).toContain('width="50em"');
+  });
+});
+
+describe('ChatMarkdown code blocks', () => {
+  it('copies the raw block text from its copy button', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<ChatMarkdown text={'Run:\n\n```sh\necho "$HOME"\nls -la\n```'} />);
+    });
+
+    const button = renderer.root.findByProps({ 'aria-label': 'Copy' });
+    act(() => button.props.onClick());
+
+    expect(writeText).toHaveBeenCalledWith('echo "$HOME"\nls -la');
+    vi.unstubAllGlobals();
   });
 });

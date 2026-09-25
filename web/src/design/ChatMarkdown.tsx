@@ -1,11 +1,13 @@
-// input:  Markdown blocks, inline nodes, KaTeX
+// input:  Markdown blocks, inline nodes, KaTeX, clipboard feedback
 // output: ChatMarkdown
-// pos:    Transcript prose, opaque code blocks and wide tables
+// pos:    Transcript prose, opaque code blocks with a hover copy button, and wide tables
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { useVocabOptional } from '@/i18n';
 import { parseBlocks, type Block, type InlineNode } from '@/lib/markdown';
+import { useClipboardFeedback } from './useClipboardFeedback';
 
 const mono = "'IBM Plex Mono',monospace";
 type InlineRenderer = (node: InlineNode, key: number) => ReactNode;
@@ -75,21 +77,62 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   );
 }
 
-function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
+function CopyGlyph({ done }: { done: boolean }): JSX.Element {
   return (
-    <pre style={{
-      font: `500 12.5px ${mono}`,
-      // Stays a filled block, not glass: code is read character by character and a translucent
-      // ground under a monospace grid is exactly where legibility goes first.
-      background: 'var(--proto-alt)',
-      border: '1px solid var(--proto-line)',
-      borderRadius: 'var(--r-card)',
-      padding: '10px 12px',
-      overflow: 'auto',
-      margin: '2px 0',
-    }}>
-      <code>{block.text}</code>
-    </pre>
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeWidth="1.4" stroke={done ? 'var(--proto-success)' : 'currentColor'}>
+      {done
+        ? <path d="M3 7.4l2.6 2.6L11 4.6" strokeLinecap="round" strokeLinejoin="round" />
+        : <><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></>}
+    </svg>
+  );
+}
+
+// Hidden until the block is hovered or the button takes keyboard focus; a touch screen has no
+// hover, so there it simply stays visible.
+const CODE_COPY_REVEAL = [
+  'pointer-events-none opacity-0 transition-opacity',
+  'group-hover/code:pointer-events-auto group-hover/code:opacity-100',
+  'focus-visible:pointer-events-auto focus-visible:opacity-100',
+  '[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100',
+].join(' ');
+
+function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
+  const L = useVocabOptional();
+  const { copiedKey, copy } = useClipboardFeedback<true>(1500);
+  const copied = copiedKey === true;
+  const label = copied ? L.wbCopied : L.wbCopy;
+  return (
+    // A named group: a message row is itself a `group`, and hovering the message must not reveal
+    // the button of every code block inside it.
+    <div className="group/code" style={{ position: 'relative', margin: '2px 0' }}>
+      <pre style={{
+        font: `500 12.5px ${mono}`,
+        // Stays a filled block, not glass: code is read character by character and a translucent
+        // ground under a monospace grid is exactly where legibility goes first.
+        background: 'var(--proto-alt)',
+        border: '1px solid var(--proto-line)',
+        borderRadius: 'var(--r-card)',
+        padding: '10px 12px',
+        overflow: 'auto',
+        margin: 0,
+      }}>
+        <code>{block.text}</code>
+      </pre>
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={() => { void copy(block.text, true); }}
+        className={`${CODE_COPY_REVEAL} select-none text-proto-muted hover:text-proto-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--proto-accent)]`}
+        style={{
+          position: 'absolute', top: 6, right: 6, width: 24, height: 24, padding: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          background: 'var(--proto-alt)', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-chip)',
+        }}
+      >
+        <CopyGlyph done={copied} />
+      </button>
+    </div>
   );
 }
 

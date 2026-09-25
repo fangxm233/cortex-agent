@@ -47,7 +47,7 @@ barrel every consumer imports from (`@/design`); a few modules are imported by p
 |---|---|---|
 | modal-registry.tsx | core | **Below every feature so all can use it**: one `useSyncExternalStore` `Map<kind,payload>`; `defineModal<T>(kind)` per overlay, one host renders it |
 | dock-intake.tsx | core | **Below every feature for the same reason**: the seam a surface hands a preview across to reach the dock, so `features/media` need not import `features/dock` |
-| ChatMarkdown.tsx | core | Text in, JSX out, over the parser in `lib/markdown.ts`. **In design/** — both chromes render transcripts, so it cannot sit inside one |
+| ChatMarkdown.tsx | core | Text in, JSX out, over the parser in `lib/markdown.ts`; code blocks carry a hover copy button. **In design/** — both chromes render transcripts, so it cannot sit inside one |
 | mobile-tokens.ts | type | The `MC` (colour) / `MONO` tables and floating-chrome edges (`M_FLOAT_TOP`, `M_TABBAR_BOTTOM`). **In design/** so shared primitives and mobile screens read one table |
 | MenuChrome.tsx | core | Glass picker shells (`MenuCard`, `MenuRow`, `MENU_SURFACE`, `MENU_FOCUS`, …) shared by the session transcript and the workbench composer/rail menus |
 | content-surfaces.css | style | The dense content-surface language (focus rings, text actions, overview layout) imported by ~15 features; **in design/** so sharing it creates no feature pair |
