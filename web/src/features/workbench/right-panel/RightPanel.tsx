@@ -35,6 +35,9 @@ type PanelBudget = ReturnType<typeof rightPanelBudget>;
 
 const PANEL_WIDTH = 380;
 const PANEL_RAIL_WIDTH = 42;
+const DRAWER_GAP = 10;
+/** Room left of the sheet for its float shadow (48px blur) inside the drawer's clip. */
+const DRAWER_SHADOW_ROOM = 48;
 
 const PANEL_ICONS: Record<PanelTarget, ReactNode> = {
   threads: <><path d="M8 6h11M8 12h8M8 18h5" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></>,
@@ -171,6 +174,15 @@ export function RightPanel(): JSX.Element {
   const notes = useNotes();
   const [tab, setTab] = useState<Tab>('threads');
   const { panelCollapsed: collapsed, setPanelCollapsed: setCollapsed } = usePaneState();
+  // Collapsing keeps the sheet on screen for its exit slide; `closing` holds it there until the
+  // slide's animationend. Adjusted during render so the first collapsed frame already animates out.
+  const [closing, setClosing] = useState(false);
+  const [prevCollapsed, setPrevCollapsed] = useState(collapsed);
+  if (collapsed !== prevCollapsed) {
+    setPrevCollapsed(collapsed);
+    setClosing(collapsed);
+  }
+  const drawerShown = !collapsed || closing;
   // Opening Notes force-expands the panel: the drawer renders inside it, so a collapsed panel
   // would swallow the surface the user just asked for.
   useEffect(() => {
@@ -200,7 +212,7 @@ export function RightPanel(): JSX.Element {
         />
       )}
       {/* The rail is permanent now: it is the drawer's handle, and a handle that vanishes when the
-          drawer opens leaves nothing to grab. Kept above the sheet so the entry slide passes behind it. */}
+          drawer opens leaves nothing to grab. */}
       <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: PANEL_RAIL_WIDTH, flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', zIndex: 7, borderTopRightRadius: 'var(--r-panel)', borderBottomRightRadius: 'var(--r-panel)' }}>
         <RightPanelRail
           active={active}
@@ -218,35 +230,68 @@ export function RightPanel(): JSX.Element {
       {/* The context drawer FLOATS over the workspace instead of docking beside it — it is a thing
           you consult and dismiss, not a third column the chat has to live around. Its width and
           contents are unchanged; only where it sits is.
-          This sheet is the one `backdrop-filter` in the workbench: it is a top-level floating
-          overlay that does not move or repaint while the lists inside it scroll, so the blur is
-          composited once. Nothing inside it may blur.
+          The clip ends at the rail's left edge: the rail is nearly transparent, so a slide that
+          merely passed *under* it showed the sheet straight through the icons. The clip carries
+          no filter/opacity/mask, so it is not a backdrop root and the sheet's blur still samples
+          the chat behind it. It holds the z-index itself because the sliding layer's transform
+          makes a stacking context that would otherwise sink the sheet under the click-catcher
+          mid-slide.
           `display` rather than unmounting: the notes draft and the panel's queries must survive a
           collapse, and `display: none` also guarantees the blur costs nothing while closed (and
-          replays the entry animation on each open). */}
+          replays the entry animation on each open). It is withheld until the exit slide ends. */}
       <div
         style={{
           position: 'absolute',
-          top: 10,
-          bottom: 10,
-          right: PANEL_RAIL_WIDTH + 10,
-          width: PANEL_WIDTH,
+          top: 0,
+          bottom: 0,
+          right: PANEL_RAIL_WIDTH,
+          width: PANEL_WIDTH + DRAWER_GAP + DRAWER_SHADOW_ROOM,
           zIndex: 6,
-          display: collapsed ? 'none' : 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
+          display: drawerShown ? 'block' : 'none',
           overflow: 'hidden',
-          borderRadius: 'var(--r-float)',
-          background: 'var(--glass-2)',
-          backdropFilter: 'var(--glass-filter)',
-          WebkitBackdropFilter: 'var(--glass-filter)',
-          boxShadow: 'var(--shadow-float)',
-          animation: 'cxdrawer 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+          pointerEvents: 'none',
         }}
       >
-        {notes.isOpen
-          ? <NotesPane headerIcon={<PanelIcon target="notes" />} headerAction={collapseAction} visible={!collapsed} />
-          : <RightWorkPanel data={data} tab={tab} counts={counts} onTabChange={setTab} headerAction={collapseAction} />}
+        {/* The slide moves this full-width layer, so the sheet's shadow leaves the clip with it. */}
+        <div
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget && closing) setClosing(false);
+          }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            animation: closing
+              ? 'cxdrawerout 180ms cubic-bezier(0.4, 0, 1, 1) forwards'
+              : 'cxdrawer 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
+        >
+          {/* This sheet is the one `backdrop-filter` in the workbench: it is a top-level floating
+              overlay that does not repaint while the lists inside it scroll, so the blur is
+              composited once. Nothing inside it may blur. */}
+          <div
+            style={{
+              position: 'absolute',
+              top: DRAWER_GAP,
+              bottom: DRAWER_GAP,
+              right: DRAWER_GAP,
+              width: PANEL_WIDTH,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              overflow: 'hidden',
+              pointerEvents: closing ? 'none' : 'auto',
+              borderRadius: 'var(--r-float)',
+              background: 'var(--glass-2)',
+              backdropFilter: 'var(--glass-filter)',
+              WebkitBackdropFilter: 'var(--glass-filter)',
+              boxShadow: 'var(--shadow-float)',
+            }}
+          >
+            {notes.isOpen
+              ? <NotesPane headerIcon={<PanelIcon target="notes" />} headerAction={collapseAction} visible={!collapsed} />
+              : <RightWorkPanel data={data} tab={tab} counts={counts} onTabChange={setTab} headerAction={collapseAction} />}
+          </div>
+        </div>
       </div>
     </>
   );
