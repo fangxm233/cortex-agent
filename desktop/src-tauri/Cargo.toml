@@ -79,6 +79,21 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
+# ── Windows-only dependencies ──
+# windows-sys: the clipboard listener in src/clipboard_history.rs (Win32 clipboard, process
+#   snapshot, a message-only window). Already in the lock through mio/socket2, so no new crate.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_DataExchange",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 # ── Android-only dependencies ──
 # include_dir: embeds the built SPA (web/dist) into the binary as a first-run / offline seed, since
 #   Android's APK assets are not std::fs-readable files (unlike desktop's resource_dir/frontend-seed).

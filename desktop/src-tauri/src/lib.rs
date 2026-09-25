@@ -31,6 +31,9 @@ mod forward;
 // exist on every platform so the JS side has one call path, and it answers `false` off macOS.
 mod native_menu;
 
+// Windows: re-owns copies made inside the webview so Clipboard History (Win+V) lists them.
+#[cfg(target_os = "windows")]
+mod clipboard_history;
 mod creds;
 mod mobile_notifications;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
@@ -735,6 +738,8 @@ pub fn run() {
             }
             win.build()?;
 
+            #[cfg(target_os = "windows")]
+            clipboard_history::start();
             update_checks::start_background(app.handle().clone());
 
             Ok(())
