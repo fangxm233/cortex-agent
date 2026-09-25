@@ -1,6 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
-// The selected pending card renders expanded with optional feedback plus reject / approve actions.
-// Real data fills reason, impact, command, and provenance without fabricated estimates.
+// input:  React, mobile kit, presentation props
+// output: MApprovalsView
+// pos:    Mobile approval material cards and decision controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
@@ -54,7 +55,7 @@ export function MApprovalsView({
         <MDrillHeader
           onBack={onBack}
           trailing={
-            <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>PENDING_APPROVALS.md</span>
+            <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>PENDING_APPROVALS.md</span>
           }
         >
           <div
@@ -70,7 +71,7 @@ export function MApprovalsView({
     >
       <MScrollBody gap={10}>
         {vm.cards.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.empty}
           </div>
         )}
@@ -105,7 +106,7 @@ export function MApprovalsView({
 function GroupDivider({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 2px 0' }}>
-      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>
         {label}
       </div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
@@ -118,10 +119,10 @@ function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         padding: '2px 8px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         background: MC.amberBg,
         color: MC.amberInk,
         minWidth: 0,
@@ -156,9 +157,8 @@ function ExpandedCard({
   return (
     <MCard
       tone="amber"
-      radius={14}
       padding={0}
-      style={{ overflow: 'hidden', boxShadow: 'var(--shadow-card-raised)' }}
+      style={{ overflow: 'hidden', boxShadow: 'var(--material-card-shadow)' }}
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: tier pill + real id + real relative time (scheme L368) */}
@@ -166,8 +166,8 @@ function ExpandedCard({
           {card.operation && <TierPill copy={copy} operation={card.operation} />}
           <span
             style={{
-              font: `400 10px ${MONO}`,
-              color: 'var(--proto-amber-accent)',
+              font: `400 11px ${MONO}`,
+              color: MC.amberText,
               flex: 1,
               minWidth: 0,
               whiteSpace: 'nowrap',
@@ -178,7 +178,7 @@ function ExpandedCard({
             {card.id}
           </span>
           {card.time && (
-            <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none' }}>{card.time}</span>
+            <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.time}</span>
           )}
         </div>
         {/* title (scheme L369) */}
@@ -200,8 +200,8 @@ function ExpandedCard({
               padding: '8px 10px',
               background: MC.amberCard,
               border: `1px solid ${MC.amberBg}`,
-              borderRadius: 9,
-              font: `400 10.5px ${MONO}`,
+              borderRadius: 'var(--r-chip)',
+              font: `400 11px ${MONO}`,
               color: 'var(--proto-amber-fg)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
@@ -236,10 +236,12 @@ function ExpandedCard({
             padding: '9px 10px',
             resize: 'vertical',
             border: '1px solid var(--proto-line-3)',
-            borderRadius: 9,
-            background: 'var(--proto-card)',
+            borderRadius: 'var(--r-chip)',
+            background: 'var(--material-inset-bg)',
             color: MC.ink,
-            font: '400 12px/1.45 inherit',
+            fontSize: 16,
+            lineHeight: 1.45,
+            fontFamily: 'inherit',
             boxSizing: 'border-box',
             opacity: busy ? 0.6 : 1,
           }}
@@ -278,9 +280,10 @@ function DecisionButton({
       style={{
         flex: 1,
         height: 44,
-        borderRadius: 11,
-        background: ink ? MC.ink : 'var(--proto-card)',
-        color: ink ? 'var(--proto-card)' : MC.ink,
+        borderRadius: 'var(--r-control)',
+        background: ink ? MC.inkSolid : 'var(--material-control-bg)',
+        boxShadow: ink ? undefined : 'var(--material-control-shadow)',
+        color: ink ? MC.inkSolidFg : MC.ink,
         border: ink ? 'none' : '1.5px solid var(--proto-line-3)',
         display: 'flex',
         alignItems: 'center',
@@ -312,7 +315,7 @@ function CollapsedCard({
     .filter(Boolean)
     .join(' · ');
   return (
-    <MCard radius={14} padding="11px 14px" onClick={() => onExpand(card.id)}>
+    <MCard padding="11px 14px" onClick={() => onExpand(card.id)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
         {card.operation && <TierPill copy={copy} operation={card.operation} />}
         <span
@@ -330,10 +333,10 @@ function CollapsedCard({
           {card.title}
         </span>
         {card.time && (
-          <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none' }}>{card.time}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.time}</span>
         )}
       </div>
-      <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 5, paddingLeft: 2 }}>{sub}</div>
+      <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 5, paddingLeft: 2 }}>{sub}</div>
     </MCard>
   );
 }

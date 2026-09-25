@@ -1,7 +1,7 @@
 // input:  HTTPS connection, OkHttp, tRPC SSE framing
 // output: Authenticated snapshots and cancellable event stream
 // pos:    Native transport without redirects or credential URLs
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import okhttp3.Call

@@ -5,6 +5,7 @@ import { CenterChat } from '@/features/workbench/chat/CenterChat';
 import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
 import { useSettings } from '@/features/settings/useSettings';
 import { AppFrame } from '@/shell/AppFrame';
+import { WorkspacePanel } from '@/shell/GlassPanel';
 
 // Workbench app-shell frame — 1:1 from prototype.dc.html L39 (Stage-R RB, task f528). The outer
 // flex row is the load-bearing seam every workbench pane composes into: 340px LeftRail (flex:none)
@@ -25,9 +26,11 @@ export function WorkbenchPage(): JSX.Element {
   return (
     <AppFrame>
       <LeftRail />
-      <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
-      <DockPane />
-      <RightPanel />
+      <WorkspacePanel>
+        <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
+        <DockPane />
+        <RightPanel />
+      </WorkspacePanel>
     </AppFrame>
   );
 }

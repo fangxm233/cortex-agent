@@ -1,7 +1,7 @@
 // input:  optional remote server config and transport policy
 // output: tRPC client factory and React context
 // pos:    Browser and native-app tRPC transport
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 // Browser clients use same-origin /trpc; native apps use the configured server URL and
 // token. The subscription link supplies authentication through a fetch-based EventSource.

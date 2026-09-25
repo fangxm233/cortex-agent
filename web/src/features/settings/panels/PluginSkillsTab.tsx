@@ -1,19 +1,26 @@
+// input:  skill queries, authoring actions, settings atoms
+// output: skill list, stable source editor and glass dialogs
+// pos:    Responsive desktop plugin skills tab
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';
 import { Modal, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
-import { EmptyMessage, NOTICE, PILL, ROW } from '@/features/settings/ui/plugin-ui';
+import { SButton, SFieldRow, SNotice, SPill, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { EmptyMessage, ROW } from '@/features/settings/ui/plugin-ui';
 import { isCanonicalName } from '@/features/settings/vm/plugin-authoring-vm';
 import type { PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const EDITOR: CSSProperties = {
-  ...S_CONTROL_STYLE, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre',
+  ...S_CONTROL_STYLE, background: 'var(--proto-card)',
+  fontFamily: MONO, minHeight: 240, resize: 'vertical', lineHeight: 1.55, whiteSpace: 'pre', overflowX: 'auto',
 };
-const ACTIONS: CSSProperties = { display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' };
+const ACTIONS: CSSProperties = { display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' };
+const PATH_LINE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere', minWidth: 0 };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -51,12 +58,12 @@ function SkillEditor(props: {
   const dirty = state.draft !== state.saved;
 
   return (
-    <div data-plugin-skill-editor={props.skill} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-      {file.managed ? <div data-plugin-skill-managed="" style={NOTICE}>{L.plManagedSkillNote}</div> : null}
-      <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)' }}>{file.path}</div>
+    <div data-plugin-skill-editor={props.skill} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+      {file.managed ? <SNotice tone="amber" data-plugin-skill-managed="">{L.plManagedSkillNote}</SNotice> : null}
+      <div style={PATH_LINE}>{file.path}</div>
       <textarea data-plugin-skill-source={props.skill} value={state.draft} spellCheck={false}
         onChange={(event) => setState({ ...state, draft: event.target.value })} style={EDITOR} />
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
         <SButton tone="accent" data-action="skill-save" disabled={props.busy || !dirty}
           onClick={async () => {
             const next = await props.onSave(state.draft, state.baseHash);
@@ -87,8 +94,8 @@ function SkillRow(props: {
   return (
     <div data-plugin-skill={props.skill.name} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ font: `600 11.5px ${MONO}`, color: 'var(--proto-ink)' }}>{props.skill.name}</span>
-        {props.skill.managed ? <span style={PILL}>{L.plOriginManaged}</span> : null}
+        <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.skill.name}</span>
+        {props.skill.managed ? <SPill tone="accent">{L.plOriginManaged}</SPill> : null}
         <div style={ACTIONS}>
           <SButton tone="neutral" data-action="skill-open" onClick={props.onToggle}>
             {props.open ? L.plSkillClose : L.plSkillOpen}
@@ -102,9 +109,9 @@ function SkillRow(props: {
         </div>
       </div>
       {props.skill.description
-        ? <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 4 }}>{props.skill.description}</div>
+        ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 2 }}>{props.skill.description}</div>
         : null}
-      <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 3 }}>
+      <div style={{ ...PATH_LINE, marginTop: 6 }}>
         {`${props.plugin.rootDir}/skills/${props.skill.name}/SKILL.md`}
       </div>
       {props.open ? (
@@ -127,8 +134,8 @@ function CreateSkillForm(props: { pluginId: string; busy: boolean; actions: Plug
   const nameBad = name.length > 0 && !isCanonicalName(name);
   const ready = isCanonicalName(name) && description.trim().length > 0;
   return (
-    <div data-plugin-skill-create="" style={{ ...ROW, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.plSkillNewTitle}</div>
+    <div data-plugin-skill-create="" style={{ ...ROW, gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.plSkillNewTitle}</div>
       <SFieldRow label={L.plSkillNewName} hint={nameBad ? L.plNameInvalid : undefined} hintTone="danger">
         <input data-field="skill-name" value={name} placeholder={L.plSkillNewNamePh}
           onChange={(event) => setName(event.target.value)} style={S_CONTROL_STYLE} />
@@ -166,9 +173,10 @@ function MoveSkillModal(props: {
   const nameBad = toSkill.length > 0 && !isCanonicalName(toSkill);
   const unchanged = toPluginId === props.plugin.id && toSkill === props.skill;
   return (
-    <Modal open layer="nested" title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillRenameTitle} onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="accent" data-action="skill-move-confirm"
             disabled={props.busy || unchanged || !isCanonicalName(toSkill)}
@@ -183,7 +191,7 @@ function MoveSkillModal(props: {
         </div>
       )}>
       <SFieldRow label={L.plSkillRenamePlugin}>
-        <Select value={toPluginId} onValueChange={setToPluginId}
+        <Select popupClassName="settings-surface settings-select-popup" value={toPluginId} onValueChange={setToPluginId} style={S_CONTROL_STYLE}
           options={props.plugins.map((plugin) => ({ value: plugin.id, label: plugin.id }))} />
       </SFieldRow>
       <SFieldRow label={L.plSkillRenameName} hint={nameBad ? L.plNameInvalid : undefined} hintTone="danger">
@@ -203,10 +211,11 @@ function DeleteSkillModal(props: {
 }) {
   const L = useVocab();
   return (
-    <Modal open layer="nested" title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
+    <Modal open layer="nested" contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }} title={L.plSkillDeleteTitle.replace('{name}', props.skill)}
       onOpenChange={(next) => { if (!next) props.onClose(); }}
       footer={(
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
           <SButton tone="danger" data-action="skill-delete-confirm" disabled={props.busy}
             onClick={async () => {
@@ -217,7 +226,7 @@ function DeleteSkillModal(props: {
           </SButton>
         </div>
       )}>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{L.plSkillDeleteDesc}</div>
+      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{L.plSkillDeleteDesc}</div>
     </Modal>
   );
 }
@@ -237,8 +246,8 @@ export function PluginSkillsTab(props: {
   const [deleting, setDeleting] = useState<string | null>(null);
   const note = managedNote(props.plugin, L);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {note ? <div data-plugin-managed-note="" style={NOTICE}>{note}</div> : null}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {note ? <SNotice tone="amber" data-plugin-managed-note="">{note}</SNotice> : null}
       {props.plugin.skills.length === 0
         ? <EmptyMessage text={L.plNoSkills} dataAttr="data-plugin-skills-empty" />
         : props.plugin.skills.map((skill) => (

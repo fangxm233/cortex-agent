@@ -3,6 +3,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import {
   deriveMostRecentSessionId,
   resolveSelectedSessionId,
+  resolveTransitionAgent,
   resolveTransitionSelection,
   seedDraftSelection,
   applyDraftSelection,
@@ -57,6 +58,7 @@ describe('resolveSelectedSessionId', () => {
 describe('resolveTransitionSelection', () => {
   const pending: PendingCreatedSession = {
     sessionId: 'new', profileName: 'sol', override: { model: 'glm-5', thinking: 'high' },
+    agentName: null,
   };
   const absent = { profileName: null, override: null };
 
@@ -168,5 +170,48 @@ describe('seedDraftSelection', () => {
   it('has nothing to say when there is neither a remembered pick nor a usable default', () => {
     expect(seedDraftSelection(null, profiles, 'missing')).toBeNull();
     expect(seedDraftSelection(null, [], null)).toBeNull();
+  });
+});
+
+describe('the environment half of the same transition', () => {
+  const pending: PendingCreatedSession = {
+    sessionId: 'new', profileName: null, override: null, agentName: 'nimbus',
+  };
+
+  it('keeps the agent the draft was created with until its row lands', () => {
+    expect(resolveTransitionAgent(undefined, pending, 'new')).toBe('nimbus');
+  });
+
+  it('a row that exists answers for itself, including when it follows the default', () => {
+    expect(resolveTransitionAgent('orchard', pending, 'new')).toBe('orchard');
+    // `null` on a row is a statement, not a gap — the pending pick must not come back here.
+    expect(resolveTransitionAgent(null, pending, 'new')).toBeNull();
+  });
+
+  it('never leaks the pending pick into a different session', () => {
+    expect(resolveTransitionAgent(undefined, pending, 'other')).toBeNull();
+  });
+});
+
+describe('the draft carries both axes', () => {
+  it('an agent pick leaves the engine alone, and an engine pick leaves the agent alone', () => {
+    const chosen = applyDraftSelection(
+      { profileName: 'opus', override: { model: 'glm-5' } }, { agentName: 'nimbus' },
+    );
+    expect(chosen).toEqual({ profileName: 'opus', override: { model: 'glm-5' }, agentName: 'nimbus' });
+    expect(applyDraftSelection(chosen, { profileName: 'ds' }))
+      .toEqual({ profileName: 'ds', override: null, agentName: 'nimbus' });
+  });
+
+  it('"default" is a statement the draft keeps, not an absence', () => {
+    expect(applyDraftSelection({ profileName: null, override: null, agentName: 'nimbus' }, { agentName: null }))
+      .toEqual({ profileName: null, override: null, agentName: null });
+  });
+
+  it('opens a draft on the agent last worked in', () => {
+    const profiles = [{ name: 'plan', backend: 'claude', model: 'claude-opus-5' }] as never as
+      Parameters<typeof seedDraftSelection>[1];
+    expect(seedDraftSelection({ profileName: 'plan', agentName: 'nimbus' }, profiles, 'plan'))
+      .toEqual({ profileName: 'plan', override: null, agentName: 'nimbus' });
   });
 });

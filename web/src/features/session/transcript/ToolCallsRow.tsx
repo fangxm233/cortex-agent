@@ -1,4 +1,9 @@
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+// input:  Tool calls, overflow measurement, debug details
+// output: ToolCallsRow
+// pos:    Spaced tool groups for desktop and touch transcripts
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { useRef, useState, type CSSProperties, type MouseEvent, type Ref } from 'react';
+import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from '@/features/session/composer/chat-content';
@@ -9,15 +14,17 @@ import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflo
 const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
 const chipStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`,
-  background: 'var(--proto-alt)',
+  font: `400 11px ${mono}`,
+  // Control material, no filter: these chips live in the scrolling transcript.
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   border: '1px solid var(--proto-line-2)',
   padding: '1px 6px',
-  borderRadius: 4,
+  borderRadius: 'var(--r-chip)',
   flex: 'none',
 };
 const overflowStyle: CSSProperties = {
-  font: `500 10.5px ${mono}`,
+  font: `500 11px ${mono}`,
   color: 'var(--proto-muted)',
   flex: 'none',
 };
@@ -30,21 +37,26 @@ const measureStyle: CSSProperties = {
   position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
   width: 'max-content', overflow: 'visible',
 };
-const expandedHeaderStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 7, fontSize: 11,
-  color: 'var(--proto-muted-3)', padding: '6px 13px',
+const expandedPanelStyle: CSSProperties = {
+  background: 'var(--material-card-bg)',
+  boxShadow: 'var(--material-card-shadow)',
+  border: '1px solid var(--proto-line)',
+  borderRadius: 'var(--r-card)',
+  padding: '2px 0',
+  cursor: 'pointer',
+  animation: 'cxfade .2s ease',
 };
 const expandedCallStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
-  padding: '5.5px 13px', borderTop: '1px solid var(--proto-line-soft)',
+  padding: '6px 13px', borderTop: '1px solid var(--proto-line-2)',
 };
 const kindStyle: CSSProperties = {
-  font: `600 9px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--proto-gray)', padding: '1.5px 7px',
-  borderRadius: 5, flex: 'none',
+  font: `600 11px ${mono}`, color: 'var(--proto-muted)',
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
+  borderRadius: 'var(--r-chip)', flex: 'none',
 };
 const inputStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`, color: 'var(--proto-ink-2)',
+  font: `400 11px ${mono}`, color: 'var(--proto-ink-2)',
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 };
 
@@ -70,20 +82,25 @@ function detailFor(call: ToolCall): DebugDetail | null {
   };
 }
 
-function collapsedRowStyle(hover: boolean): CSSProperties {
-  return {
-    display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP, fontSize: 11.5,
-    color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
-    flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
-    cursor: 'pointer',
-  };
+/** Touch rows keep the same chrome and only grow to a finger-sized hit target. The extra height is
+ *  handed back through a negative margin (as desktop does with its own -8px), so the visible gap to
+ *  the neighbouring prose stays close to desktop instead of adding ~14px of empty target each side. */
+const TOUCH_ROW_HEIGHT = 44;
+const TOUCH_SLACK = 14;
+
+/** Only the summary row carries the slack: an open panel ends the group, so its edge stays put. */
+function touchMargin(expanded: boolean): string {
+  return expanded ? `-${TOUCH_SLACK}px 0 0` : `-${TOUCH_SLACK}px 0`;
 }
 
-function expandedBoxStyle(hover: boolean): CSSProperties {
+function collapsedRowStyle(hover: boolean, touch: boolean): CSSProperties {
   return {
-    background: 'var(--proto-rail)',
-    border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
-    borderRadius: 8, padding: '2px 0', cursor: 'pointer',
+    ...MENU_BUTTON_STYLE, padding: 0, background: 'transparent',
+    ...(touch ? { minHeight: TOUCH_ROW_HEIGHT } : {}),
+    display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP, fontSize: 11.5,
+    color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
+    flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
+    cursor: 'pointer',
   };
 }
 
@@ -95,19 +112,24 @@ function ToolChip({ call }: { call: ToolCall }): JSX.Element {
   );
 }
 
-function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
+// The summary row is the same in both states — expanding flips its caret and hangs a panel under
+// it rather than replacing it, so the chips stay readable while the detail is open.
+function ToolCallsSummaryRow({ calls, text, expanded, hover, touch, onToggle, onHover, buttonRef }: {
   calls: ToolCall[];
   text: string;
+  expanded: boolean;
   hover: boolean;
-  onExpand: () => void;
+  touch: boolean;
+  onToggle: () => void;
   onHover: (hovered: boolean) => void;
+  buttonRef: Ref<HTMLButtonElement>;
 }): JSX.Element {
   const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.label), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
-    <div style={{ margin: '-8px 0' }}>
-      <div onClick={onExpand} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
-        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>▸</span>
+    <div>
+      <button ref={buttonRef} type="button" className={MENU_FOCUS} aria-expanded={expanded} onClick={onToggle} onMouseEnter={touch ? undefined : () => onHover(true)} onMouseLeave={touch ? undefined : () => onHover(false)} style={collapsedRowStyle(hover, touch)}>
+        <span style={{ fontSize: 9, color: 'var(--proto-muted)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
         <span style={{ flex: 'none' }}>{text}</span>
         <span ref={containerRef} style={collapsedCallsStyle}>
           {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
@@ -117,51 +139,53 @@ function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
             <span style={overflowStyle}>+{calls.length}</span>
           </span>
         </span>
-      </div>
+      </button>
     </div>
   );
 }
 
-function ExpandedToolCall({ call, onInspect }: {
+function ExpandedToolCall({ call, first, touch, onInspect }: {
   call: ToolCall;
+  first: boolean;
+  touch: boolean;
   onInspect: Inspect;
 }): JSX.Element {
   return (
-    <div className={call.debug ? 'group/tool-call' : undefined} style={expandedCallStyle}>
+    <div className={call.debug ? 'group/tool-call' : undefined} style={{ ...expandedCallStyle, ...(first ? { borderTop: 'none' } : {}) }}>
       <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>{call.kind}</span>
       <span style={{ ...inputStyle, ...(call.debug ? { minWidth: 0, flex: 1 } : {}) }}>{call.input}</span>
-      {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" onClick={(event) => onInspect(event, call)} /> : null}
+      {call.debug ? <DebugInspectButton compact hoverGroup="tool-call" visible={touch} onClick={(event) => onInspect(event, call)} /> : null}
     </div>
   );
 }
 
-function ExpandedToolCalls({ calls, text, hover, selected, onCollapse, onHover, onInspect, onClose }: {
+function ExpandedToolCalls({ calls, selected, touch, onInspect, onClose, onCollapse }: {
   calls: ToolCall[];
-  text: string;
-  hover: boolean;
   selected: DebugDetail | null;
-  onCollapse: () => void;
-  onHover: (hovered: boolean) => void;
+  touch: boolean;
   onInspect: Inspect;
   onClose: () => void;
+  onCollapse: () => void;
 }): JSX.Element {
   return (
     <>
-      <div onClick={onCollapse} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={expandedBoxStyle(hover)}>
-        <div style={expandedHeaderStyle}><span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▾</span><span>{text}</span></div>
-        {calls.map((call, index) => <ExpandedToolCall key={index} call={call} onInspect={onInspect} />)}
+      <div data-tool-calls-panel onClick={onCollapse} style={expandedPanelStyle}>
+        {calls.map((call, index) => <ExpandedToolCall key={index} call={call} first={index === 0} touch={touch} onInspect={onInspect} />)}
       </div>
       <DebugDetailsModal detail={selected} onClose={onClose} />
     </>
   );
 }
 
-export function ToolCallsRow({ calls, sessionId }: {
+export function ToolCallsRow({ calls, sessionId, touch = false }: {
   calls: ToolCall[];
   sessionId?: string;
+  /** Mobile transcript: finger-sized row, no hover state, debug inspection always reachable. */
+  touch?: boolean;
 }): JSX.Element {
   const L = useVocab();
   const client = useTRPCClient();
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
@@ -179,11 +203,11 @@ export function ToolCallsRow({ calls, sessionId }: {
         : current);
     }).catch(() => {});
   };
-  if (!expanded) {
-    return <CollapsedToolCalls calls={calls} text={text} hover={hover} onExpand={() => setExpanded(true)} onHover={setHover} />;
-  }
+  const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
   return (
-    <ExpandedToolCalls calls={calls} text={text} hover={hover} selected={selected}
-      onCollapse={() => setExpanded(false)} onHover={setHover} onInspect={inspect} onClose={() => setSelected(null)} />
+    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: touch ? touchMargin(expanded) : '-8px 0' }}>
+      <ToolCallsSummaryRow calls={calls} text={text} expanded={expanded} hover={hover} touch={touch} onToggle={() => setExpanded((value) => !value)} onHover={setHover} buttonRef={buttonRef} />
+      {expanded ? <ExpandedToolCalls calls={calls} selected={selected} touch={touch} onInspect={inspect} onClose={() => setSelected(null)} onCollapse={collapse} /> : null}
+    </div>
   );
 }

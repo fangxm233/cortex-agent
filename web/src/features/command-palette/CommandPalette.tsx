@@ -1,3 +1,7 @@
+// input:  cmdk, palette-items, tRPC, routing
+// output: CommandPalette, CommandPaletteProps
+// pos:    Glass command search with readable compact results
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,12 +12,11 @@ import { useSettings } from '@/features/settings/useSettings';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 
-// ⌘K command palette — 1:1 rebuild from prototype.dc.html L1295–1315 (task c967). The overlay
-// chrome, row anatomy, and copy are reproduced verbatim (exact inline styles / px / hex / font /
-// weight — LeftRail/CenterChat/RightPanel raw-value precedent); real sessions/threads/tasks over
-// tRPC are substituted into the exact structure (§8.3: data is the only variable). cmdk drives the
-// fuzzy filter + ↑/↓/Enter + focus-trap; the underlying Radix Dialog drives Esc/overlay-close +
-// focus-restore. The prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
+// ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
+// label, right-aligned hint); real sessions/threads/tasks over tRPC are substituted into that
+// structure (§8.3: data is the only variable). cmdk drives the fuzzy filter + ↑/↓/Enter +
+// focus-trap; the underlying Radix Dialog drives Esc/overlay-close + focus-restore. The
+// prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
 // The fixed panel/backdrop live in index.css (`.cmdk-panel`/`.cmdk-backdrop`) — cmdk's Dialog only
 // exposes overlay/content classNames, not style props.
 //
@@ -25,23 +28,25 @@ const HEADER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  padding: '12px 16px',
+  padding: '14px 16px',
   borderBottom: '1px solid var(--proto-line-2)',
 };
 
 const INPUT_STYLE: CSSProperties = {
   flex: 1,
-  fontSize: 13.5,
+  minWidth: 0,
+  fontSize: 14,
   color: 'var(--proto-ink)',
   fontFamily: 'inherit',
 };
 
 const ESC_STYLE: CSSProperties = {
-  font: "500 9.5px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted-3)',
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
+  background: 'transparent',
   border: '1px solid var(--proto-line)',
-  borderRadius: 5,
-  padding: '2px 6px',
+  borderRadius: 'var(--r-chip)',
+  padding: '1px 5px',
   cursor: 'pointer',
 };
 
@@ -53,57 +58,50 @@ const ROW_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  padding: '8px 11px',
-  borderRadius: 8,
+  height: 34,
+  padding: '0 10px',
+  borderRadius: 'var(--r-chip)',
   cursor: 'pointer',
 };
 
-const GLYPH_STYLE: CSSProperties = {
-  width: 20,
-  height: 20,
-  borderRadius: 6,
-  background: 'var(--proto-gray)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  font: "600 9px 'IBM Plex Mono',monospace",
+const KIND_STYLE: CSSProperties = {
+  width: 64,
+  flex: 'none',
+  font: "600 11px 'IBM Plex Mono',monospace",
+  letterSpacing: '.02em',
+  textTransform: 'uppercase',
   color: 'var(--proto-muted)',
-  flex: 'none',
 };
 
-const SUB_STYLE: CSSProperties = {
-  fontSize: 10.5,
-  color: 'var(--proto-muted-3)',
-  whiteSpace: 'nowrap',
-  flex: 'none',
-};
-
-const KBD_STYLE: CSSProperties = {
+const HINT_STYLE: CSSProperties = {
   marginLeft: 'auto',
-  font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-faint)',
-  flex: 'none',
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
+  whiteSpace: 'nowrap',
+  maxWidth: '35%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  flex: '0 1 auto',
   paddingLeft: 10,
 };
 
 const FOOTER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  padding: '7px 16px',
-  borderTop: '1px solid var(--proto-alt)',
-  background: 'var(--proto-rail)',
+  padding: '8px 16px',
+  borderTop: '1px solid var(--proto-line-2)',
 };
 
 const FOOTER_TEXT_STYLE: CSSProperties = {
-  font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-faint)',
+  font: "400 11px 'IBM Plex Mono',monospace",
+  color: 'var(--proto-muted)',
 };
 
 const EMPTY_STYLE: CSSProperties = {
   padding: '18px 11px',
   textAlign: 'center',
   fontSize: 12.5,
-  color: 'var(--proto-muted-3)',
+  color: 'var(--proto-muted)',
 };
 
 export interface CommandPaletteProps {
@@ -111,7 +109,7 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// A single palette row — glyph badge + label + sub + right-aligned kbd. cmdk sets
+// A single palette row — kind column + label + right-aligned hint. cmdk sets
 // `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; the prototype highlight
 // (var(--proto-accent-bg) bg, var(--proto-accent) label) is applied there via `.cmdk-row` CSS in index.css.
 function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
@@ -119,12 +117,15 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
   const label = row.labelKey ? L[row.labelKey] : row.label;
   const sub = row.subKey ? L[row.subKey] : row.sub;
+  // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
+  // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
+  const kind = row.labelKey ? 'command' : row.kbd;
+  const hint = [sub, row.kbd === kind ? null : row.kbd].filter(Boolean).join(' · ');
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
-      <span style={GLYPH_STYLE}>{row.glyph}</span>
+      <span style={KIND_STYLE}>{kind}</span>
       <span className="cmdk-row-label">{label}</span>
-      <span style={SUB_STYLE}>{sub}</span>
-      <span style={KBD_STYLE}>{row.kbd}</span>
+      <span style={HINT_STYLE} title={hint}>{hint}</span>
     </Command.Item>
   );
 }
@@ -166,7 +167,7 @@ function PaletteHeader({ query, setQuery, close }: {
         <circle cx="5" cy="5" r="3.8" /><path d="M8 8l2.6 2.6" />
       </svg>
       <Command.Input autoFocus value={query} onValueChange={setQuery} placeholder={L.cmdkPh} style={INPUT_STYLE} />
-      <span style={ESC_STYLE} onClick={close}>esc</span>
+      <button type="button" aria-label="Close command palette" style={ESC_STYLE} onClick={close}>esc</button>
     </div>
   );
 }

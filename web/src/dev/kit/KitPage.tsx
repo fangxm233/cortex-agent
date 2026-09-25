@@ -144,10 +144,10 @@ export function KitPage() {
             description="Describe a goal and success criteria — planning, dispatch and record-keeping follow."
             action={
               <div className="flex w-full flex-col gap-1g">
-                <span className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-1g text-left text-ui text-state-ink/60">
+                <span className="rounded-[var(--r-card)] border border-card bg-surface-canvas-alt px-1.5g py-1g text-left text-ui text-state-ink/60">
                   "Scan arXiv sim2real each morning and summarize"
                 </span>
-                <span className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-1g text-left text-ui text-state-ink/60">
+                <span className="rounded-[var(--r-card)] border border-card bg-surface-canvas-alt px-1.5g py-1g text-left text-ui text-state-ink/60">
                   "Finish the σ ablation and find the seed-variance root cause"
                 </span>
               </div>

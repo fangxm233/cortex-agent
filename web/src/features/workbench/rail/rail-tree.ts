@@ -4,6 +4,7 @@ import type {
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { lastActivityByProject, relativeAge, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
+import { orderSessions } from '@/features/session/list/session-groups';
 import {
   awaitingInputCountByProject,
   projectAttentionBadge,
@@ -153,13 +154,6 @@ export function sessionTitle(s: SessionInfo): string {
 export function sessionMatchesFilter(s: SessionInfo, filter: string): boolean {
   if (!filter) return true;
   return sessionTitle(s).toLowerCase().includes(filter.toLowerCase());
-}
-
-/** Unread first, then most recent — the order inside every folder. */
-function orderSessions(sessions: SessionInfo[]): SessionInfo[] {
-  return [...sessions].sort(
-    (a, b) => Number(!!b.unread) - Number(!!a.unread) || effectiveMs(b) - effectiveMs(a),
-  );
 }
 
 function groupByProject(sessions: SessionInfo[]): Map<string, SessionInfo[]> {

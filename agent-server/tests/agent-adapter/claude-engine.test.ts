@@ -250,6 +250,7 @@ const BASE: ClaudeSpawnCompatibility = {
   tools: 'Bash,Read', pluginCapabilityFingerprint: 'fp',
   pluginDirs: ['/a', '/b'], mcpConfigPaths: ['/m1'], mcpToolAllowlist: ['x'],
   supplementalMcpConfigIdentity: 's', browserMcpConfigIdentity: null,
+  disableSkills: false, settingSources: null,
 };
 
 const VARIANTS: ClaudeSpawnCompatibility[] = [
@@ -270,6 +271,13 @@ const VARIANTS: ClaudeSpawnCompatibility[] = [
   { ...BASE, mcpToolAllowlist: ['x', 'y'] },
   { ...BASE, supplementalMcpConfigIdentity: null },
   { ...BASE, browserMcpConfigIdentity: 'b' },
+  // The skill surface and the setting sources are fixed at spawn like the MCP set: two agents that
+  // differ only here must not share a pooled process, so they must differ in the identity too.
+  { ...BASE, disableSkills: true },
+  { ...BASE, settingSources: [] },                         // "load none" is not "the CLI default"
+  { ...BASE, settingSources: ['project'] },
+  { ...BASE, settingSources: ['project', 'user'] },        // order matters
+  { ...BASE, settingSources: ['user', 'project'] },
 ];
 
 test('claudeCompatibilityIdentity string equality is exactly sameClaudeSpawnCompatibility', () => {
@@ -293,6 +301,10 @@ test('claudeCompatibilityIdentity string equality is exactly sameClaudeSpawnComp
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: null }),
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: [] }),
   );
+  // An agent that switched its skills off, or narrowed its setting sources, has to be re-spawned:
+  // both are argv-time flags a live process cannot be re-pointed with.
+  assert.equal(sameClaudeSpawnCompatibility(BASE, { ...BASE, disableSkills: true }), false);
+  assert.equal(sameClaudeSpawnCompatibility(BASE, { ...BASE, settingSources: [] }), false);
 });
 
 // --- (5) Provider rate-limit signals (P2.5b) ----------------------------------------------------

@@ -1,4 +1,9 @@
+// input:  Message text, edit callbacks, clipboard feedback
+// output: MessageActions, EditBox, rewind and edit annotations
+// pos:    Compact message controls and readable edit feedback
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
+import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
@@ -66,8 +71,8 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
       style={{
         position: 'absolute', top: -27,
         ...(side === 'center' ? { left: '50%', transform: 'translateX(-50%)' } : { right: -8 }),
-        background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', fontSize: 10, fontWeight: 600,
-        padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap', zIndex: 3, pointerEvents: 'none',
+        background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', fontSize: 11, fontWeight: 600,
+        padding: '3px 8px', borderRadius: 'var(--r-chip)', whiteSpace: 'nowrap', zIndex: 3, pointerEvents: 'none',
       }}
     >
       {text}
@@ -98,32 +103,39 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
       {copied && <TipBubble text={copy.copied} />}
       {editHover && editDisabled && <TipBubble text={copy.editDisabled} side="right" />}
       {showCopy && (
-        <span
+        <button
+          type="button" className={MENU_FOCUS}
           role="button"
+          aria-label={copied ? copy.copied : copy.copy}
           title={copied ? undefined : copy.copy}
           onClick={doCopy}
           style={{
-            width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', ...(copied ? { background: 'var(--proto-success-bg)' } : {}),
+            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 0, padding: 0, background: copied ? 'var(--proto-success-bg)' : 'transparent',
+            cursor: 'pointer',
           }}
         >
           {copied ? <span style={{ color: 'var(--proto-success)', fontSize: 11, fontWeight: 700 }}>✓</span> : <CopyIcon />}
-        </span>
+        </button>
       )}
       {onEdit && (
-        <span
+        <button
+          type="button" className={MENU_FOCUS}
           role="button"
+          disabled={editDisabled}
+          aria-label={editDisabled ? copy.editDisabled : copy.edit}
           title={editDisabled ? undefined : copy.edit}
           onMouseEnter={() => setEditHover(true)}
           onMouseLeave={() => setEditHover(false)}
           onClick={editDisabled ? undefined : onEdit}
           style={{
-            width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: editDisabled ? 'default' : 'pointer', opacity: editDisabled ? 0.3 : 1,
+            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 0, padding: 0, background: 'transparent',
+            cursor: editDisabled ? 'default' : 'pointer', opacity: editDisabled ? 0.5 : 1,
           }}
         >
           <EditIcon />
-        </span>
+        </button>
       )}
       {extraAction}
     </div>
@@ -161,8 +173,8 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
     <div
       style={{
         alignSelf: 'flex-end', width: '94%', boxSizing: 'border-box',
-        border: '1.5px solid var(--proto-accent)', borderRadius: '14px 14px 4px 14px',
-        background: 'var(--proto-card)', boxShadow: 'var(--focus-ring-accent)',
+        border: '1.5px solid var(--proto-accent)', borderRadius: 'var(--r-card) var(--r-card) var(--r-chip) var(--r-card)',
+        background: 'var(--material-card-bg)', boxShadow: 'var(--focus-ring-accent), var(--material-card-shadow)',
         padding: '11px 14px 9px',
       }}
     >
@@ -180,27 +192,29 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
         }}
         rows={1}
         style={{
-          width: '100%', border: 'none', outline: 'none', resize: 'none', background: 'transparent',
+          width: '100%', border: 'none', outline: 'none', resize: 'none', background: 'var(--material-inset-bg)',
           fontSize: 13.5, lineHeight: 1.55, color: 'var(--proto-ink)', fontFamily: 'inherit',
           padding: 0, margin: 0, display: 'block', overflow: 'hidden', boxSizing: 'border-box',
         }}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 9, borderTop: '1px solid var(--proto-line-2)' }}>
-        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)' }}>{copy.escHint}</span>
-        <span
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.escHint}</span>
+        <button
+          type="button" className={MENU_FOCUS}
           role="button"
           onClick={onCancel}
-          style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}
+          style={{ background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '5px 12px', cursor: 'pointer' }}
         >
           {copy.cancel}
-        </span>
-        <span
+        </button>
+        <button
+          type="button" className={MENU_FOCUS} disabled={!canSend}
           role="button"
           onClick={submit}
-          style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', borderRadius: 8, padding: '6px 13px', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.5 }}
+          style={{ border: 0, fontSize: 12, fontWeight: 600, color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', borderRadius: 'var(--r-control)', padding: '6px 13px', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.5 }}
         >
           {copy.sendRewind}
-        </span>
+        </button>
       </div>
     </div>
   );
@@ -209,7 +223,7 @@ export function EditBox({ initialText, copy, onCancel, onSubmit, busy }: {
 /** Amber discard note under the edit box (23a): 发送后回退其后 N 条回复 · M 次工具调用作废. */
 export function RewindNote({ replies, toolCalls, copy }: { replies: number; toolCalls: number; copy: MEditCopy }): JSX.Element {
   return (
-    <div style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, font: `500 10.5px ${mono}`, color: 'var(--proto-amber-text)' }}>
+    <div style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, font: `500 11px ${mono}`, color: 'var(--proto-amber-text)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
       {copy.rewindNote(replies, toolCalls)}
     </div>
@@ -221,7 +235,7 @@ export function RewindNote({ replies, toolCalls, copy }: { replies: number; tool
 export function RewindTail({ children, copy }: { children: React.ReactNode; copy: MEditCopy }): JSX.Element {
   return (
     <div style={{ position: 'relative', marginTop: 6 }}>
-      <span style={{ position: 'absolute', top: -4, right: 0, font: `600 9px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2px 7px', borderRadius: 4, zIndex: 1 }}>
+      <span style={{ position: 'absolute', top: -4, right: 0, font: `600 11px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2px 7px', borderRadius: 'var(--r-chip)', zIndex: 1 }}>
         {copy.willRewind}
       </span>
       <div style={{ opacity: 0.35, display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 14, pointerEvents: 'none' }}>
@@ -255,17 +269,21 @@ export function EditedBadge({ edited, ts, copy }: {
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ position: 'relative', alignSelf: 'flex-end', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', cursor: 'default' }}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
+      tabIndex={0}
+      className={MENU_FOCUS}
+      style={{ position: 'relative', alignSelf: 'flex-end', font: `400 11px ${mono}`, color: 'var(--proto-muted)', cursor: 'default' }}
     >
       {hover && (
         <div
           style={{
             position: 'absolute', bottom: '100%', right: 0, marginBottom: 5, minWidth: 180, maxWidth: 420,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 10,
-            boxShadow: 'var(--shadow-panel-strong)', padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
+            ...MENU_SURFACE, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+            padding: '9px 12px', boxSizing: 'border-box', zIndex: 3,
           }}
         >
-          <div style={{ font: `600 9px ${mono}`, color: 'var(--proto-muted-3)', letterSpacing: '.05em', paddingBottom: 4 }}>
+          <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: '.05em', paddingBottom: 4 }}>
             {copy.original}{originalAt ? ` · ${originalAt}` : ''}
           </div>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
@@ -273,7 +291,7 @@ export function EditedBadge({ edited, ts, copy }: {
           </div>
         </div>
       )}
-      <span style={{ borderBottom: '1px dotted var(--proto-faint)' }}>{copy.edited}</span>
+      <span style={{ borderBottom: '1px dotted var(--proto-muted)' }}>{copy.edited}</span>
       {editedAt && <span> · {editedAt}</span>}
     </div>
   );
@@ -282,7 +300,7 @@ export function EditedBadge({ edited, ts, copy }: {
 /** 「由编辑重新生成」footnote atop the first regenerated reply after an edited message. */
 export function RegenNote({ copy }: { copy: MEditCopy }): JSX.Element {
   return (
-    <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', display: 'flex', alignItems: 'center', gap: 5 }}>
+    <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
       {copy.regenNote}
     </div>

@@ -1,7 +1,7 @@
 // input:  Persisted alert identities and optional owner snapshot
 // output: New alerts and resolved notification keys
 // pos:    Pure per-owner notification reconciliation
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 internal data class AlertChanges(val resolved: List<String>, val added: List<Alert>) {

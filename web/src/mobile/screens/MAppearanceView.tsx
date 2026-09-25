@@ -1,11 +1,14 @@
-// input:  appearance preferences, language provenance, localized copy, mobile UI primitives
-// output: mobile appearance drill-in with language, theme, color, and motion
-// pos:    Presentational mobile appearance view. Everything here is device-local EXCEPT the
-//         language, which is one server setting shared with what Cortex writes in chat.
+// input:  appearance preferences, shared settings controls
+// output: MAppearanceView
+// pos:    Mobile appearance preferences in material cards
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';
-import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { MC, MONO } from '@/mobile/ui/kit';
+import { SSegmented } from '@/features/settings/ui/settings-kit';
+import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
+  MSettingsBody as MScrollBody } from './MSettingsControls';
 import type { Lang, LangSource } from '@/i18n';
 import {
   AccentPicker,
@@ -13,6 +16,7 @@ import {
   type AccentHue,
   type AccentIntensity,
   type AccentPickerCopy,
+  type GlassLevel,
   type MotionMode,
   type Palette,
   type PaletteControlsCopy,
@@ -45,6 +49,13 @@ export interface MAppearanceCopy {
   accentIntensitySoft: string;
   accentIntensityNormal: string;
   accentIntensityVivid: string;
+  glass: string;
+  /** Says what the levels actually change, and that Off is the one to pick when scrolling drags. */
+  glassHint: string;
+  glassOff: string;
+  glassSubtle: string;
+  glassMedium: string;
+  glassStrong: string;
   motion: string;
   motionSystem: string;
   motionFull: string;
@@ -53,7 +64,7 @@ export interface MAppearanceCopy {
 
 function Card({ children }: { children: ReactNode }) {
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 12 }}>
       {children}
     </div>
   );
@@ -70,27 +81,7 @@ function rowStyle(divider: boolean): CSSProperties {
 }
 
 const TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, color: MC.ink };
-const HINT: CSSProperties = { fontSize: 11, color: MC.muted, marginTop: 3, lineHeight: 1.45, paddingRight: 8 };
-
-function SegmentItem<T extends string>({ id, label, active, onChange }: {
-  id: T;
-  label: string;
-  active: boolean;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <button
-      type="button" aria-pressed={active} onClick={() => onChange(id)}
-      style={{
-        border: 0, fontSize: 11, fontWeight: 600, padding: '3px 10px', cursor: 'pointer',
-        background: active ? 'var(--ink-solid-bg)' : 'transparent',
-        color: active ? 'var(--ink-solid-fg)' : MC.muted,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
+const HINT: CSSProperties = { fontSize: 12, color: MC.muted, marginTop: 4, lineHeight: 1.45, paddingRight: 8 };
 
 function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
   value: T;
@@ -98,13 +89,7 @@ function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
   onChange: (value: T) => void;
   ariaLabel: string;
 }) {
-  return (
-    <div role="group" aria-label={ariaLabel} style={{ display: 'flex', border: `1px solid ${MC.hairline}`, borderRadius: 6, overflow: 'hidden', flex: 'none' }}>
-      {options.map((option) => (
-        <SegmentItem key={option.id} {...option} active={value === option.id} onChange={onChange} />
-      ))}
-    </div>
-  );
+  return <SSegmented value={value} options={[...options]} onChange={onChange} ariaLabel={ariaLabel} />;
 }
 
 /** Label on the left, segmented control on the right — the row shape shared by every simple choice. */
@@ -118,7 +103,7 @@ function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
   ariaLabel: string;
 }) {
   return (
-    <div style={rowStyle(divider)}>
+    <div className="mobile-settings-choice" style={rowStyle(divider)}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={TITLE}>{title}</div>
         {hint ? <div style={HINT} data-choice-hint>{hint}</div> : null}
@@ -165,6 +150,8 @@ export function MAppearanceView({
   onSetAccentHue,
   accentIntensity,
   onSetAccentIntensity,
+  glass,
+  onSetGlass,
   motionMode,
   onSetMotionMode,
   onBack,
@@ -185,6 +172,8 @@ export function MAppearanceView({
   onSetAccentHue: (hue: AccentHue) => void;
   accentIntensity: AccentIntensity;
   onSetAccentIntensity: (intensity: AccentIntensity) => void;
+  glass: GlassLevel;
+  onSetGlass: (level: GlassLevel) => void;
   motionMode: MotionMode;
   onSetMotionMode: (mode: MotionMode) => void;
   onBack: () => void;
@@ -241,6 +230,16 @@ export function MAppearanceView({
 
         <Card>
           <ChoiceRow
+            divider title={copy.glass} hint={copy.glassHint} ariaLabel={copy.glass} value={glass}
+            options={[
+              { id: 'off', label: copy.glassOff },
+              { id: 'subtle', label: copy.glassSubtle },
+              { id: 'medium', label: copy.glassMedium },
+              { id: 'strong', label: copy.glassStrong },
+            ] as const}
+            onChange={onSetGlass}
+          />
+          <ChoiceRow
             divider={false} title={copy.motion} ariaLabel={copy.motion} value={motionMode}
             options={[
               { id: 'system', label: copy.motionSystem },
@@ -251,9 +250,9 @@ export function MAppearanceView({
           />
         </Card>
 
-        <div style={{ padding: '2px 4px', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+        <div style={{ padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
           localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue ·
-          cortex.accent-intensity · cortex.motion
+          cortex.accent-intensity · cortex.glass · cortex.motion
         </div>
       </MScrollBody>
     </MScreen>

@@ -80,7 +80,7 @@ export const MANAGER_TASK_FILE_REPLACEMENTS: ReadonlyArray<readonly [string, str
 export const STATUS_REGISTER_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
   [
     "Record findings, decisions, and artifacts in files as you go — not in a final summary. Update STATUS.md, the directory's CORTEX.md index, and the role's designated output artifact(s) before exiting.",
-    "Record findings, decisions, and artifacts in files as you go — not in a final summary. Update the role's designated output artifact(s) and the directory's CORTEX.md index before exiting. Update STATUS.md only if your work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — STATUS is a state register, not a changelog; one line + pointer per change (see rules/status-md.md).",
+    "Record findings, decisions, and artifacts in files as you go — not in a final summary. Update the role's designated output artifact(s) and the directory's AGENTS.md index before exiting. Update STATUS.md only if your work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — STATUS is a state register, not a changelog; one line + pointer per change (see rules/status-md.md).",
   ],
   [
     "Prefer editing the existing project artifacts (STATUS.md, knowledge entries, the role's artifact file) over creating parallel new files.",

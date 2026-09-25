@@ -1,7 +1,7 @@
 // input:  manual update check states and native reason codes
 // output: bilingual menu progress and per-channel feedback copy
 // pos:    Manual update check vocabulary chunk
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 export const updateCheckEn = {
   updateCheckBusy: 'Checking for updates…',

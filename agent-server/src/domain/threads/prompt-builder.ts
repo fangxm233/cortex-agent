@@ -16,17 +16,20 @@ import type {
 export { resolveSystemVars };
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
- *  (set by `!agent`). Falls back to `'main'` when no default is configured. Other names
+ *  (set by `!agent`). With a `channel`, that channel's own selection answers first — a thread
+ *  running on a channel that picked an agent runs the agent the channel picked, the same way its
+ *  profile follows the channel. Falls back to `'main'` when nothing is configured. Other names
  *  pass through unchanged. */
-export function resolveActiveAgentName(name: string): string {
-  return name === '__active__' ? (getDefaultAgent() || 'main') : name;
+export function resolveActiveAgentName(name: string, channel?: string): string {
+  return name === '__active__' ? (getDefaultAgent(channel) || 'main') : name;
 }
 
 // --- Agent slot config resolution ---
 
 type AgentOverrides = Partial<Pick<AgentSlotConfig,
   'promptTemplate' | 'directive' | 'systemPrompt' | 'persistSession' |
-  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist'>>;
+  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist' |
+  'loadRules' | 'disableHooks' | 'skills' | 'settingSources' | 'projectContext'>>;
 
 function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (typeof ref === 'string') return {};
@@ -42,13 +45,19 @@ function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
   if (ref.mcpToolAllowlist != null) {
     o.mcpToolAllowlist = canonicalizeMcpToolAllowlist(ref.mcpToolAllowlist);
   }
+  if (ref.loadRules != null) o.loadRules = ref.loadRules;
+  if (ref.disableHooks != null) o.disableHooks = ref.disableHooks;
+  if (ref.skills != null) o.skills = ref.skills;
+  if (ref.settingSources != null) o.settingSources = ref.settingSources;
+  if (ref.projectContext != null) o.projectContext = ref.projectContext;
   return o;
 }
 
-/** Resolve a TemplateAgentRef to a full AgentSlotConfig by merging agent definition with optional overrides. */
-export function resolveAgentSlotConfig(ref: TemplateAgentRef): AgentSlotConfig | null {
+/** Resolve a TemplateAgentRef to a full AgentSlotConfig by merging agent definition with optional
+ *  overrides. `channel` only matters for an `__active__` ref — see {@link resolveActiveAgentName}. */
+export function resolveAgentSlotConfig(ref: TemplateAgentRef, channel?: string): AgentSlotConfig | null {
   const rawName = typeof ref === 'string' ? ref : ref.ref;
-  const agentName = resolveActiveAgentName(rawName);
+  const agentName = resolveActiveAgentName(rawName, channel);
   const agentDef = getAgent(agentName);
   if (!agentDef) return null;
   const overrides = collectRefOverrides(ref);
@@ -67,21 +76,26 @@ export function resolveAgentSlotConfig(ref: TemplateAgentRef): AgentSlotConfig |
     mcpToolAllowlist: overrides.mcpToolAllowlist
       ?? (agentDef.mcpToolAllowlist
         ? canonicalizeMcpToolAllowlist(agentDef.mcpToolAllowlist) : undefined),
+    loadRules: overrides.loadRules ?? agentDef.loadRules,
+    disableHooks: overrides.disableHooks ?? agentDef.disableHooks,
+    skills: overrides.skills ?? agentDef.skills,
+    settingSources: overrides.settingSources ?? agentDef.settingSources,
+    projectContext: overrides.projectContext ?? agentDef.projectContext,
     stages: agentDef.stages,
     entryStage: agentDef.entryStage,
   };
 }
 
 /** Resolve a single agent name to AgentSlotConfig (for ad-hoc threads) */
-export function resolveAgentSlotConfigByName(agentName: string): AgentSlotConfig | null {
-  return resolveAgentSlotConfig(agentName);
+export function resolveAgentSlotConfigByName(agentName: string, channel?: string): AgentSlotConfig | null {
+  return resolveAgentSlotConfig(agentName, channel);
 }
 
 /** Resolve all agent refs in a template to AgentSlotConfigs */
-export function resolveTemplateAgents(template: ThreadTemplate): AgentSlotConfig[] {
+export function resolveTemplateAgents(template: ThreadTemplate, channel?: string): AgentSlotConfig[] {
   const configs: AgentSlotConfig[] = [];
   for (const ref of template.agents) {
-    const config = resolveAgentSlotConfig(ref);
+    const config = resolveAgentSlotConfig(ref, channel);
     if (config) configs.push(config);
   }
   return configs;

@@ -1,7 +1,7 @@
 // input:  UI service, operation schemas and tRPC
 // output: typed UI router including platform configuration
 // pos:    Typed tRPC mirror of UI operations
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { platformSettingsInput } from '@core/platform-settings-spec.js';
 import { TRPCError } from '@trpc/server';
@@ -19,6 +19,7 @@ import {
   sessionsCancelInput,
   sessionsCompactInput,
   sessionsSetProfileInput,
+  sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsSetCommissionInput,
   sessionsCreateAndSendInput,
@@ -221,6 +222,7 @@ function sessionsRouter(service: UiService) {
     cancel: makeMutation(service, 'sessions.cancel', sessionsCancelInput),
     compact: makeMutation(service, 'sessions.compact', sessionsCompactInput),
     setProfile: makeMutation(service, 'sessions.setProfile', sessionsSetProfileInput),
+    setAgent: makeMutation(service, 'sessions.setAgent', sessionsSetAgentInput),
     setSelection: makeMutation(service, 'sessions.setSelection', sessionsSetSelectionInput),
     setCommission: makeMutation(service, 'sessions.setCommission', sessionsSetCommissionInput),
     createAndSend: makeMutation(service, 'sessions.createAndSend', sessionsCreateAndSendInput),

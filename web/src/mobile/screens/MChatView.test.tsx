@@ -1,3 +1,7 @@
+// input:  Mobile chat views, React renderer, mocked session API
+// output: Chat actions and measured composer clearance tests
+// pos:    Verify mobile chat rendering and composer tail boundary
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -29,6 +33,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 vi.mock('@/lib/trpc', () => ({
+  useTRPCClient: () => ({ sessions: { debugDetails: { query: vi.fn() } } }),
   useTRPC: () => ({
     sessions: {
       subagentTranscript: {
@@ -40,12 +45,13 @@ vi.mock('@/lib/trpc', () => ({
 
 import { LangProvider } from '@/i18n';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
+import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
+import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { MChatStream, MChatView, type MChatCopy } from './MChatView';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 
 const copy: MChatCopy = {
   composerPh: 'composer',
-  toolCallsUnit: 'tools',
   menuSessionId: 'session-id',
   menuSessionStats: 'session-stats',
   sessionIdTitle: 'session-id',
@@ -66,6 +72,10 @@ const copy: MChatCopy = {
   profileSubtitle: 'profile-subtitle',
   profileCurrent: 'current',
   profileFooter: 'profile-footer',
+  selectionAgent: 'agent',
+  selectionAgentDefault: 'default',
+  selectionAgentFollow: 'follow the host default',
+  selectionAgentCrossBackend: 'new conversation only · {backend}',
   selectionModel: 'model',
   selectionThinking: 'thinking',
   selectionMode: 'route',
@@ -132,6 +142,40 @@ function renderChat(running: boolean, sendEnabled: boolean): string {
 
 beforeEach(() => {
   harness.queryCalls = [];
+});
+
+describe('MChatView floating composer clearance', () => {
+  it('reserves the whole shell as it grows and shrinks, without moving the composer', () => {
+    let height = 94;
+    const shell = { getBoundingClientRect: () => ({ height }) };
+    let resize!: () => void;
+    const observe = vi.fn(), disconnect = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback; }
+      observe = observe;
+      disconnect = disconnect;
+    });
+    let renderer!: ReactTestRenderer;
+    try {
+      act(() => { renderer = create(<MChatView {...baseProps} rows={[]}
+        status={{ running: false, tone: 'idle', text: 'idle' }} />, {
+        createNodeMock: (node) => node.props['data-composer-shell'] === true ? shell : null,
+      }); });
+      expect(observe).toHaveBeenCalledWith(shell, { box: 'border-box' });
+      // Single line, four/five lines, an attachment/reject strip, then cleared.
+      for (const [measured, reserved] of [[94, 150], [154, 210], [174, 230], [238.5, 294.5], [94, 150]]) {
+        act(() => { height = measured; resize(); });
+        expect(renderer.root.findByProps({ 'data-composer-clearance': true }).props.style.height)
+          .toBe(`calc(${reserved}px + env(safe-area-inset-bottom))`);
+      }
+      expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
+        .toBe('calc(20px + env(safe-area-inset-bottom))');
+    } finally {
+      act(() => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
 });
 
 describe('MChatView slash shortcuts', () => {
@@ -219,7 +263,7 @@ describe('MChatStream assistant turn copy', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
         </LangProvider>,
       );
     });
@@ -247,17 +291,19 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" />
         </LangProvider>,
       );
     });
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    expect(renderer.root.findByType(SubagentBlock).props.touch).toBe(true);
+    expect(renderer.root.findAllByType(ToolCallsRow).map((row) => row.props.touch)).toEqual([true, true]);
 
     const text = (node: any): string => typeof node === 'string' ? node
       : Array.isArray(node) ? node.map(text).join('')
       : node?.children ? text(node.children) : '';
     const rendered = text(renderer.toJSON());
-    const order = ['first note', '2 tools', 'second note', '1 tools']
+    const order = ['first note', '2 tool calls', 'second note', '1 tool call']
       .map((needle) => rendered.indexOf(needle));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -273,7 +319,7 @@ describe('MChatStream subagent prompt', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" streamKey="s1" />
+          <MChatStream rows={rows} copyLabel="copy" copiedLabel="copied" streamKey="s1" />
         </LangProvider>,
       );
     });
@@ -283,7 +329,7 @@ describe('MChatStream subagent prompt', () => {
     expect(harness.queryCalls).toHaveLength(1);
     expect(harness.queryCalls[0].input).toEqual({ sessionId: 's1', subagentId: 'tu_lazy' });
 
-    const toolRow = renderer.root.findAll((node) => typeof node.props.onClick === 'function')[1];
+    const toolRow = renderer.root.findByProps({ 'data-tool-calls': true }).findByType('button');
     act(() => toolRow.props.onClick());
 
     const rendered = JSON.stringify(renderer.toJSON());
@@ -291,5 +337,27 @@ describe('MChatStream subagent prompt', () => {
     expect(rendered).toContain('a.ts');
     expect(rendered).toContain('child output');
     expect(rendered).not.toContain('hidden user');
+  });
+});
+
+// The header status line carries the project the session belongs to, not just the run state — on a
+// phone the drill screen is the only place that fact is visible at all.
+describe('MChatView header status line', () => {
+  const line = (html: string): string =>
+    html.match(/<div data-chat-status-line="true"[^>]*>([^<]*)</)?.[1] ?? '';
+
+  it('prefixes the status with the project when one is known', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} project="cortex-agent" rows={[]}
+        status={{ running: true, tone: 'running', text: 'running 2m' }} />,
+    );
+    expect(line(html)).toBe('cortex-agent · running 2m');
+  });
+
+  it('falls back to the bare status with no project', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} rows={[]} status={{ running: false, tone: 'idle', text: 'idle' }} />,
+    );
+    expect(line(html)).toBe('idle');
   });
 });

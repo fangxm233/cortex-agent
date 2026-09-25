@@ -1,12 +1,17 @@
+// input:  assignment queries, settings atoms, plugin view-model
+// output: plugin assignment form and consent dialog
+// pos:    Nested desktop template plugin assignment editor
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Modal, Select, useToast, type SelectOption } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { RadioDot, SButton, Toggle } from '@/features/settings/ui/settings-ui';
+import { RadioDot, SButton, SNotice, SPill, SSection, S_CONTROL_STYLE, Toggle } from '@/features/settings/ui/settings-ui';
 import {
-  EmptyMessage, McpServerSummary, NOTICE, PILL, ROW, META_LABEL,
+  EmptyMessage, McpServerSummary, ROW,
   pluginTitle, scopeNoticeText,
 } from '@/features/settings/ui/plugin-ui';
 import {
@@ -27,8 +32,11 @@ import {
   type PluginsPanelDraft,
 } from '@/features/settings/vm/plugin-assign-vm';
 
-const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
-const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
+const MONO = "'IBM Plex Mono',monospace";
+
+const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 };
+const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
+const TARGET_SELECT: CSSProperties = { ...S_CONTROL_STYLE, width: '100%' };
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
 type AssignMutation = { mutateAsync: (payload: PluginsAssignArgs) => Promise<unknown> };
@@ -158,24 +166,23 @@ function PluginChoice(props: {
   const scopeNote = scopeNoticeText(props.plugin, L);
   return (
     <div data-plugin-row={props.plugin.id} data-plugin-disabled={String(Boolean(reason))}
-      data-plugin-disabled-reason={reason ?? undefined} style={ROW}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <Toggle on={selected} onClick={reason ? undefined : () => props.onToggle(props.plugin.id)} inert={Boolean(reason)}
-          ariaLabel={L.plToggleLabel.replace('{name}', pluginTitle(props.plugin))} />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{pluginTitle(props.plugin)}</span>
-            <span style={PILL}>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</span>
-            {props.plugin.mcp.servers.length > 0
-              ? <span style={PILL}>{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</span>
-              : null}
-            {props.plugin.assignable ? null : <span style={{ ...PILL, color: 'var(--proto-danger)' }}>{L.plUnassignable}</span>}
-          </div>
-          {props.plugin.manifest.description
-            ? <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)' }}>{props.plugin.manifest.description}</div>
+      data-plugin-disabled-reason={reason ?? undefined}
+      style={{ ...ROW, flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
+      <Toggle on={selected} onClick={reason ? undefined : () => props.onToggle(props.plugin.id)} inert={Boolean(reason)}
+        ariaLabel={L.plToggleLabel.replace('{name}', pluginTitle(props.plugin))} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(props.plugin)}</span>
+          <SPill>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</SPill>
+          {props.plugin.mcp.servers.length > 0
+            ? <SPill tone="accent">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>
             : null}
-          {scopeNote ? <div data-plugin-scope={props.plugin.scope} style={NOTICE}>{scopeNote}</div> : null}
+          {props.plugin.assignable ? null : <SPill tone="danger">{L.plUnassignable}</SPill>}
         </div>
+        {props.plugin.manifest.description
+          ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' }}>{props.plugin.manifest.description}</div>
+          : null}
+        {scopeNote ? <SNotice tone="muted" data-plugin-scope={props.plugin.scope}>{scopeNote}</SNotice> : null}
       </div>
     </div>
   );
@@ -186,11 +193,11 @@ function ModeChoice(props: { label: string; selected: boolean; disabled: boolean
     <button type="button" data-plugin-mode={props.mode} data-selected={String(props.selected)}
       disabled={props.disabled} aria-pressed={props.selected} onClick={props.onClick}
       style={{
-        ...ROW, display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+        ...ROW, flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
         cursor: props.disabled ? 'not-allowed' : 'pointer', opacity: props.disabled ? 0.55 : 1,
       }}>
       <RadioDot selected={props.selected} />
-      <span style={{ fontSize: 11.5, color: 'var(--proto-ink)' }}>{props.label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{props.label}</span>
     </button>
   );
 }
@@ -204,13 +211,14 @@ function SlotModes(props: {
   const L = useVocab();
   if (props.target?.kind !== 'template-slot' || !props.target.editable) return null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={META_LABEL}>{L.plModeLabel}</div>
-      <ModeChoice mode="inherit" label={L.plModeInherit} selected={props.draft?.mode === 'inherit'}
-        disabled={props.pending} onClick={() => props.onModeChange('inherit')} />
-      <ModeChoice mode="custom" label={L.plModeCustom} selected={props.draft?.mode === 'custom'}
-        disabled={props.pending} onClick={() => props.onModeChange('custom')} />
-    </div>
+    <SSection label={L.plModeLabel}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <ModeChoice mode="inherit" label={L.plModeInherit} selected={props.draft?.mode === 'inherit'}
+          disabled={props.pending} onClick={() => props.onModeChange('inherit')} />
+        <ModeChoice mode="custom" label={L.plModeCustom} selected={props.draft?.mode === 'custom'}
+          disabled={props.pending} onClick={() => props.onModeChange('custom')} />
+      </div>
+    </SSection>
   );
 }
 
@@ -221,6 +229,8 @@ function AckModal(props: {
   const L = useVocab();
   return (
     <Modal title={L.plAckTitle} description={L.plAckDesc} open={props.open} layer="nested"
+      contentClassName="settings-surface settings-nested-modal"
+      contentDataAttributes={{ 'data-settings-dialog': '' }}
       onOpenChange={props.onOpenChange}
       footer={(
         <>
@@ -228,12 +238,12 @@ function AckModal(props: {
           <SButton tone="accent" disabled={props.pending} onClick={props.onConfirm}>{L.plAckConfirm}</SButton>
         </>
       )}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {props.plugins.map((plugin) => (
-          <div key={plugin.id} style={NOTICE}>
-            <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 4 }}>{plugin.id}</div>
-            <div style={{ marginTop: 8 }}><McpServerSummary plugin={plugin} /></div>
+          <div key={plugin.id} style={ROW}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</div>
+            <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 4, overflowWrap: 'anywhere' }}>{plugin.id}</div>
+            <div style={{ marginTop: 10 }}><McpServerSummary plugin={plugin} /></div>
           </div>
         ))}
       </div>
@@ -274,14 +284,15 @@ function AssignBody(props: PluginAssignViewProps) {
   return (
     <>
       {props.scopedTargets.length > 1 ? (
-        <Select data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
+        <Select popupClassName="settings-surface settings-select-popup" data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
           options={slotOptions(props.scopedTargets, L)} disabled={props.pending || state.dirty}
-          onValueChange={props.onSelectTarget}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 9px', border: '1px solid var(--proto-line)', borderRadius: 8 }} />
+          onValueChange={props.onSelectTarget} style={TARGET_SELECT} />
       ) : null}
-      {readOnly ? <div data-plugin-readonly={readOnly} style={NOTICE}>{readonlyText(readOnly, L)}</div> : null}
-      {props.unmanagedCount > 0 ? <div style={NOTICE}>{L.plUnmanagedNotice.replace('{n}', String(props.unmanagedCount))}</div> : null}
-      {state.conflicted ? <div data-plugin-conflict="" style={NOTICE}>{L.plStaleDraft}</div> : null}
+      {readOnly ? <SNotice tone="muted" data-plugin-readonly={readOnly}>{readonlyText(readOnly, L)}</SNotice> : null}
+      {props.unmanagedCount > 0 ? <SNotice tone="muted">{L.plUnmanagedNotice.replace('{n}', String(props.unmanagedCount))}</SNotice> : null}
+      {/* The marker stays on a plain wrapper: hung on the notice it would appear twice, once on the
+          component and once on the element it renders. */}
+      {state.conflicted ? <div data-plugin-conflict=""><SNotice tone="amber">{L.plStaleDraft}</SNotice></div> : null}
       <SlotModes target={props.target} draft={props.draft} pending={props.pending} onModeChange={props.onModeChange} />
       <div style={LIST}>
         {props.plugins.length > 0
@@ -291,7 +302,7 @@ function AssignBody(props: PluginAssignViewProps) {
           ))
           : <EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" />}
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" disabled={!resettable} data-action="reset"
           data-disabled={resettable ? 'false' : 'true'} onClick={props.onReset}>{L.plReset}</SButton>
         <SButton tone="accent" disabled={!state.canSave} data-action="save"
@@ -305,7 +316,7 @@ export function PluginAssignView(props: PluginAssignViewProps) {
   const L = useVocab();
   return (
     <div data-plugin-assign="" style={WRAP}>
-      {props.locked ? <div data-plugin-locked="" style={NOTICE}>{L.plLockedByBody}</div> : null}
+      {props.locked ? <SNotice tone="amber" data-plugin-locked="">{L.plLockedByBody}</SNotice> : null}
       {props.state === 'loading' ? <EmptyMessage text={L.plLoading} dataAttr="data-plugins-loading" /> : null}
       {props.state === 'error'
         ? <EmptyMessage text={`${L.plLoadFailed} ${props.errorMessage ?? ''}`.trim()} dataAttr="data-plugins-error" />

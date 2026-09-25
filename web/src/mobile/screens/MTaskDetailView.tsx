@@ -1,7 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1h L440-484)
-// Presentational view for the 1h 任务详情 drill page. Pure — takes a built MTaskDetailVm + a copy
-// table + nav callbacks. Every px/hex/font is lifted 1:1 from the scheme's inner data-screen-label
-// div (the iOS frame / status-bar / island / home-indicator wrapper is ignored per the brief).
+// input:  React, mobile kit, presentation props
+// output: MTaskDetailView
+// pos:    Mobile TaskDetailView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 import {
   MScreen,
@@ -135,7 +135,7 @@ function TaskBlockerCard({ label, reason }: { label: string; reason: string | nu
   return (
     <div data-task-blocker-card="true">
       <MCard tone="fail" style={{ background: MC.failBg }}>
-        <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.07em', color: MC.fail }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: MC.fail }}>
           {label}
         </div>
         <div style={{ font: `400 11px/1.7 ${MONO}`, color: MC.fail, marginTop: 6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
@@ -171,9 +171,9 @@ export function MTaskDetailView({
   const header = (
     <MDrillHeader
       onBack={onBack}
-      trailing={<span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.tasksTag}</span>}
+      trailing={<span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>{copy.tasksTag}</span>}
     >
-      <span style={{ font: `600 15px ${MONO}`, color: MC.ink, flex: 'none' }}>{vm.displayId}</span>
+      <span style={{ font: `600 15px ${MONO}`, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{vm.displayId}</span>
       <MPill tone={PILL_TONE[vm.statusKind]}>{copy.status[vm.statusKind]}</MPill>
     </MDrillHeader>
   );
@@ -233,7 +233,7 @@ export function MTaskDetailView({
       node: (
         <>
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.templateLabel}</span>
-          <span style={{ font: `500 11px ${MONO}`, color: MC.body, overflowWrap: 'anywhere' }}>{vm.template}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body, minWidth: 0, overflowWrap: 'anywhere' }}>{vm.template}</span>
         </>
       ),
     },
@@ -244,9 +244,9 @@ export function MTaskDetailView({
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.depsLabel}</span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
             {vm.deps.length === 0 ? (
-              <span style={{ fontSize: 11, color: MC.faint }}>{copy.depsEmpty}</span>
+              <span style={{ fontSize: 11, color: MC.muted }}>{copy.depsEmpty}</span>
             ) : vm.deps.map((d) => (
-              <span key={d.id} style={{ font: `500 11px ${MONO}`, color: d.known ? DEP_COLOR[d.statusKind] : MC.faint }}>
+              <span key={d.id} style={{ font: `500 11px ${MONO}`, color: d.known ? DEP_COLOR[d.statusKind] : MC.muted }}>
                 {d.displayId}
                 {d.known ? ` · ${copy.status[d.statusKind]}` : ''}
               </span>
@@ -267,11 +267,11 @@ export function MTaskDetailView({
 
         {/* DONE-WHEN */}
         <MCard>
-          <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.07em', color: MC.faint }}>{copy.doneWhen}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: MC.muted }}>{copy.doneWhen}</div>
           <div
             style={{
               font: `400 11px/1.7 ${MONO}`,
-              color: vm.doneWhen ? MC.sub : MC.faint,
+              color: vm.doneWhen ? MC.sub : MC.muted,
               marginTop: 6,
               whiteSpace: 'pre-wrap',
             }}
@@ -285,10 +285,10 @@ export function MTaskDetailView({
         {/* claim-thread card (only when claimed) */}
         {vm.claim && (
           <MCard>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <ThreadIcon />
               <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{vm.claim.template}</span>
-              <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted }}>
+              <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
                 {copy.claimPrefix} · {vm.claim.threadId ?? vm.claim.claimedBy}
               </span>
               {vm.claim.threadId && (
@@ -301,7 +301,7 @@ export function MTaskDetailView({
               )}
             </div>
             {vm.claim.meta && (
-              <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 4 }}>{vm.claim.meta}</div>
+              <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 4 }}>{vm.claim.meta}</div>
             )}
           </MCard>
         )}
@@ -324,9 +324,9 @@ export function MTaskDetailView({
             <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.historyLabel}</span>
           </div>
           {vm.history.length === 0 ? (
-            <div style={{ padding: '10px 13px', font: `400 10px ${MONO}`, color: MC.faint }}>{copy.historyEmpty}</div>
+            <div style={{ padding: '10px 13px', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.historyEmpty}</div>
           ) : (
-            <div style={{ padding: '9px 13px', display: 'flex', flexDirection: 'column', gap: 7, font: `400 10px/1.5 ${MONO}` }}>
+            <div style={{ padding: '9px 13px', display: 'flex', flexDirection: 'column', gap: 7, font: `400 11px/1.5 ${MONO}` }}>
               {vm.history.map((h, i) => (
                 <HistoryRow key={i} h={h} copy={copy} />
               ))}
@@ -335,7 +335,7 @@ export function MTaskDetailView({
         </MCard>
 
         {/* read-only footer */}
-        <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '0 4px' }}>{copy.footer}</div>
+        <div style={{ font: `400 11px ${MONO}`, color: MC.muted, padding: '0 4px' }}>{copy.footer}</div>
       </MScrollBody>
     </MScreen>
   );
@@ -346,7 +346,7 @@ function HistoryRow({ h, copy }: { h: MTaskHistoryRowVm; copy: MTaskDetailCopy }
   const event = `${copy.dispatchType[h.type]} · ${copy.dispatchStatus[h.status]}`;
   return (
     <div style={{ display: 'flex', gap: 8 }}>
-      <span style={{ color: MC.faint, flex: 'none' }}>{time}</span>
+      <span style={{ color: MC.muted, flex: 'none' }}>{time}</span>
       <span style={{ color: MC.sub }}>
         {event}
         {h.isCompleting ? ' ✓' : ''}

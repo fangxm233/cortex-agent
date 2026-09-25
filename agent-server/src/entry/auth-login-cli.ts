@@ -1,7 +1,7 @@
 // input:  auth status, shared login service, terminal interaction
 // output: localized runAuthLoginCli with abortable secret prompts and safe results
 // pos:    TTY provider login without a running daemon
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { randomUUID } from 'node:crypto';
 import { formatHelp } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';

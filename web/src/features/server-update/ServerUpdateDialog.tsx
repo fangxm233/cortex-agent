@@ -1,3 +1,7 @@
+// input:  SystemUpdateStatus, DesktopUpdateFrame, action callbacks
+// output: ServerUpdateDialog and update copy helpers
+// pos:    Server update state with material action controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 
@@ -5,14 +9,14 @@ import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 // sentences describe one flow and are never reused, so a shared vocab entry would only add a hop.
 
 const GHOST_BTN_CLASS =
-  'box-border flex h-9 items-center rounded-[9px] border border-proto-line px-4 text-[12.5px] ' +
-  'font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
+  'box-border flex h-9 items-center rounded-[var(--r-control)] border border-proto-line px-4 text-[12.5px] ' +
+  '[background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt disabled:opacity-60 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent';
 
 const PRIMARY_BTN_CLASS =
-  'box-border flex h-9 items-center rounded-[9px] bg-state-ink px-4 text-[12.5px] font-semibold ' +
-  'text-surface-card transition-opacity hover:opacity-90 disabled:opacity-60 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
+  'box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold ' +
+  'text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 disabled:opacity-60 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent';
 
 export interface ServerUpdateDialogProps {
   status: SystemUpdateStatus;
@@ -54,7 +58,7 @@ export function serverUpdateDescription(status: SystemUpdateStatus): string {
 function ServerUpdateActions(props: ServerUpdateDialogProps) {
   if (props.status.state === 'prompting') {
     return (
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <button type="button" onClick={props.onSkip} disabled={props.busy} className={GHOST_BTN_CLASS}>
           跳过此版本
         </button>
@@ -95,7 +99,7 @@ export function ServerUpdateDialog(props: ServerUpdateDialogProps) {
         </div>
       ) : null}
       {props.status.error ? (
-        <pre className="mb-3 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-[9px] bg-surface-canvas-alt p-2 font-mono text-[10.5px] leading-snug text-state-fail">
+        <pre className="mb-3 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-[var(--r-control)] bg-surface-canvas-alt p-2 font-mono text-[11.5px] leading-relaxed text-state-fail">
           {props.status.error}
         </pre>
       ) : null}

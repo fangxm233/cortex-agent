@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { Tone } from '@/design/tone';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
+import { rebuildStatusTone } from '@/features/daemon/daemon-vm';
 import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
@@ -20,20 +21,50 @@ export interface DaemonStatusModalProps {
 function toneColor(tone: Tone): string {
   if (tone === 'done') return 'var(--proto-success)';
   if (tone === 'failed') return 'var(--proto-danger)';
+  if (tone === 'running') return 'var(--pill-running-fg)';
+  if (tone === 'waiting') return 'var(--pill-waiting-fg)';
   return 'var(--pill-cancelled-fg)';
 }
 
 function toneBg(tone: Tone): string {
   if (tone === 'done') return 'var(--proto-success-bg)';
   if (tone === 'failed') return 'var(--proto-danger-bg)';
+  if (tone === 'running') return 'var(--pill-running-bg)';
+  if (tone === 'waiting') return 'var(--pill-waiting-bg)';
   return 'var(--pill-cancelled-bg)';
 }
+
+// The sheet is a floating glass panel; everything inside outlines with a shadow ring rather than a
+// border, so nested blocks meeting the panel edge show no seam over the blur.
+const CARD_STYLE: CSSProperties = {
+  position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 50,
+  width: 470, background: 'var(--glass-2)', backdropFilter: 'var(--glass-filter)',
+  WebkitBackdropFilter: 'var(--glass-filter)', borderRadius: 'var(--r-float)',
+  boxShadow: 'var(--shadow-panel), 0 0 0 1px var(--proto-line-2)', overflow: 'hidden',
+};
+
+/** One ringed block in the body: a process row, or the rebuild progress panel. */
+const BLOCK_STYLE: CSSProperties = {
+  boxShadow: '0 0 0 1px var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '11px 14px',
+};
+
+/** The neutral action button shared by soft restart, confirm-cancel and disconnect. */
+const NEUTRAL_BUTTON_STYLE: CSSProperties = {
+  flex: 'none', fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)',
+  boxShadow: '0 0 0 1px var(--proto-line-3)', background: 'var(--glass-1)',
+  borderRadius: 'var(--r-chip)', padding: '6px 14px',
+};
+
+const STATUS_PILL_STYLE: CSSProperties = {
+  marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, padding: '2px 8px',
+  borderRadius: 'var(--r-pill)',
+};
 
 export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
   const L = useVocab();
   const [confirmHard, setConfirmHard] = useState(false);
   const daemon = useDaemonResource({ enabled: open });
-  const { processes, lastRestart } = daemon.facts;
+  const { processes, lastRestart, rebuild } = daemon.facts;
 
   useEffect(() => {
     if (daemon.restartState === 'success' || daemon.restartState === 'error') setConfirmHard(false);
@@ -58,21 +89,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
       />
 
       {/* Modal card */}
-      <div
-        style={{
-          position: 'fixed',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 50,
-          width: 470,
-          background: 'var(--proto-card)',
-          border: '1px solid var(--proto-line)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-panel)',
-          overflow: 'hidden',
-        }}
-      >
+      <div style={CARD_STYLE}>
         {/* Header */}
         <div
           style={{
@@ -88,9 +105,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             style={{
               width: 28,
               height: 28,
-              borderRadius: 8,
+              borderRadius: 'var(--r-chip)',
               background: 'var(--brand-badge-bg)',
-              border: '1px solid var(--brand-badge-border)',
+              boxShadow: '0 0 0 1px var(--brand-badge-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -136,8 +153,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               marginLeft: 'auto',
               font: "500 9.5px 'IBM Plex Mono',monospace",
               color: 'var(--proto-muted-3)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 5,
+              boxShadow: '0 0 0 1px var(--proto-line-2)',
+              borderRadius: 'var(--r-chip)',
               padding: '2px 6px',
               cursor: 'pointer',
             }}
@@ -169,14 +186,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           {processes.map((proc) => {
             const st = proc.status;
             return (
-              <div
-                key={proc.name}
-                style={{
-                  border: '1px solid var(--proto-line)',
-                  borderRadius: 10,
-                  padding: '11px 14px',
-                }}
-              >
+              <div key={proc.name} style={BLOCK_STYLE}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span
                     style={{
@@ -205,11 +215,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   </span>
                   <span
                     style={{
-                      marginLeft: 'auto',
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      borderRadius: 999,
+                      ...STATUS_PILL_STYLE,
                       background: toneBg(proc.tone),
                       color: toneColor(proc.tone),
                     }}
@@ -256,6 +262,69 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             );
           })}
 
+          {rebuild && (
+            <div style={BLOCK_STYLE}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: toneColor(rebuildStatusTone(rebuild.status)),
+                    flex: 'none',
+                  }}
+                />
+                <span style={{ font: "600 12px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
+                  {L.dmRebuild}
+                </span>
+                <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
+                  {rebuild.completed}/{rebuild.total} · {rebuild.elapsed}
+                </span>
+                <span
+                  style={{
+                    ...STATUS_PILL_STYLE,
+                    background: toneBg(rebuildStatusTone(rebuild.status)),
+                    color: toneColor(rebuildStatusTone(rebuild.status)),
+                  }}
+                >
+                  {rebuild.status}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  marginTop: 8,
+                  font: "400 10px 'IBM Plex Mono',monospace",
+                  flexWrap: 'wrap',
+                }}
+              >
+                {rebuild.steps.map((step) => (
+                  <span key={step.name} style={{ color: toneColor(step.tone) }}>
+                    {step.status === 'running' ? '▸' : step.status === 'pending' ? '·' : '●'} {step.name}
+                    {step.duration ? (
+                      <span style={{ color: 'var(--proto-muted-3)' }}> {step.duration}</span>
+                    ) : null}
+                    {step.detail ? (
+                      <span style={{ color: 'var(--proto-muted-3)' }}> ({step.detail})</span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  font: "400 9.5px 'IBM Plex Mono',monospace",
+                  color: 'var(--proto-faint)',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {L.dmReason}: {rebuild.reason}
+                {rebuild.detail ? ` · ${rebuild.detail}` : ''}
+              </div>
+            </div>
+          )}
+
           {lastRestart?.at && (
             <div
               style={{
@@ -296,14 +365,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               <span
                 onClick={onSoftRestart}
                 style={{
-                  flex: 'none',
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: 'var(--proto-ink)',
-                  border: '1px solid var(--proto-line-3)',
-                  background: 'var(--proto-card)',
-                  borderRadius: 8,
-                  padding: '6px 14px',
+                  ...NEUTRAL_BUTTON_STYLE,
                   cursor: daemon.restartState === 'pending' ? 'default' : 'pointer',
                   opacity: daemon.restartState === 'pending' ? 0.5 : 1,
                 }}
@@ -327,9 +389,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   fontSize: 11.5,
                   fontWeight: 600,
                   color: 'var(--proto-danger)',
-                  border: '1px solid var(--proto-danger-bg)',
+                  boxShadow: '0 0 0 1px var(--proto-danger-bg)',
                   background: 'var(--proto-danger-bg)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-chip)',
                   padding: '6px 14px',
                   cursor: 'pointer',
                 }}
@@ -353,9 +415,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           >
             <div
               style={{
-                border: '1px solid var(--proto-amber-border)',
+                boxShadow: '0 0 0 1px var(--proto-amber-border)',
                 background: 'var(--proto-amber-bg)',
-                borderRadius: 9,
+                borderRadius: 'var(--r-control)',
                 padding: '10px 14px',
               }}
             >
@@ -378,16 +440,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <span
                 onClick={() => setConfirmHard(false)}
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: 'var(--proto-ink)',
-                  border: '1px solid var(--proto-line-3)',
-                  background: 'var(--proto-card)',
-                  borderRadius: 8,
-                  padding: '6px 14px',
-                  cursor: 'pointer',
-                }}
+                style={{ ...NEUTRAL_BUTTON_STYLE, cursor: 'pointer' }}
               >
                 {L.dmConfirmCancel}
               </span>
@@ -398,7 +451,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   fontWeight: 600,
                   color: 'var(--ink-solid-fg)',
                   background: 'var(--proto-danger)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-chip)',
                   padding: '6px 14px',
                   cursor: daemon.restartState === 'pending' ? 'default' : 'pointer',
                   opacity: daemon.restartState === 'pending' ? 0.5 : 1,
@@ -461,17 +514,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             </div>
             <span
               onClick={() => void disconnectShell()}
-              style={{
-                flex: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: 'var(--proto-ink)',
-                border: '1px solid var(--proto-line-3)',
-                background: 'var(--proto-card)',
-                borderRadius: 8,
-                padding: '6px 14px',
-                cursor: 'pointer',
-              }}
+              style={{ ...NEUTRAL_BUTTON_STYLE, cursor: 'pointer' }}
             >
               {L.dmDisconnect}
             </span>

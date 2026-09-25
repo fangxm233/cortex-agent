@@ -1,15 +1,16 @@
-// input:  the vocabulary and a submit callback
-// output: the browser token-login screen
-// pos:    Shown by UiAuthGate when this browser holds no session yet
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// input:  vocabulary, submit callback, design controls
+// output: UiTokenLogin
+// pos:    Browser token login on shared material surfaces
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useState, type FormEvent } from 'react';
+import '@/design/content-surfaces.css';
 import { Button, Card } from '@/design';
 import { useVocab } from '@/i18n';
 
 const INPUT_CLASS =
-  'box-border min-h-11 w-full rounded-card border border-proto-line-3 ' +
-  'bg-surface-canvas-alt px-2g py-1.5g text-ui text-state-ink shadow-sm ' +
+  'box-border min-h-11 w-full rounded-[var(--r-control)] border border-proto-line-2 ' +
+  '[background:var(--material-inset-bg)] px-2g py-1.5g text-ui text-state-ink ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
 
 export interface UiTokenLoginProps {
@@ -38,11 +39,11 @@ export function UiTokenLogin({ onSubmit }: UiTokenLoginProps) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-canvas p-2g">
+    <div className="content-surface flex min-h-screen items-center justify-center [background:var(--app-backdrop)] p-2g">
       <Card className="w-full max-w-md" padded>
         <form className="space-y-2g" onSubmit={submit}>
           <h1 className="text-lg font-medium text-state-ink">{L.uiLoginTitle}</h1>
-          <p className="text-ui text-state-ink/70">{L.uiLoginHint}</p>
+          <p className="text-ui text-[var(--proto-muted)]">{L.uiLoginHint}</p>
           <input
             data-ui-login-token
             type="password"

@@ -172,6 +172,10 @@ export const zhBase = {
   wbModel: '模型',
   wbThinking: '思考强度',
   wbRoute: '计费路由',
+  wbAgent: 'agent',
+  wbAgentDefault: '默认',
+  wbAgentFollowDefault: '跟随全局默认',
+  wbAgentCrossBackend: '仅限新对话 · {backend}',
   wbFollowProfile: '跟随配置',
   wbFollowAll: '全部跟随配置',
   wbFilterModels: '筛选…',
@@ -180,6 +184,8 @@ export const zhBase = {
   wbHiddenNoProfile: '{n} 个模型无可用配置',
   wbModelsPending: '正在加载模型…',
   wbNewConversation: '新对话',
+  wbDraftIn: '在 {p}',
+  wbDraftSendsOnFirst: '首次发送时创建',
   wbSend: '发送',
   wbSlashInvalid: '未发送：无法识别该命令或参数无效。以 / 开头的内容会被当作命令；若要发送普通消息，请改为不以 / 开头。',
   wbSlashIncomplete: '未发送：命令尚未输入完整。请补全或从菜单选择命令；若要发送普通消息，请改为不以 / 开头。',
@@ -357,6 +363,7 @@ export const zhBase = {
   dmRestartFailed: '重启失败',
   dmDisconnect: '断开连接',
   dmDisconnectDesc: '清除已保存的服务器与令牌，返回登录页',
+  dmRebuild: '热重建',
 
   rpNoActiveThreads: '暂无活跃线程',
   rpNoActiveThreadsHint: '运行中和等待中的线程将显示在此处。',
@@ -663,6 +670,12 @@ export const zhBase = {
   stNavHooks: '钩子',
   stNavAdvanced: '高级',
 
+  // ── Settings nav group headings ──
+  stGroupWorkspace: '工作区',
+  stGroupAgent: '智能体',
+  stGroupResources: '资源',
+  stGroupSystem: '系统',
+
   // ── Settings section meta subs ──
   stMetaAppearanceSub: '语言、主题、配色、强调色与动效。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
@@ -726,6 +739,14 @@ export const zhBase = {
   stMotionSystem: '跟随系统',
   stMotionFull: '完整',
   stMotionReduced: '减弱',
+
+  // ── Appearance / glass control ──
+  stGlassLabel: '毛玻璃',
+  stGlassHint: '面板、浮层和弹窗的透明程度。如果滚动起来卡顿，就选"关闭"——所有表面变成不透明，模糊也一并关掉。',
+  stGlassOff: '关闭',
+  stGlassSubtle: '轻微',
+  stGlassMedium: '适中',
+  stGlassStrong: '强烈',
 
   // ── Appearance / language control ──
   stLangLabel: '语言',

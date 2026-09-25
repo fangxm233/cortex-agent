@@ -3,6 +3,7 @@
 // mobile/ui/kit, and shared features (login, rate limit) render it on a narrow viewport.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useBackDismiss } from './use-back-dismiss';
+import { MobileOverlayPortal } from './mobile-overlay-host';
 
 // ── MBottomSheet — dimmed overlay + bottom sheet (scheme 1i/1p) ────────────────
 // Presents like a native iOS sheet: slides up on mount, fades the dim in, and the grab handle is a
@@ -26,6 +27,7 @@ export function MBottomSheet({
   onBack,
   children,
   behind,
+  className,
 }: {
   onClose: () => void;
   /** Hardware-back/Escape action for a nested level; dim/drag still close the whole sheet. */
@@ -33,6 +35,9 @@ export function MBottomSheet({
   children: ReactNode;
   /** The dimmed background screen shown behind the sheet. */
   behind?: ReactNode;
+  /** Scope classes for the sheet root: the sheet portals out of its screen, so ancestor classes
+   *  from where it was declared no longer reach it. */
+  className?: string;
 }) {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   // Lifecycle: 'enter' (offscreen pre-paint) → 'open' (settled) → 'exit' (flung/tapped closed).
@@ -124,65 +129,70 @@ export function MBottomSheet({
   const dimOpacity = offscreen ? 0 : Math.max(0, 0.38 * (1 - dragY / height));
 
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 10, boxSizing: 'border-box' }}>
-      {behind && <div style={{ position: 'absolute', inset: 0 }}>{behind}</div>}
-      <div
-        onClick={close}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'var(--overlay-ink)',
-          opacity: dimOpacity,
-          transition: dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
-        }}
-      />
-      <div
-        ref={sheetRef}
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'var(--proto-alt)',
-          borderRadius: '18px 18px 0 0',
-          boxShadow: 'var(--shadow-sheet)',
-          padding: '8px 14px 36px',
-          paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
-          boxSizing: 'border-box',
-          maxHeight: 'calc(100% - max(12px, env(safe-area-inset-top)))',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          transform: `translateY(${translateY})`,
-          transition: dragging ? 'none' : `transform ${SHEET_MS}ms ${SHEET_EASE}`,
-          willChange: 'transform',
-        }}
-      >
-        {/* grab handle — a live drag target (enlarged hit area) that flings the sheet closed */}
+    <MobileOverlayPortal>
+      <div className={className} style={{ position: 'absolute', inset: 0, zIndex: 10, boxSizing: 'border-box', pointerEvents: 'auto' }}>
+        {behind && <div style={{ position: 'absolute', inset: 0 }}>{behind}</div>}
         <div
-          onPointerDown={onHandleDown}
-          onPointerMove={onHandleMove}
-          onPointerUp={onHandleUp}
-          onPointerCancel={onHandleUp}
-          style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none' }}
-        >
-          <div style={{ width: 36, height: 5, borderRadius: 999, background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
-        </div>
-        <div
-          data-mobile-sheet-scroll="true"
+          onClick={close}
           style={{
-            flex: 1,
-            minHeight: 0,
-            overflowX: 'hidden',
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
-            touchAction: 'pan-y',
-            WebkitOverflowScrolling: 'touch',
+            position: 'absolute',
+            inset: 0,
+            background: 'var(--overlay-ink)',
+            opacity: dimOpacity,
+            transition: dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
+          }}
+        />
+        <div
+          ref={sheetRef}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            // One backdrop sample for the settled sheet, never for its scrolling rows.
+            background: 'var(--material-overlay-bg)',
+            backdropFilter: 'var(--glass-filter)',
+            WebkitBackdropFilter: 'var(--glass-filter)',
+            borderRadius: 'var(--r-float) var(--r-float) 0 0',
+            boxShadow: 'var(--material-overlay-shadow)',
+            padding: '8px 14px 36px',
+            paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
+            boxSizing: 'border-box',
+            maxHeight: 'calc(100% - max(12px, env(safe-area-inset-top)))',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            transform: `translateY(${translateY})`,
+            transition: dragging ? 'none' : `transform ${SHEET_MS}ms ${SHEET_EASE}`,
+            willChange: 'transform',
           }}
         >
-          {children}
+          {/* grab handle — a live drag target (enlarged hit area) that flings the sheet closed */}
+          <div
+            onPointerDown={onHandleDown}
+            onPointerMove={onHandleMove}
+            onPointerUp={onHandleUp}
+            onPointerCancel={onHandleUp}
+            style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none' }}
+          >
+            <div style={{ width: 36, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
+          </div>
+          <div
+            data-mobile-sheet-scroll="true"
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowX: 'hidden',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              touchAction: 'pan-y',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </MobileOverlayPortal>
   );
 }

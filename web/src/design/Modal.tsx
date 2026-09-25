@@ -1,27 +1,38 @@
+// input:  Radix Dialog, React, shared focus-visible styles
+// output: Modal, ModalClose, modal styling helpers
+// pos:    Accessible material dialogs with opt-in bare chrome
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactNode } from 'react';
 
 // Radix owns focus trapping, Escape dismissal, aria-modal, scroll lock, and focus restore in both
 // chrome modes. Standard retains the token-styled shell; bare only removes visible design chrome so
 // approved prototype shells can keep their exact inline appearance without giving up dialog semantics.
+//
+// The standard sheet uses overlay material and blur; its scrolling body stays unfiltered.
+// A stationary sheet can still resample a changing backdrop. The scrim uses a lighter filter.
+// `bare` is deliberately left unfiltered: its whole contract is that the call site owns the look.
 
 const OVERLAY_BASE_CLASS =
-  'fixed inset-0 bg-state-ink/40 ' +
+  'fixed inset-0 bg-[var(--overlay-scrim)] ' +
+  '[backdrop-filter:var(--material-scrim-filter)] [-webkit-backdrop-filter:var(--material-scrim-filter)] ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out ' +
   'motion-reduce:animate-none ';
 
 const CONTENT_BASE_CLASS =
   'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ' +
   'flex max-h-[85vh] w-[90vw] flex-col gap-2g ' +
-  'rounded-card border border-card bg-surface-card p-3g shadow-overlay ' +
+  'rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'p-3g shadow-[shadow:var(--material-overlay-shadow)] ' +
   'focus:outline-none ' +
   'data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out ' +
   'motion-reduce:animate-none ';
 
 const CLOSE_CLASS =
-  '-mr-1g -mt-1g rounded-card p-0.5g text-ui text-state-ink/60 transition-colors ' +
-  'hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-state-run/40';
+  '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-proto-muted transition-colors ' +
+  'hover:bg-surface-canvas-alt hover:text-state-ink';
 
 export type ModalChrome = 'standard' | 'bare';
 export type ModalSize = 'default' | 'wide' | 'custom';
@@ -67,6 +78,7 @@ export interface ModalProps {
   layer?: ModalLayer;
   showClose?: boolean;
   contentStyle?: CSSProperties;
+  contentClassName?: string;
   bodyStyle?: CSSProperties;
   contentDataAttributes?: ModalDataAttributes;
   overlayDataAttributes?: ModalDataAttributes;
@@ -94,19 +106,19 @@ function ModalBody({ children, chrome, bodyStyle }: Pick<ModalProps, 'children' 
 }): JSX.Element | null {
   if (!children) return null;
   const className = chrome === 'standard'
-    ? 'min-w-0 overflow-x-hidden overflow-y-auto text-ui text-state-ink/80'
+    ? 'min-w-0 overflow-x-hidden overflow-y-auto text-ui leading-relaxed text-proto-ink-2'
     : undefined;
   return <div data-modal-body={true} className={className} style={bodyStyle}>{children}</div>;
 }
 
 function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element {
   const { title, description, hideTitle, hideDescription, children, footer, bodyStyle,
-    contentStyle, contentDataAttributes, size = 'default', layer = 'default', showClose } = props;
+    contentStyle, contentClassName = '', contentDataAttributes, size = 'default', layer = 'default', showClose } = props;
   return (
-    <RadixDialog.Content {...contentDataAttributes} className={modalContentClass(size, layer)} style={contentStyle}>
+    <RadixDialog.Content {...contentDataAttributes} className={`${modalContentClass(size, layer)} ${contentClassName}`} style={contentStyle}>
       <ModalHeader title={title} hideTitle={hideTitle} showClose={showClose} />
       {description ? <RadixDialog.Description
-        className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui text-state-ink/70 [overflow-wrap:anywhere]'}
+        className={hideDescription ? 'sr-only' : 'min-w-0 break-words text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]'}
       >{description}</RadixDialog.Description> : null}
       <ModalBody chrome="standard" bodyStyle={bodyStyle}>{children}</ModalBody>
       {footer ? <div className="flex flex-wrap items-center justify-end gap-1g pt-1g">{footer}</div> : null}
@@ -115,11 +127,11 @@ function StandardPanel(props: ModalProps & { showClose: boolean }): JSX.Element 
 }
 
 function BarePanel(props: ModalProps & { showClose: boolean }): JSX.Element {
-  const { title, description, children, contentStyle, bodyStyle, contentDataAttributes,
+  const { title, description, children, contentStyle, contentClassName = '', bodyStyle, contentDataAttributes,
     layer = 'default', showClose } = props;
   const style = { ...contentStyle, zIndex: BARE_LAYER[layer].content };
   return (
-    <RadixDialog.Content {...contentDataAttributes} className="focus:outline-none" style={style}>
+    <RadixDialog.Content {...contentDataAttributes} className={`focus:outline-none ${contentClassName}`} style={style}>
       <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       <RadixDialog.Description className="sr-only">{description ?? title}</RadixDialog.Description>
       {showClose ? <CloseControl /> : null}

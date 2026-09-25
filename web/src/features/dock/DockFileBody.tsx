@@ -1,3 +1,7 @@
+// input:  media document bodies, dock-tabs, FileBar
+// output: DockFileBody, DockCentered, dockFileBackground
+// pos:    Persistent dock reading surfaces and file states
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties } from 'react';
 import { PdfBody, TextBody } from '@/features/media/DocViewer';
 import { HtmlBody } from '@/features/media/HtmlBody';
@@ -32,7 +36,7 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
         <PdfBody
           item={item}
           actions={download && (
-            <span role="button" data-file-download="" title="Download" onClick={download} style={PAGER_BUTTON_STYLE}>↓</span>
+            <button type="button" data-file-download="" title="Download" aria-label="Download" onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
           )}
         />
       </div>
@@ -77,7 +81,7 @@ function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
       style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, boxSizing: 'border-box' }}
     >
       {item.kind === 'video' ? (
-        <video src={src} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, background: 'var(--media-stage-bg)' }} />
+        <video src={src} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 'var(--r-chip)', background: 'var(--media-stage-bg)' }} />
       ) : (
         <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block', maxWidth: '100%', maxHeight: '100%' }}>
           <img
@@ -94,7 +98,7 @@ function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
 
 export function DockCentered({ children, failed }: { children: React.ReactNode; failed?: boolean }): JSX.Element {
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', color: failed ? 'var(--proto-faint)' : 'var(--proto-muted-2)', font: `500 12px ${mono}` }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', color: failed ? 'var(--proto-danger)' : 'var(--proto-muted)', font: `500 12px ${mono}` }}>
       {children}
     </div>
   );
@@ -115,7 +119,7 @@ const CONTENT_STYLE = {
 const PAGER_BUTTON_STYLE: CSSProperties = {
   width: 28,
   height: 28,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   background: 'var(--proto-card)',
   color: 'var(--proto-muted)',

@@ -1,4 +1,9 @@
+// input:  chat-nav marks, attachment presentation, language
+// output: ChatNavRail, NAV_COPY, NavCopy
+// pos:    Transcript navigation ticks with readable previews
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MENU_SURFACE } from '@/design/MenuChrome';
 import { useLang } from '@/i18n';
 import { attachmentFileExt, attachmentTypeColor } from '@/features/attachments/attachment-presentation';
 import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-nav';
@@ -17,10 +22,14 @@ import { magnify, railStep, type NavMark, type NavMarkAttachment } from './chat-
 
 const mono = "'IBM Plex Mono',monospace";
 
-/** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter. */
-const RAIL_W = 26;
+/** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter
+ *  (MessageStream's GUTTER): inset + the fully swollen tick must not reach the text. */
+const RAIL_W = 32;
+/** Air between the pane's edge and the ticks, so they read as marks on the transcript rather than
+ *  a notch cut into the pane's rim. */
+const TICK_INSET = 10;
 const TICK_MIN = 10;
-const TICK_MAX = 26;
+const TICK_MAX = 22;
 /** How far the pull reaches, counted in ticks rather than pixels, so the same shape comes out of a
  *  roomy rail and a compressed one. Just under three: the settled tick takes the whole swell, its
  *  neighbour about two thirds of it, the one past that almost none — a step big enough to see
@@ -53,15 +62,15 @@ function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
     <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
       <span
         style={{
-          width: 18, height: 20, borderRadius: 4, background: colors.bg, color: colors.fg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 7px ${mono}`, flex: 'none',
+          minWidth: 28, height: 22, padding: '0 4px', borderRadius: 'var(--r-chip)', background: colors.bg, color: colors.fg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${mono}`, flex: 'none',
         }}
       >
         {attachmentFileExt(a.name)}
       </span>
       <span
         style={{
-          font: `500 10.5px ${mono}`, color: 'var(--proto-muted-2)', overflow: 'hidden',
+          font: `500 11px ${mono}`, color: 'var(--proto-muted)', overflow: 'hidden',
           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
@@ -71,10 +80,8 @@ function AttachmentChip({ a }: { a: NavMarkAttachment }): JSX.Element {
   );
 }
 
-/** The probed mark's message, as much of it as reads at a glance: the first line at full contrast,
- *  the next few stepping down toward the page so the card ends in a fade rather than an edge. */
+/** The title anchors the preview; all body lines retain readable contrast. */
 function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Element {
-  const bodyTones = ['var(--proto-muted)', 'var(--proto-muted-2)', 'var(--proto-faint)'];
   const extra = mark.attachments.length - 2;
   return (
     <>
@@ -91,7 +98,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Elem
         <div
           key={i}
           style={{
-            fontSize: 12, lineHeight: 1.5, color: bodyTones[Math.min(i, bodyTones.length - 1)],
+            fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)',
             overflowWrap: 'break-word', wordBreak: 'break-word',
           }}
         >
@@ -105,7 +112,7 @@ function PreviewCard({ mark, copy }: { mark: NavMark; copy: NavCopy }): JSX.Elem
             <AttachmentChip key={i} a={a} />
           ))}
           {extra > 0 && (
-            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)' }}>{copy.attachments(extra)}</span>
+            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{copy.attachments(extra)}</span>
           )}
         </div>
       )}
@@ -228,7 +235,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
                   onJump(m.row);
                 }}
                 style={{
-                  width: RAIL_W, height: step, padding: 0, margin: 0, border: 0, background: 'transparent',
+                  width: RAIL_W, height: step, padding: `0 0 0 ${TICK_INSET}px`, boxSizing: 'border-box', margin: 0, border: 0, background: 'transparent',
                   display: 'flex', alignItems: 'center', cursor: 'pointer', flex: 'none',
                 }}
               >
@@ -255,8 +262,8 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
             position: 'absolute', left: RAIL_W + CARD_GAP, top: cardTop ?? 0, width: CARD_W, maxWidth: CARD_W,
             opacity: cardTop == null ? 0 : 1, pointerEvents: 'none', boxSizing: 'border-box',
             display: 'flex', flexDirection: 'column', gap: 6,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 14,
-            boxShadow: 'var(--shadow-overlay)', padding: '14px 16px',
+            ...MENU_SURFACE, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+            padding: '14px 16px',
           }}
         >
           <PreviewCard mark={probed} copy={copy} />

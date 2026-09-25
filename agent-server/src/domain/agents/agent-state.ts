@@ -37,6 +37,9 @@ export interface ChannelOverride {
  *  thread is a tool for that thread, not a statement about what the next Web session should run. */
 export interface SelectionDefault extends ChannelOverride {
   profileName?: string;
+  /** The agent — the environment — the last composer pick ran in. Written by its own pick, never
+   *  by a model/profile one: the two are independent axes and neither erases the other. */
+  agentName?: string;
 }
 
 export interface AgentState {
@@ -46,6 +49,10 @@ export interface AgentState {
   channelProfiles: Record<string, string>;
   /** Thread agent applied to plain messages when no agent is named. */
   defaultAgent: string | null;
+  /** Per-channel agent selection; beats `defaultAgent` for that channel. The agent is the
+   *  conversation's ENVIRONMENT (prompt, tools, skills, rules), the twin of `channelProfiles`
+   *  on the model axis — which is why the two maps are separate and neither writes the other. */
+  channelAgents: Record<string, string>;
   /** Per-channel knobs layered on top of the resolved profile. */
   channelOverrides: Record<string, ChannelOverride>;
   /** Seed for the next conversation's composer — see {@link SelectionDefault}. */
@@ -64,7 +71,9 @@ export interface AgentState {
 }
 
 function emptyState(): AgentState {
-  return { activeProfile: null, channelProfiles: {}, defaultAgent: null, channelOverrides: {} };
+  return {
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {}, channelOverrides: {},
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -109,6 +118,8 @@ function parseSelectionDefault(value: unknown): SelectionDefault | undefined {
   const seed: SelectionDefault = parseOverride(value);
   const profileName = record(value).profileName;
   if (typeof profileName === 'string' && profileName) seed.profileName = profileName;
+  const agentName = record(value).agentName;
+  if (typeof agentName === 'string' && agentName) seed.agentName = agentName;
   return Object.keys(seed).length > 0 ? seed : undefined;
 }
 
@@ -121,6 +132,7 @@ function parseState(raw: unknown): AgentState {
   if (typeof data.activeProfile === 'string' && data.activeProfile) state.activeProfile = data.activeProfile;
   state.channelProfiles = stringMap(data.channelProfiles);
   if (typeof data.defaultAgent === 'string' && data.defaultAgent) state.defaultAgent = data.defaultAgent;
+  state.channelAgents = stringMap(data.channelAgents);
   state.channelOverrides = overrideMap(data.channelOverrides);
   // Assigned only when there is one: an explicit `selectionDefault: undefined` key is still a key,
   // and every caller here compares whole states.
@@ -169,6 +181,7 @@ export function saveAgentState(state: AgentState): void {
   if (state.activeProfile) data.activeProfile = state.activeProfile;
   if (Object.keys(state.channelProfiles).length > 0) data.channelProfiles = state.channelProfiles;
   if (state.defaultAgent) data.defaultAgent = state.defaultAgent;
+  if (Object.keys(state.channelAgents).length > 0) data.channelAgents = state.channelAgents;
   if (Object.keys(state.channelOverrides).length > 0) data.channelOverrides = state.channelOverrides;
   if (state.selectionDefault && Object.keys(state.selectionDefault).length > 0) {
     data.selectionDefault = state.selectionDefault;

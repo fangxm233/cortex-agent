@@ -1,7 +1,7 @@
 // input:  JUnit, action ledger and generation guards
 // output: Persistence and connection race regression tests
 // pos:    Pure notification state lifecycle tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.junit.Assert.*

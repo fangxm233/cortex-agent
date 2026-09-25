@@ -1,7 +1,7 @@
 // input:  SSE UTF-8 lines
 // output: Framed SSE events
 // pos:    Bounded tRPC SSE event framing
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 internal data class SseFrame(val event: String, val data: String)

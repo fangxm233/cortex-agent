@@ -1,3 +1,8 @@
+// input:  react, feature data, theme tokens
+// output: MarkdownView presentation
+// pos:    Dense memory content surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import {
   createContext, useContext, useEffect, useState,
   type CSSProperties, type ReactNode, Fragment,
@@ -44,9 +49,9 @@ function InlineImage({ alt, src }: { alt: string; src: string }): JSX.Element {
   }, [resolve, src]);
 
   if (!resolve || failed || !url) {
-    return <span style={{ color: 'var(--proto-muted-3)' }}>{alt || src}</span>;
+    return <span style={{ color: 'var(--proto-muted)' }}>{alt || src}</span>;
   }
-  return <img src={url} alt={alt} style={{ maxWidth: '100%', borderRadius: 6, display: 'block', margin: '8px 0' }} />;
+  return <img src={url} alt={alt} style={{ maxWidth: '100%', borderRadius: 'var(--r-control)', display: 'block', margin: '8px 0' }} />;
 }
 
 // Presentational Markdown renderer for the memory viewer 7b. Maps the pure markdown.ts
@@ -74,7 +79,7 @@ function renderInline(nodes: InlineNode[]): ReactNode {
         return (
           <code
             key={i}
-            style={{ font: `400 .92em ${MONO}`, background: 'var(--proto-gray)', color: 'var(--proto-accent-strong)', padding: '1px 4px', borderRadius: 4 }}
+            style={{ font: `400 .92em ${MONO}`, background: 'var(--proto-gray)', color: 'var(--proto-accent-strong)', padding: '1px 4px', borderRadius: 'var(--r-control)' }}
           >
             {n.text}
           </code>
@@ -115,7 +120,7 @@ function renderBlock(b: Block, i: number): ReactNode {
         <div key={i} style={{ fontSize: 11.5, lineHeight: 1.75, color: 'var(--proto-ink-3)', margin: '4px 0 0' }}>
           {b.items.map((item, j) => (
             <div key={j} style={{ display: 'flex', gap: 9 }}>
-              <span style={{ color: 'var(--proto-faint)', flex: 'none' }}>{b.ordered ? `${j + 1}.` : '·'}</span>
+              <span style={{ color: 'var(--proto-muted)', flex: 'none' }}>{b.ordered ? `${j + 1}.` : '·'}</span>
               <span>{renderInline(item)}</span>
             </div>
           ))}
@@ -125,7 +130,7 @@ function renderBlock(b: Block, i: number): ReactNode {
       const cols = Math.max(b.header.length, ...b.rows.map((r) => r.length), 1);
       const grid = `repeat(${cols}, minmax(0,1fr))`;
       return (
-        <div key={i} style={{ border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
+        <div key={i} style={{ border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
           <div
             style={{
               display: 'grid',
@@ -133,14 +138,14 @@ function renderBlock(b: Block, i: number): ReactNode {
               padding: '6px 12px',
               background: 'var(--proto-rail)',
               borderBottom: '1px solid var(--proto-line-2)',
-              fontSize: 9,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '.05em',
-              color: 'var(--proto-muted-3)',
+              color: 'var(--proto-muted)',
             }}
           >
             {b.header.map((cell, c) => (
-              <span key={c}>{renderInline(cell)}</span>
+              <span key={c} style={{ minWidth: 0, overflowWrap: 'anywhere', paddingRight: 8 }}>{renderInline(cell)}</span>
             ))}
           </div>
           {b.rows.map((row, r) => (
@@ -155,7 +160,7 @@ function renderBlock(b: Block, i: number): ReactNode {
               }}
             >
               {Array.from({ length: cols }).map((_, c) => (
-                <span key={c} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 8 }}>
+                <span key={c} style={{ minWidth: 0, overflowWrap: 'anywhere', paddingRight: 8 }}>
                   {row[c] ? renderInline(row[c]) : null}
                 </span>
               ))}
@@ -171,9 +176,9 @@ function renderBlock(b: Block, i: number): ReactNode {
           style={{
             background: 'var(--proto-rail)',
             border: '1px solid var(--proto-line-2)',
-            borderRadius: 8,
+            borderRadius: 'var(--r-control)',
             padding: '10px 13px',
-            font: `400 10.5px ${MONO}`,
+            font: `400 11px ${MONO}`,
             color: 'var(--proto-ink-2)',
             overflow: 'auto',
             margin: '7px 0 0',
@@ -210,17 +215,17 @@ export function MarkdownView({ content, resolveImage }: {
     <ImageResolverContext.Provider value={resolveImage ?? null}>
     <div>
       {frontmatter && (frontmatter.entries.length > 0 || frontmatter.summary) && (
-        <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '10px 13px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 13, font: `400 10px ${MONO}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
+        <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '10px 13px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, font: `400 11px ${MONO}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
             {frontmatter.entries.map((e, i) => (
               <span key={i}>
-                <span style={{ color: 'var(--proto-muted-3)' }}>{e.key}</span> {e.value}
+                <span style={{ color: 'var(--proto-muted)' }}>{e.key}</span> {e.value}
               </span>
             ))}
           </div>
           {frontmatter.summary && (
             <div style={{ fontSize: 11, color: 'var(--proto-ink-2)', marginTop: 6 }}>
-              <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.memSummary}</span>&nbsp; {frontmatter.summary}
+              <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.memSummary}</span>&nbsp; {frontmatter.summary}
             </div>
           )}
         </div>

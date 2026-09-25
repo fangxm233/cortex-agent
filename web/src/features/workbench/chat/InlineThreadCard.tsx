@@ -1,3 +1,7 @@
+// input:  inline-thread-card-vm, tRPC, thread live sync and modal
+// output: InlineThreadCard
+// pos:    Compact inline thread progress with readable metadata
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -70,7 +74,7 @@ function NodeCell({ row }: { row: ThreadCardRow }) {
 
 function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () => void }) {
   return (
-    <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 8 }}>
+    <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 'var(--r-control)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px' }}>
         <span style={{ color: 'var(--proto-muted-2)', fontSize: 9 }}>{sub.chev}</span>
         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={sub.iconColor} strokeWidth="1.8">
@@ -80,14 +84,14 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
           <circle cx="10.5" cy="11" r="1.4" fill={sub.iconColor} stroke="none" />
         </svg>
         <span style={{ font: `600 11px ${mono}`, color: sub.nameColor }}>{sub.name}</span>
-        <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>{sub.level}</span>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{sub.level}</span>
         <span
           style={{
             marginLeft: 'auto',
-            fontSize: 9.5,
+            fontSize: 11,
             fontWeight: 600,
             padding: '1.5px 7px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             background: sub.pillBg,
             color: sub.pillColor,
           }}
@@ -97,9 +101,9 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
       </div>
       {sub.hasLine && (
         <div style={{ padding: '0 10px 8px 27px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11, color: 'var(--proto-muted)' }}>
             <span>{sub.line}</span>
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{sub.meta}</span>
+            <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{sub.meta}</span>
           </div>
           {sub.nested && (
             <div
@@ -107,16 +111,17 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
+                flexWrap: 'wrap',
                 border: '1px solid var(--proto-line-2)',
-                background: 'var(--proto-card)',
-                borderRadius: 7,
+                background: 'var(--glass-2)',
+                borderRadius: 'var(--r-chip)',
                 padding: '5.5px 9px',
                 marginTop: 6,
               }}
             >
               <span style={{ color: 'var(--proto-faint)', fontSize: 9 }}>▸</span>
-              <span style={{ font: `600 10.5px ${mono}`, color: 'var(--proto-ink-2)' }}>{sub.nested.name}</span>
-              <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>{sub.nested.level}</span>
+              <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-ink-2)' }}>{sub.nested.name}</span>
+              <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{sub.nested.level}</span>
               {sub.nested.running && (
                 <span
                   style={{
@@ -128,10 +133,10 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
                   }}
                 />
               )}
-              <span style={{ fontSize: 9.5, color: 'var(--proto-muted-3)' }}>{sub.nested.meta}</span>
+              <span style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{sub.nested.meta}</span>
               <span
                 onClick={onOpenNested}
-                style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
+                style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
               >
                 Open ›
               </span>
@@ -145,15 +150,15 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
 
 function InlineCardHeader({ card, onOpen }: { card: ThreadCardVm; onOpen: () => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 13px', background: 'var(--proto-rail)', borderBottom: '1px solid var(--proto-line-2)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', padding: '8px 13px', background: 'var(--proto-rail)', borderBottom: '1px solid var(--proto-line-2)' }}>
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.6">
         <circle cx="3.5" cy="3" r="1.9" /><circle cx="3.5" cy="11" r="1.9" />
         <circle cx="10.5" cy="7" r="1.9" /><path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
       </svg>
       <span style={{ font: `600 12px ${mono}`, color: 'var(--proto-ink)' }}>{card.name}</span>
-      <span style={{ font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.id}</span>
-      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: card.pill.bg, color: card.pill.fg }}>{card.pillText}</span>
-      <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.meta}</span>
+      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{card.id}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: card.pill.bg, color: card.pill.fg }}>{card.pillText}</span>
+      <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{card.meta}</span>
       <span onClick={onOpen} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>Open →</span>
     </div>
   );
@@ -163,11 +168,11 @@ function InlineRow({ row, onOpenNested }: { row: ThreadCardRow; onOpenNested: ()
   return (
     <Fragment>
       <NodeCell row={row} />
-      <div style={{ paddingBottom: row.padB }}>
+      <div style={{ minWidth: 0, paddingBottom: row.padB }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-          <span style={{ fontSize: 11.5, fontWeight: row.fw, color: row.color, flex: 'none' }}>{row.name}</span>
-          <span style={{ fontSize: 9.5, color: row.subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.sub}</span>
-          <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: row.metaColor, flex: 'none' }}>{row.meta}</span>
+          <span style={{ fontSize: 11.5, fontWeight: row.fw, color: row.node === 'running' ? 'var(--proto-ink)' : 'var(--proto-muted)', flex: 'none' }}>{row.name}</span>
+          <span style={{ fontSize: 11, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.sub}</span>
+          <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: row.node === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted)', flex: 'none' }}>{row.meta}</span>
           {row.chev && <span style={{ color: 'var(--proto-line-3)', fontSize: 8, flex: 'none' }}>▸</span>}
         </div>
         {row.expanded && row.subs.length > 0 && (
@@ -182,7 +187,7 @@ function InlineRow({ row, onOpenNested }: { row: ThreadCardRow; onOpenNested: ()
 
 function InlineCardView({ card, onOpen }: { card: ThreadCardVm; onOpen: () => void }) {
   return (
-    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', borderRadius: 10, overflow: 'hidden' }}>
+    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <InlineCardHeader card={card} onOpen={onOpen} />
       <div style={{ padding: '10px 14px 6px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>

@@ -1,3 +1,8 @@
+// input:  react, feature data, theme tokens
+// output: ExecutionDrawerView presentation
+// pos:    Stable execution log with highlighted toolbar chrome
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 
@@ -24,15 +29,17 @@ const HEADER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 9,
+  flexWrap: 'wrap',
+  overflowWrap: 'anywhere',
   padding: '13px 18px',
   borderBottom: '1px solid var(--log-border)',
 };
 
 const PILL_STYLE: CSSProperties = {
-  fontSize: 9,
+  fontSize: 11,
   fontWeight: 600,
   padding: '1.5px 7px',
-  borderRadius: 999,
+  borderRadius: 'var(--r-pill)',
   background: 'var(--log-border)',
   color: 'var(--proto-accent-2)',
 };
@@ -42,7 +49,7 @@ const BODY_STYLE: CSSProperties = {
   overflow: 'auto',
   minHeight: 0,
   padding: '13px 18px',
-  font: "400 10.5px/2 'IBM Plex Mono',monospace",
+  font: "400 11px/2 'IBM Plex Mono',monospace",
 };
 
 const FOOTER_STYLE: CSSProperties = {
@@ -50,6 +57,7 @@ const FOOTER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+  flexWrap: 'wrap',
   padding: '11px 18px',
   borderTop: '1px solid var(--log-border)',
 };
@@ -69,36 +77,36 @@ export function ExecutionDrawerView({
     <>
       {/* Header (prototype L1545) */}
       <div style={HEADER_STYLE}>
-        <span style={{ font: "600 12px 'IBM Plex Mono',monospace", color: 'var(--proto-line)' }}>{title}</span>
+        <span style={{ font: "600 12px 'IBM Plex Mono',monospace", color: 'var(--log-fg)' }}>{title}</span>
         {pill ? <span style={PILL_STYLE}>{pill}</span> : null}
         <span
-          style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}
+          style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--log-fg)' }}
         >
           {meta}
         </span>
-        <span
+        <button type="button" className="content-text-action"
           onClick={onClose}
           aria-label="Close"
           role="button"
           tabIndex={0}
-          style={{ color: 'var(--proto-muted-2)', fontSize: 13, cursor: 'pointer', padding: '2px 4px' }}
+          style={{ color: 'var(--log-fg)', fontSize: 13, cursor: 'pointer', padding: '2px 4px' }}
         >
           ✕
-        </span>
+        </button>
       </div>
 
       {/* Body (prototype L1551) */}
       <div data-execution-log style={BODY_STYLE}>
-        {notice ? <div style={{ color: 'var(--proto-muted)' }}>{notice}</div> : null}
+        {notice ? <div style={{ color: 'var(--log-fg)' }}>{notice}</div> : null}
         {/* Trailing live-clock (prototype L1555) */}
         <div>
-          <span style={{ color: 'var(--proto-muted)' }}>{now}</span>
+          <span style={{ color: 'var(--log-fg)' }}>{now}</span>
         </div>
       </div>
 
       {/* Footer (prototype L1557) */}
       <div style={FOOTER_STYLE}>
-        <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
+        <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--log-fg)' }}>
           {L.exFooterHeartbeat}
         </span>
         <button
@@ -112,7 +120,7 @@ export function ExecutionDrawerView({
             fontWeight: 600,
             color: 'var(--proto-danger)',
             border: '1px solid var(--proto-danger)',
-            borderRadius: 7,
+            borderRadius: 'var(--r-control)',
             padding: '4px 12px',
             cursor: killDisabled ? 'default' : 'pointer',
             background: 'transparent',

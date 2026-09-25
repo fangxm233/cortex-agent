@@ -426,7 +426,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 ```
 ~/.cortex/
 ├── .git/                       # auto git-init'd, all state is committed
-├── CORTEX.md                   # root agent context (seeded from defaults)
+├── AGENTS.md                   # root agent context (seeded from defaults)
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM list + platform tokens + CORTEX_MACHINE
 │   ├── feishu-user-token.json  # Feishu user-identity token (only when FEISHU_AUTH_MODE=user)
@@ -447,7 +447,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mode.json               # current mode + active profile
 │   └── schedules.json          # seeded recurring tasks
 ├── context/                    # the project log lives here
-│   ├── CORTEX.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
+│   ├── AGENTS.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
 ├── plugins/                    # 8 role-scoped skill plugins (full copy of defaults)
 ├── prompts/                    # directives, system prompts, templates
 ├── rules/                      # rule files auto-loaded by agents

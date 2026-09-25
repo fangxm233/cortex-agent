@@ -330,6 +330,7 @@ test('runMigrations leaves customized coder directives untouched', async () => {
 
 const OLD_WORKER_STATUS_PROMPT = [
   '# Worker',
+  // Historical shipped wording — must stay CORTEX.md so the migration's `from` still matches.
   " - Conversations are temporary; the repo is permanent. Record findings, decisions, and artifacts in files as you go — not in a final summary. Update STATUS.md, the directory's CORTEX.md index, and the role's designated output artifact(s) before exiting.",
   " - Do not create files unless the role's output contract requires them. Prefer editing the existing project artifacts (STATUS.md, knowledge entries, the role's artifact file) over creating parallel new files.",
 ].join('\n') + '\n';

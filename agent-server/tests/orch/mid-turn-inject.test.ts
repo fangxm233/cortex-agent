@@ -147,6 +147,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
       kill: () => true,
       backend: run.backend,
       run: run as any,
+      trackSessionId: SESSION,
     });
   }
   const history: any[] = [];
@@ -167,6 +168,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
     getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
       run: entry.run as any,
+      trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: () => (text: string) => streamed.push(text),
     appendAssistant: (sessionId, o) => history.push({ kind: 'assistant', sessionId, ...o }),
@@ -262,6 +264,45 @@ test('an unresolved session id → not injected (nothing to surface the message 
   const run = fakeRun();
   const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, sessionId: null }), false);
+});
+
+// --- Target selection: only the conversation's own run, never a subagent child on its channel ---
+
+const CHILD_KEY = 'mid-turn-inject-child';
+
+function registerChild(run: FakeRun): void {
+  // A background subagent registers on the parent's channel with no session of its own.
+  runRegistry.register({
+    threadId: null, channel: CHANNEL, agentSlotId: null, executionId: null,
+    registryKey: CHILD_KEY, kind: 'local', kill: () => true, backend: run.backend,
+    run: run as any, trackSessionId: null,
+  });
+}
+
+test('a background subagent still running after the parent turn ended → not injected, message queues', async () => {
+  const child = fakeRun();
+  const r = recorder();
+  registerChild(child);
+  try {
+    assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
+    assert.deepEqual(child.injectedTexts, [], 'the child must never receive the user message');
+  } finally {
+    runRegistry.remove(CHILD_KEY);
+  }
+});
+
+test('a subagent registered after the parent run does not steal the injection from it', async () => {
+  const parent = fakeRun();
+  const child = fakeRun();
+  const r = recorder({}, parent);
+  registerChild(child);
+  try {
+    assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
+    assert.deepEqual(parent.injectedTexts, ['skip the rest']);
+    assert.deepEqual(child.injectedTexts, []);
+  } finally {
+    runRegistry.remove(CHILD_KEY);
+  }
 });
 
 // --- Phase 1 of the commit: surfaced as PENDING, nothing recorded yet ---

@@ -67,9 +67,10 @@ export function bareSpec(): AgentSpec {
  * `fromAgentDefinition`): `AgentDefinition` merged with any per-template ref overrides, which
  * `threads/template-loader.resolveAgentSlotConfig` already produced and both callers hold.
  *
- * `mcpComposition` is the caller's, not the slot's: a thread step gets the thread-control surface
- * and a plain conversation gets the direct one, and that is a property of the surface the run is
- * opened on rather than of the agent.
+ * `mcpComposition` is the surface's default, which the agent may override: the caller passes what
+ * the surface would otherwise run on (thread-control for a thread step, direct for a plain
+ * conversation) and resolves `config.mcpComposition` over it before calling, so an agent that
+ * declares a narrower surface keeps it on every path.
  */
 export function fromAgentSlot(
   config: AgentSlotConfig,

@@ -1,7 +1,7 @@
 // input:  Android notifications, scoped durable target ledger
 // output: Private service, interaction, reply and completion notifications
 // pos:    Sole Android notification presentation owner
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import android.Manifest

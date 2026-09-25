@@ -110,7 +110,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
           kind: 'item', id: 'edit.palette', accelDisplayOnly: true, label: L.mEditPalette, accel: 'mod+k',
           // The palette's open state lives in AppShell's own `useCommandPalette` instance, so the
           // established way to reach it from elsewhere is the synthetic key event (precedent:
-          // features/workbench/CenterChat.tsx).
+          // features/workbench/chat/CenterChat.tsx).
           run: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true })),
         },
         {

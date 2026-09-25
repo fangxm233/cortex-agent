@@ -1,7 +1,7 @@
 // input:  built UI service and cost declarations
 // output: browser-safe UI DTO type exports
 // pos:    Shared server/client DTO boundary
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export type {
   // Result envelope
@@ -52,6 +52,7 @@ export type {
   SessionsSendArgs,
   SessionsCompactArgs,
   SessionsSetProfileArgs,
+  SessionsSetAgentArgs,
   SessionsSetSelectionArgs,
   ThreadsCancelArgs,
   ExecutionsCancelArgs,
@@ -234,6 +235,7 @@ export type {
   ConfigMachine,
   ConfigMcp,
   ConfigThreadTemplates,
+  ConfigAgentEntry,
   ConfigEnvEntry,
   ConfigLang,
   MemoryTree,
@@ -247,6 +249,7 @@ export type {
   SessionsSendReturn,
   SessionsCompactReturn,
   SessionsSetProfileReturn,
+  SessionsSetAgentReturn,
   SessionsSetSelectionReturn,
   ThreadsCancelReturn,
   ExecutionsCancelReturn,
@@ -286,6 +289,11 @@ export type {
   SystemDaemonStatusParams,
   SystemDaemonStatus,
   DaemonProcessInfo,
+  DaemonRebuildProgress,
+  DaemonRebuildStep,
+  DaemonRebuildStepName,
+  DaemonRebuildStepStatus,
+  DaemonRebuildStatus,
   SystemRateLimitStatusParams,
   SystemRateLimitStatus,
   RateLimitProviderInfo,

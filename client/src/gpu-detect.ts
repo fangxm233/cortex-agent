@@ -1,7 +1,7 @@
 // input:  nvidia-smi on PATH (child_process)
 // output: detectGpuCount() → number | null, cache reset hook for tests
 // pos:    Client-side GPU inventory probe, reported to the server on hello
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { execFileSync } from 'node:child_process';
 
 /** Above this a parsed number is treated as garbage rather than a machine with that many GPUs. */

@@ -2,6 +2,7 @@ import { LeftRail } from '@/features/workbench/rail/LeftRail';
 import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
 import { MemoryView } from './MemoryView';
 import { AppFrame } from '@/shell/AppFrame';
+import { WorkspacePanel } from '@/shell/GlassPanel';
 
 // Route /memory — the memory viewer 7b as a center-column view inside the workbench frame. Reuses the
 // 1:1 LeftRail + RightPanel; only the center pane swaps to MemoryView, mirroring the prototype's
@@ -11,8 +12,10 @@ export function MemoryPage(): JSX.Element {
   return (
     <AppFrame>
       <LeftRail />
-      <MemoryView />
-      <RightPanel />
+      <WorkspacePanel>
+        <MemoryView />
+        <RightPanel />
+      </WorkspacePanel>
     </AppFrame>
   );
 }

@@ -1,4 +1,10 @@
+// input:  media source, zoom, download and dock hooks
+// output: MediaViewerProvider, useMediaViewer
+// pos:    Full-screen media preview and accessible controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import '@/design/content-surfaces.css';
 import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDockIntake } from '@/design/dock-intake';
 import { useDownloadFile } from './useDownloadFile';
@@ -68,6 +74,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
 
   return (
     <div
+      className="content-surface"
       role="dialog"
       aria-modal="true"
       aria-label={item.name}
@@ -99,14 +106,14 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         }}
       >
         {onPin && (
-          <span
+          <button type="button" className="content-text-action"
             role="button"
             title="Pin preview beside the chat"
             onClick={onPin}
             style={{
               width: 38,
               height: 38,
-              borderRadius: 10,
+              borderRadius: 'var(--r-control)',
               background: 'var(--media-control-bg)',
               color: 'var(--ink-solid-fg)',
               display: 'flex',
@@ -117,16 +124,16 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
             }}
           >
             ◧
-          </span>
+          </button>
         )}
-        <span
+        <button type="button" className="content-text-action"
           role="button"
           title="Download"
           onClick={onDownload}
           style={{
             width: 38,
             height: 38,
-            borderRadius: 10,
+            borderRadius: 'var(--r-control)',
             background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
@@ -137,15 +144,15 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
           }}
         >
           ↓
-        </span>
-        <span
+        </button>
+        <button type="button" className="content-text-action"
           role="button"
           title="Close"
           onClick={onClose}
           style={{
             width: 38,
             height: 38,
-            borderRadius: 10,
+            borderRadius: 'var(--r-control)',
             background: 'var(--media-control-bg)',
             color: 'var(--ink-solid-fg)',
             display: 'flex',
@@ -156,7 +163,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
           }}
         >
           ×
-        </span>
+        </button>
       </div>
 
       {/* Media stage — touch target for zoom gestures covers full area; transform on inner wrapper. */}
@@ -166,16 +173,16 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         style={{ maxWidth: '94vw', maxHeight: '84vh', width: '94vw', height: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         {failed ? (
-          <div style={{ color: 'var(--proto-faint)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
+          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
         ) : !src ? (
-          <div style={{ color: 'var(--proto-muted-2)', font: `500 12px ${mono}` }}>Loading…</div>
+          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>Loading…</div>
         ) : item.kind === 'video' ? (
           <video
             src={src}
             controls
             autoPlay
             playsInline
-            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: 'var(--media-stage-bg)' }}
+            style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 'var(--r-card)', background: 'var(--media-stage-bg)' }}
           />
         ) : (
           <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>

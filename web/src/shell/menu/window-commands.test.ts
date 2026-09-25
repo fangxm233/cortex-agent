@@ -1,7 +1,7 @@
 // input:  fullscreen controller and deterministic native flags
 // output: Windows geometry workaround and rollback regressions
 // pos:    Native fullscreen transition contract tests
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFullscreenController } from './window-commands';
 

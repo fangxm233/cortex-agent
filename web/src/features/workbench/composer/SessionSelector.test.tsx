@@ -1,3 +1,7 @@
+// input:  SessionSelector, React test renderer, mocked session API
+// output: Selection and Escape-only focus restoration tests
+// pos:    Session chip semantics, dismissal and selection coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
@@ -7,10 +11,20 @@ import { LangProvider } from '@/i18n';
 // always states the WHOLE selection, so a field the user did not choose goes back to following the
 // profile — and a profile move restates it from scratch instead of carrying the old backend's model.
 
+const ALL_AGENTS = [
+  { name: 'main', description: 'the default environment', profile: '__active__' },
+  { name: 'nimbus', description: 'a clean room', profile: '__active__' },
+  { name: 'atlas', description: 'pinned to the other backend', profile: 'gpt-execute' },
+];
+
 const harness = vi.hoisted(() => ({
   draftSelection: { profileName: null as string | null, override: null as Record<string, string> | null },
+  // What the HOST declares. The agent chip exists only where there is something to choose, so the
+  // suite has to be able to shrink this list.
+  agents: [] as Array<{ name: string; description?: string; profile: string }>,
   setDraftSelection: vi.fn(),
   setSelection: vi.fn(),
+  setAgent: vi.fn(),
   invalidateQueries: vi.fn(),
 }));
 
@@ -44,10 +58,14 @@ vi.mock('@tanstack/react-query', () => ({
             { name: 'gpt-execute', model: 'gpt-5.4', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
           ],
         },
+        agents: harness.agents,
       },
     };
   },
-  useMutation: () => ({ mutate: harness.setSelection }),
+  // The two axes leave through two endpoints, so the mock has to tell them apart.
+  useMutation: (options: any) => ({
+    mutate: options?.__kind === 'sessions.setAgent' ? harness.setAgent : harness.setSelection,
+  }),
   useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
 }));
 
@@ -60,7 +78,8 @@ vi.mock('@/lib/trpc', () => ({
       catalog: { queryOptions: () => ({ __kind: 'models.catalog' }) },
     },
     sessions: {
-      setSelection: { mutationOptions: () => ({}) },
+      setSelection: { mutationOptions: () => ({ __kind: 'sessions.setSelection' }) },
+      setAgent: { mutationOptions: () => ({ __kind: 'sessions.setAgent' }) },
       list: { queryFilter: () => ({}) },
     },
   }),
@@ -74,28 +93,39 @@ vi.mock('@/features/session/state/SelectedSessionProvider', () => ({
   }),
 }));
 
-import { SessionSelector } from './SessionSelector';
+import { AgentSelectorView, SessionSelectorView, useSessionSelection } from './SessionSelector';
 
-function mount(props: {
+interface MountProps {
   isDraft: boolean;
   currentProfile: string | null;
   hasHistory: boolean;
   currentOverride?: Record<string, string> | null;
-}): ReactTestRenderer {
-  return create(
-    <LangProvider>
-      <SessionSelector
-        sessionId="s1"
-        {...props}
-        currentOverride={(props.currentOverride ?? null) as never}
-      />
-    </LangProvider>,
+  currentAgent?: string | null;
+}
+
+/** Both chips, off ONE hook — which is how the composer draws them: two controls, two axes, one
+ *  resolved backend between them. */
+function Composer(props: MountProps): JSX.Element {
+  const selection = useSessionSelection({
+    sessionId: 's1',
+    ...props,
+    currentOverride: (props.currentOverride ?? null) as never,
+  });
+  return (
+    <>
+      <AgentSelectorView selection={selection} />
+      <SessionSelectorView selection={selection} />
+    </>
   );
 }
 
-function open(renderer: ReactTestRenderer): void {
+function mount(props: MountProps): ReactTestRenderer {
+  return create(<LangProvider><Composer {...props} /></LangProvider>);
+}
+
+function open(renderer: ReactTestRenderer, chip: 'selection' | 'agent' = 'selection'): void {
   act(() => {
-    renderer.root.findByProps({ 'data-chip': 'selection' }).props.onClick({ stopPropagation: vi.fn() });
+    renderer.root.findByProps({ 'data-chip': chip }).props.onClick({ stopPropagation: vi.fn() });
   });
 }
 
@@ -114,16 +144,24 @@ function click(renderer: ReactTestRenderer, row: string): void {
 }
 
 function pick(renderer: ReactTestRenderer, row: string): void {
-  open(renderer);
   const pane = row.split(':')[0];
+  // The environment has a chip of its own now, and a flat list behind it — no drill.
+  if (pane === 'agent') {
+    open(renderer, 'agent');
+    click(renderer, row);
+    return;
+  }
+  open(renderer);
   if (pane === 'model' || pane === 'thinking' || pane === 'mode') drill(renderer, pane);
   click(renderer, row);
 }
 
 beforeEach(() => {
   harness.draftSelection = { profileName: null, override: null };
+  harness.agents = ALL_AGENTS;
   harness.setDraftSelection.mockReset();
   harness.setSelection.mockReset();
+  harness.setAgent.mockReset();
   harness.invalidateQueries.mockReset();
   vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
@@ -131,6 +169,68 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
+
+  it('uses a focusable button beside the anchored menu, not around its buttons', () => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    const trigger = renderer.root.findByProps({ 'data-chip': 'selection' });
+    expect(trigger.type).toBe('button');
+    expect(trigger.props.type).toBe('button');
+    expect(trigger.props['aria-expanded']).toBe(false);
+    expect(trigger.props.className).toContain('focus-visible:outline');
+    open(renderer);
+    expect(trigger.props['aria-expanded']).toBe(true);
+    expect(trigger.findAllByType('button')).toHaveLength(1);
+    const menu = renderer.root.findByProps({ 'data-menu': 'selection' });
+    expect(menu.parent).not.toBe(trigger);
+    expect(trigger.parent?.props.style.position).toBe('relative');
+    act(() => renderer.unmount());
+  });
+
+  it('retreats on subpane Escape, closes on root Escape and on outside click', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    const escape = (): void => {
+      act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    };
+    open(renderer);
+    drill(renderer, 'model');
+    escape();
+    expect(renderer.root.findAllByProps({ 'data-selection-pane': 'model' })).toHaveLength(1);
+    expect(renderer.root.findByProps({ 'data-chip': 'selection' }).props['aria-expanded']).toBe(true);
+    escape();
+    expect(renderer.root.findByProps({ 'data-chip': 'selection' }).props['aria-expanded']).toBe(false);
+    open(renderer);
+    act(() => { target.dispatchEvent(new Event('click')); });
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('restores the actual trigger only on root Escape, not outside clicks or profile picks', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const trigger = { focus: vi.fn() };
+    const renderer = create(<LangProvider><Composer isDraft currentProfile={null} hasHistory={false} /></LangProvider>, {
+      createNodeMock: (node) => node.props['data-chip'] === 'selection' ? trigger : null,
+    });
+    open(renderer);
+    // Focus has left the trigger for a menu row; dismissal must use the retained DOM ref,
+    // not document.activeElement (which disappears with the menu).
+    vi.stubGlobal('document', { activeElement: { dataset: { selectionRow: 'profile:plan' } } });
+    act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    expect(trigger.focus).toHaveBeenCalledWith({ preventScroll: true });
+    trigger.focus.mockClear();
+    open(renderer);
+    act(() => { target.dispatchEvent(new Event('click')); });
+    expect(trigger.focus).not.toHaveBeenCalled();
+    open(renderer);
+    click(renderer, 'profile:execute');
+    expect(harness.setDraftSelection).toHaveBeenCalledWith({ profileName: 'execute' });
+    expect(trigger.focus).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
 
   it('updates local draft state before a session exists', () => {
     const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
@@ -220,5 +320,118 @@ describe('SessionSelector', () => {
     expect(harness.setSelection).toHaveBeenCalledWith({
       sessionId: 's1', selection: { model: 'claude-sonnet-4-6', thinking: 'low' },
     });
+  });
+  // ── the environment axis ──────────────────────────────────────────────────────────────────────
+  // An agent pick goes to `sessions.setAgent` and NOWHERE else: the server keeps the environment
+  // and the engine apart, and a pick that also restated the selection would undo that.
+
+  it('sends an agent pick to sessions.setAgent, leaving the engine alone', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:nimbus');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: 'nimbus' });
+    expect(harness.setSelection).not.toHaveBeenCalled();
+  });
+
+  it('hands the conversation back to the host default with an absent name', () => {
+    const renderer = mount({
+      isDraft: false, currentProfile: 'plan', hasHistory: true, currentAgent: 'nimbus',
+    });
+    pick(renderer, 'agent:default');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: undefined });
+  });
+
+  it('a session already following the default has nothing to take back', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:default');
+    expect(harness.setAgent).not.toHaveBeenCalled();
+  });
+
+  it('a draft keeps its agent locally, to be created with', () => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    pick(renderer, 'agent:nimbus');
+    expect(harness.setDraftSelection).toHaveBeenCalledWith({ agentName: 'nimbus' });
+    expect(harness.setAgent).not.toHaveBeenCalled();
+  });
+
+  it('an agent pinned to the other backend is drawn, but a live conversation cannot take it', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:atlas');
+    expect(harness.setAgent).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-selection-row': 'agent:atlas' }).props['data-disabled'])
+      .toBe('true');
+  });
+
+  it('a fresh conversation may still take it — there is no backend to be locked to yet', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
+    pick(renderer, 'agent:atlas');
+    expect(harness.setAgent).toHaveBeenCalledWith({ sessionId: 's1', agentName: 'atlas' });
+  });
+
+  it('closes behind a pick — one level, so the visit is over', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'agent:nimbus');
+    expect(renderer.root.findAllByProps({ 'data-menu': 'agent' })).toHaveLength(0);
+  });
+
+  it('takes the screen from the engine menu rather than sitting on top of it', () => {
+    // The two chips are neighbours; two open cards would overlap.
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    open(renderer);
+    open(renderer, 'agent');
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-menu': 'agent' })).toHaveLength(1);
+
+    open(renderer);
+    expect(renderer.root.findAllByProps({ 'data-menu': 'agent' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(1);
+  });
+
+  it('is not in the engine menu at all — the engine is the profile and its refinements', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    open(renderer);
+    expect(renderer.root.findAllByProps({ 'data-selection-pane': 'agent' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'agent:nimbus' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'agent:default' })).toHaveLength(0);
+  });
+});
+
+// ── the agent chip ────────────────────────────────────────────────────────────────────────────
+// It says which environment the next turn runs in, without being opened. What it SHOWS is the
+// question here; what a pick sends is settled above.
+
+describe('agent chip', () => {
+  const chip = (renderer: ReactTestRenderer) => renderer.root.findAllByProps({ 'data-chip': 'agent' })[0];
+  const label = (renderer: ReactTestRenderer): string => chip(renderer).findAllByType('span')
+    .map((node) => node.children.filter((child) => typeof child === 'string').join(''))
+    .filter(Boolean)[0];
+
+  it('names the agent the session chose, and reads as a choice', () => {
+    const renderer = mount({
+      isDraft: false, currentProfile: 'plan', hasHistory: true, currentAgent: 'nimbus',
+    });
+    expect(label(renderer)).toBe('nimbus');
+    expect(chip(renderer).props['data-agent-following-default']).toBe('false');
+    expect(chip(renderer).props.title).toContain('a clean room');
+  });
+
+  it('names what a session following the host default will actually run, and says it is following', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    expect(label(renderer)).toBe('main');
+    expect(chip(renderer).props['data-agent-following-default']).toBe('true');
+  });
+
+  it('is not drawn where there is nothing to choose', () => {
+    harness.agents = [];
+    expect(mount({ isDraft: false, currentProfile: 'plan', hasHistory: true })
+      .root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
+
+    // One agent is a fact about the host, not a decision anyone gets to make.
+    harness.agents = [ALL_AGENTS[0]];
+    expect(mount({ isDraft: false, currentProfile: 'plan', hasHistory: true })
+      .root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
+
+    harness.agents = ALL_AGENTS.slice(0, 2);
+    expect(mount({ isDraft: false, currentProfile: 'plan', hasHistory: true })
+      .root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(1);
   });
 });

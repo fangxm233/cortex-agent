@@ -1,3 +1,7 @@
+// input:  React, mobile kit, presentation props
+// output: MScheduleSheetLevels
+// pos:    Mobile schedule lists sharing their sheet material
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { MC, MONO } from '@/mobile/ui/kit';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
@@ -46,7 +50,7 @@ function PausedSubline({ sub, copy }: { sub: SublineValue; copy: MScheduleSheetC
 function Subline({ row, copy, now }: { row: ScheduleRow; copy: MScheduleSheetCopy; now: number }) {
   const sub = scheduleSubline(row, now);
   return (
-    <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 2 }}>
+    <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 2 }}>
       <RunSubline sub={sub} />
       <PendingSubline sub={sub} copy={copy} />
       <PausedSubline sub={sub} copy={copy} />
@@ -61,7 +65,7 @@ function ListHeader({ rows, copy }: { rows: ScheduleRow[]; copy: MScheduleSheetC
       <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
         {copy.title}
       </span>
-      <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint }}>
+      <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
         {copy.countUnit.replace('{n}', String(rows.length))}
       </span>
     </div>
@@ -78,11 +82,11 @@ function scheduleRowStyle(last: boolean): React.CSSProperties {
 
 function ScheduleRowMeta({ row, copy }: { row: ScheduleRow; copy: MScheduleSheetCopy }) {
   return <>
-    <span style={{ font: `500 10px ${MONO}`, color: MC.muted, flex: 'none' }}>
+    <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: 'none' }}>
       {row.kind === 'repeat' ? `×${row.runs.length}` : copy.once}
     </span>
     {row.unread && <span style={{ width: 7, height: 7, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
-    <span style={{ fontSize: 13, color: MC.faint, flex: 'none' }}>›</span>
+    <span style={{ fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
   </>;
 }
 
@@ -92,7 +96,7 @@ function ScheduleRowView({ row, copy, now, last, onRow }: {
 }) {
   return (
     <div data-schedule-row={row.scheduleId} onClick={() => onRow(row)} style={scheduleRowStyle(last)}>
-      <ClockIcon size={13} color={row.unread ? MC.run : MC.faint} />
+      <ClockIcon size={13} color={row.unread ? MC.run : MC.muted} />
       <ScheduleRowText row={row} copy={copy} now={now} />
       <ScheduleRowMeta row={row} copy={copy} />
     </div>
@@ -119,7 +123,7 @@ function ScheduleRows({ rows, copy, now, onRow }: {
   onRow: (row: ScheduleRow) => void;
 }) {
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+    <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       {rows.map((row, index) => <ScheduleRowView key={row.scheduleId} row={row} copy={copy}
         now={now} last={index === rows.length - 1} onRow={onRow} />)}
     </div>
@@ -151,12 +155,12 @@ function RunsHeader({ row, copy, now, onBack }: {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 10px' }}>
       <span data-action="sheet-back" onClick={onBack}
-        style={{ fontSize: 15, color: MC.run, flex: 'none', cursor: 'pointer', padding: '0 2px' }}>‹</span>
+        style={{ fontSize: 15, color: MC.run, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>‹</span>
       <ClockIcon size={14} color={MC.run} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.title}</div>
-        {subline && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 1 }}>{subline}</div>}
+        {subline && <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1 }}>{subline}</div>}
       </div>
     </div>
   );
@@ -165,7 +169,7 @@ function RunsHeader({ row, copy, now, onBack }: {
 function RunsCaptions() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 70px', gap: 10,
-      padding: '4px 15px 6px', font: `600 9.5px ${MONO}`, color: MC.faint, letterSpacing: '.05em' }}>
+      padding: '4px 15px 6px', font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em' }}>
       <span>RUN</span><span>FIRED</span><span style={{ textAlign: 'right' }}>COST</span>
     </div>
   );
@@ -213,7 +217,7 @@ function RunsList({ row, now, onOpenRun }: {
 }) {
   const ordinals = runOrdinals(row.runs);
   return (
-    <div style={{ background: MC.card, border: `1px solid ${MC.hairline}`, borderRadius: 13,
+    <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)',
       overflow: 'hidden', maxHeight: '46vh', overflowY: 'auto' }}>
       {row.runs.map((run, index) => <RunRow key={run.sessionId} run={run}
         ordinal={ordinals.get(run.sessionId)} first={index === 0} now={now} onOpenRun={onOpenRun} />)}
@@ -244,7 +248,7 @@ function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }
 }) {
   const unreadIds = unreadRunIds(row);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '10px 4px 0', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', padding: '10px 4px 0', gap: 10 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>
         {copy.allRuns.replace('{n}', String(row.runs.length))}
       </span>
@@ -255,7 +259,7 @@ function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }
         <MarkAllReadAction unreadIds={unreadIds} copy={copy} pending={markAllPending}
           onMarkAllRead={onMarkAllRead} />
       ) : (
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>
+        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
           {copy.runListHint}
         </span>
       )}

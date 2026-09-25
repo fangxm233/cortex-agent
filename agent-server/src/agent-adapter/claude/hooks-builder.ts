@@ -47,11 +47,11 @@ export const POST_TOOL_USE_HOOKS = [
     nodeHook('rules-loader.mjs'),
   ]},
   { matcher: 'Read|Edit|Write|Skill', hooks: [nodeHook('session-activity-tracker.mjs')] },
-  { matcher: 'Read|Edit', hooks: [nodeHook('cortex-md-injector.mjs')] },
+  { matcher: 'Read|Edit', hooks: [nodeHook('agents-md-injector.mjs')] },
 ];
 
 export const SESSION_START_HOOKS = [
-  { matcher: 'startup|resume|clear|compact', hooks: [nodeHook('cortex-md-injector.mjs')] },
+  { matcher: 'startup|resume|clear|compact', hooks: [nodeHook('agents-md-injector.mjs')] },
 ];
 
 function buildLegacyHooksSettings(): ClaudeHooksSettings {

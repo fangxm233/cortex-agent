@@ -43,6 +43,7 @@ L5  entry/         → 所有层（组合根）
 | `log.ts` | `createLogger(tag)` — 控制台 + 按日滚动文件输出，保留 14 天 |
 | `cli-utils.ts` | `formatHelp`、`formatError`、`readStdinSync`、`cliError` — 共享 CLI 格式化 |
 | `status-format.ts` | 纯格式化：`computeElapsed`、`formatMetricsSuffix`、`buildSessionTag`、`buildUserProcessingMessage` |
+| `rebuild-progress.ts` | 监督器发布到 `daemon-rebuild.json` 的热重建进度记录：纯步骤状态迁移（`planRebuildProgress`、`startRebuildStep`、`finishRebuildStep`、`settleRebuildProgress`），以及一个永不抛异常的读取 |
 | `task-parser.ts` | 任务接口定义，带 kebab↔snake_case 键映射的 YAML 解析/序列化，`scanAllTasks`、`scanAvailableTasks`、`filterTasks`、`getTaskStats` |
 | `run-registry.ts` | `RunRegistry` — 活跃运行与后台 hold 的唯一内存索引。回答 `sessionState(sessionId)`，并向 EventBus 发布 `agent.*` 生命周期事件 |
 | `types/agent-types.ts` | `AgentResult`、`AgentHandle`、`AgentProgress`、`AskUserQuestionInfo` |
@@ -107,8 +108,9 @@ L5  entry/         → 所有层（组合根）
 | `executions/` | `store/execution-repo.ts` 的薄重导出，带锁释放副作用：每个终止转换自动释放任务锁 |
 | `costs/` | 费用追踪、网关管理、按提供商感知的速率限制 |
 | `scheduling/` | 持久化调度引擎与 settings-backed 内置任务控制器。`Scheduler` 热重载用户调度；内置任务派发、归档和记忆索引任务拥有 daemon 计时器 |
-| `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。CORTEX.md 扫描和注入 |
+| `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。AGENTS.md 扫描和注入 |
 | `monitor/` | GPU 和磁盘资源监控 |
+| `system/` | 主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 `rebuild-hold.ts` —— 由监督器下推、供准入判断读取的"拒绝新 turn"状态 |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端部署，通过 npm update 的热重载 |
 | `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O、auto-thread 逻辑 |
 | `mcp/` | MCP 服务器实现。16 个 Cortex MCP 工具，分布在 8 个工具模块中（参见 [mcp.md](./mcp.md)） |
@@ -149,11 +151,43 @@ L5  entry/         → 所有层（组合根）
 | 文件 | 用途 |
 |------|---------|
 | `app.ts` | **组合根**。连接 EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher。处理 SIGTERM 优雅关闭 |
-| `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大） |
+| `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大）。发布逐步骤的重建进度，在 install/restart 之前等 app 空闲，并在这个窗口内拒绝新 turn（见下文） |
+| `daemon-notice.ts` | 下行 IPC 的 app 侧：把 `rebuild-aborted` 变成系统通知、把 `rebuild-hold` 变成准入侧的 hold，并在监督器断开连接时解除 hold |
 | `cli.ts` | `cortex` CLI 入口点。调度到：`init`、`start`、`daemon`、`restart`、`task`、`config`、`setup-gateway` |
 | `init.ts` | 交互式首次初始化 |
 | `startup-helpers.ts` | 清理日志、确保 MCP 配置 |
 | `startup-notify.ts` | 向管理频道发送启动私信 |
+
+### 热重建：发布进度与 turn hold {#hot-rebuild-published-progress-and-the-turn-hold}
+
+设置了 `CORTEX_REPO` 之后，一次源码改动会让监督器重新构建各软件包、重新安装自身，并替换掉 app
+进程。有两个机制让这个过程既可见又安全。
+
+**进度写在文件里，不在内存里。** 流水线在第一步之前就把完整计划写入
+`$STORE_DIR/daemon-rebuild.json` —— 这个 checkout 实际会跑的步骤（`server`、`ui-contract`、`web`，
+随后是 `install` 和 `restart`）、当前正在跑哪一步、每一步如何结束（`done`、`failed`、`skipped`），
+其中 `install` 步骤还记录它走的是快速 staged-rename 路径还是 `npm pack` + `npm install -g`。只能用
+文件：流水线的最后一个动作就是替换掉那个本该保存这份状态的进程，所以内存里的任何东西都无法告诉新的
+`app.js`，把它带到世上的那次重建做了什么。`system.daemonStatus` 读取这条记录、daemon 页面渲染它，
+重建进行中时每秒轮询一次。`daemonPid` 不属于当前存活监督器的 `running` 记录会被丢弃，而不是永远
+显示下去；终态记录则会保留，这样"上次重建在 `web` 失败"在重启之后依然读得到。终态有三种：
+`succeeded`、`aborted`、`deferred`。
+
+**流水线里危险的那一半会等 app 空闲。** 构建步骤只读仓库、写 `dist/`；而 `install` 会覆盖运行中
+`app.js` 加载的那些文件，`restart` 直接杀掉它。所以 busy/idle 会检查两次：构建之前一次，构建之后
+再一次 —— 构建长达数分钟，这期间完全可能有 turn 正当地开始了。第二道门发现子进程 busy 时，会把触发
+原因存进 `pendingRebuild`、把记录发布为 `deferred`，等下一次 idle 转换再从头跑一遍整条流水线 ——
+等真实工作做完，而不是拒绝它，因为被拒绝的 turn 并不等于被延迟的 turn（waitpoint 唤醒或后台 agent
+的结果会直接丢失）。
+
+**只在进程被替换的那几秒里不开新 turn。** 进入 `install` 或 `restart`（以及有排队中的重启）时，
+监督器会通过 fork IPC 下发 `rebuild-hold`，准入侧（`agent-runner.ts`、`thread-executor.ts`）会在
+tracking、入队、turn 中注入之前就拒绝：此刻启动的 turn 会被片刻之后的 SIGTERM 变成孤儿，它拉起的
+后端 CLI 还在往没人读的管道里写。覆盖范围是刻意收窄的 —— 绝不包含构建阶段 —— 所以它能拦到的只有
+落在"idle 检查与 SIGTERM 之间那一个 tick"里的消息。人如果正在打字，会在原频道收到一条说明当前阶段的
+回复；而没人在等的 callback 或系统消息，则会变成一条 warning 级系统通知，点明被丢掉的是什么。hold
+带一个五分钟租约，由每条阶段消息续期，因此中途死掉的监督器不会把 app 永久静音；IPC `disconnect`
+则会立即解除它。
 
 ## LLM 后端适配器 {#llm-backend-adapter}
 
@@ -230,6 +264,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
 | `executions.json` | 统一执行注册表 |
+| `daemon-rebuild.json` | 监督器发布的热重建记录：计划、逐步骤状态与耗时，以及上次重建的终态结果 |
 | `config/thread-templates/` | 智能体定义和编排模板——`agents/`、`templates/`、`shells/` 下每个实体一个 JSON 文件 |
 | `threads.json` | 活跃和历史线程状态 |
 | `tasks/` | 项目任务队列（每项目 TASKS.yaml） |

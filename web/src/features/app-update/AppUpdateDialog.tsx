@@ -1,3 +1,7 @@
+// input:  DesktopUpdateFrame, app update info and action callbacks
+// output: AppUpdateDialog
+// pos:    App update prompt with material install controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 import {
   appUpdateSummaryLine,
@@ -7,9 +11,9 @@ import {
 } from './app-update';
 
 const GHOST_BTN_CLASS =
-  'box-border flex h-9 items-center rounded-[9px] border border-proto-line px-4 text-[12.5px] ' +
-  'font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40';
+  'box-border flex h-9 items-center rounded-[var(--r-control)] border border-proto-line px-4 text-[12.5px] ' +
+  '[background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] font-semibold text-proto-muted transition-colors hover:bg-surface-canvas-alt ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent';
 
 export interface AppUpdateDialogProps {
   update: AppUpdateInfo;
@@ -22,7 +26,7 @@ export interface AppUpdateDialogProps {
 
 function AppUpdateActions(props: AppUpdateDialogProps) {
   return (
-    <div className="flex justify-end gap-2">
+    <div className="flex flex-wrap justify-end gap-2">
       <button type="button" onClick={props.onSkip} className={GHOST_BTN_CLASS}>
         跳过此版本
       </button>
@@ -33,7 +37,7 @@ function AppUpdateActions(props: AppUpdateDialogProps) {
         type="button"
         onClick={props.onInstall}
         disabled={props.busy}
-        className="box-border flex h-9 items-center rounded-[9px] bg-state-ink px-4 text-[12.5px] font-semibold text-surface-card transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
+        className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
       >
         {props.busy ? '正在处理…' : installCtaLabel(props.update.kind)}
       </button>

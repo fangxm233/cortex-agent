@@ -70,6 +70,7 @@ export function MThreadsScreen() {
   return (
     <MScreen
       label="1c 线程"
+      floatingHeader
       header={
         <MThreadsHeader copy={copy} qn={scope} band={band} />
       }

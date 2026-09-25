@@ -1,7 +1,7 @@
 // input:  setup view, controller and mocked login modal
 // output: provider icons, continuation and login UI regressions
 // pos:    Standalone provider setup interaction tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';

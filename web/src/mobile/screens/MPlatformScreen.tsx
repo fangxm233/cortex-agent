@@ -1,7 +1,7 @@
 // input:  runtime config query and shared platform editor
 // output: mobile platform connection and runtime settings screen
 // pos:    Mobile host for the shared Platform settings panel
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';

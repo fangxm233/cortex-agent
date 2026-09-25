@@ -1,6 +1,7 @@
 /* input:  theme/accent attributes and shared web/native consumers */
-/* output: adaptive palette, semantic color, and shadow properties */
-/* pos:    Single appearance source for SPA, mobile, and native shell */
+/* output: Palette, glass levels and semantic material tokens */
+/* pos:    Shared appearance palette for web and native surfaces */
+/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 
 :root {
   --accent-hue: 274;
@@ -17,6 +18,8 @@
   --ink-chroma: 1;
   --ink-contrast: 0;
   --accent-main: #4655d4;
+  /* Filled accent actions need a foreground, not a surface colour. */
+  --accent-fg: var(--ink-solid-fg);
   --accent-soft: #eef0fa;
   --accent-border: #c9cff2;
   --accent-mid: #9aa3e8;
@@ -49,30 +52,40 @@
   --proto-base: oklch(calc(0.928 + var(--bg-light)) calc(0.007 * var(--bg-chroma)) var(--bg-hue));
   --proto-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
   --proto-card-transparent: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / 0);
-  --proto-rail: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
-  --proto-alt: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
-  --proto-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+  /* Inner tints. Glass panels are translucent, so a surface drawn ON one must be an ALPHA tint of
+     the ink family — an opaque fill would punch a flat hole through the blur and read as a patch.
+     `--proto-card` remains an opaque color for reading and occlusion (sticky headers, code and
+     media stages). Material backgrounds below are a separate, opt-in shorthand contract. */
+  --proto-rail: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.04);
+  --proto-alt: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.035);
+  --proto-gray: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.06);
   --proto-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-2: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-3: oklch(calc(0.362 - var(--ink-contrast)) calc(0.0191 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted: oklch(calc(0.469 - var(--ink-contrast)) calc(0.032 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-2: oklch(calc(0.588 - var(--ink-contrast)) calc(0.0315 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-3: oklch(calc(0.611 - var(--ink-contrast)) calc(0.0284 * var(--ink-chroma)) var(--ink-hue));
-  --proto-faint: oklch(calc(0.658 - var(--ink-contrast)) calc(0.026 * var(--ink-chroma)) var(--ink-hue));
+  /* Muted tiers carry normal-size text: target 4.5:1 on default glass, including its
+     inner gray tint. Faint is for decorative glyphs/control edges (3:1), not body text.
+     Custom palette offsets and arbitrary content behind glass can reduce contrast. */
+  --proto-muted: oklch(calc(0.45 - var(--ink-contrast)) calc(0.032 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.465 - var(--ink-contrast)) calc(0.0315 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.48 - var(--ink-contrast)) calc(0.0284 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.565 - var(--ink-contrast)) calc(0.026 * var(--ink-chroma)) var(--ink-hue));
+  /* `--proto-disabled` stays opaque: it is used as a TEXT colour, and alpha text over glass washes
+     out against the mesh. The line family is alpha, per the note above. */
   --proto-disabled: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line: oklch(calc(0.931 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-2: oklch(calc(0.958 + 0.45 * var(--bg-light)) calc(0.0058 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-3: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-4: oklch(calc(0.926 + 0.45 * var(--bg-light)) calc(0.0139 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-soft: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.08);
+  --proto-line-2: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.05);
+  --proto-line-3: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.12);
+  --proto-line-4: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.1);
+  --proto-line-soft: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.04);
   --proto-accent: var(--accent-main);
   --proto-accent-bg: var(--accent-soft);
   --proto-accent-border: var(--accent-border);
   --proto-accent-2: var(--accent-mid);
   --proto-accent-strong: var(--accent-strong);
   --proto-amber: #c99a2e;
+  --amber-fill-fg: #241b0b;
   --proto-amber-fg: #8a5b06;
-  --proto-amber-text: #a96b0b;
+  --proto-amber-text: #98600a;
   --proto-amber-bg: #fdf9f0;
   --proto-amber-border: #efddb0;
   --proto-amber-accent: #c0a96e;
@@ -82,6 +95,67 @@
   --proto-warn-bg: #fdf4e6;
   --proto-danger: #c03d33;
   --proto-danger-bg: #fbedeb;
+
+  /* ── Glass ─────────────────────────────────────────────────────────────────
+     The ground is a three-blob radial mesh, and every floating panel is a
+     translucent pane blurring it. Blob hues are OFFSETS from `--bg-hue`
+     (+10 / -59 / +56) rather than the prototype's literal 274/205/320, so the
+     Appearance palette controls keep steering the whole surface instead of being
+     overridden by a hardcoded gradient; at the default hue 264 the two are the
+     same picture. Chroma scales with `--bg-chroma` and lightness tracks
+     `--bg-light`, exactly like the rest of the background family. */
+  --app-backdrop:
+    radial-gradient(60% 55% at 12% 8%, oklch(calc(0.86 + 0.45 * var(--bg-light)) calc(0.08 * var(--bg-chroma)) calc(var(--bg-hue) + 10) / 0.9), transparent 65%),
+    radial-gradient(55% 50% at 88% 92%, oklch(calc(0.88 + 0.45 * var(--bg-light)) calc(0.06 * var(--bg-chroma)) calc(var(--bg-hue) - 59) / 0.85), transparent 60%),
+    radial-gradient(40% 40% at 60% 40%, oklch(calc(0.9 + 0.45 * var(--bg-light)) calc(0.05 * var(--bg-chroma)) calc(var(--bg-hue) + 56) / 0.6), transparent 60%),
+    oklch(calc(0.93 + var(--bg-light)) calc(0.014 * var(--bg-chroma)) var(--bg-hue));
+
+  /* Theme preview swatches for the Appearance cards. Declared once at `:root` and deliberately NOT
+     re-declared per theme: a card previews the theme you are not in, so it must not follow the one
+     you are. Hues track the live palette, so a re-hued workspace previews in its own colours. */
+  --theme-preview-light: linear-gradient(135deg, oklch(0.86 calc(0.08 * var(--bg-chroma)) calc(var(--bg-hue) + 10)), oklch(0.88 calc(0.06 * var(--bg-chroma)) calc(var(--bg-hue) - 59)));
+  --theme-preview-dark: linear-gradient(135deg, oklch(0.36 calc(0.09 * var(--bg-chroma)) calc(var(--bg-hue) + 10)), oklch(0.17 calc(0.018 * var(--bg-chroma)) var(--bg-hue)));
+  --theme-preview-system: linear-gradient(105deg, oklch(0.86 calc(0.08 * var(--bg-chroma)) calc(var(--bg-hue) + 10)) 50%, oklch(0.24 calc(0.05 * var(--bg-chroma)) calc(var(--bg-hue) + 10)) 50%);
+  --theme-preview-pane-light: rgba(255, 255, 255, 0.72);
+  --theme-preview-pane-dark: rgba(44, 48, 62, 0.8);
+  --theme-preview-pane-system: rgba(255, 255, 255, 0.42);
+
+  /* `--glass-1` is the panel pane, `--glass-2` the raised surface drawn on it (drawer cards, message
+     bubbles, segmented tracks). Both are the background family at an alpha the `[data-glass]` level
+     sets, so darkening the ground never turns the panes grey — the same invariant the opaque card
+     ramp has. These are colors, not blur policies: either can back an overlay with `--glass-filter`.
+     Scrolling cards and controls should composite without their own backdrop-filter. */
+  --glass-1: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / var(--glass-a1));
+  --glass-2: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / var(--glass-a2));
+  --glass-filter: blur(var(--glass-blur)) saturate(1.7);
+
+  /* Material contract: *-bg values are flat translucent fills and shadows are box-shadow values.
+     Materials are deliberately flat — no gloss gradient and no lit inner edge — so glass reads as
+     frosted translucency rather than a physical, lit object. No material background adds blur:
+     overlays opt into --glass-filter and scrims may use --material-scrim-filter as backdrop-filter
+     (including the WebKit property). Controls occlude more than cards; inset surfaces sit lower
+     without another frosted layer. All fills follow the live palette and become opaque when glass
+     alphas reach 1. */
+  --material-card-bg: var(--glass-2);
+  --material-control-bg: color-mix(in srgb, var(--proto-card) 65%, var(--glass-2));
+  --material-inset-bg: color-mix(in srgb, var(--surface-raised) 55%, var(--glass-2));
+  --material-overlay-bg: color-mix(in srgb, var(--proto-card) 20%, var(--glass-2));
+  --material-card-shadow: var(--shadow-card-soft);
+  --material-control-shadow: var(--shadow-card-subtle);
+  --material-overlay-shadow: var(--shadow-menu-strong);
+  --material-scrim-filter: blur(min(4px, var(--glass-blur)));
+
+  --shadow-panel-float: 0 18px 50px rgba(16, 24, 40, 0.12);
+  --shadow-float: 0 18px 48px rgba(16, 24, 40, 0.18), 0 0 0 1px var(--proto-line);
+  --accent-glow: 0 8px 28px color-mix(in srgb, var(--accent-main) 22%, transparent);
+
+  /* Chrome that floats over the ground rather than over content — the mobile tab bar, the chat
+     header pill. A shallower lift than `--shadow-float` (which is for sheets covering real content). */
+  --shadow-chrome-float: 0 10px 30px rgba(16, 24, 40, 0.1);
+  /* A solid round key (Stop) lifted off the surface it sits on. */
+  --shadow-key-lift: 0 4px 12px rgba(16, 24, 40, 0.2);
+  /* The amber attention card carries its own tinted lift so it reads as urgent, not just coloured. */
+  --shadow-amber-lift: 0 6px 18px rgba(201, 154, 46, 0.18);
 
   --brand-badge-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
   --brand-badge-border: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
@@ -170,7 +244,9 @@
   --media-glyph-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
 
   --cmdk-panel-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
-  --cmdk-row-selected: oklch(calc(0.974 + 0.45 * var(--bg-light)) calc(0.0094 * var(--bg-chroma)) var(--bg-hue));
+  /* Alpha, not an opaque fill: the palette sheet is glass, and an opaque row would punch a flat
+     hole through the blur behind it. */
+  --cmdk-row-selected: oklch(0.226 calc(0.0125 * var(--ink-chroma)) var(--ink-hue) / 0.05);
   --cmdk-row-hover: var(--accent-soft);
   --log-bg: #12151a;
   --log-fg: #c9ceda;
@@ -182,19 +258,26 @@
   --m-tabbar-bg: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
   --m-sheet-bg: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
-  --m-sub: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
-  --m-muted: oklch(calc(0.598 - var(--ink-contrast)) calc(0.0346 * var(--ink-chroma)) var(--ink-hue));
-  --m-faint: oklch(calc(0.658 - var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: var(--proto-muted-2);
+  --m-faint: var(--proto-muted-3);
   --m-hairline: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
   --m-divider: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --m-card-border: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
+  /* Mobile floating glass: tab-screen cards and session tiles. Thinner than --material-card-bg so the
+     mesh tints through, lifted by a soft drop instead of a solid grey border. The alpha tracks the
+     glass level and reaches 1 at `off`. No backdrop-filter: these scroll. */
+  --m-float-a: min(1, calc(var(--glass-a2) * 1.6 - 0.56));
+  --m-float-bg: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / var(--m-float-a));
+  --m-float-ring: 0 0 0 1px var(--proto-line);
+  --m-float-shadow: 0 10px 26px -12px rgba(16, 24, 40, 0.16), 0 2px 6px -2px rgba(16, 24, 40, 0.05);
   --m-run: var(--accent-main);
   --m-run-bg: var(--accent-soft);
   --m-run-border: var(--accent-border);
   --m-amber: #c99a2e;
   --m-amber-ink: #8a5b06;
-  --m-amber-text: #a96b0b;
+  --m-amber-text: var(--proto-amber-text);
   --m-amber-bg: #f7ecce;
   --m-amber-border: #efddb0;
   --m-amber-card: #fdf9f0;
@@ -204,11 +287,12 @@
   --m-fail-bg: #fbedeb;
   --m-fail-border: #eed3d0;
   --m-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
-  --m-gray-ink: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
+  --m-gray-ink: var(--proto-muted-2);
 }
 
 [data-theme='dark'] {
   --accent-main: #8b96f2;
+  --accent-fg: var(--ink-solid-fg);
   --accent-soft: rgba(110, 123, 236, 0.16);
   --accent-border: #333c5a;
   --accent-mid: #6e7bec;
@@ -227,22 +311,23 @@
   --proto-base: oklch(calc(0.195 + var(--bg-light)) calc(0.0112 * var(--bg-chroma)) var(--bg-hue));
   --proto-card: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue));
   --proto-card-transparent: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue) / 0);
-  --proto-rail: oklch(calc(0.218 + 0.45 * var(--bg-light)) calc(0.0145 * var(--bg-chroma)) var(--bg-hue));
-  --proto-alt: oklch(calc(0.239 + 0.45 * var(--bg-light)) calc(0.0207 * var(--bg-chroma)) var(--bg-hue));
-  --proto-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
+  --proto-rail: oklch(1 0 var(--ink-hue) / 0.05);
+  --proto-alt: oklch(1 0 var(--ink-hue) / 0.04);
+  --proto-gray: oklch(1 0 var(--ink-hue) / 0.08);
   --proto-ink: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-2: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-3: oklch(calc(0.762 + var(--ink-contrast)) calc(0.0219 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-2: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-3: oklch(calc(0.567 + var(--ink-contrast)) calc(0.027 * var(--ink-chroma)) var(--ink-hue));
-  --proto-faint: oklch(calc(0.486 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  /* The dark ramp includes headroom for the white inner tint over a glass pane. */
+  --proto-muted: oklch(calc(0.76 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.745 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.73 + var(--ink-contrast)) calc(0.027 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.625 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
   --proto-disabled: oklch(calc(0.422 + 0.45 * var(--bg-light)) calc(0.0291 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line: oklch(calc(0.316 + 0.45 * var(--bg-light)) calc(0.0231 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-2: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-3: oklch(calc(0.377 + 0.45 * var(--bg-light)) calc(0.0263 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-4: oklch(calc(0.309 + 0.45 * var(--bg-light)) calc(0.0232 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line-soft: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line: oklch(1 0 var(--ink-hue) / 0.09);
+  --proto-line-2: oklch(1 0 var(--ink-hue) / 0.06);
+  --proto-line-3: oklch(1 0 var(--ink-hue) / 0.14);
+  --proto-line-4: oklch(1 0 var(--ink-hue) / 0.11);
+  --proto-line-soft: oklch(1 0 var(--ink-hue) / 0.05);
   --proto-accent: var(--accent-main);
   --proto-accent-bg: var(--accent-soft);
   --proto-accent-border: var(--accent-border);
@@ -261,6 +346,23 @@
   --proto-danger: #ed7b72;
   --proto-danger-bg: rgba(224, 107, 98, 0.16);
 
+  --app-backdrop:
+    radial-gradient(60% 55% at 12% 8%, oklch(calc(0.36 + 0.45 * var(--bg-light)) calc(0.09 * var(--bg-chroma)) calc(var(--bg-hue) + 10) / 0.8), transparent 65%),
+    radial-gradient(55% 50% at 88% 92%, oklch(calc(0.32 + 0.45 * var(--bg-light)) calc(0.07 * var(--bg-chroma)) calc(var(--bg-hue) - 59) / 0.7), transparent 60%),
+    radial-gradient(40% 40% at 60% 40%, oklch(calc(0.26 + 0.45 * var(--bg-light)) calc(0.05 * var(--bg-chroma)) calc(var(--bg-hue) + 36) / 0.5), transparent 60%),
+    oklch(calc(0.17 + var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
+
+  --glass-1: oklch(calc(0.235 + 0.45 * var(--bg-light)) calc(0.017 * var(--bg-chroma)) var(--bg-hue) / var(--glass-a1));
+  --glass-2: oklch(calc(0.272 + 0.45 * var(--bg-light)) calc(0.019 * var(--bg-chroma)) var(--bg-hue) / var(--glass-a2));
+
+  --shadow-panel-float: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--proto-line);
+  --accent-glow: 0 8px 28px color-mix(in srgb, var(--accent-main) 28%, transparent);
+
+  --shadow-chrome-float: 0 10px 30px rgba(0, 0, 0, 0.42);
+  --shadow-key-lift: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-amber-lift: 0 6px 18px rgba(201, 154, 46, 0.14);
+
   --brand-badge-bg: var(--accent-badge);
   --brand-badge-border: transparent;
   --brand-badge-core: oklch(calc(1 + var(--ink-contrast)) 0 var(--ink-hue));
@@ -274,7 +376,7 @@
   --state-gray: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
 
   --pill-running-bg: var(--accent-soft);
-  --pill-running-fg: var(--accent-main);
+  --pill-running-fg: color-mix(in srgb, var(--accent-main) 80%, var(--proto-ink) 20%);
   --pill-waiting-bg: rgba(201, 154, 46, 0.16);
   --pill-waiting-fg: #e2b95b;
   --pill-done-bg: rgba(76, 175, 125, 0.15);
@@ -332,8 +434,8 @@
   --media-label-bg: rgba(20, 23, 27, 0.82);
   --media-label-bg-soft: rgba(20, 23, 27, 0.68);
   --cmdk-panel-bg: oklch(calc(0.255 + 0.45 * var(--bg-light)) calc(0.0186 * var(--bg-chroma)) var(--bg-hue));
-  --cmdk-row-selected: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
-  --cmdk-row-hover: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
+  --cmdk-row-selected: oklch(1 0 var(--ink-hue) / 0.08);
+  --cmdk-row-hover: oklch(1 0 var(--ink-hue) / 0.05);
   --log-bg: #14181f;
   --log-fg: #c9ceda;
 
@@ -343,13 +445,15 @@
   --m-tabbar-bg: oklch(calc(0.195 + var(--bg-light)) calc(0.013 * var(--bg-chroma)) var(--bg-hue));
   --m-sheet-bg: oklch(calc(0.243 + 0.45 * var(--bg-light)) calc(0.0188 * var(--bg-chroma)) var(--bg-hue));
   --m-ink: oklch(calc(0.965 + var(--ink-contrast)) calc(0.0054 * var(--ink-chroma)) var(--ink-hue));
-  --m-sub: oklch(calc(0.71 + var(--ink-contrast)) calc(0.0255 * var(--ink-chroma)) var(--ink-hue));
+  --m-sub: var(--proto-muted);
   --m-body: oklch(calc(0.851 + var(--ink-contrast)) calc(0.0175 * var(--ink-chroma)) var(--ink-hue));
-  --m-muted: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
-  --m-faint: oklch(calc(0.486 + var(--ink-contrast)) calc(0.0286 * var(--ink-chroma)) var(--ink-hue));
+  --m-muted: var(--proto-muted-2);
+  --m-faint: var(--proto-muted-3);
   --m-hairline: oklch(calc(0.263 + 0.45 * var(--bg-light)) calc(0.0184 * var(--bg-chroma)) var(--bg-hue));
   --m-divider: oklch(calc(0.277 + 0.45 * var(--bg-light)) calc(0.0216 * var(--bg-chroma)) var(--bg-hue));
   --m-card-border: oklch(calc(0.292 + 0.45 * var(--bg-light)) calc(0.0219 * var(--bg-chroma)) var(--bg-hue));
+  --m-float-bg: oklch(calc(0.272 + 0.45 * var(--bg-light)) calc(0.019 * var(--bg-chroma)) var(--bg-hue) / var(--m-float-a));
+  --m-float-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.55), 0 2px 6px -2px rgba(0, 0, 0, 0.25);
   --m-run: var(--accent-main);
   --m-run-bg: var(--accent-soft);
   --m-run-border: var(--accent-border);
@@ -365,7 +469,74 @@
   --m-fail-bg: rgba(224, 107, 98, 0.16);
   --m-fail-border: #4a2e2b;
   --m-gray: oklch(calc(0.288 + 0.45 * var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
-  --m-gray-ink: oklch(calc(0.622 + var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-gray-ink: var(--proto-muted-2);
+}
+
+/* ── Glass level ──────────────────────────────────────────────────────────────
+   `data-glass` on <html>, owned by src/theme, beside `data-theme`. It sets only pane alphas and
+   blur; the colours themselves are derived above, so a level change never re-hues anything.
+   `strong` is the SHIPPED DEFAULT, which is why the bare `:root` carries its values and why the ink
+   ramp is calibrated against it, with the other levels checked as well.
+   `off` is the escape hatch: fully opaque panes and no `backdrop-filter` at all, for low-end GPUs
+   and anyone who just wants flat surfaces. */
+:root,
+:root[data-glass='strong'] {
+  --glass-a1: 0.42;
+  --glass-a2: 0.7;
+  --glass-blur: 32px;
+}
+:root[data-glass='medium'] {
+  --glass-a1: 0.64;
+  --glass-a2: 0.82;
+  --glass-blur: 22px;
+}
+:root[data-glass='subtle'] {
+  --glass-a1: 0.86;
+  --glass-a2: 0.92;
+  --glass-blur: 12px;
+}
+:root[data-glass='off'] {
+  --material-scrim-filter: none;
+  --glass-a1: 1;
+  --glass-a2: 1;
+  --glass-blur: 0px;
+  --glass-filter: none;
+}
+
+[data-theme='dark'],
+[data-theme='dark'][data-glass='strong'] {
+  --glass-a1: 0.42;
+  --glass-a2: 0.66;
+  --glass-blur: 32px;
+}
+[data-theme='dark'][data-glass='medium'] {
+  --glass-a1: 0.62;
+  --glass-a2: 0.8;
+  --glass-blur: 22px;
+}
+[data-theme='dark'][data-glass='subtle'] {
+  --glass-a1: 0.88;
+  --glass-a2: 0.94;
+  --glass-blur: 12px;
+}
+[data-theme='dark'][data-glass='off'] {
+  --glass-a1: 1;
+  --glass-a2: 1;
+  --glass-blur: 0px;
+  --glass-filter: none;
+}
+
+/* ── Radius scale ─────────────────────────────────────────────────────────────
+   One ladder for the whole app so a panel, a floating card and a chip never disagree by a pixel. */
+:root {
+  --r-panel: 18px;
+  --r-float: 16px;
+  --r-card: 14px;
+  --r-control: 11px;
+  --r-chip: 8px;
+  --r-pill: 999px;
+  /* Outer gutter between the window edge and the floating panels, and between panels. */
+  --app-gutter: 12px;
 }
 
 :root[data-accent='custom'] {

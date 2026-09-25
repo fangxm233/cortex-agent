@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { cortexMDContentBlocks, type CortexMDEntry } from './cortex-md.js';
+import { agentsMDContentBlocks, type AgentsMDEntry } from './agents-md.js';
 import { isAbsoluteFilePath } from './remote-file.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
@@ -231,7 +231,7 @@ export function registerTaskOpsTools(server: McpServer, ctx: CortexToolContext):
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
         const result = await proxySendCommand(ctx, device, 'read', { file_path, offset, limit });
-        const cmdBlocks = cortexMDContentBlocks(device, result.cortexMDs, file_path);
+        const cmdBlocks = agentsMDContentBlocks(device, result.cortexMDs, file_path);
 
         // Image response path
         if (result.image) {
@@ -315,7 +315,7 @@ export function registerTaskOpsTools(server: McpServer, ctx: CortexToolContext):
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
         const result = await proxySendCommand(ctx, device, 'write', { file_path, content });
-        const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
+        const cmdBlocks = agentsMDContentBlocks(device, result?.cortexMDs, file_path);
         return {
           content: [{ type: 'text', text: `File written: ${file_path}` }, ...cmdBlocks],
         };
@@ -345,7 +345,7 @@ export function registerTaskOpsTools(server: McpServer, ctx: CortexToolContext):
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
         const result = await proxySendCommand(ctx, device, 'edit', { file_path, old_string, new_string, replace_all: replace_all || false });
-        const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
+        const cmdBlocks = agentsMDContentBlocks(device, result?.cortexMDs, file_path);
         return {
           content: [{ type: 'text', text: `File edited: ${file_path}` }, ...cmdBlocks],
         };

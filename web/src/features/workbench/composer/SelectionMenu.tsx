@@ -1,8 +1,16 @@
+// input:  React, selection options, MenuChrome
+// output: SelectionMenu, SelectionPane, SelectionMenuProps
+// pos:    Engine picker with readable keyboard-accessible rows
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type {
   ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
 } from '@/features/session/list/selection-menu';
+import {
+  Divider, MenuCard, MenuRow, MONO as mono, Note, rowBackground, SectionTitle, type HoverProps,
+  MENU_BUTTON_STYLE, MENU_FOCUS,
+} from '@/design/MenuChrome';
 
 // The composer's engine picker, anchored above or below its position:relative chip.
 //
@@ -13,78 +21,17 @@ import type {
 // rows drill into a pane of their own: model, thinking level, and the endpoint's billing route where
 // it offers more than one (`buildModeOptions` returns nothing when it does not, and the row goes).
 //
-// Nothing unpickable is drawn. A live conversation cannot change backend, so the other backend's
-// models are not offered at all — one footer line reports how many were held back and why, which is
-// the whole of what the greyed-out rows used to say.
-
-const mono = "'IBM Plex Mono',monospace";
+// It is the PROFILE and its refinements, and nothing else. Which environment the conversation runs
+// in is a separate axis with a chip and a menu of its own (AgentMenu), because an agent is not one
+// more thing a profile can be overridden with.
+//
+// Nothing unpickable is drawn here: a live conversation cannot change backend, so the other
+// backend's models are not offered at all — one footer line reports how many were held back and
+// why, which is the whole of what a screen of greyed-out rows used to say. (The agent menu is the
+// list short enough to do the opposite, and says so itself.)
 
 /** Above this many rows, a pane earns a filter box — a claude endpoint alone lists 17 ids. */
 const FILTER_THRESHOLD = 10;
-
-function SectionTitle({ text }: { text: string }): JSX.Element {
-  return (
-    <div style={{
-      font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-      color: 'var(--proto-muted-3)', padding: '6px 8px 3px',
-    }}>
-      {text}
-    </div>
-  );
-}
-
-function Note({ text }: { text: string }): JSX.Element {
-  return (
-    <div style={{
-      font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', padding: '5px 8px 6px', lineHeight: 1.5,
-    }}>
-      {text}
-    </div>
-  );
-}
-
-function Divider(): JSX.Element {
-  return <div style={{ height: 1, background: 'var(--proto-line)', margin: '5px 0' }} />;
-}
-
-interface HoverProps {
-  hover: string | null;
-  setHover: (value: string | null) => void;
-}
-
-function rowBackground(id: string, hover: string | null, active: boolean): string {
-  if (hover === id) return 'var(--proto-gray)';
-  return active ? 'var(--proto-accent-bg)' : 'transparent';
-}
-
-function Row({
-  id, label, sub, active, onPick, hover, setHover,
-}: {
-  id: string;
-  label: string;
-  sub?: string | null;
-  active: boolean;
-  onPick: () => void;
-} & HoverProps): JSX.Element {
-  return (
-    <div
-      onMouseEnter={() => setHover(id)}
-      onMouseLeave={() => setHover(hover === id ? null : hover)}
-      onClick={(event) => { event.stopPropagation(); onPick(); }}
-      data-selection-row={id}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', cursor: 'pointer',
-        background: rowBackground(id, hover, active),
-      }}
-    >
-      <span style={{ font: `600 10px ${mono}`, color: 'var(--proto-ink)' }}>{label}</span>
-      {sub ? <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{sub}</span> : null}
-      {active && (
-        <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
-      )}
-    </div>
-  );
-}
 
 /** A collapsed override on the root: label, the value in force, and a dot when that value is the
  *  session's own choice rather than the profile's. */
@@ -94,24 +41,27 @@ function DrillRow({ row, onOpen, hover, setHover }: {
 } & HoverProps): JSX.Element {
   const id = `pane:${row.key}`;
   return (
-    <div
+    <button
+      type="button"
+      className={MENU_FOCUS}
       onMouseEnter={() => setHover(id)}
       onMouseLeave={() => setHover(hover === id ? null : hover)}
       onClick={(event) => { event.stopPropagation(); onOpen(); }}
       data-selection-pane={row.key}
       style={{
+        ...MENU_BUTTON_STYLE,
         display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', cursor: 'pointer',
         background: rowBackground(id, hover, false),
       }}
     >
       <span style={{
-        font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-        color: 'var(--proto-muted-3)', flex: 'none',
+        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+        color: 'var(--proto-muted)', flex: 'none',
       }}>
         {row.label}
       </span>
       <span style={{
-        marginLeft: 'auto', font: `500 10px ${mono}`, minWidth: 0,
+        marginLeft: 'auto', font: `500 11px ${mono}`, minWidth: 0,
         color: row.overridden ? 'var(--proto-accent)' : 'var(--proto-ink)',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
@@ -120,8 +70,8 @@ function DrillRow({ row, onOpen, hover, setHover }: {
       {row.overridden && (
         <span style={{ color: 'var(--proto-accent)', fontSize: 9, flex: 'none' }}>•</span>
       )}
-      <span style={{ color: 'var(--proto-muted-3)', fontSize: 11, flex: 'none' }}>›</span>
-    </div>
+      <span style={{ color: 'var(--proto-muted)', fontSize: 11, flex: 'none' }}>›</span>
+    </button>
   );
 }
 
@@ -130,12 +80,15 @@ function BackRow({ title, onBack, hover, setHover }: {
   onBack: () => void;
 } & HoverProps): JSX.Element {
   return (
-    <div
+    <button
+      type="button"
+      className={MENU_FOCUS}
       onMouseEnter={() => setHover('back')}
       onMouseLeave={() => setHover(hover === 'back' ? null : hover)}
       onClick={(event) => { event.stopPropagation(); onBack(); }}
       data-selection-back="true"
       style={{
+        ...MENU_BUTTON_STYLE,
         display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', cursor: 'pointer',
         borderBottom: '1px solid var(--proto-line)',
         background: rowBackground('back', hover, false),
@@ -143,12 +96,12 @@ function BackRow({ title, onBack, hover, setHover }: {
     >
       <span style={{ color: 'var(--proto-accent)', fontSize: 12, fontWeight: 700 }}>‹</span>
       <span style={{
-        font: `600 8.5px ${mono}`, letterSpacing: '0.08em', textTransform: 'uppercase',
-        color: 'var(--proto-muted-3)',
+        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
+        color: 'var(--proto-muted)',
       }}>
         {title}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -205,7 +158,7 @@ function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
     <>
       <SectionTitle text={L.wbProfile} />
       {props.profiles.map((option) => (
-        <Row
+        <MenuRow
           key={`profile:${option.name}`}
           id={`profile:${option.name}`}
           label={option.name}
@@ -223,7 +176,7 @@ function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
       {props.anyOverridden && (
         <>
           <Divider />
-          <Row
+          <MenuRow
             id="selection:clear"
             label={L.wbFollowAll}
             active={false}
@@ -263,19 +216,21 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
         <div style={{ padding: '6px 8px 4px' }} onClick={(event) => event.stopPropagation()}>
           <input
             data-selection-filter="model"
+            aria-label={L.wbFilterModels}
+            className={MENU_FOCUS}
             autoFocus
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={L.wbFilterModels}
             style={{
-              width: '100%', boxSizing: 'border-box', font: `400 10px ${mono}`,
-              color: 'var(--proto-ink)', background: 'var(--proto-bg)',
-              border: '1px solid var(--proto-line)', borderRadius: 6, padding: '4px 7px', outline: 'none',
+              width: '100%', boxSizing: 'border-box', font: `400 11px ${mono}`,
+              color: 'var(--proto-ink)', background: 'var(--material-inset-bg)',
+              border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', padding: '4px 7px',
             }}
           />
         </div>
       )}
-      <Row
+      <MenuRow
         id="model:follow"
         label={L.wbFollowProfile}
         sub={props.profileModel}
@@ -286,12 +241,12 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
       {groups.map((group) => (
         <div key={`group:${group.group}`}>
           <div style={{
-            font: `500 8.5px ${mono}`, color: 'var(--proto-muted-3)', padding: '4px 8px 2px',
+            font: `500 11px ${mono}`, color: 'var(--proto-muted)', padding: '4px 8px 2px',
           }}>
             {group.group}
           </div>
           {group.options.map((option) => (
-            <Row
+            <MenuRow
               key={`model:${option.backend}:${option.provider ?? ''}:${option.id}`}
               id={`model:${option.backend}:${option.provider ?? ''}:${option.id}`}
               label={option.id}
@@ -314,7 +269,7 @@ function ThinkingPane({ props, shared }: { props: SelectionMenuProps; shared: Ho
   return (
     <>
       <BackRow title={L.wbThinking} onBack={() => props.setPane('root')} {...shared} />
-      <Row
+      <MenuRow
         id="thinking:follow"
         label={L.wbFollowProfile}
         sub={props.profileThinking}
@@ -323,7 +278,7 @@ function ThinkingPane({ props, shared }: { props: SelectionMenuProps; shared: Ho
         {...shared}
       />
       {props.thinking.map((option) => (
-        <Row
+        <MenuRow
           key={`thinking:${option.level}`}
           id={`thinking:${option.level}`}
           label={option.level}
@@ -341,7 +296,7 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
   return (
     <>
       <BackRow title={L.wbRoute} onBack={() => props.setPane('root')} {...shared} />
-      <Row
+      <MenuRow
         id="mode:follow"
         label={L.wbFollowProfile}
         sub={props.profileMode}
@@ -350,7 +305,7 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
         {...shared}
       />
       {props.modes.map((option) => (
-        <Row
+        <MenuRow
           key={`mode:${option.mode}`}
           id={`mode:${option.mode}`}
           label={option.mode}
@@ -366,30 +321,14 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
 export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   const shared = { hover, setHover };
-  const { pane, placement = 'above', align = 'right' } = props;
+  const { pane, placement, align } = props;
 
   return (
-    <div
-      data-menu="selection"
-      data-selection-level={pane}
-      style={{
-        position: 'absolute',
-        ...(align === 'right' ? { right: 0 } : { left: 0 }),
-        ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
-        background: 'var(--proto-card)',
-        border: '1px solid var(--proto-line)',
-        borderRadius: 8,
-        boxShadow: 'var(--shadow-menu)',
-        zIndex: 59,
-        minWidth: 244,
-        maxHeight: 420,
-        overflowY: 'auto',
-      }}
-    >
+    <MenuCard kind="selection" level={pane} placement={placement} align={align}>
       {pane === 'root' && <RootPane props={props} shared={shared} />}
       {pane === 'model' && <ModelPane props={props} shared={shared} />}
       {pane === 'thinking' && <ThinkingPane props={props} shared={shared} />}
       {pane === 'mode' && <ModePane props={props} shared={shared} />}
-    </div>
+    </MenuCard>
   );
 }

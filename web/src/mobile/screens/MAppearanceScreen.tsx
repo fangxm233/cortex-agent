@@ -3,6 +3,7 @@ import { useLang, useLangSource, useSetLang } from '@/i18n';
 import {
   useAccentHue, useSetAccentHue,
   useAccentIntensity, useSetAccentIntensity,
+  useGlass, useSetGlass,
   useMotionMode, useSetMotionMode,
   usePalette, useSetPaletteValue,
   useActivePreset, useApplyPreset, useResetPalette,
@@ -32,6 +33,9 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
     accentCustom: 'Custom accent hue', accentReset: 'Reset',
     accentIntensity: 'Intensity', accentIntensitySoft: 'Soft',
     accentIntensityNormal: 'Normal', accentIntensityVivid: 'Vivid',
+    glass: 'Glass',
+    glassHint: 'How much panels, sheets and overlays let the background through. Pick Off if scrolling feels slow.',
+    glassOff: 'Off', glassSubtle: 'Subtle', glassMedium: 'Medium', glassStrong: 'Strong',
     motion: 'Motion', motionSystem: 'System', motionFull: 'Full', motionReduced: 'Reduced',
   },
   zh: {
@@ -54,6 +58,9 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
     accentCustom: '自定义强调色色相', accentReset: '恢复默认',
     accentIntensity: '浓度', accentIntensitySoft: '柔和',
     accentIntensityNormal: '标准', accentIntensityVivid: '鲜明',
+    glass: '毛玻璃',
+    glassHint: '面板、浮层和弹窗的透明程度。滚动卡顿时选"关闭"。',
+    glassOff: '关闭', glassSubtle: '轻微', glassMedium: '适中', glassStrong: '强烈',
     motion: '动效', motionSystem: '跟随系统', motionFull: '完整', motionReduced: '减弱',
   },
 };
@@ -74,6 +81,8 @@ export function MAppearanceScreen() {
   const setAccentHue = useSetAccentHue();
   const accentIntensity = useAccentIntensity();
   const setAccentIntensity = useSetAccentIntensity();
+  const glass = useGlass();
+  const setGlass = useSetGlass();
   const motionMode = useMotionMode();
   const setMotionMode = useSetMotionMode();
   return (
@@ -93,6 +102,8 @@ export function MAppearanceScreen() {
       onSetAccentHue={setAccentHue}
       accentIntensity={accentIntensity}
       onSetAccentIntensity={setAccentIntensity}
+      glass={glass}
+      onSetGlass={setGlass}
       motionMode={motionMode}
       onSetMotionMode={setMotionMode}
       onBack={() => navigate('/m/settings')}

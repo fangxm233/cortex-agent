@@ -1,4 +1,9 @@
+// input:  Notice level, localized text, notice and auth actions
+// output: ChatNotice, noticeTone, notice types
+// pos:    Compact transcript notices with focused action controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, useVocabOptional, type Vocab } from '@/i18n';
@@ -51,7 +56,7 @@ export interface ChatNoticeProps {
 
 function actionButtonStyle(color: string, disabled: boolean): CSSProperties {
   return {
-    border: `1px solid ${color}`, borderRadius: 7, background: 'transparent',
+    border: `1px solid ${color}`, borderRadius: 'var(--r-control)', background: 'transparent',
     color, padding: '5px 9px', fontSize: 12, fontWeight: 650,
     cursor: disabled ? 'default' : 'pointer', flex: 'none', alignSelf: 'center',
     opacity: disabled ? 0.5 : 1,
@@ -70,7 +75,7 @@ function NoticeActionButton({
   if (!onAction) return null;
   return (
     <button
-      type="button" data-notice-action={action.kind} disabled={done}
+      type="button" className={MENU_FOCUS} data-notice-action={action.kind} disabled={done}
       onClick={() => onAction(action)}
       style={actionButtonStyle(tone.fg, done)}
     >
@@ -92,7 +97,7 @@ function AuthActionButton({
   if (!activate) return null;
   return (
     <button
-      type="button" data-auth-notice-action onClick={() => activate(action)}
+      type="button" className={MENU_FOCUS} data-auth-notice-action onClick={() => activate(action)}
       style={actionButtonStyle(TONES.error.fg, false)}
     >
       {label ?? L.authLoginAgain}
@@ -112,7 +117,7 @@ export function ChatNotice({
   const localizedText = localizedNoticeText(text, noticeAction, useVocabOptional());
   const style: CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
-    margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 9,
+    margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 'var(--r-card)',
     border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg,
     fontSize: 12.5, lineHeight: 1.55, overflowWrap: 'anywhere',
   };

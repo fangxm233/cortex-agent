@@ -63,3 +63,15 @@ test('getRunByChannel returns the newest live run and skips run-less executions'
   assert.equal(r.getRunByChannel('web:s1'), newer);
   assert.equal(r.getRunByChannel('web:none'), null);
 });
+
+test('getOwnByChannel leaves out subagent children riding on the channel', () => {
+  const r = new RunRegistry();
+  r.register(makeInput({ executionId: 'exec-parent' }));
+  r.register(makeInput({ executionId: 'exec-child', trackSessionId: null, subagent: true }));
+
+  assert.deepEqual(r.getByChannel('web:s1').map((e) => e.executionId), ['exec-parent', 'exec-child']);
+  assert.deepEqual(r.getOwnByChannel('web:s1').map((e) => e.executionId), ['exec-parent']);
+
+  r.remove('exec-parent');
+  assert.deepEqual(r.getOwnByChannel('web:s1'), [], 'only a child left ⇒ the channel is idle');
+});

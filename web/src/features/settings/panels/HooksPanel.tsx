@@ -1,52 +1,39 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import type {
-  HookDetail,
-  HookScriptInfo,
-  HooksTestReturn,
-} from '@cortex-agent/ui-contract';
-import { Select } from '@/design';
+// input:  useHooksController, settings atoms, detail pane
+// output: desktop hooks master-detail editor
+// pos:    Hook list and editor composition
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import '@/features/settings/ui/desktop-panels.css';
+import { useEffect, useState, type CSSProperties } from 'react';
+import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
+import { SChip, SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
 import {
-  MonoKV,
-  RadioDot,
-  SButton,
-  SCard,
-  SFieldRow,
-  SSectionLabel,
-  S_CONTROL_DISABLED_STYLE,
-  S_CONTROL_STYLE,
-  Toggle,
-} from '@/features/settings/ui/settings-ui';
-import { useHooksController } from '@/features/settings/controllers/useHooksController';
+  CHIP_COUNT_STYLE,
+  EDITOR_COLUMNS_STYLE,
+  EDITOR_ROOT_STYLE,
+  LIST_BODY_STYLE,
+  LIST_EMPTY_STYLE,
+  ListHeader,
+  PaneFooter,
+  listPaneStyle,
+  listRowStyle,
+} from '@/features/settings/ui/master-detail-ui';
+import { HookDetailPane, MountBadge, type HookDetailPaneProps } from './HookDetailPane';
 import {
   HOOK_FILTER_KEYS,
   buildHookCreateArgs,
   buildHookUpdateArgs,
-  claudeAlternativeEvent,
   countHooksByFilter,
   emptyHookForm,
   filterHooks,
   formStateFromDetail,
   groupHooks,
-  hasClaudeMountGap,
-  hookCapability,
-  hookEventOptions,
-  isHookFormDirty,
-  isHookFormValid,
-  isPayloadParseable,
-  isResultLocked,
-  legalResultsForEvent,
-  matcherKindForEvent,
-  reconcileResultForEvent,
   samplePayloadForEvent,
-  validateHookForm,
-  validateMatcherRegex,
-  type HookFieldError,
   type HookFilterKey,
   type HookFormState,
-  type HookMountTarget,
-  type HookResultMode,
 } from '@/features/settings/vm/hooks-panel-vm';
+import { useHooksController } from '@/features/settings/controllers/useHooksController';
 
 // Hooks panel (plan §5): master–detail inside the settings content pane, replacing the flat
 // read-only card. The value this adds over `cortex-hook` is making "will this hook actually fire?"
@@ -57,16 +44,11 @@ import {
 // hook sync restores the shipped enabled state, so editing the rest would be a lie), and
 // template-scoped entries are read-only because the writer rejects them outright.
 //
-// No optimistic updates: every mutation invalidates hooks.list and reports through a toast.
+// No optimistic updates: every mutation (in controllers/useHooksController) invalidates hooks.list
+// and reports through a toast.
 
 const MONO = "'IBM Plex Mono',monospace";
-const LIST_WIDTH = 288;
-
-const MOUNT_TONE: Record<HookMountTarget, { bg: string; fg: string }> = {
-  claude: { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)' },
-  pi: { bg: 'var(--proto-success-bg)', fg: 'var(--proto-success)' },
-  server: { bg: 'var(--proto-amber-bg)', fg: 'var(--proto-amber)' },
-};
+const LIST_WIDTH = 300;
 
 const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
   all: 'hkFilterAll',
@@ -77,194 +59,119 @@ const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
   template: 'hkFilterTemplate',
 };
 
-const FIELD_ERROR_LABEL: Record<HookFieldError, keyof Vocab> = {
-  'id-required': 'hkErrIdRequired',
-  'id-taken': 'hkErrIdTaken',
-  'event-required': 'hkErrEventRequired',
-  'matcher-invalid': 'hkMatcherInvalid',
-  'filters-empty-key': 'hkErrFiltersEmptyKey',
-  'filters-duplicate-key': 'hkErrFiltersDuplicate',
-  'run-required': 'hkErrRunRequired',
-  'timeout-invalid': 'hkErrTimeout',
-  'result-illegal': 'hkErrResult',
+// ── left column: chips, search, grouped list ──────────────────────────────────────────────────
+
+const ORDER_STYLE: CSSProperties = {
+  font: `500 12px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
 };
 
-const SCRIPT_LIST_ID = 'cortex-hook-scripts';
-const EVENT_LIST_ID = 'cortex-hook-events';
+const EVENT_STYLE: CSSProperties = {
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 3, overflowWrap: 'anywhere',
+};
 
-// ── small presentational atoms ────────────────────────────────────────────────────────────────
-
-function MountBadge({ target }: { target: HookMountTarget }) {
-  const tone = MOUNT_TONE[target];
-  return (
-    <span
-      data-hook-mount={target}
-      style={{
-        font: `600 8.5px ${MONO}`,
-        padding: '1px 5px',
-        borderRadius: 999,
-        background: tone.bg,
-        color: tone.fg,
-        flex: 'none',
-      }}
-    >
-      {target}
-    </span>
-  );
+function hookIdStyle(selected: boolean): CSSProperties {
+  return {
+    flex: 1, minWidth: 0, font: `600 12px ${MONO}`,
+    color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
+    overflowWrap: 'anywhere',
+  };
 }
 
-function SourceBadge({ source }: { source: HookDetail['source'] }) {
-  const managed = source === 'managed';
+/** Where the hook mounts, and whether it is live — the two things a row is scanned for. */
+function HookRowMeta({ hook }: { hook: HookDetail }) {
+  const L = useVocab();
   return (
-    <span
-      data-hook-source={source}
-      style={{
-        font: `600 9px ${MONO}`,
-        padding: '1px 6px',
-        borderRadius: 999,
-        background: managed ? 'var(--proto-line-2)' : 'var(--proto-alt)',
-        color: 'var(--proto-muted)',
-        flex: 'none',
-      }}
-    >
-      {source}
-    </span>
-  );
-}
-
-/** A persistent inline explanation — never a toast, because the constraint does not expire. */
-function InlineNote({
-  tone,
-  children,
-  ...rest
-}: {
-  tone: 'amber' | 'accent' | 'danger';
-  children: ReactNode;
-} & Record<string, unknown>) {
-  const palette = {
-    amber: { bg: 'var(--proto-amber-bg)', border: 'var(--proto-amber-border)', fg: 'var(--proto-amber-fg)' },
-    accent: { bg: 'var(--proto-accent-bg)', border: 'var(--proto-accent-border)', fg: 'var(--proto-accent)' },
-    danger: { bg: 'var(--proto-danger-bg)', border: 'var(--proto-danger-bg)', fg: 'var(--proto-danger)' },
-  }[tone];
-  return (
-    <div
-      {...rest}
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 7,
-        padding: '7px 10px',
-        borderRadius: 8,
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        marginTop: 10,
-      }}
-    >
-      <span
-        style={{
-          width: 5,
-          height: 5,
-          borderRadius: '50%',
-          background: palette.fg,
-          flex: 'none',
-          marginTop: 5,
-        }}
-      />
-      <span style={{ fontSize: 10.5, lineHeight: 1.6, color: palette.fg, minWidth: 0 }}>{children}</span>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
+      {hook.mountsOn.map((target) => <MountBadge key={target} target={target} />)}
+      <span style={{
+        marginLeft: 'auto', fontSize: 12, fontWeight: 600, flex: 'none',
+        color: hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)',
+      }}>
+        {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
+      </span>
     </div>
   );
 }
 
-function Mono({ children }: { children: ReactNode }) {
-  return <span style={{ font: `500 10px ${MONO}`, color: 'var(--proto-ink-2)' }}>{children}</span>;
-}
-
-// ── left column: chips, search, grouped list ──────────────────────────────────────────────────
-
-function HookRow({
-  hook,
-  selected,
-  onSelect,
-}: {
+function HookRow({ hook, selected, onSelect }: {
   hook: HookDetail;
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
   const L = useVocab();
-  const broken = hook.scriptExists === false;
   return (
     <div
       data-hook-row={hook.id}
       data-hook-active={selected ? '' : undefined}
       onClick={() => onSelect(hook.id)}
       role="button"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 7,
-        padding: '7px 9px',
-        borderRadius: 8,
-        background: selected ? 'var(--proto-accent-bg)' : 'transparent',
-        cursor: 'pointer',
-      }}
+      style={listRowStyle(selected, 'flex-start')}
     >
-      <span
-        data-hook-order={hook.order}
-        style={{ font: `500 9.5px ${MONO}`, color: 'var(--proto-faint)', flex: 'none', paddingTop: 1 }}
-      >
+      <span data-hook-order={hook.order} style={ORDER_STYLE}>
         {String(hook.order).padStart(2, '0')}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span
-            style={{
-              font: `600 10.5px ${MONO}`,
-              color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {hook.id}
-          </span>
-          {broken ? (
-            <span
-              data-hook-broken=""
-              title={L.hkScriptMissing}
-              style={{
-                font: `600 8.5px ${MONO}`,
-                padding: '0 5px',
-                borderRadius: 999,
-                background: 'var(--proto-danger-bg)',
-                color: 'var(--proto-danger)',
-                flex: 'none',
-              }}
-            >
-              {L.hkBroken}
-            </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={hookIdStyle(selected)}>{hook.id}</span>
+          {hook.scriptExists === false ? (
+            <SPill data-hook-broken="" title={L.hkScriptMissing} tone="danger">{L.hkBroken}</SPill>
           ) : null}
         </div>
-        <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 2, overflowWrap: 'anywhere' }}>
-          {hook.event}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-          {hook.mountsOn.map((target) => (
-            <MountBadge key={target} target={target} />
-          ))}
-          <span
-            style={{
-              marginLeft: 'auto',
-              fontSize: 9,
-              fontWeight: 650,
-              color: hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)',
-              flex: 'none',
-            }}
-          >
-            {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
-          </span>
-        </div>
+        <div style={EVENT_STYLE}>{hook.event}</div>
+        <HookRowMeta hook={hook} />
       </div>
     </div>
+  );
+}
+
+function HookFilters({ counts, filter, onFilter }: {
+  counts: Record<HookFilterKey, number>;
+  filter: HookFilterKey;
+  onFilter: (key: HookFilterKey) => void;
+}) {
+  const L = useVocab();
+  return (
+    <>
+      {HOOK_FILTER_KEYS.map((key) => (
+        <SChip
+          key={key}
+          data-hook-filter={key}
+          data-active={key === filter ? '' : undefined}
+          active={key === filter}
+          onClick={() => onFilter(key)}
+        >
+          {L[FILTER_LABEL[key]]}
+          <span style={CHIP_COUNT_STYLE}>{counts[key]}</span>
+        </SChip>
+      ))}
+    </>
+  );
+}
+
+function HookGroups({ visible, selectedId, onSelect }: {
+  visible: HookDetail[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <>
+      {groupHooks(visible).map((group) => (
+        <div key={group.key} style={{ marginBottom: 6 }}>
+          <div
+            data-hook-group={group.key}
+            style={{
+              fontSize: 12, fontWeight: 600, letterSpacing: '.03em',
+              color: 'var(--proto-muted-3)', padding: '8px 10px 4px',
+            }}
+          >
+            {group.key === 'template' ? 'template' : `${group.key}:`}
+          </div>
+          {group.hooks.map((hook) => (
+            <HookRow key={hook.id} hook={hook} selected={hook.id === selectedId} onSelect={onSelect} />
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -290,816 +197,49 @@ function HookList({
   onStartCreate: () => void;
 }) {
   const L = useVocab();
-  const counts = countHooksByFilter(hooks, search);
-  const groups = groupHooks(visible);
+  const empty = hooks.length === 0 || visible.length === 0;
   return (
-    <SCard style={{ width: LIST_WIDTH, flex: 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.stAgentHooks}</span>
-          <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)' }}>{hooks.length}</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {HOOK_FILTER_KEYS.map((key) => {
-            const active = key === filter;
-            return (
-              <span
-                key={key}
-                onClick={() => onFilter(key)}
-                role="button"
-                data-hook-filter={key}
-                data-active={active ? '' : undefined}
-                style={{
-                  font: `500 9.5px ${MONO}`,
-                  padding: '2px 7px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                  background: active ? 'var(--proto-accent-bg)' : 'transparent',
-                  border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                }}
-              >
-                {L[FILTER_LABEL[key]]}
-                <span style={{ color: 'var(--proto-faint)', marginLeft: 4 }}>{counts[key]}</span>
-              </span>
-            );
-          })}
-        </div>
-        <input
-          data-hook-search=""
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder={L.hkSearchPh}
-          style={{ ...S_CONTROL_STYLE, marginTop: 7, padding: '4px 8px' }}
-        />
-      </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 6px' }}>
-        {hooks.length === 0 || visible.length === 0 ? (
-          <div
-            data-hooks-empty=""
-            style={{ padding: '14px 8px', fontSize: 10.5, color: 'var(--proto-faint)', lineHeight: 1.7 }}
-          >
+    <div className="settings-list-pane" style={listPaneStyle(LIST_WIDTH)}>
+      <ListHeader
+        title={L.stAgentHooks} count={hooks.length} searchAttr="data-hook-search"
+        search={search} placeholder={L.hkSearchPh} onSearch={onSearch}
+      >
+        <HookFilters counts={countHooksByFilter(hooks, search)} filter={filter} onFilter={onFilter} />
+      </ListHeader>
+      <div style={LIST_BODY_STYLE}>
+        {empty ? (
+          <div data-hooks-empty="" style={LIST_EMPTY_STYLE}>
             {hooks.length === 0 ? L.stNoHooks : L.hkNoMatch}
           </div>
         ) : (
-          groups.map((group) => (
-            <div key={group.key} style={{ marginBottom: 4 }}>
-              <div
-                data-hook-group={group.key}
-                style={{
-                  font: `600 9px ${MONO}`,
-                  letterSpacing: '.05em',
-                  color: 'var(--proto-muted-3)',
-                  padding: '7px 9px 3px',
-                }}
-              >
-                {group.key === 'template' ? 'template' : `${group.key}:`}
-              </div>
-              {group.hooks.map((hook) => (
-                <HookRow
-                  key={hook.id}
-                  hook={hook}
-                  selected={hook.id === selectedId}
-                  onSelect={onSelect}
-                />
-              ))}
-            </div>
-          ))
+          <HookGroups visible={visible} selectedId={selectedId} onSelect={onSelect} />
         )}
       </div>
-      <div
-        style={{
-          flex: 'none',
-          borderTop: '1px solid var(--proto-line-2)',
-          padding: '8px 10px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span
-          data-action="create"
-          onClick={onStartCreate}
-          role="button"
-          style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer', flex: 'none' }}
-        >
-          + {L.hkCreate}
-        </span>
-        <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: 'var(--proto-faint)' }}>
-          {L.hkOrderNote}
-        </span>
-      </div>
-    </SCard>
-  );
-}
-
-// ── right column: read-only declaration ───────────────────────────────────────────────────────
-
-function ReadOnlyDeclaration({ hook }: { hook: HookDetail }) {
-  const L = useVocab();
-  const rows: { k: string; v: ReactNode }[] = [
-    { k: L.hkFieldEvent, v: hook.event },
-    {
-      k: matcherKindForEvent(hook.event) === 'filters' ? L.hkFieldFilters : L.hkFieldMatcher,
-      v: hook.matcherFilters
-        ? JSON.stringify(hook.matcherFilters)
-        : hook.matcher ?? L.hkNoMatcher,
-    },
-    {
-      k: hook.run.command !== null ? L.hkFieldCommand : L.hkFieldScript,
-      v: hook.run.command ?? hook.run.script ?? '—',
-    },
-    { k: L.hkFieldTimeout, v: hook.run.timeoutSec == null ? '—' : `${hook.run.timeoutSec}s` },
-    { k: L.hkFieldBackends, v: hook.scope?.backends?.join(' · ') ?? L.hkUnscoped },
-    { k: L.hkFieldRequiresTool, v: hook.scope?.requiresTool ?? '—' },
-    { k: L.hkFieldResult, v: hook.result ?? 'none' },
-  ];
-  if (hook.template !== null) {
-    rows.push({ k: L.hkFieldTemplate, v: `${hook.template} · ${hook.phase ?? '—'}` });
-  }
-  return (
-    <div style={{ font: `400 10px/2 ${MONO}`, color: 'var(--proto-muted)', marginTop: 4 }}>
-      {rows.map((row) => (
-        <MonoKV key={row.k} k={row.k} value={row.v} />
-      ))}
+      <PaneFooter hint={L.hkOrderNote}>
+        <SLinkAction data-action="create" onClick={onStartCreate}>+ {L.hkCreate}</SLinkAction>
+      </PaneFooter>
     </div>
-  );
-}
-
-// ── right column: the editor ──────────────────────────────────────────────────────────────────
-
-function FilterEditor({
-  draft,
-  onDraftChange,
-}: {
-  draft: HookFormState;
-  onDraftChange: (next: HookFormState) => void;
-}) {
-  const L = useVocab();
-  const rows = draft.filters;
-  const setRows = (next: typeof rows) => onDraftChange({ ...draft, filters: next });
-  return (
-    <div data-hook-filters-editor="">
-      {rows.map((row, i) => (
-        <div key={i} style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
-          <input
-            data-hook-filter-key={i}
-            value={row.key}
-            placeholder={L.hkFilterKeyPh}
-            onChange={(e) =>
-              setRows(rows.map((r, j) => (i === j ? { ...r, key: e.target.value } : r)))
-            }
-            style={{ ...S_CONTROL_STYLE, flex: 1 }}
-          />
-          <input
-            data-hook-filter-value={i}
-            value={row.value}
-            placeholder={L.hkFilterValuePh}
-            onChange={(e) =>
-              setRows(rows.map((r, j) => (i === j ? { ...r, value: e.target.value } : r)))
-            }
-            style={{ ...S_CONTROL_STYLE, flex: 1 }}
-          />
-          <span
-            data-hook-filter-remove={i}
-            onClick={() => setRows(rows.filter((_, j) => j !== i))}
-            role="button"
-            title={L.hkRemoveFilter}
-            style={{
-              font: `500 11px ${MONO}`,
-              color: 'var(--proto-muted-3)',
-              cursor: 'pointer',
-              padding: '5px 6px',
-              flex: 'none',
-            }}
-          >
-            ×
-          </span>
-        </div>
-      ))}
-      <span
-        data-action="add-filter"
-        onClick={() => setRows([...rows, { key: '', value: '' }])}
-        role="button"
-        style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-      >
-        + {L.hkAddFilter}
-      </span>
-    </div>
-  );
-}
-
-function HookEditor({
-  draft,
-  creating,
-  errors,
-  scripts,
-  eventOptions,
-  onDraftChange,
-}: {
-  draft: HookFormState;
-  creating: boolean;
-  errors: ReturnType<typeof validateHookForm>;
-  scripts: HookScriptInfo[];
-  eventOptions: string[];
-  onDraftChange: (next: HookFormState) => void;
-}) {
-  const L = useVocab();
-  const err = (key: HookFieldError | undefined): string | undefined =>
-    key ? L[FIELD_ERROR_LABEL[key]] : undefined;
-  const matcherKind = matcherKindForEvent(draft.event);
-  const regexError = matcherKind === 'regex' ? validateMatcherRegex(draft.matcher) : null;
-  const legal = legalResultsForEvent(draft.event);
-  const locked = isResultLocked(draft.event);
-
-  return (
-    <>
-      <SSectionLabel>{L.hkSecTrigger}</SSectionLabel>
-      {creating ? (
-        <SFieldRow label={L.hkFieldId} hint={err(errors.id)} hintTone="danger">
-          <input
-            data-hook-field="id"
-            value={draft.id}
-            onChange={(e) => onDraftChange({ ...draft, id: e.target.value })}
-            style={S_CONTROL_STYLE}
-          />
-        </SFieldRow>
-      ) : null}
-      <SFieldRow label={L.hkFieldEvent} hint={err(errors.event)} hintTone="danger">
-        <input
-          data-hook-field="event"
-          list={EVENT_LIST_ID}
-          value={draft.event}
-          onChange={(e) => {
-            const event = e.target.value;
-            // The result select is constrained per event, so a stale illegal mode is dropped here
-            // rather than sent to the loader to be rejected.
-            onDraftChange({ ...draft, event, result: reconcileResultForEvent(draft.result, event) });
-          }}
-          style={S_CONTROL_STYLE}
-        />
-        <datalist id={EVENT_LIST_ID}>
-          {eventOptions.map((event) => (
-            <option key={event} value={event} />
-          ))}
-        </datalist>
-      </SFieldRow>
-      {matcherKind === 'regex' ? (
-        <SFieldRow
-          label={L.hkFieldMatcher}
-          hint={regexError ? `${L.hkMatcherInvalid} — ${regexError}` : L.hkMatcherRegexHint}
-          hintTone={regexError ? 'danger' : 'muted'}
-        >
-          <input
-            data-hook-field="matcher"
-            data-hook-matcher-error={regexError ? '' : undefined}
-            value={draft.matcher}
-            placeholder={L.hkNoMatcher}
-            onChange={(e) => onDraftChange({ ...draft, matcher: e.target.value })}
-            style={
-              regexError ? { ...S_CONTROL_STYLE, borderColor: 'var(--proto-danger)' } : S_CONTROL_STYLE
-            }
-          />
-        </SFieldRow>
-      ) : (
-        <SFieldRow
-          label={L.hkFieldFilters}
-          hint={err(errors.filters) ?? L.hkMatcherFiltersHint}
-          hintTone={errors.filters ? 'danger' : 'muted'}
-        >
-          <FilterEditor draft={draft} onDraftChange={onDraftChange} />
-        </SFieldRow>
-      )}
-
-      <SSectionLabel>{L.hkSecAction}</SSectionLabel>
-      <SFieldRow label={L.hkFieldRun} hint={err(errors.run)} hintTone="danger">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingTop: 3 }}>
-          {(['script', 'command'] as const).map((kind) => (
-            <span
-              key={kind}
-              data-hook-run-kind={kind}
-              onClick={() => onDraftChange({ ...draft, runKind: kind })}
-              role="button"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-            >
-              <RadioDot selected={draft.runKind === kind} />
-              <span style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-ink-2)' }}>
-                {kind === 'script' ? L.hkFieldScript : L.hkFieldCommand}
-              </span>
-            </span>
-          ))}
-        </div>
-      </SFieldRow>
-      {draft.runKind === 'script' ? (
-        <SFieldRow label={L.hkFieldScript}>
-          <input
-            data-hook-field="script"
-            list={SCRIPT_LIST_ID}
-            value={draft.script}
-            onChange={(e) => onDraftChange({ ...draft, script: e.target.value })}
-            style={S_CONTROL_STYLE}
-          />
-          <datalist id={SCRIPT_LIST_ID}>
-            {scripts.map((script) => (
-              <option key={script.name} value={script.name} />
-            ))}
-          </datalist>
-        </SFieldRow>
-      ) : (
-        <SFieldRow label={L.hkFieldCommand}>
-          <input
-            data-hook-field="command"
-            value={draft.command}
-            onChange={(e) => onDraftChange({ ...draft, command: e.target.value })}
-            style={S_CONTROL_STYLE}
-          />
-        </SFieldRow>
-      )}
-      <SFieldRow label={L.hkFieldTimeout} hint={err(errors.timeoutSec)} hintTone="danger">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <input
-            data-hook-field="timeout"
-            value={draft.timeoutSec}
-            placeholder="30"
-            onChange={(e) => onDraftChange({ ...draft, timeoutSec: e.target.value })}
-            style={{ ...S_CONTROL_STYLE, width: 92 }}
-          />
-          <span style={{ fontSize: 10, color: 'var(--proto-faint)' }}>{L.hkSeconds}</span>
-        </div>
-      </SFieldRow>
-
-      <SSectionLabel>{L.hkSecScope}</SSectionLabel>
-      <SFieldRow label={L.hkFieldBackends} hint={draft.backends.length === 0 ? L.hkUnscoped : undefined}>
-        <div data-hook-field="backends" style={{ display: 'flex', gap: 5, paddingTop: 2 }}>
-          {(['claude', 'pi'] as const).map((backend) => {
-            const on = draft.backends.includes(backend);
-            return (
-              <span
-                key={backend}
-                data-hook-backend={backend}
-                data-active={on ? '' : undefined}
-                onClick={() =>
-                  onDraftChange({
-                    ...draft,
-                    backends: on
-                      ? draft.backends.filter((b) => b !== backend)
-                      : [...draft.backends, backend],
-                  })
-                }
-                role="button"
-                style={{
-                  font: `500 10px ${MONO}`,
-                  padding: '3px 9px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  color: on ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                  background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
-                  border: `1px solid ${on ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
-                }}
-              >
-                {backend}
-              </span>
-            );
-          })}
-        </div>
-      </SFieldRow>
-      <SFieldRow label={L.hkFieldRequiresTool}>
-        <input
-          data-hook-field="requiresTool"
-          value={draft.requiresTool}
-          placeholder="—"
-          onChange={(e) => onDraftChange({ ...draft, requiresTool: e.target.value })}
-          style={S_CONTROL_STYLE}
-        />
-      </SFieldRow>
-
-      <SSectionLabel>{L.hkSecAdvanced}</SSectionLabel>
-      <SFieldRow
-        label={L.hkFieldResult}
-        hint={locked ? L.hkResultLocked : err(errors.result)}
-        hintTone={errors.result ? 'danger' : 'muted'}
-      >
-        <Select
-          data-hook-field="result"
-          data-hook-result-locked={locked ? '' : undefined}
-          aria-label={L.hkFieldResult}
-          disabled={locked}
-          value={draft.result}
-          options={legal.map((mode) => ({ value: mode, label: mode }))}
-          onValueChange={(result: HookResultMode) => onDraftChange({ ...draft, result })}
-          style={locked ? S_CONTROL_DISABLED_STYLE : S_CONTROL_STYLE}
-        />
-      </SFieldRow>
-    </>
-  );
-}
-
-// ── right column: the test runner ─────────────────────────────────────────────────────────────
-
-function TestRunner({
-  hook,
-  payload,
-  result,
-  pending,
-  onPayloadChange,
-  onRun,
-  onClose,
-  onReset,
-}: {
-  hook: HookDetail;
-  payload: string;
-  result: HooksTestReturn | null;
-  pending: boolean;
-  onPayloadChange: (value: string) => void;
-  onRun: () => void;
-  onClose: () => void;
-  onReset: () => void;
-}) {
-  const L = useVocab();
-  const payloadError = payload.trim() !== '' && !isPayloadParseable(payload);
-  const runnable = !pending && isPayloadParseable(payload);
-  return (
-    <div
-      style={{
-        marginTop: 12,
-        borderTop: '1px solid var(--proto-line-2)',
-        paddingTop: 10,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.hkTestTitle}</span>
-        <span
-          data-action="reset-test-payload"
-          onClick={onReset}
-          role="button"
-          style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-accent)', cursor: 'pointer', marginLeft: 6 }}
-        >
-          {L.hkTestReset}
-        </span>
-        <span
-          data-action="close-test"
-          onClick={onClose}
-          role="button"
-          style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)', cursor: 'pointer' }}
-        >
-          {L.hkTestClose}
-        </span>
-      </div>
-      {/* A blocking hook posts a card to the message platform and parks the run until it is
-          answered. The server caps a UI test at 15s, but the user still deserves the warning. */}
-      {hook.blocking !== null ? (
-        <InlineNote data-hook-blocking-warning="" tone="amber">
-          {L.hkTestBlockingWarn}
-        </InlineNote>
-      ) : null}
-      <div style={{ fontSize: 10, color: 'var(--proto-faint)', margin: '8px 0 4px' }}>{L.hkTestPayload}</div>
-      <textarea
-        data-hook-test-payload=""
-        value={payload}
-        onChange={(e) => onPayloadChange(e.target.value)}
-        rows={6}
-        style={{
-          ...S_CONTROL_STYLE,
-          resize: 'vertical',
-          lineHeight: 1.6,
-          borderColor: payloadError ? 'var(--proto-danger)' : 'var(--proto-line)',
-        }}
-      />
-      {payloadError ? (
-        <div data-hook-payload-error="" style={{ fontSize: 9.5, color: 'var(--proto-danger)', marginTop: 3 }}>
-          {L.hkPayloadInvalid}
-        </div>
-      ) : null}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <SButton data-action="run-test" tone="accent" disabled={!runnable} onClick={onRun}>
-          {L.hkTestRun}
-        </SButton>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)' }}>
-          {hook.run.command ?? hook.run.script ?? '—'}
-        </span>
-      </div>
-      {result !== null ? (
-        <div
-          data-hook-test-result=""
-          style={{
-            marginTop: 9,
-            border: '1px solid var(--proto-line-2)',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 10px',
-              background: 'var(--proto-alt)',
-              font: `500 9.5px ${MONO}`,
-              color: 'var(--proto-muted)',
-            }}
-          >
-            <span
-              data-hook-test-exit={result.exitCode === null ? '' : String(result.exitCode)}
-              style={{ color: result.ok ? 'var(--proto-success)' : 'var(--proto-danger)', fontWeight: 700 }}
-            >
-              exit {result.exitCode ?? '—'}
-            </span>
-            {result.error !== null ? (
-              <span style={{ color: 'var(--proto-danger)' }}>{result.error}</span>
-            ) : null}
-          </div>
-          <TestStream label="stdout" text={result.stdout} />
-          <TestStream label="stderr" text={result.stderr} tone="danger" />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TestStream({ label, text, tone }: { label: string; text: string; tone?: 'danger' }) {
-  const L = useVocab();
-  const empty = text.trim() === '';
-  return (
-    <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '6px 10px' }}>
-      <div style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{label}</div>
-      <pre
-        style={{
-          margin: 0,
-          font: `400 10px/1.65 ${MONO}`,
-          color: empty
-            ? 'var(--proto-faint)'
-            : tone === 'danger'
-              ? 'var(--proto-danger)'
-              : 'var(--proto-ink-2)',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          maxHeight: 130,
-          overflow: 'auto',
-        }}
-      >
-        {empty ? L.hkTestNoOutput : text}
-      </pre>
-    </div>
-  );
-}
-
-// ── right column: detail shell ────────────────────────────────────────────────────────────────
-
-const FOOTER_STYLE: CSSProperties = {
-  flex: 'none',
-  borderTop: '1px solid var(--proto-line-2)',
-  padding: '9px 14px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-};
-
-function HookDetailPane(props: HooksPanelViewProps & { hook: HookDetail | null }) {
-  const L = useVocab();
-  const { hook, draft, creating } = props;
-
-  if (draft === null || (hook === null && !creating)) {
-    return (
-      <SCard style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 11.5, color: 'var(--proto-muted-3)' }}>{L.hkSelectHint}</span>
-      </SCard>
-    );
-  }
-
-  const capability = hook ? hookCapability(hook) : null;
-  const editing = creating || (capability?.canEdit ?? false);
-  const errors = validateHookForm(draft, {
-    mode: creating ? 'create' : 'update',
-    existingIds: props.hooks.map((h) => h.id),
-  });
-  const dirty = creating ? true : hook !== null && isHookFormDirty(draft, hook);
-  const savable = editing && dirty && isHookFormValid(errors) && !props.saving;
-  const claudeGap = hook !== null && hasClaudeMountGap(hook);
-  const alternative = hook ? claudeAlternativeEvent(hook.event) : null;
-  const appliesAt = hook?.appliesAt ?? null;
-
-  return (
-    <SCard style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* header — identity, source, mount targets and the one write managed entries do allow */}
-      <div
-        style={{
-          flex: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--proto-line-2)',
-        }}
-      >
-        <span style={{ font: `600 12px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>
-          {creating ? draft.id || L.hkCreate : hook?.id}
-        </span>
-        {hook ? <SourceBadge source={hook.source} /> : null}
-        {hook?.mountsOn.map((target) => (
-          <MountBadge key={target} target={target} />
-        ))}
-        {dirty && !creating ? (
-          <span style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--proto-amber)' }}>{L.hkDirty}</span>
-        ) : null}
-        {hook && capability?.canToggle ? (
-          <span
-            data-hook-toggle=""
-            data-hook-enabled={hook.enabled ? '' : undefined}
-            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7, flex: 'none' }}
-          >
-            <span style={{ fontSize: 10, color: 'var(--proto-muted-2)' }}>
-              {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
-            </span>
-            <Toggle
-              on={hook.enabled}
-              onClick={props.saving ? undefined : () => props.onToggleEnabled(hook, !hook.enabled)}
-            />
-          </span>
-        ) : null}
-      </div>
-
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '4px 14px 12px' }}>
-        {/* capability notes — persistent, because the constraint does not go away */}
-        {capability?.note === 'managed' ? (
-          <InlineNote data-hook-note="managed" tone="amber">
-            {L.hkNoteManaged}
-          </InlineNote>
-        ) : null}
-        {capability?.note === 'template-scoped' ? (
-          <InlineNote data-hook-note="template-scoped" tone="accent">
-            {L.hkNoteTemplate}
-            {hook?.template ? <Mono> · {hook.template}</Mono> : null}
-          </InlineNote>
-        ) : null}
-        {claudeGap ? (
-          <InlineNote data-hook-claude-gap="" tone="amber">
-            {L.hkClaudeGap} {alternative ? <Mono>{alternative}</Mono> : null}
-          </InlineNote>
-        ) : null}
-        {hook?.scriptExists === false ? (
-          <InlineNote data-hook-script-missing="" tone="danger">
-            {L.hkScriptMissing}
-          </InlineNote>
-        ) : null}
-
-        {editing ? (
-          <HookEditor
-            draft={draft}
-            creating={creating}
-            errors={errors}
-            scripts={props.scripts}
-            eventOptions={hookEventOptions(props.hooks)}
-            onDraftChange={props.onDraftChange}
-          />
-        ) : hook ? (
-          <>
-            <SSectionLabel>{L.hkSecDeclaration}</SSectionLabel>
-            <ReadOnlyDeclaration hook={hook} />
-          </>
-        ) : null}
-
-        {/* Structural facts the API never accepts as input, shown so the declaration reads whole. */}
-        {hook ? (
-          <>
-            <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>
-            <div style={{ font: `400 10px/2 ${MONO}`, color: 'var(--proto-muted)' }}>
-              <MonoKV k={L.hkFieldSource} value={hook.source} />
-              <MonoKV k={L.hkFieldFile} value={hook.fileName ?? '—'} />
-              <MonoKV k={L.hkFieldOrder} value={String(hook.order)} />
-              <MonoKV k={L.hkFieldVersion} value={hook.version ?? '—'} />
-              <MonoKV
-                k={L.hkFieldBlocking}
-                value={hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} min`}
-              />
-              <MonoKV k={L.hkFieldMountsOn} value={hook.mountsOn.join(' · ') || '—'} />
-            </div>
-            {appliesAt !== null ? (
-              <div
-                data-hook-applies-at={appliesAt}
-                style={{ fontSize: 10, lineHeight: 1.7, color: 'var(--proto-muted-2)', marginTop: 7 }}
-              >
-                {appliesAt === 'server-restart' ? L.hkAppliesRestart : L.hkAppliesNextAgent}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {props.testOpen && hook !== null ? (
-          <TestRunner
-            hook={hook}
-            payload={props.testPayload}
-            result={props.testResult}
-            pending={props.testPending}
-            onPayloadChange={props.onTestPayloadChange}
-            onRun={props.onRunTest}
-            onClose={props.onCloseTest}
-            onReset={() => props.onTestPayloadChange(samplePayloadForEvent(hook.event))}
-          />
-        ) : null}
-      </div>
-
-      {/* footer — Test · Revert · Save · Delete, with delete armed in two steps */}
-      <div style={FOOTER_STYLE}>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)', flex: 1, minWidth: 0 }}>
-          {props.hooksDir}
-        </span>
-        {hook !== null && !props.testOpen ? (
-          <SButton data-action="open-test" tone="neutral" onClick={props.onOpenTest}>
-            {L.hkTest}
-          </SButton>
-        ) : null}
-        {creating ? (
-          <>
-            <SButton data-action="cancel-create" tone="neutral" onClick={props.onCancelCreate}>
-              {L.hkCancelCreate}
-            </SButton>
-            <SButton data-action="save" tone="accent" disabled={!savable} onClick={props.onSave}>
-              {L.hkSave}
-            </SButton>
-          </>
-        ) : editing ? (
-          <>
-            <SButton data-action="revert" tone="neutral" disabled={!dirty} onClick={props.onRevert}>
-              {L.hkRevert}
-            </SButton>
-            <SButton data-action="save" tone="accent" disabled={!savable} onClick={props.onSave}>
-              {L.hkSave}
-            </SButton>
-            {props.armedDelete ? (
-              <>
-                <SButton data-action="cancel-delete" tone="neutral" onClick={props.onCancelDelete}>
-                  {L.cancel}
-                </SButton>
-                <SButton
-                  data-action="confirm-delete"
-                  tone="danger"
-                  disabled={props.saving}
-                  onClick={props.onConfirmDelete}
-                >
-                  {L.hkConfirmDelete}
-                </SButton>
-              </>
-            ) : (
-              <SButton data-action="arm-delete" tone="danger" disabled={props.saving} onClick={props.onArmDelete}>
-                {L.hkDelete}
-              </SButton>
-            )}
-          </>
-        ) : null}
-      </div>
-    </SCard>
   );
 }
 
 // ── the pure view ─────────────────────────────────────────────────────────────────────────────
 
-export interface HooksPanelViewProps {
-  hooks: HookDetail[];
-  scripts: HookScriptInfo[];
-  hooksDir: string;
+export interface HooksPanelViewProps extends HookDetailPaneProps {
   filter: HookFilterKey;
   search: string;
   selectedId: string | null;
-  /** The editor's working copy — null when nothing is selected and nothing is being created. */
-  draft: HookFormState | null;
-  creating: boolean;
-  armedDelete: boolean;
-  saving: boolean;
-  testOpen: boolean;
-  testPayload: string;
-  testResult: HooksTestReturn | null;
-  testPending: boolean;
   onFilter: (key: HookFilterKey) => void;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
   onStartCreate: () => void;
-  onCancelCreate: () => void;
-  onDraftChange: (next: HookFormState) => void;
-  onToggleEnabled: (hook: HookDetail, next: boolean) => void;
-  onSave: () => void;
-  onRevert: () => void;
-  onArmDelete: () => void;
-  onCancelDelete: () => void;
-  onConfirmDelete: () => void;
-  onOpenTest: () => void;
-  onCloseTest: () => void;
-  onTestPayloadChange: (value: string) => void;
-  onRunTest: () => void;
 }
 
 export function HooksPanelView(props: HooksPanelViewProps) {
   const visible = filterHooks(props.hooks, props.filter, props.search);
   const hook = props.hooks.find((h) => h.id === props.selectedId) ?? null;
   return (
-    <div
-      data-settings-panel="hooks"
-      style={{ marginTop: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
-    >
-      <div
-        data-hook-cards=""
-        style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch' }}
-      >
+    <div data-settings-panel="hooks" style={EDITOR_ROOT_STYLE}>
+      <div className="settings-editor-columns" data-hook-cards="" style={EDITOR_COLUMNS_STYLE}>
         <HookList
           hooks={props.hooks}
           visible={visible}
@@ -1116,6 +256,7 @@ export function HooksPanelView(props: HooksPanelViewProps) {
     </div>
   );
 }
+
 // ── container: the editor state, over useHooksController ──────────────────────────────────────
 
 export function HooksPanel() {
@@ -1151,11 +292,11 @@ export function HooksPanel() {
   }, [selectedId]);
 
   if (hooksCtl.isLoading) {
-    return <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.hkLoading}</div>;
+    return <div style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>{L.hkLoading}</div>;
   }
   if (hooksCtl.isError) {
     return (
-      <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-danger)' }}>
+      <div style={{ fontSize: 13, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>
         {L.hkLoadFailed} {hooksCtl.errorMessage}
       </div>
     );

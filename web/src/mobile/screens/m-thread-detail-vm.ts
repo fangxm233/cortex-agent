@@ -3,7 +3,7 @@
 // Shared facts own lifecycle, timing, active agent/output precedence, dispatch joins, and tree depth.
 // Mobile keeps its own breadcrumb names, localized artifact age, copy, and final slot shapes.
 //
-// HONEST GAPS (per features/thread/CORTEX.md + the 1g task):
+// HONEST GAPS (per features/thread/AGENTS.md + the 1g task):
 //   - ancestry crumb NAMES ride the drill trail (ThreadDetail has no parent chain) → real when carried,
 //     omitted (just the template name + real subtree depth) when not — never fabricated;
 //   - `selfLevel` (L{n}) = trail.length + 1 (known ancestry depth), null when no trail is carried;

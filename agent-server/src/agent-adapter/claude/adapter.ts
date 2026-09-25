@@ -94,6 +94,10 @@ interface ClaudeSessionOptions {
   browserMcpConfigIdentity?: string | null;
   pluginCapabilityFingerprint?: string | null;
   disableHooks?: boolean;
+  /** Drop the CLI's whole skill layer; see {@link ClaudeSpawnOptions.disableSkills}. */
+  disableSkills?: boolean;
+  /** Setting files the CLI may load; see {@link ClaudeSpawnOptions.settingSources}. */
+  settingSources?: string[];
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
   preserveUnreportedAccounting?: boolean;
@@ -143,6 +147,8 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
     supplementalMcpConfigPath: fields.supplementalMcpConfigPath,
     browserMcpConfigPath: fields.browserMcpConfigPath,
     disableHooks: fields.disableHooks,
+    disableSkills: fields.disableSkills,
+    settingSources: fields.settingSources,
     streamDeltas: fields.streamDeltas,
   };
 }
@@ -163,6 +169,12 @@ export interface ClaudeSpawnCompatibility {
   /** Turning the browser on or off must force a FRESH process: a pooled Claude keeps whatever MCP
    *  set it was spawned with, so without this the toggle would silently no-op until the process died. */
   browserMcpConfigIdentity: string | null;
+  /** `--disable-slash-commands`. Part of the identity for the same reason as the browser: the skill
+   *  surface is fixed at spawn, so two agents that differ only here must not share a process. */
+  disableSkills: boolean;
+  /** `--setting-sources`. Null = the CLI's own default set; `[]` = load none. Both are decided at
+   *  spawn and cannot be re-pointed afterwards. */
+  settingSources: string[] | null;
 }
 
 function cloneTextArray(values: string[] | null | undefined): string[] {
@@ -196,9 +208,11 @@ export function sameClaudeSpawnCompatibility(
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
     && left.browserMcpConfigIdentity === right.browserMcpConfigIdentity
+    && left.disableSkills === right.disableSkills
     && sameTextArray(left.pluginDirs, right.pluginDirs)
     && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths)
-    && sameOptionalTextArray(left.mcpToolAllowlist, right.mcpToolAllowlist);
+    && sameOptionalTextArray(left.mcpToolAllowlist, right.mcpToolAllowlist)
+    && sameOptionalTextArray(left.settingSources, right.settingSources);
 }
 
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
@@ -215,6 +229,8 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     mcpToolAllowlist: optionalTextArray(options.mcpToolAllowlist),
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
     browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
+    disableSkills: options.disableSkills === true,
+    settingSources: optionalTextArray(options.settingSources),
   };
 }
 
@@ -236,9 +252,11 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
     ['pluginCapabilityFingerprint', compatibility.pluginCapabilityFingerprint],
     ['supplementalMcpConfigIdentity', compatibility.supplementalMcpConfigIdentity],
     ['browserMcpConfigIdentity', compatibility.browserMcpConfigIdentity],
+    ['disableSkills', compatibility.disableSkills],
     ['pluginDirs', compatibility.pluginDirs],
     ['mcpConfigPaths', compatibility.mcpConfigPaths],
     ['mcpToolAllowlist', compatibility.mcpToolAllowlist],
+    ['settingSources', compatibility.settingSources],
   ];
   return JSON.stringify(fields);
 }
@@ -288,6 +306,8 @@ class ClaudeSession implements TurnHost {
   private browserMcpConfigPath: string | null;
   private compatibility: ClaudeSpawnCompatibility;
   private disableHooks: boolean;
+  private disableSkills: boolean;
+  private settingSources: string[] | undefined;
   private streamDeltas: boolean | undefined;
   captureTranscriptLogs!: boolean;
   preserveUnreportedAccounting!: boolean;
@@ -342,6 +362,8 @@ class ClaudeSession implements TurnHost {
     this.browserMcpConfigPath = options.browserMcpConfigPath ?? null;
     this.compatibility = compatibilityFromOptions(options);
     this.disableHooks = options.disableHooks === true;
+    this.disableSkills = options.disableSkills === true;
+    this.settingSources = options.settingSources;
     this.streamDeltas = options.streamDeltas;
     this.onSelfClose = options.onSelfClose;
     this.onEvict = options.onEvict;
@@ -379,6 +401,8 @@ class ClaudeSession implements TurnHost {
       supplementalMcpConfigPath: this.supplementalMcpConfigPath,
       browserMcpConfigPath: this.browserMcpConfigPath,
       disableHooks: this.disableHooks,
+      disableSkills: this.disableSkills,
+      settingSources: this.settingSources,
       streamDeltas: this.streamDeltas,
     });
   }
@@ -734,6 +758,8 @@ function sessionRuntimeOptions(
     browserMcpConfigIdentity: browser?.identity ?? null,
     pluginCapabilityFingerprint: spec.plugins.fingerprint ?? null,
     disableHooks: spec.flags.disableHooks,
+    disableSkills: spec.flags.disableSkills,
+    settingSources: spec.flags.settingSources,
     streamDeltas: spec.flags.streamDeltas,
     captureTranscriptLogs: spec.flags.captureTranscripts,
     preserveUnreportedAccounting: spec.flags.preserveUnreportedAccounting,
@@ -782,6 +808,8 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
     supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
     browserMcpConfigPath: opts.browserMcpConfigPath,
     disableHooks: opts.disableHooks,
+    disableSkills: opts.disableSkills,
+    settingSources: opts.settingSources,
     streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = spec.flags.isUserInitiated;

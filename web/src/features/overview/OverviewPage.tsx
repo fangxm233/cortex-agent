@@ -2,6 +2,7 @@ import { LeftRail } from '@/features/workbench/rail/LeftRail';
 import { RightPanel } from '@/features/workbench/right-panel/RightPanel';
 import { OverviewView } from './OverviewView';
 import { AppFrame } from '@/shell/AppFrame';
+import { WorkspacePanel } from '@/shell/GlassPanel';
 
 // Route /overview — the project Overview 6a as a center-column view inside the workbench frame
 // (task df67, plan §8.5). Reuses the 1:1 LeftRail (f528) + RightPanel (1e96); only the center pane
@@ -11,8 +12,10 @@ export function OverviewPage(): JSX.Element {
   return (
     <AppFrame>
       <LeftRail />
-      <OverviewView />
-      <RightPanel />
+      <WorkspacePanel>
+        <OverviewView />
+        <RightPanel />
+      </WorkspacePanel>
     </AppFrame>
   );
 }

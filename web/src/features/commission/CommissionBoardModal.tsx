@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: CommissionBoardModal presentation
+// pos:    Commission glass chrome and stable document panes
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useCallback, useState } from 'react';
+import '@/design/content-surfaces.css';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
@@ -21,10 +27,10 @@ function StatusPill({ status }: { status: CommissionInfo['status'] }): JSX.Eleme
     status === 'active' ? L.wbCommissionActive
       : status === 'done' ? L.wbCommissionDone
         : L.wbCommissionAbandoned;
-  const color = status === 'active' ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
+  const color = status === 'active' ? 'var(--proto-accent)' : 'var(--proto-muted)';
   const bg = status === 'active' ? 'var(--proto-accent-bg)' : 'var(--proto-gray)';
   return (
-    <span style={{ font: `500 9.5px ${mono}`, color, background: bg, borderRadius: 5, padding: '2px 6px', flex: 'none' }}>
+    <span style={{ font: `500 11px ${mono}`, color, background: bg, borderRadius: 'var(--r-control)', padding: '2px 6px', flex: 'none' }}>
       {label}
     </span>
   );
@@ -39,16 +45,17 @@ function PaneTab({ active, label, onClick }: {
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       style={{
         border: 0,
-        borderRadius: 6,
+        borderRadius: 'var(--r-control)',
         padding: '3px 9px',
         cursor: 'pointer',
         fontSize: 11.5,
         fontWeight: active ? 600 : 400,
-        background: active ? 'var(--proto-card)' : 'transparent',
-        color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-        boxShadow: active ? 'var(--shadow-raised, none)' : 'none',
+        background: active ? 'var(--material-control-bg)' : 'transparent',
+        color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+        boxShadow: active ? 'var(--material-control-shadow)' : 'none',
       }}
     >
       {label}
@@ -72,13 +79,14 @@ function ActionButton({ label, tone, disabled, onClick }: {
       onMouseLeave={() => setHover(false)}
       style={{
         border: '1px solid var(--proto-line-2)',
-        borderRadius: 7,
+        borderRadius: 'var(--r-control)',
         padding: '4px 11px',
         fontSize: 12,
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
-        background: hover && !disabled ? 'var(--proto-gray)' : 'transparent',
-        color: tone === 'danger' ? 'var(--proto-amber)' : 'var(--proto-ink-2)',
+        background: hover && !disabled ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
+        color: tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)',
       }}
     >
       {label}
@@ -135,6 +143,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
 
   return (
     <Modal
+      contentClassName="content-surface commission-board"
       chrome="bare"
       size="custom"
       open={true}
@@ -154,16 +163,21 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         maxWidth: '94vw',
         height: 700,
         maxHeight: '90vh',
-        background: 'var(--proto-card)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        // Floating glass sheet, matching design/Modal's standard panel: `chrome="bare"` hands the
+        // look to this call site, and a top-level overlay is the one shape `backdrop-filter` is
+        // affordable on — the sheet holds still while the two panes scroll inside it.
+        background: 'var(--material-overlay-bg)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 18px 12px', borderBottom: '1px solid var(--proto-line)', flex: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 18px 12px', borderBottom: '1px solid var(--proto-line-2)', flex: 'none' }}>
         <svg width={14} height={14} viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
           <path d="M3.7 1.9v10.2" />
           <path d="M3.7 2.7h6.8L9.1 5l1.4 2.3H3.7z" />
@@ -172,7 +186,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
           <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {commission.title}
           </div>
-          <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)', marginTop: 2 }}>
+          <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', marginTop: 2 }}>
             {commission.slug}
           </div>
         </div>
@@ -205,7 +219,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
       </div>
 
       {confirming && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-rail)', flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderBottom: '1px solid var(--proto-line-2)', background: 'transparent', flex: 'none' }}>
           <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)', flex: 'none' }}>
             {confirming === 'done' ? L.wbCommissionCompleteTitle : L.wbCommissionAbandonTitle}
           </span>
@@ -218,9 +232,9 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
               minWidth: 0,
               height: 26,
               padding: '0 8px',
-              borderRadius: 6,
+              borderRadius: 'var(--r-control)',
               border: '1px solid var(--proto-line-2)',
-              background: 'var(--proto-card)',
+              background: 'var(--material-inset-bg)',
               color: 'var(--proto-ink)',
               fontSize: 12,
             }}
@@ -235,30 +249,30 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--proto-line)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line)' }}>
-            <div style={{ display: 'flex', gap: 2, background: 'var(--proto-gray)', borderRadius: 7, padding: 2 }}>
+      <div className="commission-columns" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--proto-line-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)' }}>
+            <div style={{ display: 'flex', gap: 2, background: 'var(--material-inset-bg)', borderRadius: 'var(--r-chip)', padding: 2 }}>
               <PaneTab active={pane === 'ledger'} label={L.wbCommissionLedger} onClick={() => setPane('ledger')} />
               <PaneTab active={pane === 'contract'} label={L.wbCommissionContract} onClick={() => setPane('contract')} />
             </div>
           </div>
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 24px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 24px', background: 'var(--proto-card)' }}>
             {text ? (
               <MarkdownView content={text} resolveImage={resolveImage} />
             ) : (
-              <div style={{ color: 'var(--proto-faint)', fontSize: 12.5, padding: '18px 0' }}>{emptyText}</div>
+              <div style={{ color: 'var(--proto-muted)', fontSize: 12.5, padding: '18px 0' }}>{emptyText}</div>
             )}
           </div>
         </div>
 
-        <div style={{ width: 380, flex: 'none', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ padding: '11px 16px 8px', flex: 'none', borderBottom: '1px solid var(--proto-line)' }}>
-            <div style={{ font: `600 10px ${mono}`, color: 'var(--proto-muted-2)', letterSpacing: 0.4 }}>
+        <div className="commission-decisions" style={{ width: 380, flex: 'none', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '11px 16px 8px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)' }}>
+            <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: 0.4 }}>
               {L.wbCommissionGates}
             </div>
             {props.gates.length === 0 ? (
-              <div style={{ color: 'var(--proto-faint)', fontSize: 12, marginTop: 6 }}>{L.wbCommissionNoGates}</div>
+              <div style={{ color: 'var(--proto-muted)', fontSize: 12, marginTop: 6 }}>{L.wbCommissionNoGates}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
                 {props.gates.map((s) => (
@@ -267,11 +281,11 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
                     onClick={() => props.onOpenSession(s)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-                      padding: '5px 7px', borderRadius: 6, fontSize: 12.5,
+                      padding: '5px 7px', borderRadius: 'var(--r-chip)', fontSize: 12.5,
                       background: 'var(--proto-amber-bg, var(--proto-gray))', color: 'var(--proto-ink)',
                     }}
                   >
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber-fg)', flex: 'none' }} />
                     <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {s.label ?? s.name ?? s.sessionId}
                     </span>
@@ -282,11 +296,11 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
           </div>
 
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '11px 16px 20px' }}>
-            <div style={{ font: `600 10px ${mono}`, color: 'var(--proto-muted-2)', letterSpacing: 0.4 }}>
+            <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: 0.4 }}>
               {L.wbCommissionDecisions}
             </div>
             {props.decisions.length === 0 ? (
-              <div style={{ color: 'var(--proto-faint)', fontSize: 12, marginTop: 6 }}>{L.wbCommissionNoDecisions}</div>
+              <div style={{ color: 'var(--proto-muted)', fontSize: 12, marginTop: 6 }}>{L.wbCommissionNoDecisions}</div>
             ) : (
               // Read-only on purpose: no sessionId is passed, so the cards render without their
               // approve/revise controls. The board is a record; acting on a decision happens in the
@@ -294,7 +308,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {props.decisions.map((entry, i) => (
                   <div key={`${entry.ts}:${entry.item.id}:${i}`}>
-                    <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)', marginTop: 10 }}>
+                    <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', marginTop: 10 }}>
                       {props.sessionLabel(entry.sessionId)}
                     </div>
                     <DecisionCardGroup decisions={[entry.item]} />
@@ -307,8 +321,8 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
       </div>
 
       {commission.closeNote && (
-        <div style={{ flex: 'none', padding: '8px 18px', borderTop: '1px solid var(--proto-line)', fontSize: 12, color: 'var(--proto-muted)' }}>
-          <span style={{ color: 'var(--proto-muted-3)' }}>{L.wbCommissionClosedNote}: </span>
+        <div style={{ flex: 'none', padding: '8px 18px', borderTop: '1px solid var(--proto-line-2)', fontSize: 12, color: 'var(--proto-muted)' }}>
+          <span style={{ color: 'var(--proto-muted)' }}>{L.wbCommissionClosedNote}: </span>
           {commission.closeNote}
         </div>
       )}

@@ -1,4 +1,9 @@
+// input:  React, browser and commission options, slash suggestions
+// output: ComposerActionRow, ComposerSlashMenu, control types
+// pos:    Glass toolbar pickers with Escape focus restoration
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
@@ -15,22 +20,25 @@ export function ComposerSlashMenu({ suggestions, onPick }: {
   const [hovered, setHovered] = useState<number | null>(null);
   if (suggestions.length === 0) return null;
   return (
-    <div data-menu="slash" style={{ position: 'absolute', left: 32, right: 32, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 12, boxShadow: 'var(--shadow-menu-soft)', background: 'var(--proto-card)', overflow: 'hidden', zIndex: 10 }}>
+    <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', ...MENU_SURFACE, overflow: 'hidden', zIndex: 10 }}>
       {suggestions.map((suggestion, index) => (
-        <div
+        <button
+          type="button"
+          disabled={suggestion.disabled}
+          className={MENU_FOCUS}
           key={suggestion.command}
           data-slash-command={suggestion.command}
           onMouseEnter={() => setHovered(index)}
           onMouseLeave={() => setHovered((value) => value === index ? null : value)}
           onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-          style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: hovered === index || index === 0 ? 'var(--proto-accent-bg)' : 'var(--proto-card)', cursor: suggestion.disabled ? 'default' : 'pointer' }}
+          style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: hovered === index || index === 0 ? 'var(--proto-accent-bg)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
         >
           <span style={{ font: `600 12px ${MONO}`, color: index === 0 ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{suggestion.command}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', marginLeft: 12 }}>{suggestion.description}</span>
-        </div>
+          <span style={{ fontSize: 11.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
+        </button>
       ))}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'var(--proto-rail)' }}>
-        <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-faint)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'transparent' }}>
+        <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
       </div>
     </div>
   );
@@ -41,7 +49,12 @@ function useDismissMenu(open: boolean, close: () => void): void {
   useEffect(() => {
     // No window under SSR or a node test environment; the menu simply keeps no global listeners.
     if (!open || typeof window === 'undefined') return;
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') close(); };
+    const trigger = typeof document === 'undefined' ? null : document.activeElement as HTMLElement | null;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      close();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('click', close);
     return () => {
@@ -70,13 +83,14 @@ export interface ComposerCommissionControl {
 }
 
 const MENU_ROW_STYLE: CSSProperties = {
+  ...MENU_BUTTON_STYLE, background: 'transparent',
   display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: '0 13px',
   cursor: 'pointer', fontSize: 12, color: 'var(--proto-ink)',
 };
 
 /** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
  *  two surfaces read as one menu. Muted stroke: the label carries the row, the icon only anchors it. */
-function MenuIcon({ kind, size = 14, color = 'var(--proto-muted-2)' }: {
+function MenuIcon({ kind, size = 14, color = 'var(--proto-muted)' }: {
   kind: 'attach' | 'browser' | 'commission' | 'commands';
   size?: number;
   color?: string;
@@ -123,7 +137,10 @@ function BrowserDeviceRows({ options, current, onPick }: {
   return (
     <>
       {options.map((o) => (
-        <span
+        <button
+          type="button"
+          className={MENU_FOCUS}
+          aria-pressed={o.device === current}
           key={o.device ?? '__off__'}
           data-device={o.device ?? '__off__'}
           onClick={(e) => { e.stopPropagation(); onPick(o.device); }}
@@ -132,12 +149,12 @@ function BrowserDeviceRows({ options, current, onPick }: {
             background: o.device === current ? 'var(--proto-accent-bg)' : 'transparent',
           }}
         >
-          <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
-          <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
+          <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{o.sub}</span>
           {o.device === current && (
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
           )}
-        </span>
+        </button>
       ))}
     </>
   );
@@ -154,7 +171,10 @@ function CommissionOptionRows({ options, current, onPick }: {
   return (
     <>
       {options.map((o) => (
-        <span
+        <button
+          type="button"
+          className={MENU_FOCUS}
+          aria-pressed={o.value === current}
           key={o.value ?? '__off__'}
           data-commission-option={o.value ?? '__off__'}
           onClick={(e) => { e.stopPropagation(); onPick(o.value); }}
@@ -163,12 +183,12 @@ function CommissionOptionRows({ options, current, onPick }: {
             background: o.value === current ? 'var(--proto-accent-bg)' : 'transparent',
           }}
         >
-          <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{o.label}</span>
-          <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
+          <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{o.label}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{o.sub}</span>
           {o.value === current && (
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
           )}
-        </span>
+        </button>
       ))}
     </>
   );
@@ -201,6 +221,7 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
     <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
       <button
         type="button"
+        className={MENU_FOCUS}
         data-chip="browser"
         data-browser-device={device}
         data-editable={editable ? 'true' : 'false'}
@@ -212,11 +233,11 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
           height: 30, maxWidth: 160, padding: '0 10px', boxSizing: 'border-box',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
-          font: `500 10.5px ${MONO}`,
+          font: `500 11px ${MONO}`,
           cursor: editable ? 'pointer' : 'default',
         }}
       >
@@ -225,21 +246,13 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
         {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
       </button>
       {open && editable && (
-        <span
-          data-menu="browser"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 170,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="browser" align="left" minWidth={170}>
           <BrowserDeviceRows
             options={options}
             current={device}
             onPick={(picked) => { close(); browser.onChange!(picked); }}
           />
-        </span>
+        </MenuCard>
       )}
     </span>
   );
@@ -275,6 +288,7 @@ function ComposerCommissionChip({ commission }: {
     <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
       <button
         type="button"
+        className={MENU_FOCUS}
         data-chip="commission"
         data-commission-value={value}
         data-editable={editable ? 'true' : 'false'}
@@ -286,11 +300,11 @@ function ComposerCommissionChip({ commission }: {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
           height: 30, maxWidth: 180, padding: '0 10px', boxSizing: 'border-box',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
           background: 'var(--proto-accent-bg)',
           color: 'var(--proto-accent)',
-          font: `500 10.5px ${MONO}`,
+          font: `500 11px ${MONO}`,
           cursor: editable ? 'pointer' : 'default',
         }}
       >
@@ -299,21 +313,13 @@ function ComposerCommissionChip({ commission }: {
         {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
       </button>
       {open && editable && (
-        <span
-          data-menu="commission"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 190,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="commission" align="left" minWidth={190}>
           <CommissionOptionRows
             options={options}
             current={value}
             onPick={(picked) => { close(); commission.onChange!(picked); }}
           />
-        </span>
+        </MenuCard>
       )}
     </span>
   );
@@ -349,6 +355,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
     <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
       <button
         type="button"
+        className={MENU_FOCUS}
         data-chip="plus"
         aria-label={L.wbPlusMenu}
         aria-expanded={open}
@@ -357,9 +364,10 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
         onMouseLeave={() => setHover(false)}
         style={{
           width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
-          border: `1.5px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-          color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-          background: 'var(--proto-card)',
+          border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
+          color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
+          background: 'var(--material-control-bg)',
+          boxShadow: 'var(--material-control-shadow)',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           lineHeight: 0, cursor: 'pointer',
         }}
@@ -367,28 +375,22 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
         <PlusGlyph />
       </button>
       {open && (
-        <span
-          data-menu="plus"
-          style={{
-            position: 'absolute', left: 0, bottom: 36, minWidth: 190,
-            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
-            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
-            overflow: 'hidden', display: 'block',
-          }}
-        >
+        <MenuCard kind="plus" align="left" minWidth={190}>
           {page === 'root' ? (
             <>
-              <span
+              <button
+                type="button" className={MENU_FOCUS}
                 data-plus-item="attach"
                 onClick={(e) => { e.stopPropagation(); close(); onAttach(); }}
                 style={MENU_ROW_STYLE}
               >
                 <MenuIcon kind="attach" />
                 {L.wbAttach}
-                <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.wbAttachHint}</span>
-              </span>
+                <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.wbAttachHint}</span>
+              </button>
               {browser && (
-                <span
+                <button
+                  type="button" className={MENU_FOCUS} disabled={!browserEditable}
                   data-plus-item="browser"
                   data-editable={browserEditable ? 'true' : 'false'}
                   onClick={browserEditable ? (e) => { e.stopPropagation(); setPage('browser'); } : undefined}
@@ -396,14 +398,15 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
                 >
                   <MenuIcon kind="browser" />
                   {L.wbBrowser}
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 10px ${MONO}`, color: browser.device ? 'var(--proto-accent)' : 'var(--proto-muted-3)' }}>
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 11px ${MONO}`, color: browser.device ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>
                     {browser.device ?? L.wbBrowserOffOption}
                     {browserEditable && <span style={{ fontSize: 8, color: 'var(--proto-muted)' }}>▸</span>}
                   </span>
-                </span>
+                </button>
               )}
               {commission && (
-                <span
+                <button
+                  type="button" className={MENU_FOCUS} disabled={!commissionEditable}
                   data-plus-item="commission"
                   data-editable={commissionEditable ? 'true' : 'false'}
                   onClick={commissionEditable ? (e) => { e.stopPropagation(); setPage('commission'); } : undefined}
@@ -411,32 +414,34 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
                 >
                   <MenuIcon kind="commission" />
                   {L.wbCommissionMode}
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 10px ${MONO}`, color: commission.value ? 'var(--proto-accent)' : 'var(--proto-muted-3)', overflow: 'hidden' }}>
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 11px ${MONO}`, color: commission.value ? 'var(--proto-accent)' : 'var(--proto-muted)', overflow: 'hidden' }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>{commissionLabel}</span>
                     {commissionEditable
                       ? <span style={{ fontSize: 8, color: 'var(--proto-muted)' }}>▸</span>
-                      : <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.wbCommissionModeHint}</span>}
+                      : <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.wbCommissionModeHint}</span>}
                   </span>
-                </span>
+                </button>
               )}
-              <span
+              <button
+                type="button" className={MENU_FOCUS}
                 data-plus-item="commands"
                 onClick={(e) => { e.stopPropagation(); close(); onCommands(); }}
                 style={MENU_ROW_STYLE}
               >
                 <MenuIcon kind="commands" />
                 {L.commands}
-              </span>
+              </button>
             </>
           ) : page === 'browser' ? (
             <>
-              <span
+              <button
+                type="button" className={MENU_FOCUS}
                 data-plus-back
                 onClick={(e) => { e.stopPropagation(); setPage('root'); }}
                 style={{ ...MENU_ROW_STYLE, minHeight: 28, borderBottom: '1px solid var(--proto-line-2)', color: 'var(--proto-muted)', fontSize: 11 }}
               >
                 ‹ {L.wbBrowser}
-              </span>
+              </button>
               <BrowserDeviceRows
                 options={options}
                 current={browser!.device}
@@ -445,13 +450,14 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
             </>
           ) : (
             <>
-              <span
+              <button
+                type="button" className={MENU_FOCUS}
                 data-plus-back
                 onClick={(e) => { e.stopPropagation(); setPage('root'); }}
                 style={{ ...MENU_ROW_STYLE, minHeight: 28, borderBottom: '1px solid var(--proto-line-2)', color: 'var(--proto-muted)', fontSize: 11 }}
               >
                 ‹ {L.wbCommissionMode}
-              </span>
+              </button>
               <CommissionOptionRows
                 options={commissionOptions}
                 current={commission!.value}
@@ -459,7 +465,7 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
               />
             </>
           )}
-        </span>
+        </MenuCard>
       )}
     </span>
   );
@@ -467,28 +473,35 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
 
 /**
  * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commission /
- * commands) sits left, with the mode capsules beside it once a browser or commission is on;
+ * commands) sits left, with the mode capsules beside it once a browser or commission is on; agent,
  * profile, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
+ *
+ * The right cluster reads outside-in: WHERE the turn runs (the environment), then WHAT runs it (the
+ * engine), then how much room is left, then send.
  */
-export function ComposerActionRow({ browser, commission, onAttach, onCommands, selectionControl, contextControl, sendControl }: {
+export function ComposerActionRow({ browser, commission, onAttach, onCommands, agentControl, selectionControl, contextControl, sendControl }: {
   /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
   browser: ComposerBrowserControl | null;
   /** null hides the commission row — a live session outside the mode has nothing to show. */
   commission: ComposerCommissionControl | null;
   onAttach: () => void;
   onCommands: () => void;
+  /** The environment chip (which agent the conversation runs in). Draws nothing of its own on a
+   *  host with fewer than two agents — a list of one is not a choice. */
+  agentControl?: ReactNode;
   /** The engine chip (profile + model + thinking). */
   selectionControl: ReactNode;
   contextControl?: ReactNode;
   sendControl: ReactNode;
 }): JSX.Element {
   return (
-    <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+    <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
       <ComposerPlusMenu browser={browser} commission={commission} onAttach={onAttach} onCommands={onCommands} />
       {browser && <ComposerBrowserChip browser={browser} />}
       {commission && <ComposerCommissionChip commission={commission} />}
       <span style={{ marginLeft: 'auto' }} />
+      {agentControl}
       {selectionControl}
       {contextControl}
       {sendControl}

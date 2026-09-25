@@ -108,8 +108,8 @@ import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import {
-  applyChannelSelection, getChannelOverride, getSelectionDefault, resolveBackendForChannel,
-  switchChannelProfile,
+  applyChannelSelection, clearChannelAgentSelection, getActiveProfile, getChannelOverride,
+  getSelectionDefault, resolveBackendForChannel, switchChannelAgent, switchChannelProfile,
 } from '@domain/agents/index.js';
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
@@ -618,6 +618,21 @@ process.on('SIGTERM', async () => {
     // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
     // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
     switchSessionProfile: (opts) => switchChannelProfile(opts),
+    // Web agent picker: the same per-channel agent-switch rule the `!agent` command applies. A null
+    // name is the "follow the global default" row, which clears the channel's selection instead.
+    switchSessionAgent: async ({ channel, name }) => {
+      if (name === null) {
+        await clearChannelAgentSelection(channel);
+        return { ok: true, agentName: null, effectiveProfile: getActiveProfile(channel) ?? '', backendChanged: false };
+      }
+      const res = await switchChannelAgent({ channel, name });
+      return res.ok === true
+        ? { ok: true, agentName: res.agentName, effectiveProfile: res.effectiveProfile, backendChanged: res.backendChanged }
+        : {
+          ok: false, agentName: null, effectiveProfile: '', backendChanged: false,
+          reason: res.reason, currentBackend: res.currentBackend, targetBackend: res.targetBackend,
+        };
+    },
     // Web model picker: the composer's profile / model / provider / thinking choice, applied under
     // the one domain rule. Wired here for the same reason as the profile switch above.
     applySessionSelection: (opts) => applyChannelSelection(opts),

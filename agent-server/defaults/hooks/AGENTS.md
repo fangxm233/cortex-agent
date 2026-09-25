@@ -1,0 +1,15 @@
+Please update me when files in this folder change
+
+Managed hook scripts deployed into the runtime hook directory.
+
+| filename | role | function |
+|---|---|---|
+| cortex-hook-api.mjs | library | posts non-empty question arrays for hooks |
+| agents-md-injector.mjs | context | Injects matching directory context; also exports runHook for in-process callers |
+| memory-ref-tracker.mjs | tracker | Records memory reference reads |
+| new-session-hook.mjs | session | Builds the new-session flush prompt |
+| rules-loader.mjs | loader | Loads matching rules after file reads |
+| session-activity-tracker.mjs | tracker | Records session tool activity |
+| status-md-guard.mjs | guard | Enforces STATUS.md register size caps |
+| task-status-check.mjs | thread | Checks dispatched task state at thread end |
+| tasks-yaml-guard.mjs | guard | Protects task queue edits |

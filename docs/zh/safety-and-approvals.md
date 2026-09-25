@@ -5,7 +5,7 @@ Cortex 可以编辑文件、生成进程、管理 GPU 训练以及与多台机�
 
 ## 三个影响范围等级 {#the-three-blast-radius-classes}
 
-Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md 的"安全边界"部分，是单一真相来源。判断标准是**行为影响**，而不是文件类别——修正技能文件中的拼写错误和向其中添加新工作流步骤是不同级别的操作，即使两者都触及 `.claude/skills/`。
+Cortex 将每个智能体操作分类到三个桶中。分类位于根 AGENTS.md 的"安全边界"部分，是单一真相来源。判断标准是**行为影响**，而不是文件类别——修正技能文件中的拼写错误和向其中添加新工作流步骤是不同级别的操作，即使两者都触及 `.claude/skills/`。
 
 ### 自助（自主执行） {#self-serve-autonomous}
 
@@ -23,7 +23,7 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 
 更改系统行为、消耗大量资源或难以撤销的操作。这些被排队到 PENDING_APPROVALS.md 并在你批准之前被阻止。
 
-- 修改 CORTEX.md 或 CLAUDE.local.md
+- 修改 AGENTS.md 或 CLAUDE.local.md
 - 新建技能或技能行为性更改（新触发条件、新工作流步骤、能力扩展）
 - Agent-server 行为性或架构性更改（新功能、协议变更、API 变更）
 - 超预算的训练任务、大规模架构修改
@@ -50,7 +50,7 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 | 修复 agent-server 语法错误 | 自助 | 非行为性修复 |
 | 向 agent-server 添加新守卫逻辑 | 需要审批 | 改变行为 |
 | 在预算内启动 GPU 训练 | 自助 | 预算内，但需要 GPU preflight |
-| 修改 CORTEX.md 规则 | 需要审批 | 系统约定变更 |
+| 修改 AGENTS.md 规则 | 需要审批 | 系统约定变更 |
 
 ## 操作如何进入队列 {#how-an-operation-reaches-the-queue}
 
@@ -131,7 +131,7 @@ Cortex 以启动它的用户相同的权限运行。没有 `sudo`、没有 Docke
 
 ## 配置 {#configuration}
 
-安全边界分类位于根 CORTEX.md（`~/.cortex/CORTEX.md`）的"安全边界"部分，你在那里编辑它。
+安全边界分类位于根 AGENTS.md（`~/.cortex/AGENTS.md`）的"安全边界"部分，你在那里编辑它。
 
 PENDING_APPROVALS.md 文件位于 `~/.cortex/context/PENDING_APPROVALS.md`。首次使用时自动创建。
 

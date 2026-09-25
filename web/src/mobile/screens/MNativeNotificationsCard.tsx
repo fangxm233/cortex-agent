@@ -1,7 +1,7 @@
 // input:  device-local notification state and bilingual vocabulary
 // output: native-only background toggle, status and error feedback
 // pos:    Notification settings independent of server config
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useLang, useVocab } from '@/i18n';
 import { isMobileShell } from '@/lib/desktop-config';

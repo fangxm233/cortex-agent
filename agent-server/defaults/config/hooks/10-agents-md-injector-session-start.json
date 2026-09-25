@@ -1,0 +1,10 @@
+{
+  "id": "agents-md-injector-session-start",
+  "event": "agent:session-start",
+  "matcher": "startup|resume|clear|compact",
+  "run": {
+    "script": "agents-md-injector.mjs"
+  },
+  "enabled": true,
+  "version": "2026.9.15"
+}

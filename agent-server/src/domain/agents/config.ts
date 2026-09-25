@@ -248,6 +248,7 @@ let agentState: AgentState = loadAgentState();
 let activeProfile: string | null = agentState.activeProfile;
 let channelProfiles: Record<string, string> = agentState.channelProfiles;
 let defaultAgent: string | null = agentState.defaultAgent;
+let channelAgents: Record<string, string> = agentState.channelAgents;
 // Seeded from the migrated state so a CLI process that never reaches the daemon's composition root
 // still has a value; `entry/app.ts` overwrites it at boot with the default profile's model, which
 // is the D5-correct answer. Read by PI's subagent catalog and the MCP tool context.
@@ -261,7 +262,7 @@ process.env.CORTEX_CLAUDE_MODEL = agentState.claudeModel || DEFAULT_CLAUDE_MODEL
  *  which is exactly what a rollback to an older build should find, since this build never
  *  acted on them either. */
 function persist(): void {
-  agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent };
+  agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent, channelAgents };
   saveAgentState(agentState);
 }
 
@@ -383,7 +384,25 @@ export function setChannelOverride(channel: string, patch: Partial<Record<keyof 
  * seed then carries a profile and no overrides.
  */
 export function setSelectionDefault(seed: SelectionDefault | null): void {
-  agentState = { ...agentState, selectionDefault: seed ?? undefined };
+  // The agent is carried forward: the engine seed and the environment seed are two different picks,
+  // and choosing a model is not a statement about which environment the next conversation opens in.
+  // `setSelectionDefaultAgent` is the only writer of that half.
+  const agentName = agentState.selectionDefault?.agentName;
+  const next = seed && agentName && !seed.agentName ? { ...seed, agentName } : seed;
+  agentState = { ...agentState, selectionDefault: next ?? undefined };
+  persist();
+}
+
+/** Remember the composer's AGENT pick in the same seed, leaving the engine half alone. A null name
+ *  records "the next conversation opens on the global default", which is a choice like any other. */
+export function setSelectionDefaultAgent(agentName: string | null): void {
+  const seed: SelectionDefault = { ...(agentState.selectionDefault ?? {}) };
+  if (agentName) seed.agentName = agentName;
+  else delete seed.agentName;
+  agentState = {
+    ...agentState,
+    selectionDefault: Object.keys(seed).length > 0 ? seed : undefined,
+  };
   persist();
 }
 
@@ -414,11 +433,43 @@ export function setChannelThinkingOverride(channel: string, thinking: string | n
   setChannelOverride(channel, { thinking });
 }
 
-export function getDefaultAgent(): string | null { return defaultAgent; }
+/**
+ * The agent a channel runs: its own selection, else the global default. Null when neither is set
+ * and the caller's own fallback applies.
+ *
+ * The channel layer is what makes an agent a per-conversation choice rather than a daemon-wide
+ * one — the same shape `getActiveProfile` has, and deliberately so: profile and agent are two
+ * independent axes (which model vs which environment) and each has its own channel map.
+ */
+export function getDefaultAgent(channel?: string): string | null {
+  if (channel && channelAgents[channel]) return channelAgents[channel];
+  return defaultAgent;
+}
 
-export function setDefaultAgent(name: string | null): void {
+/** Set the agent for one channel (`channel` given) or the global default (omitted). A null name
+ *  clears: for a channel that means "follow the global default again", globally it means "no
+ *  default agent at all". */
+export function setDefaultAgent(name: string | null, channel?: string): void {
+  if (channel) {
+    if (name) channelAgents[channel] = name;
+    else delete channelAgents[channel];
+    persist();
+    return;
+  }
   defaultAgent = name;
   saveModeFile(activeProfile, defaultAgent);
+}
+
+/** Drop the channel's agent selection — it follows the global default again. */
+export function clearChannelAgent(channel: string): void {
+  if (!channelAgents[channel]) return;
+  delete channelAgents[channel];
+  persist();
+}
+
+/** Every channel that has selected an agent of its own. */
+export function getChannelAgents(): Record<string, string> {
+  return { ...channelAgents };
 }
 
 export function isApiRateLimitError(errorMessage: string | null | undefined): boolean {

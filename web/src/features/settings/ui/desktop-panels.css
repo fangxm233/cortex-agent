@@ -1,0 +1,99 @@
+/* input: desktop panel classes and shared material tokens */
+/* output: adaptive profile, field and glass stat layouts */
+/* pos: panel-specific layouts inside the desktop Settings surface */
+/* >>> Once updated, update this header and parent AGENTS.md <<< */
+
+.settings-surface .settings-profiles { container: settings-profiles / inline-size; }
+.settings-surface .settings-profile-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.1fr) minmax(120px, 1.6fr) repeat(3, minmax(60px, .6fr)) minmax(140px, 1fr);
+}
+.settings-surface .settings-profile-row > * { min-width: 0; }
+.settings-surface .settings-profile-cell::before { display: none; }
+
+.settings-surface .settings-key-value-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.settings-surface .settings-key-value-fields > *,
+.settings-surface .settings-inline-fields > * { min-width: 0; max-width: 100%; }
+.settings-surface .settings-inline-fields > input { flex: 1 1 140px; }
+.settings-surface .settings-adaptive-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.settings-surface .settings-adaptive-cards > * { min-width: 0; }
+.settings-surface .settings-usage-windows { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.settings-surface .settings-detail-fields { container: settings-detail-fields / inline-size; }
+.settings-surface .settings-secret-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.settings-surface .settings-secret-fields > input { flex: 1 1 140px; min-width: 0; }
+.settings-surface .settings-secret-fields > span { min-width: 0; overflow-wrap: anywhere; }
+.settings-surface .settings-template-reference {
+  display: grid;
+  grid-template-columns: minmax(100px, .7fr) minmax(0, 1.3fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.settings-surface .settings-template-issue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+/* Usage stats retain the shared card material; do not flatten their local fill. */
+
+/* Platform is also hosted on mobile: only its desktop instance is adjusted here. */
+.settings-modal .ps-panel {
+  --settings-platform-hint-size: 12px;
+  --settings-platform-body-size: 13px;
+  gap: 20px;
+}
+.settings-modal .ps-grid { gap: 12px; }
+.settings-modal .settings-platform-card { container: settings-platform-card / inline-size; }
+/* Inner platform groups stay unboxed inside their already-glass parent card. */
+.settings-modal .settings-platform-group { border: 0 !important; box-shadow: none !important; background: transparent !important; }
+.settings-modal .settings-platform-summary { min-height: 34px; font-size: 13px !important; }
+
+@container settings-profiles (max-width: 820px) {
+  .settings-surface .settings-profile-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-surface .settings-profile-head { display: flex; justify-content: flex-end; }
+  .settings-surface .settings-profile-head > span:not(:last-child) { display: none; }
+  .settings-surface .settings-profile-name,
+  .settings-surface .settings-profile-row > :last-child { grid-column: 1 / -1; }
+  .settings-surface .settings-profile-cell::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font: 500 12px/1.4 var(--font-sans, sans-serif);
+    color: var(--proto-muted-2);
+  }
+}
+@container settings-profiles (max-width: 420px) {
+  .settings-surface .settings-key-value-fields { grid-template-columns: minmax(0, 1fr); }
+  .settings-surface .settings-key-value-fields > button { justify-self: start; }
+}
+@container settings-platform-card (max-width: 440px) {
+  .settings-modal .settings-field-row { flex-direction: column; gap: 4px !important; }
+  .settings-modal .settings-field-row > * { width: 100% !important; }
+  .settings-modal .settings-field-label { padding-top: 0 !important; }
+}
+@container settings-detail-fields (max-width: 440px) {
+  .settings-surface .settings-detail-fields .settings-field-row { flex-direction: column; gap: 4px !important; }
+  .settings-surface .settings-detail-fields .settings-field-row > * { width: 100% !important; }
+  .settings-surface .settings-detail-fields .settings-field-label { padding-top: 0 !important; }
+  .settings-surface .settings-key-value-fields,
+  .settings-surface .settings-template-reference { grid-template-columns: minmax(0, 1fr); }
+  .settings-surface .settings-key-value-fields > button { justify-self: start; }
+}

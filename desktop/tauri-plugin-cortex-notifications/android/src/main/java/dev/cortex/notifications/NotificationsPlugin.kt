@@ -1,7 +1,7 @@
 // input:  Tauri Invoke commands, Activity intents, native state
 // output: Notification bridge, visible session and actionPerformed events
 // pos:    Android Cortex notification plugin entry point
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import android.app.Activity

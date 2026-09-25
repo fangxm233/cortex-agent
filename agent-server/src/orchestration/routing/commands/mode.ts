@@ -3,7 +3,7 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { setChannelModelOverride, setChannelThinkingOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
+import { setChannelModelOverride, setChannelThinkingOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getChannelAgents, getDefaultAgent, setDefaultAgent, switchChannelAgent, clearChannelAgentSelection, switchChannelProfile } from '@domain/agents/index.js';
 import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLevel, listProfiles, resolveProfile, THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
@@ -331,70 +331,113 @@ export async function handleSkillsCmd(channel: string, adapter: PlatformAdapter)
 
 const MAX_AGENT_BUTTONS = 10;
 
-function buildAgentText(): string {
-  const current = getDefaultAgent();
-  const agents = listAgents();
-  if (current) {
-    const agentDef = getAgent(current);
-    const profile = agentDef?.profile || '?';
-    const claudeAgentStr = agentDef?.claudeAgent ? ` · agent:${agentDef.claudeAgent}` : '';
-    return t('cmd.agent.current', { name: current, detail: `${profile}${claudeAgentStr}` });
-  }
-  return t('cmd.agent.none', { agents: agents.map(a => `\`${a.name}\``).join(', ') });
+/** `profile · agent:<claude agent>` — what an agent runs under, in one line. */
+function agentDetail(name: string): string {
+  const agentDef = getAgent(name);
+  const claudeAgentStr = agentDef?.claudeAgent ? ` · agent:${agentDef.claudeAgent}` : '';
+  return `${agentDef?.profile || '?'}${claudeAgentStr}`;
 }
 
-function buildAgentButtons(): import('@platform/index.js').ActionElement[] {
+/**
+ * What `!agent` reports: this conversation's agent, the global default it would fall back to, and
+ * the list to pick from. The two layers are always both named — "this channel runs creative" and
+ * "everything else runs main" are different facts, and a reader who sees only one cannot tell which
+ * of them a later `!agent reset` would leave behind.
+ */
+function buildAgentText(channel: string): string {
+  const channelAgent = getChannelAgents()[channel] ?? null;
+  const globalAgent = getDefaultAgent();
+  const header = channelAgent
+    ? t('cmd.agent.channelHeader', { name: channelAgent, detail: agentDetail(channelAgent) })
+    : globalAgent
+      ? t('cmd.agent.followingGlobal', { name: globalAgent })
+      : t('cmd.agent.followingGlobalNone');
+  const globalLine = globalAgent
+    ? t('cmd.agent.globalLine', { name: globalAgent })
+    : t('cmd.agent.globalNone');
+  const available = t('cmd.agent.available', {
+    agents: listAgents().map(a => `\`${a.name}\``).join(', '),
+  });
+  return `${header}\n${globalLine}\n${available}`;
+}
+
+/** The buttons set the CHANNEL's agent (the common move); the last one hands the channel back to
+ *  the global default. Changing the global is a typed command (`!agent global <name>`) — a button
+ *  that silently re-points every other conversation is not a button anyone wants to mis-tap. */
+function buildAgentButtons(channel: string): import('@platform/index.js').ActionElement[] {
   const agents = listAgents();
   const buttons: import('@platform/index.js').ActionElement[] = agents.slice(0, MAX_AGENT_BUTTONS - 1).map((a, i) => ({
     type: 'button' as const,
     text: a.name,
     actionId: `cmd:agent:set-${i}`,
-    value: a.name,
+    value: JSON.stringify({ name: a.name, channel }),
   }));
   buttons.push({
     type: 'button' as const,
-    text: t('cmd.agent.disableButton'),
-    actionId: 'cmd:agent:disable',
-    value: 'off',
-    style: 'danger' as const,
+    text: t('cmd.agent.followGlobalButton'),
+    actionId: 'cmd:agent:reset',
+    value: JSON.stringify({ channel }),
   });
   return buttons;
 }
 
+/** Apply the shared per-channel agent-switch rule and build the reply text. Used by both
+ *  `!agent <name>` and the interactive buttons, so Slack + Feishu share ONE code path — the same
+ *  `switchChannelAgent` the Web UI's `sessions.setAgent` calls. */
+async function switchChannelAgentReply(channel: string, name: string): Promise<string> {
+  const res = await switchChannelAgent({ channel, name });
+  // `res.ok === false` rather than `!res.ok`: this project compiles non-strict, where a boolean
+  // discriminant narrows only through an explicit comparison.
+  if (res.ok === false) {
+    if (res.reason === 'cross-backend-live-session') {
+      return `${Icons.error} ${t('cmd.agent.crossBackendBlocked', {
+        name, target: res.targetBackend ?? '?', current: res.currentBackend ?? '?',
+      })}`;
+    }
+    const available = listAgents().map(a => `\`${a.name}\``).join(', ');
+    return `${Icons.error} ${t('cmd.agent.unknown', { name, available })}`;
+  }
+  return `${Icons.ok} ${t('cmd.agent.channelSet', { name, detail: agentDetail(name) })}`;
+}
+
+/** Hand this conversation back to the global default. */
+async function resetChannelAgentReply(channel: string): Promise<string> {
+  await clearChannelAgentSelection(channel);
+  const globalAgent = getDefaultAgent();
+  return `${Icons.ok} ${globalAgent
+    ? t('cmd.agent.cleared', { name: globalAgent })
+    : t('cmd.agent.clearedNoGlobal')}`;
+}
+
+/** `!agent reset` and its aliases: every bare form of the command is channel-scoped now, so "off"
+ *  means "this conversation stops overriding", not "nobody has a default agent". The global is
+ *  reached through `!agent global off`. */
+const AGENT_RESET_WORDS = new Set(['reset', 'clear', 'off', 'none', 'disable']);
+
 export function createAgentHandler(router?: CommandActionRouter) {
   if (router) {
-    const setHandler = async (ctx: import('@platform/index.js').ActionContext) => {
+    const rerender = async (
+      ctx: import('@platform/index.js').ActionContext, channel: string, text: string,
+    ): Promise<void> => {
       const adapter = router.getAdapter();
-      if (!adapter) return;
-      const name = ctx.value;
-      const agentDef = getAgent(name);
-      if (!agentDef) return;
-      setDefaultAgent(name);
-      const claudeAgentStr = agentDef.claudeAgent ? ` · agent:${agentDef.claudeAgent}` : '';
-      const text = `${Icons.ok} ${t('cmd.agent.defaultSet', { name, detail: `${agentDef.profile}${claudeAgentStr}` })}`;
-      if (ctx.messageRef) {
-        await adapter.updateMessage(ctx.messageRef, {
-          text,
-          richBlocks: [
-            { type: 'section', text },
-            { type: 'actions', elements: buildAgentButtons() },
-          ],
-        }).catch(() => {});
-      }
+      if (!adapter || !ctx.messageRef) return;
+      await adapter.updateMessage(ctx.messageRef, {
+        text,
+        richBlocks: [
+          { type: 'section', text },
+          { type: 'actions', elements: buildAgentButtons(channel) },
+        ],
+      }).catch(() => {});
     };
-    const disableHandler = async (ctx: import('@platform/index.js').ActionContext) => {
-      const adapter = router.getAdapter();
-      if (!adapter) return;
-      setDefaultAgent(null);
-      if (ctx.messageRef) {
-        await adapter.updateMessage(ctx.messageRef, {
-          text: `${Icons.ok} ${t('cmd.agent.disabled')}`,
-          richBlocks: [
-            { type: 'section', text: `${Icons.ok} ${t('cmd.agent.disabled')}` },
-            { type: 'actions', elements: buildAgentButtons() },
-          ],
-        }).catch(() => {});
-      }
+    const setHandler = async (ctx: import('@platform/index.js').ActionContext) => {
+      if (!router.getAdapter()) return;
+      const { name, channel } = JSON.parse(ctx.value) as { name: string; channel: string };
+      await rerender(ctx, channel, await switchChannelAgentReply(channel, name));
+    };
+    const resetHandler = async (ctx: import('@platform/index.js').ActionContext) => {
+      if (!router.getAdapter()) return;
+      const { channel } = JSON.parse(ctx.value) as { channel: string };
+      await rerender(ctx, channel, await resetChannelAgentReply(channel));
     };
     router.registerCommand('agent', {
       actions: [
@@ -402,7 +445,7 @@ export function createAgentHandler(router?: CommandActionRouter) {
           actionId: `set-${i}`,
           handler: setHandler,
         })),
-        { actionId: 'disable', handler: disableHandler },
+        { actionId: 'reset', handler: resetHandler },
       ],
     });
   }
@@ -410,29 +453,45 @@ export function createAgentHandler(router?: CommandActionRouter) {
   return async function handleAgentCmdInteractive(
     channel: string, adapter: PlatformAdapter, trimmedMessage: string,
   ): Promise<CommandResult | void> {
-    const args = trimmedMessage.replace(/^!agent\s*/, '').trim();
+    const args = trimmedMessage.replace(/^!agent\s*/, '').trim().split(/\s+/).filter(Boolean);
     const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
 
-    if (args) {
-      const name = args.split(/\s+/)[0];
-      if (name === 'off' || name === 'none' || name === 'disable') {
-        setDefaultAgent(null);
-        await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.agent.disabled')}` });
+    if (args.length > 0) {
+      if (AGENT_RESET_WORDS.has(args[0])) {
+        await adapter.postMessage(dest, { text: await resetChannelAgentReply(channel) });
         return;
       }
-      const agentDef = getAgent(name);
-      if (!agentDef) {
-        const available = listAgents().map(a => `\`${a.name}\``).join(', ');
-        await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.agent.unknown', { name, available })}` });
+
+      // The old daemon-wide semantics, kept under an explicit prefix: an agent set here is what
+      // every conversation WITHOUT one of its own runs.
+      if (args[0] === 'global') {
+        const name = args[1];
+        if (!name) {
+          await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.agent.globalUsage')}` });
+          return;
+        }
+        if (name === 'off' || name === 'none' || name === 'disable') {
+          setDefaultAgent(null);
+          await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.agent.disabled')}` });
+          return;
+        }
+        if (!getAgent(name)) {
+          const available = listAgents().map(a => `\`${a.name}\``).join(', ');
+          await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.agent.unknown', { name, available })}` });
+          return;
+        }
+        setDefaultAgent(name);
+        await adapter.postMessage(dest, {
+          text: `${Icons.ok} ${t('cmd.agent.defaultSet', { name, detail: agentDetail(name) })}`,
+        });
         return;
       }
-      setDefaultAgent(name);
-      const claudeAgentStr = agentDef.claudeAgent ? ` · agent:${agentDef.claudeAgent}` : '';
-      await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.agent.defaultSet', { name, detail: `${agentDef.profile}${claudeAgentStr}` })}` });
+
+      await adapter.postMessage(dest, { text: await switchChannelAgentReply(channel, args[0]) });
       return;
     }
 
-    const text = buildAgentText();
+    const text = buildAgentText(channel);
 
     if (!router) {
       await adapter.postMessage(dest, { text });
@@ -442,7 +501,7 @@ export function createAgentHandler(router?: CommandActionRouter) {
     return {
       text,
       richBlocks: [{ type: 'section' as const, text }],
-      actions: buildAgentButtons(),
+      actions: buildAgentButtons(channel),
     };
   };
 }

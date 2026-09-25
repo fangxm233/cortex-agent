@@ -16,6 +16,14 @@
     "noUnusedParameters": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    // Typecheck-only incremental cache. The daemon's hot-reload pipeline runs this on every
+    // server-side src change, and a cold full check of src/ plus the react/pdfjs/radix d.ts
+    // closure is ~11s; with the cache it is ~2s. Nothing is emitted, so a stale cache can never
+    // leave a stale artifact behind — the worst case is a check that is re-run. tsc keys files by
+    // content hash, so rebuilding ui-contract does not invalidate anything unless its .d.ts
+    // actually changed. Lives in node_modules/ so it is gitignored and dies with the deps.
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc-web.tsbuildinfo",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

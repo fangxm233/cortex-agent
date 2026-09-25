@@ -14,7 +14,6 @@ import type {
 
 export interface MChatCopy {
   composerPh: string;
-  toolCallsUnit: string;
   menuSessionId: string;
   menuSessionStats: string;
   sessionIdTitle: string;
@@ -35,6 +34,12 @@ export interface MChatCopy {
   profileSubtitle: string;
   profileCurrent: string;
   profileFooter: string;
+  /** The environment sheet: its title, the "follow the host default" row and its sub-label, and
+   *  the `{backend}` template for an agent only a new conversation could take. */
+  selectionAgent: string;
+  selectionAgentDefault: string;
+  selectionAgentFollow: string;
+  selectionAgentCrossBackend: string;
   /** Section headings and the "follow the profile" row of the engine sheet. */
   selectionModel: string;
   selectionThinking: string;
@@ -117,6 +122,8 @@ export interface CommissionSheetItem {
 export interface MChatViewProps {
   title: string;
   status: ChatHeaderStatus;
+  /** Project the session belongs to; prefixes the header status line when known. */
+  project?: string;
   rows: ChatRow[];
   copy: MChatCopy;
   onBack: () => void;
@@ -164,6 +171,16 @@ export interface MChatViewProps {
    *  width. Null when the selection has no level. */
   selectionChipSub?: string | null;
   onOpenSelection: () => void;
+  /** The environment capsule: the agent this conversation runs in, or — `followingDefault` — the
+   *  one it falls back to. Absent on a host with fewer than two agents: nothing to choose. */
+  agentChip?: { label: string; followingDefault: boolean } | null;
+  onOpenAgent?: () => void;
+  agentSheet?: {
+    rows: SelectionSheetRow[];
+    title: string;
+    onClose: () => void;
+    onPick: (row: SelectionSheetRow) => void;
+  };
   browserDevice?: string | null;
   onOpenBrowser?: () => void;
   browserSheet?: { items: BrowserSheetItem[]; title: string; onClose: () => void; onPick: (device: string | null) => void };

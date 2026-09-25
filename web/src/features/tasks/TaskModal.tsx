@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: TaskModal presentation
+// pos:    Task detail material sheet and lightweight cards
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useQuery } from '@tanstack/react-query';
+import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useTRPC } from '@/lib/trpc';
@@ -20,11 +26,12 @@ import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verific
 // DATA GAP still flagged:
 //   • GAP-GPU          : no gpu on TaskInfo → Fields gpu renders "—" (matches the T-046 proto-shot).
 
+// Lightweight cards share the outer glass sheet without adding another blur.
 const CARD: React.CSSProperties = {
-  background: 'var(--proto-card)',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 10,
-  boxShadow: 'var(--shadow-card-subtle)',
+  background: 'var(--material-card-bg)',
+  border: '1px solid var(--proto-line-2)',
+  borderRadius: 'var(--r-card)',
+  boxShadow: 'var(--material-card-shadow)',
 };
 
 const CARD_HEADER: React.CSSProperties = {
@@ -39,7 +46,7 @@ const CARD_TITLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 650, color
 // A muted note flagging a field with no real value (task not completed / never dispatched, etc.).
 function GapNote({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontStyle: 'italic', color: 'var(--proto-faint)' }}>{children}</span>
+    <span style={{ fontStyle: 'italic', color: 'var(--proto-muted)' }}>{children}</span>
   );
 }
 
@@ -50,7 +57,7 @@ export function TaskBlockerCard({ label, reason }: { label: string; reason: stri
       data-task-blocker-card="true"
       style={{ ...CARD, padding: '10px 15px', background: 'var(--proto-danger-bg)' }}
     >
-      <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--proto-danger)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: 'var(--proto-danger)' }}>
         {label}
       </div>
       <div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-danger)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
@@ -72,23 +79,23 @@ function DispatchHistoryBody({ vv }: { vv: TaskVerificationVm }) {
             alignItems: 'center',
             gap: 8,
             padding: '6px 9px',
-            background: d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-rail)',
+            background: d.isCompleting ? 'var(--proto-accent-bg)' : 'transparent',
             border: `1px solid ${d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
-            borderRadius: 7,
+            borderRadius: 'var(--r-chip)',
           }}
         >
           <span
             style={{ width: 6, height: 6, borderRadius: '50%', background: d.statusColor, flex: 'none' }}
           />
-          <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>
+          <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>
             {d.executionId}
           </span>
-          <span style={{ fontSize: 9.5, color: 'var(--proto-muted-2)' }}>{d.machine}</span>
+          <span style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{d.machine}</span>
           <span
             style={{
               marginLeft: 'auto',
-              font: "400 9px 'IBM Plex Mono',monospace",
-              color: 'var(--proto-muted-3)',
+              font: "400 11px 'IBM Plex Mono',monospace",
+              color: 'var(--proto-muted)',
               flex: 'none',
             }}
           >
@@ -124,6 +131,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
 
   return (
     <Modal
+      contentClassName="content-surface"
       chrome="bare"
       size="custom"
       open={true}
@@ -140,10 +148,13 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         transform: 'translate(-50%,-50%)',
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 760,
+        maxWidth: '94vw',
         maxHeight: '84vh',
-        background: 'var(--proto-alt)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        background: 'var(--material-overlay-bg)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
         display: 'flex',
@@ -154,8 +165,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         <div
           style={{
             flex: 'none',
-            background: 'var(--proto-card)',
-            borderBottom: '1px solid var(--proto-line)',
+            background: 'transparent',
+            borderBottom: '1px solid var(--proto-line-2)',
             display: 'flex',
             alignItems: 'center',
             gap: 9,
@@ -167,10 +178,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           </span>
           <span
             style={{
-              fontSize: 9.5,
+              fontSize: 11,
               fontWeight: 600,
               padding: '1.5px 8px',
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: tm.pill.bg,
               color: tm.pill.fg,
             }}
@@ -178,24 +189,24 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {tm.pill.text}
           </span>
           <span
-            style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginLeft: 4 }}
+            style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 4 }}
           >
             TASKS.yaml
           </span>
-          <span
+          <button type="button" className="content-text-action"
             onClick={onClose}
             style={{
               marginLeft: 'auto',
-              font: "500 9.5px 'IBM Plex Mono',monospace",
-              color: 'var(--proto-muted-3)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 5,
+              font: "500 11px 'IBM Plex Mono',monospace",
+              color: 'var(--proto-muted)',
+              border: '1px solid var(--proto-line-2)',
+              borderRadius: 'var(--r-control)',
               padding: '2px 6px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body grid (prototype L1471) */}
@@ -206,7 +217,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             minHeight: 0,
             padding: '14px 18px',
             display: 'grid',
-            gridTemplateColumns: '1.5fr 1fr',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
             gap: 12,
             alignContent: 'start',
           }}
@@ -233,10 +244,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               <div style={{ fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-muted)', marginTop: 7 }}>
                 <span
                   style={{
-                    fontSize: 9.5,
+                    fontSize: 11,
                     fontWeight: 700,
                     letterSpacing: '.05em',
-                    color: 'var(--proto-muted-3)',
+                    color: 'var(--proto-muted)',
                     marginRight: 7,
                   }}
                 >
@@ -250,10 +261,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               </div>
               <div
                 style={{
-                  fontSize: 9.5,
+                  fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '.05em',
-                  color: 'var(--proto-muted-3)',
+                  color: 'var(--proto-muted)',
                   margin: '11px 0 5px',
                 }}
               >
@@ -269,9 +280,9 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     fontSize: 11.5,
                     lineHeight: 1.5,
                     color: 'var(--proto-ink-2)',
-                    background: 'var(--proto-rail)',
+                    background: 'transparent',
                     border: '1px solid var(--proto-line-2)',
-                    borderRadius: 7,
+                    borderRadius: 'var(--r-chip)',
                     padding: '6px 10px',
                   }}
                 >
@@ -279,9 +290,9 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     style={{
                       width: 12,
                       height: 12,
-                      borderRadius: 4,
+                      borderRadius: 'var(--r-control)',
                       border: '1.5px solid var(--proto-line-3)',
-                      background: 'var(--proto-card)',
+                      background: 'var(--material-control-bg)',
                       boxSizing: 'border-box',
                       flex: 'none',
                       marginTop: 1.5,
@@ -306,8 +317,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   <span
                     style={{
                       marginLeft: 'auto',
-                      font: "400 9px 'IBM Plex Mono',monospace",
-                      color: 'var(--proto-muted-3)',
+                      font: "400 11px 'IBM Plex Mono',monospace",
+                      color: 'var(--proto-muted)',
                     }}
                   >
                     {vv.dispatches.length} run{vv.dispatches.length === 1 ? '' : 's'}
@@ -338,13 +349,13 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               <div
                 style={{
                   padding: '8px 15px 10px',
-                  font: "400 10px/2 'IBM Plex Mono',monospace",
+                  font: "400 11px/2 'IBM Plex Mono',monospace",
                   color: 'var(--proto-muted)',
                 }}
               >
                 {tm.fields.map((f) => (
                   <div key={f.k} style={{ display: 'flex' }}>
-                    <span style={{ color: 'var(--proto-muted-3)' }}>{f.k}</span>
+                    <span style={{ color: 'var(--proto-muted)' }}>{f.k}</span>
                     <span style={{ marginLeft: 'auto', color: f.vColor, textAlign: 'right' }}>
                       {f.v}
                     </span>
@@ -371,7 +382,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       padding: '6px 9px',
                       background: dp.bg,
                       border: `1px solid ${dp.border}`,
-                      borderRadius: 7,
+                      borderRadius: 'var(--r-chip)',
                     }}
                   >
                     <span
@@ -383,12 +394,12 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                         flex: 'none',
                       }}
                     />
-                    <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: dp.idColor }}>
+                    <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: dp.idColor }}>
                       {dp.id}
                     </span>
                     <span
                       style={{
-                        fontSize: 10.5,
+                        fontSize: 11,
                         color: 'var(--proto-muted)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
@@ -400,8 +411,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     <span
                       style={{
                         marginLeft: 'auto',
-                        font: "400 8.5px 'IBM Plex Mono',monospace",
-                        color: 'var(--proto-muted-3)',
+                        font: "400 11px 'IBM Plex Mono',monospace",
+                        color: 'var(--proto-muted)',
                         flex: 'none',
                       }}
                     >
@@ -417,7 +428,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Actions (prototype L1531-1536) */}
             <div style={{ ...CARD, padding: '11px 14px', display: 'flex', gap: 8 }}>
               {tm.canUnblock && (
-                <span
+                <button type="button" className="content-text-action"
+                  disabled={pending}
                   onClick={() => !pending && onUnblock(task)}
                   style={{
                     flex: 1,
@@ -425,7 +437,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     fontSize: 11,
                     fontWeight: 600,
                     border: '1px solid var(--proto-line-3)',
-                    borderRadius: 8,
+                    borderRadius: 'var(--r-control)',
                     padding: '6px 0',
                     color: 'var(--proto-ink)',
                     cursor: pending ? 'not-allowed' : 'pointer',
@@ -433,9 +445,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   }}
                 >
                   {L.mUnblock}
-                </span>
+                </button>
               )}
-              <span
+              <button type="button" className="content-text-action"
+                disabled={!tm.completable || pending}
                 data-complete-task-id={task.id}
                 onClick={() => tm.completable && !pending && onComplete(task)}
                 style={{
@@ -443,7 +456,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   textAlign: 'center',
                   fontSize: 11,
                   fontWeight: 600,
-                  borderRadius: 8,
+                  borderRadius: 'var(--r-control)',
+                  // Glow only while the button is actually the accent-filled primary; a disabled
+                  // `--proto-faint` fill glowing accent would promise an action that is not there.
+                  boxShadow: tm.completable ? 'var(--accent-glow)' : 'none',
                   padding: '7px 0',
                   color: 'var(--ink-solid-fg)',
                   background: tm.completeBg,
@@ -452,7 +468,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                 }}
               >
                 {tm.completeLabel}
-              </span>
+              </button>
             </div>
           </div>
         </div>

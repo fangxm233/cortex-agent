@@ -1,3 +1,8 @@
+// input:  Radix Select, React, shared focus-visible styles
+// output: Select, SelectProps, SelectOption
+// pos:    Unblurred select controls and a glass option overlay
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixSelect from '@radix-ui/react-select';
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 
@@ -29,21 +34,24 @@ export interface SelectProps<T extends SelectValue>
   onValueChange: (value: T) => void;
   placeholder?: string;
   density?: SelectDensity;
+  popupClassName?: string;
 }
 
 const TRIGGER_CLASS =
-  'inline-flex items-center justify-between gap-1g text-left outline-none ' +
-  'focus-visible:ring-2 focus-visible:ring-proto-accent/40 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-between gap-1g text-left disabled:cursor-not-allowed';
 
+// Only the popup blurs; rows and triggers remain unfiltered. Even a stationary popup can
+// resample a changing backdrop, so do not multiply that work by filtering individual rows.
 const CONTENT_CLASS =
-  'z-[100] overflow-hidden rounded-menu border border-proto-line bg-proto-card ' +
-  'font-mono text-[10px] text-proto-ink shadow-menu ' +
+  'z-[100] overflow-hidden rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'font-mono text-[12px] text-proto-ink shadow-[shadow:var(--material-overlay-shadow)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
 const ITEM_CLASS =
-  'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g outline-none ' +
-  'font-semibold leading-[normal] ' +
+  'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g ' +
+  'font-medium leading-normal ' +
   'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-accent-bg ' +
   'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40';
 
@@ -60,7 +68,12 @@ const DENSITY_FONT: CSSProperties = {
 };
 
 const DENSITY_STYLE: Record<SelectDensity, CSSProperties> = {
-  compact: { ...DENSITY_FONT, padding: '2px 7px', borderRadius: 6 },
+  // `--r-chip`, not `--r-control`: at this height the trigger is a chip, and the control radius
+  // would clamp to a full pill and stop reading as a box with a value in it.
+  compact: {
+    ...DENSITY_FONT, padding: '2px 7px', borderRadius: 'var(--r-chip)',
+    background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)',
+  },
   bare: {},
 };
 
@@ -102,7 +115,7 @@ function SelectItem<T extends SelectValue>({
     >
       <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
       {option.description ? (
-        <span className="text-[9px] font-normal text-proto-muted-3">{option.description}</span>
+        <span className="text-[11px] font-normal text-proto-muted [overflow-wrap:anywhere]">{option.description}</span>
       ) : null}
       <RadixSelect.ItemIndicator className="absolute right-1g text-[9px] font-bold text-proto-accent">
         ✓
@@ -111,14 +124,13 @@ function SelectItem<T extends SelectValue>({
   );
 }
 
-function SelectPopup<T extends SelectValue>({
-  options,
-}: {
+function SelectPopup<T extends SelectValue>({ options, className = '' }: {
   options: readonly SelectOption<T>[];
+  className?: string;
 }): JSX.Element {
   return (
     <RadixSelect.Portal>
-      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={CONTENT_CLASS} style={CONTENT_STYLE}>
+      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${CONTENT_CLASS} ${className}`} style={CONTENT_STYLE}>
         <RadixSelect.ScrollUpButton className="py-0.5g text-center text-proto-muted-3">▴</RadixSelect.ScrollUpButton>
         <RadixSelect.Viewport>
           {options.map((option, index) => (
@@ -131,26 +143,15 @@ function SelectPopup<T extends SelectValue>({
   );
 }
 
-export function Select<T extends SelectValue>({
-  value,
-  options,
-  onValueChange,
-  placeholder = '',
-  density = 'compact',
-  className,
-  style,
-  disabled,
-  ...triggerProps
+export function Select<T extends SelectValue>({ value, options, onValueChange, placeholder = '',
+  density = 'compact', className, popupClassName, style, disabled, ...triggerProps
 }: SelectProps<T>): JSX.Element {
   const selectedIndex = optionIndex(options, value);
   const selected = options[selectedIndex];
   const rootValue = selectedIndex < 0 ? 'selection-unset' : optionKey(selectedIndex);
   return (
-    <RadixSelect.Root
-      value={rootValue}
-      disabled={disabled}
-      onValueChange={(key) => selectByKey(key, options, onValueChange)}
-    >
+    <RadixSelect.Root value={rootValue} disabled={disabled}
+      onValueChange={(key) => selectByKey(key, options, onValueChange)}>
       <RadixSelect.Trigger
         {...triggerProps}
         data-select-control
@@ -161,7 +162,7 @@ export function Select<T extends SelectValue>({
         <RadixSelect.Value>{selected?.label ?? placeholder}</RadixSelect.Value>
         <RadixSelect.Icon aria-hidden className="ml-auto text-[8px] text-proto-muted-3">▾</RadixSelect.Icon>
       </RadixSelect.Trigger>
-      <SelectPopup options={options} />
+      <SelectPopup options={options} className={popupClassName} />
     </RadixSelect.Root>
   );
 }

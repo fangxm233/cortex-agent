@@ -1,3 +1,7 @@
+// input:  runtime settings writer, config snapshot, controls
+// output: MNotificationsScreen, MAdvancedScreen
+// pos:    Mobile runtime settings and notification preferences
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -75,10 +79,10 @@ function NumberSettingRow(props: {
   const valid = numberSettingValid(props.descriptor, value);
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
     sub={L[props.descriptor.descKey]} trailing={
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', width: 132 }}>
-      <input type="number" value={draft} onChange={(event) => setDraft(event.target.value)}
+    <div className="mobile-settings-number-control">
+      <input type="number" aria-label={L[props.descriptor.titleKey]} value={draft} onChange={(event) => setDraft(event.target.value)}
         min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
-        step={1} style={{ width: 56, minWidth: 0 }} />
+        step={1} />
       <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
         onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
     </div>} />;
@@ -121,7 +125,7 @@ function JobInterval(props: {
   const [draft, setDraft] = useState(initial);
   useEffect(() => { if (current !== null) setDraft(durationDraftFromMs(current)); }, [current]);
   const next = durationDraftToMs(draft.value, draft.unit);
-  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 82px', gap: 7, padding: '0 13px 11px' }}>
+  return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: '0 13px 11px' }}>
     <MSettingsField label={L.stBuiltinInterval} type="number" min={1} value={draft.value}
       onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} />
     <MSettingsSelect label="Unit" value={draft.unit}

@@ -35,9 +35,29 @@ export interface StageDefinition {
   description?: string;              // human-readable description of this stage
 }
 
+// --- Execution environment (the half of an agent that is not its prompt) ---
+
+/** Setting files Claude Code may load beyond what Cortex passes explicitly (`--setting-sources`).
+ *  Absent leaves the CLI's own default; `[]` loads none, which is how an agent keeps a user's
+ *  `enabledPlugins` and ambient hooks out of its session. */
+export type AgentSettingSource = 'user' | 'project' | 'local';
+
+/** The environment fields an agent template owns. Every default equals the behaviour an agent that
+ *  declares none of them already had, so adding the block to a definition changes nothing by itself.
+ *  Mixed into {@link AgentDefinition}, {@link AgentSlotConfig} and the per-template override on
+ *  {@link TemplateAgentRef}; `delegable` sits on the definition alone because it describes what the
+ *  agent is rather than how one template runs it. */
+export interface AgentEnvironment {
+  loadRules?: boolean;               // default true: prepend the ambient global rules
+  disableHooks?: boolean;            // default false: same fact as the template-level field, ANDed with it
+  skills?: boolean;                  // default true; false → claude: --disable-slash-commands, pi: no skill roots
+  settingSources?: AgentSettingSource[]; // absent → the CLI default set
+  projectContext?: boolean;          // default true: inject the [Session Project] block on a bound session
+}
+
 // --- Independent Agent Definition (top-level in config file) ---
 
-export interface AgentDefinition {
+export interface AgentDefinition extends AgentEnvironment {
   name: string;                      // agent ID (key in agents map)
   description?: string;              // human-readable description
   profile: string;                   // profile name from profiles.json, or "__active__"
@@ -51,6 +71,9 @@ export interface AgentDefinition {
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags, repeatable)
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   mcpToolAllowlist?: string[];        // optional per-tool MCP allowlist; absent preserves full surface
+  /** Whether this template may be named as a subagent delegation target. Declared now so a
+   *  definition can carry the intent; nothing reads it yet. */
+  delegable?: boolean;
   /** Optional per-stage prompt map. When set, `promptTemplate` is ignored and the engine
    *  selects one stage per step based on the transition target (`"agent:stage"` syntax). */
   stages?: Record<string, StageDefinition>;
@@ -63,7 +86,7 @@ export interface AgentDefinition {
 // --- Template Agent Reference (how templates reference agents) ---
 
 /** Template can reference an agent by name (string) or with per-template overrides (object) */
-export type TemplateAgentRef = string | {
+export type TemplateAgentRef = string | (AgentEnvironment & {
   ref: string;                       // agent name
   promptTemplate?: string;           // override agent's default promptTemplate
   directive?: string;                 // override agent's default directive
@@ -74,11 +97,11 @@ export type TemplateAgentRef = string | {
   tools?: string;                    // override agent's tools
   pluginDirs?: string[];             // override agent's pluginDirs
   mcpToolAllowlist?: string[];        // override agent's MCP tool allowlist
-};
+});
 
 // --- Resolved Agent Slot Config (merged from definition + template override) ---
 
-export interface AgentSlotConfig {
+export interface AgentSlotConfig extends AgentEnvironment {
   slotId: AgentSlotId;
   profile: string;                   // profile name from profiles.json, or "__active__"
   persistSession: boolean;           // true: reuse session across iterations; false: fresh each time

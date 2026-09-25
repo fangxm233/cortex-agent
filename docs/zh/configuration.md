@@ -227,6 +227,89 @@ $CORTEX_HOME/
 
 配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
 
+## Agent 与 profile {#agents-vs-profiles}
+
+决定一次会话怎么跑的是两个实体，它们各自独立变化。
+
+**profile** 管模型路由：backend、model、mode、thinking 级别、额外环境变量和
+fallback 链。**agent 模板**（`config/thread-templates/agents/<name>.json`，字段见
+[threads.md](./threads.md#agent-definitions)）管执行环境：系统提示、工具列表、加载哪些
+Cortex 插件、会话拿到哪个 MCP 面以及面里的哪些工具、是否加载环境规则与生命周期 hook、
+是否注入项目块，以及后端的 skill 层到底加不加载。
+
+`!profile <name>` 只换模型不动环境；`!agent <name>` 只换环境不动模型。钉了
+`"profile": "__active__"` 的 agent 跟随所在对话当前解析出的 profile；指定了具体 profile
+的 agent 则以 override 的形式在运行路径上生效——它不会改写对话自己的 profile，所以之后
+`!agent reset` 时模型仍停在原处。
+
+### 按对话选 agent {#choosing-an-agent-per-conversation}
+
+agent 的选择方式与 profile 相同：按对话选，下面垫着一个全局默认。
+
+| 命令 | 作用 |
+|---|---|
+| `!agent` | 显示本对话的 agent、它回退到的全局默认，以及可选列表——Slack 与飞书上是按钮 |
+| `!agent <name>` | 让**本对话**从下一轮起跑在 `<name>` 里 |
+| `!agent reset` | 把本对话交还给全局默认。`clear`、`off`、`none`、`disable` 同义 |
+| `!agent global <name>` | 设置全局默认：所有没自己选过的对话跑哪个 |
+| `!agent global off` | 清除全局默认，回到 `main` |
+
+所有不带前缀的形式都只作用于当前对话；只有显式的 `global` 前缀才会动全局默认。
+
+Web 与桌面端里，同一个选择有自己的控件：输入框上紧挨引擎胶囊左侧的一枚胶囊——先说在哪里
+跑，再说用什么跑。它直接显示本对话所在的 agent；本对话没选过时，显示它将回退到的全局默认，
+并以灰色呈现，好让“自己选的”和“只是回退到的”一眼可分。点开是一个平铺列表：最上面的
+`default` 表示“跟随全局默认”，下面是本机声明的每个模板，各自标注用途与它钉住的 profile。
+只声明一个 agent 的机器不画这枚胶囊——没有可选的余地。新对话里的选择随第一条消息一起提交；
+进行中的对话立即生效，从下一轮开始。
+
+一轮对话按这条链解析自己的 agent：会话自己的 agent → 所在对话的 → 全局默认 → `main`。
+
+切换遵循与 `!profile` 相同的规则：有历史的对话不能换 backend，所以钉在另一个 backend 的
+profile 上的 agent 会被拒绝，并说明它需要哪个 backend。尚无对话轮次的会话可以任选。同一
+backend 内切换在下一轮生效，历史保留——也就是说模型会看到自己在上一个环境里产生的那几轮；
+不希望如此就 `!new`。
+
+### 最小工具面 {#a-minimal-surface}
+
+随包提供的 `creative` 是 Cortex 内置最小的环境——写作、图像提示词、起名、文案，运营性
+上下文全部剥掉：
+
+```json
+{
+  "name": "creative",
+  "profile": "__active__",
+  "systemPrompt": "file:creative.md",
+  "tools": "Read,Write,Edit",
+  "pluginDirs": [],
+  "skills": false,
+  "settingSources": [],
+  "mcpComposition": "direct",
+  "mcpToolAllowlist": ["send_file", "send_view", "cortex_ask_user"],
+  "loadRules": false,
+  "disableHooks": true,
+  "projectContext": false
+}
+```
+
+三个内置工具，没有 Cortex 插件、没有环境规则、没有 hook、没有项目块，MCP 面正好三个
+工具：`send_file` 和 `send_view` 负责交付，`cortex_ask_user` 负责发问。用它开的会话被
+问到自己能看到什么时，报的是三个工具、零个 skill。
+
+`mcpToolAllowlist` 是上界，不是要求。它把会话的 MCP 面收窄到所列的名字；某个名字在这次
+spawn 的 surface 上本来就不存在，那它在那里就只是不存在而已。所以同一份列表到处都能用：
+这个 `creative` 在 Web 与桌面端保留三个工具，在 Slack 与飞书只剩 `cortex_ask_user`（它们
+的文件交付是另一个工具，本列表没写），在 thread step 上一个都没有——它不组装面向用户的桥。
+而一个在本机任何 bundle 里都不存在的名字仍然会让 spawn 失败：那是拼写错误，不是 surface。
+
+### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
+
+`pluginDirs` 并不是 skill 层的全部。无论 Cortex 传什么，Claude Code 每次 spawn 都会加载
+它自己的那一份：`~/.claude/settings.json` 里启用的 plugin、`~/.claude/skills/` 下的内容，
+以及 CLI 的内置 skill。有两个 agent 字段能够到它们。`settingSources: []` 让设置文件根本
+不被读取，于是启用的 plugin 带来的 skill 随之消失；`skills: false` 直接移除整层，内置的
+也不剩，连 `Skill` 工具一起拿掉。两个都设的 agent 看到的是零 skill、零斜杠命令。
+
 ## config/settings.json
 
 位于 `$CORTEX_HOME/config/settings.json`。该文件保存服务器的**运行时行为设置**：这些开关与上限过去是环境变量，改动必须重启守护进程才生效。现在改这个文件无需重启。
@@ -349,7 +432,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
-| `defaults/CORTEX.md` | `$CORTEX_HOME/CORTEX.md` | 从不 |
+| `defaults/AGENTS.md` | `$CORTEX_HOME/AGENTS.md` | 从不 |
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | 从不 |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不——这里只指 `$CORTEX_HOME/.claude/settings.json` 这个脚手架路径；任意仓库内的本地 `.claude/settings.json` 都不在 Cortex 的 copy/sync 回路里 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |

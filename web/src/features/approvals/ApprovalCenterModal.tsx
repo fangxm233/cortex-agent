@@ -1,3 +1,8 @@
+// input:  ApprovalInfo, approval queue, vocabulary, toast
+// output: ApprovalCenterModal
+// pos:    Approval material cards and decision detail sheet
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
@@ -31,6 +36,7 @@ import { useApprovalQueue } from './useApprovalQueue';
 // queuedAt has date-only (no clock), so the "age" and "queued" slots show the date.
 
 const mono = "'IBM Plex Mono',monospace";
+const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 
 // ── pure presentational view ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +75,8 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
           position: 'fixed',
           inset: 0,
           background: 'var(--overlay-scrim)',
+          backdropFilter: 'var(--material-scrim-filter)',
+          WebkitBackdropFilter: 'var(--material-scrim-filter)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
@@ -76,6 +84,8 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
       {/* shell (prototype L1319) */}
       <div
         data-approval-center=""
+        role="dialog"
+        aria-label={L.approvals}
         data-approval-selected={selected?.id ?? ''}
         style={{
           position: 'fixed',
@@ -87,9 +97,14 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
           maxWidth: '94vw',
           height: 700,
           maxHeight: '90vh',
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
+          // Floating glass sheet, matching design/Modal: this hand-rolled overlay is a top-level
+          // floating sheet, which is the one shape `backdrop-filter` is affordable on — it holds
+          // still while its two columns scroll inside it, so the backdrop is read once per open.
+          background: 'var(--material-overlay-bg)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float)',
+          boxShadow: 'var(--material-overlay-shadow)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -116,7 +131,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                 gap: 6,
                 background: 'var(--proto-amber-bg)',
                 border: '1px solid var(--proto-amber-border)',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 padding: '3px 10px',
                 marginLeft: 4,
               }}
@@ -130,29 +145,33 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                   animation: 'cxpulse 2s ease-in-out infinite',
                 }}
               />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-amber-fg)'  }}>
                 {pendingLabel(count)}
               </span>
             </span>
           )}
           <span
-            style={{ marginLeft: 'auto', font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}
+            style={{ marginLeft: 'auto', minWidth: 0, overflowWrap: 'anywhere', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}
           >
             ~/.cortex/context/PENDING_APPROVALS.md
           </span>
-          <span
+          <button
+            type="button"
+            className={focusClass}
+            aria-label="Close"
             onClick={props.onClose}
             style={{
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 5,
-              padding: '2px 6px',
+              borderRadius: 'var(--r-chip)',
+              padding: '5px 8px',
+              flex: 'none',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body (prototype L1328) */}
@@ -200,7 +219,7 @@ function EmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 9,
-        background: 'var(--proto-rail)',
+        background: 'transparent',
       }}
     >
       <span
@@ -220,7 +239,7 @@ function EmptyState() {
         ✓
       </span>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.aprEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted)'  }}>
         {L.aprEmptyDesc}
       </div>
     </div>
@@ -247,7 +266,7 @@ function PendingList({
         width: 370,
         flex: 'none',
         borderRight: '1px solid var(--proto-line)',
-        background: 'var(--proto-rail)',
+        background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'auto',
@@ -256,10 +275,10 @@ function PendingList({
       <div
         style={{
           padding: '13px 16px 8px',
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '.06em',
-          color: 'var(--proto-muted-3)',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '.02em',
+          color: 'var(--proto-muted)',
         }}
       >
         {L.apPending} · {count}
@@ -271,14 +290,24 @@ function PendingList({
           return (
             <div
               key={e.id}
+              role="button"
+              tabIndex={0}
+              aria-pressed={sel}
+              className={focusClass}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.currentTarget.click();
+              }}
               data-approval-id={e.id}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--proto-card)',
-                border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                borderRadius: 10,
+                background: sel ? 'var(--proto-accent-bg)' : 'var(--material-card-bg)',
+                boxShadow: 'var(--material-card-shadow)',
+                border: `1px solid ${sel ? 'var(--proto-accent)' : 'var(--proto-line-2)'}`,
+                borderRadius: 'var(--r-card)',
                 padding: '10px 12px',
-                boxShadow: sel ? 'var(--focus-ring-accent)' : 'none',
+                overflowWrap: 'anywhere',
                 cursor: 'pointer',
               }}
             >
@@ -318,13 +347,13 @@ function PendingList({
                     }}
                   >
                     {card.project && (
-                      <span style={{ font: `600 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.project}</span>
+                      <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)'  }}>{card.project}</span>
                     )}
                     {card.origin && (
-                      <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.origin}</span>
+                      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>{card.origin}</span>
                     )}
                     {card.age && (
-                      <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>
+                      <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>
                         {card.age}
                       </span>
                     )}
@@ -342,10 +371,10 @@ function PendingList({
 // ── right detail pane (prototype L1353-1401) ──────────────────────────────────────────────────
 
 const GRID_LABEL: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: '.05em',
-  color: 'var(--proto-muted-3)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '.02em',
+  color: 'var(--proto-muted)',
   paddingTop: 2,
 };
 
@@ -372,7 +401,7 @@ function DetailPane({
 }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowWrap: 'anywhere', background: 'transparent' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '16px 22px 0' }}>
         {/* title + status pill */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -381,10 +410,10 @@ function DetailPane({
           </div>
           <span
             style={{
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 600,
               padding: '2px 9px',
-              borderRadius: 999,
+              borderRadius: 'var(--r-pill)',
               background: detail.pill.bg,
               color: detail.pill.fg,
               flex: 'none',
@@ -404,8 +433,8 @@ function DetailPane({
             alignItems: 'center',
             gap: 14,
             marginTop: 8,
-            font: `400 10px ${mono}`,
-            color: 'var(--proto-muted-3)',
+            font: `400 11px ${mono}`,
+            color: 'var(--proto-muted)',
             flexWrap: 'wrap',
           }}
         >
@@ -432,7 +461,7 @@ function DetailPane({
           style={{
             marginTop: 14,
             display: 'grid',
-            gridTemplateColumns: '76px 1fr',
+            gridTemplateColumns: '76px minmax(0, 1fr)' ,
             rowGap: 9,
             columnGap: 14,
             fontSize: 12,
@@ -452,10 +481,10 @@ function DetailPane({
           <div style={{ marginTop: 13 }}>
             <div
               style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: '.05em',
-                color: 'var(--proto-muted-3)',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '.02em',
+                color: 'var(--proto-muted)',
                 marginBottom: 6,
               }}
             >
@@ -463,9 +492,9 @@ function DetailPane({
             </div>
             <div
               style={{
-                background: 'var(--proto-rail)',
+                background: 'var(--proto-alt)',
                 border: '1px solid var(--proto-line-2)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '9px 14px',
                 font: `400 11px/1.75 ${mono}`,
                 color: 'var(--proto-muted)',
@@ -485,7 +514,7 @@ function DetailPane({
               margin: '13px 0 14px',
               background: 'var(--proto-danger-bg)',
               border: '1px solid var(--proto-danger-bg)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '10px 13px',
               fontSize: 11.5,
               lineHeight: 1.55,
@@ -505,18 +534,20 @@ function DetailPane({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: '1px solid var(--proto-danger-bg)',
-              background: 'var(--proto-card)',
-              borderRadius: 8,
+              border: '1px solid var(--proto-danger)',
+              background: 'var(--material-inset-bg)',
+              borderRadius: 'var(--r-control)',
               padding: '7px 12px',
             }}
           >
             <input
+              className={focusClass}
+              aria-label={L.apFeedbackPh}
               data-approval-feedback=""
               value={feedback}
               onChange={(e) => onFeedback(e.target.value)}
               placeholder={L.apFeedbackPh}
-              style={{ flex: 1, fontSize: 12, color: 'var(--proto-ink)', fontFamily: 'inherit' }}
+              style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--proto-ink)', fontFamily: 'inherit' }}
             />
           </div>
         </div>
@@ -529,13 +560,15 @@ function DetailPane({
           borderTop: '1px solid var(--proto-line-2)',
           padding: '12px 22px',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 10,
         }}
       >
-        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', lineHeight: 1.6 }}>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: '1 1 120px'  }}>
           {L.apFootNote}
         </span>
+        <div style={{ display: 'flex', gap: 10, marginLeft: 'auto', alignItems: 'center' }}>
         {!armed && (
           <>
             <HoverButton
@@ -546,13 +579,13 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-danger-bg)' }}
             >
@@ -564,13 +597,12 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-accent)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-accent-strong)' }}
             >
@@ -588,13 +620,13 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-line-3)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
               hover={{ background: 'var(--proto-alt)' }}
             >
@@ -606,20 +638,20 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-danger)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
-                opacity: pending ? 0.6 : 1,
               }}
-              hover={{ opacity: 0.88 }}
+              hover={{ filter: 'brightness(1.08)' }}
             >
               {L.denyConfirm}
             </HoverButton>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -639,15 +671,19 @@ function HoverButton({
 } & Record<string, unknown>) {
   const [h, setH] = useState(false);
   return (
-    <span
+    <button
       {...rest}
+      type="button"
+      className={focusClass}
+      disabled={!onClick}
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      style={h ? { ...base, ...hover } : base}
+      style={{ ...base, ...(h && onClick ? hover : {}),
+        ...(!onClick ? { background: 'var(--proto-gray)', color: 'var(--proto-muted)' } : {}) }}
     >
       {children}
-    </span>
+    </button>
   );
 }
 

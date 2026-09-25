@@ -1,7 +1,7 @@
 // input:  Embedded frontend files and app-private frontend directory
 // output: Upgrade-safe frontend with native notification support
 // pos:    Android bundled frontend lifecycle
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 use include_dir::{include_dir, Dir};
 use sha2::{Digest, Sha256};

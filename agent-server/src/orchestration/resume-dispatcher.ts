@@ -68,8 +68,10 @@ function defaultDeps(): ResumeDeps {
     requeue: recordResume,
     buildResumeInput: (thread) => resumeThreadRunInput(thread, 'resume-rate-limited'),
     getThread: (id) => threadStore.get(id),
-    channelBusy: (ch) => runRegistry.hasChannel(ch),
-    directSessionBusy: (ch) => runRegistry.getByChannel(ch).some(e => !e.threadId),
+    // Subagent children ride on their parent's channel and outlive its turn; counting them read an
+    // idle conversation as busy, which dropped its direct resume and stalled threads behind it.
+    channelBusy: (ch) => runRegistry.getOwnByChannel(ch).length > 0,
+    directSessionBusy: (ch) => runRegistry.getOwnByChannel(ch).some(e => !e.threadId),
     acquireSessionUse: (sessionId) => acquireSessionUse(sessionId),
     track: trackPendingTask,
     delay: (ms) => new Promise((r) => setTimeout(r, ms)),

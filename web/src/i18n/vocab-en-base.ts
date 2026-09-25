@@ -173,6 +173,12 @@ export const enBase = {
   wbModel: 'model',
   wbThinking: 'thinking',
   wbRoute: 'route',
+  // The environment axis: which agent template a conversation runs in (prompt, tools, skills).
+  wbAgent: 'agent',
+  wbAgentDefault: 'default',
+  wbAgentFollowDefault: 'follow the host default',
+  /** Why an agent row is greyed: its profile runs on `{backend}`, and a live session may not move. */
+  wbAgentCrossBackend: 'new conversation only · {backend}',
   wbFollowProfile: 'follow profile',
   wbFollowAll: 'follow the profile for everything',
   wbFilterModels: 'filter…',
@@ -182,6 +188,8 @@ export const enBase = {
   wbHiddenNoProfile: '{n} models have no profile',
   wbModelsPending: 'loading models…',
   wbNewConversation: 'New conversation',
+  wbDraftIn: 'in {p}',
+  wbDraftSendsOnFirst: 'sends on first message',
   wbSend: 'send',
   wbSlashInvalid: 'Message not sent: unrecognized command or invalid arguments. Text starting with / is treated as a command. For a normal message, rephrase it so it does not start with /.',
   wbSlashIncomplete: 'Message not sent: command is incomplete. Complete it or select a command from the menu. For a normal message, do not start with /.',
@@ -359,6 +367,7 @@ export const enBase = {
   dmRestartFailed: 'Restart failed',
   dmDisconnect: 'Disconnect',
   dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
+  dmRebuild: 'rebuild',
 
   rpNoActiveThreads: 'No active threads',
   rpNoActiveThreadsHint: 'Running and waiting threads will appear here.',
@@ -665,6 +674,12 @@ export const enBase = {
   stNavHooks: 'Hooks',
   stNavAdvanced: 'Advanced',
 
+  // ── Settings nav group headings ──
+  stGroupWorkspace: 'Workspace',
+  stGroupAgent: 'Agent',
+  stGroupResources: 'Resources',
+  stGroupSystem: 'System',
+
   // ── Settings section meta subs ──
   stMetaAppearanceSub: 'Language, theme, palette, accent color, and motion. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
@@ -728,6 +743,14 @@ export const enBase = {
   stMotionSystem: 'System',
   stMotionFull: 'Full',
   stMotionReduced: 'Reduced',
+
+  // ── Appearance / glass control ──
+  stGlassLabel: 'Glass',
+  stGlassHint: 'How much panels, sheets and overlays let the background through. Pick Off if scrolling feels slow — it makes every surface solid and turns the blur off.',
+  stGlassOff: 'Off',
+  stGlassSubtle: 'Subtle',
+  stGlassMedium: 'Medium',
+  stGlassStrong: 'Strong',
 
   // ── Appearance / language control ──
   stLangLabel: 'Language',

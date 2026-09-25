@@ -1,3 +1,7 @@
+// input:  WaitpointInfo, wait-rail-vm, session identity
+// output: WaitRail, WaitRailProps
+// pos:    Waitpoint status rail, inline or floating over the transcript
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import {
@@ -8,6 +12,7 @@ import {
   type WaitRailLanguage,
   type WaitRailRow,
 } from './wait-rail-vm';
+import { railSurface } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
@@ -58,9 +63,9 @@ function Badge({ badge }: { badge: WaitRailBadge }): JSX.Element {
       title={badge.title}
       data-wait-badge={badge.key}
       style={{
-        font: `600 9.5px ${MONO}`,
+        font: `600 11px ${MONO}`,
         padding: '1px 6px',
-        borderRadius: 999,
+        borderRadius: 'var(--r-pill)',
         whiteSpace: 'nowrap',
         color: danger ? 'var(--proto-danger)' : 'var(--proto-amber)',
         background: danger ? 'var(--proto-danger-bg, transparent)' : 'transparent',
@@ -75,7 +80,7 @@ function Badge({ badge }: { badge: WaitRailBadge }): JSX.Element {
 const STATUS_COLOR: Record<string, string> = {
   ok: 'var(--proto-success)',
   fail: 'var(--proto-danger)',
-  progress: 'var(--proto-muted-2)',
+  progress: 'var(--proto-muted)',
 };
 
 interface RowProps {
@@ -88,17 +93,17 @@ interface RowProps {
 function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
   return (
     <div style={{ padding: '7px 0', borderTop: '1px solid var(--proto-line)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
         <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
           {row.label}
         </span>
         {row.progress && (
-          <span style={{ font: `500 10px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>{row.progress}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>{row.progress}</span>
         )}
         {row.mailbox && (
-          <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none' }}>{row.mailbox}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', flex: 'none' }}>{row.mailbox}</span>
         )}
-        <span style={{ marginLeft: 'auto', flex: 'none', font: `400 10px ${MONO}`, color: row.urgent ? 'var(--proto-amber)' : 'var(--proto-faint)' }}>
+        <span style={{ marginLeft: 'auto', flex: 'none', font: `400 11px ${MONO}`, color: row.urgent ? 'var(--proto-amber)' : 'var(--proto-muted)' }}>
           {row.ttl}
         </span>
         <button
@@ -108,7 +113,7 @@ function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
           onClick={(e) => { e.stopPropagation(); onCancel(row); }}
           style={{
             flex: 'none', border: 'none', background: 'transparent', padding: '0 2px',
-            font: `500 10px ${MONO}`, color: 'var(--proto-danger)',
+            font: `500 11px ${MONO}`, color: 'var(--proto-danger)',
             cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.5 : 1,
           }}
         >
@@ -117,14 +122,14 @@ function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
       </div>
 
       {/* Agent-written, so it is shown as the explanation of why the session is waiting. */}
-      <div style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', marginTop: 3, lineHeight: 1.45 }}>{row.intent}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--proto-muted)', marginTop: 3, lineHeight: 1.45, overflowWrap: 'anywhere' }}>{row.intent}</div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: row.badges.length || row.device || row.failFast ? 5 : 0 }}>
         {row.device && (
-          <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{row.device}</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{row.device}</span>
         )}
         {row.failFast && (
-          <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>fail-fast</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>fail-fast</span>
         )}
         {row.badges.map((b) => <Badge key={b.key} badge={b} />)}
       </div>
@@ -132,17 +137,17 @@ function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
       {/* Signal log. Everything here was written by a process outside Cortex: rendered as plain
           text, never linkified, never interpreted — the same framing the wake notice uses. */}
       {row.signals.length === 0 && (
-        <div style={{ font: `400 10px ${MONO}`, color: 'var(--proto-faint)', marginTop: 4 }}>{copy.noSignals}</div>
+        <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', marginTop: 4 }}>{copy.noSignals}</div>
       )}
       {row.signals.length > 0 && (
         <div style={{ marginTop: 5 }}>
-          <div style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)' }}>{copy.externalNote}</div>
+          <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.externalNote}</div>
           {row.signals.map((s) => (
-            <div key={s.key} style={{ display: 'flex', gap: 6, font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', lineHeight: 1.6, minWidth: 0 }}>
+            <div key={s.key} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', font: `400 11px ${MONO}`, color: 'var(--proto-muted)', lineHeight: 1.6, minWidth: 0 }}>
               <span style={{ flex: 'none' }}>{s.at}</span>
-              <span style={{ flex: 'none', color: STATUS_COLOR[s.status] ?? 'var(--proto-muted-3)' }}>{s.status}</span>
+              <span style={{ flex: 'none', color: STATUS_COLOR[s.status] ?? 'var(--proto-muted)' }}>{s.status}</span>
               {s.who && <span style={{ flex: 'none' }}>{s.who}</span>}
-              <span style={{ flex: 'none', color: 'var(--proto-faint)' }}>{s.source}</span>
+              <span style={{ flex: 'none', color: 'var(--proto-muted)' }}>{s.source}</span>
               {s.message && (
                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.message}</span>
               )}
@@ -164,6 +169,8 @@ export interface WaitRailProps {
   waitpoints: WaitpointInfo[];
   onCancel: (waitpointId: string) => void;
   cancelling?: boolean;
+  /** Hung over the scrolling transcript (mobile), so it takes the composer's frosted chrome. */
+  floating?: boolean;
 }
 
 /**
@@ -174,7 +181,7 @@ export interface WaitRailProps {
  * Only armed waitpoints appear. A waitpoint that fires or expires posts its own notice into the
  * transcript, so keeping it here too would tell the same story twice.
  */
-export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false }: WaitRailProps): JSX.Element | null {
+export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false, floating = false }: WaitRailProps): JSX.Element | null {
   const [open, toggle] = useExpanded(sessionId);
   const vm = waitRailViewModel(waitpoints, Date.now(), lang);
   if (!vm) return null;
@@ -194,14 +201,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
   return (
     <div
       data-wait-rail={open ? 'expanded' : 'collapsed'}
-      style={{
-        border: '1px solid var(--proto-line)',
-        borderRadius: 8,
-        background: 'var(--proto-alt)',
-        marginBottom: 8,
-        overflow: 'hidden',
-        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
-      }}
+      style={railSurface(floating)}
     >
       {!open && (
         <button
@@ -218,7 +218,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
           <WaitDot />
           <span
             style={{
-              fontSize: 12, color: 'var(--proto-muted-2)', whiteSpace: 'nowrap',
+              fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap',
               overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
             }}
           >
@@ -239,13 +239,13 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4 }}>
             <WaitDot />
-            <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>{copy.title}</span>
+            <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.title}</span>
             <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--proto-muted-2)' }}>▾</span>
           </div>
           {vm.rows.map((row) => (
             <WaitRow key={row.id} row={row} copy={copy} onCancel={confirmCancel} cancelling={cancelling} />
           ))}
-          <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', marginTop: 6, lineHeight: 1.5 }}>
             {copy.secretNote}
           </div>
         </div>

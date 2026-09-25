@@ -62,6 +62,7 @@ const copy: MUsageCopy = {
   policy: {
     title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
     save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
+    throttleAt: 'Throttle at', throttleOff: 'No throttle',
     legacyFallbackTitle: 'Legacy fallback',
     legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
     clearLegacy: 'Clear legacy fallback',
@@ -100,6 +101,10 @@ describe('MUsageView policy controls', () => {
 
     const fiveHour = targetKey('anthropic', 'five_hour');
     const overage = targetKey('anthropic', 'seven_day_overage_included');
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fiveHour })).toHaveLength(0);
+    for (const key of [fiveHour, overage]) {
+      act(() => renderer.root.findByProps({ 'data-usage-policy-expand': key }).props.onClick());
+    }
     act(() => renderer.root.findByProps({ 'data-usage-threshold-input': fiveHour }).props.onChange({ target: { value: '83' } }));
     act(() => renderer.root.findByProps({ 'data-usage-threshold-save': fiveHour }).props.onClick());
     act(() => renderer.root.findByProps({ 'data-usage-threshold-reset': overage }).props.onClick());
@@ -130,6 +135,18 @@ describe('MUsageView policy controls', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-policy-row': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-legacy-fallback': 'anthropic' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-usage-policy-expand': targetKey('anthropic', 'five_hour') })).toHaveLength(0);
+  });
+
+  it('opens a row editor on its own when that row has a save error', () => {
+    const fiveHour = targetKey('anthropic', 'five_hour');
+    const renderer = create(view({
+      getPolicyError: (target) => (target.windowType === 'five_hour' ? new Error('write failed') : null),
+    }));
+
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fiveHour })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': targetKey('anthropic', 'seven_day') })).toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).toContain('write failed');
   });
 });
 

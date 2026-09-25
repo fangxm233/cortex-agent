@@ -1,7 +1,11 @@
+// input:  Mobile chat sheets, attach menu, React test renderer
+// output: Selection, menu dismissal and listener cleanup tests
+// pos:    Mobile chat sheet and floating menu interaction coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MChatCopy } from './MChatView.types';
-import type { SelectionSheetVM } from './m-chat-vm';
+import type { SelectionSheetRow, SelectionSheetVM } from './m-chat-vm';
 
 // MBottomSheet's entrance animation needs rAF and window.history; this suite is about what the
 // sheet DOES, so the chrome is stubbed exactly as MScheduleSheet's suite does.
@@ -10,7 +14,62 @@ vi.mock('@/mobile/ui/kit', async () => ({
   MBottomSheet: ({ children }: any) => <div data-bottom-sheet>{children}</div>,
 }));
 
-const { SelectionSheet } = await import('./MChatSheets');
+const { AgentSheet, MoreMenu, SelectionSheet } = await import('./MChatSheets');
+const { AttachMenu } = await import('./MChatComposerPresentation');
+
+afterEach(() => { vi.unstubAllGlobals(); });
+
+const menuCopy = {
+  menuSessionId: 'Session ID', attachCamera: 'Take photo', attachLibrary: 'Photo library',
+  attachFile: 'Choose file', attachCommands: 'Commands',
+} as MChatCopy;
+const floatingMenus = [
+  { name: 'More', render: (onClose: () => void) => <MoreMenu copy={menuCopy} onClose={onClose} onSessionId={vi.fn()} /> },
+  { name: 'Attach', render: (onClose: () => void) => <AttachMenu copy={menuCopy} onClose={onClose} onCamera={vi.fn()} onLibrary={vi.fn()} onFile={vi.fn()} onCommands={vi.fn()} /> },
+];
+
+function press(target: EventTarget, key: string): void {
+  act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key })); });
+}
+
+describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
+  it('closes on Escape and outside click, ignoring other keys', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(render(onClose)); });
+    press(target, 'Enter');
+    expect(onClose).not.toHaveBeenCalled();
+    press(target, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    act(() => renderer.root.findAllByType('div')[0].props.onClick());
+    expect(onClose).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+    press(target, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the latest close callback and removes listeners between mounts', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const oldClose = vi.fn();
+    const newClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(render(oldClose)); });
+    act(() => renderer.update(render(newClose)));
+    press(target, 'Escape');
+    expect(oldClose).not.toHaveBeenCalled();
+    expect(newClose).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+    act(() => { renderer = create(render(newClose)); });
+    press(target, 'Escape');
+    expect(newClose).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+    press(target, 'Escape');
+    expect(newClose).toHaveBeenCalledTimes(2);
+  });
+});
 
 // `buildSelectionSheet` decides what the rows SAY (m-chat-vm.test); this is only about drawing them:
 // a root that lists the profiles and collapses the overrides, a pane behind each of those rows, and
@@ -89,5 +148,54 @@ describe('SelectionSheet', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:claude::sonnet' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-selection-pane': 'model' })).toHaveLength(1);
+  });
+});
+
+// The environment sheet is flat — there is nothing under an agent to refine — so a tap is the whole
+// visit and the sheet goes with it. Its rows come from `buildAgentSheet` (m-chat-vm.test); this is
+// only about what a tap does to the sheet.
+
+const agentRows: SelectionSheetRow[] = [
+  { id: 'agent:default', label: 'default', sub: 'follow the host default', current: true, change: null },
+  { id: 'agent:nimbus', label: 'nimbus', sub: 'a clean room', current: false, change: { agentName: 'nimbus' } },
+  { id: 'agent:atlas', label: 'atlas', sub: 'new conversation only · pi', current: false, change: null, disabled: true },
+];
+
+function renderAgentSheet() {
+  const onPick = vi.fn();
+  const onClose = vi.fn();
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      <AgentSheet rows={agentRows} title="agent" copy={selectionCopy} onClose={onClose} onPick={onPick} />,
+    );
+  });
+  const tap = (id: string): void => {
+    act(() => renderer.root.findByProps({ 'data-selection-row': id }).props.onClick());
+  };
+  return { renderer, onPick, onClose, tap };
+}
+
+describe('AgentSheet', () => {
+  it('sends the agent that was tapped and closes behind it', () => {
+    const { onPick, onClose, tap } = renderAgentSheet();
+    tap('agent:nimbus');
+    expect(onPick).toHaveBeenCalledWith(agentRows[1]);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('hands the conversation back to the host default from the top row', () => {
+    const { onPick, tap } = renderAgentSheet();
+    tap('agent:default');
+    expect(onPick).toHaveBeenCalledWith(agentRows[0]);
+  });
+
+  it('draws the agent this conversation cannot take, but refuses the tap', () => {
+    const { renderer, onPick, onClose, tap } = renderAgentSheet();
+    expect(renderer.root.findByProps({ 'data-selection-row': 'agent:atlas' }).props['data-disabled'])
+      .toBe('true');
+    tap('agent:atlas');
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

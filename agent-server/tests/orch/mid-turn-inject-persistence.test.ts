@@ -63,11 +63,13 @@ function harness(persist: Promise<void>) {
     kill: () => true,
     backend: run.backend,
     run: run as any,
+    trackSessionId: 'sess-1',
   });
   const deps: MidTurnInjectDeps = {
     getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
       run: entry.run as any,
+      trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: () => null,
     appendAssistant: () => {},

@@ -77,6 +77,12 @@
 | `outputStyle` | string? | Claude Code 输出风格 |
 | `tools` | string? | 逗号分隔的工具列表（覆盖默认值）。其中 `Agent` 会被忽略：Cortex 在所有场合剥离它，改用 MCP 的 `agent` 工具——见 [backends.md](./backends.md#subagents) |
 | `pluginDirs` | string[]? | 要加载的插件目录（`--plugin-dir` 标志） |
+| `loadRules` | boolean? | 默认 `true`。把 `rules/` 中的环境规则加到会话前面。`false` 则只留下智能体自己的提示 |
+| `disableHooks` | boolean? | 默认 `false`。`true` 表示该智能体运行时不带生命周期 hook。模板上有同名字段管整条流水线；两者取与，任何一方都无法把另一方的决定改回来 |
+| `skills` | boolean? | 默认 `true`。`false` 丢掉后端的整个 skill 层：Claude Code 上是 `--disable-slash-commands`，同时也移除 Cortex 从未提供过的那些 skill（见 [`pluginDirs` 之外的 skill](./configuration.md#skills-outside-plugindirs)）；PI 上则不向会话交付任何 skill 根目录 |
+| `settingSources` | `("user"\|"project"\|"local")[]?` | 会话可以加载哪些 Claude Code 设置文件（`--setting-sources`）。不设置则保留 CLI 的默认集合；`[]` 一个都不加载 |
+| `projectContext` | boolean? | 默认 `true`。绑定到项目的会话是否在首轮收到 `[Session Project]` 块 |
+| `delegable` | boolean? | 默认 `false`。把该智能体标记为委托目标。当前会被接受和校验，但还没有代码路径读取它 |
 
 ### 多阶段智能体 {#multi-stage-agents}
 
@@ -175,7 +181,9 @@
 ]
 ```
 
-覆盖字段：`promptTemplate`、`directive`、`systemPrompt`、`persistSession`、`claudeAgent`、`outputStyle`、`tools`、`pluginDirs`。
+覆盖字段：`promptTemplate`、`directive`、`systemPrompt`、`persistSession`、`claudeAgent`、`outputStyle`、`tools`、`pluginDirs`、`mcpToolAllowlist`，以及环境字段 `loadRules`、`disableHooks`、`skills`、`settingSources`、`projectContext`。`delegable` 不可覆盖——它描述智能体本身是什么，而不是某个模板怎么跑它。
+
+保留名 `"__active__"` 代表“当前在用的那个智能体”，而不是某个固定的。它**按 channel 解析**：跑在一个自己选过 agent 的对话上的 thread（`!agent <name>`，或输入框的选择器——见 [configuration.md](./configuration.md#choosing-an-agent-per-conversation)）就跑那个 agent，其次回退到全局默认，再回退到 `main`。创建 thread 时读一次 channel，之后每一步再读，所以这样填充的槽位会跟着 thread 所属的对话走，和它的 profile 一样。
 
 ### Shell 模板 {#shell-templates}
 

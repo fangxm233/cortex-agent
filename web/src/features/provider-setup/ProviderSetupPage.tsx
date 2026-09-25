@@ -1,7 +1,7 @@
 // input:  setup controller, provider icons, auth modal and i18n
 // output: provider setup route styled as the native installation wizard
 // pos:    New-install provider onboarding outside AppShell
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';

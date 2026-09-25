@@ -1,3 +1,8 @@
+// input:  Modal, project creation hook, vocabulary
+// output: NewProjectModal
+// pos:    Project creation on a shared glass surface
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useRef, useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
@@ -40,7 +45,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
       description={L.npHint}
       onOpenChange={(open) => { if (!open) onClose(); }}
       contentDataAttributes={{ 'data-modal': 'newproj' }}
-      bodyStyle={{ display: 'contents' }}
+      bodyStyle={{ overflowY: 'auto', minHeight: 0 }}
       contentStyle={{
         position: 'fixed',
         left: '50%',
@@ -48,43 +53,51 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         transform: 'translate(-50%,-50%)',
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 540,
-        background: 'var(--proto-card)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100dvh - 40px)',
+        background: 'var(--material-overlay-bg)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
       }}
     >
         {/* header (L1410-1414) */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.newProject}</span>
-          <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)', marginLeft: 10 }}>
+          <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , marginLeft: 10 }}>
             {NP_BREADCRUMB}
           </span>
-          <span
+          <button
+            type="button"
+            aria-label="Close"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             style={{
               marginLeft: 'auto',
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 5,
-              padding: '2px 6px',
+              borderRadius: 'var(--r-chip)',
+              padding: '5px 8px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* name field (L1415-1422) */}
-        <div style={{ padding: '16px 20px 0' }}>
+        <div style={{ padding: '16px 20px', background: 'transparent' }}>
           <div
             style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              letterSpacing: '.05em',
-              color: 'var(--proto-muted-3)',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '.02em',
+              color: 'var(--proto-muted)',
               marginBottom: 6,
             }}
           >
@@ -95,13 +108,17 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: '1.5px solid var(--proto-accent-border)',
-              borderRadius: 9,
+              border: `1px solid ${error ? 'var(--proto-danger)' : 'var(--proto-line-3)'}`,
+              borderRadius: 'var(--r-control)',
               padding: '9px 12px',
+              background: 'var(--material-inset-bg)',
             }}
           >
             <input
               ref={inputRef}
+              aria-label={L.npProjectName}
+              aria-invalid={Boolean(error)}
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -112,13 +129,13 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               }}
               autoFocus
               placeholder={NP_PLACEHOLDER}
-              style={{ flex: 1, font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
+              style={{ flex: 1, minWidth: 0, font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
             />
           </div>
           <div
             style={{
-              fontSize: 10.5,
-              color: error ? 'var(--proto-danger)' : 'var(--proto-muted-3)',
+              fontSize: 11,
+              color: error ? 'var(--proto-danger)' : 'var(--proto-muted)',
               marginTop: 8,
               lineHeight: 1.6,
             }}
@@ -135,9 +152,13 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             gap: 10,
             padding: '16px 20px 16px',
             justifyContent: 'flex-end',
+            borderTop: '1px solid var(--proto-line-2)',
+            background: 'transparent',
           }}
         >
-          <span
+          <button
+            type="button"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             onMouseEnter={() => setCancelHover(true)}
             onMouseLeave={() => setCancelHover(false)}
@@ -145,29 +166,33 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               fontSize: 11.5,
               fontWeight: 600,
               border: '1px solid var(--proto-line-3)',
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '6px 13px',
               color: 'var(--proto-ink)',
               cursor: 'pointer',
-              background: cancelHover ? 'var(--proto-alt)' : 'transparent',
+              background: cancelHover ? 'var(--proto-alt)' : 'var(--material-control-bg)',
+              boxShadow: 'var(--material-control-shadow)',
             }}
           >
             {L.cancel}
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
+            disabled={!creatable || isPending}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={submit}
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              borderRadius: 8,
+              borderRadius: 'var(--r-control)',
               padding: '7px 15px',
-              color: 'var(--ink-solid-fg)',
-              background: creatable ? 'var(--proto-accent)' : 'var(--proto-accent-border)',
+              color: creatable && !isPending ? 'var(--ink-solid-fg)' : 'var(--proto-muted)',
+              background: creatable && !isPending ? 'var(--proto-accent)' : 'var(--proto-gray)',
               cursor: creatable && !isPending ? 'pointer' : 'default',
             }}
           >
             {L.npCreate}
-          </span>
+          </button>
         </div>
     </Modal>
   );

@@ -1,6 +1,7 @@
 <!-- input:  shell flags, persisted appearance, server credentials -->
 <!-- output: automatic PI-only install and compact local configuration -->
-<!-- pos:    Native shell page shown before the SPA can connect -->
+<!-- pos:    Native installation page with saved appearance -->
+<!-- >>> Once updated, update this header and the parent AGENTS.md <<< -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,7 +12,7 @@
   <link rel="stylesheet" href="/theme.css">
   <meta name="theme-color" content="">
   <script>
-    // No-flash appearance: apply the persisted theme, accent, surface, and motion before first paint.
+    // No-flash appearance: apply saved theme, accent, surface, glass and motion before first paint.
     // Mirrors web/src/theme/theme.ts + web/index.html so the connect screen matches the SPA.
     (function () {
       try {
@@ -45,6 +46,11 @@
         try { intensity = window.localStorage.getItem('cortex.accent-intensity'); } catch (e) {}
         if (intensity === 'soft' || intensity === 'vivid') {
           document.documentElement.setAttribute('data-accent-intensity', intensity);
+        }
+        var glass = null;
+        try { glass = window.localStorage.getItem('cortex.glass'); } catch (e) {}
+        if (glass === 'strong' || glass === 'medium' || glass === 'subtle' || glass === 'off') {
+          document.documentElement.setAttribute('data-glass', glass);
         }
         var motion = null;
         try { motion = window.localStorage.getItem('cortex.motion'); } catch (e) {}

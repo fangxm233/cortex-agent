@@ -1,7 +1,7 @@
 // input:  isolated UI service, authenticated HTTP transport and settings
 // output: real config roundtrip, audit and HTTP redaction regressions
 // pos:    Platform settings API integration boundary
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { test, expect } from 'vitest';
 import { once } from 'node:events';

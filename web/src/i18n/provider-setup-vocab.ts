@@ -1,7 +1,7 @@
 // input:  provider onboarding and appearance-control copy
 // output: English and Chinese setup and header vocabulary
 // pos:    Compact provider onboarding translations
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 export const setupEn = {
   setupHeader: 'Setup',
   setupEyebrow: 'SERVER READY',

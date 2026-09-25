@@ -1,3 +1,8 @@
+// input:  Select, react-test-renderer, Vitest
+// output: Select values, material roles and portal-scope checks
+// pos:    Verify select semantics and caller material overrides
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -44,6 +49,36 @@ function part(renderer: ReactTestRenderer, name: string) {
 }
 
 describe('Select', () => {
+  it('uses stable compact controls, an overlay popup and unfiltered rows', () => {
+    const renderer = mount('one', [{ value: 'one', label: 'One' }]);
+    expect(part(renderer, 'trigger').props.style.background).toBe('var(--material-control-bg)');
+    expect(part(renderer, 'trigger').props.style.backdropFilter).toBeUndefined();
+    expect(part(renderer, 'content').props.className).toContain('[background:var(--material-overlay-bg)]');
+    expect(part(renderer, 'content').props.className).toContain('z-[100]');
+    expect(part(renderer, 'content').props.className).toContain('[backdrop-filter:var(--glass-filter)]');
+    expect(part(renderer, 'item').props.className).not.toContain('backdrop-filter');
+  });
+
+  it('keeps bare triggers unstyled and caller inline styles authoritative', () => {
+    const options = [{ value: 'one', label: 'One' }];
+    const renderer = create(<Select value="one" options={options} onValueChange={() => {}} density="bare" />);
+    expect(part(renderer, 'trigger').props.style).toEqual({});
+    act(() => renderer.update(<Select value="one" options={options} onValueChange={() => {}}
+      style={{ background: 'var(--proto-card)', boxShadow: 'none' }} />));
+    expect(part(renderer, 'trigger').props.style.background).toBe('var(--proto-card)');
+    expect(part(renderer, 'trigger').props.style.boxShadow).toBe('none');
+  });
+
+  it('scopes popup styling only when the caller opts in', () => {
+    const options = [{ value: 'one', label: 'One' }];
+    const renderer = mount('one', options);
+    expect(part(renderer, 'content').props.className).not.toContain('settings-surface');
+    act(() => renderer.update(<Select value="one" options={options} onValueChange={() => {}}
+      popupClassName="settings-surface settings-select-popup" />));
+    expect(part(renderer, 'content').props.className).toContain('settings-surface settings-select-popup');
+    expect(part(renderer, 'trigger').props.popupClassName).toBeUndefined();
+  });
+
   it('maps empty public values to non-empty Radix keys and back', () => {
     const onValueChange = vi.fn();
     const renderer = mount('', [

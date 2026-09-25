@@ -15,7 +15,7 @@ Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件
 
 ```
 context/
-├── CORTEX.md                    # 根索引——查找任何内容的入口点
+├── AGENTS.md                    # 根索引——查找任何内容的入口点
 ├── OVERVIEW.md                  # 全局概览：每项目一行状态 + 上次扫描日期
 ├── decisions/                   # 系统级设计决策（DR-NNNN-title.md）
 ├── ideas/                       # 孵化中的研究方向
@@ -24,7 +24,7 @@ context/
 │   └── USER.md                  # 语言、风格、工作习惯（< 3KB）
 └── projects/                    # 每个活跃研究项目一个子目录
     └── <project>/
-        ├── CORTEX.md            # 项目级索引
+        ├── AGENTS.md            # 项目级索引
         ├── mission.md           # 目标和成功条件
         ├── roadmap.md           # 带可测试清单条件的里程碑
         ├── STATUS.md            # 现在时状态寄存器（覆盖式，最多 80 行 / 6KB）
@@ -208,11 +208,30 @@ index.md 中的引用计数（`refs`）由 `memory-index-regen` 基于这些访�
 
 Dense Context 系统遵循以下运行约定：
 
-1. **每个目录有 CORTEX.md 索引** — 描述目录的用途、文件列表和查找规则。索引是指针式的（每行一句话+指针，原子目录整目录一行），硬上限 120 行且 8KB，对齐上下文注入预算
-2. **创建文件 → 更新索引** — 向目录添加新文件时，更新该目录的 CORTEX.md
+1. **每个目录有 AGENTS.md 索引** — 描述目录的用途、文件列表和查找规则。索引是指针式的（每行一句话+指针，原子目录整目录一行），硬上限 120 行且 8KB，对齐上下文注入预算
+2. **创建文件 → 更新索引** — 向目录添加新文件时，更新该目录的 AGENTS.md
 3. **覆盖 vs. 追加** — STATUS.md 覆盖（仅当前状态）；ISSUES.md 追加然后删除；experiments/knowledge/patterns 追加并保留
 4. **来源强制** — 每个事实声明必须追溯到特定的 EXP-NNN、K-NNN、file:line 或内联计算
 5. **Git 作为持久化** — 所有上下文更新通过 git 增量提交，在每逻辑工作单元后
+
+## 谁负责加载 AGENTS.md {#who-loads-agents-md}
+
+`AGENTS.md` 正是两个后端本身就会去找的文件名，所以大多数情况下 Cortex 不做任何注入——后端自己就加载了。
+
+| 文件位置 | Claude Code | PI | 由谁加载 |
+|---|---|---|---|
+| 会话工作目录的祖先目录 | 会 | 会 | 后端 |
+| 工作目录的子目录，且读取了其中的文件时 | 会 | 不会 | Claude 上由后端加载，PI 上由 `agents-md-injector` 钩子加载 |
+| 工作目录树之外 | 不会 | 不会 | `agents-md-injector` 钩子 |
+| 任意位置的 `AGENTS.local.md` | 不会 | 不会 | `agents-md-injector` 钩子 |
+| 远程设备上，经 `remote_read` / `remote_write` / `remote_edit` | 不会 | 不会 | cortex-client 扫描器，作为附加的工具结果块注入 |
+
+会话默认运行在 Cortex 主目录下，因此 `~/.cortex/AGENTS.md` 以及 `context/` 下的每个索引要么是工作目录的祖先、要么是其子目录，都会被后端原生加载。钩子只负责剩下的那几行，并把后端已加载的文件记入一份按会话共享的缓存，确保同一份规则不会被送两遍。
+
+有两点值得注意：
+
+- **祖先链上只要出现任何一个 `CLAUDE.md`，Claude 的 `AGENTS.md` 回退机制就会被整体关闭**——这由 `claude-md-or-agents-md` 设置控制，是全有或全无，而不是按目录合并。钩子会检测到这种情况并恢复注入以免丢规则，但仍应避免在同一棵目录树里混用两种文件名。
+- **两个后端都不读 `.local` 变体。** `AGENTS.local.md` 是 Cortex 自己的约定，用于机器相关的规则，由钩子投递并且不纳入 git。
 
 ## 全新会话测试 {#fresh-session-test}
 

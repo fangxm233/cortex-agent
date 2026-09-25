@@ -1,3 +1,7 @@
+// input:  file path, download callback, body controls
+// output: FileBar, FileBarToggle
+// pos:    File location and keyboard-accessible material controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 
 // A docked tab has no header of its own — the strip above is shared by every tab — so each file body
@@ -20,7 +24,7 @@ export function FileBar({ path, onDownload, children }: {
       <span data-file-path={path} title={path} style={PATH_STYLE}>{path}</span>
       {children}
       {onDownload && (
-        <span role="button" data-file-download="" title="Download" onClick={onDownload} style={BUTTON_STYLE}>↓</span>
+        <button type="button" data-file-download="" title="Download" aria-label="Download" onClick={onDownload} style={BUTTON_STYLE}>↓</button>
       )}
     </div>
   );
@@ -34,8 +38,8 @@ export function FileBarToggle({ on, label, title, onClick, ...rest }: {
   onClick: () => void;
 } & Record<`data-${string}`, string>): JSX.Element {
   return (
-    <span
-      role="button"
+    <button
+      type="button"
       aria-pressed={on}
       title={title}
       onClick={onClick}
@@ -43,10 +47,11 @@ export function FileBarToggle({ on, label, title, onClick, ...rest }: {
       style={{
         ...TOGGLE_STYLE,
         borderColor: on ? 'var(--proto-accent)' : 'var(--proto-line)',
-        background: on ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+        background: on ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
         color: on ? 'var(--proto-accent)' : 'var(--proto-muted)',
       }}
-    >{label}</span>
+    >{label}</button>
   );
 }
 
@@ -57,7 +62,7 @@ const BAR_STYLE: CSSProperties = {
   gap: 6,
   padding: '7px 10px',
   borderBottom: '1px solid var(--proto-line)',
-  background: 'var(--proto-rail)',
+  background: 'var(--material-card-bg)',
 };
 
 const PATH_STYLE: CSSProperties = {
@@ -69,16 +74,17 @@ const PATH_STYLE: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  font: `500 10.5px ${MONO}`,
-  color: 'var(--proto-muted-2)',
+  font: `500 11px ${MONO}`,
+  color: 'var(--proto-muted)',
 };
 
 const BUTTON_STYLE: CSSProperties = {
   width: 28,
   height: 28,
-  borderRadius: 8,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)',
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   color: 'var(--proto-muted)',
   display: 'flex',
   alignItems: 'center',
@@ -92,11 +98,11 @@ const BUTTON_STYLE: CSSProperties = {
 const TOGGLE_STYLE: CSSProperties = {
   height: 22,
   padding: '0 8px',
-  borderRadius: 6,
+  borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',
   display: 'inline-flex',
   alignItems: 'center',
-  font: `600 10px ${MONO}`,
+  font: `600 11px ${MONO}`,
   cursor: 'pointer',
   flex: 'none',
   userSelect: 'none',

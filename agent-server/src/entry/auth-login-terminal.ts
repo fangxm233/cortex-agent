@@ -1,7 +1,7 @@
 // input:  clack prompts, fixed Claude installer, login notices
 // output: localized, secret-safe terminal UI and confirmed Claude installation
 // pos:    Terminal adapter for provider onboarding
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as clack from '@clack/prompts';
 import { t } from '@core/i18n.js';
 import { execSync } from 'node:child_process';

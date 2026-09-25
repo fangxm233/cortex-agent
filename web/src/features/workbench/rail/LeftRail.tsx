@@ -1,3 +1,7 @@
+// input:  project/session resources, router, pane state
+// output: LeftRail, BrandBadge, GearIcon
+// pos:    Resizable project navigation with readable attention counts
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -21,31 +25,30 @@ import {
   saveSortMode,
   type RailSortMode,
 } from './rail-order';
-import { NewProjectIcon, RailTree, SearchIcon } from './RailTree';
+import { RailTree, SearchIcon } from './RailTree';
 import { useApprovals } from '@/features/approvals/useApprovals';
-import { useSettings } from '@/features/settings/useSettings';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/useCommissionBoard';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useVocab } from '@/i18n';
-import { useTheme, useSetTheme } from '@/theme';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
-import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
-import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
+import type { ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
+import { glassPanelStyle } from '@/shell/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { usePaneState } from '@/shell/PaneStateProvider';
 import { useShellModals } from '@/shell/useShellModals';
+import { RailResizeHandle } from './RailResizeHandle';
+import { loadRailWidth, saveRailWidth } from './rail-width';
 
 const mono = "'IBM Plex Mono',monospace";
-const RAIL_WIDTH = 340;
-// Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
-// as the same object: a 26px square of content inside 8px gutters.
-const RAIL_COLLAPSED_WIDTH = 42;
+// A 30px square of content inside 8px gutters — the buttons are the widest thing the collapsed
+// column ever holds.
+const RAIL_COLLAPSED_WIDTH = 46;
 const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
 const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
@@ -81,11 +84,11 @@ function BrandMark({ size }: { size: number }): JSX.Element {
   );
 }
 
-// Brand badge carrying the live UI↔server link as a presence dot on its corner. The status used to
-// be a dot + word occupying the header's right end, which is also the only free corner a collapse
-// control can hold; binding connectivity to the app's own mark says the same thing in no width, and
-// the word survives in the tooltip and in the daemon modal this opens.
-function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string; onClick: () => void }): JSX.Element {
+// Brand badge carrying the live UI↔server link as a presence dot on its corner. Binding
+// connectivity to the app's own mark says the status in no width, and the word survives in the
+// tooltip and in the daemon modal this opens. Exported because the top strip, not this rail, is
+// where the brand block now lives — the strip stays visible when the rail is collapsed.
+export function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string; onClick: () => void }): JSX.Element {
   return (
     <div
       role="button"
@@ -96,7 +99,7 @@ function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string
         position: 'relative',
         width: 26,
         height: 26,
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         background: 'var(--brand-badge-bg)',
         border: '1px solid var(--brand-badge-border)',
         display: 'flex',
@@ -117,7 +120,7 @@ function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string
           height: 9,
           borderRadius: '50%',
           background: dot.color,
-          border: '2px solid var(--proto-rail)',
+          border: '2px solid var(--glass-2)',
           ...(dot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
         }}
       />
@@ -125,7 +128,7 @@ function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label: string
   );
 }
 
-function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
+export function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -134,11 +137,12 @@ function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
   );
 }
 
-// Borderless 28px square for the collapsed rail's bottom cluster — the same footprint as PaneToggle
-// so the whole icon column shares one optical width.
-function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, children }: {
+// Borderless 30px square — the same footprint as the top strip's icon buttons, so the two icon
+// surfaces read as one control family.
+function RailIconButton({ label, color, background = 'transparent', onClick, onMouseEnter, onMouseLeave, children }: {
   label: string;
   color: string;
+  background?: string;
   onClick: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -153,11 +157,11 @@ function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, chi
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         border: 0,
-        borderRadius: 7,
-        background: 'transparent',
+        borderRadius: 'var(--r-chip)',
+        background,
         color,
         display: 'grid',
         placeItems: 'center',
@@ -174,20 +178,12 @@ function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, chi
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
-  const theme = useTheme();
-  const setTheme = useSetTheme();
-  const { open: openSettings } = useSettings();
   const L = useVocab();
-  // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
-  // red disconnected).
-  const connStatus = useConnectionStatus();
   const { railCollapsed: collapsed, setRailCollapsed: setCollapsed } = usePaneState();
-  // New project and daemon status are opened from the menu bar too, so their modals live in
-  // ShellModalsProvider rather than in this component.
+  // New project is opened from the menu bar too, so its modal is a shell modal-registry key
+  // (shell/useShellModals) rather than state in this component.
   const shellModals = useShellModals();
   const rateLimitStatus = useRateLimitStatus();
-  const connDot = connectionDot(connStatus);
-  const connLabel = L[connectionLabelKey(connStatus)];
 
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
   // Every query below is UNSCOPED: the tree shows all projects at once, so scoping any of them to a
@@ -233,6 +229,15 @@ export function LeftRail(): JSX.Element {
   const [runModalId, setRunModalId] = useState<string | null>(null);
   const markMany = useMarkManyRead();
   const [hover, setHover] = useState<string | null>(null);
+  // Expanded width is the user's to set (drag the gutter); the collapse animation is switched off
+  // while a drag is live, or every move would ease in 220ms behind the pointer.
+  const [railWidth, setRailWidth] = useState(loadRailWidth);
+  const [resizing, setResizing] = useState(false);
+  const onRailResize = (width: number, done: boolean): void => {
+    setRailWidth(width);
+    setResizing(!done);
+    if (done) saveRailWidth(width);
+  };
 
   const toggleId = (
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,
@@ -414,8 +419,8 @@ export function LeftRail(): JSX.Element {
     setDragged(true);
   };
 
-  // From the collapsed rail: expand first, then open the field — the caller is 42px wide and has
-  // nowhere to show what the search finds.
+  // From the collapsed rail: expand first, then open the field — the caller is one icon wide and
+  // has nowhere to show what the search finds.
   const openSearchExpanded = () => {
     setCollapsed(false);
     setSearchOpen(true);
@@ -468,19 +473,18 @@ export function LeftRail(): JSX.Element {
     treeScrollRef.current?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
   }, [tree.currentProjectId, tree.projects.length, collapsed]);
 
-  // COLLAPSED RAIL — 42px cannot hold a tree, and the icon-per-project column it used to hold was a
-  // second, worse navigator: no session titles, no ages, everything past the ninth project scrolled
-  // out of reach. So the fold keeps only what stays true at this width — the daemon badge, the way
-  // back out, and the three things you start rather than browse. Navigation waits for the expand;
-  // search and new-project take you there themselves.
+  // COLLAPSED RAIL — this width cannot hold a tree, and the icon-per-project column it used to hold
+  // was a second, worse navigator: no session titles, no ages, everything past the ninth project
+  // scrolled out of reach. So the fold keeps only what stays true here — starting a session,
+  // searching (which expands first), and the approvals queue. The brand badge and Settings moved to
+  // the top strip, which never folds; new project stays in File → New project and in the expanded
+  // tree's own header.
   const railDivider = <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0', flex: 'none' }} />;
   const renderCollapsedRail = () => (
     <nav
       aria-label={L.lrRailNavigation}
-      style={{ width: RAIL_COLLAPSED_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '14px 0 12px' }}
+      style={{ width: RAIL_COLLAPSED_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 0' }}
     >
-      <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => shellModals.openDaemonStatus()} />
-      {railDivider}
       {/* The one filled square in the column, echoing the expanded rail's accent button: at this
           width the only way to say "primary" is with the fill. */}
       <button
@@ -490,10 +494,10 @@ export function LeftRail(): JSX.Element {
         onClick={onNewSession}
         {...hp('crail:new')}
         style={{
-          width: 26,
-          height: 26,
+          width: 30,
+          height: 30,
           border: 0,
-          borderRadius: 7,
+          borderRadius: 9,
           padding: 0,
           cursor: 'pointer',
           flex: 'none',
@@ -501,20 +505,14 @@ export function LeftRail(): JSX.Element {
           placeItems: 'center',
           color: 'var(--ink-solid-fg)',
           background: isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+          boxShadow: 'var(--accent-glow)',
         }}
       >
         <PlusGlyph size={14} />
       </button>
-      <RailIconButton
-        label={L.newProject}
-        color={isHover('crail:newproj') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
-        onClick={() => shellModals.openNewProject()}
-        {...hp('crail:newproj')}
-      >
-        <NewProjectIcon />
-      </RailIconButton>
+      {railDivider}
       {/* Searching means reading results, and results need the full width — so this opens the rail
-          with the field already focused rather than searching inside 42px. */}
+          with the field already focused rather than searching inside the fold. */}
       <RailIconButton
         label={L.wbFilterSessions}
         color={isHover('crail:search') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
@@ -525,214 +523,171 @@ export function LeftRail(): JSX.Element {
       </RailIconButton>
       <div style={{ flex: 1, minHeight: 8 }} />
       {hasPendingApprovals && (
-        <RailIconButton label={pendingLabel} color="var(--proto-amber-fg)" onClick={() => approvals.open()}>
-          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <RailIconButton
+          label={pendingLabel}
+          color="var(--proto-amber-fg)"
+          background="var(--proto-amber-bg)"
+          onClick={() => approvals.open()}
+        >
+          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--amber-fill-fg)', font: `600 11px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             {pendingCount}
           </span>
         </RailIconButton>
       )}
-      <RailIconButton
-        label={L.settings}
-        color={isHover('crail:settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
-        onClick={openSettings}
-        {...hp('crail:settings')}
-      >
-        <GearIcon />
-      </RailIconButton>
     </nav>
   );
 
+  // The wrapper exists for the resize handle: the pane clips (overflow:hidden), and the handle has
+  // to reach past its rim into the gutter.
   return (
-    <div
-      data-pane="left"
-      data-collapsed={collapsed || undefined}
-      style={{
-        width: collapsed ? RAIL_COLLAPSED_WIDTH : RAIL_WIDTH,
-        transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)',
-        flex: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--proto-rail)',
-        borderRight: '1px solid var(--proto-line)',
-        minHeight: 0,
-        overflow: 'hidden',
-      }}
-    >
-      {collapsed && renderCollapsedRail()}
-      {/* The expanded tree stays mounted at its full width while collapsed, so it keeps its scroll
-          position and the pane slides out of view instead of reflowing into 42px. */}
+    <div style={{ position: 'relative', flex: 'none', display: 'flex', minHeight: 0 }}>
       <div
-        ref={treeScrollRef}
-        style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}
+        data-pane="left"
+        data-collapsed={collapsed || undefined}
+        style={{
+          width: collapsed ? RAIL_COLLAPSED_WIDTH : railWidth,
+          transition: resizing ? 'none' : 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+          flex: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          ...glassPanelStyle,
+        }}
       >
-        {/* header: brand badge (carries the link dot) + wordmark. The collapse toggle moved to the
-            top bar, which owns window-level layout controls and stays reachable when the rail is
-            collapsed. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
-          <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => shellModals.openDaemonStatus()} />
-          <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
-        </div>
-
-        {/* The rail has exactly one primary action, so it gets a full row rather than a text link
-            competing with a section heading. */}
+        {collapsed && renderCollapsedRail()}
+        {/* The expanded tree stays mounted at its full width while collapsed, so it keeps its scroll
+            position and the pane slides out of view instead of reflowing into the fold's width. */}
         <div
-          {...hp('newsess')}
-          role="button"
-          onClick={onNewSession}
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 7,
-            height: 34,
-            margin: '0 12px 10px',
-            borderRadius: 9,
-            flex: 'none',
-            cursor: 'pointer',
-            fontSize: 12.5,
-            fontWeight: 600,
-            color: 'var(--ink-solid-fg)',
-            background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
-          }}
+          ref={treeScrollRef}
+          style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: railWidth }}
         >
-          <PlusGlyph size={13} />
-          {L.wbNewSession}
-          <span style={{ position: 'absolute', right: 10, font: `500 9.5px ${mono}`, color: 'var(--ink-solid-fg-dim)' }}>⌘N</span>
+          {/* The rail has exactly one primary action, so it gets a full row rather than a text link
+              competing with a section heading. The wrapper carries the column's top inset: the brand
+              block moved to the top strip, which is where the rail's first row used to get its air. */}
+          <div style={{ padding: '14px 12px 10px', flex: 'none' }}>
+            <div
+              {...hp('newsess')}
+              role="button"
+              onClick={onNewSession}
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 7,
+                height: 36,
+                borderRadius: 'var(--r-control)',
+                cursor: 'pointer',
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: 'var(--ink-solid-fg)',
+                background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+                // The rail's one primary action: the glow is what separates it from the list it sits on.
+                boxShadow: 'var(--accent-glow)',
+              }}
+            >
+              <PlusGlyph size={13} />
+              {L.wbNewSession}
+              <span style={{ position: 'absolute', right: 11, font: `500 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>⌘N</span>
+            </div>
+          </div>
+
+          <RailTree
+            nodes={tree.projects}
+            projectCount={projects.length}
+            sort={sort}
+            onSort={onSort}
+            filter={filter}
+            onFilter={setFilter}
+            searchOpen={searchOpen}
+            onToggleSearch={onToggleSearch}
+            onNewProject={() => shellModals.openNewProject()}
+            onToggleProject={toggleProject}
+            onToggleSchedules={toggleSchedules}
+            onToggleCommissions={toggleCommissions}
+            onToggleCommission={toggleCommission}
+            onOpenCommission={commissionBoard.openCommission}
+            onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
+            onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
+            onShowFewer={showFewer}
+            onOpenSession={onOpenSession}
+            onNewSessionIn={newSessionIn}
+            onOverview={onOverview}
+            onScheduleRow={onScheduleRow}
+            onReorder={onReorder}
+            now={now}
+          />
+
+          {/* attention zone — everything that appears intermittently and asks for attention stacks
+              here, at the foot of the column, so the rows above keep a fixed layout no matter what
+              the system is doing. */}
+          {(rateLimitStatus || hasPendingApprovals) && (
+            <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
+              <RailRateLimitStatus status={rateLimitStatus} />
+              {hasPendingApprovals && (
+                <div
+                  {...hp('approval')}
+                  onClick={() => approvals.open()}
+                  style={{
+                    // Matches the rate-limit banner above it (RailRateLimitStatus): one flat row height.
+                    height: 34,
+                    padding: '0 12px',
+                    background: 'var(--proto-amber-bg)',
+                    border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
+                    borderRadius: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    flex: 'none',
+                    // Urgent, not merely coloured: the tinted lift is what pulls the card off the rail.
+                    boxShadow: 'var(--shadow-amber-lift)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--proto-amber)',
+                      flex: 'none',
+                      animation: 'cxpulse 2s ease-in-out infinite',
+                    }}
+                  />
+                  <div style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
+                  <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <RailTree
-          nodes={tree.projects}
-          projectCount={projects.length}
-          sort={sort}
-          onSort={onSort}
-          filter={filter}
-          onFilter={setFilter}
-          searchOpen={searchOpen}
-          onToggleSearch={onToggleSearch}
-          onNewProject={() => shellModals.openNewProject()}
-          onToggleProject={toggleProject}
-          onToggleSchedules={toggleSchedules}
-          onToggleCommissions={toggleCommissions}
-          onToggleCommission={toggleCommission}
-          onOpenCommission={commissionBoard.openCommission}
-          onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
-          onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
-          onShowFewer={showFewer}
-          onOpenSession={onOpenSession}
-          onNewSessionIn={newSessionIn}
-          onOverview={onOverview}
-          onScheduleRow={onScheduleRow}
-          onReorder={onReorder}
-          now={now}
-        />
 
-        {/* attention zone — everything that appears intermittently and asks for attention stacks
-            here, just above the footer, so the header keeps a fixed layout no matter what the
-            system is doing. */}
-        {(rateLimitStatus || hasPendingApprovals) && (
-          <div style={{ margin: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
-            <RailRateLimitStatus status={rateLimitStatus} />
-            {hasPendingApprovals && (
-              <div
-                {...hp('approval')}
-                onClick={() => approvals.open()}
-                style={{
-                  padding: '9px 12px',
-                  background: 'var(--proto-amber-bg)',
-                  border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
-                  borderRadius: 9,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  flex: 'none',
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: 'var(--proto-amber)',
-                    flex: 'none',
-                    animation: 'cxpulse 2s ease-in-out infinite',
-                  }}
-                />
-                <div style={{ fontSize: 11.5, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
-                <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
-              </div>
-            )}
-          </div>
+        {runModalRow && (
+          <RunListModal
+            row={runModalRow}
+            selectedSessionId={selectedSessionId ?? null}
+            onOpenRun={(sessionId) => {
+              setRunModalId(null);
+              const project = projectOfSession(sessionId, directSessions, scheduledSessions);
+              if (project) openSession(project, sessionId);
+            }}
+            onManage={
+              runModalRow.schedule
+                ? () => {
+                    setRunModalId(null);
+                    scheduleModal.openEdit(runModalRow.schedule!);
+                  }
+                : undefined
+            }
+            onMarkAllRead={markMany.markManyRead}
+            markAllPending={markMany.pending}
+            onClose={() => setRunModalId(null)}
+          />
         )}
 
-        {/* footer: theme (☀/☾) toggle + Settings. The language switch lives in Settings → Appearance. */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 16px 14px',
-            borderTop: '1px solid var(--proto-line-2)',
-            flex: 'none',
-          }}
-        >
-          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
-            <span
-              onClick={() => setTheme('light')}
-              title={L.stThemeLight}
-              aria-label={L.stThemeLight}
-              style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
-            >
-              ☀
-            </span>
-            <span
-              onClick={() => setTheme('dark')}
-              title={L.stThemeDark}
-              aria-label={L.stThemeDark}
-              style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
-            >
-              ☾
-            </span>
-          </div>
-          {/* Settings is a gear key, not a word: a label here made the row read as competing texts. */}
-          <span
-            {...hp('settings')}
-            onClick={openSettings}
-            role="button"
-            title={L.settings}
-            aria-label={L.settings}
-            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
-          >
-            <GearIcon />
-          </span>
-        </div>
       </div>
-
-
-      {runModalRow && (
-        <RunListModal
-          row={runModalRow}
-          selectedSessionId={selectedSessionId ?? null}
-          onOpenRun={(sessionId) => {
-            setRunModalId(null);
-            const project = projectOfSession(sessionId, directSessions, scheduledSessions);
-            if (project) openSession(project, sessionId);
-          }}
-          onManage={
-            runModalRow.schedule
-              ? () => {
-                  setRunModalId(null);
-                  scheduleModal.openEdit(runModalRow.schedule!);
-                }
-              : undefined
-          }
-          onMarkAllRead={markMany.markManyRead}
-          markAllPending={markMany.pending}
-          onClose={() => setRunModalId(null)}
-        />
-      )}
-
+      {!collapsed && <RailResizeHandle width={railWidth} onResize={onRailResize} />}
     </div>
   );
 }

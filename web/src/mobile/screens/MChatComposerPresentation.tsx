@@ -1,4 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react';
+// input:  React, mobile presentation props, shared view models
+// output: MChatComposerPresentation
+// pos:    Mobile composer controls and glass attachment menu
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { TodoRail } from '@/features/session/rail/TodoRail';
 import { WaitRail } from '@/features/session/rail/WaitRail';
@@ -43,8 +47,8 @@ function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   const reportsOnly = props.itemKey === 'browser' || props.itemKey === 'commission';
   return (
     <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
-      {props.icon}<span style={{ fontSize: 13, color: MC.ink }}>{props.label}</span>
-      {props.value != null && <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.run }}>{props.value}</span>}
+      {props.icon}<span style={{ fontSize: 13, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{props.label}</span>
+      {props.value != null && <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}`, color: MC.run, minWidth: 0, maxWidth: '55%', overflowWrap: 'anywhere', textAlign: 'right' }}>{props.value}</span>}
     </div>
   );
 }
@@ -59,8 +63,15 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
   commission?: { label: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  // Mounted beside (not inside) the blurred composer, outside the isolated
+  // transcript; the small menu samples the route. Preserve composer clearance.
   return (
-    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 14, bottom: 90, width: 208, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 13, boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
+    <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', left: 12, bottom: 'calc(124px + env(safe-area-inset-bottom))', width: 208, background: 'var(--material-overlay-bg)', backdropFilter: MC.glassFilter, WebkitBackdropFilter: MC.glassFilter, border: '1px solid var(--panel-translucent-border)', borderRadius: 'var(--r-card)', boxShadow: 'var(--material-overlay-shadow)', overflow: 'hidden', zIndex: 6 }}>
       <AttachMenuItem label={copy.attachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
       <AttachMenuItem label={copy.attachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.attachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
@@ -75,11 +86,11 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
   if (!props.rejectBar) return null;
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} /><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
-        <div role="button" aria-label="Cancel reject" onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
+        <div role="button" aria-label="Cancel reject" onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
       </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>{props.rejectBar.chips.map((chip) => <span key={chip} role="button" onClick={() => props.rejectBar!.onChipTap(chip)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}>{chip}</span>)}</div>
+      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>{props.rejectBar.chips.map((chip) => <span key={chip} role="button" onClick={() => props.rejectBar!.onChipTap(chip)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', borderRadius: 'var(--r-pill)', padding: '5px 11px', cursor: 'pointer' }}>{chip}</span>)}</div>
     </>
   );
 }
@@ -90,7 +101,7 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (
     <>
-      {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} /> : null}
+      {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} floating /> : null}
       {props.sessionId && props.waitpoints ? (
         <WaitRail
           sessionId={props.sessionId}
@@ -98,6 +109,7 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
           waitpoints={props.waitpoints.waitpoints}
           onCancel={props.waitpoints.cancel}
           cancelling={props.waitpoints.cancelling}
+          floating
         />
       ) : null}
       {mode}
@@ -105,17 +117,58 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   );
 }
 
+/** The quiet outline both toolbar capsules wear. Chips sit on a glass card now, so an opaque fill
+ *  would punch a hole through the blur behind them. */
+const composerChipStyle: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 5, border: '1px solid var(--proto-line-3)',
+  background: 'transparent', borderRadius: 'var(--r-pill)', height: 34, padding: '0 12px',
+  boxSizing: 'border-box', minWidth: 0, overflow: 'hidden', cursor: 'pointer',
+};
+
 /** Model and thinking level share one capsule with no separator between them — on a phone the
- *  toolbar has no room for punctuation, so colour does the separating: the model in the accent, the
- *  level muted beside it. The level is also what goes first when the row runs out of width (it
- *  shrinks far faster than the model name), since the model is the fact worth keeping on screen. */
+ *  toolbar has no room for punctuation, so ink weight does the separating: the model in the body
+ *  tier, the level a step fainter beside it. The level is also what goes first when the row runs out
+ *  of width (it shrinks far faster than the model name), since the model is the fact worth keeping
+ *  on screen. */
 function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | null; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 11px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
-      <span style={{ flex: '0 1 auto', minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ ...composerChipStyle, flex: '0 1 auto' }}>
+      <span style={{ flex: '0 1 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {sub ? (
         <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
       ) : null}
+    </button>
+  );
+}
+
+/** The environment capsule, immediately left of the engine one: where the turn runs, before what
+ *  runs it. It names the agent outright — the environment decides whether the session has the
+ *  skills and rules for the job at all, which is worth a glance rather than a sheet visit. A step
+ *  fainter while the conversation is only following the host's default, so a name it chose for
+ *  itself reads differently from a name it merely fell back to. It also yields width first: of the
+ *  two capsules the model is the one that must stay legible on a phone. */
+function AgentChip({ axis, label, followingDefault, onClick }: {
+  /** What the capsule IS, for the screen reader — the name alone would not say. */
+  axis: string;
+  label: string;
+  followingDefault: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      data-chip="agent"
+      data-agent-following-default={followingDefault ? 'true' : 'false'}
+      aria-label={`${axis} · ${label}`}
+      onClick={onClick}
+      style={{ ...composerChipStyle, flex: '0 3 auto' }}
+    >
+      <span style={{
+        minWidth: 0, font: `500 11.5px ${MONO}`, color: followingDefault ? MC.muted : MC.muted,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {label}
+      </span>
     </button>
   );
 }
@@ -182,7 +235,7 @@ export function BrowserChip({ device, label, onClick }: {
 
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
   return (
-    <button type="button" aria-label="Attach" onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
+    <button type="button" aria-label="Attach" onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--proto-line-3)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
       <PlusGlyph size={15} />
     </button>
   );
@@ -193,7 +246,19 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
  *  width it took was width the engine chip needed once browser/commission keys joined the row. */
 export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element | null {
   if (props.editing || props.rejectBar) return null;
-  return <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />;
+  return (
+    <>
+      {props.agentChip && props.onOpenAgent ? (
+        <AgentChip
+          axis={props.copy.selectionAgent}
+          label={props.agentChip.label}
+          followingDefault={props.agentChip.followingDefault}
+          onClick={props.onOpenAgent}
+        />
+      ) : null}
+      <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />
+    </>
+  );
 }
 
 export function MobileSlashMenu({ suggestions, onPick }: {
@@ -201,8 +266,8 @@ export function MobileSlashMenu({ suggestions, onPick }: {
   onPick: (suggestion: SlashSuggestion) => void;
 }): JSX.Element {
   return (
-    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 12, background: MC.card, overflow: 'hidden', boxShadow: 'var(--shadow-menu-soft)' }}>
-      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 38, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: MC.muted }}>{suggestion.description}</span></div>)}
+    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', overflow: 'hidden', boxShadow: 'var(--material-control-shadow)' }}>
+      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
     </div>
   );
 }

@@ -1,3 +1,7 @@
+// input:  SubagentBlock, ChatRows, synthetic transcript
+// output: Subagent expansion and sticky-header regression tests
+// pos:    Verify opaque headers and nested transcript behavior
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
@@ -28,10 +32,33 @@ describe('SubagentBlock', () => {
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
     const header = renderer.root.findByProps({ role: 'button' });
+    expect(header.type).toBe('button');
+    expect(header.props.className).toContain('focus-visible:outline');
+    expect(header.props.style.position).toBe('sticky');
+    expect(header.props.style.background).toBe('var(--proto-card)');
+    expect(header.props.style.backdropFilter).toBeUndefined();
     act(() => header.props.onClick());
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
+  });
+
+  it('touch headers wrap at a finger-sized height without hover state', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <SubagentBlock agentType="explore" description="Inspect renderers" prompt={null} model={null} status="done" toolCount={2} touch>
+            <div>child output</div>
+          </SubagentBlock>
+        </LangProvider>,
+      );
+    });
+    const header = renderer.root.findByProps({ role: 'button' });
+    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'var(--proto-card)' });
+    expect(header.props.onMouseEnter).toBeUndefined();
+    act(() => header.props.onClick());
+    expect(JSON.stringify(renderer.toJSON())).toContain('child output');
   });
 
   it('keeps one outer turn-copy action after an expanded subagent', () => {

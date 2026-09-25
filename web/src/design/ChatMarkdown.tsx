@@ -1,3 +1,7 @@
+// input:  Markdown blocks, inline nodes, KaTeX
+// output: ChatMarkdown
+// pos:    Transcript prose, opaque code blocks and wide tables
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -31,7 +35,7 @@ const INLINE_RENDERERS: InlineRenderers = {
   bold: (node, key) => <strong key={key} style={{ fontWeight: 650 }}>{node.text}</strong>,
   italic: (node, key) => <em key={key}>{node.text}</em>,
   code: (node, key) => (
-    <code key={key} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 4, padding: '1px 5px' }}>
+    <code key={key} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 'var(--r-chip)', padding: '1px 5px' }}>
       {node.text}
     </code>
   ),
@@ -75,9 +79,11 @@ function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
   return (
     <pre style={{
       font: `500 12.5px ${mono}`,
+      // Stays a filled block, not glass: code is read character by character and a translucent
+      // ground under a monospace grid is exactly where legibility goes first.
       background: 'var(--proto-alt)',
       border: '1px solid var(--proto-line)',
-      borderRadius: 8,
+      borderRadius: 'var(--r-card)',
       padding: '10px 12px',
       overflow: 'auto',
       margin: '2px 0',

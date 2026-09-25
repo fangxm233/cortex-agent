@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// input:  ComposerActionRow, mocked device and commission queries
+// output: Toolbar, picker and Escape focus regression tests
+// pos:    Verify compact action controls and selection behavior
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
+import { MenuCard, MenuRow } from '@/design/MenuChrome';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
@@ -31,6 +36,34 @@ beforeEach(() => {
   commissions.list = [];
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
+describe('shared picker chrome', () => {
+  it('keeps selections semantic and disabled choices inert on a stationary glass surface', () => {
+    const onPick = vi.fn();
+    const renderer = create(
+      <MenuCard kind="test">
+        <MenuRow id="test" label="Choice" sub="Unavailable" active disabled
+          onPick={onPick} hover={null} setHover={vi.fn()} />
+      </MenuCard>,
+    );
+    const row = renderer.root.findByType('button');
+    expect(row.props['aria-pressed']).toBe(true);
+    expect(row.props.disabled).toBe(true);
+    expect(row.props.className).toContain('focus-visible:outline');
+    act(() => row.props.onClick({ stopPropagation: vi.fn() }));
+    expect(onPick).not.toHaveBeenCalled();
+    const card = renderer.root.findByProps({ 'data-menu': 'test' });
+    expect(card.props.style.background).toBe('var(--material-overlay-bg)');
+    expect(card.props.style.backdropFilter).toBe('var(--glass-filter)');
+    expect(card.props.style.overflow).toBe('hidden');
+    const scroller = card.findByProps({ 'data-menu-scroll': true });
+    expect(scroller.props.style.overflowY).toBe('auto');
+    expect(scroller.props.style.backdropFilter).toBeUndefined();
+    expect(row.props.style.backdropFilter).toBeUndefined();
+  });
+});
+
 describe('ComposerSlashMenu', () => {
   it('runs enabled UI suggestions and ignores disabled ones', () => {
     const onPick = vi.fn();
@@ -57,6 +90,7 @@ describe('ComposerSlashMenu', () => {
 function renderRow(
   browser: ComposerBrowserControl | null,
   commission: ComposerCommissionControl | null = null,
+  agentControl: JSX.Element | null = null,
 ) {
   const onAttach = vi.fn();
   const onCommands = vi.fn();
@@ -71,6 +105,7 @@ function renderRow(
             commission={commission}
             onAttach={onAttach}
             onCommands={onCommands}
+            agentControl={agentControl}
             selectionControl={<span data-chip="selection">claude-opus-5 · high</span>}
             sendControl={<button type="button" data-action="send" />}
           />
@@ -88,6 +123,24 @@ function openPlus(renderer: ReactTestRenderer): void {
 }
 
 describe('ComposerActionRow ＋ menu', () => {
+  it('returns focus from a menu item on Escape but not on outside clicks', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const { renderer } = renderRow(null);
+    const trigger = { isConnected: true, focus: vi.fn() };
+    vi.stubGlobal('document', { activeElement: trigger });
+    openPlus(renderer);
+    vi.stubGlobal('document', { activeElement: { dataset: { plusItem: 'attach' } } });
+    act(() => { target.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    expect(renderer.root.findAllByProps({ 'data-menu': 'plus' })).toHaveLength(0);
+    expect(trigger.focus).toHaveBeenCalledWith({ preventScroll: true });
+    trigger.focus.mockClear();
+    vi.stubGlobal('document', { activeElement: trigger });
+    openPlus(renderer);
+    act(() => { target.dispatchEvent(new Event('click')); });
+    expect(trigger.focus).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
 
   it('offers a device page rather than a bare toggle, and picking this host names it', () => {
     // Where the browser runs matters as much as whether it runs: the server draws on the server's
@@ -97,6 +150,12 @@ describe('ComposerActionRow ＋ menu', () => {
     openPlus(renderer);
     act(() => renderer.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick(click));
     const row = renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE });
+    expect(row.type).toBe('button');
+    expect(row.props.type).toBe('button');
+    expect(row.props.className).toContain('focus-visible:outline');
+    const menu = renderer.root.findByProps({ 'data-menu': 'plus' });
+    expect(menu.props.style.background).toBe('var(--material-overlay-bg)');
+    expect(menu.props.style.backdropFilter).toBe('var(--glass-filter)');
     act(() => row.props.onClick(click));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
   });
@@ -116,7 +175,28 @@ describe('ComposerActionRow ＋ menu', () => {
     openPlus(renderer);
     const row = renderer.root.findByProps({ 'data-plus-item': 'browser' });
     expect(row.props['data-editable']).toBe('false');
+    expect(row.type).toBe('button');
+    expect(row.props.disabled).toBe(true);
     expect(row.props.onClick).toBeUndefined();
+  });
+});
+
+describe('ComposerActionRow right cluster', () => {
+
+  it('seats the environment before the engine — where the turn runs, then what runs it', () => {
+    const { renderer } = renderRow(null, null, <span data-chip="agent">creative</span>);
+    const chips = renderer.root.findAllByProps({ 'data-composer-actions': true })[0]
+      .findAllByType('span')
+      .map((node) => node.props['data-chip'])
+      .filter((chip) => chip === 'agent' || chip === 'selection');
+    expect(chips).toEqual(['agent', 'selection']);
+  });
+
+  it('leaves the row as it was when the host offers no environment to pick', () => {
+    // The chip decides that for itself (SessionSelector.test); the row only has to survive it.
+    const { renderer } = renderRow(null);
+    expect(renderer.root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-chip': 'selection' })).toHaveLength(1);
   });
 });
 

@@ -1,0 +1,38 @@
+/* input:  TopBar and MenuBar presentation classes
+ * output: Responsive window chrome sizing
+ * pos:    Compact labels without removing window actions
+ * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+.shell-topbar-spacer {
+  flex: 1 1 20px;
+  min-width: 6px;
+  align-self: stretch;
+}
+
+.shell-command-pill > svg {
+  flex: none;
+}
+
+.shell-menu-trigger {
+  padding: 0 11px;
+}
+
+@media (max-width: 1100px) {
+  .shell-command-accel {
+    display: none;
+  }
+
+  .shell-menu-trigger {
+    padding: 0 7px;
+  }
+}
+
+@media (max-width: 900px) {
+  .shell-brand-label,
+  .shell-command-label {
+    display: none;
+  }
+
+  .shell-command-pill {
+    justify-content: center;
+  }
+}

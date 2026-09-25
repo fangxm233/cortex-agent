@@ -1,4 +1,9 @@
+// input:  Attachment metadata, media viewers, download actions
+// output: AttachmentCard, AgentFileGroup
+// pos:    Transcript attachment cards with compact file controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaViewer } from '@/features/media/MediaViewer';
@@ -16,8 +21,8 @@ const mono = "'IBM Plex Mono',monospace";
 const stageFallback = 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)';
 
 const mediaNameStyle: CSSProperties = {
-  position: 'absolute', left: 6, bottom: 5, font: `500 8.5px ${mono}`, color: 'var(--proto-muted-2)',
-  background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 4, overflow: 'hidden',
+  position: 'absolute', left: 6, bottom: 5, font: `500 11px ${mono}`, color: 'var(--proto-muted)',
+  background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 'var(--r-chip)', overflow: 'hidden',
   textOverflow: 'ellipsis', whiteSpace: 'nowrap', boxSizing: 'border-box',
 };
 const smallPlayStyle: CSSProperties = {
@@ -28,7 +33,8 @@ const smallPlayStyle: CSSProperties = {
 
 function thumbStageStyle(url: string | null, width: number, height: number): CSSProperties {
   return {
-    position: 'relative', width, height, borderRadius: 12, border: '1px solid var(--proto-line)',
+    position: 'relative', width, height, borderRadius: 'var(--r-card)',
+    boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
     background: url ? 'var(--media-stage-bg)' : stageFallback, boxSizing: 'border-box', flex: 'none',
     overflow: 'hidden', cursor: 'pointer',
   };
@@ -63,8 +69,8 @@ function MediaThumb({ a, width, height }: {
 }
 
 const userFileStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-gray)',
-  borderRadius: 10, padding: '8px 12px 8px 9px',
+  display: 'flex', alignItems: 'center', gap: 9, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)',
+  borderRadius: 'var(--r-card)', padding: '8px 12px 8px 9px',
 };
 
 function FileBadge({ type, name, agent = false }: {
@@ -74,9 +80,9 @@ function FileBadge({ type, name, agent = false }: {
 }): JSX.Element {
   const colors = attachmentTypeColor(type);
   const style: CSSProperties = {
-    width: agent ? 28 : 26, height: agent ? 34 : 32, borderRadius: 5, background: colors.bg,
+    width: agent ? 28 : 26, height: agent ? 34 : 32, borderRadius: 'var(--r-chip)', background: colors.bg,
     color: colors.fg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    font: `700 8px ${mono}`, flex: 'none',
+    font: `700 10.5px ${mono}`, flex: 'none',
   };
   return <span style={style}>{attachmentFileExt(name)}</span>;
 }
@@ -93,7 +99,7 @@ export function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
       <FileBadge type={a.type} name={a.name} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-ink)' }}>{a.name}</span>
-        <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{formatAttachmentSize(a.size)} · {a.path}</span>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{formatAttachmentSize(a.size)} · {a.path}</span>
       </span>
     </div>
   );
@@ -104,37 +110,45 @@ function dirOf(path: string): string {
   return i >= 0 ? path.slice(0, i + 1) : path;
 }
 
+// The two trailing controls of an attachment card share one glass pill shape; only the ring tone
+// and the label distinguish the neutral action from the accent "open".
+const pillBaseStyle: CSSProperties = {
+  border: 0, padding: 0, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', display: 'flex',
+  alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flex: 'none',
+};
+
 function ActionBtn({ title, onClick, children }: {
   title: string;
   onClick: () => void;
   children: ReactNode;
 }): JSX.Element {
-  return (
-    <span role="button" title={title} onClick={onClick} style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}>
-      {children}
-    </span>
-  );
+  const style: CSSProperties = {
+    ...pillBaseStyle, width: 26, boxShadow: 'var(--material-control-shadow), 0 0 0 1px var(--proto-line-2)',
+    color: 'var(--proto-muted)', fontSize: 11,
+  };
+  return <button type="button" className={MENU_FOCUS} title={title} aria-label={title} onClick={onClick} style={style}>{children}</button>;
 }
 
 function OpenBtn({ onClick, children }: { onClick: () => void; children: ReactNode }): JSX.Element {
-  return (
-    <span role="button" onClick={onClick} style={{ height: 26, borderRadius: 7, border: '1px solid var(--proto-accent-border)', background: 'var(--proto-rail)', color: 'var(--proto-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}>
-      {children} ↗
-    </span>
-  );
+  const style: CSSProperties = {
+    ...pillBaseStyle, boxShadow: 'var(--material-control-shadow), 0 0 0 1px var(--proto-accent-border)',
+    color: 'var(--proto-accent)', font: `500 11px ${mono}`, padding: '0 9px',
+  };
+  return <button type="button" className={MENU_FOCUS} onClick={onClick} style={style}>{children} ↗</button>;
 }
 
 const agentFileStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)', borderRadius: 10, padding: '9px 10px',
-  boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box', maxWidth: '100%',
+  display: 'flex', alignItems: 'center', gap: 10,
+  background: 'var(--material-card-bg)', borderRadius: 'var(--r-card)', padding: '9px 10px',
+  boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)',
+  boxSizing: 'border-box', maxWidth: '100%',
 };
 const agentNameStyle: CSSProperties = {
   font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden',
   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 const agentMetaStyle: CSSProperties = {
-  font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', overflow: 'hidden',
+  font: `400 11px ${mono}`, color: 'var(--proto-muted)', overflow: 'hidden',
   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
@@ -188,8 +202,8 @@ function ViewHeader({ a, source, download, dock, expand, canPin }: {
 }): JSX.Element {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-rail)' }}>
-      <span style={{ font: `700 8px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>{L.wbViewBadge}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderBottom: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)' }}>
+      <span style={{ font: `700 11px ${mono}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', boxShadow: '0 0 0 1px var(--proto-accent-border)', borderRadius: 'var(--r-chip)', padding: '2px 5px', flex: 'none' }}>{L.wbViewBadge}</span>
       <span style={{ font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.name}</span>
       <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
         <ActionBtn title={L.wbViewSource} onClick={source}>{'<>'}</ActionBtn>
@@ -200,6 +214,13 @@ function ViewHeader({ a, source, download, dock, expand, canPin }: {
     </div>
   );
 }
+
+// The frame is glass, but the body inside it stays opaque `--proto-card`: it renders arbitrary
+// author HTML, which has to occlude the transcript behind it to stay readable.
+const viewCardStyle: CSSProperties = {
+  width: '100%', background: 'var(--material-card-bg)', borderRadius: 'var(--r-card)', overflow: 'hidden',
+  boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)', boxSizing: 'border-box',
+};
 
 function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const dl = useDownloadFile();
@@ -213,7 +234,7 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const source = (): void => openDoc({ kind: 'text', name: a.name, path: a.path, mimeType: 'text/plain' });
   const download = (): void => dl(a.path, a.name.toLowerCase().endsWith('.html') ? a.name : `${a.name}.html`);
   return (
-    <div ref={hostRef} style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
+    <div ref={hostRef} style={viewCardStyle}>
       <ViewHeader a={a} source={source} download={download} dock={toDock} expand={expand} canPin={dock.canDock} />
       <div style={{ background: 'var(--proto-card)' }}>
         {visible ? <HtmlBody item={item} mode="inline" /> : <div style={{ height: 160 }} />}
@@ -223,7 +244,8 @@ function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
 }
 
 const agentMediaStyle: CSSProperties = {
-  position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid var(--proto-line)',
+  position: 'relative', maxWidth: 320, borderRadius: 'var(--r-card)',
+  boxShadow: 'var(--shadow-card-subtle), 0 0 0 1px var(--proto-line-2)',
   overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
 };
 const largePlayStyle: CSSProperties = {
@@ -232,8 +254,10 @@ const largePlayStyle: CSSProperties = {
   fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box',
 };
 const agentMediaNameStyle: CSSProperties = {
-  position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: 'var(--proto-muted-2)',
-  background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 4,
+  position: 'absolute', left: 8, bottom: 7, maxWidth: 'calc(100% - 16px)',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  font: `500 11px ${mono}`, color: 'var(--proto-muted)',
+  background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 'var(--r-chip)',
 };
 
 function AgentMediaBody({ url, kind, name }: {
@@ -253,9 +277,9 @@ function MediaDownload({ a, onDownload }: {
 }): JSX.Element {
   const L = useVocab();
   return (
-    <span role="button" title={L.wbFileDownload} onClick={(event) => { event.stopPropagation(); onDownload(a.path, a.name); }} style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}>
+    <button type="button" className={MENU_FOCUS} aria-label={L.wbFileDownload} title={L.wbFileDownload} onClick={(event) => { event.stopPropagation(); onDownload(a.path, a.name); }} style={{ border: 0, padding: 0, position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 'var(--r-chip)', background: 'var(--media-control-bg-strong)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}>
       ↓
-    </span>
+    </button>
   );
 }
 
@@ -292,9 +316,9 @@ export function AgentFileGroup({ attachments }: { attachments: Attachment[] }): 
       {views.map((a, i) => <AgentViewCard key={`view-${i}`} a={a} />)}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
       {attachments.length >= 3 && (
-        <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', padding: '2px 2px 0' }}>
+        <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', padding: '2px 2px 0' }}>
           {attachments.length} {L.wbFileFiles} ·{' '}
-          <span style={{ color: 'var(--proto-muted-2)', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => dl(a.path, a.name))}>{L.wbFileDownloadAll} ↓</span>
+          <button type="button" className={MENU_FOCUS} style={{ border: 0, padding: 0, background: 'transparent', font: 'inherit', color: 'var(--proto-muted)', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => dl(a.path, a.name))}>{L.wbFileDownloadAll} ↓</button>
         </div>
       )}
     </div>

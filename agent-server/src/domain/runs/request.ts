@@ -58,6 +58,12 @@ export interface RunRequest {
     hooks: boolean;
     streamDeltas?: boolean;
     loadRules: boolean;
+    /** Whether the backend loads its skill layer. Absent keeps the backend's own default (every
+     *  skill it can see); false is how an agent runs with none. */
+    skills?: boolean;
+    /** Which setting files the backend may load beyond what Cortex passes. Absent keeps its
+     *  default; `[]` loads none. */
+    settingSources?: string[];
     mcpComposition: McpComposition;
     /** Legacy thread-surface selector: only consulted when `mcpComposition` is undefined (the
      *  thread path always resolves an explicit value). */

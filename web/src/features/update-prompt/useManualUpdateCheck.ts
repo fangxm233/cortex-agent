@@ -1,7 +1,7 @@
 // input:  manual check controller, vocabulary and toast provider
 // output: busy menu action with progress and per-channel results
 // pos:    Menu feedback lifecycle; existing owner handles prompts
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useToastOptional } from '@/design/Toast';

@@ -87,11 +87,6 @@ describe('buildMobileStepper', () => {
     expect(s.nodes.map((n) => n.label)).toEqual(['plan', 'execute', 'review', 'commit']);
     expect(s.nodes.map((n) => n.state)).toEqual(['done', 'done', 'running', 'pending']);
   });
-  it('a line is done only when the node before it completed', () => {
-    // 4 nodes → 3 connecting lines; between plan→execute (done), execute→review (done), review→commit (pending)
-    const s = buildMobileStepper(detail());
-    expect(s.nodes.slice(1).map((n) => n.lineDone)).toEqual([true, true, false]);
-  });
   it('empty steps → no nodes, no crash', () => {
     const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }));
     expect(s.nodes).toEqual([]);

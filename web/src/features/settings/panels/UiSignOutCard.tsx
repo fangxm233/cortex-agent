@@ -1,14 +1,13 @@
-// input:  the server's /api/ui/session probe
-// output: a browser-only "sign out of this browser" card
-// pos:    Settings → Advanced. Renders nothing in a native shell (their credential lives in the OS
-//         keychain and is managed by the connect flow) or on a server with token login switched off.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// input:  UI session probe, native shell status, settings atoms
+// output: browser-only sign-out card
+// pos:    Advanced settings browser session action
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
 import { probeUiSession, uiLogout } from '@/lib/ui-session';
-import { SCard } from '@/features/settings/ui/settings-ui';
+import { SLinkAction, SRow, SRowGroup } from '@/features/settings/ui/settings-ui';
 
 export function UiSignOutCard() {
   const L = useVocab();
@@ -33,19 +32,14 @@ export function UiSignOutCard() {
     window.location.reload();
   };
 
+  // The action is the whole row: there is no second line of copy for it to sit beside.
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 760, padding: '12px 14px' }}>
-      <button
-        type="button"
-        data-ui-sign-out
-        onClick={() => void signOut()}
-        style={{
-          border: 'none', background: 'transparent', cursor: 'pointer',
-          fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)', padding: 0,
-        }}
-      >
-        {L.uiLogoutAction}
-      </button>
-    </SCard>
+    <SRowGroup>
+      <SRow title={
+        <SLinkAction tone="danger" data-ui-sign-out onClick={() => void signOut()}>
+          {L.uiLogoutAction}
+        </SLinkAction>
+      } />
+    </SRowGroup>
   );
 }

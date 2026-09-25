@@ -7,7 +7,7 @@ import { formatUsd } from '@/lib/format';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
 // task df67). No JSX, no hex outside the verbatim-prototype status-pill map. Precedent:
-// features/workbench/right-panel-vm.ts.
+// features/workbench/right-panel/right-panel-vm.ts.
 
 /** `$4.21` — two decimals, null/undefined → `$0.00`. */
 export function formatMoney(n: number | null | undefined): string {

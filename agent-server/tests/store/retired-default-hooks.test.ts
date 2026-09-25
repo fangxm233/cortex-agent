@@ -87,3 +87,56 @@ test('is a no-op on an install that never had them', async (t) => {
   await removeRetiredDefaultHooks(dataDir);
   assert.deepEqual(await fs.readdir(path.join(dataDir, 'config', 'hooks')), []);
 });
+
+// ---------------------------------------------------------------------------
+// The CORTEX.md → AGENTS.md injector rename
+// ---------------------------------------------------------------------------
+
+const SHIPPED_INJECTOR_POST = {
+  id: 'cortex-md-injector-post-tool',
+  event: 'agent:post-tool',
+  matcher: 'Read|Edit',
+  run: { script: 'cortex-md-injector.mjs' },
+  enabled: true,
+};
+const SHIPPED_INJECTOR_START = {
+  id: 'cortex-md-injector-session-start',
+  event: 'agent:session-start',
+  matcher: 'startup|resume|clear|compact',
+  run: { script: 'cortex-md-injector.mjs' },
+  enabled: true,
+};
+
+test('removes both cortex-md injector entries and their shared script', async (t) => {
+  const dataDir = await setup(t);
+  await fs.writeFile(entryPath(dataDir, '08-cortex-md-injector-post-tool.json'), JSON.stringify(SHIPPED_INJECTOR_POST));
+  await fs.writeFile(entryPath(dataDir, '10-cortex-md-injector-session-start.json'), JSON.stringify(SHIPPED_INJECTOR_START));
+  await fs.writeFile(scriptPath(dataDir, 'cortex-md-injector.mjs'), '// old\n');
+  // The replacement, deployed by syncManagedHooks, must survive untouched.
+  await fs.writeFile(scriptPath(dataDir, 'agents-md-injector.mjs'), '// new\n');
+
+  await removeRetiredDefaultHooks(dataDir);
+
+  assert.equal(await exists(entryPath(dataDir, '08-cortex-md-injector-post-tool.json')), false);
+  assert.equal(await exists(entryPath(dataDir, '10-cortex-md-injector-session-start.json')), false);
+  assert.equal(await exists(scriptPath(dataDir, 'cortex-md-injector.mjs')), false);
+  assert.equal(await exists(scriptPath(dataDir, 'agents-md-injector.mjs')), true);
+});
+
+test('keeps the shared injector script while either entry still exists', async (t) => {
+  const dataDir = await setup(t);
+  // Only one of the two entries is the shipped one; the other was repurposed by the user.
+  await fs.writeFile(entryPath(dataDir, '08-cortex-md-injector-post-tool.json'), JSON.stringify(SHIPPED_INJECTOR_POST));
+  await fs.writeFile(
+    entryPath(dataDir, '10-cortex-md-injector-session-start.json'),
+    JSON.stringify({ id: 'my-own-hook', event: 'agent:session-start', run: { script: 'cortex-md-injector.mjs' } }),
+  );
+  await fs.writeFile(scriptPath(dataDir, 'cortex-md-injector.mjs'), '// old\n');
+
+  await removeRetiredDefaultHooks(dataDir);
+
+  assert.equal(await exists(entryPath(dataDir, '08-cortex-md-injector-post-tool.json')), false);
+  assert.equal(await exists(entryPath(dataDir, '10-cortex-md-injector-session-start.json')), true);
+  assert.equal(await exists(scriptPath(dataDir, 'cortex-md-injector.mjs')), true,
+    'the surviving entry still runs it');
+});

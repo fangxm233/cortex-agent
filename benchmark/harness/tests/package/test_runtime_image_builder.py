@@ -1,7 +1,7 @@
 # input:  runtime image scripts, manifests, bounded builder fixtures
 # output: role-safe vendor/Cortex image and smoke proofs
 # pos:    Contract tests for benchmark runtime images
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import hashlib
 import json

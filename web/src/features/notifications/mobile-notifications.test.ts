@@ -1,7 +1,7 @@
 // input:  native status, permission and visibility doubles
 // output: service lifecycle, disabled sync and toggle error tests
 // pos:    Android notification lifecycle regression tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ status: vi.fn(), invoke: vi.fn(), ensure: vi.fn(), refresh: vi.fn(), mobile: true }));

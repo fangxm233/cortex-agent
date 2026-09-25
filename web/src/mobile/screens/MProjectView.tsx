@@ -1,4 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
+// input:  React, mobile kit, presentation props
+// output: MProjectView
+// pos:    Mobile project cards with readable project initials
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
 import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
@@ -90,8 +93,8 @@ function SettingsGear({ label, onClick }: { label: string; onClick: () => void }
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 30,
-        height: 30,
+        width: 44,
+        height: 44,
         border: 'none',
         background: 'transparent',
         color: MC.sub,
@@ -120,15 +123,15 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
   const c = current.cost;
   const pct = c ? budgetPercent(c.today, c.dailyBudget) : null;
   return (
-    <MCard tone="blue" radius={14} padding="13px 14px" style={{ boxShadow: 'var(--focus-ring-accent)' }}>
+    <MCard tone="blue" padding="13px 14px">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div
           style={{
             width: 36,
             height: 36,
-            borderRadius: 9,
+            borderRadius: 'var(--r-chip)',
             background: MC.runBg,
-            color: MC.run,
+            color: `color-mix(in srgb, ${MC.run}, ${MC.ink} 15%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -140,13 +143,13 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 15, fontWeight: 650, color: MC.ink }}>{current.id}</span>
+            <span style={{ fontSize: 15, fontWeight: 650, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
             <span
               style={{
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: 700,
                 padding: '1.5px 7px',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 background: MC.runBg,
                 color: MC.run,
                 flex: 'none',
@@ -156,7 +159,7 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
             </span>
           </div>
           {/* Phase/milestone (Phase 2 · M2.3) have no DTO source → omitted (never fabricated). */}
-          <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 2 }}>
+          <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 2 }}>
             {current.runningThreads} {copy.threadsRunning} · {current.needsYou} {copy.needsYou}
           </div>
         </div>
@@ -171,14 +174,14 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
               style={{
                 flex: 1,
                 height: 6,
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 background: 'var(--proto-line-2)',
                 overflow: 'hidden',
               }}
             >
               <div style={{ width: `${pct ?? 0}%`, height: '100%', background: MC.run }} />
             </div>
-            <span style={{ font: `400 10px ${MONO}`, color: MC.faint }}>
+            <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
               / {formatMoney(c.dailyBudget)} {copy.perDay}
             </span>
           </div>
@@ -186,10 +189,11 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 14,
+              gap: '4px 14px',
+              flexWrap: 'wrap',
               marginTop: 7,
-              font: `400 10px ${MONO}`,
-              color: MC.faint,
+              font: `400 11px ${MONO}`,
+              color: MC.muted,
             }}
           >
             <span>
@@ -230,9 +234,10 @@ function ApprovalBar({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
+        flexWrap: 'wrap',
         border: `1px solid ${MC.amberBorder}`,
         background: MC.amberCard,
-        borderRadius: 13,
+        borderRadius: 'var(--r-card)',
         padding: '12px 13px',
         cursor: 'pointer',
       }}
@@ -241,7 +246,7 @@ function ApprovalBar({
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>
         {copy.approvals} · {pending} {copy.pending}
       </span>
-      <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-amber-accent)' }}>
+      <span style={{ font: `400 11px ${MONO}`, color: MC.amberText }}>
         {globalPending > 0 ? `${globalPending} ${copy.globalPending} · ` : ''}
         {waitingThreads} {copy.threadsWaiting}
       </span>
@@ -266,21 +271,21 @@ function IssuesCard({
 }) {
   const more = issues.count - issues.previews.length;
   return (
-    <MCard radius={14} padding="12px 14px" onClick={onClick} style={{ cursor: 'pointer' }}>
+    <MCard padding="12px 14px" onClick={onClick} style={{ cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{copy.issuesTitle}</span>
         <span
           style={{
-            font: `600 10px ${MONO}`,
+            font: `600 11px ${MONO}`,
             color: MC.sub,
             background: 'var(--proto-line-2)',
             padding: '2px 8px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
           }}
         >
           {issues.count}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.faint }}>›</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.muted }}>›</span>
       </div>
       {issues.previews.map((title) => (
         <div
@@ -299,7 +304,7 @@ function IssuesCard({
         </div>
       ))}
       {more > 0 && (
-        <div style={{ font: `400 10px ${MONO}`, color: MC.faint, marginTop: 7 }}>+ {more} more</div>
+        <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 7 }}>+ {more} more</div>
       )}
     </MCard>
   );
@@ -327,7 +332,7 @@ function InfoRow({
       }}
     >
       <span style={{ fontSize: 13, color: MC.sub, flex: 'none' }}>{label}</span>
-      <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.faint, flex: 'none' }}>›</span>
+      <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
     </div>
   );
 }
@@ -336,7 +341,7 @@ function SwitchDivider({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px 0' }}>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>
         {label}
       </div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
@@ -374,7 +379,7 @@ function SwitchRow({
         style={{
           width: 34,
           height: 34,
-          borderRadius: 9,
+          borderRadius: 'var(--r-chip)',
           background: MC.gray,
           color: MC.sub,
           display: 'flex',
@@ -387,13 +392,13 @@ function SwitchRow({
         {row.initials}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{row.id}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.id}</div>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 5,
-            font: `400 10px ${MONO}`,
+            font: `400 11px ${MONO}`,
             color: MC.muted,
             marginTop: 2,
           }}
@@ -422,10 +427,10 @@ function SwitchRow({
             minWidth: 18,
             height: 18,
             padding: '0 6px',
-            borderRadius: 999,
+            borderRadius: 'var(--r-pill)',
             background: row.badgeTone === 'action' ? MC.amber : MC.run,
             color: 'var(--ink-solid-fg)',
-            font: `600 10px ${MONO}`,
+            font: `600 11px ${MONO}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -435,7 +440,7 @@ function SwitchRow({
           {row.badgeCount}
         </span>
       )}
-      <span style={{ fontSize: 13, color: MC.faint, flex: 'none' }}>›</span>
+      <span style={{ fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
     </div>
   );
 }
@@ -450,7 +455,7 @@ function PrimaryProjectCards({ props }: { props: MProjectViewProps }) {
       {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
       {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
       <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
-      <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
+      <MCard padding={0} style={{ overflow: 'hidden' }}>
         <InfoRow label={copy.memory} onClick={props.onMemory} divider={false} />
       </MCard>
     </>
@@ -462,14 +467,14 @@ function ProjectSwitchCards({ props }: { props: MProjectViewProps }) {
   return (
     <>
       <SwitchDivider label={props.copy.switchProject} />
-      <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
+      <MCard padding={0} style={{ overflow: 'hidden' }}>
         {props.switchRows.map((row, index) => <SwitchRow key={row.id} row={row} copy={props.copy} onSwitch={props.onSwitch} divider={index < props.switchRows.length - 1} />)}
       </MCard>
     </>
   );
 }
 
-const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-card)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 13, padding: 13, cursor: 'pointer' } as const;
+const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 'var(--r-card)', padding: 13, cursor: 'pointer' } as const;
 
 function NewProjectButton({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
   return (
@@ -488,7 +493,7 @@ export function MProjectView(props: MProjectViewProps) {
     </div>
   );
   return (
-    <MScreen label="1e 项目" header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
+    <MScreen label="1e 项目" floatingHeader header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
       <MScrollBody gap={10}>
         <PrimaryProjectCards props={props} />
         <ProjectSwitchCards props={props} />

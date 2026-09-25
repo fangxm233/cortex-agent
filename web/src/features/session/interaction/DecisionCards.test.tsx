@@ -1,3 +1,8 @@
+// input:  DecisionCard, React renderer, decision fixtures
+// output: Decision response and disclosure regression tests
+// pos:    Decision card presentation and action coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
@@ -21,7 +26,7 @@ function label(n: ReactTestInstance): string {
 }
 
 function findButtons(root: ReactTestInstance, text: string): ReactTestInstance[] {
-  return root.findAll((n) => n.props?.role === 'button' && label(n).trim() === text);
+  return root.findAll((n) => n.type === 'button' && label(n).trim() === text);
 }
 
 function findButton(root: ReactTestInstance, text: string): ReactTestInstance {
@@ -30,9 +35,9 @@ function findButton(root: ReactTestInstance, text: string): ReactTestInstance {
   return hit[0];
 }
 
-function mount(d: DecisionItem, actions?: DecisionActions): ReactTestRenderer {
+function mount(d: DecisionItem, actions?: DecisionActions, touch = false): ReactTestRenderer {
   let tree!: ReactTestRenderer;
-  act(() => { tree = create(<LangProvider><DecisionCard d={d} actions={actions} /></LangProvider>); });
+  act(() => { tree = create(<LangProvider><DecisionCard d={d} actions={actions} touch={touch} /></LangProvider>); });
   return tree;
 }
 
@@ -52,7 +57,14 @@ describe('DecisionCard responses', () => {
 
   it('an approved decision offers no approve button — only the sealed stamp', () => {
     const tree = mount(dec([{ action: 'approve', ts: T }]), fakeActions());
+    const toggleButton = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });
+    expect(toggleButton.type).toBe('button');
+    expect(toggleButton.props['aria-expanded']).toBe(false);
+    expect(toggleButton.parent?.props.style.background).toBe('var(--material-card-bg)');
+    expect(toggleButton.parent?.props.style.backdropFilter).toBeUndefined();
+    expect(toggleButton.parent?.props.style.opacity).toBeUndefined();
     toggle(tree);
+    expect(toggleButton.props['aria-expanded']).toBe(true);
     expect(findButtons(tree.root, '✓ Approve')).toHaveLength(0);
   });
 
@@ -61,6 +73,10 @@ describe('DecisionCard responses', () => {
     const tree = mount(dec(), actions);
     toggle(tree);
     act(() => { findButton(tree.root, 'Revise').props.onClick(); });
+    expect(tree.root.findByType('textarea').props.style.background).toBe('var(--material-inset-bg)');
+    expect(findButton(tree.root, 'Revise').props['aria-pressed']).toBe(true);
+    expect(findButton(tree.root, 'Revise').props.style.background).toBe('var(--proto-accent-bg)');
+    expect(findButton(tree.root, 'Send').props.disabled).toBe(true);
     act(() => { findButton(tree.root, 'Send').props.onClick(); });
     expect(actions.respond).not.toHaveBeenCalled();
 
@@ -78,5 +94,15 @@ describe('DecisionCard responses', () => {
     act(() => { findButton(tree.root, 'Explain').props.onClick(); });
     act(() => { findButton(tree.root, 'Send').props.onClick(); });
     expect(actions.respond).toHaveBeenCalledWith('ab12cd34', 'explain', 'Please explain the decision "Use SQLite"');
+  });
+
+  it('touch layout shares the card width between responses and collapses from the header', () => {
+    const tree = mount(dec(), fakeActions(), true);
+    expect(tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' }).props.style.minHeight).toBe(44);
+    toggle(tree);
+    for (const text of ['✓ Approve', 'Explain', 'Revise']) {
+      expect(findButton(tree.root, text).props.style).toMatchObject({ flex: 1, height: 38 });
+    }
+    expect(findButtons(tree.root, 'Collapse')).toHaveLength(0);
   });
 });

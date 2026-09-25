@@ -2,20 +2,24 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import {
   applyAccentHue,
   applyAccentIntensity,
+  applyGlass,
   applyMotionMode,
   applyTheme,
   readStoredAccentHue,
   readStoredAccentIntensity,
+  readStoredGlass,
   readStoredMotionMode,
   readStoredTheme,
   storeAccentHue,
   storeAccentIntensity,
+  storeGlass,
   storeMotionMode,
   storeTheme,
   watchSystemTheme,
   DEFAULT_ACCENT_HUE,
   type AccentHue,
   type AccentIntensity,
+  type GlassLevel,
   type MotionMode,
   type Theme,
 } from './theme';
@@ -37,6 +41,7 @@ interface ThemeContextValue {
   /** Id of the preset the current colour state matches exactly, else `null` (custom). */
   activePreset: string | null;
   motionMode: MotionMode;
+  glass: GlassLevel;
   setTheme: (theme: Theme) => void;
   setAccentHue: (hue: AccentHue) => void;
   setAccentIntensity: (intensity: AccentIntensity) => void;
@@ -44,6 +49,7 @@ interface ThemeContextValue {
   applyPreset: (id: string) => void;
   resetPalette: () => void;
   setMotionMode: (mode: MotionMode) => void;
+  setGlass: (level: GlassLevel) => void;
   toggleTheme: () => void;
 }
 
@@ -135,12 +141,24 @@ function useMotionPreference() {
   return { motionMode, setMotionMode };
 }
 
+function useGlassPreference() {
+  const [glass, setGlassState] = useState<GlassLevel>(readStoredGlass);
+  useEffect(() => applyGlass(glass), [glass]);
+  const setGlass = useCallback((next: GlassLevel) => {
+    setGlassState(next);
+    storeGlass(next);
+    applyGlass(next);
+  }, []);
+  return { glass, setGlass };
+}
+
 // The no-flash script applies initial preferences before React mounts; this provider owns changes.
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const themePreference = useThemePreference();
   const accentPreference = useAccentPreference();
   const palettePreference = usePalettePreference();
   const motionPreference = useMotionPreference();
+  const glassPreference = useGlassPreference();
   const { commitPalette, palette, setPaletteValue } = palettePreference;
   const { accentHue, accentIntensity, setAccentHue, setAccentIntensity } = accentPreference;
 
@@ -159,13 +177,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ThemeContextValue>(
     () => ({
-      ...themePreference, ...accentPreference, ...motionPreference,
+      ...themePreference, ...accentPreference, ...motionPreference, ...glassPreference,
       palette, setPaletteValue, applyPreset, resetPalette, activePreset,
     }),
     [themePreference.theme, themePreference.setTheme, themePreference.toggleTheme,
       accentHue, setAccentHue, accentIntensity, setAccentIntensity,
       palette, setPaletteValue, applyPreset, resetPalette, activePreset,
-      motionPreference.motionMode, motionPreference.setMotionMode],
+      motionPreference.motionMode, motionPreference.setMotionMode,
+      glassPreference.glass, glassPreference.setGlass],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -226,6 +245,14 @@ export function useMotionMode(): MotionMode {
 
 export function useSetMotionMode(): (mode: MotionMode) => void {
   return useThemeContext().setMotionMode;
+}
+
+export function useGlass(): GlassLevel {
+  return useThemeContext().glass;
+}
+
+export function useSetGlass(): (level: GlassLevel) => void {
+  return useThemeContext().setGlass;
 }
 
 export function useToggleTheme(): () => void {

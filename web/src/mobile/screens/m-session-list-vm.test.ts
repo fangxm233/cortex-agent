@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { buildSessionGroups, sessionStatusLine } from './m-session-list-vm';
+import { buildSessionRows, sessionStatusLine } from './m-session-list-vm';
 
 // Neutral placeholder sessions (守则11 — no real project names / ids).
 function sess(over: Partial<SessionInfo>): SessionInfo {
@@ -54,31 +54,30 @@ describe('sessionStatusLine', () => {
   });
 });
 
-describe('buildSessionGroups', () => {
+describe('buildSessionRows', () => {
   const now = Date.parse('2026-07-15T12:00:00Z');
 
-  it('buckets by day, newest first, drops empty buckets', () => {
-    const groups = buildSessionGroups(
+  it('lists every session in one run, most recent first, across days', () => {
+    const rows = buildSessionRows(
       [
+        sess({ sessionId: 'c', lastUsedAt: '2026-07-10T11:00:00Z' }),
         sess({ sessionId: 'a', lastUsedAt: '2026-07-15T11:00:00Z' }),
         sess({ sessionId: 'b', lastUsedAt: '2026-07-14T11:00:00Z' }),
-        sess({ sessionId: 'c', lastUsedAt: '2026-07-10T11:00:00Z' }),
       ],
       now,
     );
-    expect(groups.map((g) => g.key)).toEqual(['TODAY', 'YESTERDAY', 'EARLIER']);
-    expect(groups[0].rows[0].id).toBe('a');
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('floats unread sessions first within a day group (reuses groupSessions)', () => {
-    const [g] = buildSessionGroups(
+  it('floats unread sessions first, like a desktop rail folder', () => {
+    const rows = buildSessionRows(
       [
         sess({ sessionId: 'a', lastUsedAt: '2026-07-15T11:00:00Z', unread: false }),
-        sess({ sessionId: 'b', lastUsedAt: '2026-07-15T10:00:00Z', unread: true }),
+        sess({ sessionId: 'b', lastUsedAt: '2026-07-12T10:00:00Z', unread: true }),
       ],
       now,
     );
-    // 'b' is older but unread → floats above the read 'a'.
-    expect(g.rows.map((r) => r.id)).toEqual(['b', 'a']);
+    // 'b' is days older but unread → floats above the read 'a'.
+    expect(rows.map((r) => r.id)).toEqual(['b', 'a']);
   });
 });

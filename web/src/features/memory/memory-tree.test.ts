@@ -9,7 +9,7 @@ function file(name: string, modifiedAt = '2026-07-15T12:00:00.000Z'): MemoryFile
 function tree(overrides: Partial<MemoryTree> = {}): MemoryTree {
   return {
     projectId: 'atlas',
-    files: [file('CORTEX.md')],
+    files: [file('AGENTS.md')],
     dirs: [
       { name: 'experiments', entryCount: 2, entries: [file('EXP-001.md'), file('EXP-002.md')] },
       { name: 'knowledge', entryCount: 1, entries: [file('K-001.md')] },
@@ -22,7 +22,7 @@ describe('deriveMemoryTreeFacts', () => {
   it('maps top-level and nested file paths once while retaining directory order and counts', () => {
     const facts = deriveMemoryTreeFacts(tree());
 
-    expect(facts.topLevelFiles.map((entry) => entry.path)).toEqual(['CORTEX.md']);
+    expect(facts.topLevelFiles.map((entry) => entry.path)).toEqual(['AGENTS.md']);
     expect(facts.dirs.map((dir) => dir.name)).toEqual(['experiments', 'knowledge']);
     expect(facts.dirs.map((dir) => dir.entryCount)).toEqual([2, 1]);
     expect(facts.dirs[0].entries.map((entry) => entry.path)).toEqual([
@@ -34,7 +34,7 @@ describe('deriveMemoryTreeFacts', () => {
   });
 
   it('uses the first top-level file as the first file', () => {
-    expect(deriveMemoryTreeFacts(tree()).firstFile?.path).toBe('CORTEX.md');
+    expect(deriveMemoryTreeFacts(tree()).firstFile?.path).toBe('AGENTS.md');
   });
 
   it('falls back to the first nested file when there is no top-level file', () => {

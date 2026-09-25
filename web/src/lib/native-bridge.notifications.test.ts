@@ -1,7 +1,7 @@
 // input:  mocked plugin listeners, native commands, foreground events and timers
 // output: retained action, bounded retry, scope, dedup and teardown regression tests
 // pos:    Notification protocol tests for the canonical bridge
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listenNativeNotificationActions, mobileNotificationStatus } from './native-bridge';

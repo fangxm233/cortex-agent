@@ -20,5 +20,5 @@ export function MChatInlineThreadCard({ sessionId, subthreadsLabel, openLabel }:
   useThreadGetLiveSync(threadId);
   const getQuery = useQuery({ ...trpc.threads.get.queryOptions({ threadId }), enabled: !!threadId });
   if (!threadId || getQuery.isPending || getQuery.isError || !getQuery.data) return null;
-  return <MobileThreadStepper card={buildMobileStepper(getQuery.data)} pill={threadPill(getQuery.data.status)} subthreadsLabel={subthreadsLabel} openLabel={openLabel} onOpen={() => navigate(`/m/thread/${threadId}`)} />;
+  return <MobileThreadStepper card={buildMobileStepper(getQuery.data)} pill={threadPill(getQuery.data.status)} running={getQuery.data.status === 'running'} subthreadsLabel={subthreadsLabel} openLabel={openLabel} onOpen={() => navigate(`/m/thread/${threadId}`)} />;
 }

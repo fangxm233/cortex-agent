@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execFileSync } from 'child_process';
-import { scanCortexMDChain, type CortexMDEntry } from './cortex-md-scanner.js';
+import { scanAgentsMDChain, type AgentsMDEntry } from './agents-md-scanner.js';
 import { execBash, execBashBackground, spawnCommand } from './command-exec.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
@@ -208,15 +208,18 @@ function normalizePath(p: string): string {
   return p;
 }
 
-function safeScanCortexMDs(filePath: string): CortexMDEntry[] {
+// The wire property stays `cortexMDs` on purpose. Devices self-update asynchronously, nothing
+// validates this field, and a rename would fail silently during the skew window — an old client
+// would keep sending `cortexMDs` to a new server and injection would just stop, with no error.
+function safeScanAgentsMDs(filePath: string): AgentsMDEntry[] {
   try {
-    return scanCortexMDChain(filePath);
+    return scanAgentsMDChain(filePath);
   } catch {
     return [];
   }
 }
 
-function handleRead(params: any): { content?: string; error?: string; image?: { data: string; mimeType: string; width?: number; height?: number; originalSize: number }; pdf?: { data: string; originalSize: number }; cortexMDs?: CortexMDEntry[] } {
+function handleRead(params: any): { content?: string; error?: string; image?: { data: string; mimeType: string; width?: number; height?: number; originalSize: number }; pdf?: { data: string; originalSize: number }; cortexMDs?: AgentsMDEntry[] } {
   try {
     const filePath = normalizePath(params.file_path);
     if (!path.isAbsolute(filePath)) {
@@ -235,7 +238,7 @@ function handleRead(params: any): { content?: string; error?: string; image?: { 
 
     const rawBuf = fs.readFileSync(filePath);
 
-    const cortexMDs = safeScanCortexMDs(filePath);
+    const cortexMDs = safeScanAgentsMDs(filePath);
 
     const imageType = detectImageType(rawBuf);
     if (imageType) {
@@ -311,7 +314,7 @@ function handleFileStat(params: any): { size?: number; name?: string; mtimeMs?: 
 interface FileMutationResult {
   success?: boolean;
   error?: string;
-  cortexMDs?: CortexMDEntry[];
+  cortexMDs?: AgentsMDEntry[];
 }
 
 function handleWrite(params: any): FileMutationResult {
@@ -339,7 +342,7 @@ function handleWrite(params: any): FileMutationResult {
     fs.writeFileSync(filePath, content, 'utf8');
     return {
       success: true,
-      cortexMDs: safeScanCortexMDs(filePath),
+      cortexMDs: safeScanAgentsMDs(filePath),
     };
   } catch (err) {
     return { error: (err as Error).message };
@@ -370,7 +373,7 @@ function handleEdit(params: any): FileMutationResult {
 
     const buildResult = (): FileMutationResult => ({
       success: true,
-      cortexMDs: safeScanCortexMDs(filePath),
+      cortexMDs: safeScanAgentsMDs(filePath),
     });
 
     if (params.replace_all) {

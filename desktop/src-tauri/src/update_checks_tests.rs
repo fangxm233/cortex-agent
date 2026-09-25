@@ -1,7 +1,7 @@
 // input:  OTA stores, update coordinator, loopback HTTP fixtures
 // output: Deterministic update checks and exclusion regression tests
 // pos:    Native update protocol and concurrency tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 use crate::update_checks::{self, ChannelOutcome, CheckReport, Status, UpdateGate};
 use crate::{app_update, ota};

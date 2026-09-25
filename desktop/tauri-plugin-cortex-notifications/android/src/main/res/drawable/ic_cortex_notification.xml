@@ -1,7 +1,7 @@
 <!-- input: Android vector drawable renderer -->
 <!-- output: Monochrome notification status icon -->
 <!-- pos: Native Cortex notification small icon -->
-<!-- >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<< -->
+<!-- >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">

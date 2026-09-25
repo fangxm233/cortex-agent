@@ -1,11 +1,18 @@
 /* input:  Tailwind layers and shared theme.css custom properties */
-/* output: global styles, UI animations and usage meter motion */
+/* output: Base styles, material command palette, focus and motion */
 /* pos:    SPA-wide structural stylesheet layered over theme tokens */
+/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Shared light/dark color tokens live in public/theme.css so the SPA and native shell use one source. */
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--proto-muted-3);
+  opacity: 1;
+}
 
 /*
  * Prototype 1:1 base (design §8.6 RA / task 6d21).
@@ -34,7 +41,9 @@
   body {
     margin: 0;
     height: 100%;
-    background: var(--surface-base);
+    /* The ground the glass panes blur. Fixed so the mesh stays put while panes scroll over it. */
+    background: var(--app-backdrop);
+    background-attachment: fixed;
     font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
       'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -48,6 +57,40 @@
     outline: none;
     border: none;
     background: transparent;
+  }
+
+  /* One unobtrusive scroll treatment for panes, dialogs and code blocks.
+     Leave forced-colors scrollbars native. Standard non-auto scrollbar colors
+     override WebKit thumb styling in Chromium, so use them only as a fallback. */
+  @media (forced-colors: none) {
+    @supports selector(::-webkit-scrollbar) {
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track,
+      ::-webkit-scrollbar-corner { background: transparent; }
+      ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+      ::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--proto-muted) 32%, transparent);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+        border-radius: 999px;
+        min-height: 28px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: color-mix(in srgb, var(--proto-muted) 52%, transparent);
+      }
+      ::-webkit-scrollbar-thumb:active {
+        background-color: color-mix(in srgb, var(--proto-muted) 70%, transparent);
+      }
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      :where(*) {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--proto-muted) 32%, transparent) transparent;
+      }
+      :where(*:hover, *:focus-within) {
+        scrollbar-color: color-mix(in srgb, var(--proto-muted) 52%, transparent) transparent;
+      }
+    }
   }
 
   .sess-row .sess-more {
@@ -68,6 +111,8 @@
     position: fixed;
     inset: 0;
     background: var(--overlay-scrim);
+    backdrop-filter: var(--material-scrim-filter);
+    -webkit-backdrop-filter: var(--material-scrim-filter);
     z-index: 60;
     animation: cxfade 0.18s ease;
   }
@@ -78,9 +123,13 @@
     transform: translateX(-50%);
     width: 560px;
     max-width: 94vw;
-    background: var(--cmdk-panel-bg);
-    border-radius: 14px;
-    box-shadow: var(--shadow-overlay-strong);
+    /* Keep the stronger blur on the sheet, not each scrolling row. A stationary overlay can
+       still resample when its backdrop changes; this is not a once-per-open cached snapshot. */
+    background: var(--material-overlay-bg);
+    backdrop-filter: var(--glass-filter);
+    -webkit-backdrop-filter: var(--glass-filter);
+    border-radius: var(--r-float);
+    box-shadow: var(--material-overlay-shadow);
     z-index: 61;
     overflow: hidden;
     animation: cxcmdk 0.22s cubic-bezier(0.22, 1, 0.36, 1);
@@ -126,6 +175,17 @@
   }
   50% {
     opacity: 0.3;
+  }
+}
+/* A live indicator that breathes outward instead of blinking: the halo expands and fades, so a
+   running session reads as active in peripheral vision without the flicker `cxpulse` has. */
+@keyframes cxglow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-main) 28%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px transparent;
   }
 }
 @keyframes cxtoast {
@@ -259,6 +319,17 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Low specificity lets contained settings/menu outlines keep their own offsets.
+   Do not use :focus: pointer activation should not leave a persistent ring. */
+:where(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--proto-accent);
+  outline-offset: 2px;
+}
+
+:where([role='option'], [role='tab']):focus-visible {
+  outline-offset: -2px;
 }
 
 .usage-meter-fill {

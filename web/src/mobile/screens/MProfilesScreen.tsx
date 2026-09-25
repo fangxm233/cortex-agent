@@ -1,3 +1,7 @@
+// input:  profiles controller, catalog, mobile settings controls
+// output: MProfilesScreen, MProfilesView, MProfileEditor
+// pos:    Mobile profile management and editing
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
@@ -44,8 +48,8 @@ function MProfileChoice(props: {
 }) {
   const L = useVocab();
   if (props.custom || props.options.length === 0) {
-    return <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5 }}>
-      <div style={{ flex: 1 }}>
+    return <div className="mobile-settings-actions" style={{ alignItems: 'flex-end' }}>
+      <div style={{ flex: '1 1 160px', minWidth: 0 }}>
         <MSettingsField data-profile-field={props.field} data-profile-choice="custom"
           label={props.label} value={props.value} hint={props.hint} error={props.error}
           onChange={(event) => props.onValueChange(event.target.value)} />
@@ -71,8 +75,8 @@ function ProfileRow(props: {
 }) {
   const L = useVocab();
   const sub = [props.profile.model, props.profile.backend, props.profile.thinking].filter(Boolean).join(' · ');
-  return <MSettingsRow title={props.profile.name} sub={sub} trailing={
-    <div style={{ display: 'flex', gap: 5 }}>
+  return <MSettingsRow stacked title={props.profile.name} sub={sub} trailing={
+    <div className="mobile-settings-actions" data-profile-actions={props.profile.name}>
       {!props.current && <MSettingsButton disabled={props.defaultPending} onClick={props.onDefault}>{L.default}</MSettingsButton>}
       <MSettingsButton disabled={props.editPending} onClick={props.onEdit}>{L.pfEdit}</MSettingsButton>
       <MSettingsButton disabled={props.editPending} onClick={props.onDuplicate}>{L.pfDuplicate}</MSettingsButton>
@@ -91,7 +95,7 @@ function ExtraOptions(props: {
     props.onChange({ ...props.draft, extraOption: rows });
   };
   return <div data-profile-extra-options style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-    {props.draft.extraOption.map((row, index) => <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 5 }}>
+    {props.draft.extraOption.map((row, index) => <div key={index} className="mobile-settings-profile-options">
       <MSettingsField data-profile-option-key={index} label={L.pfOptionKeyPlaceholder} value={row.key}
         onChange={(event) => update(index, 'key', event.target.value)} />
       <MSettingsField data-profile-option-value={index} label={L.pfOptionValuePlaceholder} value={row.value}
@@ -177,11 +181,11 @@ export function MProfileEditor(props: {
   return <MSettingsCard title={props.duplicateSource
     ? `${title} · ${L.pfDuplicatedFrom} ${props.duplicateSource}` : title}>
     {props.duplicateSource && <div data-profile-duplicate-note
-      style={{ padding: '0 13px', fontSize: 11, color: MC.muted }}>{L.pfDuplicateDropsNote}</div>}
+      style={{ padding: '0 13px', fontSize: 12, color: MC.muted }}>{L.pfDuplicateDropsNote}</div>}
     <ProfileFields state={props.state} errors={props.errors} catalog={props.catalog}
       catalogPending={props.catalogPending} onChange={props.onChange}
       onBackendChange={props.onBackendChange} onProviderChange={props.onProviderChange} />
-    <div style={{ display: 'flex', gap: 7, padding: '0 13px 13px' }}>
+    <div className="mobile-settings-actions" style={{ padding: '0 13px 13px' }}>
       <MSettingsButton onClick={props.onCancel}>{L.cancel}</MSettingsButton>
       <MSettingsButton disabled={!isProfileFormValid(props.errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MSettingsButton>
     </div>

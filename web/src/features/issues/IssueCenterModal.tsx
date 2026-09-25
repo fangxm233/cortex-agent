@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: IssueCenterModal presentation
+// pos:    Issue material cards and transparent detail pane
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useEffect, useMemo, useState } from 'react';
+import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
@@ -62,12 +68,15 @@ function IssueCenterView(props: IssueCenterViewProps) {
           position: 'fixed',
           inset: 0,
           background: 'var(--overlay-scrim-soft)',
+          backdropFilter: 'var(--material-scrim-filter)',
+          WebkitBackdropFilter: 'var(--material-scrim-filter)',
           zIndex: 60,
           animation: 'cxfade .18s ease',
         }}
       />
       {/* shell (design 24b: 1150×730) */}
       <div
+        className="content-surface issue-center"
         data-issue-center=""
         data-issue-selected={selected?.id ?? ''}
         style={{
@@ -80,9 +89,13 @@ function IssueCenterView(props: IssueCenterViewProps) {
           maxWidth: '94vw',
           height: 730,
           maxHeight: '90vh',
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
+          // Floating glass sheet, matching design/Modal and the approval centre it is a sibling of:
+          // one static top-level overlay, so its blur is read once per open, not per scroll frame.
+          background: 'var(--material-overlay-bg)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          borderRadius: 'var(--r-float)',
+          boxShadow: 'var(--material-overlay-shadow)',
           zIndex: 61,
           overflow: 'hidden',
           display: 'flex',
@@ -97,40 +110,41 @@ function IssueCenterView(props: IssueCenterViewProps) {
             alignItems: 'center',
             gap: 9,
             padding: '12px 20px',
-            borderBottom: '1px solid var(--proto-line)',
+            borderBottom: '1px solid var(--proto-line-2)',
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.issuesTitle}</span>
           {hasItems && (
             <span
               style={{
-                font: `600 10.5px ${mono}`,
+                font: `600 11px ${mono}`,
                 color: 'var(--proto-muted)',
-                background: 'var(--proto-line-2)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 padding: '2px 9px',
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 marginLeft: 2,
               }}
             >
               {count}
             </span>
           )}
-          <span style={{ marginLeft: 'auto', font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
+          <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
             {props.projectId ? `${props.projectId}/ISSUES.md` : 'ISSUES.md'}
           </span>
-          <span
+          <button type="button" className="content-text-action"
             onClick={props.onClose}
             style={{
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 5,
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
+              border: '1px solid var(--proto-line-2)',
+              borderRadius: 'var(--r-control)',
               padding: '2px 6px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
         {/* body */}
@@ -176,7 +190,7 @@ function EmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 9,
-        background: 'var(--proto-rail)',
+        background: 'transparent',
       }}
     >
       <span
@@ -196,7 +210,7 @@ function EmptyState() {
         ✓
       </span>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.isEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{L.isEmptyDesc}</div>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted)' }}>{L.isEmptyDesc}</div>
     </div>
   );
 }
@@ -218,10 +232,10 @@ function IssueQueue({
   return (
     <div
       style={{
-        width: 400,
+        width: 'clamp(180px, 34%, 400px)',
         flex: 'none',
-        borderRight: '1px solid var(--proto-line)',
-        background: 'var(--proto-rail)',
+        borderRight: '1px solid var(--proto-line-2)',
+        background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -230,10 +244,10 @@ function IssueQueue({
       <div
         style={{
           padding: '14px 18px 9px',
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 700,
           letterSpacing: '.06em',
-          color: 'var(--proto-muted-3)',
+          color: 'var(--proto-muted)',
           flex: 'none',
         }}
       >
@@ -247,13 +261,16 @@ function IssueQueue({
             <div
               key={e.id}
               data-issue-id={e.id}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(e.id); } }}
               onClick={() => onSelect(e.id)}
               style={{
-                background: 'var(--proto-card)',
+                background: 'var(--material-card-bg)',
                 border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                borderRadius: 10,
+                borderRadius: 'var(--r-card)',
                 padding: '11px 13px',
-                boxShadow: sel ? 'var(--focus-ring-accent)' : 'none',
+                boxShadow: 'var(--material-card-shadow)',
                 cursor: 'pointer',
                 flex: 'none',
               }}
@@ -270,7 +287,7 @@ function IssueQueue({
               </div>
               {card.date && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6 }}>
-                  <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
+                  <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
                     {card.date}
                   </span>
                 </div>
@@ -284,8 +301,8 @@ function IssueQueue({
           marginTop: 'auto',
           padding: '12px 18px',
           borderTop: '1px solid var(--proto-line-2)',
-          font: `400 9.5px ${mono}`,
-          color: 'var(--proto-faint)',
+          font: `400 11px ${mono}`,
+          color: 'var(--proto-muted)',
           lineHeight: 1.7,
           flex: 'none',
         }}
@@ -299,10 +316,10 @@ function IssueQueue({
 // ── right detail pane (24b: read-only grid, verbatim field labels) ────────────────────────────
 
 const GRID_LABEL: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: '.05em',
-  color: 'var(--proto-muted-3)',
+  color: 'var(--proto-muted)',
   paddingTop: 2,
 };
 
@@ -325,7 +342,7 @@ function DetailPane({
 }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'transparent' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '18px 24px 0' }}>
         {/* title — no status pill by design (在列表即待处理) */}
         <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35 }}>
@@ -340,8 +357,8 @@ function DetailPane({
               alignItems: 'center',
               gap: 14,
               marginTop: 8,
-              font: `400 10.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `400 11px ${mono}`,
+              color: 'var(--proto-muted)',
             }}
           >
             <span>
@@ -355,7 +372,7 @@ function DetailPane({
           style={{
             margin: '16px 0 14px',
             display: 'grid',
-            gridTemplateColumns: '76px 1fr',
+            gridTemplateColumns: '76px minmax(0, 1fr)',
             rowGap: 10,
             columnGap: 14,
             fontSize: 12,
@@ -383,11 +400,12 @@ function DetailPane({
           borderTop: '1px solid var(--proto-line-2)',
           padding: '14px 22px',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 10,
         }}
       >
-        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
+        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
           {L.isFootNote}
         </span>
         {!armed && (
@@ -399,10 +417,11 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-danger-bg)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-danger)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -417,7 +436,8 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
+                boxShadow: 'var(--accent-glow)',
                 padding: '8px 22px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-accent)',
@@ -440,10 +460,11 @@ function DetailPane({
                 fontSize: 12,
                 fontWeight: 600,
                 border: '1px solid var(--proto-line-3)',
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '7px 16px',
                 color: 'var(--proto-ink)',
-                background: 'var(--proto-card)',
+                background: 'var(--material-control-bg)',
+                boxShadow: 'var(--material-control-shadow)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
@@ -458,7 +479,7 @@ function DetailPane({
               base={{
                 fontSize: 12,
                 fontWeight: 600,
-                borderRadius: 8,
+                borderRadius: 'var(--r-control)',
                 padding: '8px 20px',
                 color: 'var(--ink-solid-fg)',
                 background: 'var(--proto-danger)',
@@ -500,15 +521,17 @@ function HoverButton({
 } & Record<string, unknown>) {
   const [h, setH] = useState(false);
   return (
-    <span
+    <button
       {...rest}
+      type="button"
+      disabled={!onClick}
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      style={h ? { ...base, ...hover } : base}
+      style={{ border: 0, fontFamily: 'inherit', ...base, ...(h && onClick ? hover : {}) }}
     >
       {children}
-    </span>
+    </button>
   );
 }
 

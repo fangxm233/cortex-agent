@@ -1,19 +1,21 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+// input:  MCP queries, authoring actions, settings atoms
+// output: plugin MCP server and secret forms
+// pos:    Responsive plugin MCP authoring tab
+// >>> Once updated, update this header and parent AGENTS.md <<<
+
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
-import { EmptyMessage, NOTICE, ROW } from '@/features/settings/ui/plugin-ui';
+import { SButton, SFieldRow, SNotice, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { EmptyMessage, ROW } from '@/features/settings/ui/plugin-ui';
 import {
   draftsFromRead, emptyDraft, mcpDraftIssues, replaceDraft, sameMcpDrafts, toInput,
   type McpSecretRow, type McpServerDraft, type McpTransport,
 } from '@/features/settings/vm/plugin-authoring-vm';
 import type { PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
-
-const MONO = "'IBM Plex Mono',monospace";
-const SECRET_ROW: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center' };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -38,16 +40,16 @@ function SecretRows(props: {
   };
   return (
     <SFieldRow label={props.label} hint={L.plMcpSecretNote}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {props.draft.secrets.map((row, index) => (
-          <div key={`${props.draft.id}:${index}`} data-plugin-secret={row.key} style={SECRET_ROW}>
+          <div key={`${props.draft.id}:${index}`} data-plugin-secret={row.key} className="settings-secret-fields">
             <input data-field="secret-key" value={row.key} placeholder={L.plMcpKeyPh}
               onChange={(event) => update(index, { key: event.target.value })}
-              style={{ ...S_CONTROL_STYLE, width: 150 }} />
+              style={S_CONTROL_STYLE} />
             {row.value === null
               ? (
                 <>
-                  <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-faint)', flex: 1 }}>{L.plMcpSecretKept}</span>
+                  <span style={{ fontSize: 12, color: 'var(--proto-muted-2)', flex: '1 1 100px' }}>{L.plMcpSecretKept}</span>
                   <SButton tone="neutral" data-action="secret-replace" onClick={() => update(index, { value: '' })}>
                     {L.plMcpSecretReplace}
                   </SButton>
@@ -56,7 +58,7 @@ function SecretRows(props: {
               : (
                 <input data-field="secret-value" value={row.value} placeholder={L.plMcpSecretPh}
                   onChange={(event) => update(index, { value: event.target.value })}
-                  style={{ ...S_CONTROL_STYLE, flex: 1 }} />
+                  style={S_CONTROL_STYLE} />
               )}
             <SButton tone="danger" data-action="secret-remove"
               onClick={() => props.onChange(props.draft.secrets.filter((_, i) => i !== index))}>
@@ -83,13 +85,13 @@ function ServerForm(props: {
   const L = useVocab();
   const stdio = props.draft.type === 'stdio';
   return (
-    <div data-plugin-mcp-server={props.draft.id} style={{ ...ROW, display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div data-plugin-mcp-server={props.draft.id} style={{ ...ROW, gap: 4 }}>
       <SFieldRow label={L.plMcpName}>
         <input data-field="mcp-name" value={props.draft.name}
           onChange={(event) => props.onChange({ name: event.target.value })} style={S_CONTROL_STYLE} />
       </SFieldRow>
       <SFieldRow label={L.plMcpTransport}>
-        <Select value={props.draft.type} options={transportOptions(L)}
+        <Select popupClassName="settings-surface settings-select-popup" value={props.draft.type} options={transportOptions(L)} style={S_CONTROL_STYLE}
           onValueChange={(value: McpTransport) => props.onChange({ type: value })} />
       </SFieldRow>
       {stdio ? (
@@ -116,7 +118,7 @@ function ServerForm(props: {
       )}
       <SecretRows draft={props.draft} label={stdio ? L.plMcpEnv : L.plMcpHeaders}
         onChange={(secrets) => props.onChange({ secrets })} />
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', marginTop: 4 }}>
         <SButton tone="danger" data-action="mcp-remove-server" onClick={props.onRemove}>{L.plMcpRemove}</SButton>
       </div>
     </div>
@@ -126,16 +128,16 @@ function ServerForm(props: {
 function ConvertNotice(props: { pluginId: string; busy: boolean; actions: PluginAuthoringActions }) {
   const L = useVocab();
   return (
-    <div data-plugin-mcp-unsupported="" style={{ ...NOTICE, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div>{L.plMcpLegacyNote}</div>
-      <div>{L.plConvertNote}</div>
-      <div style={{ display: 'flex' }}>
+    <SNotice tone="amber" data-plugin-mcp-unsupported=""
+      action={(
         <SButton tone="accent" data-action="mcp-convert" disabled={props.busy}
           onClick={() => props.actions.convertToPortable({ id: props.pluginId })}>
           {L.plConvertPortable}
         </SButton>
-      </div>
-    </div>
+      )}>
+      <span style={{ display: 'block' }}>{L.plMcpLegacyNote}</span>
+      <span style={{ display: 'block', marginTop: 4 }}>{L.plConvertNote}</span>
+    </SNotice>
   );
 }
 
@@ -171,7 +173,7 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
   const issues = mcpDraftIssues(drafts);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {drafts.length === 0
         ? <EmptyMessage text={L.plMcpNoServers} dataAttr="data-plugin-mcp-empty" />
         : drafts.map((draft) => (
@@ -179,7 +181,7 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
             onChange={(patch) => setDrafts(replaceDraft(drafts, draft.id, patch))}
             onRemove={() => setDrafts(drafts.filter((item) => item.id !== draft.id))} />
         ))}
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" data-action="mcp-add"
           onClick={() => { setDrafts([...drafts, emptyDraft(`new${nextId}`)]); setNextId(nextId + 1); }}>
           {L.plMcpAdd}

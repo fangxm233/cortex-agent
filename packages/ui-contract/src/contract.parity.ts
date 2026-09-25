@@ -11,6 +11,7 @@ import type {
   sessionsSendInput,
   sessionsCompactInput,
   sessionsSetProfileInput,
+  sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsSetCommissionInput,
   threadsListInput,
@@ -153,6 +154,7 @@ const _sessionsCreate: MutateParity<'sessions.create', typeof sessionsCreateInpu
 const _sessionsSend: MutateParity<'sessions.send', typeof sessionsSendInput> = true;
 const _sessionsCompact: MutateParity<'sessions.compact', typeof sessionsCompactInput> = true;
 const _sessionsSetProfile: MutateParity<'sessions.setProfile', typeof sessionsSetProfileInput> = true;
+const _sessionsSetAgent: MutateParity<'sessions.setAgent', typeof sessionsSetAgentInput> = true;
 const _sessionsSetSelection: MutateParity<'sessions.setSelection', typeof sessionsSetSelectionInput> = true;
 const _sessionsSetCommission: MutateParity<'sessions.setCommission', typeof sessionsSetCommissionInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
@@ -218,7 +220,7 @@ export const _contractParityChecked = [
   _waitpointsList,
   _waitpointsCancel, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
-  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _sessionsSetSelection,
+  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _sessionsSetAgent, _sessionsSetSelection,
   _sessionsSetCommission, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
   _commissionsList, _commissionsGet, _commissionsDecisions, _commissionsClose,

@@ -89,7 +89,7 @@ export interface DiffToggleStyle {
 export function diffToggle(on: boolean): DiffToggleStyle {
   return on
     ? { label: 'Viewing diff', color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
-    : { label: 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--proto-card)', border: 'var(--proto-accent-border)' };
+    : { label: 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--glass-2)', border: 'var(--proto-accent-border)' };
 }
 
 export interface LineDiffLabel {

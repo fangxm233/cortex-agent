@@ -1,9 +1,7 @@
-// input:  the server's /api/ui/session probe
-// output: the app tree, a token-login screen, or a plain reason why neither is possible
-// pos:    Browser-mode gate in front of everything that talks to the server. Native shells (desktop
-//         and mobile) carry the token in their own request headers and are passed straight through,
-//         so this file is inert for them.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// input:  UI session probe, native configuration, UiTokenLogin
+// output: UiAuthGate
+// pos:    Browser session gate and material connection notice
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
@@ -66,8 +64,8 @@ export function UiAuthGate({ children }: { children: ReactNode }) {
 function GateNotice({ kind, onRetry }: { kind: 'no-login' | 'unreachable'; onRetry: () => void }) {
   const L = useVocab();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-canvas p-2g">
-      <div className="max-w-md space-y-1g text-center">
+    <div className="content-surface flex min-h-screen items-center justify-center [background:var(--app-backdrop)] p-2g">
+      <div className="max-w-md space-y-1g rounded-[var(--r-card)] border border-proto-line-2 [background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)] p-3g text-center">
         <p className="text-ui text-state-ink">
           {kind === 'unreachable' ? L.uiLoginUnreachable : L.uiLoginDisabled}
         </p>

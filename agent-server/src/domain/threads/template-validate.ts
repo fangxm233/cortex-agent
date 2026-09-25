@@ -77,6 +77,16 @@ export const hooksSchema = z.object({
   onEnd: hookConfigSchema.optional(),
 });
 
+/** The execution-environment fields, spelled once: an agent declares them and a template ref may
+ *  override all but `delegable` (which decides what the agent IS, not how one template runs it). */
+const environmentShape = {
+  loadRules: z.boolean().optional(),
+  disableHooks: z.boolean().optional(),
+  skills: z.boolean().optional(),
+  settingSources: z.array(z.enum(['user', 'project', 'local'])).optional(),
+  projectContext: z.boolean().optional(),
+};
+
 export const agentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -91,6 +101,8 @@ export const agentSchema = z.object({
   pluginDirs: z.array(z.string()).optional(),
   mcpComposition: z.enum(['direct', 'thread-control', 'none']).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
+  delegable: z.boolean().optional(),
+  ...environmentShape,
   stages: z.record(z.string(), stageSchema).optional(),
   entryStage: z.string().optional(),
 });
@@ -106,6 +118,7 @@ export const agentRefOverrideSchema = z.object({
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
+  ...environmentShape,
 });
 
 export const agentRefSchema = z.union([z.string().min(1), agentRefOverrideSchema]);

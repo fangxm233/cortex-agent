@@ -1,7 +1,7 @@
 # input:  current PI CLI, historical fixtures, bounded capture
 # output: historical evidence and current wire behavior assertions
 # pos:    PI historical evidence and current CLI compatibility tests
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import hashlib
 import json

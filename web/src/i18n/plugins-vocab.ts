@@ -1,7 +1,7 @@
 // input:  plugin inventory, assignment and authoring copy
 // output: English and Chinese plugin vocabulary
 // pos:    Plugin UI localization
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
 export const pluginEn = {
   // ── Plugins panel ──

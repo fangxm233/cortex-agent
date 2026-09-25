@@ -1,4 +1,7 @@
-// @ds-adherence-ignore -- mobile v3 uses the approved raw visual tokens
+// input:  React, mobile kit, presentation props
+// output: MThreadsView
+// pos:    Mobile ThreadsView presentation
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
@@ -69,11 +72,11 @@ export function MThreadsHeader({ copy, qn, band }: {
       qn={qn}
       below={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
-          <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
+          <div style={{ flex: 1, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden' }}>
             <div style={{ width: `${band.pct}%`, height: '100%', background: MC.run }} />
           </div>
-          <span style={{ font: `500 10px ${MONO}`, color: MC.ink }}>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.ink }}>
             {band.numerator} / {band.denominator}
           </span>
         </div>
@@ -117,7 +120,7 @@ function PipelineDot({ state }: { state: MPipelineStep['state'] }) {
 const PIPELINE_COLUMNS = 4;
 
 function PipelineLabel({ step }: { step: MPipelineStep }) {
-  const color = step.state === 'active' ? MC.ink : step.state === 'done' ? MC.sub : MC.faint;
+  const color = step.state === 'active' ? MC.ink : step.state === 'done' ? MC.sub : MC.muted;
   return (
     <span
       title={step.label}
@@ -126,7 +129,7 @@ function PipelineLabel({ step }: { step: MPipelineStep }) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-        fontSize: 10.5,
+        fontSize: 11,
         color,
         fontWeight: step.state === 'active' ? 600 : 400,
       }}
@@ -186,14 +189,14 @@ export function MRunningCard({
     <MCard onClick={onOpen}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <NodeIcon color={nodeColor} />
-        <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{info.templateName}</span>
-        <span style={{ marginLeft: 'auto' }}>
+        <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.templateName}</span>
+        <span style={{ marginLeft: 'auto', flex: 'none' }}>
           <MPill tone={pill.tone}>{pill.label}</MPill>
         </span>
       </div>
       {steps.length > 0 && <Pipeline steps={steps} />}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-        <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginTop: 4 }}>
+        <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
           {runningMeta(info, detail, now, copy.subthread)}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.run }}>{copy.open} ›</span>

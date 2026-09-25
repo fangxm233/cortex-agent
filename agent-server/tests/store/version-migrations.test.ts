@@ -510,22 +510,22 @@ test('upsertMarkerBlock - replaces an existing block in place, preserving surrou
 
 // ── M4: docs-block text migration via runMigrations ────────────
 
-test('runMigrations - text: injects docs block into CORTEX.md and tracks version', async () => {
+test('runMigrations - text: injects docs block into AGENTS.md and tracks version', async () => {
   const idx = _testIdx++;
   const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
 
-  await writeText(path.join(dataDir, 'CORTEX.md'), '# My customized CORTEX.md\n\nUser notes here.\n');
+  await writeText(path.join(dataDir, 'AGENTS.md'), '# My customized AGENTS.md\n\nUser notes here.\n');
 
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
-  const out = await readText(path.join(dataDir, 'CORTEX.md'));
-  assert.ok(out.includes('# My customized CORTEX.md'), 'user content preserved');
+  const out = await readText(path.join(dataDir, 'AGENTS.md'));
+  assert.ok(out.includes('# My customized AGENTS.md'), 'user content preserved');
   assert.ok(out.includes('User notes here.'), 'user content preserved');
   assert.ok(out.includes('https://fangxm233.github.io/cortex-agent/'), 'docs URL injected');
   assert.ok(out.includes('<!-- cortex:docs'), 'marker present');
 
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions['CORTEX.md'], '2026.6.22');
+  assert.equal(versions['AGENTS.md'], '2026.6.22');
 });
 
 test('runMigrations - text: updates docs and PI roles in system prompt files', async () => {
@@ -562,7 +562,7 @@ test('runMigrations - text: idempotent (second run does not duplicate block)', a
   const idx = _testIdx++;
   const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
 
-  const target = path.join(dataDir, 'CORTEX.md');
+  const target = path.join(dataDir, 'AGENTS.md');
   await writeText(target, 'Base.\n');
 
   await runMigrations({ dataDir, defaultsDir, storeDir });
@@ -578,13 +578,13 @@ test('runMigrations - text: skips gracefully when target file does not exist', a
   const idx = _testIdx++;
   const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
 
-  // No CORTEX.md / system prompts created at all
+  // No AGENTS.md / system prompts created at all
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
   // Missing text files must not be tracked (migration skipped, not falsely applied)
   try {
     const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-    assert.equal(versions['CORTEX.md'], undefined);
+    assert.equal(versions['AGENTS.md'], undefined);
     assert.equal(versions['prompts/systemPrompts/direct.md'], undefined);
   } catch (e: any) {
     if (e.code !== 'ENOENT') throw e;

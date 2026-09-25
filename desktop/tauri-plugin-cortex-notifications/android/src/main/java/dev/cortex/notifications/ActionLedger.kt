@@ -1,7 +1,7 @@
 // input:  Persisted JSON, scoped notification targets
 // output: Durable issued targets, pending taps and dedupe state
 // pos:    Pure notification and action bookkeeping
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.json.JSONArray

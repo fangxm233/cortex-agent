@@ -49,7 +49,7 @@ agent-server/cortex-agent-server-*.tgz
 client/cortex-agent-client-*.tgz
 
 # Machine-specific (generated per host)
-CORTEX.local.md
+AGENTS.local.md
 agent-server/mcp-config.json
 agent-server/.env
 agent-server/session-hooks.json

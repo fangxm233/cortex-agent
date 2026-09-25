@@ -26,7 +26,8 @@ test('an empty home yields empty state and writes nothing', async () => {
   clean();
   const { loadAgentState } = await freshModule();
   assert.deepEqual(loadAgentState(), {
-    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelOverrides: {},
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {},
+    channelOverrides: {},
   });
   assert.equal(existsSync(STATE), false, 'a read must not create the file');
 });
@@ -82,7 +83,8 @@ test('corrupt or foreign values collapse to defaults instead of throwing', async
   writeFileSync(STATE, '{ this is not json');
   const { loadAgentState } = await freshModule();
   assert.deepEqual(loadAgentState(), {
-    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelOverrides: {},
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {},
+    channelOverrides: {},
   });
 
   clean();
@@ -107,6 +109,7 @@ test('save omits empty fields and round-trips channel overrides', async () => {
     activeProfile: 'execute',
     channelProfiles: {},
     defaultAgent: null,
+    channelAgents: {},
     channelOverrides: { 'web:a': { model: 'sonnet' } },
     claudeMode: 'plan',
   });
@@ -117,13 +120,52 @@ test('save omits empty fields and round-trips channel overrides', async () => {
   assert.deepEqual(loadAgentState().channelOverrides, { 'web:a': { model: 'sonnet' } });
 });
 
+test('the per-channel agent selection round-trips, and an empty map is omitted', async () => {
+  // The environment twin of channelProfiles: a channel that picked an agent must still be in it
+  // after a restart, and a host where nobody picked one must not grow a dead key.
+  clean();
+  const { loadAgentState, saveAgentState } = await freshModule();
+  saveAgentState({
+    activeProfile: null, channelProfiles: {}, defaultAgent: 'main',
+    channelAgents: { 'web:a': 'creative', 'slack:C1': 'main' }, channelOverrides: {},
+  });
+  const written = JSON.parse(readFileSync(STATE, 'utf8'));
+  assert.deepEqual(written.channelAgents, { 'web:a': 'creative', 'slack:C1': 'main' });
+  assert.deepEqual(loadAgentState().channelAgents, { 'web:a': 'creative', 'slack:C1': 'main' });
+
+  saveAgentState({
+    activeProfile: null, channelProfiles: {}, defaultAgent: null,
+    channelAgents: {}, channelOverrides: {},
+  });
+  assert.equal('channelAgents' in JSON.parse(readFileSync(STATE, 'utf8')), false);
+  assert.deepEqual(loadAgentState().channelAgents, {});
+});
+
+test('a malformed channel-agent entry is dropped, not carried', async () => {
+  clean();
+  writeFileSync(STATE, JSON.stringify({ channelAgents: { good: 'creative', bad: 7, empty: '' } }));
+  const { loadAgentState } = await freshModule();
+  assert.deepEqual(loadAgentState().channelAgents, { good: 'creative' });
+});
+
+test('the seed carries the agent the last composer pick ran in', async () => {
+  clean();
+  const { loadAgentState, saveAgentState } = await freshModule();
+  saveAgentState({
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {},
+    channelOverrides: {},
+    selectionDefault: { profileName: 'sol', agentName: 'creative' },
+  });
+  assert.deepEqual(loadAgentState().selectionDefault, { profileName: 'sol', agentName: 'creative' });
+});
+
 test('a session\'s billing route survives a restart', async () => {
   // `mode` joined ChannelOverride after the others; a parser that still listed three fields would
   // drop it on load and quietly send the next turn back to the profile's route.
   clean();
   const { loadAgentState, saveAgentState } = await freshModule();
   saveAgentState({
-    activeProfile: null, channelProfiles: {}, defaultAgent: null,
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {},
     channelOverrides: { 'web:a': { model: 'claude-opus-5', provider: 'zai', thinking: 'high', mode: 'api' } },
   });
   assert.deepEqual(loadAgentState().channelOverrides, {
@@ -135,7 +177,7 @@ test('the seed a new conversation opens on round-trips, profile included', async
   clean();
   const { loadAgentState, saveAgentState } = await freshModule();
   saveAgentState({
-    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelOverrides: {},
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelAgents: {}, channelOverrides: {},
     selectionDefault: { profileName: 'sol', model: 'gpt-6-astra', thinking: 'high' },
   });
   assert.deepEqual(

@@ -1,0 +1,47 @@
+/* input: shared material tokens, Radix body portal markup
+ * output: Glass settings dropdown and nested dialog shells
+ * pos: Keep body-portaled controls on the settings visual system
+ * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
+
+/* Radix portals mount under body, outside the filtered Settings content.
+   Filter each floating shell, not its scrolling rows or inner controls. */
+.settings-surface.settings-select-popup,
+.settings-surface.settings-nested-modal {
+  background: var(--material-overlay-bg);
+  box-shadow: var(--material-overlay-shadow);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+}
+
+.settings-surface.settings-select-popup {
+  min-width: min(max(160px, var(--radix-select-trigger-width)), var(--radix-select-content-available-width)) !important;
+  max-width: min(440px, var(--radix-select-content-available-width));
+  border: 1px solid var(--settings-control-boundary);
+  border-radius: var(--settings-control-radius);
+  font-family: inherit;
+  font-size: 13px;
+}
+.settings-select-popup [role='option'] {
+  min-height: 34px;
+  padding: 8px 28px 8px 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.settings-select-popup [role='option'] > span { min-width: 0; }
+.settings-select-popup [role='option'] > .font-normal { font-size: 12px; }
+.settings-surface.settings-nested-modal {
+  padding: 20px;
+  gap: 16px;
+  border: 1px solid var(--settings-boundary);
+  border-radius: 12px;
+
+}
+.settings-nested-modal [data-modal-body] { padding: 3px; }
+@media (max-width: 767px) {
+  .settings-select-popup [role='option'] { min-height: 44px; font-size: 16px; }
+  .settings-surface.settings-nested-modal { padding: 16px; }
+}

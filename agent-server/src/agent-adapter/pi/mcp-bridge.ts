@@ -158,12 +158,13 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
 function validateToolGatedStates(
   env: NodeJS.ProcessEnv, states: ServerState[],
 ): ServerState[] {
-  const allowlist = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
-  if (allowlist === null) return states;
-  const core = states.find(state => state.name === 'core');
-  const bundles = core?.source.kind === 'bundled' ? core.source.bundles : [];
-  const known = new Set(bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []));
-  validateMcpToolAllowlist([...allowlist], known);
+  // `parseMcpToolAllowlist` already rejects a name that exists in no bundle at all — that is the
+  // typo check, and it is the only one worth making. A name that exists but belongs to a bundle
+  // this session does not compose (`send_file` outside a web session) is simply absent here: an
+  // allowlist is an upper bound on the surface, not a demand for it, and the gate drops what it
+  // cannot register. Validating against the COMPOSED bundles used to turn "this agent also
+  // delivers files on the web" into "this agent may not run on Slack".
+  parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
   return states;
 }
 

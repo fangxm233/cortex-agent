@@ -1,4 +1,9 @@
-import type { CSSProperties } from 'react';
+// input:  theme tokens, ColorSlider
+// output: AccentPicker, AccentPickerCopy
+// pos:    Appearance accent presets and hue control
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
+import { ColorSlider } from './ColorSlider';
 import { DEFAULT_ACCENT_HUE, type AccentHue } from './theme';
 
 export interface AccentPickerCopy {
@@ -41,7 +46,8 @@ function SwatchButton({ active, color, label, id, onClick, size }: {
       onClick={onClick}
       style={{
         width: size, height: size, padding: 3, borderRadius: '50%', cursor: 'pointer',
-        border: active ? '2px solid var(--proto-ink)' : '2px solid transparent',
+        border: '2px solid transparent',
+        boxShadow: active ? 'inset 0 0 0 1.5px var(--proto-accent)' : 'none',
         background: 'transparent', flex: 'none',
       }}
     >
@@ -68,7 +74,7 @@ function PresetSwatches({ hue, copy, onChange, size }: {
     />
   );
   return (
-    <div role="group" aria-label={copy.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+    <div role="group" aria-label={copy.label} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
       <SwatchButton active={hue === null} color="var(--accent-default-swatch)" label={copy.default} id="default" onClick={() => onChange(null)} size={size} />
       {PRESETS.map(renderPreset)}
     </div>
@@ -80,23 +86,10 @@ function HueSlider({ hue, copy, onChange }: {
   copy: AccentPickerCopy;
   onChange: (hue: AccentHue) => void;
 }) {
-  const value = hue ?? DEFAULT_ACCENT_HUE;
-  const thumbStyle: CSSProperties = {
-    position: 'absolute', top: 0, left: `calc(${(value / 359) * 100}% - 7px)`,
-    width: 14, height: 14, borderRadius: '50%', background: 'var(--accent-main)',
-    border: '2px solid var(--proto-card)', boxShadow: 'var(--shadow-switch-thumb)', pointerEvents: 'none',
-  };
   return (
-    <div style={{ position: 'relative', height: 14, marginTop: 8 }}>
-      <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 4, borderRadius: 999, background: 'var(--accent-spectrum)' }} />
-      <span style={thumbStyle} />
-      <input
-        type="range" min={0} max={359} value={value}
-        data-accent-hue-slider aria-label={copy.custom}
-        onChange={(event) => onChange(Number(event.target.value))}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: 14, margin: 0, opacity: 0, cursor: 'pointer' }}
-      />
-    </div>
+    <ColorSlider min={0} max={359} value={hue ?? DEFAULT_ACCENT_HUE}
+      data-accent-hue-slider aria-label={copy.custom} onChange={onChange}
+      track="var(--accent-spectrum)" thumb="var(--accent-main)" />
   );
 }
 
@@ -108,10 +101,10 @@ export function AccentPicker({ hue, copy, onChange, compact = false }: {
 }) {
   return (
     <div data-accent-picker style={{ width: compact ? '100%' : 330, maxWidth: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <PresetSwatches hue={hue} copy={copy} onChange={onChange} size={compact ? 27 : 29} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <PresetSwatches hue={hue} copy={copy} onChange={onChange} size={compact ? 40 : 32} />
         {hue !== null && (
-          <button type="button" data-accent-reset onClick={() => onChange(null)} style={{ marginLeft: 'auto', border: 0, padding: 0, background: 'transparent', color: 'var(--proto-muted-2)', fontSize: 10, cursor: 'pointer' }}>
+          <button type="button" data-accent-reset onClick={() => onChange(null)} style={{ marginLeft: 'auto', border: 0, padding: 0, background: 'transparent', color: 'var(--proto-muted-2)', fontSize: 12, minHeight: 34, cursor: 'pointer' }}>
             {copy.reset}
           </button>
         )}

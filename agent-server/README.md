@@ -157,6 +157,7 @@ variable reference, file layout, and precedence rules are in
 | [Scheduling](./docs/scheduling.md) | Interval/daily/weekly/once schedules, preCheck, fallback |
 | [Safety & Approvals](./docs/safety-and-approvals.md) | Blast-radius classes, approval workflow, audit trail |
 | [Hooks](./docs/hooks.md) | Hook lifecycle, hook-bridge, custom hooks in settings.json |
+| [Waitpoints](./docs/waitpoints.md) | Waiting on external jobs without polling: arm, signal, quorum, expiry |
 | [MCP](./docs/mcp.md) | Privilege-scoped Cortex MCP servers, third-party MCP |
 | [Cross-machine](./docs/cross-machine.md) | cortex-client deployment, remote tools, network topology |
 

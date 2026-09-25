@@ -1,18 +1,23 @@
-// input:  the shell's own update prefs (get_update_prefs / set_update_silent)
-// output: a native-shell-only switch for "install app updates when I quit"
-// pos:    Settings → Advanced. Renders nothing off-shell (plain browser / ui-http): there is no app
-//         shell to update there, so the switch would promise something the page cannot do. An older
-//         shell that lacks the commands stays hidden for the same reason.
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// input:  native shell update preferences, settings atoms
+// output: native-shell-only quiet update controls
+// pos:    App update settings with readable status metadata
+// >>> Once updated, update this header and parent AGENTS.md <<<
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';
-import { SButton, SCard, Toggle } from '@/features/settings/ui/settings-ui';
+import { SButton, SRow, SRowGroup, Toggle } from '@/features/settings/ui/settings-ui';
 
 // Copy is local to this card rather than vocab: the whole section is APP-shell-only and Chinese,
 // mirroring features/app-update/app-update.ts.
 const MONO = "'IBM Plex Mono',monospace";
+
+const FOOTNOTE_STYLE: CSSProperties = {
+  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
+};
+const ALERT_STYLE: CSSProperties = {
+  fontSize: 12, lineHeight: 1.5, color: 'var(--proto-danger)', marginTop: 6,
+};
 
 /**
  * Shell-side `<appDataDir>/updates/prefs.json` (desktop/src-tauri/src/update_prefs.rs) — a property
@@ -100,30 +105,30 @@ export function AppUpdateCard() {
 
   const fallenBack = hasFallenBackToAsking(prefs);
   return (
-    <SCard data-app-update-silent="" style={{ marginTop: 12, maxWidth: 760, padding: '12px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Toggle on={prefs.silent} inert={pending} ariaLabel="自动安装更新"
-          onClick={pending ? undefined : () => void write(!prefs.silent)} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>自动安装更新</div>
-          <div style={{ fontSize: 10.5, marginTop: 1, lineHeight: 1.5,
-            color: fallenBack ? 'var(--proto-danger)' : 'var(--proto-muted-2)' }}>
+    <SRowGroup data-app-update-silent="">
+      <SRow
+        title="自动安装更新"
+        desc={
+          <span style={{ color: fallenBack ? 'var(--proto-danger)' : undefined }}>
             {updateModeDescription(prefs)}
+          </span>
+        }
+        control={
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            {fallenBack ? (
+              <SButton tone="neutral" disabled={pending} data-app-update-retry=""
+                onClick={() => void write(true)}>重试自动安装</SButton>
+            ) : null}
+            <Toggle on={prefs.silent} inert={pending} ariaLabel="自动安装更新"
+              onClick={pending ? undefined : () => void write(!prefs.silent)} />
           </div>
-        </div>
-        {fallenBack ? (
-          <SButton tone="neutral" disabled={pending} data-app-update-retry=""
-            onClick={() => void write(true)}>重试自动安装</SButton>
+        }
+      >
+        {failed ? (
+          <div role="alert" style={ALERT_STYLE}>没能保存更新设置，请再试一次。</div>
         ) : null}
-      </div>
-      {failed ? (
-        <div role="alert" style={{ fontSize: 10.5, color: 'var(--proto-danger)', marginTop: 8 }}>
-          没能保存更新设置，请再试一次。
-        </div>
-      ) : null}
-      <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', marginTop: 8 }}>
-        {updatePrefsFootnote(prefs)}
-      </div>
-    </SCard>
+        <div style={FOOTNOTE_STYLE}>{updatePrefsFootnote(prefs)}</div>
+      </SRow>
+    </SRowGroup>
   );
 }

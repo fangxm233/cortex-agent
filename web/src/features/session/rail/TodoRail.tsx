@@ -1,6 +1,11 @@
+// input:  TodoSnapshot, todo-vm, session identity, language
+// output: TodoRail, TodoRailProps, TodoRailLanguage
+// pos:    Task progress rail, inline or floating over the transcript
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';
+import { railSurface } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
@@ -86,7 +91,9 @@ function TodoRow({ row }: { row: TodoRowViewModel }): JSX.Element {
           lineHeight: '15px',
           paddingBottom: row.hasTail ? 9 : 0,
           fontWeight: active ? 600 : 400,
-          color: done ? 'var(--proto-muted-2)' : active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+          color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+          minWidth: 0,
+          overflowWrap: 'anywhere',
           textDecoration: done ? 'line-through' : undefined,
         }}
       >
@@ -100,6 +107,8 @@ export interface TodoRailProps {
   sessionId: string;
   todos: TodoSnapshot | null;
   lang: TodoRailLanguage;
+  /** Hung over the scrolling transcript (mobile), so it takes the composer's frosted chrome. */
+  floating?: boolean;
 }
 
 /**
@@ -107,7 +116,7 @@ export interface TodoRailProps {
  * every session permanent vertical space directly above the input for a feature most turns never
  * use.
  */
-export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element | null {
+export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailProps): JSX.Element | null {
   const [open, toggle] = useExpanded(sessionId);
   const vm = todoRailViewModel(todos);
   if (!vm) return null;
@@ -128,15 +137,7 @@ export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element
       tabIndex={open ? 0 : undefined}
       aria-expanded={open ? true : undefined}
       aria-label={open ? L.label : undefined}
-      style={{
-        border: '1px solid var(--proto-line)',
-        borderRadius: 8,
-        background: 'var(--proto-alt)',
-        marginBottom: 8,
-        overflow: 'hidden',
-        cursor: open ? 'pointer' : undefined,
-        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
-      }}
+      style={{ ...railSurface(floating), cursor: open ? 'pointer' : undefined }}
     >
       {!open && (
         <button
@@ -160,11 +161,11 @@ export function TodoRail({ sessionId, todos, lang }: TodoRailProps): JSX.Element
           }}
         >
           <StatusDot status={vm.allDone ? 'completed' : 'in_progress'} allDone={vm.allDone} />
-          <span style={{ font: `600 10.5px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
+          <span style={{ font: `600 11px ${MONO}`, color: accent, flex: 'none' }}>{vm.counts}</span>
           <span
             style={{
               fontSize: 12,
-              color: vm.activeLabel ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
+              color: 'var(--proto-muted)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

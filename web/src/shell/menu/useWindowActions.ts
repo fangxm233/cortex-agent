@@ -1,7 +1,7 @@
 // input:  native bridge, platform, viewport events and stored zoom
 // output: observable window state and failure-reporting actions
 // pos:    Native controls for menus and app-drawn window buttons
-// >>> Once updated, update this header and parent CORTEX.md <<<
+// >>> Once updated, update this header and parent AGENTS.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { safeInvoke } from '@/lib/native-bridge';
 import { desktopPlatform } from '@/lib/desktop-platform';

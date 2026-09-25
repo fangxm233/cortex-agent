@@ -28,6 +28,9 @@ import {
 export interface LiveExecutionLike {
   backend: string;
   run?: AgentRun;
+  /** Stable Cortex session the run belongs to. A subagent child registers on its parent's channel
+   *  with a null session, so this is what tells the conversation's own run apart from it. */
+  trackSessionId?: string | null;
 }
 
 /** Everything the injection ledger and the router need, bound by `buildInjectDeps`. */
@@ -70,11 +73,19 @@ export function backendSupportsInject(backend: string): boolean {
   return !!CAPABILITIES_BY_BACKEND[backend as Backend]?.has(Capability.MidTurnInject);
 }
 
-/** The newest live run on the channel. Capability is enforced by `run.steer()`, not inspected here. */
-function selectInjectRun(execs: LiveExecutionLike[]): { run: AgentRun; backend: string } | null {
+/**
+ * The newest live run on the channel that belongs to the channel's own session. Background subagent
+ * children share the parent's channel and outlive the parent's turn; picking one of them sent the
+ * user's message into the child's stdin, where it was swallowed and the conversation never answered.
+ * Capability is enforced by `run.steer()`, not inspected here.
+ */
+function selectInjectRun(
+  execs: LiveExecutionLike[],
+  sessionId: string,
+): { run: AgentRun; backend: string } | null {
   let best: { run: AgentRun; backend: string } | null = null;
   for (const exec of execs) {
-    if (exec.run) best = { run: exec.run, backend: exec.backend };
+    if (exec.run && exec.trackSessionId === sessionId) best = { run: exec.run, backend: exec.backend };
   }
   return best;
 }
@@ -115,7 +126,7 @@ export async function tryInjectIntoLiveTurn(
   ctx: MidTurnInjectCtx,
 ): Promise<boolean> {
   if (!isInjectableMessage(ctx) || !ctx.sessionId) return false;
-  const target = selectInjectRun(deps.getLiveExecutions(ctx.channel));
+  const target = selectInjectRun(deps.getLiveExecutions(ctx.channel), ctx.sessionId);
   if (!target) return false;
   const platformAttachments = ctx.prepareBackendAttachments
     ? await ctx.prepareBackendAttachments()

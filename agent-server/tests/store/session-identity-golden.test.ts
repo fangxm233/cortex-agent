@@ -322,6 +322,7 @@ test('golden 9: registerThreadSession keeps track id as sessionId and backend id
       lastUsedAt: '<ts>',
       label: 'nightly run label',
       profileName: 'plan',
+      agentName: null,
       backendSessionId: 'backend-sid-9',
       scheduleId: 'sched-9',
       browser: null,

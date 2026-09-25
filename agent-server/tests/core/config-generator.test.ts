@@ -11,7 +11,11 @@ import {
   buildInteractionConfig,
   materializeMcpToolAllowlistConfigs,
 } from '../../src/core/config-generator.js';
-import { MCP_TOOL_ALLOWLIST_ENV } from '../../src/core/mcp-tool-gate.js';
+import {
+  MCP_TOOLS_BY_SERVER,
+  MCP_TOOL_ALLOWLIST_ENV,
+  registerGatedMcpTools,
+} from '../../src/core/mcp-tool-gate.js';
 
 function expectedBundled(...bundles: string[]) {
   return {
@@ -87,7 +91,8 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
   });
 });
 
-test('materialization refuses an allowlist name outside the composed server union', () => {
+test('materialization refuses an allowlist name that exists in no bundle at all', () => {
+  // Typo protection, and only that: nothing would ever register under `task_sttaus`, on any surface.
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
   const threadPath = path.join(root, 'thread.json');
   writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
@@ -96,6 +101,24 @@ test('materialization refuses an allowlist name outside the composed server unio
       [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'),
     ),
     /Unknown MCP tool.*task_sttaus/,
+  );
+});
+
+test('an allowlist is an upper bound: a real tool this spawn does not compose is dropped', () => {
+  // `send_file` is a real tool of the `cortex-web` bundle. A thread step composes no such bundle,
+  // so the tool is simply absent there — which must narrow the materialized list, not refuse the
+  // spawn. Refusing would turn an agent's delivery preference into a rule about which surfaces it
+  // is allowed to run on.
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const threadPath = path.join(root, 'thread.json');
+  writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [threadPath], ['thread_wait', 'send_file'], path.join(root, 'generated'),
+  );
+  const config = JSON.parse(readFileSync(generated, 'utf8'));
+  assert.equal(
+    config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV],
+    JSON.stringify(['thread_wait']),
   );
 });
 
@@ -115,6 +138,50 @@ test('dynamic session bundles participate in allowlist validation and config ide
   assert.notEqual(direct[0], interaction[0]);
   const config = JSON.parse(readFileSync(interaction[0], 'utf8'));
   assert.equal(config.mcpServers['cortex-core'].args[1].includes('cortex-interaction-bridge'), true);
+});
+
+// A minimal-surface agent (the `creative` environment) keeps the direct composition and narrows it
+// with an allowlist instead: delivery plus the one interaction the user can answer. The rest of the
+// bridge — plan mode, the commission drill — is loaded as a bundle and must still never register.
+const MINIMAL_DELIVERY_SURFACE = ['send_file', 'send_view', 'cortex_ask_user'];
+
+test('a delivery-only allowlist admits one interaction-bridge tool and no other', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
+  const directPath = path.join(root, 'direct.json');
+  writeFileSync(directPath, JSON.stringify(buildFullConfig('/test')));
+  const bundles = [
+    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
+    'cortex-interaction-bridge', 'cortex-web',
+  ] as const;
+
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [directPath], MINIMAL_DELIVERY_SURFACE, path.join(root, 'generated'), bundles,
+  );
+  const config = JSON.parse(readFileSync(generated, 'utf8'));
+  const allowlist = config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV];
+  assert.equal(allowlist, JSON.stringify(['cortex_ask_user', 'send_file', 'send_view']));
+  for (const name of MCP_TOOLS_BY_SERVER['cortex-interaction-bridge']) {
+    if (name === 'cortex_ask_user') continue;
+    assert.equal(allowlist.includes(name), false, `${name} must not reach the session`);
+  }
+});
+
+test('the registration gate drops the bridge tools the allowlist omits', () => {
+  const registered: string[] = [];
+  const server = {
+    tool: (name: string) => registered.push(name),
+    registerTool: (name: string) => registered.push(name),
+  };
+  registerGatedMcpTools(
+    server as never,
+    (target) => {
+      for (const name of MCP_TOOLS_BY_SERVER['cortex-interaction-bridge']) {
+        (target as unknown as { registerTool: (n: string) => void }).registerTool(name);
+      }
+    },
+    new Set(MINIMAL_DELIVERY_SURFACE),
+  );
+  assert.deepEqual(registered, ['cortex_ask_user']);
 });
 
 test('Windows bundled-server paths are recognized during materialization', () => {

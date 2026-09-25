@@ -1,7 +1,7 @@
 // input:  Installed tRPC server, ephemeral loopback HTTP server
 // output: Genuine tRPC SSE and query test resources
 // pos:    Reproducible native framing fixture capture
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { initTRPC } from '@trpc/server';
 import { createHTTPServer } from '@trpc/server/adapters/standalone';
 import { writeFile } from 'node:fs/promises';

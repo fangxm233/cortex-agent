@@ -1,10 +1,12 @@
 import type {
-  ConfigProfileEntry, ModelCatalogSnapshot, SessionSelectionOverride, SessionTranscript,
+  ConfigAgentEntry, ConfigProfileEntry, ModelCatalogSnapshot, SessionSelectionOverride,
+  SessionTranscript,
 } from '@cortex-agent/ui-contract';
 import {
-  buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange,
-  groupModelOptions, modeChange, modelChange, profileChange, selectionChipParts, selectionRootRows,
-  thinkingChange, visibleModelOptions, visibleProfileOptions,
+  agentChange, agentRowSub, buildAgentOptions, buildModeOptions, buildModelOptions,
+  buildProfileOptions, buildThinkingOptions, clearAllChange, groupModelOptions, modeChange,
+  modelChange, profileChange, selectionChipParts, selectionRootRows, thinkingChange,
+  visibleModelOptions, visibleProfileOptions,
   type EffectiveSelection, type SelectionRootRow,
 } from '@/features/session/list/selection-menu';
 import type { SelectionChange } from '@/features/session/state/selected-session';
@@ -167,15 +169,18 @@ export function profileSub(p: ConfigProfileEntry): string {
 }
 
 export interface SelectionSheetRow {
-  /** Stable identity, also the test hook: `profile:<name>`, `model:<backend>:<provider>:<id>`,
-   *  `model:follow`, `thinking:<level>`, `thinking:follow`, `mode:<mode>`, `mode:follow`,
-   *  `selection:clear`. */
+  /** Stable identity, also the test hook: `profile:<name>`, `agent:<name>`, `agent:default`,
+   *  `model:<backend>:<provider>:<id>`, `model:follow`, `thinking:<level>`, `thinking:follow`,
+   *  `mode:<mode>`, `mode:follow`, `selection:clear`. */
   id: string;
   label: string;
   sub: string | null;
   current: boolean;
   /** What to send if it is tapped. Null means the tap is a no-op (it is already running). */
   change: SelectionChange | null;
+  /** Drawn, but not available to THIS conversation — an agent on the other backend. The sub says
+   *  why; only the agent list has such rows. */
+  disabled?: boolean;
 }
 
 export interface SelectionSheetSection {
@@ -227,7 +232,10 @@ function joinNotes(...notes: Array<string | null>): string | undefined {
  * bills more than one way — ROUTE, each with a "follow the profile" row so a choice can be taken
  * back. Nothing unpickable is drawn; a footer says how many rows were held back and why.
  * Every row carries the change it produces, so the screen never re-derives the rule — it is the same
- * shared arithmetic the desktop menu runs (features/workbench/selection-menu).
+ * shared arithmetic the desktop menu runs (features/session/list/selection-menu).
+ *
+ * The ENVIRONMENT is not in here: which agent the conversation runs in is its own axis, with its own
+ * chip and its own sheet (`buildAgentSheet`), the way the desktop composer splits them.
  */
 export function buildSelectionSheet(input: {
   profiles: ConfigProfileEntry[];
@@ -341,10 +349,60 @@ export function buildSelectionSheet(input: {
   };
 }
 
+export interface AgentSheetCopy {
+  /** The row that hands the conversation back to the host's default, and what that means. */
+  agentDefault: string;
+  agentFollowDefault: string;
+  /** `{backend}` template for an agent only a new conversation could take. */
+  agentCrossBackend: string;
+}
+
+/**
+ * The environment sheet: one flat list, because an agent is a whole answer with nothing to refine
+ * underneath it — a "follow the host default" row, then every template this host declares.
+ *
+ * Unlike the model list this one DRAWS what it cannot offer: a live conversation may not change
+ * backend, so an agent pinning the other backend's profile is greyed with the backend named rather
+ * than folded into a count. There are a handful of environments, and "exists, but needs a new
+ * conversation" is the answer a user can act on. Same arithmetic as the desktop menu, so a tap and
+ * a click cannot mean different things.
+ */
+export function buildAgentSheet(input: {
+  agents: ConfigAgentEntry[];
+  profiles: ConfigProfileEntry[];
+  /** The agent this conversation runs in; null = whatever the host's default is. */
+  agentName: string | null;
+  currentBackend: string;
+  hasHistory: boolean;
+  copy: AgentSheetCopy;
+}): SelectionSheetRow[] {
+  const { agents, profiles, agentName, currentBackend, hasHistory, copy } = input;
+  const options = buildAgentOptions(agents, profiles, { agentName, currentBackend, hasHistory });
+  return [
+    {
+      id: 'agent:default',
+      label: copy.agentDefault,
+      sub: copy.agentFollowDefault,
+      current: agentName === null,
+      change: agentChange(options, agentName, null),
+    },
+    ...options.map((option): SelectionSheetRow => ({
+      id: `agent:${option.name}`,
+      label: option.name,
+      sub: agentRowSub(option, copy.agentCrossBackend),
+      current: option.active,
+      change: agentChange(options, agentName, option.name),
+      ...(option.disabled ? { disabled: true } : {}),
+    })),
+  ];
+}
+
 // ── 7a long-press action overlay placement ──
-// The overlay covers the chat BODY frame (transcript + composer), not the header — the same region
-// the 2b full-screen editor takes, which is why the band below needs no header/safe-area arithmetic.
-/** Inset from the top of that frame the floated group may not cross. */
+// The overlay covers the chat BODY frame (transcript + composer), which runs the full height of the
+// screen because the header floats over it rather than sitting above it in flow. The band the menu
+// must not cross is therefore the header pill's bottom edge, which only the DOM knows (its top is a
+// safe-area inset) — callers measure it and pass it as `safeTop`; this constant is just the floor.
+/** Minimum inset from the top of that frame the floated group may not cross. */
 export const MSG_MENU_SAFE_TOP = 12;
 /** Inset from the bottom of that frame — keeps the menu off the screen edge. */
 export const MSG_MENU_SAFE_BOTTOM = 16;
@@ -358,6 +416,13 @@ export interface MsgMenuLayout {
   overlayHeight: number;
   /** Measured height of the floated group: bubble copy + timestamp + menu. */
   groupHeight: number;
+  /** Overlay-local y the group may not rise above — the floating header's bottom edge plus a gap. */
+  safeTop?: number;
+}
+
+/** The effective top band: the measured header clearance, never below the bare minimum. */
+export function msgMenuSafeTop(safeTop?: number): number {
+  return Math.max(MSG_MENU_SAFE_TOP, safeTop ?? 0);
 }
 
 /**
@@ -370,9 +435,10 @@ export interface MsgMenuLayout {
  * top instead of escaping upward off-screen (the copy carries its own height cap for that case).
  */
 export function msgMenuGroupTop(l: MsgMenuLayout): number {
+  const safeTop = msgMenuSafeTop(l.safeTop);
   const lowest = l.overlayHeight - MSG_MENU_SAFE_BOTTOM - l.groupHeight;
-  if (l.anchorTop == null || lowest <= MSG_MENU_SAFE_TOP) return MSG_MENU_SAFE_TOP;
-  return Math.max(MSG_MENU_SAFE_TOP, Math.min(l.anchorTop - l.overlayTop, lowest));
+  if (l.anchorTop == null || lowest <= safeTop) return safeTop;
+  return Math.max(safeTop, Math.min(l.anchorTop - l.overlayTop, lowest));
 }
 
 // ── 1o attachment chip projection over the shared upload state machine ──

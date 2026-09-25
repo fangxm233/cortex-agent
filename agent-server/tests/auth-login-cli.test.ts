@@ -1,7 +1,7 @@
 // input:  login CLI, fake status and login service
 // output: bilingual login, SIGINT/expiry, secret and handoff-fence regressions
 // pos:    Isolated CLI authentication boundary tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { setLocale, t } from '../src/core/i18n.js';
 import { runAuthLoginCli, type LoginCliDeps } from '../src/entry/auth-login-cli.js';

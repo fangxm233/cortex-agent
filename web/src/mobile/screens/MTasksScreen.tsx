@@ -57,7 +57,8 @@ export function MTasksScreen() {
   const scope = currentProjectId ? projectInitials(currentProjectId) : undefined;
 
   if (query.isLoading) {
-    return <MScreen label="1d 任务"><div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div></MScreen>;
+    // The tab bar floats over this screen, so even a one-line placeholder pays the clearance.
+    return <MScreen label="1d 任务"><div style={{ padding: '16px 16px calc(16px + var(--m-tabbar-clearance, 0px))', color: MC.muted, fontSize: 13 }}>{copy.empty}</div></MScreen>;
   }
   return (
     <MTasksView

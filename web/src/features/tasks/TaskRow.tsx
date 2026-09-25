@@ -1,4 +1,10 @@
-import type { CSSProperties } from 'react';
+// input:  react, feature data, theme tokens
+// output: TaskRow presentation
+// pos:    Dense task material cards and state chips
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
+import { useState, type CSSProperties } from 'react';
+import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import { displayClaimId } from './task-claim';
@@ -23,25 +29,30 @@ const DOT_COLORS: Record<TaskGroupKind, string> = {
   'in-progress': 'var(--proto-danger)',
   actionable: 'var(--proto-amber)',
   'approval-needed': 'var(--proto-amber)',
-  'waiting-deps': 'var(--proto-faint)',
+  'waiting-deps': 'var(--proto-muted)',
   blocked: 'var(--proto-amber)',
   done: 'var(--proto-success)',
 };
 
+// One quiet boundary and a blur-free material keep dense task metadata readable.
 const CARD_STYLE: CSSProperties = {
-  background: 'var(--proto-card)',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 9,
+  background: 'var(--material-card-bg)',
+  border: 0,
+  borderRadius: 'var(--r-card)',
   padding: '9px 12px',
-  boxShadow: 'var(--shadow-card-subtle)',
+  boxShadow: '0 0 0 1px var(--proto-line-2), var(--material-card-shadow)',
   cursor: 'pointer',
+};
+
+const CARD_HOVER_STYLE: CSSProperties = {
+  boxShadow: '0 0 0 1px var(--proto-accent-border), var(--material-card-shadow)',
 };
 
 const META_STYLE: Record<TaskMetaKind, CSSProperties> = {
   claim: { color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)' },
   approval: { color: 'var(--proto-amber-text)', background: 'var(--proto-amber-bg)' },
   blocked: { color: 'var(--proto-danger)', background: 'var(--proto-danger-bg)' },
-  waiting: { color: 'var(--proto-muted-2)', background: 'var(--proto-gray)' },
+  waiting: { color: 'var(--proto-muted)', background: 'var(--proto-gray)' },
   done: { color: 'var(--proto-success)', background: 'var(--proto-success-bg)' },
 };
 
@@ -79,8 +90,7 @@ function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta |
 function TaskIdentity({ task }: { task: TaskInfo }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
-      <span style={{ color: 'var(--proto-faint)', fontSize: 8.5, flex: 'none' }}>▸</span>
-      <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
+      <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
         {task.id}
       </span>
       <span
@@ -108,9 +118,9 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
       <span
         data-task-blocker={meta.kind === 'blocked' ? 'true' : undefined}
         style={{
-          font: "500 9.5px 'IBM Plex Mono',monospace",
+          font: "500 11px 'IBM Plex Mono',monospace",
           padding: '1.5px 7px',
-          borderRadius: 999,
+          borderRadius: 'var(--r-pill)',
           ...META_STYLE[meta.kind],
           ...(meta.kind === 'blocked' ? BLOCKED_META_STYLE : {}),
         }}
@@ -124,8 +134,20 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
 export function TaskRow({ task, kind, onOpen }: TaskRowProps) {
   const vocab = useVocab();
   const meta = taskMeta(task, kind, vocab);
+  const [hover, setHover] = useState(false);
   return (
-    <div data-task-id={task.id} data-status={task.status} onClick={() => onOpen(task)} style={CARD_STYLE}>
+    <div
+      className="content-surface"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(task); } }}
+      data-task-id={task.id}
+      data-status={task.status}
+      onClick={() => onOpen(task)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={hover ? { ...CARD_STYLE, ...CARD_HOVER_STYLE } : CARD_STYLE}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: DOT_COLORS[kind], flex: 'none', marginTop: 5 }} />
         <div style={{ minWidth: 0, flex: 1 }}>

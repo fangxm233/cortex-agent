@@ -1,3 +1,7 @@
+// input:  DockProvider, DockTabStrip, DockFileBody, WebBody
+// output: DockPane
+// pos:    Glass dock chrome preserving opaque document bodies
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { splitFromDrag } from './dock-split';
@@ -37,7 +41,7 @@ export function DockPane(): JSX.Element | null {
 
   bodyOrder.current = syncBodyOrder(bodyOrder.current, state?.tabs ?? []);
 
-  // Divider drag: the resizable region is the chat pane + this pane (the two rails are fixed-width),
+  // Divider drag: the resizable region is the chat pane + this pane (the rails hold still meanwhile),
   // measured from this pane and its preceding sibling at drag start.
   const onResizeStart = (e: React.MouseEvent): void => {
     e.preventDefault();
@@ -86,11 +90,12 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <span role="button" data-close-dock="" title="Close the dock" onClick={closeDock} style={ACTION_STYLE}>×</span>
+          <button type="button" className="dock-control" data-close-dock="" title="Close the dock" aria-label="Close the dock" onClick={closeDock}>×</button>
         }
       />
 
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: 'var(--proto-card)' }}>
+      {/* Chrome lets the workspace sheet show through; documents own their opaque fill. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {state === null
           ? <DockCentered>{EMPTY_HINT}</DockCentered>
           : bodyOrder.current.map((id) => (
@@ -118,7 +123,7 @@ function DockTabBody({ state, id, onUpdateWeb }: {
     flexDirection: 'column',
     minHeight: 0,
     overflow: 'hidden',
-    background: isFileTab(tab) ? dockFileBackground(tab.item) : 'var(--proto-card)',
+    background: isFileTab(tab) ? dockFileBackground(tab.item) : 'transparent',
     display: active ? 'flex' : 'none',
   };
   return (
@@ -134,23 +139,7 @@ const PANE_STYLE: CSSProperties = {
   minWidth: 0,
   flexDirection: 'column',
   minHeight: 0,
-  background: 'var(--proto-card)',
+  background: 'transparent',
   borderLeft: '1px solid var(--proto-line)',
   position: 'relative',
-};
-
-const ACTION_STYLE: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 8,
-  border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)',
-  color: 'var(--proto-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 16,
-  cursor: 'pointer',
-  flex: 'none',
-  userSelect: 'none',
 };

@@ -42,6 +42,13 @@ export interface ClaudeSpawnOptions {
   supplementalMcpConfigPath?: string | null;
   /** Omit all configured ambient hooks. */
   disableHooks?: boolean;
+  /** Drop the CLI's whole skill layer (`--disable-slash-commands`). This is the only lever that
+   *  reaches the skills Cortex never supplied — user-level plugins, `~/.claude/skills/` and the
+   *  CLI's built-ins — since `--plugin-dir` only ever adds Cortex's own. */
+  disableSkills?: boolean;
+  /** Setting files the CLI may load (`--setting-sources`). Absent keeps its default set; an empty
+   *  array is passed as an empty value, which the CLI accepts as "load none". */
+  settingSources?: string[];
   /** Explicit partial-message policy; absent reads the daemon setting. */
   streamDeltas?: boolean;
   /** Select Slack tools in the bundled server for Slack-originated direct sessions. */
@@ -221,6 +228,14 @@ function appendRepeatedOption(
   for (const value of values ?? []) args.push(flag, value);
 }
 
+/** The two levers that narrow what the CLI loads on its own behalf. `--setting-sources` takes the
+ *  list verbatim, so an empty array spells the empty value the CLI reads as "load none" — that is
+ *  what keeps a user's `enabledPlugins` and ambient hooks out of a minimal-surface session. */
+function appendEnvironmentOptions(args: string[], options: ClaudeSpawnOptions): void {
+  if (options.disableSkills) args.push('--disable-slash-commands');
+  if (options.settingSources) args.push('--setting-sources', options.settingSources.join(','));
+}
+
 function appendExtraOptions(
   args: string[],
   options: Record<string, string> | null | undefined,
@@ -254,6 +269,7 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   appendCoreArgs(args, configs, composition, tools);
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);
+  appendEnvironmentOptions(args, options);
   appendExtraOptions(args, options.extraOption);
   args.push('--settings', JSON.stringify(buildClaudeSettings(options, tools)));
   appendSessionIdentity(args, options);
@@ -455,6 +471,10 @@ export function buildClaudeEnv(
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
   // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
+  // Declared, not inferred: hooks branch on which backend loaded the AGENTS.md chain natively
+  // (agents-md-injector.mjs), and "absent means Claude" would silently mis-handle any future
+  // spawn path that forgets to set it. PI states itself in agent-adapter/pi/session-options.ts.
+  env.CORTEX_BACKEND = 'claude';
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);

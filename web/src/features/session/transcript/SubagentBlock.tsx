@@ -1,28 +1,33 @@
+// input:  React, subagent metadata, nested transcript content
+// output: SubagentBlock
+// pos:    Foldable subagent card for desktop and touch transcripts
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { modelLabel } from '@/features/session/composer/model-label';
 
 const mono = "'IBM Plex Mono',monospace";
 
 const typeChipStyle: CSSProperties = {
-  font: `600 9px ${mono}`, color: 'var(--proto-muted)',
-  background: 'var(--proto-gray)', padding: '1.5px 7px',
-  borderRadius: 5, flex: 'none',
+  font: `600 11px ${mono}`, color: 'var(--proto-muted)',
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '1.5px 7px',
+  borderRadius: 'var(--r-chip)', flex: 'none',
 };
 /** Outlined rather than filled, so the pair reads as one identity at two weights: the type is what
  *  was asked for, the model is merely what served it. Omitted entirely when unknown — an empty slot
  *  would claim we know the model is nothing, and a just-spawned subagent has not answered yet. */
 const modelChipStyle: CSSProperties = {
-  font: `600 9px ${mono}`, color: 'var(--proto-muted-3)',
+  font: `600 11px ${mono}`, color: 'var(--proto-muted)',
   border: '1px solid var(--proto-line-2)', padding: '1.5px 7px',
-  borderRadius: 5, flex: 'none',
+  borderRadius: 'var(--r-chip)', flex: 'none',
 };
 const descStyle: CSSProperties = {
   font: `400 11.5px ${mono}`, color: 'var(--proto-ink-2)',
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
 };
 const metaStyle: CSSProperties = {
-  font: `400 10.5px ${mono}`, color: 'var(--proto-muted)', flex: 'none', marginLeft: 'auto',
+  font: `400 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none', marginLeft: 'auto',
 };
 
 /** The dot stands where the disclosure caret used to, so the row leads with state instead of with
@@ -47,26 +52,34 @@ const promptStyle: CSSProperties = {
   whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word',
 };
 const promptLabelStyle: CSSProperties = {
-  font: `600 9px ${mono}`, color: 'var(--proto-muted-3)', marginBottom: 5,
+  font: `600 11px ${mono}`, color: 'var(--proto-muted)', marginBottom: 5,
   textTransform: 'uppercase', letterSpacing: '.05em',
 };
 
-function headerStyle(hover: boolean, expanded: boolean): CSSProperties {
+/** Touch headers grow to a finger-sized target and let the description take its own line on a
+ *  phone rather than shrink to a few letters beside the chips. */
+const TOUCH_HEADER_HEIGHT = 44;
+
+function headerStyle(hover: boolean, expanded: boolean, touch: boolean): CSSProperties {
   return {
+    ...MENU_BUTTON_STYLE,
     position: 'sticky', top: 0, zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
-    color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
-    background: 'var(--proto-rail)',
-    borderRadius: expanded ? '7px 7px 0 0' : 7,
+    ...(touch ? { flexWrap: 'wrap', minHeight: TOUCH_HEADER_HEIGHT, boxSizing: 'border-box' } : {}),
+    color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
+    // Sticky text must occlude the scrolling body at every glass strength, without a filter.
+    background: 'var(--proto-card)',
+    borderRadius: expanded ? 'var(--r-card) var(--r-card) 0 0' : 'var(--r-card)',
     padding: '6px 13px', cursor: 'pointer', minWidth: 0,
   };
 }
 
 function boxStyle(hover: boolean): CSSProperties {
   return {
-    background: 'var(--proto-rail)',
+    background: 'var(--material-card-bg)',
+    boxShadow: 'var(--material-card-shadow)',
     border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
-    borderRadius: 8,
+    borderRadius: 'var(--r-card)',
   };
 }
 
@@ -78,13 +91,15 @@ function boxStyle(hover: boolean): CSSProperties {
  * rows with the same renderer the top level uses — the caller passes them in as `children` rather
  * than the block reaching back into the row renderer, which would be a cycle.
  */
-export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, children }: {
+export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, touch = false, children }: {
   agentType: string | null;
   description: string | null;
   prompt: string | null;
   model: string | null;
   status: 'running' | 'done';
   toolCount: number;
+  /** Mobile transcript: finger-sized wrapping header and no hover state. */
+  touch?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const L = useVocab();
@@ -94,13 +109,15 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
   const tools = toolCount === 1 ? `1 ${L.toolCallUnit}` : `${toolCount} ${L.toolCallsUnit}`;
   return (
     <div style={boxStyle(hover)}>
-      <div
+      <button
+        type="button"
+        className={MENU_FOCUS}
         onClick={() => setExpanded(!expanded)}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onMouseEnter={touch ? undefined : () => setHover(true)}
+        onMouseLeave={touch ? undefined : () => setHover(false)}
         role="button"
         aria-expanded={expanded}
-        style={headerStyle(hover, expanded)}
+        style={headerStyle(hover, expanded, touch)}
       >
         <span
           style={statusDotStyle(status === 'running')}
@@ -108,9 +125,9 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
         />
         <span style={typeChipStyle}>{agentType || L.subagentFallbackLabel}</span>
         {model ? <span style={modelChipStyle}>{modelLabel(model)}</span> : null}
-        <span style={descStyle}>{label}</span>
+        <span style={touch ? { ...descStyle, flex: '1 1 100px' } : descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
-      </div>
+      </button>
       {expanded ? (
         <div style={bodyStyle}>
           {prompt ? (

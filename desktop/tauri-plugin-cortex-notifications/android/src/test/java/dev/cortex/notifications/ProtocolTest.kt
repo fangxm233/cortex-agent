@@ -1,7 +1,7 @@
 // input:  JUnit, notification protocol
 // output: Parsing, identity and framing regression tests
 // pos:    Pure notification protocol tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import org.json.JSONObject

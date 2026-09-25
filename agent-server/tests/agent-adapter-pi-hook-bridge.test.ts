@@ -123,10 +123,10 @@ test('handlePostToolUse integration: session-activity-tracker writes read_file t
 });
 
 // ---------------------------------------------------------------------------
-// Test 6: handlePostToolUse — Edit receives CORTEX.md context parity
+// Test 6: handlePostToolUse — Edit receives AGENTS.md context parity
 // ---------------------------------------------------------------------------
 
-test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', async (t) => {
+test('handlePostToolUse: Edit injects unseen AGENTS.md ancestor context', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-home-'));
   const previousHome = process.env.CORTEX_HOME;
@@ -139,7 +139,7 @@ test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', async 
   });
 
   const target = path.join(root, 'target.txt');
-  fs.writeFileSync(path.join(root, 'CORTEX.md'), 'pi-edit-ancestor-rule');
+  fs.writeFileSync(path.join(root, 'AGENTS.md'), 'pi-edit-ancestor-rule');
   fs.writeFileSync(target, 'after edit');
 
   const result = await handlePostToolUse({
@@ -160,7 +160,7 @@ test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', async 
 // Test 7: PI child hook preserves the stable Cortex cache session identity
 // ---------------------------------------------------------------------------
 
-test('runHookScript keeps CORTEX.md cache on the parent stable session id', async (t) => {
+test('runHookScript keeps AGENTS.md cache on the parent stable session id', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-home-'));
   const previousHome = process.env.CORTEX_HOME;
@@ -178,12 +178,12 @@ test('runHookScript keeps CORTEX.md cache on the parent stable session id', asyn
     fs.rmSync(cortexHome, { recursive: true, force: true });
   });
 
-  fs.writeFileSync(path.join(root, 'CORTEX.md'), 'pi-stable-cache-rule');
+  fs.writeFileSync(path.join(root, 'AGENTS.md'), 'pi-stable-cache-rule');
   const target = path.join(root, 'target.txt');
   fs.writeFileSync(target, 'dummy');
   const hooksDir = path.resolve(_dirname, '../defaults/hooks');
 
-  await runHookScript(path.join(hooksDir, 'cortex-md-injector.mjs'), {
+  await runHookScript(path.join(hooksDir, 'agents-md-injector.mjs'), {
     hook_event_name: 'PostToolUse',
     session_id: backendSessionId,
     tool_name: 'Read',
@@ -198,10 +198,10 @@ test('runHookScript keeps CORTEX.md cache on the parent stable session id', asyn
 });
 
 // ---------------------------------------------------------------------------
-// Test 8: before_agent_start → cortex-md-injector → event.systemPrompt mutation
+// Test 8: before_agent_start → agents-md-injector → event.systemPrompt mutation
 // ---------------------------------------------------------------------------
 
-test('before_agent_start: runHookScript with cortex-md-injector appends CORTEX.md to event.systemPrompt', async (t) => {
+test('before_agent_start: runHookScript with agents-md-injector appends AGENTS.local.md to event.systemPrompt', async (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-before-agent-'));
   t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
@@ -214,8 +214,9 @@ test('before_agent_start: runHookScript with cortex-md-injector appends CORTEX.m
     fs.rmSync(cortexHome, { recursive: true, force: true });
   });
 
-  // Create a CORTEX.md in the temp dir
-  fs.writeFileSync(path.join(tmpDir, 'CORTEX.md'), 'pi-before-agent-content');
+  // AGENTS.md in cwd is loaded by the backend itself, so the hook only marks it seen. Use the
+  // .local variant — no backend reads it — to exercise the additionalContext path.
+  fs.writeFileSync(path.join(tmpDir, 'AGENTS.local.md'), 'pi-before-agent-content');
 
   const sessionId = `pi-before-agent-${process.pid}-${Date.now()}`;
   t.onTestFinished(() => {
@@ -232,13 +233,13 @@ test('before_agent_start: runHookScript with cortex-md-injector appends CORTEX.m
     cwd: tmpDir,
   };
 
-  const result = await runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload);
+  const result = await runHookScript(path.join(HOOKS_DIR, 'agents-md-injector.mjs'), payload);
   const ctxText = (result as any)?.hookSpecificOutput?.additionalContext;
 
   assert.ok(ctxText, 'additionalContext should be present from before_agent_start call');
   assert.ok(
     typeof ctxText === 'string' && ctxText.includes('pi-before-agent-content'),
-    'additionalContext contains CORTEX.md content',
+    'additionalContext contains AGENTS.local.md content',
   );
 
   // Simulate the handler's actual mutation logic
@@ -248,5 +249,5 @@ test('before_agent_start: runHookScript with cortex-md-injector appends CORTEX.m
   }
 
   assert.ok(event.systemPrompt.includes('base prompt'), 'original systemPrompt preserved');
-  assert.ok(event.systemPrompt.includes('pi-before-agent-content'), 'systemPrompt now includes CORTEX.md content');
+  assert.ok(event.systemPrompt.includes('pi-before-agent-content'), 'systemPrompt now includes AGENTS.md content');
 });

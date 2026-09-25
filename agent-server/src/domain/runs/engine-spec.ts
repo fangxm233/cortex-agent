@@ -139,6 +139,10 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
       // and `disableHooks` are the same fact with opposite polarity, and `undefined` must survive
       // as `undefined` so an unset policy keeps the adapter's own default.
       disableHooks: request.policy.hooks === undefined ? undefined : !request.policy.hooks,
+      // Same polarity rule for skills, and the same reason to keep `undefined` alive: only an
+      // agent that opted out states anything here.
+      disableSkills: request.policy.skills === false ? true : undefined,
+      settingSources: request.policy.settingSources,
       streamDeltas: request.policy.streamDeltas,
       captureTranscripts: request.policy.captureTranscripts,
       preserveUnreportedAccounting: request.benchmark?.preserveUnreportedAccounting,

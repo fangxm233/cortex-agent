@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
+import { readRebuildProgress } from '@core/rebuild-progress.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
@@ -9,6 +10,7 @@ import { getServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
+  DaemonRebuildProgress,
   SystemDaemonStatusParams,
   SystemRateLimitStatus,
   SystemRateLimitStatusParams,
@@ -136,7 +138,24 @@ export async function handleSystemDaemonStatus(
   return {
     processes,
     lastRestart: { at: lastRestartAt, reason: lastRestartReason },
+    rebuild: liveRebuildProgress(daemonPid, daemonAlive),
   };
+}
+
+/**
+ * The supervisor's published pipeline record, or null.
+ *
+ * A record left `running` by a supervisor that has since died would otherwise render as a rebuild
+ * that never ends, so it is dropped unless the daemon that wrote it is the one currently alive. A
+ * terminal record is kept regardless of who wrote it: "the last rebuild did X" stays true across
+ * supervisor restarts.
+ */
+function liveRebuildProgress(daemonPid: number | null, daemonAlive: boolean): DaemonRebuildProgress | null {
+  const progress = readRebuildProgress();
+  if (!progress) return null;
+  if (progress.status !== 'running') return progress;
+  const ownerAlive = daemonAlive && daemonPid !== null && progress.daemonPid === daemonPid;
+  return ownerAlive ? progress : null;
 }
 
 export async function handleSystemRateLimitStatus(

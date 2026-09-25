@@ -37,6 +37,22 @@ const DAEMON_STATUS: SystemDaemonStatus = {
     uptime: '1h', port: null, extras: null,
   }],
   lastRestart: { at: null, reason: null },
+  rebuild: null,
+};
+
+const REBUILDING: SystemDaemonStatus = {
+  ...DAEMON_STATUS,
+  rebuild: {
+    status: 'running',
+    reason: 'src change: core/foo.ts',
+    current: 'web',
+    steps: [{ name: 'web', status: 'running', detail: null, startedAt: '2026-09-21T06:00:00.000Z', endedAt: null }],
+    startedAt: '2026-09-21T06:00:00.000Z',
+    updatedAt: '2026-09-21T06:00:00.000Z',
+    endedAt: null,
+    detail: null,
+    daemonPid: 42,
+  },
 };
 
 let resource: DaemonResource | null = null;
@@ -80,6 +96,20 @@ describe('useDaemonResource status lifecycle', () => {
     expect(resource?.loading).toBe(false);
     expect(resource?.daemon).toEqual(DAEMON_STATUS);
     expect(resource?.facts.processes[0]).toMatchObject({ name: 'cortex-daemon', tone: 'done' });
+    renderer.unmount();
+  });
+
+  it('polls every second while the supervisor is mid-rebuild, then drops back', async () => {
+    adapter.status.mockResolvedValue(REBUILDING);
+    const { queryClient, renderer } = await mount();
+    const query = () => queryClient.getQueryCache().find({ queryKey: ['system.daemonStatus', {}] });
+    expect((query()?.options as { refetchInterval?: number }).refetchInterval).toBe(1_000);
+    expect(resource?.facts.rebuild).toMatchObject({ status: 'running', current: 'web' });
+    // A settled rebuild is still rendered, but it no longer justifies the fast poll.
+    adapter.status.mockResolvedValue(DAEMON_STATUS);
+    await act(async () => { await queryClient.refetchQueries({ queryKey: ['system.daemonStatus', {}] }); });
+    await flush();
+    expect((query()?.options as { refetchInterval?: number }).refetchInterval).toBe(5_000);
     renderer.unmount();
   });
 

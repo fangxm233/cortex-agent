@@ -1,3 +1,7 @@
+// input:  Transcript rows, interaction actions, edit context
+// output: MessageStream, ChatRows, InteractionRowCard, edit types
+// pos:    Streaming transcript with readable compact metadata
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
@@ -24,7 +28,7 @@ import { ChatNotice } from './ChatNotice';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
-const COLUMN_W = 756;
+const COLUMN_W = 760;
 const GUTTER = 32;
 
 /** Where a jump parks its target — the column's own top padding, so the message lands where a fresh
@@ -66,7 +70,7 @@ function Divider({ text }: { text: string }): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-faint)' }}>{text}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-muted)' }}>{text}</div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
     </div>
   );
@@ -122,9 +126,13 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
           <div
             style={{
-              background: 'var(--proto-gray)',
-              borderRadius: '14px 14px 4px 14px',
-              padding: '9px 14px',
+              // Raised glass on the transcript, NOT a filter: this row scrolls, and blurring a
+              // scrolling surface re-reads the backdrop on every frame. The hairline is a shadow
+              // ring rather than a border so the bubble keeps its exact size.
+              background: 'var(--glass-2)',
+              boxShadow: 'var(--shadow-card-soft), 0 0 0 1px var(--proto-line)',
+              borderRadius: 'var(--r-float) var(--r-float) var(--r-chip) var(--r-float)',
+              padding: '10px 14px',
               fontSize: 13.5,
               lineHeight: 1.55,
               color: pending ? 'var(--proto-muted)' : 'var(--proto-ink)',
@@ -144,7 +152,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           style={{ height: 26, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}
         >
           {timeLabel && (
-            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+            <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', whiteSpace: 'nowrap', flex: 'none' }}>
               {timeLabel}
             </span>
           )}
@@ -210,20 +218,20 @@ function SystemHintRow({ origin, text, ts, pending, debug }: {
         aria-hidden="true"
         style={{ width: 3, alignSelf: 'stretch', minHeight: 14, borderRadius: 2, background: 'var(--proto-line)', flex: 'none' }}
       />
-      <span style={{ font: `600 10px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
+      <span style={{ font: `600 11px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
         {systemOriginLabel(origin, L)}
       </span>
       {summary && (
         <span
           title={summary}
-          style={{ fontSize: 11.5, color: 'var(--proto-faint)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{ fontSize: 11.5, color: 'var(--proto-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {summary}
         </span>
       )}
       <span style={{ flex: 1 }} />
       {timeLabel && (
-        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', whiteSpace: 'nowrap', flex: 'none' }}>
           {timeLabel}
         </span>
       )}
@@ -272,7 +280,7 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
   return (
     <div
       className="group"
-      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
+      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.7, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
@@ -288,11 +296,11 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
 
 /** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
 function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
-  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted-3)' : 'var(--proto-success)';
+  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted)' : 'var(--proto-success)';
   const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 10, opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
       <span style={{ fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
     </div>
   );
@@ -494,7 +502,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     const before = rows.slice(0, editingIdx!);
     const after = rows.slice(editingIdx! + 1);
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {before.map((row, i) => (
           <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, i)} />
         ))}
@@ -521,7 +529,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {rows.map((row, i) => (
         <Row
           key={rowKey(row, i)}
@@ -659,9 +667,9 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 12px` }}>
+        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
-          {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
+          {inlineThreadCard && <div style={{ marginTop: 18 }}>{inlineThreadCard}</div>}
         </div>
       </div>
       <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />

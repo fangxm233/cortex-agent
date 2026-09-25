@@ -1,7 +1,7 @@
 // input:  init auth coordinator, fake login terminal and snapshots
 // output: bilingual onboarding, clean cancellation and isolated installer boundary tests
 // pos:    Provider onboarding tests without real credentials
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, it, expect, vi } from 'vitest';
 import { setLocale, t } from '../src/core/i18n.js';
 import { onboardInitAuth, usableBackends } from '../src/entry/init-auth.js';

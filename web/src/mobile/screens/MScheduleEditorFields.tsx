@@ -1,3 +1,7 @@
+// input:  React, mobile kit, presentation props
+// output: MScheduleEditorFields
+// pos:    Mobile schedule material inputs and selections
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -15,15 +19,15 @@ import {
 } from '@/features/schedule/schedule-modal-vm';
 
 const label: CSSProperties = {
-  display: 'block', marginBottom: 5, color: MC.faint,
-  font: `600 9.5px ${MONO}`, letterSpacing: '.05em',
+  display: 'block', marginBottom: 5, color: MC.muted,
+  font: `600 11px ${MONO}`, letterSpacing: '.05em',
 };
 const field: CSSProperties = {
-  width: '100%', minHeight: 40, boxSizing: 'border-box',
-  border: `1px solid ${MC.hairline}`, borderRadius: 9, padding: '8px 10px',
-  background: MC.card, color: MC.ink, fontSize: 13,
+  width: '100%', minWidth: 0, minHeight: 44, boxSizing: 'border-box',
+  border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', padding: '8px 10px',
+  background: 'var(--material-inset-bg)', color: MC.ink, fontSize: 16, fontFamily: 'inherit',
 };
-const pair: CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 };
+const pair: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 };
 
 type Vocab = ReturnType<typeof useVocab>;
 
@@ -46,7 +50,7 @@ export function EditorHeader({ copy, mode, onBack }: FieldsProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 12px' }}>
       <button type="button" data-action="sheet-back" onClick={onBack} aria-label={copy.back}
-        style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 20, padding: '0 3px', cursor: 'pointer' }}>
+        style={{ border: 0, background: 'transparent', color: MC.run, fontSize: 20, padding: '0 3px', cursor: 'pointer', minWidth: 44, minHeight: 44 }}>
         ‹
       </button>
       <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink }}>
@@ -64,7 +68,7 @@ function TypeField({ copy, form, editableFields, onChange }: FieldsProps) {
   return (
     <div>
       <span style={label}>{copy.scType}</span>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: `1px solid ${MC.hairline}`, borderRadius: 9, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', overflow: 'hidden' }}>
         {SCHED_TYPES.map((type) => <TypeButton key={type} type={type} form={form}
           disabled={!editableFields.type} label={labels[type]} onChange={onChange} />)}
       </div>
@@ -80,8 +84,9 @@ function TypeButton({ type, form, disabled, label: text, onChange }: {
   return (
     <button type="button" disabled={disabled} aria-pressed={selected} onClick={() => onChange({ type })}
       style={{ border: 0, borderRight: type === 'once' ? 0 : `1px solid ${MC.hairline}`,
-        padding: '8px 2px', background: selected ? 'var(--proto-accent-bg)' : MC.card,
-        color: selected ? MC.run : MC.muted, fontSize: 10.5 }}>
+        padding: '8px 2px', minHeight: 44, background: selected ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+        boxShadow: 'var(--material-control-shadow)',
+        color: selected ? MC.run : MC.muted, fontSize: 11 }}>
       {text}
     </button>
   );
@@ -136,7 +141,7 @@ function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
 function OnceTimingNote({ copy, form, mode }: FieldsProps) {
   if (mode !== 'edit' || form.type !== 'once') return null;
   return (
-    <div data-once-timing-note style={{ border: `1px solid ${MC.hairline}`, borderRadius: 9,
+    <div data-once-timing-note style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)',
       padding: 10, color: MC.muted, fontSize: 11.5, lineHeight: 1.5 }}>
       {copy.scOnceTimingUnavailable}
     </div>
@@ -209,7 +214,8 @@ function SubmitFields({ copy, mode, valid, pending, error, onSubmit }: FieldsPro
     <>
       {error && <div role="alert" style={{ color: MC.fail, fontSize: 11.5 }}>{error}</div>}
       <button type="button" data-action="save-schedule" disabled={!valid || pending} onClick={onSubmit}
-        style={{ border: 0, borderRadius: 9, padding: 11, background: MC.run,
+        style={{ border: 0, borderRadius: 'var(--r-chip)', padding: 11, background: MC.run,
+          boxShadow: valid && !pending ? 'var(--accent-glow)' : undefined,
           color: 'var(--ink-solid-fg)', fontSize: 13, fontWeight: 700 }}>
         {mode === 'edit' ? copy.scSaveSchedule : copy.scCreateSchedule}
       </button>

@@ -1,7 +1,7 @@
 # input:  current CLI discovery, version queries, namespace checks
 # output: missing/failed CLI and isolation regression proofs
 # pos:    Unit tests for current vendor CLI compatibility support
-# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 from pathlib import Path
 

@@ -1,7 +1,7 @@
 // input:  malformed tap payloads and authoritative server targets
 // output: encoded routing, deletion and lookup failure tests
 // pos:    Mobile notification target validation regressions
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { describe, expect, it, vi } from 'vitest';
 import { notificationTargetId, resolveNotificationRoute, sessionPathId } from './m-notification-routing';

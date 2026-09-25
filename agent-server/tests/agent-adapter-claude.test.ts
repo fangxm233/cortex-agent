@@ -21,6 +21,10 @@ import {
 } from '../src/agent-adapter/claude/mcp-config.js';
 import { buildHooksSettings } from '../src/agent-adapter/claude/hooks-builder.js';
 import {
+  buildFullConfig, buildThreadConfig, materializeMcpToolAllowlistConfigs,
+} from '../src/core/config-generator.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
+import {
   DEFAULT_TOOLS,
   subagentBridgeTools,
   EMPTY_MCP_CONFIG,
@@ -279,6 +283,37 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
   assert.deepEqual(args, expected);
 });
 
+test('buildSpawnArgs minimal-surface agent — skills off and no setting sources', () => {
+  const args = buildSpawnArgs({
+    tools: 'Read,Write,Edit',
+    needsResume: false,
+    sessionId: 'uuid-creative',
+    disableSkills: true,
+    settingSources: [],
+  });
+  // `--plugin-dir` only ever added Cortex's own plugins; the user's enabled plugins, ~/.claude/skills
+  // and the CLI built-ins are reachable from these two flags alone.
+  assert.ok(args.includes('--disable-slash-commands'));
+  const sources = args.indexOf('--setting-sources');
+  assert.ok(sources >= 0, '--setting-sources must be present');
+  assert.equal(args[sources + 1], '', 'an empty list is passed as the empty value, which loads none');
+});
+
+test('buildSpawnArgs joins the declared setting sources and omits both flags by default', () => {
+  const sourced = buildSpawnArgs({
+    tools: null, needsResume: false, sessionId: 'uuid-sources', settingSources: ['user', 'project'],
+  });
+  assert.deepEqual(
+    sourced.slice(sourced.indexOf('--setting-sources'), sourced.indexOf('--setting-sources') + 2),
+    ['--setting-sources', 'user,project'],
+  );
+  assert.ok(!sourced.includes('--disable-slash-commands'));
+
+  const plain = buildSpawnArgs({ tools: null, needsResume: false, sessionId: 'uuid-plain' });
+  assert.ok(!plain.includes('--setting-sources'));
+  assert.ok(!plain.includes('--disable-slash-commands'));
+});
+
 test('claudeSupplementalMcpConfigJson converts stdio, streamable-http, and sse servers to Claude JSON', () => {
   const text = claudeSupplementalMcpConfigJson(conversionMcpServers());
   assert.deepEqual(JSON.parse(text), expectedConversionConfig());
@@ -415,6 +450,59 @@ test('loadFeishuMcp selects Feishu tools without adding another config', () => {
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-feishu', loadFeishuMcp: true,
   }).includes('cortex-feishu'));
+});
+
+// A minimal-surface agent names the tools it would LIKE — delivery plus the one interaction the
+// user can answer. Which of them exist depends on the surface it happens to run on, and a spawn
+// must narrow the list rather than refuse: an allowlist is an upper bound, not a requirement.
+const MINIMAL_DELIVERY_SURFACE = ['send_file', 'send_view', 'cortex_ask_user'];
+
+/** The allowlist actually materialized for one spawn's composed bundles. */
+function materializedAllowlist(options: ClaudeSpawnOptions, sourceConfig: object): string[] {
+  const root = fs.mkdtempSync(path.join(tmpdir(), 'surface-allowlist-'));
+  const configPath = path.join(root, 'source.json');
+  fs.writeFileSync(configPath, JSON.stringify(sourceConfig));
+  const [generated] = materializeMcpToolAllowlistConfigs(
+    [configPath], options.mcpToolAllowlist, path.join(root, 'generated'),
+    resolveClaudeMcpBundles(options),
+  );
+  const config = JSON.parse(fs.readFileSync(generated, 'utf8'));
+  return JSON.parse(config.mcpServers['cortex-core'].env[MCP_TOOL_ALLOWLIST_ENV]);
+}
+
+test('a minimal-surface agent spawns on web, on Slack and on a thread step alike', () => {
+  const base = {
+    tools: 'Read,Write,Edit', needsResume: false, mcpToolAllowlist: MINIMAL_DELIVERY_SURFACE,
+  } as const;
+
+  // Web: the whole delivery surface exists, so the whole list survives.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-web', isUserInitiated: true, loadWebMcp: true },
+      buildFullConfig('/test'),
+    ),
+    ['cortex_ask_user', 'send_file', 'send_view'],
+  );
+
+  // Slack: `send_file`/`send_view` live in the web bundle, which a Slack session does not compose.
+  // The agent still runs there — with the bridge tool and without the two it cannot have.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-slack', isUserInitiated: true, loadSlackMcp: true },
+      buildFullConfig('/test'),
+    ),
+    ['cortex_ask_user'],
+  );
+
+  // A thread step composes neither the bridge nor the web bundle: nothing on the list exists, and
+  // the spawn is an ordinary spawn with an empty MCP surface rather than a crash.
+  assert.deepEqual(
+    materializedAllowlist(
+      { ...base, sessionId: 'uuid-step', mcpComposition: 'thread-control' },
+      buildThreadConfig('/test'),
+    ),
+    [],
+  );
 });
 
 test('loadWebMcp selects Web tools without adding another config', () => {
@@ -793,8 +881,8 @@ test('recoverTuiOrphans only sweeps sessions matching cortex-claude- prefix', ()
 
 // --- buildHooksSettings ---
 
-const GOLDEN_HOOKS = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
-const GOLDEN_LEGACY_HOOKS = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+const GOLDEN_HOOKS = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/status-md-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}]}`;
+const GOLDEN_LEGACY_HOOKS = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/agents-md-injector.mjs"}]}]}`;
 
 test('buildHooksSettings compiles ordered Claude events from the active registry', () => {
   const entries: HookEntry[] = [

@@ -1,7 +1,7 @@
 // input:  normalized channel outcomes and bilingual vocabulary
 // output: honest per-channel toast feedback
 // pos:    Manual check presentation adapter
-// >>> If updated, update this header and parent CORTEX.md <<<
+// >>> If updated, update this header and parent AGENTS.md <<<
 
 import type { ToastInput } from '@/design/Toast';
 import type { Vocab } from '@/i18n/vocab';

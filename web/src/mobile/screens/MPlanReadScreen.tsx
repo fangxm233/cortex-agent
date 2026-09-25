@@ -40,11 +40,11 @@ export function MPlanReadScreen(): JSX.Element {
 
   if (!hit) {
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: MC.canvas }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
         <div style={{ font: `400 11px ${MONO}`, color: MC.faint }}>
           {transcriptQuery.isPending ? '…' : lang === 'zh' ? '未找到该计划' : 'Plan not found'}
         </div>
-        <button type="button" onClick={onBack} style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 999, padding: '7px 16px', fontSize: 12.5, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
+        <button type="button" onClick={onBack} style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-pill)', padding: '7px 16px', fontSize: 12.5, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
           {lang === 'zh' ? '返回会话' : 'Back to chat'}
         </button>
       </div>

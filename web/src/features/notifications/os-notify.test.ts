@@ -1,7 +1,7 @@
 // input:  shell flags, native commands and installed plugin events
 // output: post fallback, permission and nested tap regressions
 // pos:    OS notification compatibility boundary tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NotificationItem } from './notification-vm';

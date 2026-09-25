@@ -1,4 +1,10 @@
+// input:  Radix Dialog, execution queries, ExecutionDrawerView
+// output: ExecutionDrawer
+// pos:    Opaque execution status drawer
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixDialog from '@radix-ui/react-dialog';
+import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -21,8 +27,9 @@ const DRAWER_STYLE: React.CSSProperties = {
   top: 0,
   right: 0,
   bottom: 0,
-  width: 480,
-  background: 'var(--proto-ink)',
+  width: 'min(480px, 100vw)',
+  background: 'var(--log-bg)',
+  color: 'var(--log-fg)',
   zIndex: 61,
   display: 'flex',
   flexDirection: 'column',
@@ -72,7 +79,7 @@ export function ExecutionDrawer({ executionId, onClose }: ExecutionDrawerProps) 
         <RadixDialog.Content
           aria-describedby={undefined}
           style={DRAWER_STYLE}
-          className="animate-cxdrawer focus:outline-none motion-reduce:animate-none"
+          className="content-surface animate-cxdrawer focus:outline-none motion-reduce:animate-none"
         >
           <RadixDialog.Title style={SR_ONLY}>
             {executionId ? `${L.exLogTitle} ${executionId}` : L.exLogTitle}

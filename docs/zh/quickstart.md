@@ -312,7 +312,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 ```
 ~/.cortex/
 ├── .git/                       # 自动 git 初始化，所有状态均已提交
-├── CORTEX.md                   # 根智能体上下文（从默认值初始化）
+├── AGENTS.md                   # 根智能体上下文（从默认值初始化）
 ├── config/
 │   ├── .env                    # CORTEX_PLATFORM 列表 + 平台令牌 + CORTEX_MACHINE
 │   ├── feishu-user-token.json  # 飞书用户身份令牌（仅当 FEISHU_AUTH_MODE=user 时）
@@ -333,7 +333,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── mode.json               # 当前模式 + 活跃配置
 │   └── schedules.json          # 初始化的周期性任务
 ├── context/                    # 项目日志存放在这里
-│   ├── CORTEX.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
+│   ├── AGENTS.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
 ├── plugins/                    # 8 个角色限定技能插件（默认值的完整副本）
 ├── prompts/                    # 指令、系统提示、模板
 ├── rules/                      # 智能体自动加载的规则文件

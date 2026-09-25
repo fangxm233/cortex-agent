@@ -3,7 +3,7 @@
 //         (records + channel bindings + per-CHANNEL conversation header & turn history;
 //          events: put/patch/delete-*/bind/unbind/turn/conversation)
 // pos:    Low-level journal I/O for session registry state — the single owner of session identity
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -48,6 +48,10 @@ export interface SessionRecord {
   lastUsedAt: string;
   label: string | null;
   profileName: string | null;
+  /** The agent template this session runs as — its execution environment (prompt, tools, skills,
+   *  rules), the twin of `profileName` on the model axis. Absent/null means the session follows its
+   *  channel's selection, and beneath that the global default. */
+  agentName?: string | null;
   backendSessionId?: string | null;
   lastReadAt?: string | null;
   scheduleId?: string | null;
@@ -377,6 +381,7 @@ function normalizeLegacyRecord(
     lastUsedAt: toStringValue(raw.lastUsedAt),
     label,
     profileName: toNullableString(raw.profileName),
+    agentName: toOptionalNullableString(raw.agentName),
     backendSessionId: toOptionalNullableString(raw.backendSessionId),
     lastReadAt: toOptionalNullableString(raw.lastReadAt),
     scheduleId: toOptionalNullableString(raw.scheduleId),
@@ -508,6 +513,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     lastUsedAt: toStringValue(row?.lastUsedAt),
     label: toNullableString(row?.label),
     profileName: toNullableString(row?.profileName),
+    agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
@@ -536,6 +542,7 @@ function assertNewFormatRecord(raw: unknown, expectedId: string): SessionRecord 
     lastUsedAt: toStringValue(row?.lastUsedAt),
     label,
     profileName: toNullableString(row?.profileName),
+    agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
@@ -626,6 +633,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   lastUsedAt: toStringValue,
   label: toNullableString,
   profileName: toNullableString,
+  agentName: toOptionalNullableString,
   backendSessionId: toOptionalNullableString,
   lastReadAt: toOptionalNullableString,
   scheduleId: toOptionalNullableString,

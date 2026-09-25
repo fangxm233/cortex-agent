@@ -1,19 +1,33 @@
+// input:  Radix Dialog, React, shared focus-visible styles
+// output: Drawer, DrawerClose, DrawerProps, DrawerSide
+// pos:    Accessible material sheets with unfiltered reading bodies
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 
-// Side sheet built on Radix Dialog (same a11y guarantees as Modal: focus trap,
-// esc, aria-modal, focus restore). `side` anchors the panel left or right and
-// selects the matching slide animation. Token-only styling.
-
+// Radix owns focus trapping, dismissal, scroll locking and focus restoration.
 const OVERLAY_CLASS =
-  'fixed inset-0 z-40 bg-state-ink/40 ' +
+  'fixed inset-0 z-40 bg-[var(--overlay-scrim)] ' +
+  '[backdrop-filter:var(--material-scrim-filter)] [-webkit-backdrop-filter:var(--material-scrim-filter)] ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out ' +
   'motion-reduce:animate-none';
 
 const SIDE_CLASS = {
-  right: 'right-0 border-l data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
-  left: 'left-0 border-r data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left',
+  right: 'right-0 data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
+  left: 'left-0 data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left',
 } as const;
+
+// The sheet uses the full glass filter; the scrim is lighter and the body stays unfiltered.
+const CONTENT_CLASS =
+  'fixed inset-y-0 z-50 flex h-full w-[92vw] max-w-md flex-col gap-2g ' +
+  'rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
+  '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
+  'p-3g shadow-[shadow:var(--material-overlay-shadow)] focus:outline-none motion-reduce:animate-none ';
+
+const CLOSE_CLASS =
+  '-mr-1g -mt-1g rounded-[var(--r-control)] p-0.5g text-ui text-proto-muted transition-colors ' +
+  'hover:bg-surface-canvas-alt hover:text-state-ink';
 
 export type DrawerSide = keyof typeof SIDE_CLASS;
 
@@ -29,52 +43,41 @@ export interface DrawerProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-export function Drawer({
-  title,
-  description,
-  hideTitle,
-  side = 'right',
-  children,
-  footer,
-  trigger,
-  open,
-  onOpenChange,
-}: DrawerProps) {
-  const contentClass =
-    'fixed inset-y-0 z-50 flex h-full w-[92vw] max-w-md flex-col gap-2g ' +
-    'border-card bg-surface-card p-3g shadow-overlay focus:outline-none ' +
-    'motion-reduce:animate-none ' +
-    SIDE_CLASS[side];
+function DrawerHeader({ title, hideTitle }: DrawerProps) {
+  return (
+    <div className="flex items-start justify-between gap-2g">
+      <RadixDialog.Title className={hideTitle ? 'sr-only' : 'text-body font-medium text-state-ink'}>
+        {title}
+      </RadixDialog.Title>
+      <RadixDialog.Close aria-label="Close" className={CLOSE_CLASS}>✕</RadixDialog.Close>
+    </div>
+  );
+}
 
+function DrawerContent({ side = 'right', description, children, footer, ...header }: DrawerProps) {
+  return (
+    <RadixDialog.Content className={CONTENT_CLASS + SIDE_CLASS[side]}>
+      <DrawerHeader {...header} />
+      {description ? (
+        <RadixDialog.Description className="text-ui leading-relaxed text-proto-muted [overflow-wrap:anywhere]">
+          {description}
+        </RadixDialog.Description>
+      ) : null}
+      {children ? (
+        <div className="flex-1 overflow-y-auto text-ui leading-relaxed text-proto-ink-2">{children}</div>
+      ) : null}
+      {footer ? <div className="flex items-center justify-end gap-1g pt-1g">{footer}</div> : null}
+    </RadixDialog.Content>
+  );
+}
+
+export function Drawer({ trigger, open, onOpenChange, ...panel }: DrawerProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
       <RadixDialog.Portal>
         <RadixDialog.Overlay className={OVERLAY_CLASS} />
-        <RadixDialog.Content className={contentClass}>
-          <div className="flex items-start justify-between gap-2g">
-            <RadixDialog.Title
-              className={hideTitle ? 'sr-only' : 'text-body font-medium text-state-ink'}
-            >
-              {title}
-            </RadixDialog.Title>
-            <RadixDialog.Close
-              aria-label="Close"
-              className="-mr-1g -mt-1g rounded-card p-0.5g text-ui text-state-ink/60 transition-colors hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
-            >
-              ✕
-            </RadixDialog.Close>
-          </div>
-          {description ? (
-            <RadixDialog.Description className="text-ui text-state-ink/70">
-              {description}
-            </RadixDialog.Description>
-          ) : null}
-          {children ? (
-            <div className="flex-1 overflow-y-auto text-ui text-state-ink/80">{children}</div>
-          ) : null}
-          {footer ? <div className="flex items-center justify-end gap-1g pt-1g">{footer}</div> : null}
-        </RadixDialog.Content>
+        <DrawerContent {...panel} />
       </RadixDialog.Portal>
     </RadixDialog.Root>
   );

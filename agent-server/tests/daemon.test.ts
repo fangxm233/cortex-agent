@@ -4,6 +4,8 @@ import { test } from 'vitest';
 import { AGENT_SERVER_DIR } from './module-loader.js';
 import {
   planRebuildSteps,
+  planRebuildStepNames,
+  rebuildHoldsTurns,
 } from '../src/entry/daemon.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -89,6 +91,57 @@ test('planRebuildSteps omits workspace packages that are absent', () => {
       .map(s => s.label),
     ['server'],
   );
+});
+
+// --- Published progress plan ---
+//
+// The daemon page renders "n of total steps", so the published plan must be the same list the
+// pipeline will actually walk. Deriving it from planRebuildSteps is what keeps the two in step; the
+// install and restart phases are appended because the build planner does not own them.
+
+test('planRebuildStepNames publishes the build steps it will run, then install and restart', () => {
+  assert.deepEqual(
+    planRebuildStepNames({
+      repoDir: '/repo/agent-server',
+      uiContractDir: '/repo/packages/ui-contract',
+      webDir: '/repo/web',
+    }),
+    ['server', 'ui-contract', 'web', 'install', 'restart'],
+  );
+  assert.deepEqual(
+    planRebuildStepNames({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null }),
+    ['server', 'install', 'restart'],
+  );
+});
+
+// --- Turn-gate scope ---
+//
+// The gate exists for the seconds in which the running process is being replaced, and for nothing
+// else. Holding through the build would refuse turns for minutes, and a refused turn is not a
+// delayed turn: a waitpoint wake or a background agent's result is dropped outright. The install
+// and restart steps are only entered while app.ts is idle, so what remains is the tick-level race
+// between that idle check and the SIGTERM.
+
+test('the turn gate closes for install and restart, and for nothing before them', () => {
+  const holds = (current: any, status: any = 'running') => rebuildHoldsTurns({ status, current }, false);
+
+  assert.equal(holds('server'), false, 'a build writes dist/ — a live turn is in no danger');
+  assert.equal(holds('ui-contract'), false);
+  assert.equal(holds('web'), false);
+  assert.equal(holds('install'), true, 'the install overwrites the files app.js is running from');
+  assert.equal(holds('restart'), true);
+  assert.equal(holds(null), false, 'between two steps nothing is in flight');
+});
+
+test('a settled record lifts the gate, unless a restart is still queued', () => {
+  assert.equal(rebuildHoldsTurns({ status: 'succeeded', current: null }, false), false);
+  assert.equal(rebuildHoldsTurns({ status: 'aborted', current: null }, false), false);
+  assert.equal(rebuildHoldsTurns({ status: 'deferred', current: null }, false), false,
+    'a deferred pipeline is waiting for the app to work — it must not stop it working');
+  assert.equal(rebuildHoldsTurns(null, false), false, 'no pipeline at all');
+  assert.equal(rebuildHoldsTurns(null, true), true,
+    'a queued restart still replaces the process a turn would run in');
+  assert.equal(rebuildHoldsTurns({ status: 'deferred', current: null }, true), true);
 });
 
 // --- Abort notice ---

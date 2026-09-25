@@ -1,5 +1,20 @@
+// input:  Shared CSS theme tokens
+// output: MC, MONO, floating chrome insets
+// pos:    Mobile palette, reading surface aliases and floating chrome edges
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
+// BLUR BUDGET: only stationary chrome, a sheet, or a small open overlay samples
+// the backdrop. Scrolling cards and controls use shared material fills without
+// filters. Keep `card` opaque for reading/media and sticky text occlusion.
 export const MC = {
+  backdrop: 'var(--app-backdrop)',
+  /** Chrome pane fill. Only valid together with `glassFilter` — see the blur budget above. */
+  glass: 'var(--glass-1)',
+  /** Raised translucent fill with NO filter of its own; composites over whatever is behind it. */
+  glassRaised: 'var(--glass-2)',
+  glassFilter: 'var(--glass-filter)',
   canvas: 'var(--m-canvas)',
+  /** Stable reading/occlusion fill, not the default material for list cards. */
   card: 'var(--m-card)',
   ink: 'var(--m-ink)',
   sub: 'var(--m-sub)',
@@ -31,3 +46,8 @@ export const MC = {
 } as const;
 
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
+
+/** Top edge of floating tab-screen chrome (the header pill), below the OS status bar. */
+export const M_FLOAT_TOP = 'calc(8px + env(safe-area-inset-top))';
+/** Bottom edge of the floating Tab bar, above the home indicator. */
+export const M_TABBAR_BOTTOM = 'max(26px, calc(10px + env(safe-area-inset-bottom)))';

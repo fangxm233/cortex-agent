@@ -1,4 +1,7 @@
-import { Children, isValidElement, type ReactElement } from 'react';
+// input:  React renderer, runtime panels, settings primitives
+// output: Runtime control, save gate and material regressions
+// pos:    Settings control interaction and presentation tests
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
@@ -34,6 +37,7 @@ import {
   RuntimeSettingToggleRow,
 } from './RuntimeSettingsPanels';
 import { MAX_SESSION_RETENTION_DAYS } from '@/features/settings/vm/platform-env';
+import { SButton, Toggle } from '@/features/settings/ui/settings-ui';
 
 const settings: ConfigSettingEntry[] = [
   { key: 'turnNotify', value: false, source: 'file' },
@@ -125,23 +129,70 @@ describe('runtime settings panel save gates', () => {
   });
 });
 
+describe('settings control material transitions', () => {
+  it('keeps the flat primary fill on a color longhand through repeated hover cycles', () => {
+    const renderer = create(<SButton tone="accent">Save</SButton>);
+    const button = () => renderer.root.findByType('button');
+    for (let cycle = 0; cycle < 2; cycle++) {
+      for (const hover of [true, false]) {
+        act(() => { button().props[hover ? 'onMouseEnter' : 'onMouseLeave'](); });
+        expect(button().props.style.background).toBeUndefined();
+        expect(button().props.style.backgroundColor).toBe(`var(--proto-accent${hover ? '-strong' : ''})`);
+        expect(button().props.style.backgroundImage).toBeUndefined();
+      }
+    }
+    renderer.unmount();
+  });
+
+  it.each(['neutral', 'danger'] as const)('restores the complete %s material after hover', tone => {
+    const renderer = create(<SButton tone={tone}>Action</SButton>);
+    const button = () => renderer.root.findByType('button');
+    const base = button().props.style;
+    act(() => { button().props.onMouseEnter(); });
+    expect(button().props.style.background).toBe(tone === 'danger' ? 'var(--proto-danger-bg)' : 'var(--proto-alt)');
+    expect(button().props.style.backgroundColor).toBeUndefined();
+    expect(button().props.style.color).toBe(base.color);
+    act(() => { button().props.onMouseLeave(); });
+    expect(button().props.style).toEqual(base);
+    renderer.unmount();
+  });
+
+  it('keeps the switch fill flat and uses a contrasting off thumb across state changes', () => {
+    const renderer = create(<Toggle on={false} onClick={() => {}} />);
+    for (const on of [false, true, false, true]) {
+      act(() => { renderer.update(<Toggle on={on} onClick={() => {}} />); });
+      const track = renderer.root.findByProps({ role: 'switch' });
+      expect(track.props['aria-checked']).toBe(on);
+      expect(track.props.style.background).toBeUndefined();
+      expect(track.props.style.backgroundColor).toBe(on ? 'var(--proto-accent)' : 'var(--proto-line-3)');
+      expect(track.props.style.backgroundImage).toBeUndefined();
+      expect(track.findByType('span').props.style.background).toBe(on ? 'var(--ink-solid-fg)' : 'var(--proto-ink)');
+    }
+    renderer.unmount();
+  });
+});
+
 describe('runtime setting row interaction', () => {
   it('a writable row requests the inverse snapshot value', () => {
     const onToggle = vi.fn();
-    const row = RuntimeSettingToggleRow({
-      settingKey: 'turnNotify',
-      value: false,
-      source: 'file',
-      title: 'Turn notice',
-      desc: 'desc',
-      pending: false,
-      onToggle,
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <RuntimeSettingToggleRow
+          settingKey="turnNotify"
+          value={false}
+          source="file"
+          title="Turn notice"
+          desc="desc"
+          pending={false}
+          onToggle={onToggle}
+        />,
+      );
     });
-    const toggle = Children.toArray(row.props.children).find(isValidElement) as ReactElement<{
-      onClick?: () => void;
-    }>;
 
-    toggle.props.onClick?.();
+    // The switch is located by its role rather than by position: the row puts its control wherever
+    // the settings language says it goes.
+    act(() => { renderer!.root.findByProps({ role: 'switch' }).props.onClick(); });
     expect(onToggle).toHaveBeenCalledWith('turnNotify', true);
   });
 });

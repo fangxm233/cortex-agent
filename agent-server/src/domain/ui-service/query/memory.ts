@@ -95,7 +95,7 @@ export async function handleMemoryTree(
     }
     const entries = dirents
       .filter(
-        (e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'index.md' && e.name !== 'CORTEX.md',
+        (e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'index.md' && e.name !== 'AGENTS.md',
       )
       .map((e) => {
         const st = fs.statSync(path.join(abs, e.name));

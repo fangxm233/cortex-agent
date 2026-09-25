@@ -1,7 +1,7 @@
 // input:  Shell credentials and native notification plugin state
 // output: Device notification configuration and disconnect cleanup
 // pos:    Credential-owning Android notification commands
-// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 use serde_json::{json, Value};
 use tauri::{Manager, State};

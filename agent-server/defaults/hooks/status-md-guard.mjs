@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.8.2
+// @cortex-hook-version 2026.9.15
 // input:  stdin JSON — Claude Code PreToolUse event payload
 // output: stdout JSON — { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason }, systemMessage? }
 // pos:    PreToolUse hook — intercepts Edit/Write on size-capped context files and
 //         enforces their caps (limit table below; rules/status-md.md, rules/issues-md.md,
-//         rules/cortex-md.md): deny writes whose result exceeds the caps, unless the
+//         rules/agents-md.md): deny writes whose result exceeds the caps, unless the
 //         write shrinks an already-over-limit file (so cleanup stays possible); warn
 //         when approaching the cap. Guarded files:
 //           context/projects/<p>/STATUS.md — 80 lines / 6KB (state register)
 //           context/projects/<p>/ISSUES.md — 80 lines / 6KB (friction log)
-//           CORTEX.md anywhere under a context/ tree — 120 lines / 8KB (injected index)
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+//           AGENTS.md anywhere under a context/ tree — 120 lines / 8KB (injected index)
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, sep } from 'path';
@@ -61,16 +61,16 @@ const LIMIT_RULES = [
     ],
   },
   {
-    name: 'CORTEX.md',
-    ruleFile: 'rules/cortex-md.md',
-    matches: (parts) => parts[parts.length - 1] === 'CORTEX.md' && parts.includes('context'),
+    name: 'AGENTS.md',
+    ruleFile: 'rules/agents-md.md',
+    matches: (parts) => parts[parts.length - 1] === 'AGENTS.md' && parts.includes('context'),
     maxLines: 120,
     maxBytes: 8 * 1024,
     warnLines: 90,
     warnBytes: 6656,
     capLabel: '120 lines AND 8KB',
     trimAdvice: [
-      'CORTEX.md is an injected index (truncated at 9500 chars): it answers "what is here, where to look", not the content itself. Trim before writing:',
+      'AGENTS.md is a directory index loaded into every agent that works here: it answers "what is here, where to look", not the content itself. Trim before writing:',
       '- collapse atomic directories (experiments/ knowledge/ patterns/ decisions/) to one line each pointing at their index.md,',
       '- entry summaries already live in the atomic files and their auto-generated index.md — never duplicate them here,',
       '- keep each index line to one sentence + pointer (<=200 chars).',

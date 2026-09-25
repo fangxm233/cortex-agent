@@ -153,6 +153,8 @@ export async function handleSessionsList(
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
       profileName: s.profileName ?? null,
+      // The environment half of the same question: which agent template the session runs as.
+      agentName: s.agentName ?? null,
       // The other half of "what will the next turn run": the profile alone would misreport every
       // session whose model or thinking level the user picked in the composer.
       selectionOverride: deps.getChannelSelectionOverride?.(s.channel) ?? null,

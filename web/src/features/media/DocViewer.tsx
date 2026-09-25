@@ -1,4 +1,10 @@
+// input:  file fetch, PDF renderer, zoom and dock hooks
+// output: DocViewerProvider, useDocViewer, TextBody, PdfBody
+// pos:    Stable document preview with material toolbar controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import '@/design/content-surfaces.css';
 import { fileDownloadUrl } from '@/lib/files';
 import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
@@ -144,7 +150,7 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
         canvas.style.width = '100%';
         canvas.style.height = 'auto';
         canvas.style.display = 'block';
-        canvas.style.borderRadius = '6px';
+        canvas.style.borderRadius = 'var(--r-control)';
         canvas.style.background = 'var(--media-paper-bg)';
         canvas.style.boxShadow = 'var(--media-paper-shadow)';
         ctx.scale(dpr, dpr);
@@ -182,7 +188,7 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
   }, [numPages]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+    <div className="content-surface" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {((numPages > 0 && state !== 'failed') || actions) && (
         <PdfPager
           current={currentPage}
@@ -232,21 +238,21 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         justifyContent: 'center',
         gap: 8,
         padding: '7px 10px',
-        borderBottom: '1px solid var(--proto-line)',
-        background: 'var(--proto-rail)',
+        borderBottom: '1px solid var(--proto-line-2)',
+        background: 'var(--material-card-bg)',
         flex: 'none',
       }}
     >
       {total > 0 && (
-      <span
+      <button type="button" className="content-text-action"
         role="button"
         title="Previous page"
-        aria-disabled={current <= 1}
+        disabled={current <= 1}
         onClick={() => { if (current > 1) onJump(current - 1); }}
         style={pagerBtnStyle(current <= 1)}
       >
         ↑
-      </span>
+      </button>
       )}
       {total > 0 && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11.5px ${mono}`, color: 'var(--proto-ink)' }}>
@@ -262,9 +268,9 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
             width: 44,
             textAlign: 'center',
             padding: '3px 4px',
-            borderRadius: 6,
-            border: '1px solid var(--proto-line)',
-            background: 'var(--proto-card)',
+            borderRadius: 'var(--r-chip)',
+            border: '1px solid var(--proto-line-2)',
+            background: 'var(--material-inset-bg)',
             color: 'var(--proto-ink)',
             font: `600 11.5px ${mono}`,
           }}
@@ -273,30 +279,30 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       </div>
       )}
       {total > 0 && (
-      <span
+      <button type="button" className="content-text-action"
         role="button"
         title="Next page"
-        aria-disabled={current >= total}
+        disabled={current >= total}
         onClick={() => { if (current < total) onJump(current + 1); }}
         style={pagerBtnStyle(current >= total)}
       >
         ↓
-      </span>
+      </button>
       )}
 
       {/* Zoom controls */}
       {total > 0 && (
       <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span role="button" title="Zoom out" onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</span>
-        <span
+        <button type="button" className="content-text-action" role="button" title="Zoom out" disabled={scale <= 1} onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</button>
+        <button type="button" className="content-text-action"
           role="button"
           title="Reset zoom"
           onClick={onZoomReset}
-          style={{ font: `600 10.5px ${mono}`, color: 'var(--proto-muted)', cursor: 'pointer', padding: '0 4px', userSelect: 'none', minWidth: 36, textAlign: 'center' }}
+          style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', cursor: 'pointer', padding: '0 4px', userSelect: 'none', minWidth: 36, textAlign: 'center' }}
         >
           {Math.round(scale * 100)}%
-        </span>
-        <span role="button" title="Zoom in" onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</span>
+        </button>
+        <button type="button" className="content-text-action" role="button" title="Zoom in" disabled={scale >= 5} onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</button>
       </div>
       )}
       {actions && <div style={{ marginLeft: total > 0 ? 12 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>{actions}</div>}
@@ -308,9 +314,10 @@ function pagerBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     width: 28,
     height: 28,
-    borderRadius: 8,
-    border: '1px solid var(--proto-line)',
-    background: 'var(--proto-card)',
+    borderRadius: 'var(--r-control)',
+    border: '1px solid var(--proto-line-2)',
+    background: 'var(--material-control-bg)',
+    boxShadow: 'var(--material-control-shadow)',
     color: 'var(--proto-muted)',
     display: 'flex',
     alignItems: 'center',
@@ -325,7 +332,7 @@ function pagerBtnStyle(disabled: boolean): React.CSSProperties {
 
 function Centered({ children, failed }: { children: ReactNode; failed?: boolean }): JSX.Element {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', color: failed ? 'var(--proto-faint)' : 'var(--proto-muted-2)', font: `500 12px ${mono}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', color: failed ? 'var(--proto-danger)' : 'var(--proto-muted)', font: `500 12px ${mono}` }}>
       {children}
     </div>
   );
@@ -346,6 +353,7 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
 
   return (
     <div
+      className="content-surface"
       role="dialog"
       aria-modal="true"
       aria-label={item.name}
@@ -370,13 +378,16 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
         style={{
           width: 'min(920px, 96vw)',
           height: 'min(88vh, 100%)',
-          background: 'var(--proto-card)',
-          border: '1px solid var(--proto-line)',
-          borderRadius: 14,
+          // The toolbar is glass; the document body below keeps its stable reading surface.
+          background: 'var(--material-overlay-bg)',
+          backdropFilter: 'var(--glass-filter)',
+          WebkitBackdropFilter: 'var(--glass-filter)',
+          border: '1px solid var(--proto-line-2)',
+          borderRadius: 'var(--r-float)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          boxShadow: 'var(--media-panel-shadow)',
+          boxShadow: 'var(--material-overlay-shadow)',
         }}
       >
         {/* Header — filename + download + close. */}
@@ -386,30 +397,30 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
             alignItems: 'center',
             gap: 10,
             padding: '10px 12px',
-            borderBottom: '1px solid var(--proto-line)',
+            borderBottom: '1px solid var(--proto-line-2)',
             flex: 'none',
-            background: 'var(--proto-rail)',
+            background: 'transparent',
           }}
         >
           <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
             {item.name}
           </span>
           {onPin && (
-            <span role="button" title="Pin preview beside the chat" onClick={onPin} style={btnStyle}>
+            <button type="button" className="content-text-action" role="button" title="Pin preview beside the chat" onClick={onPin} style={btnStyle}>
               ◧
-            </span>
+            </button>
           )}
-          <span
+          <button type="button" className="content-text-action"
             role="button"
             title="Download"
             onClick={() => dl(item.path, item.name)}
             style={btnStyle}
           >
             ↓
-          </span>
-          <span role="button" title="Close" onClick={onClose} style={{ ...btnStyle, fontSize: 16 }}>
+          </button>
+          <button type="button" className="content-text-action" role="button" title="Close" onClick={onClose} style={{ ...btnStyle, fontSize: 16 }}>
             ×
-          </span>
+          </button>
         </div>
 
         {/* Body */}
@@ -426,9 +437,10 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
 const btnStyle: React.CSSProperties = {
   width: 30,
   height: 30,
-  borderRadius: 8,
-  border: '1px solid var(--proto-line)',
-  background: 'var(--proto-card)',
+  borderRadius: 'var(--r-control)',
+  border: '1px solid var(--proto-line-2)',
+  background: 'var(--material-control-bg)',
+  boxShadow: 'var(--material-control-shadow)',
   color: 'var(--proto-muted)',
   display: 'flex',
   alignItems: 'center',

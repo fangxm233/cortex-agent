@@ -1,8 +1,11 @@
+// input:  usage controller, navigation, mobile usage view
+// output: MUsageScreen
+// pos:    Mobile usage screen wiring
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { MScreen } from '@/mobile/ui/kit';
 import { MUsageView, type MUsageCopy } from './MUsageView';
 
 const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
@@ -15,6 +18,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     policy: {
       title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
       save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
+      throttleAt: 'Throttle at', throttleOff: 'No throttle',
       legacyFallbackTitle: 'Legacy fallback',
       legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
       clearLegacy: 'Clear legacy fallback',
@@ -29,6 +33,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     policy: {
       title: '限流阈值', enabled: '启用', disabled: '关闭', threshold: '阈值',
       save: '保存', saving: '保存中…', resetDefault: '恢复默认',
+      throttleAt: '限流', throttleOff: '不限流',
       legacyFallbackTitle: '旧版兜底',
       legacyFallbackBody: '未单独设置的行会继续继承旧的 provider 级策略，直到你清除它。',
       clearLegacy: '清除旧版兜底',
@@ -41,7 +46,6 @@ export function MUsageScreen() {
   const copy = pickCopy(useLang(), COPY);
   const usage = useUsage();
   return (
-    <MScreen label="1l-u 用量">
       <MUsageView
         view={usage.view}
         copy={copy}
@@ -56,6 +60,5 @@ export function MUsageScreen() {
         onRefresh={usage.refresh}
         onSavePolicy={usage.savePolicy}
       />
-    </MScreen>
   );
 }

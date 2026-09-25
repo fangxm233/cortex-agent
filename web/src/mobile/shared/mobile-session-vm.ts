@@ -1,5 +1,4 @@
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
-import type { ToolCallOverflowLayout } from '@/features/session/transcript/tool-call-overflow';
 import { formatUsd } from '@/lib/format';
 
 function hhmm(d: Date): string {
@@ -25,8 +24,6 @@ export type StepperState = 'done' | 'running' | 'pending';
 export interface StepperNode {
   label: string;
   state: StepperState;
-  /** the connecting line drawn BEFORE this node is "done" only when the previous node completed. */
-  lineDone: boolean;
 }
 
 export interface MobileStepperFooter {
@@ -60,10 +57,9 @@ function formatElapsed(ms: number): string {
  * from createdAt→updatedAt, cost from totalCostUsd, sub-thread count from children.length.
  */
 export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
-  const nodes: StepperNode[] = detail.steps.map((s, i) => ({
+  const nodes: StepperNode[] = detail.steps.map((s) => ({
     label: s.stage ?? `Step ${s.stepIndex + 1}`,
     state: stepState(s.status),
-    lineDone: i > 0 && detail.steps[i - 1].status === 'completed',
   }));
 
   const pillText =
@@ -82,21 +78,5 @@ export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
       cost: formatUsd(detail.totalCostUsd),
       subCount: detail.children.length,
     },
-  };
-}
-
-export interface ToolChips {
-  names: string[];
-  overflow: number;
-}
-
-/** Width-derived visible tool names + overflow count for the collapsed tool-calls row. */
-export function toolChips(
-  calls: { kind: string; input: string }[],
-  layout: ToolCallOverflowLayout,
-): ToolChips {
-  return {
-    names: calls.slice(0, layout.visibleCount).map((call) => call.kind),
-    overflow: layout.hiddenCount,
   };
 }

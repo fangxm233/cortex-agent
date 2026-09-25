@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.22-2
+// @cortex-hook-version 2026.9.15-2
 // input:  stdin JSON — Claude Code PreToolUse event payload
 // output: stdout JSON — { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason } }
 // pos:    PreToolUse hook — intercepts Edit/Write on **/TASKS.yaml, checks project lock
 //         allow when current process holds the lock; deny + helpful message otherwise
 //         Owner identity: process.env.CORTEX_EXECUTION_ID ?? manual:<user>:<pid>
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, existsSync } from 'fs';
 import { basename, resolve } from 'path';

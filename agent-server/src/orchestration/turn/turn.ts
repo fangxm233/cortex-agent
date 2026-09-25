@@ -755,6 +755,7 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
     getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
       run: entry.run as unknown as AgentRun | undefined,
+      trackSessionId: entry.trackSessionId ?? null,
     })),
     getStreamingCallback: (channel) => activeTurns.streamingCallback(channel),
     appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),

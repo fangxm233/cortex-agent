@@ -1,3 +1,8 @@
+// input:  Modal, session ID rows, clipboard feedback
+// output: SessionIdModal
+// pos:    Session identifier display and copy dialog
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
@@ -44,7 +49,7 @@ export function SessionIdModal({
       description={L.wbBackendUuid}
       onOpenChange={(open) => { if (!open) onClose(); }}
       contentDataAttributes={{ 'data-modal': 'session-id' }}
-      bodyStyle={{ display: 'contents' }}
+      bodyStyle={{ overflowY: 'auto', minHeight: 0 }}
       contentStyle={{
         position: 'fixed',
         left: '50%',
@@ -52,40 +57,48 @@ export function SessionIdModal({
         transform: 'translate(-50%,-50%)',
         animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
         width: 480,
-        background: 'var(--proto-card)',
-        borderRadius: 14,
-        boxShadow: 'var(--shadow-overlay-strong)',
+        maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100dvh - 40px)',
+        background: 'var(--material-overlay-bg)',
+        backdropFilter: 'var(--glass-filter)',
+        WebkitBackdropFilter: 'var(--glass-filter)',
+        borderRadius: 'var(--r-float)',
+        boxShadow: 'var(--material-overlay-shadow)',
         zIndex: 61,
         overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
       }}
     >
-        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
-          <span
+          <button
+            type="button"
+            aria-label="Close"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             style={{
               marginLeft: 'auto',
-              font: `500 9.5px ${mono}`,
-              color: 'var(--proto-muted-3)',
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
-              borderRadius: 5,
-              padding: '2px 6px',
+              borderRadius: 'var(--r-chip)',
+              padding: '5px 8px',
               cursor: 'pointer',
             }}
           >
             esc
-          </span>
+          </button>
         </div>
 
-        <div style={{ padding: '14px 20px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: 'transparent', padding: '14px 20px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map((row) => (
             <div key={row.key}>
               <div
                 style={{
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  letterSpacing: '.05em',
-                  color: 'var(--proto-muted-3)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '.02em',
+                  color: 'var(--proto-muted)',
                   marginBottom: 6,
                 }}
               >
@@ -97,7 +110,7 @@ export function SessionIdModal({
                   alignItems: 'center',
                   gap: 8,
                   border: '1px solid var(--proto-line)',
-                  borderRadius: 9,
+                  borderRadius: 'var(--r-control)',
                   padding: '9px 12px',
                   background: 'var(--proto-alt)',
                 }}
@@ -113,21 +126,25 @@ export function SessionIdModal({
                 >
                   {row.value}
                 </span>
-                <span
+                <button
+                  type="button"
+                  disabled={row.value === '—'}
+                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
                   onClick={() => copyRow(row.key, row.value)}
                   style={{
                     flex: 'none',
-                    font: `500 9.5px ${mono}`,
-                    color: copiedKey === row.key ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+                    font: `500 11px ${mono}`,
+                    color: copiedKey === row.key ? 'var(--proto-accent)' : 'var(--proto-muted)',
                     border: '1px solid var(--proto-line-3)',
-                    borderRadius: 6,
-                    padding: '3px 8px',
-                    cursor: row.value === '—' ? 'default' : 'pointer',
-                    opacity: row.value === '—' ? 0.4 : 1,
+                    borderRadius: 'var(--r-chip)',
+                    padding: '5px 8px',
+                    background: row.value === '—' ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+                    boxShadow: 'var(--material-control-shadow)',
+                    cursor: row.value === '—' ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {copiedKey === row.key ? L.wbCopied : L.wbCopy}
-                </span>
+                </button>
               </div>
             </div>
           ))}

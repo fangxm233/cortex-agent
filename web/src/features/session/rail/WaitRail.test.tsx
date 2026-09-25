@@ -41,7 +41,7 @@ beforeEach(() => {
   });
 });
 
-function mount(): ReactTestRenderer {
+function mount(floating = false): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
@@ -51,6 +51,7 @@ function mount(): ReactTestRenderer {
         waitpoints={state.waitpoints}
         onCancel={state.cancel}
         cancelling={state.cancelling}
+        floating={floating}
       />,
     );
   });
@@ -69,6 +70,15 @@ describe('WaitRail', () => {
     const text = JSON.stringify(r.toJSON());
     expect(text).toContain('waiting on 1 signal');
     expect(text).toContain('train-arm2');
+  });
+
+  it('takes frosted chrome only when floating over the transcript', () => {
+    state.waitpoints = [wp()];
+    const inline = mount().root.findByProps({ 'data-wait-rail': 'collapsed' }).props.style;
+    expect(inline.background).toBe('var(--proto-alt)');
+    expect(inline.backdropFilter).toBeUndefined();
+    const floating = mount(true).root.findByProps({ 'data-wait-rail': 'collapsed' }).props.style;
+    expect(floating).toMatchObject({ background: 'var(--glass-1)', backdropFilter: 'var(--glass-filter)' });
   });
 
   it('expands to show the intent and the signal log', () => {

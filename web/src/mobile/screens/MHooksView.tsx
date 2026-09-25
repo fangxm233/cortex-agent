@@ -1,20 +1,15 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (drill page under 1l 设置)
-//
-// The mobile mirror of the hook registry (plan §6). Read-only by design: editing a declaration lives
-// on desktop, so this surface carries no control that could write — the sheet renders exactly what
-// `hooks.list` reports. Pure presentational (render-testable without tRPC providers); MHooksScreen
-// binds the query, the selected row and navigation.
+// input:  hooks VM, localized copy, mobile Settings controls
+// output: MHooksView
+// pos:    Mobile hook cards and shared-surface detail sheet
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import {
-  MDrillHeader,
-  MScrollBody,
-  MCard,
   MPill,
-  MGroupLabel,
-  MBottomSheet,
   MC,
   MONO,
 } from '@/mobile/ui/kit';
+import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
+  MSettingsSurfaceCard as MCard, MSettingsSheet as MBottomSheet, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
 import type { MHooksVm, MHookGroup, MHookRow, MHookGroupKey, MHookDetailVm } from './m-hooks-vm';
 
 export interface MHooksCopy {
@@ -59,7 +54,7 @@ export interface MHooksCopy {
 }
 
 const ID_STYLE: React.CSSProperties = { font: `600 12.5px ${MONO}`, color: MC.ink, overflowWrap: 'anywhere' };
-const META_STYLE: React.CSSProperties = { font: `400 9.5px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
+const META_STYLE: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
 
 // ── mount targets (plan §4.1): where the declaration actually installs once compiled ────────
 function MountBadges({ targets }: { targets: MHookRow['mountsOn'] }) {
@@ -138,8 +133,8 @@ function FieldRow({ label, children, divider = true }: { label: string; children
         borderBottom: divider ? `1px solid ${MC.divider}` : undefined,
       }}
     >
-      <span style={{ fontSize: 11, color: MC.muted, flex: 'none', width: 92 }}>{label}</span>
-      <span style={{ font: `500 10.5px ${MONO}`, color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>
+      <span style={{ fontSize: 13, color: MC.muted, flex: '0 1 92px' }}>{label}</span>
+      <span style={{ font: `500 13px ${MONO}`, color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>
         {children}
       </span>
     </div>
@@ -226,9 +221,9 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
       </div>
       <div
         style={{
-          background: 'var(--proto-card)',
+          background: 'transparent',
           border: `1px solid ${MC.hairline}`,
-          borderRadius: 13,
+          borderRadius: 'var(--r-card)',
           overflow: 'hidden',
         }}
       >
@@ -238,7 +233,7 @@ function DeclarationSheet({ row, copy, onClose }: { row: MHookRow; copy: MHooksC
           </FieldRow>
         ))}
       </div>
-      <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.sheetFooter}</div>
+      <div style={{ fontSize: 12, color: MC.muted, padding: '12px 4px 0' }}>{copy.sheetFooter}</div>
     </MBottomSheet>
   );
 }
@@ -260,17 +255,16 @@ export function MHooksView({
   onCloseSheet: () => void;
 }) {
   return (
-    <>
-      <MDrillHeader
+    <MSettingsFrame label="Settings · Hooks" header={<MDrillHeader
         onBack={onBack}
         trailing={
-          <span style={{ font: `500 10px ${MONO}`, color: MC.muted }}>
+          <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>
             {vm.enabledCount}/{vm.total} {copy.enabledWord}
           </span>
         }
       >
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
-      </MDrillHeader>
+      </MDrillHeader>}>
       <MScrollBody gap={14}>
         {vm.groups.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>
@@ -285,7 +279,7 @@ export function MHooksView({
               alignItems: 'center',
               gap: 7,
               padding: '2px 4px',
-              font: `400 9.5px ${MONO}`,
+              fontSize: 12,
               color: MC.faint,
             }}
           >
@@ -297,6 +291,6 @@ export function MHooksView({
         )}
       </MScrollBody>
       {sheetRow && <DeclarationSheet row={sheetRow} copy={copy} onClose={onCloseSheet} />}
-    </>
+    </MSettingsFrame>
   );
 }

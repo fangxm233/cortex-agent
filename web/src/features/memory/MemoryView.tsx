@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: MemoryView presentation
+// pos:    Stable memory reader beside a transparent tree
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import { useMemo, useState, type CSSProperties } from 'react';
+import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
@@ -48,22 +54,22 @@ function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
               padding: '0 8px',
             }}
           >
-            <span style={{ width: 34, flex: 'none', textAlign: 'right', color: 'var(--proto-line)', fontSize: 9.5 }}>
+            <span style={{ width: 34, flex: 'none', textAlign: 'right', color: 'var(--proto-muted)', fontSize: 11 }}>
               {r.lineNo}
             </span>
-            <span style={{ width: 66, flex: 'none', color: 'var(--proto-muted-2)', fontSize: 9.5 }}>
+            <span style={{ width: 66, flex: 'none', color: 'var(--proto-muted)', fontSize: 11 }}>
               {r.groupStart && r.commit ? r.commit : ''}
             </span>
             <span style={{ width: 52, flex: 'none' }}>
               {r.groupStart && r.taskRef && (
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--proto-accent)',
                     background: 'var(--proto-accent-bg)',
                     border: '1px solid var(--proto-accent-border)',
-                    borderRadius: 999,
+                    borderRadius: 'var(--r-pill)',
                     padding: '1px 6px',
                   }}
                 >
@@ -88,6 +94,13 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
   const color = row.selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)';
   return (
     <div
+      role={row.selectable ? 'button' : undefined}
+      tabIndex={row.selectable ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (row.selectable && row.path && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault(); onPick(row.path);
+        }
+      }}
       onClick={row.selectable && row.path ? () => onPick(row.path!) : undefined}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -97,13 +110,13 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
         gap: 7,
         padding: `5px 8px 5px ${row.depth === 1 ? 22 : 8}px`,
         background: bg,
-        borderRadius: 7,
+        borderRadius: 'var(--r-chip)',
         cursor: row.selectable ? 'pointer' : 'default',
       }}
     >
       <span
         style={{
-          font: `${weight} 10.5px ${MONO}`,
+          font: `${weight} 11px ${MONO}`,
           color,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
@@ -113,7 +126,7 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
         {row.name}
       </span>
       {row.right != null && (
-        <span style={{ marginLeft: 'auto', font: `400 8.5px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
+        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)', flex: 'none' }}>
           {row.right}
         </span>
       )}
@@ -121,13 +134,14 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
   );
 }
 
+// No background of its own: the viewer reads directly on the workspace pane's glass. Only the
+// document body below keeps an opaque fill, because prose has to occlude the mesh behind it.
 const CENTER: CSSProperties = {
   flex: 1,
   minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
-  background: 'var(--proto-card)',
 };
 
 export function MemoryView(): JSX.Element {
@@ -169,62 +183,65 @@ export function MemoryView(): JSX.Element {
   const blameRows = groupBlame(file?.blame, file?.content ?? '');
 
   return (
-    <div data-pane="center" style={CENTER}>
+    <div className="content-surface" data-pane="center" style={CENTER}>
       {/* header (prototype L660–666) */}
       <div
         style={{
-          height: 50,
+          minHeight: 50,
+          flexWrap: 'wrap',
+          overflowWrap: 'anywhere',
           flex: 'none',
-          borderBottom: '1px solid var(--proto-line)',
+          borderBottom: '1px solid var(--proto-line-2)',
           display: 'flex',
           alignItems: 'center',
           gap: 9,
           padding: '0 20px',
-          background: 'var(--proto-card)',
         }}
       >
-        <span
+        <button type="button" className="content-text-action"
           onClick={() => navigate('/overview')}
           style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
         >
           ‹
-        </span>
-        <span
+        </button>
+        <button type="button" className="content-text-action"
           onClick={() => navigate('/overview')}
-          style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted-2)', cursor: 'pointer' }}
+          style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted)', cursor: 'pointer' }}
         >
           {projName}
-        </span>
+        </button>
         <span style={{ color: 'var(--proto-line-3)' }}>/</span>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.memMemory}</span>
         <span style={{ color: 'var(--proto-line-3)' }}>/</span>
         <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted)' }}>{effectivePath ?? '—'}</span>
-        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.ovGitBacked}</span>
+        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.ovGitBacked}</span>
       </div>
 
       {/* body: 200px tree + fluid rendered pane (prototype L667) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <div
           style={{
-            width: 200,
+            width: 'clamp(140px, 28%, 220px)',
             flex: 'none',
-            borderRight: '1px solid var(--proto-line)',
-            background: 'var(--proto-rail)',
+            borderRight: '1px solid var(--proto-line-2)',
+            background: 'transparent',
             padding: '8px 6px',
             overflow: 'auto',
           }}
         >
           {treeQuery.isLoading && (
-            <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', padding: '6px 8px' }}>{L.memLoading}</div>
+            <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '6px 8px' }}>{L.memLoading}</div>
           )}
           {!treeQuery.isLoading && rows.length === 0 && (
-            <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', padding: '6px 8px' }}>{L.memNoFiles}</div>
+            <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '6px 8px' }}>{L.memNoFiles}</div>
           )}
           {rows.map((r) => (
             <TreeRowView key={r.path ?? `dir:${r.name}`} row={r} onPick={setSelectedPath} />
           ))}
         </div>
 
+        {/* The rendered document stays on opaque `--proto-card`: long prose over a translucent
+            surface reads the mesh through every line, which is exactly what a reading pane must not do. */}
         <div style={{ flex: 1, minWidth: 0, background: 'var(--proto-card)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* diff bar (prototype L678–684) */}
           <div
@@ -233,6 +250,7 @@ export function MemoryView(): JSX.Element {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
+              flexWrap: 'wrap',
               padding: '8px 20px',
               background: 'var(--proto-accent-bg)',
               borderBottom: '1px solid var(--proto-accent-bg)',
@@ -245,28 +263,28 @@ export function MemoryView(): JSX.Element {
                 Task ref + commit hash still have no backend scope → not shown (not fabricated). */}
             {lineDiff ? (
               <>
-                <span style={{ font: `600 10px ${MONO}`, color: 'var(--proto-success)' }}>{lineDiff.added}</span>
-                <span style={{ font: `600 10px ${MONO}`, color: 'var(--proto-danger)' }}>{lineDiff.removed}</span>
+                <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-success)' }}>{lineDiff.added}</span>
+                <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>{lineDiff.removed}</span>
               </>
             ) : (
-              <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.memDiffUnavailable}</span>
+              <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.memDiffUnavailable}</span>
             )}
-            <span
+            <button type="button" className="content-text-action"
               onClick={() => setDiffOn((v) => !v)}
               style={{
                 marginLeft: 'auto',
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: 600,
                 color: dt.color,
                 background: dt.bg,
                 border: `1px solid ${dt.border}`,
-                borderRadius: 999,
+                borderRadius: 'var(--r-pill)',
                 padding: '2px 10px',
                 cursor: 'pointer',
               }}
             >
               {dt.label}
-            </span>
+            </button>
           </div>
 
           {/* rendered markdown / per-line blame (prototype L685–716) */}
@@ -274,11 +292,11 @@ export function MemoryView(): JSX.Element {
             {diffOn && (
               <div
                 style={{
-                  fontSize: 10.5,
+                  fontSize: 11,
                   color: 'var(--proto-amber-fg)',
                   background: 'var(--proto-amber-bg)',
                   border: '1px solid var(--proto-amber-border)',
-                  borderRadius: 7,
+                  borderRadius: 'var(--r-control)',
                   padding: '6px 11px',
                   marginBottom: 12,
                   lineHeight: 1.5,
@@ -294,7 +312,7 @@ export function MemoryView(): JSX.Element {
                 )}
               </div>
             )}
-            {fileQuery.isLoading && <div style={{ fontSize: 11.5, color: 'var(--proto-faint)' }}>{L.memLoadingFile}</div>}
+            {fileQuery.isLoading && <div style={{ fontSize: 11.5, color: 'var(--proto-muted)' }}>{L.memLoadingFile}</div>}
             {fileQuery.isError && (
               <div style={{ fontSize: 11.5, color: 'var(--proto-danger)' }}>{L.memReadError}</div>
             )}
@@ -304,7 +322,7 @@ export function MemoryView(): JSX.Element {
               file && <MarkdownView content={file.content} />
             )}
             {!fileQuery.isLoading && !fileQuery.isError && !file && (
-              <div style={{ fontSize: 11.5, color: 'var(--proto-faint)' }}>{L.memSelectFile}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--proto-muted)' }}>{L.memSelectFile}</div>
             )}
           </div>
         </div>

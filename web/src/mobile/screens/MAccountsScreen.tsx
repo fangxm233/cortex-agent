@@ -1,3 +1,7 @@
+// input:  account controllers, login flow, mobile account views
+// output: MAccountsScreen
+// pos:    Mobile account screen and provider editor wiring
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
@@ -5,7 +9,8 @@ import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useAccountsController } from '@/features/settings/controllers/useAccountsController';
 import { useCustomProvidersController } from '@/features/settings/controllers/useCustomProvidersController';
 import { useVocab } from '@/i18n';
-import { MScreen, MC } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
+import { MSettingsPage } from './MSettingsControls';
 import { MAccountsView } from './MAccountsView';
 import { MCustomProviderSheet } from './MCustomProviderSheet';
 import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
@@ -24,11 +29,13 @@ export function MAccountsScreen() {
   const custom = useCustomProvidersController();
   const vm = useMemo(() => buildAccountsVm(accounts.status ?? EMPTY_STATUS), [accounts.status]);
   return (
-    <MScreen label={L.accountsTitle}>
+    <>
       {accounts.statusLoading
-        ? <div style={{ padding: 16, color: MC.muted }}>{L.accountsLoading}</div>
+        ? <MSettingsPage title={L.accountsTitle} onBack={() => navigate('/m/settings')}>
+            <div style={{ color: MC.muted }}>{L.accountsLoading}</div></MSettingsPage>
         : accounts.statusError
-          ? <div style={{ padding: 16, color: MC.fail }}>{L.accountsLoadFailed}</div>
+          ? <MSettingsPage title={L.accountsTitle} onBack={() => navigate('/m/settings')}>
+              <div style={{ color: MC.fail }}>{L.accountsLoadFailed}</div></MSettingsPage>
           : <MAccountsView vm={vm} onBack={() => navigate('/m/settings')}
               onLogin={openLogin} onLogout={accounts.logout}
               actionsDisabled={accounts.logoutPending}
@@ -43,6 +50,6 @@ export function MAccountsScreen() {
           errors={custom.errors} pending={custom.savePending}
           onChange={custom.changeDraft} onClose={custom.closeDraft} onSave={custom.save} />
       ) : null}
-    </MScreen>
+    </>
   );
 }

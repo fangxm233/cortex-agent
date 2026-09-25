@@ -1,4 +1,10 @@
+// input:  react, feature data, theme tokens
+// output: ThreadDetailView presentation
+// pos:    Continuous thread sheet with material controls
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
+
 import type { ReactNode } from 'react';
+import '@/design/content-surfaces.css';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { buildThreadDetailVm, type DetailStepSub, type ThreadDetailVm } from './thread-detail-vm';
@@ -17,7 +23,7 @@ export interface ThreadDetailViewProps {
 
 function StatusPill({ vm }: { vm: ThreadDetailVm }) {
   return (
-    <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: vm.pill.bg, color: vm.pill.fg }}>
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: vm.pill.bg, color: vm.pill.fg }}>
       {vm.pill.text}
     </span>
   );
@@ -27,10 +33,10 @@ function LiveActions({ onCancel, pending }: { onCancel: () => void; pending: boo
   const L = useVocab();
   return (
     <>
-      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 7, padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--proto-card)', cursor: 'not-allowed', opacity: 0.6 }}>
+      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'not-allowed', opacity: 0.6 }}>
         {L.pause}
       </span>
-      <button type="button" disabled={pending} onClick={onCancel} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', border: '1px solid var(--proto-danger-bg)', borderRadius: 7, padding: '4px 12px', color: 'var(--proto-danger)', background: 'var(--proto-card)', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1 }}>
+      <button type="button" disabled={pending} onClick={onCancel} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-danger)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1 }}>
         {L.cancel}
       </button>
     </>
@@ -41,9 +47,9 @@ function DetailHeader({ vm, onClose, onCancel, cancelPending }: {
   vm: ThreadDetailVm; onClose: () => void; onCancel: () => void; cancelPending: boolean;
 }) {
   return (
-    <div style={{ height: 50, flex: 'none', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 20px', background: 'var(--proto-card)' }}>
+    <div className="thread-detail-header" style={{ flex: 'none', borderBottom: '1px solid var(--proto-line-2)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 20px', background: 'transparent' }}>
       <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{vm.name}</span>
-      <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{vm.tid}</span>
+      <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{vm.tid}</span>
       <StatusPill vm={vm} />
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         {vm.live && <LiveActions onCancel={onCancel} pending={cancelPending} />}
@@ -56,7 +62,7 @@ function DetailHeader({ vm, onClose, onCancel, cancelPending }: {
 function MetaField({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: 9.5, color: 'var(--proto-muted-3)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginBottom: 2 }}>{label}</div>
       <div style={{ font: "600 12px 'IBM Plex Mono',monospace", color: accent ? 'var(--proto-accent)' : 'var(--proto-ink)' }}>{value}</div>
     </div>
   );
@@ -66,9 +72,9 @@ function DepthField({ vm }: { vm: ThreadDetailVm }) {
   const L = useVocab();
   return (
     <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginRight: 3 }}>{L.depth}</span>
+      <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginRight: 3 }}>{L.depth}</span>
       {vm.depthDots.map((dot, index) => <span key={index} style={{ width: 6, height: 6, borderRadius: '50%', background: dot.filled ? 'var(--proto-accent)' : 'var(--proto-line)' }} />)}
-      <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 3 }}>{vm.depthText}</span>
+      <span style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 3 }}>{vm.depthText}</span>
     </div>
   );
 }
@@ -76,7 +82,7 @@ function DepthField({ vm }: { vm: ThreadDetailVm }) {
 function DetailMeta({ vm }: { vm: ThreadDetailVm }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 'none', background: 'var(--proto-card)', borderBottom: '1px solid var(--proto-line)', display: 'flex', alignItems: 'center', gap: 32, padding: '12px 20px 14px' }}>
+    <div className="thread-detail-meta" style={{ flex: 'none', background: 'transparent', borderBottom: '1px solid var(--proto-line-2)', display: 'flex', alignItems: 'center', gap: 32, padding: '12px 20px 14px' }}>
       <MetaField label={L.thTemplate} value={vm.template} />
       <MetaField label={L.thStarted} value={vm.started} />
       <MetaField label={L.thElapsed} value={vm.elapsed} accent />
@@ -94,7 +100,7 @@ function DetailContent({ vm, onOpenThread, renderStepChat }: {
 }) {
   const openSub = (sub: DetailStepSub) => onOpenThread(sub.id);
   return (
-    <div style={{ flex: 1, display: 'flex', gap: 16, padding: '16px 20px', minHeight: 0, background: 'var(--proto-alt)', overflow: 'auto' }}>
+    <div className="thread-detail-content" style={{ flex: 1, display: 'flex', gap: 16, padding: '16px 20px', minHeight: 0, background: 'transparent', overflow: 'auto' }}>
       <ThreadPipeline vm={vm} onOpenSub={openSub} renderStepChat={renderStepChat} />
       <ThreadArtifactPanel artifact={vm.artifact} />
     </div>
@@ -104,7 +110,7 @@ function DetailContent({ vm, onOpenThread, renderStepChat }: {
 export function ThreadDetailView(props: ThreadDetailViewProps): JSX.Element {
   const vm = buildThreadDetailVm(props.detail, props.now);
   return (
-    <div data-thread-detail={vm.tid} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div className="content-surface" data-thread-detail={vm.tid} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <DetailHeader vm={vm} onClose={props.onClose} onCancel={props.onCancel} cancelPending={!!props.cancelPending} />
       <DetailMeta vm={vm} />
       <DetailContent vm={vm} onOpenThread={props.onOpenThread} renderStepChat={props.renderStepChat} />

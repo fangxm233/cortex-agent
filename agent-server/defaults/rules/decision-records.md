@@ -38,7 +38,7 @@ Evidence: EXP-NNN, EXP-NNN
 
 **Reference format**: `DR-NNNN` (analogous to `EXP-NNN` and `K-NNN`). Numbering is independent within each level (system-level and each project starts from 0001).
 
-**Indexing rule**: After adding a new DR, you must add an inline reference link in the corresponding level's CORTEX.md.
+**Indexing rule**: After adding a new DR, you must add an inline reference link in the corresponding level's AGENTS.md.
 
 ## Boundaries with Other Knowledge Types
 
