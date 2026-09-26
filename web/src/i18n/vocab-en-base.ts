@@ -279,7 +279,7 @@ export const enBase = {
   wbSchedPausedPill: 'paused',
   wbSchedRunListHint: "Select a run to open its session.",
   wbSchedMarkAllRead: 'mark {n} read',
-  wbSchedReplyHint: "Replying creates a normal session without affecting future scheduled runs.",
+  wbSchedReplyHint: 'Replying converts this run into a normal session; future scheduled runs are unaffected.',
 
   // ── project folder tree (left rail) ──
   wbProjects: 'PROJECTS',
