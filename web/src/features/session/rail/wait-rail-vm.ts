@@ -1,8 +1,3 @@
-// input:  WaitpointInfo[] from waitpoints.list + a clock + a language
-// output: WaitRailViewModel (collapsed headline + per-waitpoint rows), or null when nothing is pending
-// pos:    pure view-model for WaitRail. Everything the rail decides lives here so it can be unit
-//         tested without a renderer; the component only paints.
-
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 
 export type WaitRailLanguage = 'en' | 'zh';

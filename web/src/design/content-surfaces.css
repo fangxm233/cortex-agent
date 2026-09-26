@@ -1,8 +1,3 @@
-/* input: theme tokens, owned feature presentation roots
- * output: Scoped content controls and responsive overview layout
- * pos: Shared dense content surface language
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
-
 .content-surface { min-width: 0; color: var(--proto-ink); }
 .content-surface:is(button, [role='button']):focus-visible,
 .content-surface :where(button, a, input, textarea, select, [tabindex]):focus-visible {

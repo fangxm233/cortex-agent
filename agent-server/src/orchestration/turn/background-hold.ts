@@ -1,15 +1,3 @@
-// input:  a run whose foreground turn ended while background work remains, plus ONE surface's
-//         renderer (platform status message / web event stream)
-// output: the whole hold lifecycle — busy bracket, `SessionHolds` registration, running:true/false,
-//         the run subscription, and the six verdicts a background phase can reach
-// pos:    orchestration/turn — the single owner of "the turn is over but the session is not".
-//         This replaces three holds that had drifted apart (audit §4): `status-renderer.ts` held
-//         Slack/Feishu without registering anything, so the hold was invisible to `sessionState`
-//         and unreachable by Stop; `web-status-renderer.ts` held web and published its own
-//         running:false; `subagent-delivery.ts` held for a delegated run. The verdict table
-//         (grace / max-wait / interrupted / rate-limited / complete / chained) was written twice
-//         and is written once here; the two renderers now only turn events into a surface.
-
 import { createLogger } from '@core/log.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';

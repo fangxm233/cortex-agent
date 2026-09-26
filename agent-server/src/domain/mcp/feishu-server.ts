@@ -1,9 +1,3 @@
-// input:  MCP SDK, tool gate, Feishu registrar and client builder
-// output: Feishu-specific MCP stdio service assembled from production registration
-// pos:    standalone platform server loaded only for Feishu-originated
-//         sessions (channel carries the `feishu:` prefix) — Claude via mcp-config-feishu.json layering,
-//         PI via the mcp-bridge feishu handle. Not loaded for thread/core sessions.
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerFeishuTools } from './feishu/index.js';

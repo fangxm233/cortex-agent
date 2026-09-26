@@ -1,6 +1,3 @@
-// input:  nothing (leaf data slice)
-// output: schedulingEn / schedulingZh — message slice (filled by i18n extraction)
-// pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
 // >>> Keep en and zh keys in lockstep (zh typed against keyof typeof schedulingEn) <<<
 
 export const schedulingEn = {

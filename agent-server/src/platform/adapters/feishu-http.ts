@@ -1,11 +1,3 @@
-// input:  the lark SDK's shared axios instance (`defaultHttpInstance`) — Client, TokenManager and
-//         WSClient all fall back to it when no `httpInstance` is passed
-// output: that instance configured once: a request timeout, an explicit keep-alive agent, and a
-//         bounded retry for transport failures that happened before the server could have
-//         processed the request
-// pos:    platform/adapters — Feishu transport hardening. Pure configuration of the SDK's own
-//         instance (its response interceptor, which unwraps `resp.data`, must stay), no SDK code
-//         touched, no direct axios dependency (the type comes through the SDK's typings).
 import type * as lark from '@larksuiteoapi/node-sdk';
 import * as https from 'node:https';
 import { createLogger } from '@core/log.js';

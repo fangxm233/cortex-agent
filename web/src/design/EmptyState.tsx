@@ -1,8 +1,3 @@
-// input:  React, theme ink and surface tokens
-// output: EmptyState, EmptyStateProps
-// pos:    Readable empty-content title, guidance and actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 
 // Empty-state primitive: centered card with a clear title,

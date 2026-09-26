@@ -1,7 +1,3 @@
-// input:  Message text, edit callbacks, clipboard feedback
-// output: MessageActions, EditBox, rewind and edit annotations
-// pos:    Compact message controls and readable edit feedback
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';

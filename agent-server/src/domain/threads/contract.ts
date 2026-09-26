@@ -1,8 +1,3 @@
-// input:  thread-types (ThreadContract / ThreadRecord)
-// output: buildContractPrompt / buildMissionChain / checkContractBudget
-// pos:    Structured delegation contracts for recursive thread spawns (DR-0014) — prompt
-//         composition, ancestor goal chain (drift prevention), per-thread budget breaker
-
 import type { ThreadRecord, ThreadContract } from '@core/types/thread-types.js';
 
 /** Max characters per mission-chain entry — keeps deep-tree prompts bounded. */

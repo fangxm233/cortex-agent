@@ -1,7 +1,3 @@
-// input:  gateway-generator module
-// output: Gateway config generation regression tests
-// pos:    Gateway generator unit test suite
-
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

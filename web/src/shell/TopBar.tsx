@@ -1,7 +1,3 @@
-// input:  pane state, app menus, connection status, theme, settings sections
-// output: TopBar, TOP_BAR_HEIGHT
-// pos:    Responsive window chrome with all actions retained and a direct Usage entry
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import './top-bar.css';
 import { useVocab } from '@/i18n';

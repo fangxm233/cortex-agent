@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: TaskModal presentation
-// pos:    Task detail material sheet and lightweight cards
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useQuery } from '@tanstack/react-query';
 import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

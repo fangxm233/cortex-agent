@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + ExecutionsListParams / ExecutionsGetParams
-// output: handleExecutionsList → ExecutionInfo[]; handleExecutionsGet → ExecutionDetailInfo
-// pos:    query handlers for 'executions.list' and 'executions.get'
-
 import type {
   UiServiceDeps,
   ExecutionInfo,

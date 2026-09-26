@@ -1,9 +1,3 @@
-// input:  Node test runner, RunRegistry + EventBus
-// output: regression tests for RunRegistry — executionId-keyed registry with channel/thread
-//         secondary indices. Validates P3 fix (multiple live executions per channel coexist),
-//         balanced lifecycle events, and identity-guarded index cleanup.
-// pos:    validates the Stage 1 backbone refactor (plan: execution lifecycle).
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { RunRegistry } from '../../src/core/run-registry.js';

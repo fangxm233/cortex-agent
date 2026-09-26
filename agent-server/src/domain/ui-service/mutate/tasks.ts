@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + task action args
-// output: claim/unclaim/complete/block/unblock handlers → Ok<void> | Err
-// pos:    mutate handlers for 'tasks.{claim,unclaim,complete,block,unblock}'
-
 import { taskMutator } from '@domain/tasks/mutator.js';
 import { acquireLockAsync, releaseLockAsync, getOwnerIdentity } from '@domain/tasks/system/task-lock.js';
 import type { UiServiceDeps, Result } from '../types.js';

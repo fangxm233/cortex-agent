@@ -1,9 +1,3 @@
-// input:  Node test runner + cortex-task CLI runCli + acceptance-ledger + atomic-write sync
-// output: `cortex-task verdict` subcommand tests — accepted/rejected recording, validation,
-//         parent existence check; atomicWriteSync test-isolation tripwire
-// pos:    Verify DR-0017 W1-closure: the manager's write path for acceptance verdicts
-//         (without it, accepted-dedupe and rehydration pending lists never converge)
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

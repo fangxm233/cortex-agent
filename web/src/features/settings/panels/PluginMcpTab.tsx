@@ -1,8 +1,3 @@
-// input:  MCP queries, authoring actions, settings atoms
-// output: plugin MCP server and secret forms
-// pos:    Responsive plugin MCP authoring tab
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

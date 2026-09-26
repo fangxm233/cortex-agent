@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# input:  a committed campaign document, the live Docker network table and the current checkout
-# output: a free-subnet verdict, freshly rebuilt trial artifacts when stale, a preflight report
-#         and -- under --run -- a detached campaign whose logs are named on stdout
-# pos:    One-command launch procedure over build-trial-artifacts.py and launch-paid-campaign.py
 #
 # The procedure those two scripts document is correct and each of its gates exists because a
 # campaign was lost to the thing it now refuses. What they do not do is carry the four mechanical

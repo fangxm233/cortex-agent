@@ -1,6 +1,3 @@
-// input:  protocol types (ModalDefinition, ModalField, ModalFieldValue, ModalSubmit)
-// output: Modal renderer for modal.open frames — section/select/multi_select/text_input
-// pos:    Modal UI for AskUserQuestion and plan feedback flows
 //
 // Renders per M4 spec:
 //   section  → static text (dimmed)

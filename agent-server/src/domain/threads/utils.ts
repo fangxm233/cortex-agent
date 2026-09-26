@@ -1,7 +1,4 @@
 // Pure thread utility helpers — no I/O, no config.
-// input:  thread-store, thread-types
-// output: isDefaultThread / isAdHocThread / getSessionKey / parseTarget / resolveStageName /
-//         resolveTargetResumeId
 
 import { threadStore } from '@store/thread-repo.js';
 import type { AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep } from '@core/types/thread-types.js';

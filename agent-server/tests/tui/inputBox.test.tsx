@@ -1,7 +1,3 @@
-// input:  src/tui/components/InputBox.js
-// output: verifies submit gating, history, shortcut handling, and escape-sequence filtering
-// pos:    InputBox interaction contract; status-line presentation is not snapshot-tested
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

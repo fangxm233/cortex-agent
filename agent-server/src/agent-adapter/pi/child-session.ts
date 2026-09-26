@@ -1,7 +1,3 @@
-// input:  Pi SDK, child request, runtime settings
-// output: createChildSession, child session types
-// pos:    Construct headless in-memory Pi subagent sessions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as path from 'node:path';
 import type { AgentSession, InlineExtension } from '@earendil-works/pi-coding-agent';
 import { createLogger } from '@core/log.js';

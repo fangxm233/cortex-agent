@@ -1,8 +1,3 @@
-// input:  browser token-login states
-// output: bilingual copy for the login screen and the sign-out control
-// pos:    Browser token-login vocabulary chunk
-// >>> If updated, update this header and parent AGENTS.md <<<
-
 export const uiAuthEn = {
   uiLoginTitle: 'Sign in to Cortex',
   uiLoginHint: "Paste this server's client token. It is exchanged for a session cookie and is not stored in this page.",

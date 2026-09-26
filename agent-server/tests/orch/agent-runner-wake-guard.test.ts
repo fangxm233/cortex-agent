@@ -1,16 +1,3 @@
-// input:  AgentRunner.route + manager-qa top-of-tree escalation + the gateway's delivery shapes
-// output: regression tests — the DR-0016 human-answer backstop sits on the ONE entry every message
-//         takes, and synthetic wake notices must NOT be consumed by it
-// pos:    2026-07-05 bug: askManager (top of tree) armed the channel backstop, then the origin-session
-//         wake routed the question notice through agentRunner.route, whose backstop check consumed
-//         the notice itself as "the human's answer" — the question echoed back to the asker and never
-//         reached the origin session or the human.
-//         The check is armed by manager-qa through the `human-answer-backstop` leaf registry and
-//         read in `AgentRunner._routeWithAdmission`, so EVERY entry passes it: an inbound platform
-//         message, the web chat box (ui-service → deliverToSession), a resume, a callback. Phase 3
-//         of plan/orchestration-turn-refactor.md briefly moved it up to `Orchestrator` — that lost
-//         the web chat box, which is exactly the path the third test here pins down.
-
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,13 +1,3 @@
-// input:  ~/.cortex real data (config/.env for CORTEX_CLIENT_TOKEN, the on-disk stores) + env
-//         (CORTEX_UI_PORT, CORTEX_UI_CORS_ORIGINS, CORTEX_UI_SPA_DIR)
-// output: a STANDALONE Web UI tRPC HTTP+SSE server on 127.0.0.1:<port> serving the REAL ~/.cortex
-//         data (projects / sessions / threads / tasks / executions) behind the x-cortex-token gate,
-//         with a CORS allow-list — for local/dev verification WITHOUT touching the running daemon.
-// pos:    Dev tool (agent-server/scripts). Replicates the MINIMUM of entry/app.ts's UI wiring:
-//         composes createUiService(...) over the real store singletons + a read-only scheduler stub
-//         + an in-memory MockAdapter, then starts it via startUiHttpServer(...). It deliberately does
-//         NOT acquire app.pid, start the platform adapter, or bind ports 3001/3002 — so it can run
-//         alongside (never restart) the live daemon. Ctrl-C / SIGTERM shuts it down cleanly.
 //
 // Usage (run from the agent-server/ dir so tsx resolves the @-path aliases via its tsconfig.json):
 //   cd agent-server

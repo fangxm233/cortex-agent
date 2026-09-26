@@ -1,7 +1,3 @@
-// input:  RailResizeHandle, react-test-renderer
-// output: rail divider drag regression tests
-// pos:    Verify drag deltas, clamping, commit and reset of the left rail width
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

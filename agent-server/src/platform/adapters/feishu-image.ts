@@ -1,11 +1,3 @@
-// input:  a local file a Feishu send is about to carry
-// output: an image_key when Feishu can show it inline in the chat, null when it has to go as a file
-// pos:    platform/adapters — shared by the Feishu adapter's `uploadFile` and the `feishu_send_file`
-//         MCP tool, the two independent implementations of "send this file to Feishu". Both used to
-//         call `im/v1/files` unconditionally, so a screenshot the agent produced arrived as a
-//         download card: the user had to tap it to see their own picture, and it never previewed in
-//         a notification or on mobile. `im/v1/images` was never called at all.
-
 import { createReadStream, promises as fs } from 'fs';
 import { sniffImageMime } from '@core/media-types.js';
 import { createLogger } from '@core/log.js';

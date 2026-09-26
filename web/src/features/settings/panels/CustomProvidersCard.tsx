@@ -1,8 +1,3 @@
-// input:  custom provider controller, settings atoms
-// output: provider cards and endpoint editor
-// pos:    Desktop custom provider account forms
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';

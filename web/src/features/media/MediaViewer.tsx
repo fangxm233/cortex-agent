@@ -1,8 +1,3 @@
-// input:  media source, zoom, download and dock hooks
-// output: MediaViewerProvider, useMediaViewer
-// pos:    Full-screen media preview and accessible controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import { useBackDismiss } from '@/design/use-back-dismiss';

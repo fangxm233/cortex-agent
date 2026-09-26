@@ -1,8 +1,3 @@
-// input:  React, theme tokens, shared focus-visible styles
-// output: Button, ButtonProps, ButtonVariant, ButtonSize
-// pos:    Unblurred material actions with semantic foregrounds
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
 // Button primitive with token-driven variants (design §5). No hard-coded hex —

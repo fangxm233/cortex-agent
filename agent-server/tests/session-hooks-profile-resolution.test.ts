@@ -1,10 +1,3 @@
-// input:  Node test runner + resolveOnNewProfileName helper
-// output: regression tests for the onNew-hook profile lookup (registry is the sole source)
-// pos:    Verifies the fix for the "Invalid signature in thinking block" bug —
-//         thread-spawned sessions store their profile in session-registry. T2 made the
-//         registry the single owner of session identity, so the ledger is no longer a
-//         profile source at all; the hook reads the registry and nothing else.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveOnNewProfileName } from '../src/domain/sessions/session-hooks.js';

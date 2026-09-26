@@ -1,7 +1,3 @@
-// input:  React renderer, mobile kit and presentation views
-// output: Mobile readability and surface regression tests
-// pos:    Guard mobile materials, typography and clearance
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

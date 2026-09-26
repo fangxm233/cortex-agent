@@ -1,7 +1,3 @@
-// input:  browser presentation components, react-test-renderer
-// output: browser chrome accessibility regression tests
-// pos:    Verify address, port selection and notice semantics
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { createRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';

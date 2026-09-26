@@ -1,8 +1,3 @@
-// input:  Modal, schedule rows, run labels, vocabulary
-// output: RunListModal
-// pos:    Scheduled session history and run navigation dialog
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { runOrdinals, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';

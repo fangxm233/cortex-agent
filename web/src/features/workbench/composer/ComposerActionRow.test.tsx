@@ -1,7 +1,3 @@
-// input:  ComposerActionRow, mocked device and commission queries
-// output: Toolbar, picker and Escape focus regression tests
-// pos:    Verify compact action controls and selection behavior
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

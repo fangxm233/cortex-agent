@@ -1,8 +1,3 @@
-# input:  historical Claude fixtures and current isolated CLI
-# output: historical evidence and current behavioral contract proofs
-# pos:    Claude Code history and current wire compatibility tests
-# >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import hashlib
 import json
 import os

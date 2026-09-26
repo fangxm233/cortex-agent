@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MNewProjectView
-// pos:    Mobile project creation form with inset input
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { canCreateProject } from '@/features/projects/new-project';

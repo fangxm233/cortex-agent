@@ -1,8 +1,3 @@
-// input:  agent-adapter/claude/transcript-path resolveResumeAgainstTranscript
-// output: Regression — a fresh session must NOT spawn with --resume on its first turn
-// pos:    Guards the "No conversation found with session ID" bug (pre-registered sessionId
-//         made the orchestrator request --resume on a transcript that does not exist yet)
-
 // NOT retired by D9: `resolveResumeAgainstTranscript` + `computeTranscriptPath` back
 // `resolveResumeForPrint`, which decides --resume vs --session-id for every PRINT-mode spawn.
 // They moved out of the deleted adapter-tui.ts; the resume helper's old TUI name was historical.

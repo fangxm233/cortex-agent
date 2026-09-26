@@ -1,8 +1,3 @@
-// input:  Radix Dialog, React, shared focus-visible styles
-// output: Drawer, DrawerClose, DrawerProps, DrawerSide
-// pos:    Accessible material sheets with unfiltered reading bodies
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 

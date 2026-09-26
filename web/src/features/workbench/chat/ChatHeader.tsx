@@ -1,7 +1,3 @@
-// input:  React, notes provider, dock intake, useShellModals
-// output: ChatHeader
-// pos:    Session title, project badge and compact header controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';

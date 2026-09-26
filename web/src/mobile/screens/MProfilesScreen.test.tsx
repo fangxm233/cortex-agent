@@ -1,7 +1,3 @@
-// input:  profiles view, controller contract, react-test-renderer
-// output: Mobile profile action layout regressions
-// pos:    Verify profile actions remain reachable and wired
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';

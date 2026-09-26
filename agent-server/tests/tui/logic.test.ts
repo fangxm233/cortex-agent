@@ -1,7 +1,3 @@
-// input:  src/tui/logic.js (pure helpers)
-// output: Unit tests for TUI input, focus, frame, stream, and selection logic
-// pos:    Guards the behavioral fixes for input/focus/scroll defects
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

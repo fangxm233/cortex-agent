@@ -1,7 +1,3 @@
-// input:  visible flag + Dashboard component
-// output: Right-side panel — Ctrl+D toggle host for dashboard
-// pos:    Side panel container, does NOT block input focus when shown
-
 import React from 'react';
 import { Box } from 'ink';
 import { Dashboard } from './Dashboard.js';

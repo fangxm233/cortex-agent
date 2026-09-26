@@ -1,7 +1,3 @@
-// input:  tRPC subagent transcript, fallback rows, row renderer
-// output: SubagentTranscriptDetail, active transcript registry
-// pos:    Lazy subagent details and readable loading feedback
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useQuery } from '@tanstack/react-query';

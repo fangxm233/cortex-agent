@@ -1,7 +1,3 @@
-// input:  DockPane, DockProvider, react-test-renderer
-// output: dock lifetime and surface regression tests
-// pos:    Verify persistent tabs and document opacity boundaries
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Reorder } from 'motion/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';

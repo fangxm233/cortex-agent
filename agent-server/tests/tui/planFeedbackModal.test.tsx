@@ -1,7 +1,3 @@
-// input:  src/tui/components/PlanFeedbackModal.tsx
-// output: verifies approve/feedback/cancel submission, editing, errors, and Escape outcomes
-// pos:    Plan-approval interaction contract; option chrome/indicators are not snapshot-tested
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

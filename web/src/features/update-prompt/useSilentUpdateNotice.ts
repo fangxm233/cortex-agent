@@ -1,6 +1,3 @@
-// input:  the app-update store (already fed by useAppUpdate's bridge) + the toast queue
-// output: one toast per version for updates the shell will install by itself
-// pos:    The entire user-visible surface of a silent app update
 //
 // A silent update deliberately raises no dialog: the shell installs it when the app next quits
 // (desktop/src-tauri/src/update_checks.rs:apply_pending_on_exit). Saying nothing at all would mean

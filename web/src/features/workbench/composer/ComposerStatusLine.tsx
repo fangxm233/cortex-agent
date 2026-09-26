@@ -1,7 +1,3 @@
-// input:  Run status, session totals, stats action
-// output: ComposerStatusLine, ComposerStatusLineProps
-// pos:    Readable compact run and session metadata footer
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { MENU_FOCUS } from '@/design/MenuChrome';
 
 const MONO = "'IBM Plex Mono',monospace";

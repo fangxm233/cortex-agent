@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MTaskDetailView
-// pos:    Mobile TaskDetailView presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 import {
   MScreen,

@@ -1,8 +1,3 @@
-// input:  @platform/adapter.js (@platform/types.js)
-// output: CommandActionRouter — action routing + session state for interactive ! commands
-// pos:    bridge between PlatformAdapter onAction/onModalSubmit and command handlers
-//         Separate concern from interaction-handlers.ts (AskUserQuestion / ExitPlanMode)
-
 import type { PlatformAdapter, ActionContext, ModalSubmitContext, MessageRef } from '@platform/index.js';
 
 // --- Session state ---

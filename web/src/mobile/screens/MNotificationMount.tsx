@@ -1,8 +1,3 @@
-// input:  mobile router, shared reply feed and native notifications
-// output: tap routing, OS replies, on-screen sync and background lifecycle
-// pos:    Mobile notification adapter and native service owner
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';

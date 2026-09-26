@@ -1,7 +1,3 @@
-// input:  React SSR, mobile cards, menus and typed toast fixture
-// output: Chat presentation regression tests
-// pos:    Guard mobile chat material layers and input sizes
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { MComposer, ComposerFullscreen } from '../ui/composer';

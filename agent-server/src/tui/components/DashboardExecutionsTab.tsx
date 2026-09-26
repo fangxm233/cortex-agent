@@ -1,7 +1,3 @@
-// input:  TabData for executions tab + optional mutate for cancel
-// output: Executions list — status badge + type + machine + duration + cost + cancel via [c]
-// pos:    Dashboard tab: execution list with per-row cancel mutation
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ConfirmModal } from './ConfirmModal.js';

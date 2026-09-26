@@ -1,16 +1,3 @@
-// input:  the built SPA directory (spaDir) the Web UI already serves
-// output: createOtaRoutes(spaDir) -> Record<path, CustomRouteHandler> for the desktop frontend OTA:
-//         GET /api/ui-ota/manifest.json  → { version, sha256, size, url }
-//         GET /api/ui-ota/bundle.zip     → the SPA packed as a ZIP (application/zip)
-// pos:    Server side of desktop frontend OTA (platform/ui-http). Mounted via ui-http-server
-//         customRoutes, so both endpoints inherit the same x-cortex-token / Access-JWT auth gate as
-//         tRPC. The bundle is built once from spaDir and cached for the process lifetime — the served
-//         web/dist only changes on redeploy, which restarts the process. `version` is content-
-//         addressed (a hash over sorted path+content digests), independent of the ZIP container, so
-//         it is stable across restarts for identical content and changes iff the frontend changes;
-//         `sha256` is the hash of the ZIP bytes for download integrity. Returns {} when the SPA is
-//         not built (no spaDir / missing on disk) so OTA cleanly disables rather than 500ing.
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';

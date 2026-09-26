@@ -1,8 +1,3 @@
-// input:  en/zh locale tables (core/locales), process.env.CORTEX_LANG (initial locale only)
-// output: t(key, params) / setLocale / getLocale / normalizeLocale + Locale type
-// pos:    L0 zero-dependency i18n layer. MUST NOT import domain/* — the active locale is set
-//         by the wiring layer (entry/app.ts) via setLocale(); this module never reads config.
-
 import { en, type MessageKey } from './locales/en.js';
 import { zh } from './locales/zh.js';
 

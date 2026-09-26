@@ -1,7 +1,3 @@
-// input:  Pi SDK, session request, extensions, runtime settings
-// output: createPiRuntime, runtime handle and collaborator types
-// pos:    Construct the main in-process Pi session runtime
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as path from 'node:path';
 import type {
   AgentSession,

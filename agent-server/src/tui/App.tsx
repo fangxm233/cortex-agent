@@ -1,7 +1,3 @@
-// input:  All components + hooks
-// output: Top-level layout + global key handler for M5 Ink client
-// pos:    Main App component wiring all pieces together
-
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { Box, useStdout } from 'ink';
 import { Transcript } from './components/Transcript.js';

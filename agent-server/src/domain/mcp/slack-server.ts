@@ -1,9 +1,3 @@
-// input:  MCP SDK, tool gate, env-built tool context, Slack registrar
-// output: Slack-specific MCP stdio service assembled from production registration
-// pos:    standalone platform server loaded only for Slack-originated
-//         sessions (channel carries the `slack:` prefix) — Claude via mcp-config-slack.json layering,
-//         PI via the mcp-bridge slack handle. Not loaded for thread/core sessions.
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerSlackTools, slackDepsFor } from './tools/slack.js';

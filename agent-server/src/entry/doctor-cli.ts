@@ -1,9 +1,3 @@
-// input:  argv (cortex doctor [--json] [--fix] [--help]) + optional injected deps
-// output: cmdDoctor(args) → CliResult; getDoctorHelp() → help string
-// pos:    CLI wrapper for `cortex doctor`. Runs the diagnostic engine, optionally
-//         applies safe idempotent fixes, and renders a plain-text or JSON report.
-//         Exit code 1 when any check fails, else 0 (CLI Rule ④/exit-code).
-
 import { formatHelp } from '@core/cli-utils.js';
 import {
   runDiagnostics,

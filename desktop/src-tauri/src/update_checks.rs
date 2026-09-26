@@ -1,8 +1,3 @@
-// input:  OTA and shell update stores, AppState, Tauri events
-// output: Serialized check outcomes and exclusive update operations
-// pos:    Shared manual and background update coordinator
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 use crate::install_site::{self, Apply};
 use crate::update_prefs::{PrefsStore, UpdatePrefs};
 use crate::{app_update, ota, AppState};

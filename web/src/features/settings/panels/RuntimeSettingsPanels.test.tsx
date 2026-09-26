@@ -1,7 +1,3 @@
-// input:  React renderer, runtime panels, settings primitives
-// output: Runtime control, save gate and material regressions
-// pos:    Settings control interaction and presentation tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';

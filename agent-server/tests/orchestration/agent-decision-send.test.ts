@@ -1,5 +1,4 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// pos:    guards the agent-announced decision delivery path
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

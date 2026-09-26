@@ -1,9 +1,3 @@
-// input:  core/i18n (t/getLocale), domain/system/preferences (applyLang), injected change notifier
-// output: createLangHandler — !lang [en|zh] show/switch handler
-// pos:    !lang command. Goes through applyLang, which persists to config/preferences.json AND
-//         switches the live locale (no restart). Same knob the Web UI's EN·中 toggle writes, so a
-//         switch here also changes the SPA's vocabulary. Registered in commands/index.ts.
-
 import { Icons } from '../../../core/icons.js';
 import { t, getLocale, type Locale } from '../../../core/i18n.js';
 import { applyLang } from '@domain/system/preferences.js';

@@ -1,7 +1,3 @@
-// input:  src/tui/components/DashboardTasksTab.tsx
-// output: Tests — claim/unclaim/complete/block/unblock mutation paths, row navigation, error display
-// pos:    Verifies per-row keybinds and ConfirmModal integration for M3 tasks tab
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

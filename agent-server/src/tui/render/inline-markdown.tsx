@@ -1,9 +1,3 @@
-// input:  a text string possibly containing inline markdown (**bold**, *italic*, `code`, [t](url))
-// output: an Ink <Text> tree with the markers applied as styles (asterisks/backticks stripped)
-// pos:    Bridges parseMarkdown() (render/markdown.ts) into Ink. Without this, message and
-//         RichBlock text rendered the raw markers literally (e.g. "**You:**"), which read as
-//         "wrong bold" — the markers showed instead of the styling.
-
 import React from 'react';
 import { Text } from 'ink';
 import stringWidth from 'string-width';

@@ -1,11 +1,3 @@
-// input:  syncManagedPlugins / parsePluginVersion (store/plugin-sync) over temp src/dst dirs
-// output: unit tests — version-managed plugin deploy/refresh semantics
-// pos:    regression for "new plugins / updated skills never reach existing installs": init copies
-//         plugins only on `cortex init` (copy-if-missing), so syncManagedPlugins must deploy a new
-//         plugin, refresh a deployed one when the shipped plugin.json version is newer, bring legacy
-//         (unversioned) copies under management, never downgrade, never touch unversioned defaults,
-//         and preserve user-added files inside a managed plugin.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';

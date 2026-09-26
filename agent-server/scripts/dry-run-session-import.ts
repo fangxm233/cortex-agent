@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// input:  a store-dir argument (e.g. ~/.cortex/tmp/b/g1-run1/data) holding legacy sessions.json +
-//         conversation-ledger.json + session-registry.jsonl + versions.json
-// output: a human-readable dry-run of importLegacySessionStores — BEFORE file stats, the import
-//         summary, AFTER journal/rename stats, a READ-BACK verification against a fresh repo, and the
-//         versions.json diff (mirroring what runMigrations' step loop writes on success). Then a
-//         second run to show idempotency.
-// pos:    Dev tool (agent-server/scripts). Touches ONLY the store dir passed in; never the live
-//         daemon or its stores. Run from agent-server/ so tsx resolves the @-path aliases:
-//           node --import tsx scripts/dry-run-session-import.ts <store-dir>
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

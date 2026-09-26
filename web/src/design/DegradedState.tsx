@@ -1,8 +1,3 @@
-// input:  React, degraded severity, theme tokens
-// output: DegradedState, DegradedStateProps
-// pos:    Readable service exception summaries and recovery actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 import { severityTone, type DegradedSeverity } from './degraded';
 

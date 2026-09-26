@@ -1,7 +1,3 @@
-// input:  src/tui/hooks/useTranscript.js (pure state helpers)
-// output: Stream batching tests — multiple stream.text frames batched into single state update
-// pos:    Verifies that 100 stream.text frames in 50ms produce fewer than N reconciles
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

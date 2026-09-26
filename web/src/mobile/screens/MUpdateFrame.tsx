@@ -1,7 +1,3 @@
-// input:  React, shared material tokens
-// output: MUpdateFrame, MUpdateFrameProps
-// pos:    Mobile update dialog glass frame
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 
 const MONO = "'IBM Plex Mono', monospace";

@@ -1,7 +1,3 @@
-// input:  nothing (pure structural types)
-// output: Port interfaces for TUI adapter layer boundaries
-// pos:    Pure types — zero imports from other layers (@store/@domain/@orch)
-
 /** One replayable conversation message — the full backend-independent history. */
 export interface TranscriptMessage {
   role: 'user' | 'assistant' | 'tool' | 'interaction';

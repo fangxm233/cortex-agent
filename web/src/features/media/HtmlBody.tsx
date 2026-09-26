@@ -1,8 +1,3 @@
-// input:  authenticated file fetch, theme, sandbox helpers
-// output: HtmlBody
-// pos:    Opaque sandboxed HTML document surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
 import { authHeaders } from '@/lib/desktop-config';

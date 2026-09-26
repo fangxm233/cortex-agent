@@ -1,10 +1,3 @@
-// input:  an async scan that produces a list, plus a clock, a TTL and a retry delay
-// output: a cached view of that list — peek (no side effect), get (serve + refresh when stale),
-//         ensure (wait out a cold scan, bounded), refresh (force)
-// pos:    core — the caching half of `agent-adapter/pi/discovery`, lifted out so the Anthropic
-//         model discovery does not grow a second copy of the same four methods. Holds no
-//         knowledge of what is being scanned; every policy comes in through options.
-
 export interface CachedScanOptions<T> {
   scan: () => Promise<T[]>;
   /** How long an accepted result stays fresh. */

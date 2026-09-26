@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: MarkdownView presentation
-// pos:    Dense memory content surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import {
   createContext, useContext, useEffect, useState,
   type CSSProperties, type ReactNode, Fragment,

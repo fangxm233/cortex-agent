@@ -1,7 +1,3 @@
-// input:  src/platform/tui/protocol.js
-// output: Transcript state hook — Map<messageId, RenderedMessage> for O(1) updates, parallel id[] for insertion order
-// pos:    Core data model for M5 Ink client transcript rendering
-
 import { useRef, useCallback, useState } from 'react';
 import type {
   ChatPost, ChatUpdate, ChatDelete, ChatMarkQueued,

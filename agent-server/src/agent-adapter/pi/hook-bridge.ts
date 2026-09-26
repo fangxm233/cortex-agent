@@ -1,7 +1,3 @@
-// input:  child_process, hook registry, session environment
-// output: Hook host types, installHookBridge, tool hook handlers
-// pos:    Bridge Cortex hook entries to Pi extension events
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';

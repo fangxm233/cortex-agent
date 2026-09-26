@@ -1,13 +1,3 @@
-// input:  TASKS.yaml generations, threadStore, pending-tracker, taskMutator
-// output: generation-fenced startup reconciliation of orphaned dispatch claims
-// pos:    called once from entry/app.ts right after threadStore.markRunningAsFailedOnStartup.
-//         A claimed task is invisible to the dispatcher (isActionable excludes claimed_by), so a
-//         dispatch claim whose owner died with the server would otherwise stay in-progress forever
-//         — stranding the task AND any manager thread suspended on it. Claims that legitimately
-//         survive a restart are respected: a waiting/rate_limited thread that owns the task
-//         (DR-0014 suspension, rate-limit pause), a remote dispatch tracked in pending-tasks.json,
-//         and manual (non-dispatcher) claims.
-
 import { scanAllTasks, type Task } from '@core/task-parser.js';
 import { threadStore } from '@store/thread-repo.js';
 import { createLogger } from '@core/log.js';

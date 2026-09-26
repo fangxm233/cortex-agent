@@ -1,7 +1,3 @@
-// input:  BrowserTabState, viewport presets, navigation callbacks
-// output: BrowserToolbar, BrowserButton
-// pos:    Compact wrapping browser address and navigation controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode, RefObject } from 'react';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { browserTabForwardSource, canGoBack, canGoForward, VIEWPORT_PRESETS, type BrowserTabState, type ViewportPreset } from './browser-target';

@@ -1,7 +1,3 @@
-// input:  inline-thread-card-vm, tRPC, thread live sync and modal
-// output: InlineThreadCard
-// pos:    Compact inline thread progress with readable metadata
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

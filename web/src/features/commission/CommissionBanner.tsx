@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: CommissionBanner presentation
-// pos:    Commission entry banner with shared card material
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useMemo, useState } from 'react';
 import '@/design/content-surfaces.css';
 import { useQuery } from '@tanstack/react-query';

@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + { threadId }
-// output: cancelThread handler → Ok<{cancelled:boolean}> | Err
-// pos:    mutate handler for 'threads.cancel'
-
 import { cancelThread } from '@domain/threads/index.js';
 import type { UiServiceDeps, Result, ThreadsCancelReturn } from '../types.js';
 

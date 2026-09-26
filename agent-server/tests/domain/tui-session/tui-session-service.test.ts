@@ -1,8 +1,3 @@
-// input:  tui-session-service.ts createTuiSessionService
-// output: Lock down resolveHandshake and switchSession behavior: fresh, resume-found, resume-not-found,
-//         switch-found, switch-not-found, switch-no-sessionId — matching the exact gateway logic.
-// pos:    Task B3 — TUI adapter layering refactor
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { TuiSessionDeps, TuiSessionService } from '../../../src/domain/tui-session/types.js';

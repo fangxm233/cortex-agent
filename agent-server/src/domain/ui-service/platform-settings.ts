@@ -1,8 +1,3 @@
-// input:  dotenv files, live environment, atomic mutation and schema
-// output: redacted platform snapshots and serialized credential patches
-// pos:    Platform configuration persistence and pending-state reader
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import fs from 'node:fs/promises';
 import { parse } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';

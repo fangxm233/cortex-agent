@@ -1,7 +1,3 @@
-// input:  process env (CORTEX_HOME)
-// output: side effect — guarantees CORTEX_HOME points at a per-process isolated temp dir
-// pos:    test isolation guard — globally --import'd by run-tests.sh (and importable directly),
-//         MUST run before paths.ts binds DATA_DIR.
 //
 // Why this exists: paths.ts resolves DATA_DIR = $CORTEX_HOME ?? ~/.cortex at IMPORT TIME, and
 // node's test runner executes test FILES in parallel processes. Two failure modes:

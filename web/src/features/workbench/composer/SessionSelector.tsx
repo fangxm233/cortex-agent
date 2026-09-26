@@ -1,7 +1,3 @@
-// input:  selection-menu, tRPC, session selection, vocab
-// output: SessionSelector views and selection controls
-// pos:    Session chips with keyboard dismissal focus restoration
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';

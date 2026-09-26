@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: TaskRow presentation
-// pos:    Dense task material cards and state chips
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

@@ -1,10 +1,3 @@
-// input:  a finished ThreadRun's verdict + status message
-// output: the persisted `metadata.statusMsgRef` and the caller's settle hook, in that order
-// pos:    orchestration/thread-run — the single place a thread's run hands control back. The ref
-//         persistence used to be duplicated in the webhook's onSettled and in task-dispatch's two
-//         pause branches; the settle hook itself is injected (thread-callback.settleThread) so
-//         nothing in here imports the callback module (it would close a cycle — see thread-run.ts).
-
 import type { MessageRef } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { threadStore } from '@store/thread-repo.js';

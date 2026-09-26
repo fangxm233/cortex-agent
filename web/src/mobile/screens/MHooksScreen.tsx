@@ -1,7 +1,3 @@
-// input:  hooks query, navigation, mobile hook views
-// output: MHooksScreen
-// pos:    Mobile hook inspection screen wiring
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

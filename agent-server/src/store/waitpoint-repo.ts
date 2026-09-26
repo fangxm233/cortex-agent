@@ -1,10 +1,3 @@
-// input:  waitpoints.json
-// output: WaitpointRepo (get / list / listArmed / insert / update / remove / mutate / flush) + the Waitpoint shape
-// pos:    Persistence for waitpoints — durable, externally addressable "wake me when X finishes" objects.
-//         A waitpoint is created by an agent, carries its own capability secret, and is resolved by a
-//         signal arriving from outside the process (HTTP route, local spool file, or a device spool drain).
-//         The shape lives here rather than in domain/ because store/ must not import from domain/ (D10).
-
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

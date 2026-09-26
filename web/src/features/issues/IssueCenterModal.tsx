@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: IssueCenterModal presentation
-// pos:    Issue material cards and transparent detail pane
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useMemo, useState } from 'react';
 import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

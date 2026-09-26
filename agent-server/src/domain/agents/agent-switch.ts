@@ -1,15 +1,3 @@
-// input:  template-loader (getAgent) + config (getDefaultAgent/setDefaultAgent/clearChannelAgent/
-//         resolveBackendForChannel) + profile-manager (resolveProfileConfig) + profile-switch
-//         (decideProfileSwitch/channelHasHistory) + session-registry-repo (record sync)
-// output: switchChannelAgent / clearChannelAgentSelection — the composed "switch the agent for a
-//         channel/session" rule used by the `!agent` command AND the Web UI, so the rule has ONE
-//         source of truth.
-// pos:    domain/agents — the environment twin of profile-switch.ts. An agent decides the
-//         conversation's prompt, tools, skills and rules; a profile decides its model. The two are
-//         independent axes, so switching an agent writes the agent map and nothing else — but they
-//         meet at the backend, because an agent that pins a profile pins that profile's backend,
-//         and a live conversation can no more move across backends this way than through `!profile`.
-
 import { sessionStore } from '@store/session-registry-repo.js';
 import {
   clearChannelAgent, getActiveProfile, resolveBackendForChannel, setDefaultAgent,

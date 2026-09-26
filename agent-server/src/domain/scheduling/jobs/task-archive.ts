@@ -1,7 +1,3 @@
-// input:  task archiver, PlatformAdapter, system notice delivery
-// output: runTaskArchiveJob built-in maintenance runner
-// pos:    Archives completed tasks and reports maintenance results
-
 import { Icons } from '../../../core/icons.js';
 import { emitSystemNotice } from '../../system/system-notice.js';
 import { runTaskArchiver } from '../../tasks/archiver.js';

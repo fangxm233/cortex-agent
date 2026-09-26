@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: OverviewView presentation
-// pos:    Dense overview cards on shared glass materials
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';

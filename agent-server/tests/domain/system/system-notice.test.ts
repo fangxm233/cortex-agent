@@ -1,9 +1,3 @@
-// input:  node:test, src/domain/system/system-notice
-// output: Test results for publishSystemNotice + emitSystemNotice
-// pos:    Verifies the encapsulated system-notice seam: the bus `system.notice` event
-//         (default/explicit level, no-op without a bus) and the combined post+publish
-//         path (platform admin post AND bus event, event fires even if the post fails).
-
 import { describe, it, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 

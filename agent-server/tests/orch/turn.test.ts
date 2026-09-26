@@ -1,11 +1,3 @@
-// input:  openTurn driven directly, with `startRun` as the only faked seam
-// output: the four contracts the Turn adds on top of what turn-golden.test.ts already pins —
-//         the ledger-less turn, the status prefix, the hold hand-off, and the cleanup when the
-//         request cannot even be assembled
-// pos:    orchestration/turn — companion to tests/orch/turn-golden.test.ts. That file characterizes
-//         the ORDER of a whole turn through `AgentRunner.route`; this one drives `openTurn` the way
-//         edit-retry / ask-user-resume do, i.e. with their `TurnInput` differences.
-
 import '../_test-home.js';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

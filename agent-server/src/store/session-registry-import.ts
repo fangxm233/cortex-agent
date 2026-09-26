@@ -1,13 +1,3 @@
-// input:  the two flat legacy JSON stores under a store dir (sessions.json bindings +
-//         conversation-ledger.json headers/turns) and SessionRegistryRepo
-// output: importLegacySessionStores() — one-shot fold of the legacy stores into the JSONL session
-//         registry (channel bindings + conversation headers + ordered turn history), then renames the
-//         sources aside as `<file>.pre-<version>.bak`. Writes ONLY through the repo API so the journal
-//         whitelist/replay contract stays the single source of truth for what a field means.
-// pos:    Migration helper invoked as a step migration from store/version-migrations.ts (B.T4).
-//         Idempotent via the rename: a second run finds no sources and is a no-op.
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';

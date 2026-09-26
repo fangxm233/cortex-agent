@@ -1,8 +1,3 @@
-// input:  config queries, panels, login flow, material tokens
-// output: Glass settings shell, legible nav, panel header action slot and dirty-form guard
-// pos:    Responsive settings shell with readable navigation and a caller-chosen first section
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';

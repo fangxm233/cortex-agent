@@ -1,10 +1,3 @@
-// input:  client config (cortex-client.json) + process.env
-// output: resolveServerUrl — the WebSocket URL the cortex-client dials
-// pos:    side-effect-free server-URL resolution for the cortex-client WebSocket.
-//         A full URL (env CORTEX_SERVER_URL or config serverUrl) lets the client reach
-//         the agent-server through a Cloudflare Tunnel over wss/443; otherwise it falls
-//         back to ws://<serverHost>:<serverPort> for direct/LAN reach.
-
 /**
  * Resolve the WebSocket URL the cortex-client connects to.
  *

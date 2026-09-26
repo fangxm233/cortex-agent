@@ -1,8 +1,3 @@
-// input:  node:test, node:net, src/entry/cli
-// output: Test results for parseTuiArgs, tuiPortListening, cmdTui not-listening exit
-// pos:    Verifies cortex tui subcommand argument parsing, daemon detection, and
-//         not-running behavior.
-
 import { describe, it, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import net from 'node:net';

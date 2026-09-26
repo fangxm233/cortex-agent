@@ -1,8 +1,3 @@
-// input:  machines resource, settings atoms, approval action
-// output: desktop machine registry and connectivity cards
-// pos:    Machine settings with readable connection guidance
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import type { CSSProperties } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';

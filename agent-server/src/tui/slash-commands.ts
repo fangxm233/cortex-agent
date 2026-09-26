@@ -1,9 +1,3 @@
-// input:  raw input-box text
-// output: slash-command registry + pure filter/parse helpers
-// pos:    Claude-Code-style `/` command palette data layer for the M5 Ink client.
-//         The InputBox renders SLASH_COMMANDS via SlashMenu and dispatches the chosen
-//         command id to App.handleCommand. Pure (no Ink) so it is unit-testable.
-
 export interface SlashCommand {
   /** Command id, also the text after the leading `/` (e.g. 'new'). */
   name: string;

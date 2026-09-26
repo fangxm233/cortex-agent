@@ -1,12 +1,3 @@
-// input:  ShellTemplateBinding + a ShellDefinition (pure JSON) + the loaded agents map
-// output: expandShell / isShellBinding — GENERIC interpolation of a shell binding into a full
-//         ThreadTemplate (no per-shell hardcoded function).
-// pos:    DR-0017 D6 Phase 2.5 — shell transition graphs live in config (shells/*.json), not code.
-//         The engine substitutes `{param}` (→ the binding's agent name) and `{param.entryStage}`
-//         (→ that agent's entryStage) placeholders, then validates. The 7 validation semantics from
-//         the old code-expander are preserved: missing param, unknown placeholder, agent not found,
-//         missing entryStage, missing (retry) stage — plus unknown-shell handled by the loader.
-
 import type {
   AgentDefinition,
   ThreadTemplate,

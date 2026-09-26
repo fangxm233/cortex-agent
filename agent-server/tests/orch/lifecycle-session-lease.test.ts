@@ -1,7 +1,3 @@
-// input:  lifecycle continuation entry points and session registry admission
-// output: ask/retry lease handoff coverage around execution registration
-// pos:    Guards retention from deleting sessions while lifecycle continuations start
-
 import '../_test-home.js';
 import { beforeAll, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

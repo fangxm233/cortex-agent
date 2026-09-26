@@ -1,8 +1,3 @@
-// input:  Radix Tabs, React, shared focus-visible styles
-// output: Tabs, TabsRoot, TabsList, Tab, TabPanel, tab types
-// pos:    Keyboard tabs with a tinted active state
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixTabs from '@radix-ui/react-tabs';
 import type { ReactNode } from 'react';
 

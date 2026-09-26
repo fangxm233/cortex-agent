@@ -1,7 +1,3 @@
-// input:  skills query, SkillGroup, localized vocabulary
-// output: SkillsView
-// pos:    Read-only skill groups with material cards and chips
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';

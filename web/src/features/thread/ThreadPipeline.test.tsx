@@ -1,8 +1,3 @@
-// input:  ThreadPipeline, renderer, synthetic view model
-// output: Card material, metadata and keyboard regressions
-// pos:    Thread pipeline presentation tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

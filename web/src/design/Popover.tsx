@@ -1,8 +1,3 @@
-// input:  Radix Popover, React, material and glass tokens
-// output: Popover, PopoverClose, PopoverProps
-// pos:    Anchored material overlays with Radix focus handling
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixPopover from '@radix-ui/react-popover';
 import type { ReactNode } from 'react';
 

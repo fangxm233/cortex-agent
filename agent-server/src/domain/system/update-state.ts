@@ -1,7 +1,3 @@
-// input:  STORE_DIR constant
-// output: loadUpdateState / saveUpdateState for update-state.json
-// pos:    DR-0013 server auto-update skipped version persistence
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { STORE_DIR } from '../../core/utils.js';

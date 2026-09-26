@@ -1,17 +1,3 @@
-// input:  an AccessJwtConfig (JWKS URL + aud + iss) OR the process env (team-domain / aud / certs URL)
-// output: createAccessJwtVerifier(cfg) -> (token) => Promise<boolean> and
-//         accessVerifierFromEnv(env) -> AccessJwtVerifier | undefined
-// pos:    Cloudflare Access JWT leg of the Web UI tRPC auth gate, in-core (platform/ui-http).
-//         Verifies the `Cf-Access-Jwt-Assertion` JWT the Cloudflare edge injects after it
-//         authenticates the browser: signature against the Access team-domain JWKS
-//         (https://<team>.cloudflareaccess.com/cdn-cgi/access/certs), plus audience (AUD tag) +
-//         issuer + expiry. The browser NEVER holds the clientToken — this is the browser auth path.
-//         Uses `jose` (createRemoteJWKSet caches + selects the signing key by kid; jwtVerify does
-//         signature/aud/iss/exp in one shot). Algorithms are pinned to RS256/ES256 to reject
-//         `alg:none` / HS256 confusion. Config is env-driven; when team-domain or AUD is unset,
-//         accessVerifierFromEnv returns undefined so the gate degrades to token-only (fail-closed —
-//         an unconfigured Access path never admits a request).
-
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createLogger } from '@core/log.js';
 

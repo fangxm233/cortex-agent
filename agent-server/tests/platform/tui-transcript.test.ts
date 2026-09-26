@@ -1,7 +1,3 @@
-// input:  buildTranscriptReplay (pure formatter) + ports types
-// output: unit tests — message-based transcript replay as a pure function
-// pos:    verifies TranscriptData (message stream) → TranscriptReplay | null
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildTranscriptReplay } from '../../src/platform/adapters/tui/tui-transcript.js';

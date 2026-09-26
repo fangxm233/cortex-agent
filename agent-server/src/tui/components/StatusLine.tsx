@@ -1,11 +1,3 @@
-// input:  Connection state + active project / queued / notification counts + shortcuts flag
-// output: Bottom line — left: "? for shortcuts" hint (or the full key list); right: project ·
-//         queued · notifications. A connection status is prefixed only when abnormal.
-// pos:    Status line for M5 Ink client. The header was removed (DR: TUI header-removal), so the
-//         project / queued / notification badges live here on the bottom-right. The normal
-//         "● Connected" dot/text is intentionally never rendered — connection only surfaces while
-//         connecting / reconnecting / disconnected / error.
-
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { WsState } from '../ws-client.js';

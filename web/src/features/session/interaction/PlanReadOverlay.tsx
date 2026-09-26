@@ -1,8 +1,3 @@
-// input:  PlanCardModel, ChatMarkdown, plan reading labels
-// output: PlanReadOverlay
-// pos:    Plan reading overlay with persistent approval actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { PlanCardModel } from './interaction-vm';

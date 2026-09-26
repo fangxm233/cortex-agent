@@ -1,10 +1,3 @@
-// input:  vitest + createAppUpdateRoutes / buildAppUpdateManifest / parseAppAssetName + fake releases
-// output: unit tests — asset-name parsing (six shipped forms + rejects); release selection (newest
-//         with app assets ≤ server version, digest fail-closed, -N suffix ordering); manifest route
-//         (shape, no-store, method guard, {} on no release, TTL caching, failure fallback).
-// pos:    Regression guard for the server side of app shell self-update. Routes are mounted via
-//         ui-http-server customRoutes (auth-gated there); these tests exercise the handlers.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

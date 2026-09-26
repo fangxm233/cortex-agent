@@ -1,7 +1,3 @@
-// input:  handleRespondDecision + fake deps (history, bus, send seam)
-// output: unit tests for decision responses — approve records only, explain/revise
-//         record AND forward, idempotent approve, and the validation guards
-// pos:    guards the sessions.respondDecision mutation (send_decision cards)
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleRespondDecision } from '../../../src/domain/ui-service/mutate/sessions.js';

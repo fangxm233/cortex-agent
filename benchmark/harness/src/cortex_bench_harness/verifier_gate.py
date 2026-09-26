@@ -1,7 +1,3 @@
-# input:  a campaign's tasks, their pinned images and the network its trials score under
-# output: per-task evidence that the upstream verifier bootstraps, and the tasks no arm may be
-#         paid to attempt until it does
-# pos:    Pre-agent verifier bootstrap gate
 #
 # A campaign spends its money on the agent phase and reads its answer from the verifier phase, and
 # until now nothing checked that the second one worked. It does not always: an upstream

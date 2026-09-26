@@ -1,9 +1,3 @@
-// input:  MCP SDK, file-tool registrar, and Feishu dependencies
-// output: registerFeishuTools wiring the production Feishu file tool
-// pos:    single registration entry; no duplicate exported name inventory
-//         Document/table/wiki tooling was removed in favor of the official lark-cli
-//         (see the feishu-doc skill); this MCP now only exposes file sending.
-
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerFileTools } from './file.js';
 import type { FeishuToolDeps } from './types.js';

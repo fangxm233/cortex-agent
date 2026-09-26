@@ -1,7 +1,3 @@
-/* input:  TopBar and MenuBar presentation classes
- * output: Responsive window chrome sizing
- * pos:    Compact labels without removing window actions
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 .shell-topbar-spacer {
   flex: 1 1 20px;
   min-width: 6px;

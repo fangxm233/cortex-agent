@@ -1,11 +1,5 @@
 #!/usr/bin/env node
 // @cortex-hook-version 2026.9.15-2
-// input:  stdin JSON — Claude Code PostToolUse event or PI hook-bridge payload
-// output: { matched: [...], hookSpecificOutput: { additionalContext: "..." } }
-// pos:    Read/Grep hook — check if file path matches scoped rules in ~/.cortex/rules/
-//         On match, return rule content for Claude (additionalContext) and PI (content mutation) injection
-//         Session-level dedup: each rule injected at most once per session (on first match)
-// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';

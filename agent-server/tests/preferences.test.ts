@@ -1,8 +1,3 @@
-// input:  Node test runner + domain/system/preferences module (isolated temp file)
-// output: loadPreferences / loadLang / setLang round-trip + default + malformed coverage,
-//         plus langSource provenance and the applyLang persist+live-switch+notify contract
-// pos:    Operator display-preferences store (config/preferences.json) regression
-
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';

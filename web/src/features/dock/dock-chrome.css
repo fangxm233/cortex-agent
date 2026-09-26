@@ -1,7 +1,3 @@
-/* input:  shared theme material, radius and colour tokens
- * output: dock tab strip and action presentation classes
- * pos:    Filter-free dock chrome above opaque document viewers
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 .dock-strip {
   height: 50px;
   flex: none;

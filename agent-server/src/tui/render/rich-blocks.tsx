@@ -1,7 +1,3 @@
-// input:  platform/types.ts RichBlock[]
-// output: RichBlock[] → React tree
-// pos:    Structural formatting renderer — renders the RichBlock array from message content
-
 import React from 'react';
 import { Box, Text } from 'ink';
 import { InlineMarkdown } from './inline-markdown.js';

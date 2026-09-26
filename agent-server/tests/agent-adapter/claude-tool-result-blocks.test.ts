@@ -1,9 +1,3 @@
-// input:  `user` stdout lines carrying tool_result blocks whose content is not plain text
-// output: the string the turn machine hands every sink (transcript row, subagent notice, capture)
-// pos:    tests/agent-adapter — regression for the image-read transcript blowup: a `Read` on an
-//         image used to be JSON.stringify'd whole, putting ~0.5 MB of base64 into the tool_result
-//         event (and from there into the debug transcript, the parent session's notice stream and
-//         the capture log).
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

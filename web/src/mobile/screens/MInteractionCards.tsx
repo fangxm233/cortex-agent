@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MInteractionCards
-// pos:    Mobile question and plan material cards
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {

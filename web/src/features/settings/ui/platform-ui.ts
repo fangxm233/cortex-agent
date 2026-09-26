@@ -1,8 +1,3 @@
-// input:  settings atoms, desktop platform typography tokens
-// output: platform field, hint and block styles
-// pos:    Local style seam for shared platform editors
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import { S_CONTROL_DISABLED_STYLE, S_CONTROL_STYLE } from './settings-ui';
 

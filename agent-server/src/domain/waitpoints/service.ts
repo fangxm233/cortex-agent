@@ -1,9 +1,3 @@
-// input:  waitpoint-repo (Waitpoint records), settings (ttl / rate cap)
-// output: createWaitpoint / applySignal / cancelWaitpoint / expireDueWaitpoints / listWaitpointsForSession
-// pos:    Waitpoint domain logic. Pure state machine over the repo: no HTTP, no delivery, no timers.
-//         Firing only sets `delivery.pending`; turning that into a wake turn is notifier.ts's job, so
-//         this module stays synchronously testable and delivery failures can be retried from disk.
-
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';

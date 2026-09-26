@@ -1,8 +1,3 @@
-// input:  React, toast store, semantic material and glass tokens
-// output: ToastViewport, ToastBubble, useAutoDismiss
-// pos:    Material notification overlays and unblurred actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useRef, useState } from 'react';
 import { useToastItems, useToastOptional } from './Toast';
 import { relativeAge, splitVisible, type ToastItem, type ToastLevel } from './toast-store';

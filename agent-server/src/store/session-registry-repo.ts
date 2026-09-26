@@ -1,9 +1,3 @@
-// input:  session-registry-journal, execution/thread stores, and AsyncMutex
-// output: SessionRegistryRepo JSONL-backed registry and admission APIs
-//         (patch-delta updates, channel bindings + conduit resolvers, turn history, batch())
-// pos:    Stable session identity store with delete-intent guards
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';

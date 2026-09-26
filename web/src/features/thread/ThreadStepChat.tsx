@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: ThreadStepChat presentation
-// pos:    Dense thread content surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useMemo } from 'react';
 import { useVocab } from '@/i18n';
 import { ChatRows } from '@/features/session/transcript/MessageStream';

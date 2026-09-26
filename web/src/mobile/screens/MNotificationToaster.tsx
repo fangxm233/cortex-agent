@@ -1,7 +1,3 @@
-// input:  Shared toast queue, mobile palette, relative time
-// output: MNotificationToaster, MNotificationBanners
-// pos:    Low-cost mobile notification material banners
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { relTimeZh } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';

@@ -1,7 +1,3 @@
-// input:  Device locale and authoritative running count
-// output: Short private notification and completion labels
-// pos:    Native notification localization
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 internal class NotificationText(locale: String) {

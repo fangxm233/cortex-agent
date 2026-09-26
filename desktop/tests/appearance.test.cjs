@@ -1,7 +1,3 @@
-// input:  onboarding HTML bootstrap, node VM, storage fixtures
-// output: Shared glass preference bootstrap regression tests
-// pos:    Browser-independent first-paint appearance checks
-// >>> Once updated, update this header and the parent AGENTS.md <<<
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');

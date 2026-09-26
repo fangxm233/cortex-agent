@@ -1,7 +1,3 @@
-// input:  src/tui/hooks/useDashboardData.js (pure state helpers)
-// output: Tests — query/render/subscribe/unsubscribe lifecycle
-// pos:    Verifies dashboard data management for each tab
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

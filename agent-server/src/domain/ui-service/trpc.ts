@@ -1,8 +1,3 @@
-// input:  tRPC core and procedure error shapes
-// output: router, publicProcedure and createCallerFactory
-// pos:    UI router foundation with credential-error redaction
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { initTRPC } from '@trpc/server';
 
 /**

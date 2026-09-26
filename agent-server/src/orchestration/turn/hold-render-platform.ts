@@ -1,13 +1,3 @@
-// input:  background-phase events and one terminal verdict, from `background-hold.ts`
-// output: the turn's status message, rewritten while the background phase lasts and sealed when it
-//         ends — plus the push notification, the ledger's turn completion, the continuation's cost
-//         row and the streaming teardown that belong to that seal
-// pos:    orchestration/turn — the Slack/Feishu half of a held turn, extracted from
-//         `status-renderer.ts`. What is gone from it: the hold's lifetime. This file decides
-//         nothing about when the background phase ends, only what the status line says when it
-//         does; the busy bracket, the `SessionHolds` registration and running:true/false are the
-//         hold's (`background-hold.ts`).
-
 import { createLogger } from '@core/log.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { OutputStream, PlatformAdapter, MessageRef } from '@platform/index.js';

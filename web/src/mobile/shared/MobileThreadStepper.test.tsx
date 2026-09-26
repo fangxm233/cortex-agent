@@ -1,7 +1,3 @@
-// input:  React test renderer, mobile stepper and pill models
-// output: Inline thread navigation and presentation tests
-// pos:    Guard mobile stepper navigation and label alignment
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { threadPill } from '@/features/workbench/right-panel/right-panel-vm';

@@ -1,12 +1,3 @@
-// input:  UiServiceDeps + ThreadTemplateDetailParams { kind, name }
-// output: threadTemplates.detail handler → ThreadTemplateDetail
-// pos:    The drill-in the templates panel never had. Beyond the raw body it answers the three
-//         questions the editor needs before it lets anyone type: is this entity currently valid,
-//         what else depends on it, and is anything running on it right now — because transitions
-//         are re-read on every step, so a save can reroute or stall a live thread.
-//         For a shell-binding template it also returns the expanded graph, which is otherwise
-//         impossible to see: `execute-review.json` is four lines that bind a shell.
-
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULTS_DIR } from '@core/paths.js';

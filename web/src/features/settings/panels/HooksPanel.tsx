@@ -1,8 +1,3 @@
-// input:  useHooksController, settings atoms, detail pane
-// output: desktop hooks master-detail editor
-// pos:    Hook list and editor composition
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';

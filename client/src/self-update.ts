@@ -1,6 +1,3 @@
-// input:  server 'update' messages, own bundle files
-// output: verified bundle install under DATA_DIR/client and process re-exec
-// pos:    Client self-update — the client owns its environment; the server only ships bytes
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';

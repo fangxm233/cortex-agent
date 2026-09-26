@@ -1,6 +1,3 @@
-// input:  UiServiceDeps + TaskVerificationParams
-// output: handleTaskVerification → TaskVerificationInfo
-// pos:    query handler for 'tasks.verification' (DR-0018 §12 C item 11)
 //
 // Single-task done-when EVIDENCE + per-task dispatch history. Evidence is drawn from the REAL
 // completion sources — the task store's `completed-note` / `completed-at` / status, plus the

@@ -1,8 +1,3 @@
-// input:  typed native bridge and update payload parsers
-// output: single-flight manual checks and result subscriptions
-// pos:    Manual update adapter; never installs or owns prompts
-// >>> If updated, update this header and parent AGENTS.md <<<
-
 import { isNativeCommandMissing, safeInvoke, type ChannelOutcome } from '@/lib/native-bridge';
 import { publishManualCheckResult, type ManualCheckReport } from '@/lib/manual-update-check-result';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';

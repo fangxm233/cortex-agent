@@ -1,7 +1,3 @@
-// input:  media document bodies, dock-tabs, FileBar
-// output: DockFileBody, DockCentered, dockFileBackground
-// pos:    Persistent dock reading surfaces and file states
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties } from 'react';
 import { PdfBody, TextBody } from '@/features/media/DocViewer';
 import { HtmlBody } from '@/features/media/HtmlBody';

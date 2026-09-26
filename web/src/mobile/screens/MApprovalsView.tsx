@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MApprovalsView
-// pos:    Mobile approval material cards and decision controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';

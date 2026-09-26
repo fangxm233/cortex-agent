@@ -1,9 +1,3 @@
-// input:  DEFAULTS_DIR/plugins/<plugin> (each with .claude-plugin/plugin.json `version`) + PLUGINS_DIR (DATA_DIR/plugins)
-// output: syncManagedPlugins() — deploys a new plugin, or refreshes a deployed one when the shipped version is newer
-// pos:    Startup asset-sync sibling to runMigrations / syncManagedHooks; keeps DATA_DIR/plugins in sync
-//         with defaults. init.ts copyDefaults() uses safeCopyDir (copy-if-missing) and only runs on
-//         `cortex init`, so an existing install never gets a NEW plugin or an UPDATED skill on upgrade.
-//         This closes that gap, keyed on each plugin's .claude-plugin/plugin.json `version`.
 //
 //   CONVENTION: whenever you change ANY file inside a plugin (a skill's SKILL.md, a script, the
 //   manifest), bump that plugin's `version` in .claude-plugin/plugin.json — the analog of bumping

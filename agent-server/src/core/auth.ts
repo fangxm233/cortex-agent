@@ -1,9 +1,3 @@
-// input:  process.env / CONFIG_DIR/.env, request headers
-// output: persisted/captured auth tokens + timing-safe getters + AUTH_HEADER
-// pos:    Shared-secret auth for the cortex-client WebSocket and the webhook HTTP server.
-//         No Cloudflare dependency — two independent bearer tokens carried in the
-//         `x-cortex-token` header, generated on first start and persisted to .env (fail-closed).
-
 import * as crypto from 'crypto';
 import { readFileSync, appendFileSync, mkdirSync } from 'fs';
 import * as path from 'path';

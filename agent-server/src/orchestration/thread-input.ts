@@ -1,9 +1,3 @@
-// input:  the thread-executor's per-message context (ThreadExecCtx) + the user's text / files
-// output: platform files downloaded to disk, and pending-user-inputs buffered for the next step
-// pos:    orchestration — the file-download + message-buffering helpers thread-executor hands off
-//         to. Holds the ThreadExecCtx shape so nothing here imports thread-executor (the executor
-//         imports these; a back-edge, even type-only, would close a depcruise cycle).
-
 import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, IncomingMessage } from '@platform/index.js';
 import { createLogger } from '@core/log.js';

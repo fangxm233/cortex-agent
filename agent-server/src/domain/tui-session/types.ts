@@ -1,7 +1,3 @@
-// input:  nothing (leaf module)
-// output: TuiSessionDeps, TuiSessionService, HandshakeResolution, SwitchResolution
-// pos:    leaf types module, depends only on @platform/adapters/tui/ports.js (TranscriptData)
-
 import type { TranscriptData } from '@platform/adapters/tui/ports.js';
 
 // ── Resolution types ─────────────────────────────────────────────

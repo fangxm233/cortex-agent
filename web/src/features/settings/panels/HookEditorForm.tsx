@@ -1,8 +1,3 @@
-// input:  hook view-model, settings atoms
-// output: hook trigger, action, scope and advanced fields
-// pos:    Responsive hook declaration form
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {

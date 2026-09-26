@@ -1,13 +1,3 @@
-// input:  openThreadRunDetached (orch/thread-run) — the detached helper thread-executor owned
-// output: unit tests — fire-and-forget thread runs hold the busy gate for the whole pipeline
-// pos:    regression for "server restart kills MCP-started (thread_start) background threads":
-//         the webhook fire-and-forget path must bracket runThread with trackPendingTask(±1) so
-//         childBusy stays true across the entire thread, deferring daemon restart/rebuild. The
-//         gate is held across the onSettled callback too (test e) — it wakes the parent agent for
-//         a full turn, and a deferred restart firing mid-wake would drop the notification. Since
-//         T2.1 the ThreadRun the gate brackets also contains the terminal seal and the settle, so
-//         "run" below means run + render + settle.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { openThreadRunDetached } from '../../src/orchestration/thread-run/index.js';

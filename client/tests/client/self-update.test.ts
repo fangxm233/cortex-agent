@@ -1,6 +1,3 @@
-// input:  synthetic update messages and temp install roots
-// output: assertions on hash identity, install/swap and failure containment
-// pos:    Covers the client self-update handler
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

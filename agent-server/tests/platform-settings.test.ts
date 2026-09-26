@@ -1,8 +1,3 @@
-// input:  isolated dotenv files, platform settings and skill scope
-// output: platform persistence, redaction and gating regressions
-// pos:    Platform configuration security and behavior tests
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { test, expect } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';

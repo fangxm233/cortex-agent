@@ -1,8 +1,3 @@
-// input:  UI session probe, native shell status, settings atoms
-// output: browser-only sign-out card
-// pos:    Advanced settings browser session action
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';

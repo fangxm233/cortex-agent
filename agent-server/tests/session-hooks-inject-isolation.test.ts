@@ -1,10 +1,3 @@
-// input:  Node test runner + runHookInjection / onNewInjectSessionKey
-// output: regression tests for the cc-backend `!new` + onNew memory-hook session race.
-// pos:    The onNew (pre-close) hook injects its stdout as a final agent turn on the OLD
-//         session. It must run on an ISOLATED pool key — NOT the channel — and close that
-//         key after the turn; otherwise the resurrected old session collides with the live
-//         channel pool slot and the next conversation !new starts resumes the old session.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { OutputStream } from '../src/platform/output-stream.js';

@@ -1,10 +1,3 @@
-// input:  CONFIG_DIR constant, core/i18n normalizeLocale/setLocale, CORTEX_LANG env
-// output: loadPreferences / loadLang / langSource / setLang / applyLang for config/preferences.json
-// pos:    operator-level display preferences (language, future UI prefs). This file holds the ONE
-//         language knob: it drives every server-side t() string AND, via config.get, the Web UI's
-//         vocabulary. Set-once + runtime switchable via !lang or the UI appearance toggle.
-//         Separate from mode.json (LLM execution state) by design.
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR } from '../../core/utils.js';

@@ -1,7 +1,3 @@
-// input:  ws-client.ts + src/platform/tui/protocol.js
-// output: React hook wrapping WsClient — connection lifecycle + frame stream
-// pos:    Thin React wrapper so components don't manage WS lifecycle directly
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WsClient } from '../ws-client.js';
 import type { WsState } from '../ws-client.js';

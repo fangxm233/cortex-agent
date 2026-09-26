@@ -1,8 +1,3 @@
-// input:  React, monospaced font and ink tokens
-// output: MonoText, MonoTextProps
-// pos:    Monospaced data labels with opaque muted text
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ElementType, ReactNode } from 'react';
 
 // Monospace text primitive (IBM Plex Mono via `font-mono` token). Used for data

@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: MemoryView presentation
-// pos:    Stable memory reader beside a transparent tree
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useMemo, useState, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';

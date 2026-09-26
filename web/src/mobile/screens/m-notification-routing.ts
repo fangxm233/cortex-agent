@@ -1,8 +1,3 @@
-// input:  untrusted notification targets and server lookup results
-// output: validated destinations, project scope and on-screen session
-// pos:    Notification target validation and route projection
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 export interface NotificationRoute { path: string; projectId?: string }
 interface SessionTarget { sessionId: string; projectId: string | null }
 interface ApprovalTarget { id: string; projectId: string | null }

@@ -1,7 +1,3 @@
-// input:  settings navigation, settings VM, mobile controls
-// output: MSettingsView
-// pos:    Mobile Settings index and route entries
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';

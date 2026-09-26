@@ -1,6 +1,3 @@
-// input:  the agents domain modules (config, profile-switch, profile-manager)
-// output: the public agents-domain API: profiles, modes, credentials and channel selection
-// pos:    domain/agents barrel — [S11] split from mode-manager.ts
 // Usage: import { getActiveBackend, getActiveProfile, ... } from './domain/agents/index.js';
 //
 // Profiles / roles / credentials only. Starting a run, compacting a session and the engine spec

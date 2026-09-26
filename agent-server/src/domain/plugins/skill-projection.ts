@@ -1,6 +1,3 @@
-// input:  validated portable skill directories
-// output: snapshots, copies, and exact validators
-// pos:    Recursive portable skill projection helpers
 //
 // Change detection is stat-based on purpose: every projected file used to be read and sha256'd
 // three times per spawn (build, copy, validate). The source-side guarantees — symlink containment,

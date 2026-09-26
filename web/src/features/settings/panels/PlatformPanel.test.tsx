@@ -1,8 +1,3 @@
-// input:  platform panel, redacted fixtures and save callbacks
-// output: credential, routing, skill and failure-state regressions
-// pos:    Functional platform editor interaction tests
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { expect, test, vi } from 'vitest';
 import type { ConfigSnapshot, PlatformSettingsSnapshot } from '@cortex-agent/ui-contract';

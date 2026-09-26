@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: ThreadDetailView presentation
-// pos:    Continuous thread sheet with material controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';

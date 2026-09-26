@@ -1,7 +1,3 @@
-// input:  React, floating composer shell dimensions
-// output: useComposerClearance
-// pos:    Measure mobile transcript clearance and fade edge for its composer
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
 
 export function useComposerClearance() {

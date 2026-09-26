@@ -1,8 +1,3 @@
-// input:  PiSessionRequest and PISession callbacks, scripted answers from a test
-// output: FakeRuntime: an in-memory PI runtime handle whose calls a test can inspect and drive,
-//         optionally exposing the mid-turn compaction surface the context guard drives
-// pos:    Shared stand-in for the PI SDK behind PIAdapter/PISession tests
-
 import type {
   PiAgentSessionLike, PiRawEvent, PiRuntimeCallbacks, PiRuntimeFactory, PiRuntimeHandle,
 } from '../../src/agent-adapter/pi/runtime.js';

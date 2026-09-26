@@ -1,8 +1,3 @@
-// input:  React, semantic material and opaque surface tokens
-// output: Card, CardHeader, CardBody, CardProps
-// pos:    Unblurred glass cards with an explicit reading surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 
 // Repeated cards composite without backdrop-filter. Use opaque for reading/occlusion, not to

@@ -1,7 +1,3 @@
-// input:  Tool calls, overflow measurement, debug details
-// output: ToolCallsRow
-// pos:    Spaced tool groups for desktop and touch transcripts
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type CSSProperties, type MouseEvent, type Ref } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';

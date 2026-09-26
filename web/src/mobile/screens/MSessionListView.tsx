@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MSessionListView
-// pos:    Mobile session tiles under a floating glass header
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';

@@ -1,8 +1,3 @@
-// input:  the store's `touchSessionUse` storage primitive (patch lastUsedAt iff live && !pending)
-// output: the runtime use-count lease that keeps retention off a session while a turn holds it
-// pos:    domain/sessions — the use-count bookkeeping that used to live inside
-//         `store/session-registry-repo.ts`. The store now owns only storage; this owns policy.
-
 import { sessionStore } from '@store/session-registry-repo.js';
 
 /** The one storage call this tracker needs: patch `lastUsedAt=now` iff the session is live and not

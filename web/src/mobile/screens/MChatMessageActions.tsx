@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MChatMessageActions
-// pos:    Mobile message action materials and reading preview
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { MC, MONO } from '@/mobile/ui/kit';

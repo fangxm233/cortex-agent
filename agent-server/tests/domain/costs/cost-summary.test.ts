@@ -1,8 +1,3 @@
-// input:  getCostSummary + costRepo (env-pointed temp costs.jsonl / budget.json)
-// output: unit tests for the additive cost-summary fields (dailyBudget / forecastToday /
-//         dailyCost 14-day series / byTriggerScoped project-scoped where-it-goes)
-// pos:    verifies domain/costs/cost-tracker.ts getCostSummary real-data extensions (task c489)
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

@@ -1,7 +1,3 @@
-// input:  a fake tRPC client whose subscribe() handlers the test drives by hand
-// output: tests for the per-session delta stream: scope, fan-in, and recovery after a terminal error
-// pos:    Regression cover for "replies stopped streaming until I clicked away and back"
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssistantDeltaEvent } from '@/features/session/transcript/transcript-vm';

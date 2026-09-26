@@ -1,10 +1,3 @@
-// input:  native shell flags (desktop-config) + the browser viewport media query
-// output: useMobileLayout() / useIsMobile() — true when the mobile layout should render
-// pos:    The single source of truth for the mobile/desktop LAYOUT switch. Native mobile is always
-//         mobile, native desktop is always desktop, and an ordinary browser follows the viewport
-//         (≤ MOBILE_MAX_WIDTH). Language is never consulted here — the language is a separate,
-//         server-owned knob (i18n/lang.ts); this hook only describes the layout.
-
 import { useSyncExternalStore } from 'react';
 import { isDesktopShell, isMobileShell } from './desktop-config';
 

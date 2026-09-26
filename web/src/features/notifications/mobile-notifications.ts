@@ -1,8 +1,3 @@
-// input:  native status/configuration and OS notification permission
-// output: device-local state, completion ownership and visible reconciliation
-// pos:    Android background notification lifecycle owner
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useSyncExternalStore } from 'react';
 import { isMobileShell } from '@/lib/desktop-config';
 import { mobileNotificationStatus, safeInvoke, type NativeNotificationStatus } from '@/lib/native-bridge';

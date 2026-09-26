@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MProjectView
-// pos:    Mobile project cards with readable project initials; header Usage + Settings keys
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';

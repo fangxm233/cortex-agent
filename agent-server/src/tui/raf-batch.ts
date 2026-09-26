@@ -1,6 +1,3 @@
-// input:  high-frequency interaction deltas (mouse wheel) / state updates (drag selection)
-// output: a numeric coalescer + a leading/trailing throttle
-// pos:    Stage 2 of the TUI render-perf plan — collapse event storms into fewer React updates
 //
 // Why: each mouse-wheel notch and each drag motion event currently triggers its own setState →
 // full React reconciliation of the transcript (which re-flattens every message). Ink already

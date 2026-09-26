@@ -1,28 +1,5 @@
 #!/usr/bin/env node
 // @cortex-hook-version 2026.9.15  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
-// input:  stdin JSON — Claude Code hook event or PI hook-bridge payload; or runHook(payload, env)
-// output: { hookSpecificOutput: { hookEventName, additionalContext, matched } }
-//         Exported `runHook` is the in-process entry point: the PI hook bridge calls it directly
-//         instead of spawning this file, so every path here takes its scope from the `env`
-//         argument rather than process.env (one daemon process serves many sessions).
-// pos:    Inject the AGENTS.md / AGENTS.local.md ancestor chain that THE BACKEND DOES NOT LOAD.
-//         Both backends load AGENTS.md natively now, so this hook only covers their blind spots
-//         (see backendLoadsNatively below for the measured matrix):
-//           · paths outside the session cwd tree  — neither backend loads these
-//           · AGENTS.local.md, anywhere           — neither backend has a `.local` name
-//           · descendants of cwd, on PI           — PI walks cwd→root only, never downward
-//         Anything the backend already loaded is recorded in the dedup cache WITHOUT being
-//         injected, so the agent never receives the same rules twice.
-//         2-event dispatch:
-//           PostToolUse (Read|Edit) — from tool_input.file_path/path
-//           SessionStart (startup|resume|clear|compact) — from payload.cwd
-//         Shared per-session cache with remote MCP injection under tmp/cortexmd-cache
-//           — stable session + physical host + path + mtime dedup across tool families
-//           — only files actually injected are marked seen; truncated files stay eligible
-//         markOnlyPaths: exact AGENTS.md tool target → cache update only, no duplicate
-//         Total length guard at 9,500 chars; files that overflow the budget are turned into an
-//           explicit "Read EACH of these files now" instruction instead of a silent drop
-// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync,

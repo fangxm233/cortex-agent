@@ -1,9 +1,3 @@
-// input:  fixtures/runs/claude-*.jsonl replayed through replay-harness.replayClaudeRun
-// output: regression spec for Claude run phases on the EngineRun seam (foreground/background
-//         RunEvents, run result + settled, injection and background policy)
-// pos:    Run-phase baseline — the behaviour the engine-owned background phase must keep for
-//         continuation, injection, orphan subagents and the resume notification turn
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

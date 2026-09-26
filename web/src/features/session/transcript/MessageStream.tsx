@@ -1,7 +1,3 @@
-// input:  Transcript rows, interaction actions, edit context
-// output: MessageStream, ChatRows, InteractionRowCard, edit types
-// pos:    Streaming transcript with readable compact metadata
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';

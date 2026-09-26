@@ -1,8 +1,3 @@
-// input:  the bundled `agent` / `agent_stop` MCP tools and the leaf guards around them
-// output: registration shape, webhook proxy payloads, foreground polling, child-is-a-leaf checks,
-//         catalog-driven field descriptions
-// pos:    Tests the MCP delegation surface
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import assert from 'node:assert/strict';

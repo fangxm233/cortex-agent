@@ -1,9 +1,3 @@
-// input:  UiServiceDeps + MemoryTreeParams / MemoryFileParams
-// output: handleMemoryTree → MemoryTree; handleMemoryFile → MemoryFile
-// pos:    read-only fs query handlers for 'memory.tree' and 'memory.file'. All paths are
-//         restricted to the project root (Project.contextDir under PROJECTS_DIR); traversal,
-//         absolute paths, and symlink escape are rejected. No write API is used.
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { runFile } from '@core/exec-async.js';

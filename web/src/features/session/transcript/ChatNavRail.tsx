@@ -1,7 +1,3 @@
-// input:  chat-nav marks, attachment presentation, language
-// output: ChatNavRail, NAV_COPY, NavCopy
-// pos:    Transcript navigation ticks with readable previews
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MENU_SURFACE } from '@/design/MenuChrome';
 import { useLang } from '@/i18n';

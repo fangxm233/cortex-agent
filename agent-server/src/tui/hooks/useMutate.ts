@@ -1,7 +1,3 @@
-// input:  UiMutate + UiMutateResult frames from protocol
-// output: Hook for ui.mutate request/response correlation — sends mutate frames, matches results by id, 10s timeout, cleanup on unmount
-// pos:    Async action hook for Phase 3 dashboard mutation buttons
-
 import { useEffect, useRef, useCallback } from 'react';
 import { randomUUID } from 'crypto';
 import { isUiMutateResult } from '../../platform/tui/protocol.js';

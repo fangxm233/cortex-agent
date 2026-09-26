@@ -1,11 +1,3 @@
-// input:  a piece of text Cortex wants delivered into a channel's conversation, plus WHY
-// output: one synthetic IncomingMessage routed through agentRunner.route — injected into the live
-//         turn when the backend can take it, queued behind it otherwise
-// pos:    orchestration — the ONE door into a conversation turn for everything that is not an
-//         inbound platform message. It replaces three near-identical synthetic-message builders
-//         (session-send `web_`, resume-dispatcher `resume_`, thread-callback `cb_`) whose only real
-//         differences were the sender id, the systemOrigin tag and `raw.source`. Those differences
-//         are now one table, `ORIGINS`, keyed by WHY the text is being delivered.
 //
 //         Direction of imports matters here: this module imports `agent-runner`, never the other
 //         way round. That is what lets `thread-callback` / `manager-qa` reach a turn without the

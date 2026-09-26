@@ -1,8 +1,3 @@
-// input:  localStorage
-// output: RAIL_WIDTH_DEFAULT, clampRailWidth, loadRailWidth, saveRailWidth
-// pos:    Persisted, drag-adjustable width of the desktop left rail
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 /** localStorage key — `cortex.*` UI-pref convention, alongside the rail's other stored state. */
 export const RAIL_WIDTH_KEY = 'cortex.railWidth';
 

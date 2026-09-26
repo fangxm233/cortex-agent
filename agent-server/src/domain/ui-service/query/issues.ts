@@ -1,11 +1,3 @@
-// input:  UiServiceDeps + IssuesListParams
-// output: parseIssues (pure md → IssueInfo[]) + issueLineId + handleIssuesList query handler
-// pos:    read query handler for 'issues.list' (design sec-24 project issue list). Data source is
-//         the per-project markdown queue <contextDir>/ISSUES.md (agent-written; UI read-only).
-//         Pure parse split out so it is testable without fs. Real-world tolerant: entries are
-//         column-0 `- **<title>** (<freeform paren>)` bullets with freeform indented sub-bullets
-//         (issues-md.md canonical keys are NOT guaranteed) — see cortex-self/flywheel ISSUES.md.
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';

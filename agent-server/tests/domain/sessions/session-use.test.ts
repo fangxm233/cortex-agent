@@ -1,7 +1,3 @@
-// input:  the SessionUseTracker over a real SessionRegistryRepo
-// output: use-count lease semantics (moved out of the store in the session-registry refactor)
-// pos:    domain/sessions — verifies acquire/refuse/nest/release and the retention protected set
-
 import '../../_test-home.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

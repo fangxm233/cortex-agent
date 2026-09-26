@@ -1,7 +1,3 @@
-// input:  dock-tabs, browser-target, motion, theme
-// output: DockTabStrip
-// pos:    Compact glass tabs above stable dock documents
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';

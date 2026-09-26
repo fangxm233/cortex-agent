@@ -1,8 +1,3 @@
-// input:  @platform/index.js + @orch/interactions/command-action-router.js + @domain/system/update-prompt.js
-// output: createUpdatePrompt(adapter, router, opts?) => UpdatePrompt
-// pos:    Platform-neutral UpdatePrompt implementation — pre-registers three actionIds on router,
-//         posts interactive message to system-notice, resolves ask() promise on button click.
-
 import type { PlatformAdapter, ActionElement, MessageRef, MessageContent } from '@platform/index.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import type { UpdateChoice, UpdatePrompt } from '@domain/system/update-prompt.js';

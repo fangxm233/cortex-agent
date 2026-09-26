@@ -1,8 +1,3 @@
-/* input: shared material tokens, Radix body portal markup
- * output: Glass settings dropdown and nested dialog shells
- * pos: Keep body-portaled controls on the settings visual system
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
-
 /* Radix portals mount under body, outside the filtered Settings content.
    Filter each floating shell, not its scrolling rows or inner controls. */
 .settings-surface.settings-select-popup,

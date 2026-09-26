@@ -1,9 +1,3 @@
-// input:  synthetic data dirs holding CORTEX.md / CORTEX.local.md at various depths
-// output: assertions on renaming, skip dirs, collision safety, dangling-link cleanup, idempotence,
-//         plus the S4 rule-file rename and its reference repair
-// pos:    Covers migrations S3 and S4, which move an existing install onto the AGENTS.md name
-//         the backends load natively — the memory files, then the rule describing them
-// >>> Once updated, update this header and parent AGENTS.md <<<
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';

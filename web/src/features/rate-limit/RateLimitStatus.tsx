@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: RateLimitStatus presentation
-// pos:    Dense rate-limit content surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import { useMutation, useQueryClient } from '@tanstack/react-query';

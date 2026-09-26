@@ -1,8 +1,3 @@
-// input:  react, theme color tokens
-// output: ColorSlider
-// pos:    Keyboard and touch control for appearance colors
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { CSSProperties, InputHTMLAttributes } from 'react';
 import './color-slider.css';
 

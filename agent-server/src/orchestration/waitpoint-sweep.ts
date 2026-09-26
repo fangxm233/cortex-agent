@@ -1,9 +1,3 @@
-// input:  settings (waitpointSweepMs), waitpoint service, notifier, ingress
-// output: sweepWaitpoints / startWaitpointSweep / stopWaitpointSweep / recoverWaitpoints
-// pos:    The disk-driven backstop for waitpoints. Every fast path (the coalesce timer, the HTTP
-//         route) is in-memory and dies with the process; this loop re-derives everything from
-//         waitpoints.json and the spool directory, so a signal that arrived while the daemon was
-//         restarting is still delivered, just later.
 //
 //         Deliberately self-rearming setTimeout rather than setInterval: a slow sweep must not
 //         stack, and the cadence is re-read each tick so a settings change takes effect next round.

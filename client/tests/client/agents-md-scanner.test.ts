@@ -1,7 +1,3 @@
-// input:  temp directory trees carrying AGENTS.md / AGENTS.local.md at various depths
-// output: assertions on ancestor order, .local pickup, mtime, size cap, dedup, missing target
-// pos:    Covers the scanner the client bundles and runs ON the remote device — the only
-//         surviving AGENTS.md scanner now that both backends load local files natively
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

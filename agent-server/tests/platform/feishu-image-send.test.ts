@@ -1,8 +1,3 @@
-// input:  a local file handed to either Feishu send path (adapter.uploadFile / feishu_send_file)
-// output: the message Feishu is asked to post — `image` with an image_key, or `file` with a file_key
-// pos:    tests/platform — regression for images arriving as download cards. Both send paths called
-//         `im/v1/files` unconditionally; `im/v1/images` was never called at all, so a screenshot the
-//         agent produced could not be seen without tapping it open.
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';

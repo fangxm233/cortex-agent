@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MScheduleSheetLevels
-// pos:    Mobile schedule lists sharing their sheet material
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { MC, MONO } from '@/mobile/ui/kit';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';

@@ -1,8 +1,3 @@
-// input:  vocabulary, submit callback, design controls
-// output: UiTokenLogin
-// pos:    Browser token login on shared material surfaces
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState, type FormEvent } from 'react';
 import '@/design/content-surfaces.css';
 import { Button, Card } from '@/design';

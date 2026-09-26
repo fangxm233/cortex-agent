@@ -1,9 +1,3 @@
-// input:  UiServiceDeps + ApprovalsListParams
-// output: parseApprovals (pure md → ApprovalInfo[]) + handleApprovalsList query handler
-// pos:    read query handler for 'approvals.list'. Data source is the markdown queue
-//         <CORTEX_HOME>/context/PENDING_APPROVALS.md (path injected via deps.approvalsPath).
-//         Pure parse split out so it is testable without fs.
-
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import type {

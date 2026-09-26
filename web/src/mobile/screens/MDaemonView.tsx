@@ -1,7 +1,3 @@
-// input:  daemon VM, restart callbacks, mobile Settings controls
-// output: MDaemonView
-// pos:    Mobile daemon materials and guarded restart actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type CSSProperties } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,

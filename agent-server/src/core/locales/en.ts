@@ -1,8 +1,3 @@
-// input:  per-cluster English slices (./slices/*)
-// output: `en` — aggregated canonical English message table + MessageKey type
-// pos:    L0 locale barrel; zh.ts mirrors it. Each cluster lives in its own slice so i18n
-//         extraction work stays conflict-free; this file only spreads them together.
-
 import { langEn } from './slices/lang.js';
 import { statusEn } from './slices/status.js';
 import { commandsEn } from './slices/commands.js';

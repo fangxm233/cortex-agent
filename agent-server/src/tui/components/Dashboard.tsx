@@ -1,7 +1,3 @@
-// input:  Tab definitions + sendFrame + dashState
-// output: Tab-cycled dashboard panel — Tab key cycles, ↑/↓ navigates rows
-// pos:    Dashboard tab container for M5 side panel
-
 import React, { useCallback, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { TAB_SCOPES } from '../hooks/useDashboardData.js';

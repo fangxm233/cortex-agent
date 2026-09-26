@@ -1,13 +1,3 @@
-// input:  a channel that is waiting on a human's free-text reply (armed by whoever is waiting),
-//         plus every message that reaches a conversation entry on that channel
-// output: whether this message WAS that reply — `true` ⇒ it was consumed and must not open a turn
-// pos:    orchestration LEAF. It imports nothing from `orchestration/` (only `core/` logging), and
-//         that is the whole point: the DR-0016 human-answer backstop has to be testable at the one
-//         place every entry into a session passes through (`AgentRunner._routeWithAdmission`)
-//         WITHOUT that module importing `manager-qa`, which would close the
-//         `agent-runner → manager-qa → thread-callback → session-gateway → agent-runner` cycle
-//         (.dependency-cruiser.cjs `no-circular` is an error). So the interception point imports
-//         this registry; the owner of the question (`manager-qa`) arms it. Neither knows the other.
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('human-answer-backstop');

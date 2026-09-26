@@ -1,8 +1,3 @@
-// input:  useTemplatesController, settings atoms, detail pane
-// output: desktop template master-detail editor
-// pos:    Template list and editor composition
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState } from 'react';
 import type { ThreadTemplateDetail, ThreadTemplateEntry, ThreadTemplateIssue } from '@cortex-agent/ui-contract';

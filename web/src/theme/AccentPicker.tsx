@@ -1,8 +1,3 @@
-// input:  theme tokens, ColorSlider
-// output: AccentPicker, AccentPickerCopy
-// pos:    Appearance accent presets and hue control
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { ColorSlider } from './ColorSlider';
 import { DEFAULT_ACCENT_HUE, type AccentHue } from './theme';
 

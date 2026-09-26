@@ -1,8 +1,3 @@
-// input:  language, device-local theme providers, settings atoms
-// output: appearance controls with glass theme preview frames
-// pos:    Compact appearance controls and readable storage hints
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import { useVocab, useLang, useSetLang, useLangSource, type Lang } from '@/i18n';
 import {

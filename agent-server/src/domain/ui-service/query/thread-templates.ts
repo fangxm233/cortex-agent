@@ -1,11 +1,3 @@
-// input:  UiServiceDeps + ThreadTemplatesGetParams (empty)
-// output: threadTemplates.get handler → ThreadTemplateEntry[] — full body of every
-//         thread-template JSON file under config/thread-templates/{templates,agents,shells}/
-// pos:    query handler for 'threadTemplates.get' (plan §12 A item 3 / 9c). Pure
-//         `readThreadTemplates(configDir)` + thin `handleThreadTemplatesGet` binding CONFIG_DIR.
-//         No secrets in template JSON files; body is the full parsed content, null on parse error.
-//         Kind order: templates → agents → shells. Within each kind: alphabetical by filename.
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CONFIG_DIR, DEFAULTS_DIR } from '@core/paths.js';

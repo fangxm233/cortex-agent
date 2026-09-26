@@ -1,8 +1,3 @@
-// input:  budget writer, config and cost snapshots, settings atoms
-// output: desktop spend and budget limit controls
-// pos:    Compact desktop budget panel
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigBudget, ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';

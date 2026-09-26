@@ -1,8 +1,3 @@
-// input:  ApprovalInfo, approval queue, vocabulary, toast
-// output: ApprovalCenterModal
-// pos:    Approval material cards and decision detail sheet
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';

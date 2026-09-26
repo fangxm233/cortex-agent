@@ -1,13 +1,3 @@
-// input:  a thread-templates directory + an entity kind/name/body and the hash it was read at
-// output: readEntity / saveEntity / removeEntity / entityPath — validated, atomic, guarded writes
-// pos:    The write half of the thread-template config, mirroring store/hook-writer.ts. Nothing
-//         wrote these files before except the one-time legacy migration, so every rule about what
-//         may be written lives here: the filename IS the identity (the loader keys on the basename
-//         and skips a file whose `name` disagrees), validation errors block the write, and an
-//         optimistic baseHash stops a stale editor from clobbering an edit that landed underneath
-//         it — a real risk because the config is git-synced across machines and hot-reloaded.
-//         Deletes are reference-guarded. No backups: the directory is git-tracked, so git is undo.
-
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import * as path from 'node:path';

@@ -5,13 +5,6 @@ import { useVocabOptional } from '@/i18n';
 import { downloadFile, openPath, revealPath } from '@/lib/files';
 import { isMobileShell } from '@/lib/desktop-config';
 
-// input:  a UI-relative `workspace/…` file path (+ optional display name)
-// output: a fire-and-forget download callback that surfaces the outcome to the user
-// pos:    the single feedback wrapper over `lib/files.downloadFile`. Every file-card / lightbox
-//         download action goes through this so a completed save is confirmed (with its on-disk
-//         location) and a failure is no longer silently swallowed — the old `void downloadFile(...)`
-//         call sites gave zero feedback, so a desktop download that succeeded looked like nothing
-//         happened, and a failure was invisible.
 //
 // Mobile native shell is intentionally skipped: Android surfaces its own OS notification
 // (`save_download` / DownloadManager), so an in-app bubble would only repeat it. There the plain

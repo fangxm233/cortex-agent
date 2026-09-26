@@ -1,8 +1,3 @@
-// input:  TabData for threads tab
-// output: Threads list — status icon + template name + step progress
-// pos:    Dashboard tab: read-only thread list
-//         [c] key opens ConfirmModal → threads.cancel mutate via mutate prop
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { TabData } from '../hooks/useDashboardData.js';

@@ -1,10 +1,3 @@
-// input:  argv, CORTEX_SIGNAL_ID / CORTEX_SIGNAL_SECRET, WEBHOOK_PORT
-// output: cortex-signal binary — resolve a waitpoint from outside Cortex
-// pos:    The emitter half of the waitpoint feature. Deliberately does not launch, supervise or
-//         adopt anything: the caller starts their own process however they like and appends one
-//         line. If the daemon cannot be reached the signal is spooled to disk instead of lost,
-//         which is the same file the daemon (or a device drain) picks up later.
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

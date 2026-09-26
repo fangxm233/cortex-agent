@@ -1,16 +1,5 @@
 #!/usr/bin/env node
 // @cortex-hook-version 2026.9.15
-// input:  stdin JSON — Claude Code PreToolUse event payload
-// output: stdout JSON — { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason }, systemMessage? }
-// pos:    PreToolUse hook — intercepts Edit/Write on size-capped context files and
-//         enforces their caps (limit table below; rules/status-md.md, rules/issues-md.md,
-//         rules/agents-md.md): deny writes whose result exceeds the caps, unless the
-//         write shrinks an already-over-limit file (so cleanup stays possible); warn
-//         when approaching the cap. Guarded files:
-//           context/projects/<p>/STATUS.md — 80 lines / 6KB (state register)
-//           context/projects/<p>/ISSUES.md — 80 lines / 6KB (friction log)
-//           AGENTS.md anywhere under a context/ tree — 120 lines / 8KB (injected index)
-// >>> If I am updated, be sure to update my header comment and the AGENTS.md in the same folder <<<
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, sep } from 'path';

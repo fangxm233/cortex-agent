@@ -1,6 +1,3 @@
-// input:  protocol types (ModalDefinition, ModalField, ModalFieldValue, ModalSubmit)
-// output: Plan-approval modal — plan text + approve/feedback/cancel hot-keys + feedback text input
-// pos:    Modal UI for the interactive-reply plan approval flow
 //
 // Renders:
 //   plan text (from section field) as a scrollable region

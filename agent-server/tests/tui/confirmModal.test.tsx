@@ -1,7 +1,3 @@
-// input:  src/tui/components/ConfirmModal.tsx
-// output: Tests — confirm path (no reason), cancel path, reason-input path
-// pos:    Verifies ConfirmModal keybinding and text input behavior
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

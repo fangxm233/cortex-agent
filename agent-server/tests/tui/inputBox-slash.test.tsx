@@ -1,8 +1,3 @@
-// input:  src/tui/components/InputBox.js (slash palette)
-// output: Tests — menu opens on '/', Enter runs a command, arrows select, Tab completes,
-//         unknown '/word' falls back to onSubmit
-// pos:    Guards the Claude-Code-style slash-command palette
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

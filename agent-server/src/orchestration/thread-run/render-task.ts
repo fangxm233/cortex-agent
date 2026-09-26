@@ -1,12 +1,3 @@
-// input:  a task-framed run's status message + the verdict the owning job reached about the TASK
-// output: every TASK-style rendering — the opening line, the in-step progress line, and the one
-//         terminal / non-terminal line the dispatch and scheduled jobs used to write themselves
-// pos:    orchestration/thread-run — the sibling of render-summary. These two files are the only
-//         thread renderers left (plan §0-3). Everything here is a verbatim port of the status
-//         strings that lived inline in `domain/scheduling/jobs/{task-dispatch,scheduled-task}.ts`
-//         and in the jobs' shared finalize helper; the jobs now decide WHAT happened (a
-//         `TaskVerdict`) and never touch the adapter.
-
 import type { Destination, MessageRef, PlatformAdapter } from '@platform/index.js';
 import type { ThreadRunResult } from '@domain/threads/runner.js';
 import {

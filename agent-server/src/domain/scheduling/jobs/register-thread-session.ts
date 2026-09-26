@@ -1,9 +1,3 @@
-// input:  a finished thread run (its steps + the last agent result) and how to label the session
-// output: one session-registry record, so the run is resumable and shows a transcript in the UI
-// pos:    the last thing the scheduled-task and task-dispatch jobs still share. Everything else
-//         that used to live here (the "Done"/progress status lines) is rendering and moved to
-//         orchestration/thread-run/render-task.ts in T2.2.
-
 import type { AgentResult } from '@core/types/agent-types.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getActiveProfile } from '../../agents/index.js';

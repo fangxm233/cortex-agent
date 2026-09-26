@@ -1,7 +1,3 @@
-// input:  ink useInput hook
-// output: Global key handlers for M5 Ink client
-// pos:    Single source of truth for keyboard shortcuts
-
 import { useInput } from 'ink';
 import { useCallback, useRef } from 'react';
 

@@ -1,7 +1,3 @@
-// input:  hook bridge subscribers for web interactions
-// output: web sessionId retention from event payload, not channel slicing
-// pos:    regression for adopted/non-web-prefixed session ids on web interactions
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';

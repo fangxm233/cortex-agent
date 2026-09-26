@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + { executionId }
-// output: cancelExecution handler → Ok<{cancelled:boolean}> | Err
-// pos:    mutate handler for 'executions.cancel'
-
 import type { UiServiceDeps, Result, ExecutionsCancelReturn } from '../types.js';
 
 export async function handleCancelExecution(

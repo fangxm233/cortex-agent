@@ -1,8 +1,3 @@
-// input:  login flow state, design controls, vocabulary
-// output: LoginFlowModal
-// pos:    Provider authentication with shared material controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import '@/design/content-surfaces.css';
 import {
   useEffect,

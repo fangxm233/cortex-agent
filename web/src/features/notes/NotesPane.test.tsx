@@ -1,8 +1,3 @@
-// input:  NotesPaneView, static renderer, synthetic notes
-// output: Completed-note readability regression
-// pos:    Notes pane presentation test
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { NotesPaneView } from './NotesPane';

@@ -1,7 +1,3 @@
-// input:  rail-tree, rail-order, vocab, ProjectFolderIcon
-// output: RailTree
-// pos:    Flat project rows and readable session hierarchy
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { MENU_SURFACE } from '@/design/MenuChrome';

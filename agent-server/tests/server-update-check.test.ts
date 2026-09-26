@@ -1,7 +1,3 @@
-// input:  Node test runner, server-update-check module
-// output: tests for compareCalVer, isUpdateDevMode, checkServerUpdate
-// pos:    DR-0013 core checker — all branches covered
-
 import { describe, test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

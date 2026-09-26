@@ -1,7 +1,3 @@
-// input:  POST /hook/commission-start with a real (isolated) session registry
-// output: the agent's entry into commission mode — draft dir + registry flag + one live event,
-//         idempotent on repeat, refused for a bound session and while the feature is off
-// pos:    guards the loopback the cortex_commission_start MCP tool calls (DR-0037 v4)
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

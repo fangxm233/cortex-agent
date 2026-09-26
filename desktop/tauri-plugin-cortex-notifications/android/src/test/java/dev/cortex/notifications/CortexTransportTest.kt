@@ -1,6 +1,3 @@
-// input:  Native OkHttp transport and real tRPC adapter captures
-// output: Cross-layer HTTP request/framing and cancellation regression tests
-// pos:    JVM loopback integration tests, without an Android emulator
 package dev.cortex.notifications
 
 import org.json.JSONArray

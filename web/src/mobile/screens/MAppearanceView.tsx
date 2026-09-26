@@ -1,8 +1,3 @@
-// input:  appearance preferences, shared settings controls
-// output: MAppearanceView
-// pos:    Mobile appearance preferences in material cards
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';

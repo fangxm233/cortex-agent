@@ -1,7 +1,3 @@
-// input:  vitest, hook bridge, hook registry
-// output: Getter-only before_agent_start regression tests
-// pos:    Guard Pi lifecycle prompt return-value compatibility
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { expect, test, vi } from 'vitest';
 import { installHookBridge, type HookHost } from '../../src/agent-adapter/pi/hook-bridge.js';
 import type { HookEntry } from '../../src/store/hook-registry.js';

@@ -1,8 +1,3 @@
-// input: profile panel view, React renderer, synthetic profile
-// output: responsive profile content and action regressions
-// pos: desktop profile layout contract tests
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

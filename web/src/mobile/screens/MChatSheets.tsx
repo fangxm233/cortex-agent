@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MChatSheets
-// pos:    Mobile glass sheets and Escape-dismissible More menu
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/session/list/session-id';

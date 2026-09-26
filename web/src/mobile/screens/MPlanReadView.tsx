@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MPlanReadView
-// pos:    Stable mobile plan reading with material controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MC, MONO } from '@/mobile/ui/kit';

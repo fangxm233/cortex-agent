@@ -1,8 +1,3 @@
-// input:  pickBudget / getCostSummary / checkBudget / setBudget / clearProjectBudget /
-//         listProjectBudgets against an env-pointed temp costs.jsonl + budget.json
-// output: unit tests for per-project budget resolution and editing
-// pos:    verifies domain/costs/cost-tracker.ts budget scoping (plan/per-project-budget.md)
-
 import { test, describe, beforeEach, afterAll, expect } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';

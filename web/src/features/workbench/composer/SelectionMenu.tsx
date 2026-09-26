@@ -1,7 +1,3 @@
-// input:  React, selection options, MenuChrome
-// output: SelectionMenu, SelectionPane, SelectionMenuProps
-// pos:    Engine picker with readable keyboard-accessible rows
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type {

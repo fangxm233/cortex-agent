@@ -1,10 +1,3 @@
-// input:  setOrchestrationRuntime(), called once by the composition root (entry/app.ts)
-// output: the PlatformAdapter and EventBus every orchestration module needs but cannot construct
-// pos:    orchestration's one runtime holder. Orchestration reaches outward (post a status
-//         message, publish a session event) but is reached from places that hold neither handle —
-//         a webhook, a scheduled job, a background run settling hours later. Before this, those
-//         modules borrowed `domain/scheduling/job-registry`'s `ctx` service locator; that locator
-//         stays, but it is now the scheduling domain's own, not orchestration's back door.
 import type { PlatformAdapter } from '@platform/index.js';
 import type { EventBus } from '@events/index.js';
 

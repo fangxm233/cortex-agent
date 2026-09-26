@@ -1,7 +1,3 @@
-// input:  SessionSelector, React test renderer, mocked session API
-// output: Selection and Escape-only focus restoration tests
-// pos:    Session chip semantics, dismissal and selection coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

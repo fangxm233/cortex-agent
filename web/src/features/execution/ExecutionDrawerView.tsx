@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: ExecutionDrawerView presentation
-// pos:    Stable execution log with highlighted toolbar chrome
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 

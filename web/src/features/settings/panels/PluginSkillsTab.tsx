@@ -1,8 +1,3 @@
-// input:  skill queries, authoring actions, settings atoms
-// output: skill list, stable source editor and glass dialogs
-// pos:    Responsive desktop plugin skills tab
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';

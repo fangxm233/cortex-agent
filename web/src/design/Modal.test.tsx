@@ -1,8 +1,3 @@
-// input:  Modal, react-test-renderer, Vitest
-// output: Modal materials, layers and portal styling checks
-// pos:    Verify material dialogs preserve bare and nested modes
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

@@ -1,7 +1,3 @@
-// input:  BrowserTabState, forwarding API, browser presentation
-// output: WebBody
-// pos:    Persistent browser preview with extracted glass chrome
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
 import {

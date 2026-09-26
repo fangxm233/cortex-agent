@@ -1,10 +1,3 @@
-// input:  BusyTracker, EventBus
-// output: regression tests for BusyTracker IPC signaling [S6-C, S13 NTH-A]
-// pos:    verifies (a) +1/-1 publish+IPC, (b) multi-publisher aggregate single busy→idle,
-//         (c) re-entrant trackPendingTask inside subscriber is handled without crash,
-//         (d) non-tracker bus.publish fires correct IPC (S13 subscriber-as-source-of-truth),
-//         (e) non-tracker aggregate produces correct single busy+idle
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { BusyTracker } from '../../src/orchestration/busy-tracker.js';

@@ -1,8 +1,3 @@
-// input:  notification items, shell flags and native bridge
-// output: permission-gated posts and retained tap subscriptions
-// pos:    OS notification delivery with old-shell fallback
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { isMobileShell, isNativeShell } from '@/lib/desktop-config';
 import {
   isNativeCommandMissing, listenNativeNotificationActions, mobileNotificationStatus, safeInvoke,

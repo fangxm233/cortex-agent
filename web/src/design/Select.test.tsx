@@ -1,8 +1,3 @@
-// input:  Select, react-test-renderer, Vitest
-// output: Select values, material roles and portal-scope checks
-// pos:    Verify select semantics and caller material overrides
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

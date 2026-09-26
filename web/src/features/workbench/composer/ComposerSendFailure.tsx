@@ -1,7 +1,3 @@
-// input:  Localized copy, send failure text
-// output: ComposerSendFailure
-// pos:    Readable send failure and draft restoration feedback
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useVocab } from '@/i18n';
 
 const mono = "'IBM Plex Mono',monospace";

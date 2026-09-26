@@ -1,8 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
 
-// input:  glass tokens from public/theme.css
-// output: the floating-pane chrome every top-level panel shares
-// pos:    the single definition of "this is a pane", used by the rail and the workspace
 
 /**
  * The chrome of a top-level floating pane: a translucent sheet on the mesh ground, lifted off it by

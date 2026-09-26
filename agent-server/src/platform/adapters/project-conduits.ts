@@ -1,9 +1,3 @@
-// input:  JsonRepository + STORE_DIR
-// output: ProjectConduitsStore (projectId → conduit file-backed store)
-// pos:    Platform-agnostic file-backed project→conduit mapping. Slack defaults to
-//         channel-registry.json (backward compat); other adapters pass a distinct
-//         filePath (e.g. Feishu → feishu-channel-registry.json).
-
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

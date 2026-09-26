@@ -1,8 +1,3 @@
-// input:  platform patch schema, config path and credential writer
-// output: validated platform writes with secret-free errors
-// pos:    Platform settings mutation boundary
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
 import { platformSettingsInput, type PlatformSettingsPatch } from '@core/platform-settings-spec.js';

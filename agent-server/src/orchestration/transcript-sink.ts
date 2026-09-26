@@ -1,10 +1,3 @@
-// input:  RunEvent stream from a run + resolved session/agent identifiers
-// output: RunObserver that appends transcript rows and publishes session events; the mid-turn
-//         injection ledger that persists injected messages and commits them from run events
-// pos:    orchestration — the one history+publish observer every run surface shares, replacing
-//         the four hand-wired copies (agent-runner foreground, the two background surfaces,
-//         mid-turn-inject). The pending-injection two-phase persistence lives here.
-
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { sessionTodos } from '@core/session-todos.js';

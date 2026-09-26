@@ -1,13 +1,3 @@
-// input:  render-summary.renderSummaryOutcome against a thread's PERSISTED statusMsgRef
-// output: stale "suspended — waiting on children" Slack message gets refreshed on terminal/re-suspend
-// pos:    Regression for the 2026-06-11 verification finding: thr_1cfda9a9 completed but its
-//         dispatch status message still read "suspended — waiting on N child task(s)".
-//         T2.1: the function under test used to be thread-callback's suspended-status refresh,
-//         called from the two resume paths' onSettled. It is now ThreadRun's render, reached
-//         with the same input (a record + the ref persisted at suspension) — a terminal verdict
-//         SEALS the summary, `waiting` only WRITES the new suspension count (never seals: the
-//         thread will be resumed and the resumed run keeps updating this very message).
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

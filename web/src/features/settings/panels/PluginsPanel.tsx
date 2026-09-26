@@ -1,8 +1,3 @@
-// input:  plugin queries, settings atoms, authoring tabs
-// output: readable plugin catalog and glass nested dialogs
-// pos:    Responsive plugin master-detail panel
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';

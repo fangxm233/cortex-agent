@@ -1,8 +1,3 @@
-// input:  Shared CSS theme tokens
-// output: MC, MONO, floating chrome insets
-// pos:    Mobile palette, reading surface aliases and floating chrome edges
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 // BLUR BUDGET: only stationary chrome, a sheet, or a small open overlay samples
 // the backdrop. Scrolling cards and controls use shared material fills without
 // filters. Keep `card` opaque for reading/media and sticky text occlusion.

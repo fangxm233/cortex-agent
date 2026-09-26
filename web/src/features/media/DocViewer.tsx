@@ -1,8 +1,3 @@
-// input:  file fetch, PDF renderer, zoom and dock hooks
-// output: DocViewerProvider, useDocViewer, TextBody, PdfBody
-// pos:    Stable document preview with material toolbar controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import { fileDownloadUrl } from '@/lib/files';

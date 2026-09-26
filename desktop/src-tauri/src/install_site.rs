@@ -1,6 +1,3 @@
-// input:  current_exe(), $APPIMAGE, Windows uninstall registry, dpkg/rpm ownership probes
-// output: InstallSite (where this build actually lives) + the asset kind and apply mode it implies
-// pos:    Ground truth for "which install am I, and may I replace myself in place"
 //
 // Replaces the old guess-by-distro logic in app_update.rs (`detect_linux_kind_from`, which read
 // /etc/os-release): a machine's package format says nothing about how THIS copy was installed. An

@@ -1,7 +1,3 @@
-// input:  useNotifications result
-// output: Corner badge with notification count + Enter-to-open modal listing active notifications
-// pos:    Notification UI — badge in corner, modal overlay on open
-
 import React, { useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { NotificationEntry } from '../hooks/useNotifications.js';

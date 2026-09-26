@@ -1,6 +1,3 @@
-// input:  ink useInput (custom controlled single-line input)
-// output: Message input — always typeable; submission blocked while awaiting a response
-// pos:    User text input component
 //
 // A minimal in-house input replaces ink-text-input here so that Ctrl/Meta combos
 // (Ctrl+D dashboard, Ctrl+N notifications, Ctrl+P projects, Ctrl+L clear, Ctrl+C

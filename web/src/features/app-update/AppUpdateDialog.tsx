@@ -1,7 +1,3 @@
-// input:  DesktopUpdateFrame, app update info and action callbacks
-// output: AppUpdateDialog
-// pos:    App update prompt with material install controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 import {
   appUpdateSummaryLine,

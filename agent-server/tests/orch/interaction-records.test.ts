@@ -1,8 +1,3 @@
-// input:  InteractionRecords + EventBus + fake conversation-history
-// output: regression tests for the persistent interaction entity service
-//         (web-interactions-redesign plan: create/resolve lifecycle, idempotency,
-//         pending index as liveness, channel scoping, session.interaction events)
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { InteractionRecords } from '../../src/orchestration/interactions/interaction-records.js';

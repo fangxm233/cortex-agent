@@ -1,10 +1,3 @@
-// input:  the status message a run draws on + the renderer that turns a step report into text
-// output: the `ThreadSurface` the thread runner reports on (T1.1's domain→interface port)
-// pos:    orchestration/thread-run — every progress write goes through `status-helpers.writeStatus`,
-//         the same serialized chain the conversation path uses. That is the fix behind plan §3-2:
-//         the runner's old bare `adapter.updateMessage` could land AFTER the terminal seal and
-//         overwrite the summary, and it dropped the Cancel button because it carried no blocks.
-
 import type { MessageRef, PlatformAdapter } from '@platform/index.js';
 import type { ThreadSurface } from '@core/types/thread-types.js';
 import { writeStatus } from '../status-helpers.js';

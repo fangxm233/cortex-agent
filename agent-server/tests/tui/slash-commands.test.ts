@@ -1,7 +1,3 @@
-// input:  src/tui/slash-commands.js
-// output: Unit tests for the slash-command registry helpers
-// pos:    Guards the `/` palette parse/filter behaviour
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

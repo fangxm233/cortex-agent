@@ -1,8 +1,3 @@
-// input:  MonoText, clipboard feedback, shared focus-visible styles
-// output: ID, IDProps
-// pos:    Readable identifiers with optional copy feedback
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { MonoText } from './MonoText';
 import { useClipboardFeedback } from './useClipboardFeedback';
 

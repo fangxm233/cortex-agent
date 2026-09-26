@@ -1,9 +1,3 @@
-// input:  a scripted fake `claude` child wrapped in the pooled Claude engine (claudePool.open);
-//         protocol lines are fed through the pooled ClaudeSession, exactly as readline would
-// output: spec for engine.steer, lossless tool RunEvents, --replay-user-messages injection acks
-//         + both landing outcomes (folded into the live turn / spontaneous post-result turn)
-// pos:    Claude engine mid-turn injection wiring (RunEvents only; no real child process)
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';

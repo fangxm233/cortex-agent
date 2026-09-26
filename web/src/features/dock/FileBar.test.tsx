@@ -1,7 +1,3 @@
-// input:  FileBar, react-test-renderer, vitest
-// output: Dock file action and metadata regression tests
-// pos:    Verify keyboard controls retain file callbacks
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { FileBar, FileBarToggle } from './FileBar';

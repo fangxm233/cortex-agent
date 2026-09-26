@@ -1,7 +1,3 @@
-// input:  hooks VM, localized copy, mobile Settings controls
-// output: MHooksView
-// pos:    Mobile hook cards and shared-surface detail sheet
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import {
   MPill,

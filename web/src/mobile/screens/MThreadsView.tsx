@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MThreadsView
-// pos:    Mobile ThreadsView presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';

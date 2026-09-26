@@ -1,8 +1,3 @@
-// input:  Modal, vocabulary, SessionStatsRow
-// output: SessionStatsModal
-// pos:    Session totals on a continuous glass dialog surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';

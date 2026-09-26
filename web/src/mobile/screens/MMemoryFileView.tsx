@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MMemoryFileView
-// pos:    Mobile MemoryFileView presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MDrillHeader, MC, MONO } from '@/mobile/ui/kit';
 

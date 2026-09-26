@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: ThreadPipeline presentation
-// pos:    Blur-free step cards with shared material surfaces
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-vm';

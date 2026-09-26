@@ -1,7 +1,3 @@
-// input:  profiles controller, catalog, mobile settings controls
-// output: MProfilesScreen, MProfilesView, MProfileEditor
-// pos:    Mobile profile management and editing
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';

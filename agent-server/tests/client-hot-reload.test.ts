@@ -1,6 +1,3 @@
-// input:  synthetic bundles, hello events and update results
-// output: assertions on push decisions, convergence and failure containment
-// pos:    Covers the hello-driven client bundle publisher
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

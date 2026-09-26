@@ -1,11 +1,3 @@
-// input:  retireTemplatePluginRefs (store/plugin-retirement) over a temp DATA_DIR
-// output: unit tests — one-shot rewrite of deployed agent templates' pluginDirs
-// pos:    regression for "trimming a plugin from defaults/ is a no-op for existing installs":
-//         plugin-sync never deletes and `cortex init` never runs on upgrade, so this rewrite is the
-//         only thing that unwires a retired plugin or wires a newly shipped one. Pins the
-//         customization discriminator (stock copies lose their ref, locally re-versioned ones keep
-//         it), the never-delete-files rule, and the sentinel that makes it run exactly once.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';

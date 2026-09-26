@@ -1,11 +1,3 @@
-// input:  vitest + domain/threads/template-writer over a temp thread-templates directory
-// output: readEntity / saveEntity / removeEntity coverage — create, update, no-op, validation
-//         rejection, optimistic-concurrency conflict, name safety, and the delete guard
-// pos:    Everything here is hermetic over an explicit `dir`; nothing touches the real config.
-//         The rules under test are the ones that keep a UI edit from breaking a running thread:
-//         a save that would not validate never reaches disk, and a stale editor cannot silently
-//         discard an edit that landed underneath it.
-
 import { test, describe, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';

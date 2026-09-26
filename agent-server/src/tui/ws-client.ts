@@ -1,7 +1,3 @@
-// input:  src/platform/tui/protocol.js
-// output: Typed WebSocket client wrapping M4 protocol — connect, frame I/O via parseFrame/encodeFrame, reconnect with exponential backoff
-// pos:    Foundation for M5 Ink client; zero UI dependency, testable outside React
-
 import WebSocket from 'ws';
 import { parseFrame, encodeFrame } from '../platform/tui/protocol.js';
 import type { TuiFrame, HandshakeHello, HandshakeAck } from '../platform/tui/protocol.js';

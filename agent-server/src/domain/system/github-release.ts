@@ -1,7 +1,3 @@
-// input:  version string (CalVer format), fetch, file I/O
-// output: ReleaseInfo | null, cached release notes
-// pos:    GitHub Release API client with local caching
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';

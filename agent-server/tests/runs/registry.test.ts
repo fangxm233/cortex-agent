@@ -1,5 +1,3 @@
-// input:  core/run-registry.ts (the live-executions index)
-// output: the lookup rules sessions.list / mid-turn injection / Stop depend on
 //
 // T2.1 split this file: background holds moved to tests/core/session-holds.test.ts, the busy
 // join (`sessionState`) to tests/core/session-state.test.ts, and the streaming slot to

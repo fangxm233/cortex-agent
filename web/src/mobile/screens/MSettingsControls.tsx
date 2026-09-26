@@ -1,7 +1,3 @@
-// input:  react, mobile kit, shared settings styles
-// output: Mobile Settings frames, cards, rows and form controls
-// pos:    Mobile settings material frames and form controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
 import '@/features/settings/ui/settings-style.css';

@@ -1,11 +1,3 @@
-// input:  UiServiceDeps + WaitpointsListParams
-// output: handleWaitpointsList → WaitpointInfo[]; ownsWaitpoint (the ownership rule, shared with
-//         query/sessions.ts); toWaitpointInfo (the redacting serialiser)
-// pos:    query handler for 'waitpoints.list' — the operator-facing view of the waitpoints a
-//         session is still waiting on. Deliberately NOT domain/waitpoints' `publicView`: that one
-//         is written for the agent and hides exactly the fields a human needs (delivery state, wake
-//         budget, rate-limit latch). Records reach this file only through UiServiceDeps.
-
 import type { Waitpoint } from '@store/waitpoint-repo.js';
 import { getSettings } from '@core/settings.js';
 import type {

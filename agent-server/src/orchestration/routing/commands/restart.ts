@@ -1,6 +1,3 @@
-// input:  !restart command (from TUI /restart or Slack/Feishu)
-// output: touches the daemon's .restart trigger file → graceful app.ts respawn
-// pos:    one !command family; the server-restart control surface
 //
 // The daemon (entry/daemon.ts) watches STORE_DIR/.restart and, on seeing it, unlinks the
 // file and respawns the app.ts child from the freshly installed dist (busy/idle-gated, so a

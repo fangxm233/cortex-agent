@@ -1,6 +1,3 @@
-// input:  <appDataDir>/updates/prefs.json
-// output: UpdatePrefs (silent opt-out, consecutive silent failures, last installed version)
-// pos:    Shell-side update preferences — the only state the silent path keeps between runs
 //
 // Deliberately stored next to `skipped.version` under `<appDataDir>/updates/` rather than in the
 // SPA or on the server: the frontend is replaced wholesale by OTA and the server may be a remote

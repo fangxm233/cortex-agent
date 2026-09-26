@@ -1,7 +1,3 @@
-/* input:  shared theme material, radius and colour tokens
- * output: embedded browser presentation classes
- * pos:    Filter-free browser chrome and responsive controls
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
 .browser-workspace {
   flex: 1;
   min-width: 0;

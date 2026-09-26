@@ -1,7 +1,3 @@
-// input:  RailTree, LangProvider, react-test-renderer
-// output: Project styling and commission action regression tests
-// pos:    Verify flat rail rows and hover action behavior
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

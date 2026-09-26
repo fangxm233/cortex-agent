@@ -1,7 +1,3 @@
-// input:  the server self-update state machine
-// output: one manual cross-channel re-check, the moment the server finishes restarting
-// pos:    Cross-channel arbitration; owns no channel state and raises no prompt
-
 import { useEffect, useRef } from 'react';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { checkForUpdates } from './manual-update-check';

@@ -1,12 +1,3 @@
-// input:  a notice text plus where it goes (a project's report channel, a session's channel), or
-//         a task-dispatch thread that just settled terminal
-// output: the posted / delivered message, or the task-tree event that closes a resumed task loop
-// pos:    orchestration leaf between thread-notices and thread-callback. These are the wake
-//         protocol's terminal edges: they hand a notice to the outside world (adapter queue,
-//         session gateway) or re-emit one event, and never call back into the protocol — so they
-//         hold none of its dedup state and must not import thread-callback / thread-run /
-//         thread-executor / webhook. Callers: thread-callback.
-
 import { threadStore } from '@store/thread-repo.js';
 import { deliverToSession, type DeliveryOrigin } from './session-gateway.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';

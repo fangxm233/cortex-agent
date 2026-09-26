@@ -1,6 +1,3 @@
-// input:  useTranscript hook + logic line-flattening
-// output: Scrollable transcript, anchored bottom, scroll-up freezes auto-scroll
-// pos:    Main transcript view for M5 Ink client
 //
 // Windowing is measured in TERMINAL LINES, not whole messages: every message is flattened to
 // wrapped display lines (logic.flattenTranscript) and the viewport slices exactly `lineBudget`

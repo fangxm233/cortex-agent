@@ -1,8 +1,3 @@
-// input:  React, MonoText, theme ink tokens
-// output: SectionHeader, SectionHeaderProps
-// pos:    Section titles, counts, actions and readable descriptions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 import { MonoText } from './MonoText';
 

@@ -1,8 +1,3 @@
-// input:  GitHub Releases API (injectable), @core/calver, @core/version
-// output: createAppUpdateRoutes() -> GET /api/app-update/manifest.json custom route;
-//         buildAppUpdateManifest / parseAppAssetName (pure, unit-tested)
-// pos:    Server side of app shell self-update: advertises the newest GitHub release carrying
-//         native app assets whose version is <= the running server version
 //
 // Coordination contract: the manifest is CAPPED at the server's own version, so a connected
 // app is never offered a shell newer than the server it talks to (no ui-contract skew), and the

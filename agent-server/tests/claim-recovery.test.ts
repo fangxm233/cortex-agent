@@ -1,9 +1,3 @@
-// input:  Node test runner + domain/tasks/claim-recovery
-// output: recoverOrphanedClaims policy tests (crash-orphan claim reconciliation)
-// pos:    Verify startup auto-unclaim of dispatcher claims orphaned by a server crash —
-//         a claimed task is invisible to the dispatcher, so a dead claim strands the task
-//         (and any manager waiting on it) forever without this recovery.
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

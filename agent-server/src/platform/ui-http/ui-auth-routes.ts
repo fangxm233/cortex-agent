@@ -1,12 +1,3 @@
-// input:  a UiSessionStore, the accepted clientToken, and the gate's own authorize() predicate
-// output: createUiAuthRoutes(...) -> { '/api/ui/login', '/api/ui/logout', '/api/ui/session' }
-//         plus UI_LOGIN_PATH / UI_LOGOUT_PATH / UI_SESSION_PATH / UI_SESSION_COOKIE
-// pos:    Token-login leg of the Web UI auth gate (platform/ui-http). A browser posts the
-//         clientToken ONCE to /api/ui/login; on a constant-time match the server mints a session
-//         and returns it in an HttpOnly cookie, so the secret never lives in the page. Every later
-//         request rides the cookie (see ui-http-server.ts), with exactly the authority of the
-//         Cloudflare Access JWT leg — and, like that leg, it is NOT accepted on the /forward
-//         WebSocket upgrade, which stays token-only.
 //
 //         /api/ui/login and /api/ui/session are the only PUBLIC routes on this server (they must be
 //         reachable by a browser that has nothing yet). /api/ui/logout sits behind the gate.

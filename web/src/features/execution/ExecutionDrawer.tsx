@@ -1,8 +1,3 @@
-// input:  Radix Dialog, execution queries, ExecutionDrawerView
-// output: ExecutionDrawer
-// pos:    Opaque execution status drawer
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

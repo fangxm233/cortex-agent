@@ -1,7 +1,3 @@
-// input:  accounts VM, custom providers, mobile controls
-// output: MAccountsView
-// pos:    Mobile account materials and authentication actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';

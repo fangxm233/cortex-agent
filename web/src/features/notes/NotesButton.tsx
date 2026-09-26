@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: NotesButton presentation
-// pos:    Material notes toggle and active count
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import type { NotesCopy } from './notes-copy';

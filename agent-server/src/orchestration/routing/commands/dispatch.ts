@@ -1,7 +1,3 @@
-// input:  thread-store, profile-manager, core/types/thread-types
-// output: handleDispatchCmd — set profileOverride on running dispatch threads
-// pos:    !dispatch <threadId> [--profile <name>]
-
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import { threadStore } from '@store/thread-repo.js';
 import { resolveProfile } from '@domain/agents/profile-manager.js';

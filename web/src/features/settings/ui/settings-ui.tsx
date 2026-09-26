@@ -1,8 +1,3 @@
-// input:  react, material tokens, settings-kit, settings-style.css
-// output: Settings cards, field rows, controls, buttons and toggles
-// pos:    Shared compact settings form primitives
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { settingsClassName } from './settings-kit';

@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MChatComposerPresentation
-// pos:    Mobile composer controls and glass attachment menu
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { TodoRail } from '@/features/session/rail/TodoRail';

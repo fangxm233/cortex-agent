@@ -1,8 +1,3 @@
-// input:  filtered SlashCommand[] + selectedIndex
-// output: a bordered autocomplete list rendered above the input box
-// pos:    Presentational only — InputBox owns the keyboard and selection state
-//         (mirrors how Dashboard tabs receive `active` rather than self-managing keys).
-
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { SlashCommand } from '../slash-commands.js';

@@ -1,7 +1,3 @@
-// input:  Session state, attachment uploads, composer controls
-// output: Composer, ComposerSendFailure
-// pos:    Draft input sheet with compact send and status controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import {
   useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo,

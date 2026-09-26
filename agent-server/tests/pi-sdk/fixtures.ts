@@ -1,8 +1,3 @@
-// input:  node HTTP/fs, MCP SDK, Pi session request types
-// output: local provider, MCP server, private config and hook
-// pos:    Credential-free transport fixtures for the SDK smoke
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';

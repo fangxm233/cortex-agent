@@ -1,7 +1,3 @@
-// input:  TuiSessionDeps
-// output: createTuiSessionService(deps): TuiSessionService — transport-agnostic TUI session lifecycle
-// pos:    owns session handshake/resume/switch logic formerly in tui-gateway.ts
-
 import * as crypto from 'node:crypto';
 import type { TuiSessionDeps, TuiSessionService, HandshakeResolution, SwitchResolution } from './types.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';

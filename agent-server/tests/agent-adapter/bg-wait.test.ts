@@ -1,10 +1,3 @@
-// input:  AgentResult background counts and the bg-continuation settings flag
-// output: remaining-background arithmetic and the legacy inline-wait eligibility guards
-// pos:    Pure wait-policy predicates. The run's own background phase (merge, watchdog,
-//         completion-only stop) is specified at the engine seam in continuation-phase.test.ts;
-//         `waitForBgContinuation`'s process-driven cases were that spec's legacy duplicate, so they
-//         were removed with the process seam they drove.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

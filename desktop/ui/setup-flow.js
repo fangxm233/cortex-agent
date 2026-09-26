@@ -1,7 +1,3 @@
-// input:  native setup commands, progress subscriber
-// output: CortexSetupFlow with new-install provider handoff
-// pos:    Framework-free state transitions for native onboarding
-// >>> Once updated, update this header and the parent AGENTS.md <<<
 (function (root) {
   'use strict';
   function createFlow(invoke, notify, ready) {

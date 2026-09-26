@@ -1,8 +1,3 @@
-// input:  node:test, feishu/client (wrapWithUserToken, buildFeishuClientFromEnv)
-// output: TDD spec for user-identity injection on MCP doc calls + FEISHU_AUTH_MODE switch
-// pos:    Verifies user mode attaches user_access_token to every leaf SDK call (no per-call-site
-//         edits) and that mode/credential gating returns the right client (or null).
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { wrapWithUserToken, buildFeishuClientFromEnv } from '../src/domain/mcp/feishu/client.js';

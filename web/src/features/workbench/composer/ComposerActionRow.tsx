@@ -1,7 +1,3 @@
-// input:  React, browser and commission options, slash suggestions
-// output: ComposerActionRow, ComposerSlashMenu, control types
-// pos:    Glass toolbar pickers with Escape focus restoration
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';

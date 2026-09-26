@@ -1,8 +1,3 @@
-// input:  Server manifests, reqwest, SHA-256, frontend store
-// output: Verified staged frontend bundles and fresh manifest reads
-// pos:    Frontend OTA download and staging implementation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 // Downloads a newer SPA bundle from the connected server and stages it for the NEXT launch, so the
 // running SPA is never swapped underneath itself. Layout under `<appDataDir>/ui/`:
 //   current/           the active frontend (served by the cortexui:// handler)

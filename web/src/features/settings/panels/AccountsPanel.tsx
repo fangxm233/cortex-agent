@@ -1,8 +1,3 @@
-// input:  accounts controller, login flow, settings atoms
-// output: desktop account status and credential actions
-// pos:    Compact desktop accounts panel
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useState, type CSSProperties } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';

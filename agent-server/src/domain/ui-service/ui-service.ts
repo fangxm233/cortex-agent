@@ -1,8 +1,3 @@
-// input:  UI dependencies and operation handlers
-// output: UI dispatcher with credential-safe mutation audit
-// pos:    Transport-neutral UI-service dispatcher
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
 import { handleProjectsList } from './query/projects.js';
 import {

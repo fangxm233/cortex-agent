@@ -1,14 +1,3 @@
-// input:  UiServiceDeps + { projectId, id }
-// output: removeIssueEntry (pure md block removal) + buildIssuePrompt (pure prompt builder) +
-//         handleIssuesDelete / handleIssuesHandle mutate handlers
-// pos:    mutate handlers for 'issues.delete' / 'issues.handle' (design sec-24). Both take the
-//         issue OFF the list (在列表即待处理，处理/删除即离场):
-//           • delete — remove the entry block from <contextDir>/ISSUES.md, nothing else.
-//           • handle — create a NEW direct session for the project, send the issue full text as
-//             the first user turn (the session owns resolving it), THEN remove the entry.
-//         Neither fabricates content: the prompt carries the entry verbatim. Audit trail = the
-//         automatic `ui.mutate-invoked` EventBus publish (ui-service.ts) → events-YYYYMMDD.jsonl.
-
 import * as fs from 'node:fs';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type {

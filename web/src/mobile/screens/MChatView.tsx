@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MChatView
-// pos:    Mobile chat with shared transcript blocks and composer clearance
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';

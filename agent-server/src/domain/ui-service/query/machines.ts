@@ -1,11 +1,3 @@
-// input:  UiServiceDeps + MachinesListParams (empty)
-// output: machines.list handler → MachineInfo[] (joined from machines.json + client-manager + executionRegistry)
-// pos:    query handler for 'machines.list' (plan §12 A item 1). Joins three real sources:
-//           1. deps.clientRegistry.getMachineRegistry() — static config (cortexPath/gpuCount/ssh/win)
-//           2. deps.clientRegistry.getOnlineDevices()  — live WebSocket state (online/timestamps/capabilities)
-//           3. deps.executionRegistry.getAll()         — running dispatch execution count per machine
-//         SECURITY: ssh field is a presence flag only (sshConfigured:boolean) — raw user@host never returned.
-
 import type { UiServiceDeps, MachineInfo, MachinesListParams } from '../types.js';
 
 export async function handleMachinesList(

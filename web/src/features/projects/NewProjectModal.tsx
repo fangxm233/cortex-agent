@@ -1,8 +1,3 @@
-// input:  Modal, project creation hook, vocabulary
-// output: NewProjectModal
-// pos:    Project creation on a shared glass surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useRef, useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';

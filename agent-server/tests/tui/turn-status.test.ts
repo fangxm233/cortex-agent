@@ -1,7 +1,3 @@
-// input:  src/tui/turn-status.js
-// output: Unit tests for parsing/formatting the dedicated turn-status line
-// pos:    Guards the status-text → {state,time,turns,cost} extraction
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { parseTurnStatus, formatTurnStatus } from '../../src/tui/turn-status.js';

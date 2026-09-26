@@ -1,8 +1,3 @@
-// input:  react, settings-ui, settings-style.css
-// output: Glass editor panes, solid counts and wrapping footers
-// pos:    Shared responsive settings editor layout primitives
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 import { GROUP_STYLE, S_CONTROL_STYLE } from './settings-ui';
 import './settings-style.css';

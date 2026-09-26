@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: composer
-// pos:    Mobile composer chrome with measurable floating shell
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/design/mobile-tokens';

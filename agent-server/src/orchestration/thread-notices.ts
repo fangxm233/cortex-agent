@@ -1,12 +1,3 @@
-// input:  a thread record / task row, plus settings and the acceptance ledger — never a mutation
-// output: the exact notice text a waiting manager, parent or origin session will read, plus the
-//         read-only predicates and disk reads the wake protocol asks its questions with
-// pos:    orchestration leaf, below thread-delivery and thread-callback. Everything here is pure
-//         text construction or a read (settings / TASKS.yaml / ledger): no store writes, no
-//         delivery. It must not import thread-callback — the wake/settle protocol is one strongly
-//         connected component, so T3.1 split it by LAYER (peel the leaves off) rather than by
-//         theme (which would close a cycle). Callers: thread-callback, thread-delivery.
-
 import { threadStore } from '@store/thread-repo.js';
 import { getSettings } from '@core/settings.js';
 import {

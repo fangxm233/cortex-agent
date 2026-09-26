@@ -1,7 +1,3 @@
-// input:  window-action failure and fullscreen labels
-// output: bilingual desktop window feedback
-// pos:    User-visible native window action outcomes
-// >>> Once updated, update this header and parent AGENTS.md <<<
 export const windowActionsEn = {
   windowExitFullscreen: 'Exit full screen',
   windowActionFailed: 'Window action failed',

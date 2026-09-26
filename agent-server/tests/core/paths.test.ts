@@ -1,7 +1,3 @@
-// input:  paths module
-// output: verify INSTALL_ROOT / PROJECTS_DIR / WORKSPACE_DIR / deprecated aliases / workspace alias resolution
-// pos:    Verify path system refactored constant behavior
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

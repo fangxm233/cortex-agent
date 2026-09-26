@@ -1,7 +1,3 @@
-// input:  project/session resources, router, pane state
-// output: LeftRail, BrandBadge, GearIcon
-// pos:    Resizable project navigation with readable attention counts
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

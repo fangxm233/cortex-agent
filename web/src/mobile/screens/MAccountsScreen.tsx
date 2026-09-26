@@ -1,7 +1,3 @@
-// input:  account controllers, login flow, mobile account views
-// output: MAccountsScreen
-// pos:    Mobile account screen and provider editor wiring
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';

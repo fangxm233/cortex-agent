@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MChatAttachments
-// pos:    Mobile attachment materials and stable media previews
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { downloadFile } from '@/lib/files';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDocViewer } from '@/features/media/DocViewer';

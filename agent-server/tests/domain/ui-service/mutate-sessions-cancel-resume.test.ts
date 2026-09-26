@@ -1,6 +1,3 @@
-// input:  handleCancelResume + the live resume-registry singleton
-// output: cancel outcome for a queued direct resume, idempotence, and the arg guard
-// pos:    Covers the web opt-out from an auto-resume promised after a rate limit
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCancelResume } from '../../../src/domain/ui-service/mutate/sessions.js';

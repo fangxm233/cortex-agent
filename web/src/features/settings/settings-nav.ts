@@ -1,8 +1,3 @@
-// input:  vocab
-// output: grouped settings navigation — keys, labels, icons, per-section icon and section meta
-// pos:    Single source for the desktop settings nav and the mobile settings list
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { Vocab } from '@/i18n';
 
 export type SettingsSectionKey =

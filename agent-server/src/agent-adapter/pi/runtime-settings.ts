@@ -1,7 +1,3 @@
-// input:  Pi SDK, working directory, agent directory
-// output: createRuntimeSettings
-// pos:    Apply Cortex settings policy to main and child sessions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { PiSdkModule } from '@core/pi-sdk.js';
 
 function projectTrusted(sdk: PiSdkModule, cwd: string, agentDir: string): boolean {

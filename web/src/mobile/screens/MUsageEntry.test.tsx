@@ -1,7 +1,3 @@
-// input:  React renderer, MemoryRouter, project view + usage screen (usage hook and view stubbed)
-// output: Project-header Usage key regression tests
-// pos:    Guard the Usage key beside the gear and its back target
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';

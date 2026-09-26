@@ -1,11 +1,4 @@
 // Task-node (composite/manager task) filesystem locations — DR-0017 W1.
-// input:  core/paths PROJECTS_DIR, overridable per call to the trial root (§7.2 P5)
-// output: managerNodeDir / taskArtifactPath / ensureTaskArtifact / withTaskNodeProjectsRoot
-// pos:    zero-dependency core layer so both domain/threads and domain/tasks can import
-//         these without a layer cycle. task = persistent work node; thread = ephemeral
-//         execution attempt — the node's durable state (artifact.md checkpoint,
-//         ledger.json acceptance record) lives under the project context dir and
-//         survives any thread death, rotation, or server restart.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';

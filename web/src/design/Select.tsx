@@ -1,8 +1,3 @@
-// input:  Radix Select, React, shared focus-visible styles
-// output: Select, SelectProps, SelectOption
-// pos:    Unblurred select controls and a glass option overlay
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixSelect from '@radix-ui/react-select';
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 

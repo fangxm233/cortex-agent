@@ -1,9 +1,3 @@
-// input:  Waitpoint records
-// output: buildSignalNotice / buildExpiryNotice / describeWaitFor
-// pos:    Wake-notice text for waitpoints. Pure string building — no repo, no delivery.
-//         The notice is read by an agent whose turn ended hours ago, so it must be self-contained:
-//         it restates the intent captured at creation, and it frames the external payload as data.
-
 import type { Waitpoint, WaitpointSignal } from '@store/waitpoint-repo.js';
 
 /** Rendered payload ceiling. The per-signal values are already clipped by the service; this bounds

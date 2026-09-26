@@ -1,9 +1,3 @@
-// input:  files a platform adapter has just written into an inbound attachment directory
-// output: where they end up, what they are called, what mime they are said to be, and what the
-//         age sweep reclaims
-// pos:    tests/orchestration — regression for the inbound-attachment landing zone. Platform
-//         downloads used to land flat in WORKSPACE_DIR's root under their opaque platform id, with
-//         the user's filename dropped and the platform's mime claim believed.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';

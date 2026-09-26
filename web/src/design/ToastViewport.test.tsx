@@ -1,8 +1,3 @@
-// input:  Toast provider, viewport, react-test-renderer, Vitest
-// output: Notification material, timer and interaction checks
-// pos:    Guard toast shell extraction and notification lifecycle
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider, useToast, type ToastInput } from './Toast';

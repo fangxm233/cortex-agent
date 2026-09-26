@@ -1,7 +1,3 @@
-// input:  active Claude capture registry
-// output: path/pair registration and release coverage
-// pos:    verifies retention-visible active capture tracking
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { ActiveClaudeCaptureRegistry } from '../src/agent-adapter/claude/active-capture-registry.js';

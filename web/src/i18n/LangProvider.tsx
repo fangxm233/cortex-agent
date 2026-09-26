@@ -1,12 +1,3 @@
-// input:  cached language and (optionally) the server sync
-// output: LangProvider + useLang/useSetLang/useVocab/useLangSource hooks
-// pos:    Holds the active language. The VALUE is owned by the server (config/preferences.json →
-//         `lang`), because the same knob decides what Cortex speaks in the conversation; this
-//         provider just holds it, caches it for first paint, and writes changes back through the
-//         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available. The
-//         mobile/desktop LAYOUT switch is a separate, language-independent knob —
-//         useIsMobile/useMobileLayout in lib/use-mobile-layout.ts.
-
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { pickVocab, readStoredLang, storeLang, type Lang } from './lang';
 import { type Vocab } from './vocab';

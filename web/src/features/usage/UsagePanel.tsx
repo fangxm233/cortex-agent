@@ -1,8 +1,3 @@
-// input:  usage resource, policy draft, settings atoms
-// output: desktop provider quota tiles, header refresh and collapsible throttle controls
-// pos:    Readable provider quotas; throttle policy summarized inline, edited on demand
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';

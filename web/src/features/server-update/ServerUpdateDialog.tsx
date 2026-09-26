@@ -1,7 +1,3 @@
-// input:  SystemUpdateStatus, DesktopUpdateFrame, action callbacks
-// output: ServerUpdateDialog and update copy helpers
-// pos:    Server update state with material action controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 

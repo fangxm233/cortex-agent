@@ -1,17 +1,3 @@
-// input:  the inbound message and the channel a turn is about to open on
-// output: everything a caller must resolve BEFORE `openTurn` — the turn's files, its session
-//         record + use lease, and the Chrome the session opted into
-// pos:    orchestration/turn — the pre-turn half of what `agent-runner._executeReal` used to hold
-//         inline. It lives here, next to the Turn, for one reason: `agent-runner.ts` is the
-//         admission path (routing, injection, queueing) and the plan caps it at 300 lines. The
-//         CALL SITES stay in `agent-runner` — find-or-create, lease and browser are still its
-//         decisions — but the bodies are turn-scoped and are not needed anywhere else.
-//         `resolveDefaultAgent` / `resolveSessionName` have no production caller left (request
-//         assembly resolves the agent slot itself, and the Turn is handed its ids); both are kept
-//         because `tests/orch/agent-runner.test.ts` and
-//         `tests/orch/session-lifecycle-characterization.test.ts` pin their behaviour, and both are
-//         re-exported from `agent-runner.ts` so those imports still resolve.
-
 import type { DownloadedFile, IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import type { AttachmentFailure, InboundFiles } from '../routing/file-handler.js';
 import { inboundAttachmentMeta } from '../attachments-store.js';

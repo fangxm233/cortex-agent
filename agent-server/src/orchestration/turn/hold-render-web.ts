@@ -1,13 +1,3 @@
-// input:  background-phase events and one terminal verdict, from `background-hold.ts`
-// output: the web session's event stream for a held turn — the continuation's assistant prose,
-//         tool calls, tool results, subagent ends, context snapshots and notices
-// pos:    orchestration/turn — the web half of a held turn, extracted from
-//         `web-status-renderer.ts`. What is gone from it: the hold's lifetime AND its
-//         `session.status` publishes. `running:true/false` is the hold's business now
-//         (`background-hold.ts`), which is what finally made the Slack hold and this one the same
-//         object with two renderers. What stayed: the held API error, which is a rendering
-//         decision about WHICH row to write, not about when the hold ends.
-
 import { createLogger } from '@core/log.js';
 import type { ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';

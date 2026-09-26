@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: CommissionBoardModal presentation
-// pos:    Commission glass chrome and stable document panes
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useCallback, useState } from 'react';
 import '@/design/content-surfaces.css';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';

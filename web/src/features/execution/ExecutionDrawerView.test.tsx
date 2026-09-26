@@ -1,8 +1,3 @@
-// input:  ExecutionDrawerView, static renderer, vocabulary
-// output: Execution drawer contrast and action regression
-// pos:    Execution presentation contract test
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { LangProvider } from '@/i18n';

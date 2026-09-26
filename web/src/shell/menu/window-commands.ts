@@ -1,7 +1,3 @@
-// input:  native window commands and platform identity
-// output: serialized fullscreen transitions and checked native calls
-// pos:    Window transitions that preserve pre-fullscreen state
-// >>> Once updated, update this header and parent AGENTS.md <<<
 import { safeInvoke, type NativeInvokeResult } from '@/lib/native-bridge';
 import type { DesktopPlatform } from '@/lib/desktop-platform';
 

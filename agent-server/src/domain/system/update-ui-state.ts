@@ -1,11 +1,3 @@
-// input:  UpdateChoice from the UpdatePrompt contract
-// output: the single in-memory server-update status the SPA dialog renders, plus the sink that
-//         lets a tRPC mutation answer a pending prompt
-// pos:    Shared between orchestration/interactions/ui-update-prompt.ts (writes `prompting`),
-//         domain/system/server-update-check.ts (writes the install outcome) and
-//         domain/ui-service/{query,mutate}/system.ts (reads / answers). Process-local by design:
-//         the npm install restarts app.js, so anything durable here would be stale on the way back.
-
 import type { UpdateChoice } from './update-prompt.js';
 
 export type ServerUpdateState = 'idle' | 'prompting' | 'installing' | 'restarting' | 'failed';

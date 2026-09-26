@@ -1,12 +1,3 @@
-// input:  DATA_DIR/config/thread-templates/agents/*.json + DATA_DIR/plugins + versions.json sentinel
-// output: retireTemplatePluginRefs() — drops references to retired plugins from deployed agent
-//         templates and adds plugin dirs that shipped after the install was created
-// pos:    Startup asset-sync sibling to syncManagedPlugins; supplies the half of plugin retirement
-//         that plugin-sync cannot do. plugin-sync owns DATA_DIR/plugins (copy shipped files, prune
-//         RETIRED_PLUGIN_PATHS); this owns the *references* to those plugins. Without it a plugin
-//         that stops shipping keeps loading forever on existing installs — nothing deletes the
-//         deployed copy, and config/thread-templates/ is only ever written by `cortex init`, which
-//         an upgrade does not run (postinstall restarts the daemon, it does not re-init).
 //
 //   CONVENTION: retiring or moving a plugin takes THREE edits, not one.
 //     1. remove it from defaults/plugins/ and from the shipped templates' pluginDirs

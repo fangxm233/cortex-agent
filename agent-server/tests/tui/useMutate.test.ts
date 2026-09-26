@@ -1,7 +1,3 @@
-// input:  src/tui/hooks/useMutate.js
-// output: Tests — ok-path, error-path, timeout-path, unmount-cleanup
-// pos:    Verifies ui.mutate request/response correlation
-
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

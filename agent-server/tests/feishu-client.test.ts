@@ -1,8 +1,3 @@
-// input:  node:test, feishu/client (stderrLogger)
-// output: assert lark SDK logging is routed to stderr, never stdout (MCP stdio safety)
-// pos:    Regression: the cortex-feishu MCP server speaks JSON-RPC over stdout; any lark
-//         SDK log to stdout corrupts the protocol. client.ts must force stderr.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { stderrLogger } from '../src/domain/mcp/feishu/client.js';

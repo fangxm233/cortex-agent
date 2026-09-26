@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// input:  argv → connect → render <App>
-// output: M5 Ink TUI client entry point
-// pos:    Entry point for cortex-tui
 
 import { writeSync, appendFileSync } from 'node:fs';
 import React from 'react';

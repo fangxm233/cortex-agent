@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + CostSummaryParams
-// output: handleCostSummary → CostSummary
-// pos:    query handler for 'cost.summary'
-
 import type { UiServiceDeps, CostSummaryParams } from '../types.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 

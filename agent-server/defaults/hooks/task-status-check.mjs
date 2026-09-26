@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 // @cortex-hook-version 2026.7.29
-// input:  stdin thread lifecycle payload, argv identity fallback
-// output: HookResult for unresolved dispatch task state
-// pos:    Checks task status after a dispatched thread terminates
-// >>> If I am updated, update my header comment and the parent folder's AGENTS.md <<<
 
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';

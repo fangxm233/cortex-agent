@@ -1,8 +1,3 @@
-// input:  EventBus + SubscribeFilter
-// output: AsyncIterable<UiEvent> & { close() } — bounded queue, overflow emits synthetic dropped event
-// pos:    subscribe primitive for UiService. Scope filters are applied BEFORE enqueueing, and the
-//         high-volume types in SESSION_SCOPED_ONLY require a matching sessionId to be delivered.
-
 import type { EventBus } from '@events/index.js';
 import type { SubscribeFilter, UiEvent } from './types.js';
 

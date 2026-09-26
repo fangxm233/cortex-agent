@@ -1,8 +1,3 @@
-// input:  system.updateStatus / applyUpdate / skipUpdate over tRPC
-// output: the server self-update prompt state
-// pos:    Server-backed half of the unified update prompt; owns no shell state
-// >>> If updated, update this header and parent AGENTS.md <<<
-
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';

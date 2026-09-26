@@ -1,7 +1,3 @@
-// input:  src/tui/ws-client.js + src/platform/tui/protocol.js
-// output: Protocol contract test — mock server emits handshake.ack → session.switched → chat.post → stream.text*N → chat.update
-// pos:    Verifies client state at each step
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocketServer } from 'ws';

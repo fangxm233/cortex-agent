@@ -1,5 +1,3 @@
-// input:  core/session-state.ts over the two live singletons (runRegistry + sessionHolds)
-// output: the four states sessions.list joins on
 //
 // Moved out of tests/runs/registry.test.ts by T2.1: `sessionState` is no longer a RunRegistry
 // method, so these drive the singletons the function reads. Assertions unchanged.

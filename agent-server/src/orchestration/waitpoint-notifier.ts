@@ -1,11 +1,3 @@
-// input:  waitpoint repo records with delivery.pending set, session-gateway
-// output: deliverPendingWaitpoints / scheduleWaitpointDelivery / notifyWaitpointExpiry
-// pos:    Turns a fired waitpoint into a wake turn. Lives in orchestration/ because it reaches
-//         session-gateway; the firing decision itself is domain/waitpoints/service.ts.
-//         Delivery is disk-driven: applySignal only sets `delivery.pending`, and every path here
-//         (immediate, coalesced, boot replay, sweep retry) drains that same bit, so a crash between
-//         firing and delivering costs at most one replay rather than the notice.
-
 import { createLogger } from '@core/log.js';
 import { waitpointRepo, type Waitpoint } from '@store/waitpoint-repo.js';
 import { buildExpiryNotice, buildSignalNotice } from '@domain/waitpoints/notices.js';

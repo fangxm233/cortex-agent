@@ -1,7 +1,3 @@
-// input:  rail width band, language
-// output: RailResizeHandle
-// pos:    Drag divider in the gutter between the left rail and the workspace
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState } from 'react';
 import { useLang } from '@/i18n';
 import { RAIL_WIDTH_DEFAULT, RAIL_WIDTH_MAX, RAIL_WIDTH_MIN, clampRailWidth } from './rail-width';

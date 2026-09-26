@@ -1,6 +1,3 @@
-// input:  the real stdout stream Ink writes frames to
-// output: a proxy stdout that wraps each frame in DEC-2026 synchronized-update markers + optional render stats
-// pos:    Stage 0 (instrumentation) + Stage 1 (synchronized output) of the TUI render-perf plan
 //
 // Why this exists — flicker root cause (verified against ink@5.2.1 build/ink.js onRender):
 // The TUI runs full-screen (root Box sized to the terminal), so on every paint Ink takes the

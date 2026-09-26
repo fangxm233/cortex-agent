@@ -1,7 +1,3 @@
-// input:  Radix dialog, ReactNode, update copy and dismiss callback
-// output: DesktopUpdateFrame and DesktopUpdateFrameProps
-// pos:    Shared accessible material sheet for update prompts
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 

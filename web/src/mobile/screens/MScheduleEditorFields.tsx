@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MScheduleEditorFields
-// pos:    Mobile schedule material inputs and selections
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';

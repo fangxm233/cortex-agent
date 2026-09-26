@@ -1,6 +1,3 @@
-// input:  synthetic nvidia-smi runners (stdout strings / throwing stubs)
-// output: assertions on count parsing, unknown-vs-zero, and probe caching
-// pos:    Covers the client GPU-count probe reported in the hello frame
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 

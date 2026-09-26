@@ -1,8 +1,3 @@
-// input:  TASKS.yaml files per project, core/task-parser
-// output: { taskStore, withGitLock } — TaskRepo singleton + git lock helper
-// pos:    Serialized coordination center for TASKS.yaml changes. Based on core/AsyncMutex + atomicWrite (Pattern B)
-//         S4: mutation shim methods removed, now lives in domain/tasks/mutator.ts
-
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { runFile } from '@core/exec-async.js';

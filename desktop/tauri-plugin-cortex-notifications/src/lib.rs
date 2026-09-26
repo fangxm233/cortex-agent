@@ -1,8 +1,3 @@
-// input:  Tauri mobile plugin handle and notification arguments
-// output: Android notification commands and shell-only configuration
-// pos:    Rust entry for the native notification owner
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 use serde_json::{json, Value};
 use tauri::{plugin::{Builder, TauriPlugin}, Manager, Runtime};
 

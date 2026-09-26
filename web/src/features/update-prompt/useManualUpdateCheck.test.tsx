@@ -1,8 +1,3 @@
-// input:  real update hooks/controller and mocked Tauri transport
-// output: prompt ownership, priority and feedback lifecycle tests
-// pos:    Manual update integration specification
-// >>> If updated, update this header and parent AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishAppUpdate } from '@/features/app-update/app-update';

@@ -1,7 +1,3 @@
-// input:  src/tui/components/DashboardThreadsTab.tsx
-// output: Tests — happy path cancel + already-terminal path
-// pos:    Verifies DashboardThreadsTab cancel keybind, ConfirmModal, mutate, and inline feedback
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

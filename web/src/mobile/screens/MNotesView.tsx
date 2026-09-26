@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MNotesView
-// pos:    Mobile notes with readable clear and stable swipe surfaces
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
 import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';

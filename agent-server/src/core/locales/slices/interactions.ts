@@ -1,6 +1,3 @@
-// input:  nothing (leaf data slice)
-// output: interactionsEn / interactionsZh — message slice (filled by i18n extraction)
-// pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
 // >>> Keep en and zh keys in lockstep (zh typed against keyof typeof interactionsEn) <<<
 
 export const interactionsEn = {

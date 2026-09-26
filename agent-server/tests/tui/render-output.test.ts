@@ -1,7 +1,3 @@
-// input:  src/tui/render-output.js
-// output: Unit tests for the synchronized-output stdout wrapper + render stats
-// pos:    Guards Stage 0/1 of the TUI render-perf plan (flicker fix)
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

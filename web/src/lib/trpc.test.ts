@@ -1,9 +1,3 @@
-// input:  helpers exported from trpc.ts (trpcUrl, buildBatchHeaders)
-// output: unit tests for two transport modes — browser/same-origin (no config) and
-//         desktop/remote (injected RemoteConfig with serverUrl + token)
-// pos:    Regression guard for the conditional tRPC transport (task 1b60, desktop-app.md).
-//         Pure-logic tests only — no real network connections made.
-
 import { describe, it, expect } from 'vitest';
 import { trpcUrl, buildBatchHeaders, type RemoteConfig } from './trpc';
 

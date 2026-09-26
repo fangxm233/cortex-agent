@@ -1,8 +1,3 @@
-// input:  real native bridge with mocked Tauri command transport
-// output: manual check contract and single-flight regression tests
-// pos:    Manual update controller boundary specification
-// >>> If updated, update this header and parent AGENTS.md <<<
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
 import { checkForUpdates, getManualCheckBusy } from './manual-update-check';

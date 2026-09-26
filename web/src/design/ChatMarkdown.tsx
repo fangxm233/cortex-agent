@@ -1,7 +1,3 @@
-// input:  Markdown blocks, inline nodes, KaTeX, clipboard feedback
-// output: ChatMarkdown
-// pos:    Transcript prose, opaque code blocks with a hover copy button, and wide tables
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';

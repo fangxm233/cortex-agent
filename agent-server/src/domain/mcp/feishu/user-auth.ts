@@ -1,11 +1,3 @@
-// input:  Feishu OAuth v2 endpoints (authen/v2/oauth/token, accounts device_authorization),
-//         CONFIG_DIR, global fetch
-// output: user_access_token acquisition — device-authorization grant (default: requestDevice-
-//         Authorization + pollDeviceToken) and the legacy authorize-URL + code exchange (manual
-//         fallback) — plus refresh, on-disk store, and getValidUserAccessToken() (auto-refresh)
-// pos:    Powers FEISHU_AUTH_MODE=user — MCP doc tools act as the operator's Feishu account.
-//         Messaging (platform/adapters/feishu.ts) is unaffected; it stays app/bot identity.
-
 import * as path from 'path';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { CONFIG_DIR } from '@core/utils.js';

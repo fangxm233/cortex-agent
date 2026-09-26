@@ -1,8 +1,3 @@
-// input:  armed waitpoints whose emitFrom names a device, client-manager's command channel
-// output: drainDeviceSpools
-// pos:    Collects signals from connected devices. A job on a lab box cannot POST to the daemon —
-//         the webhook listens on loopback only — so the daemon goes and fetches instead, over the
-//         WebSocket the device already holds open.
 //
 //         Nothing is installed on the device and no protocol is added: this is three ordinary
 //         `bash` actions (list, read, remove) of the kind remote_bash already sends. The

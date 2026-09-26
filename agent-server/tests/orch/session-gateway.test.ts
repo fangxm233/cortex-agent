@@ -1,9 +1,3 @@
-// input:  deliverToSession / buildDeliveryMessage — the one door into a conversation turn
-// output: the origin table pinned field by field, plus the two degradations (no adapter, no route)
-// pos:    these values used to live in three hand-written builders (session-send `web_`,
-//         resume-dispatcher `resume_`, thread-callback `cb_`). Anything that changes a sender id or
-//         a messageId prefix here changes ledger keys, chat rendering and mid-turn injection.
-
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';

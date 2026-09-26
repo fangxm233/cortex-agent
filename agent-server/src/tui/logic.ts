@@ -1,8 +1,3 @@
-// input:  protocol frame types (structural)
-// output: Pure UI logic helpers for the M5 Ink client — focus zone, response-frame
-//         detection, stream-text collection, visible-window computation
-// pos:    Testable logic extracted out of React components/hooks
-
 import stringWidth from 'string-width';
 import type { TuiFrame } from '../platform/tui/protocol.js';
 

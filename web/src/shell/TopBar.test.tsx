@@ -1,7 +1,3 @@
-// input:  TopBar, react-test-renderer, mocked shell providers
-// output: Window chrome action and sizing regression tests
-// pos:    Verify compact chrome retains labeled native controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TopBar } from './TopBar';

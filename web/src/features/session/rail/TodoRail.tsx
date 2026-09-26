@@ -1,7 +1,3 @@
-// input:  TodoSnapshot, todo-vm, session identity, language
-// output: TodoRail, TodoRailProps, TodoRailLanguage
-// pos:    Task progress rail, inline or floating over the transcript
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';

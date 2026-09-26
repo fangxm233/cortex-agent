@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MThreadDetailView
-// pos:    Mobile thread material cards and stable log panels
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type ReactNode } from 'react';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
 import { ChatMarkdown } from '@/design/ChatMarkdown';

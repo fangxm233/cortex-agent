@@ -1,13 +1,3 @@
-// input:  a thread run's status message, its blocks template and its verdict
-// output: every SUMMARY-style rendering of a thread — the opening status line, the multi-agent
-//         progress line, the terminal seal, the non-terminal (suspended / paused) refresh and the
-//         status-message-less fallback post
-// pos:    orchestration/thread-run — the `!thread`, MCP `thread_start` and resume surfaces. This
-//         file is the single owner of the four seal implementations the survey (§A) found spread
-//         over status-helpers, the webhook's inline `onSettled` and thread-callback's
-//         suspended-status refresh. The dispatch / scheduled (task-framed,
-//         durable) rendering is a sibling file, not a branch in here.
-
 import type { Destination, MessageRef, PlatformAdapter } from '@platform/index.js';
 import type { ThreadRecord } from '@core/types/thread-types.js';
 import type { ThreadRunResult } from '@domain/threads/runner.js';

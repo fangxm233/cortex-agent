@@ -1,13 +1,3 @@
-// input:  a file a platform adapter has just written into a directory this module owns
-// output: that file under `workspace/attachments/<inbound key>/`, named after what the user sent
-//         it as, typed by what its bytes actually are — plus the age sweep that reclaims the space
-// pos:    orchestration — the inbound half of `outputs-store.ts` (which owns the agent-sent
-//         `workspace/outputs/` side) and the server-side twin of the web upload route, which
-//         stores composer uploads under `workspace/attachments/<sessionId>/`. Platform downloads
-//         used to land flat in WORKSPACE_DIR's root under their opaque platform id
-//         (`img_v3_02n4….png`), mixed in with agent scratch, never cleaned, and with the user's
-//         own filename dropped on the floor.
-
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { WORKSPACE_DIR } from '@core/paths.js';

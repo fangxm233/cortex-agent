@@ -1,7 +1,3 @@
-// input:  profile-generator module
-// output: verify profile generation: explicit choices, lexicographic listChoices, fallback plumb-through, no auto provider-specific profiles
-// pos:    Validate profile-generator pure logic (no filesystem in generateProfiles/mergeProfilesJson)
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

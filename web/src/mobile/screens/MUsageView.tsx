@@ -1,7 +1,3 @@
-// input:  usage VM, policy controls, mobile Settings primitives
-// output: MUsageView
-// pos:    Mobile usage material cards; throttle policy summarized inline, edited on demand
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,

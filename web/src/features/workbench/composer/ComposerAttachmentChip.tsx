@@ -1,7 +1,3 @@
-// input:  Upload item, media viewers, attachment presentation
-// output: ComposerAttachmentChip
-// pos:    Compact attachment previews and readable upload status
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, MouseEvent } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';

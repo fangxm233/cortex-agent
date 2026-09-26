@@ -1,7 +1,3 @@
-// input:  src/tui/components/DashboardExecutionsTab.tsx
-// output: Tests — happy path (confirm → success → no inline error), not-found path (error inline 5s)
-// pos:    Verifies per-row [c] cancel via mutate prop
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

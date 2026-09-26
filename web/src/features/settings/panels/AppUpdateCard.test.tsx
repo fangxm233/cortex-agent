@@ -1,8 +1,3 @@
-// input:  a mocked native bridge and shell predicate
-// output: off-shell hiding, pref reads/writes and the fallen-back-to-asking state
-// pos:    Settings → Advanced silent-update switch regressions
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

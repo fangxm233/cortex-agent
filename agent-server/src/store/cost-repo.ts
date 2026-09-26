@@ -1,11 +1,3 @@
-// input:  costs.jsonl + budget.json
-// output: CostRepo (recordEntry / recordEntryBatch / readCosts / readBudget / writeBudget /
-//         invalidateBudget / flush) + migrateBudget
-// pos:    Cost + Budget persistence layer. Costs use JSONL + append-only (avoiding repeated full-file reads/writes)
-//         and reads are served from an incremental cache that only parses newly appended bytes,
-//         Budget still uses the JsonRepository abstraction. Budget carries global limits plus an
-//         optional per-project override map (pair-only overrides).
-
 import * as path from 'path';
 import fs from 'node:fs/promises';
 import { JsonRepository } from '@core/json-repository.js';

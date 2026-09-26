@@ -1,11 +1,3 @@
-// input:  McpServer, session tool context, @core/task-parser (reads TASKS.yaml on disk)
-// output: task_status / task_result / task_list read-only tool registrations
-// pos:    Agent-facing task monitoring. Delegation is done via the cortex-task CLI (add / spawn);
-//         these tools let an agent observe a task it created or depends on without shelling out.
-//         Read-only and disk-direct (TASKS.yaml is on the shared filesystem) — no daemon webhook,
-//         mirroring tools/context.ts. They replace the removed thread_status / thread_result /
-//         thread_list monitoring tools now that a task (not a thread) is the unit of delegation.
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {

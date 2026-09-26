@@ -1,8 +1,3 @@
-// input:  hook view-model, settings atoms
-// output: hook detail, test controls and stable log surfaces
-// pos:    Responsive detail pane for desktop hooks
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';

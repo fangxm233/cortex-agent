@@ -1,8 +1,3 @@
-// input:  SlackAdapter + output-stream interfaces
-// output: SlackOutputStream — coalescing OutputStream for Slack
-// pos:    Slack-specific OutputStream — coalesces segments, uses pendingEdits
-//         for chat.update coalescing and rate-limiter sharing.
-
 import { createLogger } from '@core/log.js';
 import type { SlackAdapter } from './slack.js';
 import type { OutputStream, MutableRegion, OpenOutputStreamOpts } from '../output-stream.js';

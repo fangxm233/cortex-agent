@@ -1,8 +1,3 @@
-// input:  React, Modal, vocabulary
-// output: DebugDetailsModal, DebugInspectButton, value helpers
-// pos:    Readable session and tool debug inspection
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { MouseEvent } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';

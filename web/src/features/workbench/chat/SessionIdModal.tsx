@@ -1,8 +1,3 @@
-// input:  Modal, session ID rows, clipboard feedback
-// output: SessionIdModal
-// pos:    Session identifier display and copy dialog
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from '@/features/session/list/session-id';

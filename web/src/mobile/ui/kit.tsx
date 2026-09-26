@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: Mobile UI primitives
-// pos:    Mobile frames, floating glass header and cards, controls and sheets
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 //
 // Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport + floating Tab bar;
 // a screen renders <MScreen> with its own header, scroll body, and optional footer.

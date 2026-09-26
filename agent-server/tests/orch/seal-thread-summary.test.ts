@@ -1,12 +1,3 @@
-// input:  sealThreadSummary (orch/thread-run/render-summary) + MockAdapter
-// output: one terminal-seal function for the interactive `!thread` and background/resume paths:
-//         text is buildThreadSummary; interactive attaches SEALED action blocks (Cancel removed),
-//         background attaches none.
-// pos:    Unification regression — thread-executor (3 sites) + thread-callback's suspended-status
-//         refresh previously each inlined buildThreadSummary + updateMessage; the omission froze
-//         rate-limit-resume status messages. Since T2.1 the only caller is ThreadRun's terminal
-//         render, and the seal goes through status-helpers.sealStatus (so a late progress write
-//         cannot overwrite it). The dispatch seal (render-task) stays separate by design.
 import '../_test-home.js'; // MUST be first — isolates store singletons pulled in by status-helpers
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

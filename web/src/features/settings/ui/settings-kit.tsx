@@ -1,8 +1,3 @@
-// input:  react, material tokens, settings-style.css
-// output: Glass rows, compact controls, header action slot and solid status text
-// pos:    Readable settings feedback, rows and control primitives
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './settings-style.css';

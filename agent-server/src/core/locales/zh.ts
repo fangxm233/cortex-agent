@@ -1,6 +1,3 @@
-// input:  per-cluster Simplified-Chinese slices (./slices/*) + MessageKey from en.ts
-// output: `zh` — aggregated zh table, typed Record<MessageKey, string>
-// pos:    L0 locale barrel; the Record<MessageKey,...> type forces parity with en.ts at compile time
 // >>> Keep slice keys in lockstep with their en counterparts <<<
 
 import type { MessageKey } from './en.js';

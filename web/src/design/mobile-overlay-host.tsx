@@ -1,7 +1,3 @@
-// input:  React context, DOM portal
-// output: MobileOverlayHost, MobileOverlayPortal
-// pos:    Shell-level layer that lifts sheets above the floating Tab bar
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 

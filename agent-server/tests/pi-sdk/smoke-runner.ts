@@ -1,8 +1,3 @@
-// input:  Cortex createPiRuntime, real Pi SDK, local fixtures
-// output: assertions for hooks, tools, history, warming, quota
-// pos:    Exercise the production Pi runtime without credentials
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { loadPiSdk } from '../../src/core/pi-sdk.js';

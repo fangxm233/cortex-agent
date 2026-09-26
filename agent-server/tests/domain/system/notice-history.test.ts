@@ -1,7 +1,3 @@
-// input:  node:test, src/domain/system/notice-history
-// output: Test results for recordSystemNotice + listSystemNotices ring buffer
-// pos:    Verifies cap enforcement, newest-first ordering, limit clamping, and test reset.
-
 import { describe, it, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 

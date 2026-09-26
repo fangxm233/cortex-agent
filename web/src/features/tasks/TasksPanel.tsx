@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: TasksPanel presentation
-// pos:    Dense tasks content surface
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

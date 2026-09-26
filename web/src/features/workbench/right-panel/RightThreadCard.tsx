@@ -1,7 +1,3 @@
-// input:  thread DTOs, right-panel-vm, tRPC, modal providers
-// output: RightThreadCard, StepRow, SubtaskCard, taskProjectForDetail
-// pos:    Compact thread progress cards with readable metadata
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';

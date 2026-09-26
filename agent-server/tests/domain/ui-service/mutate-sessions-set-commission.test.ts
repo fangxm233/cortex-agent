@@ -1,7 +1,3 @@
-// input:  handleSetCommission + a real (isolated) session registry and commissions dir
-// output: the state-machine table of DR-0037 v4's user entry — none → draft → (bound), the
-//         idempotent repeats, the refusals, and which live event each transition publishes
-// pos:    guards sessions.setCommission, the user's half of "either side may start a commission"
 import '../../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

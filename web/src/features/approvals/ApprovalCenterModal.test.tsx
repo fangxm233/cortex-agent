@@ -1,8 +1,3 @@
-// input:  ApprovalCenterModal, mocked approval queue
-// output: Approval presentation and queue handoff tests
-// pos:    Approval center interaction regression coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create } from 'react-test-renderer';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

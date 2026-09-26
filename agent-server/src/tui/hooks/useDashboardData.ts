@@ -1,7 +1,3 @@
-// input:  UiQueryResult, UiEvent frames from protocol
-// output: Per-tab dashboard data management — query/subscribe/refresh lifecycle
-// pos:    State hook for dashboard tabs
-
 import { useState, useCallback } from 'react';
 import type { UiQueryResult, UiEvent } from '../../platform/tui/protocol.js';
 

@@ -1,7 +1,3 @@
-// input:  src/tui/hooks/useTranscript.js (pure state helpers)
-// output: Unit tests for transcript data model
-// pos:    Verifies chat.post/update/delete/queued and stream frame handlers
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

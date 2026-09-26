@@ -1,8 +1,3 @@
-// input:  runtime setting writer, config, settings atoms
-// output: desktop notifications and advanced settings
-// pos:    Runtime settings with readable keys and status history
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { Select, relativeAge } from '@/design';

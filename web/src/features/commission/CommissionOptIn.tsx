@@ -1,7 +1,3 @@
-// input:  active commissions from trpc.commissions.list, commissionEnabled from trpc.config.get
-// output: the commission feature switch, commission-mode options for the composer ＋ menu, the
-//         request they encode, and the title behind a chosen value
-// pos:    Commission-mode choice model (off / new / join an active one)
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

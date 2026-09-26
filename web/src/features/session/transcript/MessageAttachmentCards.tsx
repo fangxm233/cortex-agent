@@ -1,7 +1,3 @@
-// input:  Attachment metadata, media viewers, download actions
-// output: AttachmentCard, AgentFileGroup
-// pos:    Transcript attachment cards with compact file controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';

@@ -1,7 +1,3 @@
-// input:  a parsed cross-channel update-check report, from whoever ran the check
-// output: that report, handed to every update channel listening for one
-// pos:    The seam under the update features; knows no channel and runs no check
-
 import type { ChannelOutcome } from '@/lib/native-bridge';
 
 /**

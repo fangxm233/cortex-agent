@@ -1,8 +1,3 @@
-/* input: platform panel markup and theme tokens */
-/* output: the three rules the platform editor cannot express inline */
-/* pos: shared desktop/mobile platform editor styling */
-/* >>> Once updated, update this header and parent AGENTS.md <<< */
-
 /* Everything visual now comes from the settings kit. What is left here is what a style object
    cannot carry: a container-responsive grid, a pseudo-class and a viewport query. */
 

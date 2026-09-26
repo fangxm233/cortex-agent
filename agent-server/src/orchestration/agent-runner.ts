@@ -1,11 +1,3 @@
-// input:  an inbound platform message (or a synthetic one) already routed to a conduit
-// output: that message delivered into a turn — injected into the live one, or queued and then
-//         opened as a new turn through `openTurn`
-// pos:    orchestration — the ADMISSION half of a conversation: the human-answer backstop,
-//         mid-turn injection, the per-channel queue, session find-or-create + lease, and the
-//         session's opted-in browser. Everything from the status message to the seal moved to
-//         `turn/turn.ts` (Phase 1.4); the pre-turn resolution bodies live in `turn/turn-prep.ts`.
-//         The `execute` seam still bypasses the Turn entirely — that is what the tests inject.
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';

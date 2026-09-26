@@ -1,8 +1,3 @@
-// input:  executions about to be archived out of executions.json
-// output: sessionTotalsCarry — per-session roll-up of records the live registry no longer holds,
-//         plus the watermark that keeps carry and live an exact partition
-// pos:    Session-totals persistence layer (data/session-totals.json)
-
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

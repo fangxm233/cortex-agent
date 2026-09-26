@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: BottomTabBar
-// pos:    Readable floating mobile tab navigation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
 import { MONO, M_TABBAR_BOTTOM } from '@/design/mobile-tokens';

@@ -1,8 +1,3 @@
-/* input: desktop panel classes and shared material tokens */
-/* output: adaptive profile, field and glass stat layouts */
-/* pos: panel-specific layouts inside the desktop Settings surface */
-/* >>> Once updated, update this header and parent AGENTS.md <<< */
-
 .settings-surface .settings-profiles { container: settings-profiles / inline-size; }
 .settings-surface .settings-profile-row {
   display: grid;

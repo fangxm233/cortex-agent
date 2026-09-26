@@ -1,7 +1,3 @@
-// input:  vitest, Pi SettingsManager, main and child runtimes
-// output: Runtime warming-off and config persistence regressions
-// pos:    Verify both runtime entry points disable cache warming
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vitest';

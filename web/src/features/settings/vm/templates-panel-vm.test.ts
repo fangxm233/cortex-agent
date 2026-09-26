@@ -1,10 +1,3 @@
-// input:  vitest + templates-panel-vm
-// output: coverage for filtering, selection fallback, editor parsing, save gating and the
-//         detail-derived guards
-// pos:    The gate rules are the contract worth pinning: a save is only offered when the text
-//         parses, the name is filename-safe, and something actually changed — everything deeper is
-//         the server's validator's job, and the VM must not second-guess it.
-
 import { describe, test, expect } from 'vitest';
 import type { ThreadTemplateEntry, ThreadTemplateDetail } from '@cortex-agent/ui-contract';
 import {

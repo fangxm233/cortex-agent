@@ -1,7 +1,3 @@
-// input:  src/tui/components/AskUserModal.jsx
-// output: verifies submitted select/text/multi values, ack errors, and Escape cancellation
-// pos:    AskUserModal interaction contract; field chrome/indicators are not snapshot-tested
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

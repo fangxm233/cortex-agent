@@ -1,7 +1,3 @@
-// input:  PlatformAdapter + Destination
-// output: postOnce free helper
-// pos:    One-shot message post via transient OutputStream
-
 import type { PlatformAdapter } from './adapter.js';
 import type { Destination, MessageRef } from './types.js';
 import type { OutputStream, OpenOutputStreamOpts } from './output-stream.js';

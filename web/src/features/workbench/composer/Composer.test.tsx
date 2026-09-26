@@ -1,7 +1,3 @@
-// input:  Composer, mocked session and attachment state
-// output: Composer material and action regression tests
-// pos:    Verify composer inputs, commands and pending actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';

@@ -1,7 +1,3 @@
-// input:  a project id and a `commissions/`-relative asset path
-// output: the authenticated asset URL, and its bytes as an object URL
-// pos:    Commission-specific half of the file transport. The generic workspace download /
-//         open / reveal helpers stay in lib/files.ts; this knows what a commission asset is.
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 
 const COMMISSION_ASSET_PATH = '/api/commissions/asset';

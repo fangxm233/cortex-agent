@@ -1,8 +1,3 @@
-// input:  assignment queries, settings atoms, plugin view-model
-// output: plugin assignment form and consent dialog
-// pos:    Nested desktop template plugin assignment editor
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

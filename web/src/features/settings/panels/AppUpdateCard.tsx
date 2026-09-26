@@ -1,8 +1,3 @@
-// input:  native shell update preferences, settings atoms
-// output: native-shell-only quiet update controls
-// pos:    App update settings with readable status metadata
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';

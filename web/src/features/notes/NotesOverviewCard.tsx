@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: NotesOverviewCard presentation
-// pos:    Blur-free notes overview material card
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState, type FormEvent } from 'react';
 import '@/design/content-surfaces.css';
 import type { NotesCopy } from './notes-copy';

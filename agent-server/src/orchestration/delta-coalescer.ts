@@ -1,10 +1,3 @@
-// input:  incremental assistant text chunks (blockId + text) from the agent adapters
-// output: createDeltaCoalescer (batched {blockId, text, seq} flushes) + createSessionDeltaStream
-//         (the per-turn sink, and the single gate deciding which sessions stream at all)
-// pos:    orch/ — sits between the adapter's per-token deltas and the EventBus publish, so the bus,
-//         the SSE subscription queues and the browser see a bounded event rate no matter how chatty
-//         a backend is.
-
 import { isWebChannel } from './turn/background-hold.js';
 import { isStreamDeltasEnabled } from '../agent-adapter/claude/spawn-args.js';
 import { publishSessionMessageDelta } from './session-events.js';

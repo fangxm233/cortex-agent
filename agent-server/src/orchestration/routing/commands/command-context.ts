@@ -1,7 +1,3 @@
-// input:  @platform/types.js (RichBlock, ActionElement)
-// output: CommandContext + CommandResult types for interactive command handlers
-// pos:    command system's request/response layer — replaces positional (channel, adapter, message) triple
-
 import type { PlatformAdapter } from '@platform/index.js';
 import type { RichBlock, ActionElement } from '@platform/index.js';
 

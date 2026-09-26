@@ -1,9 +1,3 @@
-// input:  turn/active-turns.ts — the `edit` supersede flag
-// output: regression tests — mark/check/clear lifecycle + edit-cancel race [S6-B]
-// pos:    verifies the edit-supersede state transitions and idempotent clear. The flag used to live
-//         in `orchestration/superseded-edits.ts`; it is per-channel turn state, so `ActiveTurns`
-//         owns it (T2.1) and the facade was deleted in T4.1 — the assertions are unchanged.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { activeTurns } from '../../src/orchestration/turn/active-turns.js';

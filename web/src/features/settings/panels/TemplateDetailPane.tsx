@@ -1,8 +1,3 @@
-// input:  template view-model, settings atoms
-// output: template detail, stable source editor and plugin forms
-// pos:    Responsive detail pane for desktop templates
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { ThreadTemplateDetail, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';

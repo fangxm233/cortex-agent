@@ -1,7 +1,3 @@
-// input:  React, mobile presentation props, shared view models
-// output: MobileThreadStepper
-// pos:    Mobile thread progress card with aligned step labels
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, KeyboardEvent } from 'react';
 import type { Pill } from '@/features/workbench/right-panel/right-panel-vm';
 import type { MobileStepper, StepperNode } from './mobile-session-vm';

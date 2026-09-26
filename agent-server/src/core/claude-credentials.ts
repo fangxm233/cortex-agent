@@ -1,9 +1,3 @@
-// input:  the Anthropic credential stores a host may hold — process env, CONFIG_DIR/.env, and
-//         Claude Code's own credential store (~/.claude/.credentials.json, or the macOS keychain)
-// output: the headers a DAEMON-side Anthropic API call may authenticate with, and the yes/no
-//         answer to "does Claude Code own an OAuth credential on this host"
-// pos:    core — the one place that decides which credential the daemon itself may use, as
-//         opposed to the per-spawn route env (domain/agents/config.resolveModeEnv).
 //
 // CONVENTION — never make the daemon wait on a human:
 // On macOS the Claude Code credential lives in the login keychain, and DECRYPTING it

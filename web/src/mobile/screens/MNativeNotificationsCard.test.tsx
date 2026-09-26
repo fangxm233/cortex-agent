@@ -1,8 +1,3 @@
-// input:  native state, failed server config and bilingual UI
-// output: independent toggle, pending/error and old-APK tests
-// pos:    Device-local mobile notification settings regressions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ status: vi.fn(), invoke: vi.fn(), permission: vi.fn(), locale: 'en', mobile: true }));

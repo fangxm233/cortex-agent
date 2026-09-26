@@ -1,7 +1,3 @@
-// input:  Mobile chat views, React renderer, mocked session API
-// output: Chat actions and measured composer clearance tests
-// pos:    Verify mobile chat rendering and composer tail boundary
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

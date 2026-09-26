@@ -1,9 +1,3 @@
-// input:  node:test, teardownExecution helper, executionRegistry + runRegistry singletons, EventBus
-// output: regression tests for teardownExecution — closes BOTH the persistent record ledger and the
-//         in-memory registry with a balanced agent.* lifecycle event (the Stage 2 / P5 fix).
-// pos:    validates that a terminal transition finalizes the persistent record AND publishes an event,
-//         which thread-step teardown previously skipped (used event-less remove()).
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

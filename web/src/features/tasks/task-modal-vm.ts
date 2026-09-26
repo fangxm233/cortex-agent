@@ -1,8 +1,3 @@
-// input:  TaskInfo, task-detail-facts, task-time
-// output: TaskModalVm, buildTaskModalVm
-// pos:    Desktop task detail labels and presentation tokens
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import {
   buildTaskDetailFacts,

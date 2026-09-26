@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + { scheduleId } | ScheduleAddArgs | ScheduleUpdateArgs
-// output: pause/resume/remove/add/update schedule handlers → Ok<void|ScheduleInfo> | Err
-// pos:    mutate handlers for 'schedules.{pause,resume,remove,add,update}'
-
 import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '../types.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 

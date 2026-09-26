@@ -1,7 +1,3 @@
-// input:  native progress events, setup controller, form answers
-// output: PI-only setup form and post-connect provider handoff
-// pos:    DOM presentation for automatic native onboarding
-// >>> Once updated, update this header and the parent AGENTS.md <<<
 (function () {
   'use strict';
   var shell = window.CortexShell, el = shell.el, t = shell.t;

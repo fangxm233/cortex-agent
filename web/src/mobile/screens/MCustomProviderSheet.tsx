@@ -1,8 +1,3 @@
-// input:  provider draft, validation, mobile Settings sheet
-// output: MCustomProviderSheet
-// pos:    Mobile custom provider sheet and inset inputs
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { ReactNode } from 'react';
 import type { CustomProviderApi } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

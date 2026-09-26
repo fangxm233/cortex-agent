@@ -1,10 +1,3 @@
-// input:  Node test runner + planScheduledDispatch (pure planner)
-// output: fresh / project / thread target dispatch + fallback policy regression
-// pos:    locks the dispatch decision tree extracted from scheduled-task.ts so the
-//         orchestration around it (Slack / executions / progress) stays untouched.
-//         M4: channel target removed, project target added. Later: session target removed
-//         (along with the default-thread path) — user messages are no longer threads.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { planScheduledDispatch, type DispatchPlan } from '../src/domain/scheduling/jobs/target-dispatch.js';

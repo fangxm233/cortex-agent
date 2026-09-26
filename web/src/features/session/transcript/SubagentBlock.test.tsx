@@ -1,7 +1,3 @@
-// input:  SubagentBlock, ChatRows, synthetic transcript
-// output: Subagent expansion and sticky-header regression tests
-// pos:    Verify opaque headers and nested transcript behavior
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

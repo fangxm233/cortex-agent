@@ -1,7 +1,3 @@
-// input:  cmdk, palette-items, tRPC, routing
-// output: CommandPalette, CommandPaletteProps
-// pos:    Glass command search with readable compact results
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

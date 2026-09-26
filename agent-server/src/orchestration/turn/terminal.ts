@@ -1,9 +1,3 @@
-// input:  a turn's terminal result or error
-// output: the success/failure finalization of a turn — the status seal, the ledger's turn
-//         completion, the error body, and the hand-off to the background-status hold
-// pos:    orchestration/turn — the terminal rendering the Turn object owns (moved here verbatim
-//         from the retired `lifecycle.ts` in Phase 1.4). The two entry points are also called
-//         directly by the surfaces that end a turn without a Turn (edit-handler, session-rewind).
 import { createLogger } from '@core/log.js';
 import { t } from '../../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';

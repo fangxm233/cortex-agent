@@ -1,8 +1,3 @@
-/* input: shared material tokens, scrollbars, settings primitives
- * output: Glass cards, readable fields and compact layouts
- * pos: Shared desktop and mobile settings visual system
- * >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
-
 /* Public tokens and classes also serve panels that do not render kit components. */
 .settings-surface {
   --settings-card-radius: 12px;

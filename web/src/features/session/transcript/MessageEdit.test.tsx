@@ -1,7 +1,3 @@
-// input:  EditBox, edit copy, React renderer
-// output: Inline editor material and keyboard regression tests
-// pos:    Verify stable input surfaces and edit actions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { EditBox, M_EDIT_COPY } from './MessageEdit';

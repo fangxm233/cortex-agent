@@ -1,8 +1,3 @@
-// input:  entry/daemon-notice.ts (the supervisor's 'rebuild-hold' IPC message)
-// output: isRebuildHeld() / rebuildHold() — the admission answer every turn starter asks —
-//         plus refuseTurnForRebuild(), the one wording for a turn that was not admitted
-// pos:    the one piece of supervisor-pushed state this process keeps. The daemon knows it is about
-//         to rebuild and replace us; nothing inside the app can work that out on its own.
 //
 // Why a turn must not start under a hold: the app spawns the backend CLI as its own child and owns
 // its stdout. When the supervisor SIGTERMs the app, that CLI keeps running (it is past the point of

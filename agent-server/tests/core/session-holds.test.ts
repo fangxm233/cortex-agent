@@ -1,5 +1,3 @@
-// input:  core/session-holds.ts
-// output: the hold lifecycle Stop / supersede / sessions.list depend on
 //
 // Moved out of tests/runs/registry.test.ts by T2.1 (the code moved out of RunRegistry).
 // Assertions unchanged.

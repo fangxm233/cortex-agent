@@ -1,8 +1,3 @@
-// input:  what a `runThread` family call returned (or threw)
-// output: the one verdict every renderer and every caller branches on
-// pos:    orchestration/thread-run — kept in its own module so the renderers can name the verdict
-//         without importing the runner (and so the rule lives in exactly one place, plan §1.2-6).
-
 import type { ThreadRunResult } from '@domain/threads/runner.js';
 
 export type ThreadVerdict =

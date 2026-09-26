@@ -1,11 +1,3 @@
-// input:  the Anthropic Models API (`GET /v1/models`), reached with whatever credential
-//         `claude-credentials` resolves, through ANTHROPIC_BASE_URL when one is set
-// output: the model ids this account can actually reach — including the "[1m]" variants — plus
-//         the per-model effort ladder, cached with a TTL and a failure backoff
-// pos:    core — the discovered half of the Anthropic model table. `anthropic-models.ts` stays the
-//         shipped floor: every answer here is UNIONED with it, so a host with no credential, no
-//         network, or a changed API keeps exactly the list it had before discovery existed.
-
 import { ANTHROPIC_MODELS } from './anthropic-models.js';
 import { CachedScan } from './cached-scan.js';
 import { resolveClaudeCredential, type ClaudeCredentialDeps } from './claude-credentials.js';

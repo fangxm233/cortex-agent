@@ -1,7 +1,3 @@
-// input:  UiServiceDeps
-// output: handleProjectsList → ProjectConduitInfo[]
-// pos:    query handler for 'projects.list'
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { UiServiceDeps, ProjectConduitInfo } from '../types.js';

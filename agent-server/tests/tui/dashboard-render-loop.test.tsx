@@ -1,11 +1,3 @@
-// input:  src/tui/components/Dashboard.js
-// output: Regression — the per-tab query/subscribe effect must not re-fire on every
-//         render when the parent passes fresh callback / sendFrame identities.
-// pos:    Guards the Ctrl+D render-storm bug (unstable App callbacks → effect re-runs
-//         every render → setState → infinite loop / 95% CPU). Deterministic: drives a
-//         bounded number of re-renders with fresh identities rather than the live loop
-//         (which would starve the event loop and hang the suite).
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

@@ -1,8 +1,3 @@
-// input:  Design primitives, react-test-renderer, Vitest
-// output: Semantic foreground, material and feedback checks
-// pos:    Guard material roles, readable ink and unfiltered bodies
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

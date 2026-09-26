@@ -1,9 +1,3 @@
-// input:  nothing (leaf module)
-// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / AGENT_CWD / resolveSpawnCwd / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / resolveWorkspaceRelPath / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
-//         (deprecated re-exports: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT) + moduleDir + utility helpers
-//         + resolveNpmGlobalPrefix / withNpmPrefix (npm global prefix for self-update)
-// pos:    cross-module shared constants and ESM/time/path utilities
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';

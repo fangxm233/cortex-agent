@@ -1,8 +1,3 @@
-// input:  a fake tRPC client whose subscribe() handlers the test drives by hand
-// output: recovery tests for the shared live stream (terminal error → backoff re-subscribe)
-// pos:    Regression cover for the "badge stuck on connecting, page otherwise fine" failure — a
-//         single 401/302/502 on /trpc/subscribe used to kill live events for the life of the page.
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

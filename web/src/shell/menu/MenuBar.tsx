@@ -1,7 +1,3 @@
-// input:  menu-model, desktop platform
-// output: MenuBar
-// pos:    Compact app menus and readable shortcut hints
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useRef, useState } from 'react';
 import { usesCommandKey } from '@/lib/desktop-platform';
 import { formatAccel, type MenuDef, type MenuNode } from './menu-model';

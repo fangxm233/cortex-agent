@@ -1,7 +1,3 @@
-// input:  WaitpointInfo, wait-rail-vm, session identity
-// output: WaitRail, WaitRailProps
-// pos:    Waitpoint status rail, inline or floating over the transcript
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import {

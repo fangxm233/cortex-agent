@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MNotesProjectCard
-// pos:    Mobile NotesProjectCard presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type FormEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
 import { MCard, MC, MONO } from '@/mobile/ui/kit';

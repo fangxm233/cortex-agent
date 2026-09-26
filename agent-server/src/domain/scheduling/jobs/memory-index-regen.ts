@@ -1,7 +1,3 @@
-// input:  memory index generator, PlatformAdapter, system notices
-// output: runMemoryIndexRegenJob built-in maintenance runner
-// pos:    Rebuilds memory indexes and reports maintenance results
-
 import { Icons } from '../../../core/icons.js';
 import { emitSystemNotice } from '../../system/system-notice.js';
 import { regenAll as runMemoryIndexRegen } from '../../memory/index-regen.js';

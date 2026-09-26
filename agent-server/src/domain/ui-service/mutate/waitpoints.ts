@@ -1,9 +1,3 @@
-// input:  UiServiceDeps + WaitpointsCancelArgs
-// output: handleCancelWaitpoint → Result<WaitpointsCancelReturn>
-// pos:    mutate handler for 'waitpoints.cancel' — the human escape hatch for a waitpoint whose
-//         signal is never coming. The state guard lives in the waitpoint service (a non-armed
-//         waitpoint refuses), so this handler only translates the outcome.
-
 import type { Result, UiServiceDeps, WaitpointsCancelArgs, WaitpointsCancelReturn } from '../types.js';
 
 export async function handleCancelWaitpoint(

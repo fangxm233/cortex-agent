@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MMemoryView
-// pos:    Mobile MemoryView presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScreen, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import type { MMemoryVm, MMemoryFileRow, MMemoryDirCard } from './m-memory-vm';

@@ -1,5 +1,3 @@
-// input:  orchestration/turn/active-turns.ts
-// output: the per-channel streaming slot and the edit-supersede flag it took over in T2.1
 //
 // The streaming-slot case moved here from tests/runs/registry.test.ts; the supersede cases are
 // covered end-to-end in tests/orch/superseded-edits.test.ts (which calls the same three methods —

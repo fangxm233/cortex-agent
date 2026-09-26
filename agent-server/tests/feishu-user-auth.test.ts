@@ -1,8 +1,3 @@
-// input:  node:test, feishu/user-auth (OAuth v2 helpers + token store)
-// output: TDD spec for user_access_token acquisition/refresh/persistence + code parsing
-// pos:    Verifies FEISHU_AUTH_MODE=user plumbing: authorize URL, code exchange, refresh,
-//         on-disk token store, and getValidUserAccessToken auto-refresh/expiry semantics.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as os from 'os';

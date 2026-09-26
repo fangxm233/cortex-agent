@@ -1,8 +1,3 @@
-// input:  protocol types + ports types
-// output: buildTranscriptReplay — pure synchronous formatter, TranscriptData → TranscriptReplay | null
-// pos:    TUI adapter — replays prior chat messages as TranscriptReplay frames
-//         ZERO @store/@domain/@orch imports (see ports.ts for boundary types)
-
 import type {
   ChatPost,
   ChatUpdate,

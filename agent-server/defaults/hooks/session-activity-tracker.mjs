@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 // @cortex-hook-version 2026.6.24
-// input:  stdin Claude Code PostToolUse event, node:fs
-// output: Appends path-only records to session-activity JSONL
-// pos:    PostToolUse Read/Edit/Write/Skill activity tracker
 
 import { readFileSync, mkdirSync, appendFileSync } from 'fs';
 import { join, resolve } from 'path';

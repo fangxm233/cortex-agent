@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + SchedulesListParams
-// output: handleSchedulesList → ScheduleInfo[]
-// pos:    query handler for 'schedules.list'
-
 import type { UiServiceDeps, ScheduleInfo, SchedulesListParams } from '../types.js';
 
 export async function handleSchedulesList(

@@ -1,7 +1,3 @@
-// input:  Project sessions, schedules, connection state
-// output: MSessionListScreen
-// pos:    Connect mobile session list and scheduled runs
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

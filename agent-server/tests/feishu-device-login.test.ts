@@ -1,9 +1,3 @@
-// input:  node:test, feishu/user-auth (requestDeviceAuthorization, pollDeviceToken),
-//         entry/feishu-login (cmdFeishu)
-// output: TDD spec for the OAuth 2.0 device-authorization login flow (replaces manual paste)
-// pos:    Verifies device-auth request shape, the poll state machine (pending/slow_down/
-//         success/expired), and the `cortex feishu login` device-flow happy path + gating.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as os from 'os';

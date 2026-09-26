@@ -1,8 +1,3 @@
-// input:  Interaction models, answer state, notice tones, TTL
-// output: DeskAskCard, DeskPlanCard, D_INT_COPY
-// pos:    Filter-free question and plan material cards
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useState } from 'react';
 import { noticeTone } from '@/features/session/transcript/ChatNotice';
 import {

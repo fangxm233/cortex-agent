@@ -1,12 +1,3 @@
-// input:  node:test, domain/threads state-machine + utils, fake job-registry bus
-// output: coverage for beginStepSession (track-id minting / legacy migration / resume target /
-//         interrupted-session consumption),
-//         recordStepResult backendSessionId decoupling, resolveTargetResumeId, and the
-//         thread lifecycle EventBus publishes (created / step.started / step.finished /
-//         completed / failed / cancelled→failed)
-// pos:    verifies a RUNNING thread step carries a queryable sessionId from step start
-//         (web UI live transcript: snapshot + delta) and backend resume ids stay decoupled
-
 import { test, beforeAll, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

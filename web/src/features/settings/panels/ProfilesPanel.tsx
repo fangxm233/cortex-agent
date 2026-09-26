@@ -1,8 +1,3 @@
-// input:  profile controller, model catalog, settings atoms
-// output: responsive desktop profile list and editor
-// pos:    Desktop profile comparison and editing panel
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';

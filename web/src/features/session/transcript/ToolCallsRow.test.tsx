@@ -1,7 +1,3 @@
-// input:  ToolCallsRow, React test renderer, mocked debug API
-// output: Tool layout, collapse and lazy inspection regression tests
-// pos:    Tool group spacing, focus and click behavior coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

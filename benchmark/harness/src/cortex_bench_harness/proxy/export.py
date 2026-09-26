@@ -1,8 +1,3 @@
-# input:  one trial proxy's live counters, its JSONL audit log and its lease record
-# output: the proxy-authoritative accounting export, every figure tagged, never defaulted,
-#         with a tally of the outcomes the audit log recorded
-# pos:    Proxy-authoritative accounting export
-
 import json
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol

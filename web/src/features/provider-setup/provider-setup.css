@@ -1,7 +1,3 @@
-/* input:  shared material tokens and provider setup markup
-   output: scoped provider setup and compact header styles
-   pos:    Installation-wizard appearance for the provider step
-   >>> Once updated, update this header and the parent AGENTS.md <<< */
 .provider-setup {
   height: 100%; display: flex; flex-direction: column;
   background: var(--app-backdrop); background-attachment: fixed; color: var(--proto-ink);

@@ -1,7 +1,3 @@
-// input:  CurrentProjectProvider, React, MenuChrome
-// output: DraftProjectSelector, orderDraftProjects
-// pos:    Draft project chip and glass keyboard-ready picker
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
 import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';

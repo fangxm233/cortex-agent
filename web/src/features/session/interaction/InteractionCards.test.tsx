@@ -1,8 +1,3 @@
-// input:  Interaction cards, plan overlay, React renderer
-// output: Interaction presentation and action regression tests
-// pos:    Question and plan card accessibility coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { D_INT_COPY, DeskAskCard, DeskPlanCard } from './InteractionCards';

@@ -1,7 +1,3 @@
-// input:  runtime settings writer, config snapshot, controls
-// output: MNotificationsScreen, MAdvancedScreen
-// pos:    Mobile runtime settings and notification preferences
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

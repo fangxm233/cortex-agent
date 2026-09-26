@@ -1,7 +1,3 @@
-// input:  title + body + callbacks + optional reasonInput
-// output: Confirm/Cancel modal — y/Enter confirm, n/Esc cancel. TextInput for reason when set.
-// pos:    Reusable confirmation modal for destructive actions
-
 import React, { useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { UncontrolledTextInput } from 'ink-text-input';

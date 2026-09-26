@@ -1,8 +1,3 @@
-// input:  config.get snapshot (lang + provenance), config.set mutation, LangProvider's sync seam
-// output: a render-nothing component that makes the server the source of truth for the language
-// pos:    The bridge between the server's one language knob and the SPA's vocabulary. Mounted once,
-//         inside <LangProvider> and inside the tRPC/react-query providers.
-
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

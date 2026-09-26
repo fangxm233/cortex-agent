@@ -1,8 +1,3 @@
-// input:  UI session probe, native configuration, UiTokenLogin
-// output: UiAuthGate
-// pos:    Browser session gate and material connection notice
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
 import { probeUiSession, uiLogin, type UiSessionState } from '@/lib/ui-session';

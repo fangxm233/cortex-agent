@@ -1,7 +1,3 @@
-/* input:  AboutModal markup and shared theme tokens */
-/* output: scoped About dialog layout and interaction styles */
-/* pos:    Compact, theme-aware Cortex identity panel */
-/* >>> Once I am updated, update my header and parent AGENTS.md <<< */
 [data-about-dialog] {
   position: fixed;
   left: 50%;

@@ -1,7 +1,3 @@
-// input:  DockProvider, DockTabStrip, DockFileBody, WebBody
-// output: DockPane
-// pos:    Glass dock chrome preserving opaque document bodies
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { splitFromDrag } from './dock-split';

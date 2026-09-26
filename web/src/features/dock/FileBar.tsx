@@ -1,7 +1,3 @@
-// input:  file path, download callback, body controls
-// output: FileBar, FileBarToggle
-// pos:    File location and keyboard-accessible material controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 
 // A docked tab has no header of its own — the strip above is shared by every tab — so each file body

@@ -1,7 +1,3 @@
-// input:  src/tui/hooks/useNotifications.js (pure state helpers)
-// output: Tests — ring buffer cap 50, add, markRead, overflow eviction, unreadCount
-// pos:    Verifies notification ring buffer behavior
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

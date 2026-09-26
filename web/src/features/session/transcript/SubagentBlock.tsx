@@ -1,7 +1,3 @@
-// input:  React, subagent metadata, nested transcript content
-// output: SubagentBlock
-// pos:    Foldable subagent card for desktop and touch transcripts
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';

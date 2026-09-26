@@ -1,8 +1,3 @@
-// input:  palette presets, ColorSlider
-// output: PaletteControls, PaletteControlsCopy
-// pos:    Readable palette preset labels and exact color previews
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import { PALETTE_RANGES, type Palette, type PaletteKey } from './palette';
 import { PALETTE_PRESETS, type PalettePreset } from './palette-presets';

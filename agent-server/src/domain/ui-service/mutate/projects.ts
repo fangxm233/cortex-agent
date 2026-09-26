@@ -1,7 +1,3 @@
-// input:  UiServiceDeps + { name }
-// output: create-project handler → Ok<{ id }> | Err (invalid-name / already-exists)
-// pos:    mutate handler for 'projects.create'
-
 import type { UiServiceDeps, Result, ProjectCreateReturn } from '../types.js';
 
 export async function handleCreateProject(

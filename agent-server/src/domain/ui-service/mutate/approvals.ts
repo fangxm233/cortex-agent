@@ -1,13 +1,3 @@
-// input:  UiServiceDeps + { id, feedback? } | ApprovalsRequestArgs
-// output: applyApprovalDecision (pure md flip) + approve/reject handlers; buildApprovalEntry (pure
-//         md builder) + request handler (enqueue-only)
-// pos:    mutate handlers for 'approvals.approve' / 'approvals.reject' / 'approvals.request'. approve
-//         / reject ONLY flip the target entry's Status line in
-//         <CORTEX_HOME>/context/PENDING_APPROVALS.md; request only APPENDS a new `pending` entry.
-//         None of them execute the underlying operation (that is the agent/research-loop's job) —
-//         `approvals.request` is the Web settings "approval gate" (task b983): a high-privilege
-//         action is queued for approval instead of being bare-executed in the browser.
-
 import * as fs from 'node:fs';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type {

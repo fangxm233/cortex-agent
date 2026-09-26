@@ -1,8 +1,3 @@
-// input:  publishSystemNotice call sites (system-notice.ts)
-// output: recordSystemNotice / listSystemNotices / resetSystemNoticeHistory ring buffer
-// pos:    In-process history of system notices backing the `system.notices` UI query. Module
-//         singleton, capped at NOTICE_HISTORY_CAP entries — not persisted, cleared on restart.
-
 export type SystemNoticeLevel = 'info' | 'warning' | 'error';
 
 export interface SystemNoticeEntry {

@@ -1,11 +1,3 @@
-// input:  vitest + domain/threads/template-validate (the thread-template validation layer)
-// output: validateEntity / validateRegistry coverage — the error set, the warning set, the
-//         cross-entity impact pass, and the shipped-defaults regression guard
-// pos:    Errors block a save, warnings do not. The split is the contract this suite pins down:
-//         every check that can silently stall a running thread must be an error, and every check
-//         that merely looks suspicious must be a warning. The last test is the one that matters
-//         most — every entity Cortex actually ships must validate clean, or the validator is wrong.
-
 import { test, describe } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

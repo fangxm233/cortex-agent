@@ -1,7 +1,3 @@
-// input:  a run's engine-start announcement plus the session name the turn runs under
-// output: the backend resume target on the session record, written the moment the backend reveals it
-// pos:    orchestration — resume-target persistence for a conversation turn (transcript-sink's
-//         sibling: that one records what was said, this one records where to say it next)
 //
 // Why this exists: the resume target used to reach disk only when the turn SETTLED
 // (the turn's own finally — `turn/turn.ts` today, `runConversation`'s then; fix 9809d9a3). That

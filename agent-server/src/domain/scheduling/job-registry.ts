@@ -1,7 +1,3 @@
-// input:  JobRunner callbacks registered at module load
-// output: registerJob plus boolean dispatch(key, payload) behavior
-// pos:    encapsulated scheduled-task dispatch table; no public key inventory
-
 import type { EventBus } from '@events/index.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { Scheduler } from './scheduler.js';

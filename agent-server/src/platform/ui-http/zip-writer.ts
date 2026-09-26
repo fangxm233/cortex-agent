@@ -1,12 +1,3 @@
-// input:  a list of { name, data } entries (in-memory files)
-// output: createZip(entries) -> Buffer — a valid ZIP archive (DEFLATE, method 8) + crc32(buf)
-// pos:    Dependency-free ZIP encoder for the frontend OTA bundle (platform/ui-http). The desktop
-//         shell's Rust `zip` crate reads this, so the container stays classic: one local file header
-//         per entry (sizes+CRC known up-front, no data descriptor / bit-3), a central directory, and
-//         an EOCD. Output is deterministic (fixed DOS timestamp + entries sorted by name) so an
-//         unchanged SPA always encodes to identical bytes. Uses only Node's built-in zlib — no deps,
-//         matching the repo's minimal-dependency posture.
-
 import * as zlib from 'node:zlib';
 
 export interface ZipEntry {

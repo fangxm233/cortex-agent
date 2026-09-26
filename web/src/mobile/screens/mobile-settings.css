@@ -1,8 +1,3 @@
-/* input: shared settings material tokens, mobile Settings markup */
-/* output: compact glass mobile Settings and touch styles */
-/* pos: mobile Settings-only presentation overrides */
-/* >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<< */
-
 .settings-surface.mobile-settings {
   --settings-control-height: 44px;
   --settings-input-size: 16px;

@@ -1,8 +1,3 @@
-// input:  UI service, operation schemas and tRPC
-// output: typed UI router including platform configuration
-// pos:    Typed tRPC mirror of UI operations
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import { platformSettingsInput } from '@core/platform-settings-spec.js';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';

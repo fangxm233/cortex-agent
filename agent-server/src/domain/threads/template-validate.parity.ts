@@ -1,10 +1,3 @@
-// input:  the zod schemas in template-validate.ts and the interfaces in core/types/thread-types.ts
-// output: compile-time-only parity assertions (no runtime behaviour)
-// pos:    Anti-drift boundary for the thread-template validator. The validator's schemas are a
-//         second description of a shape the TS interfaces already describe, so they can drift —
-//         a field added to AgentDefinition would silently become an "unrecognised field" warning,
-//         and a typo in a schema key would silently stop validating that field. These assertions
-//         fail the typecheck instead.
 //
 //         Two checks per shape, because either alone has a blind spot under this tsconfig
 //         (`strict: false`): assignability misses a RENAMED optional field (both directions still

@@ -1,7 +1,3 @@
-// input:  retention liveness builder seams
-// output: protection coverage for live executions, thread states, bg holds, interactions, captures
-// pos:    unit coverage for retention liveness assembly
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildSessionRetentionLiveness } from '../../src/core/session-retention-liveness.js';

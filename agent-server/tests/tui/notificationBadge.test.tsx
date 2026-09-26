@@ -1,7 +1,3 @@
-// input:  an open notifications modal with one selectable notification
-// output: verifies keyboard selection invokes the owning callback with the source entity
-// pos:    TUI notification interaction regression; badge/empty-state chrome is not snapshot-tested
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';

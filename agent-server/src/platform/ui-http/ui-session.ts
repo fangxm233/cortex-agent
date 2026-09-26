@@ -1,14 +1,3 @@
-// input:  a TTL + a persistence file path (both optional), and session ids presented by clients
-// output: createUiSessionStore(...) -> { create, verify, revoke, size } and parseCookie(header, name)
-// pos:    Browser session leg of the Web UI auth gate (platform/ui-http). A browser that proves it
-//         holds the clientToken once (POST /api/ui/login) is handed an opaque session id in an
-//         HttpOnly cookie; every later request is admitted by that id instead of the token, so the
-//         secret itself never enters the page's JavaScript. Ids are 32 random bytes with an
-//         ABSOLUTE expiry (verify never renews — that keeps verify write-free), persisted to
-//         STORE_DIR/ui-sessions.json at 0600 so a daemon restart does not log every browser out.
-//         A session id is bearer-equivalent but strictly weaker than the token: the auth gate never
-//         accepts it on the /forward WebSocket upgrade (see ui-http-server.ts).
-
 import * as crypto from 'crypto';
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs';
 import * as path from 'path';

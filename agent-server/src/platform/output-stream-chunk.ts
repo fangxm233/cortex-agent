@@ -1,7 +1,3 @@
-// input:  nothing (pure functions)
-// output: shared length-based chunking utilities
-// pos:    Used by SlackOutputStream and FeishuOutputStream for message splitting
-
 export const DEFAULT_MAX_CHUNK = 3000;
 export const MAX_HORIZONTAL_RULES = 3;
 

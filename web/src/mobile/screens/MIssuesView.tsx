@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MIssuesView
-// pos:    Mobile issue material cards and controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';

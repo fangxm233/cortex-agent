@@ -1,13 +1,4 @@
 //
-// input:  the ids a conversation turn already resolved (track session, backend resume target,
-//         session name, project) plus the surface's per-turn options
-// output: the fully-resolved `RunRequest` for a plain user-conversation turn, and the
-//         backend-ready prompt string that request's text was built from
-// pos:    orchestration — the assembly half of what `conversation-runner.runConversation` used to
-//         do inline. Split out so the Turn object (Phase 1.4) can call it as its `prepareRequest`
-//         without pulling the run-opening half along. No side effects beyond the caller's
-//         `onPromptBuilt` callback: it resolves the default agent, composes the prompt, resolves
-//         the profile, and returns.
 
 import { randomUUID } from 'node:crypto';
 import type { DownloadedFile } from '@platform/index.js';

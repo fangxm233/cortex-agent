@@ -1,7 +1,3 @@
-// input:  BrowserTabState, forwarding ports and devices
-// output: PortsPanel, BrowserNotice, BrowserEmpty, PortPickerState
-// pos:    Browser port picker, empty state and accessible notices
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ReactNode } from 'react';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { FRAME_REFUSED_HINT, type BrowserTabState } from './browser-target';

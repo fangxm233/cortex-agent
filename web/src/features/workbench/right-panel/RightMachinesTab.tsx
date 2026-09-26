@@ -1,7 +1,3 @@
-// input:  machine resource, machine-detail-vm, vocab
-// output: RightMachinesTab, RightMachinesView
-// pos:    Compact machine cards with readable telemetry states
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useState } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

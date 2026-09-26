@@ -1,8 +1,3 @@
-// input:  ScheduleForm, editable fields, Select, vocabulary
-// output: ScheduleModal
-// pos:    Continuous schedule glass sheet and inset controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, type CSSProperties } from 'react';
 import { CONTROL_HEIGHT, Select } from '@/design';
 import { useVocab } from '@/i18n';

@@ -1,8 +1,3 @@
-// input:  a session id
-// output: { waitpoints, cancel, cancelling } for WaitRail
-// pos:    session-scoped waitpoint resource. Ownership matching happens on the server (SessionInfo
-//         carries no channel), so this hook only asks for "what is this session waiting on".
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';

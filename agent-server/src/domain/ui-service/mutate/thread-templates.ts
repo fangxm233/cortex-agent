@@ -1,10 +1,3 @@
-// input:  UiServiceDeps + thread-template validate / save / remove arguments
-// output: validate/save/remove handlers → Ok | Err
-// pos:    mutate handlers for the 'threadTemplates.*' operations. The write path the config never
-//         had — see domain/threads/template-writer.ts for the rules it enforces. `validate` is a
-//         mutation despite being side-effect-free because it carries a whole JSON body, which does
-//         not belong in a batched GET url (same reasoning as hooks.test).
-
 import { saveEntity, removeEntity } from '@domain/threads/template-writer.js';
 import {
   validateEntity,

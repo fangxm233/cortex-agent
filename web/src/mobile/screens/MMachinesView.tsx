@@ -1,7 +1,3 @@
-// input:  machine VMs, localized copy, mobile Settings controls
-// output: MMachinesView
-// pos:    Mobile machine cards and readable daemon metadata
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { type ReactNode } from 'react';
 import { MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,

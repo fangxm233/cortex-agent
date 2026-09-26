@@ -1,16 +1,3 @@
-// input:  one conversation turn's session ids, user message, surface (adapter + status message)
-//         and a `prepareRequest` closure that knows how to assemble THIS surface's `RunRequest`
-// output: the whole turn — status message, ledger turn tracking, session lease hand-off,
-//         `startRun`, the observer fan-out, the terminal render/seal and the running:true/false
-//         bracket — driven once, for every caller
-// pos:    orchestration/turn — the single owner of a turn. It is `agent-runner._executeReal`'s
-//         body (steps 1-12, same order, same observable points) with the three per-surface
-//         differences lifted into `TurnInput`: `trigger`, `statusPrefix`, `ledger`,
-//         `prepareRequest`. `agent-runner` keeps routing / injection / queueing / session
-//         find-or-create / browser; `edit-retry` and `interactions/ask-user-resume` keep their
-//         own entry conditions. Nothing here imports back into those three — the dependency
-//         runs one way, caller → Turn (depcruise `no-circular`).
-
 import * as crypto from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, IncomingMessage, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit } from '@platform/types.js';

@@ -1,6 +1,3 @@
-// input:  AgentRunner execution seam, session lease, and mutation routing
-// output: direct-run lease release coverage for registered and early-failure paths
-// pos:    verifies AgentRunner holds session use until execution registration
 //
 // The seam moved with the turn body: `runConversation` no longer exists, so the two things this
 // file used to fake through it are faked one level down — `prepareConversationRequest` (the request

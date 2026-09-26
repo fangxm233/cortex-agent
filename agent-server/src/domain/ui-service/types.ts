@@ -1,8 +1,3 @@
-// input:  domain, platform, auth and runtime setting types
-// output: canonical UI DTOs and operation signatures
-// pos:    Transport-neutral UI service contract
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { PlatformSettingsPatch, PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
 export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
 

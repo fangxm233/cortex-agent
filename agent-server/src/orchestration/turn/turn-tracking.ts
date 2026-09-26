@@ -1,8 +1,3 @@
-// input:  a turn's channel + session ids + the user message that opened it
-// output: the conversation-ledger turn record, its pre-turn backend snapshot, and the per-channel
-//         "a turn is being accepted right now" guard the edit/rewind paths wait on
-// pos:    orchestration/turn — the ledger half of a turn's bookkeeping, split out of the retired
-//         lifecycle.ts so the Turn object (and `turn/active-turns.ts`) can own it.
 import type { TurnMutationRelease } from '../turn-mutation-lock.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';

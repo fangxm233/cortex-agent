@@ -1,7 +1,3 @@
-// input:  JSON snapshots, HTTPS connection configuration
-// output: Connection, Action, Session, Alert, Protocol
-// pos:    Pure notification identities and snapshot decoding
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 package dev.cortex.notifications
 
 import okhttp3.HttpUrl.Companion.toHttpUrl

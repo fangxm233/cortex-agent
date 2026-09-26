@@ -1,7 +1,3 @@
-// input:  pane state, thread/task/machine resources, vocab
-// output: RightPanel
-// pos:    Context drawer with steady readable count badges
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

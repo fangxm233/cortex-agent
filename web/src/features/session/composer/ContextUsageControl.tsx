@@ -1,7 +1,3 @@
-// input:  Session context usage, compact action, locale
-// output: ContextUsageControl, ring, details and compact footer
-// pos:    Compact context gauge and usage controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';

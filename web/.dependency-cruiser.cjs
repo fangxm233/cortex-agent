@@ -1,6 +1,6 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 //
-// Import-direction rules for the web SPA (see web/AGENTS.md for the map).
+// Import-direction rules and layer map for the web SPA.
 //
 // The layering, bottom to top:
 //   lib/                  → ()                    L0  platform shell + pure utils
@@ -24,7 +24,7 @@
 //
 // Violations that exist TODAY are frozen into .dependency-cruiser-known-violations.json
 // and skipped by `--ignore-known`. That baseline may only ever shrink: regenerating it
-// to absorb a new violation defeats the whole file. See web/AGENTS.md.
+// to absorb a new violation defeats the whole file.
 //
 const COMMON_OPTS = { dependencyTypesNot: ['type-only'] };
 const NOT_A_TEST = { pathNot: '\\.test\\.tsx?$' };

@@ -1,8 +1,3 @@
-// input:  Status tones and semantic color pairs
-// output: StatusPill, StatusPillProps
-// pos:    Semantic status labels on flat tinted fills
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { statusTone, type Tone } from './tone';
 
 // Token-driven status pill (design §5 pill palette). No hard-coded hex — the

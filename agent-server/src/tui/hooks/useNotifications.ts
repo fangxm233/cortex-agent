@@ -1,7 +1,3 @@
-// input:  Notification frame type from protocol
-// output: Notification ring buffer — Map<id, Notification> cap 50, add/markRead/clear
-// pos:    State hook for corner notification badge
-
 import { useState, useCallback } from 'react';
 import type { Notification } from '../../platform/tui/protocol.js';
 

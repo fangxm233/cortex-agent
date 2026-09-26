@@ -1,8 +1,3 @@
-// input:  configureFeishuHttp driven against a fake axios-shaped instance
-// output: the transport contract — timeout + keep-alive set once, uploads get the long timeout,
-//         and the retry policy: pre-send failures retry on any method, post-send ones only on
-//         idempotent methods, HTTP responses and stream bodies never
-// pos:    tests — companion to src/platform/adapters/feishu-http.ts
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {

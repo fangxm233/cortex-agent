@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# input:  a committed campaign document and the checkout it belongs to
-# output: both trial artifacts, built from current source, at the exact paths the campaign pins,
-#         each with a provenance sidecar the launcher checks before it will run
-# pos:    Trial artifact build procedure
 #
 # A campaign installs two artifacts into every container: the harness wheel and the packed
 # agent-server. Until now nothing on any release path built the second one -- the logic existed

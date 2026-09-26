@@ -1,7 +1,3 @@
-// input:  provider glyph data, shared material tokens
-// output: ProviderIcon
-// pos:    Provider brand glyph on a compact material tile
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { PROVIDER_ICON_SVGS } from './provider-icon-data';
 
 // Exact provider-id → brand glyph. Unknown ids retry with their first hyphen

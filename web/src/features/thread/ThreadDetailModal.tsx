@@ -1,7 +1,3 @@
-// input:  Radix dialog, thread controller, material tokens
-// output: Thread detail modal provider and navigation state
-// pos:    Floating thread detail sheet and entry points
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as Dialog from '@radix-ui/react-dialog';
 import { useMemo, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';

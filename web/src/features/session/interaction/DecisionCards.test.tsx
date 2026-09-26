@@ -1,8 +1,3 @@
-// input:  DecisionCard, React renderer, decision fixtures
-// output: Decision response and disclosure regression tests
-// pos:    Decision card presentation and action coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';

@@ -1,7 +1,3 @@
-// input:  React, mobile kit, presentation props
-// output: MTasksView
-// pos:    Mobile TasksView presentation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { ComponentType, CSSProperties, MouseEvent } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from '@/features/tasks/task-claim';

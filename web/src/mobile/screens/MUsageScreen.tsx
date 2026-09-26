@@ -1,7 +1,3 @@
-// input:  usage controller, navigation (+ entry origin in location state), mobile usage view
-// output: MUsageScreen
-// pos:    Mobile usage screen wiring
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { useLang } from '@/i18n';

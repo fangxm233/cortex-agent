@@ -1,8 +1,3 @@
-// input:  vitest, node child_process, smoke-runner.ts
-// output: credential-free real Pi SDK regression smoke
-// pos:    Run the SDK smoke in a private credential-free process
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

@@ -1,10 +1,3 @@
-// input:  @larksuiteoapi/node-sdk, env (FEISHU_APP_ID/SECRET/DOMAIN/AUTH_MODE), user-auth
-// output: buildFeishuClientFromEnv() → lark.Client | null (null when unconfigured);
-//         wrapWithUserToken() to act as a Feishu user (FEISHU_AUTH_MODE=user)
-// pos:    Shared Feishu OpenAPI client for all feishu_* MCP doc tools. In user mode every
-//         leaf API call is auto-tagged with the operator's user_access_token; messaging
-//         (platform/adapters/feishu.ts) is separate and always stays bot/app identity.
-
 import type * as lark from '@larksuiteoapi/node-sdk';
 import { createRequire } from 'node:module';
 import { getValidUserAccessToken, type FeishuDomain } from './user-auth.js';

@@ -1,7 +1,3 @@
-// input:  TabData for cost tab
-// output: Cost summary — total cost, cost by model, budget remaining
-// pos:    Dashboard tab: read-only cost summary (no row navigation, no mutation buttons)
-
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { TabData } from '../hooks/useDashboardData.js';

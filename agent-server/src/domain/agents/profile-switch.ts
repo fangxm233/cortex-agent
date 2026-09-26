@@ -1,13 +1,3 @@
-// input:  profile-manager (resolveProfile/resolveProfileConfig) + config (resolveBackendForChannel/
-//         setActiveProfile) + session-registry-repo (channel turn history + record sync)
-// output: decideProfileSwitch (pure policy) + switchChannelProfile (composed switch used by
-//         Slack/Feishu commands AND the Web UI, so the rule has ONE source of truth)
-// pos:    domain/agents — the single "switch the active profile for a channel/session" rule.
-//         Policy: a session that already has conversation history may only move BETWEEN
-//         same-backend profiles (switching in place, no session reset); a fresh session (no
-//         history) may switch to any profile freely. A same-backend switch never resets the
-//         session — the agent runner re-resolves the profile per turn, so only the model changes.
-
 import { sessionStore } from '@store/session-registry-repo.js';
 import { resolveBackendForChannel, setActiveProfile } from './config.js';
 import { resolveProfile, resolveProfileConfig } from './profile-manager.js';

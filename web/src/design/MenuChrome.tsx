@@ -1,7 +1,3 @@
-// input:  React, picker rows and placement
-// output: MenuCard, MenuRow, shared picker chrome
-// pos:    Glass picker shells and accessible compact controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties, ReactNode } from 'react';
 
 // The chrome the composer's pickers share: one card, one row, one hover rule.

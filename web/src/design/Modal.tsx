@@ -1,8 +1,3 @@
-// input:  Radix Dialog, React, shared focus-visible styles
-// output: Modal, ModalClose, modal styling helpers
-// pos:    Accessible material dialogs with opt-in bare chrome
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactNode } from 'react';
 

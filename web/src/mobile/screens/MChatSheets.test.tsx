@@ -1,7 +1,3 @@
-// input:  Mobile chat sheets, attach menu, React test renderer
-// output: Selection, menu dismissal and listener cleanup tests
-// pos:    Mobile chat sheet and floating menu interaction coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MChatCopy } from './MChatView.types';

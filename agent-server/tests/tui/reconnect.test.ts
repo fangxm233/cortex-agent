@@ -1,7 +1,3 @@
-// input:  src/tui/ws-client.js
-// output: Reconnect test — WS drop → retry sequence includes handshake.hello with resume
-// pos:    Verifies exponential backoff reconnect behavior
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocketServer } from 'ws';

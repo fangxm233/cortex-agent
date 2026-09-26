@@ -1,7 +1,3 @@
-// input:  TabData for tasks tab + optional mutate + projectId
-// output: Tasks list — status badge + priority + text + claimed indicator + per-row mutations
-// pos:    Dashboard tab: interactive task list with claim/unclaim/complete/block/unblock via ui.mutate
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { TabData } from '../hooks/useDashboardData.js';

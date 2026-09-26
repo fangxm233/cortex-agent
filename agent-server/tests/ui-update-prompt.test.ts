@@ -1,8 +1,3 @@
-// input:  vitest, createUiUpdatePrompt, the ui-service system handlers and the shared update state
-// output: coverage for the dialog prompt — fallback delegation, first-answer-wins, and the
-//         applyUpdate / skipUpdate mutations resolving a pending ask()
-// pos:    §3.7 unified update prompt (plan/silent-app-update.md)
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createUiUpdatePrompt } from '../src/orchestration/interactions/ui-update-prompt.js';

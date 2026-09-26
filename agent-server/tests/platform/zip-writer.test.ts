@@ -1,10 +1,3 @@
-// input:  Node test runner + createZip/crc32 (dependency-free ZIP writer)
-// output: unit tests — crc32 known-answer vectors, ZIP structural signatures (LFH/CDH/EOCD),
-//         per-entry DEFLATE round-trip (inflateRaw == original), entry count, determinism,
-//         empty-file and nested-path handling.
-// pos:    Regression guard for the OTA bundle encoder (desktop frontend OTA, unit A). The Rust
-//         `zip` crate is the real consumer; these tests pin the container invariants it relies on.
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as zlib from 'node:zlib';

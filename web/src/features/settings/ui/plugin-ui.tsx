@@ -1,8 +1,3 @@
-// input:  plugin catalog, settings atoms, localized copy
-// output: plugin metadata, inset summaries and glass card styles
-// pos:    Compact desktop plugin presentation helpers
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';

@@ -1,6 +1,3 @@
-// input:  a temp-home machines.json + client-reported gpu counts
-// output: assertions on registry/file reconciliation and refusal cases
-// pos:    Covers applyReportedGpuCount (client hello → machines.json)
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';

@@ -1,7 +1,3 @@
-// input:  PI transcript filename selector
-// output: timestamp, millisecond, and backup-near-miss tests
-// pos:    Guards exact PI filename parsing
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { selectPISessionFilename } from '../../src/core/pi-session-filename.js';

@@ -1,10 +1,3 @@
-// input:  the channel-keyed interceptor registry (arm / disarm / isArmed / tryConsume)
-// output: unit tests for the leaf the DR-0016 backstop is built on — no manager-qa, no routing
-// pos:    this module exists so the conversation entry can ask "is anyone waiting for a human reply
-//         on this channel?" without importing the module that answers it (that import closes the
-//         agent-runner → manager-qa → thread-callback → session-gateway → agent-runner cycle).
-//         These tests therefore import NOTHING but the leaf.
-
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';

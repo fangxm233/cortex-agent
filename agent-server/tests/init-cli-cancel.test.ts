@@ -1,6 +1,3 @@
-// input:  CLI dispatcher with an isolated init cancellation stub
-// output: bilingual exit-130 regression without stack traces or secret error details
-// pos:    Init command cancellation boundary; no configuration or credentials accessed
 import { afterEach, expect, it, vi } from 'vitest';
 import { runCli } from '../src/entry/cli.js';
 import { runInit } from '../src/entry/init.js';

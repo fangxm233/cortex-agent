@@ -1,14 +1,3 @@
-// input:  one thread's id + mode + the surface it runs on (adapter, destination, status message,
-//         blocks template, interactivity) and an optional settle hook
-// output: the whole run — status message, OutputStream, progress line, the `runThread` family
-//         call, the verdict, the terminal render/seal, `statusMsgRef` persistence and settle
-// pos:    orchestration/thread-run — the thread-path twin of `orchestration/turn/turn.ts`. Every
-//         caller that used to assemble a `RunThreadOptions` by hand (thread-executor x3, the MCP
-//         `thread_start` webhook, the suspended-parent resume, the rate-limit resume) now hands
-//         one `ThreadRunInput` over and renders nothing itself. Dependencies run one way,
-//         caller → ThreadRun: nothing here imports thread-executor, webhook or thread-callback
-//         (depcruise `no-circular`), which is why `settle` is injected rather than imported.
-
 import type { Destination, DownloadedFile, MessageRef, PlatformAdapter } from '@platform/index.js';
 import type { RunThreadOptions } from '@core/types/thread-types.js';
 import { createLogger } from '@core/log.js';

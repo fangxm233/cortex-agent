@@ -1,7 +1,3 @@
-// input:  Notice level, localized text, notice and auth actions
-// output: ChatNotice, noticeTone, notice types
-// pos:    Compact transcript notices with focused action controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';

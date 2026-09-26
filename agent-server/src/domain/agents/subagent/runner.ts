@@ -1,8 +1,3 @@
-// input:  one resolved task + role, the delegating parent's context, an abort signal
-// output: one SubagentResult, from a nested PI session or a frozen one-shot Claude run that owns
-//         its own pool slot and retires it on settle
-// pos:    Backend dispatch for a single subagent child
-
 import { randomUUID } from 'node:crypto';
 import { withoutSubagentTools } from '@core/mcp-tool-gate.js';
 import { createLogger } from '@core/log.js';

@@ -1,7 +1,3 @@
-// input:  native connection bridge, remote server form
-// output: tested connection persisted before workbench navigation
-// pos:    Local install entry and remote connection behavior
-// >>> Once updated, update this header and the parent AGENTS.md <<<
 (function () {
   'use strict';
   var shell = window.CortexShell, el = shell.el, t = shell.t;

@@ -1,8 +1,3 @@
-// input:  executions.json (Record<string, ExecutionRecord>)
-// output: { executionRepo } — ExecutionRepo singleton with sync read + coalesced async persist (Pattern B)
-//         archiveTerminal moves week-old terminal records to data/archive/executions-archive.jsonl
-// pos:    Execution truth layer persistence layer. Based on JsonRepository abstraction, reads/writes executions.json
-
 import * as path from 'path';
 import { readFileSync } from 'fs';
 import { appendFile, mkdir } from 'fs/promises';

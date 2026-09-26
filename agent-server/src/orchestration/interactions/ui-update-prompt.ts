@@ -1,9 +1,3 @@
-// input:  a fallback UpdatePrompt (the chat-message one from ./update-prompt.js) + domain update state
-// output: createUiUpdatePrompt(fallback, opts?) => UpdatePrompt
-// pos:    Dialog-first UpdatePrompt: ask() publishes `prompting` for the SPA's system.updateStatus
-//         query and waits for system.applyUpdate / system.skipUpdate. A fallback timer hands the
-//         same question to the chat-message prompt so Slack/Feishu/headless users are not stranded.
-
 import type { UpdateChoice, UpdatePrompt } from '@domain/system/update-prompt.js';
 import {
   openServerUpdatePrompt,

@@ -1,7 +1,3 @@
-// input:  Projects list + selection callback
-// output: Ctrl+P modal — list projects, select to send session.switch
-// pos:    Project/session switcher modal (state managed by parent)
-
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 

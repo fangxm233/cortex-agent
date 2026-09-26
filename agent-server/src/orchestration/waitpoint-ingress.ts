@@ -1,8 +1,3 @@
-// input:  signal payloads (HTTP route, local spool files), waitpoint service
-// output: ingestSignal / drainLocalSpool / recentSignalRejections / SIGNAL_SPOOL_DIR
-// pos:    The single door every external signal walks through, whatever carried it. Applies the
-//         signal to its waitpoint and, when that fires, hands it to the notifier. Lives in
-//         orchestration/ because it reaches the notifier; the state machine stays in domain/.
 //
 //         Two properties this layer owns and the service does not:
 //         - anti-enumeration: unknown ids and bad secrets are rate-limited globally and recorded

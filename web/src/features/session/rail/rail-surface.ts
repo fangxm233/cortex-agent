@@ -1,7 +1,3 @@
-// input:  React style types, shared theme tokens
-// output: railSurface
-// pos:    Shared surface for the composer's todo and wait rails
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import type { CSSProperties } from 'react';
 
 /**

@@ -1,7 +1,3 @@
-// input:  none (pure regex transforms)
-// output: Minimal markdown renderer: bold/italic/code/links
-// pos:    RichBlock handles full structural formatting; this handles inline markdown within text
-
 import type { ReactNode } from 'react';
 
 export interface MarkdownSegment {

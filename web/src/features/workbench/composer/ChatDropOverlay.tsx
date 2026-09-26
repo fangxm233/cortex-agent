@@ -1,7 +1,3 @@
-// input:  Drop-target element, dragged file count, current attachment count
-// output: ChatDropOverlay
-// pos:    Pane-wide file-drop cue portaled into the chat drop target
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { createPortal } from 'react-dom';
 import { useVocab } from '@/i18n';
 

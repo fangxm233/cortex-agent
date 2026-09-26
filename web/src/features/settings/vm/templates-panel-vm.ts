@@ -1,10 +1,3 @@
-// input:  threadTemplates.get entries, threadTemplates.detail, and editor text state
-// output: filtering, counts, starter skeletons, JSON parse/format, dirty and save-arg builders
-// pos:    Pure view model for the thread-template editor — no React, unit-tested on its own.
-//         Client-side checks are deliberately shallow: only "is this parseable JSON" and "is this
-//         name filename-safe" live here. Everything else round-trips to threadTemplates.validate,
-//         so there is exactly one validator and the UI can never disagree with what will be saved.
-
 import type { ThreadTemplateEntry, ThreadTemplateDetail } from '@cortex-agent/ui-contract';
 
 export type TemplateKind = ThreadTemplateEntry['kind'];

@@ -1,7 +1,3 @@
-// input:  Resumable sessions list + selection callback
-// output: Session picker for --resume mode — ↑/↓/Enter to select
-// pos:    Pick a session to resume before the main App renders
-
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { computeFocusWindow } from '../logic.js';

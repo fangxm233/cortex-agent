@@ -1,8 +1,3 @@
-// input:  a turn's attachments (and the ones that failed to download)
-// output: the prompt prefix the backend hands the model
-// pos:    tests/agent-adapter — the filename the user chose has to survive into the prompt (the
-//         stored path is an opaque, ASCII-folded, de-duplicated name), and a failed download has
-//         to be admitted rather than silently omitted.
 import { expect, test } from 'vitest';
 import { buildPrompt, formatAttachmentFailures } from '../../src/agent-adapter/normalize/prompt-builder.js';
 

@@ -1,8 +1,3 @@
-// input:  react, feature data, theme tokens
-// output: NotesPane presentation
-// pos:    Transparent notes pane with material controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';

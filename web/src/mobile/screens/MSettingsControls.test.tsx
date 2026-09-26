@@ -1,7 +1,3 @@
-// input:  mobile Settings controls, react-test-renderer, vitest
-// output: Scoped shell and control regression tests
-// pos:    Verify mobile Settings structure and interactions
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MSettingsField, MSettingsPage, MSettingsRow, MSettingsToggle } from './MSettingsControls';

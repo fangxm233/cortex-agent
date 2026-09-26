@@ -1,7 +1,3 @@
-// input:  DraftProjectSelector, mocked project provider
-// output: Project picker regression tests
-// pos:    Verify project order and accessible picker controls
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

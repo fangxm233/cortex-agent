@@ -1,8 +1,3 @@
-// input:  redacted fields, local drafts and credential transport state
-// output: accessible write-only credential fields and clear controls
-// pos:    Platform connection fields and optional disclosure
-// >>> Once updated, update this header and parent AGENTS.md <<<
-
 import type { CSSProperties } from 'react';
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

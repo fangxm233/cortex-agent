@@ -1,8 +1,3 @@
-// input:  DecisionItem, transcript mutations, ChatMarkdown
-// output: DecisionCard, DecisionCardGroup, useDecisionActions
-// pos:    Decision records and responses for desktop and touch transcripts
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { useCallback, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';

@@ -1,8 +1,3 @@
-// input:  Workbench dialogs, React renderer, modal test harness
-// output: Dialog shell, dismissal and action regression tests
-// pos:    Workbench modal glass surface and interaction coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';

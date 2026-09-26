@@ -1,6 +1,3 @@
-// input:  nothing (leaf data slice)
-// output: initEn / initZh — init/config wizard and provider login CLI messages
-// pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
 // >>> Keep en and zh keys in lockstep (zh typed against keyof typeof initEn) <<<
 
 export const initEn = {
