@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
-import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MGroup, MGroupLabel, MC, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import type { MProjectSwitchRow } from './m-project-vm';
@@ -139,101 +139,87 @@ function SettingsGear({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
-  const c = current.cost;
-  const pct = c ? budgetPercent(c.today, c.dailyBudget) : null;
+const CHEVRON = <span aria-hidden="true" style={{ marginLeft: 'auto', fontSize: 17, lineHeight: 1, color: MC.faint, flex: 'none' }}>›</span>;
+
+const ROW: CSSProperties = { padding: '12px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0 };
+
+function Initials({ text, accent }: { text: string; accent: boolean }) {
   return (
-    <MCard tone="blue" padding="13px 14px">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--r-chip)',
-            background: MC.runBg,
-            color: `color-mix(in srgb, ${MC.run}, ${MC.ink} 15%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            font: `600 12px ${MONO}`,
-            flex: 'none',
-          }}
-        >
-          {current.initials}
+    <div
+      style={{
+        width: accent ? 40 : 34,
+        height: accent ? 40 : 34,
+        borderRadius: accent ? 12 : 10,
+        background: accent ? MC.run : MC.gray,
+        color: accent ? 'var(--ink-solid-fg)' : MC.sub,
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: accent ? 14 : 12,
+        fontWeight: 700,
+        letterSpacing: '.02em',
+        flex: 'none',
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <Initials text={current.initials} accent />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
+          <span style={{ fontSize: 11, fontWeight: 650, padding: '1px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>
+            {copy.current}
+          </span>
         </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 15, fontWeight: 650, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '1.5px 7px',
-                borderRadius: 'var(--r-pill)',
-                background: MC.runBg,
-                color: MC.run,
-                flex: 'none',
-              }}
-            >
-              {copy.current}
-            </span>
-          </div>
-          {/* Phase/milestone (Phase 2 · M2.3) have no DTO source → omitted (never fabricated). */}
-          <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 2 }}>
-            {current.runningThreads} {copy.threadsRunning} · {current.needsYou} {copy.needsYou}
-          </div>
+        {/* Phase/milestone (Phase 2 · M2.3) have no DTO source → omitted (never fabricated). */}
+        <div style={{ fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
+          {current.runningThreads} {copy.threadsRunning} · {current.needsYou} {copy.needsYou}
         </div>
       </div>
-      {c && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-            <span style={{ font: `600 20px ${MONO}`, color: MC.ink, letterSpacing: '-.02em' }}>
-              {formatMoney(c.today)}
-            </span>
-            <div
-              style={{
-                flex: 1,
-                height: 6,
-                borderRadius: 'var(--r-pill)',
-                background: 'var(--proto-line-2)',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ width: `${pct ?? 0}%`, height: '100%', background: MC.run }} />
-            </div>
-            <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
-              / {formatMoney(c.dailyBudget)} {copy.perDay}
-            </span>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px 14px',
-              flexWrap: 'wrap',
-              marginTop: 7,
-              font: `400 11px ${MONO}`,
-              color: MC.muted,
-            }}
-          >
-            <span>
-              {copy.week} <b style={{ color: MC.body }}>{formatMoney(c.week)}</b>
-            </span>
-            <span>
-              {copy.month} <b style={{ color: MC.body }}>{formatMoney(c.month)}</b>
-            </span>
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)' }}>
-              {copy.forecastToday} {formatMoney(c.forecastToday)}
-            </span>
-          </div>
-        </>
-      )}
-    </MCard>
+    </div>
+  );
+}
+
+function Budget({ cost, copy }: { cost: CostSummary; copy: MProjectCopy }) {
+  const pct = budgetPercent(cost.today, cost.dailyBudget);
+  return (
+    <div style={{ marginTop: 16, ...M_NUM }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: 26, fontWeight: 650, color: MC.ink, letterSpacing: '-.02em' }}>{formatMoney(cost.today)}</span>
+        <span style={{ fontSize: 12, color: MC.muted }}>/ {formatMoney(cost.dailyBudget)} {copy.perDay}</span>
+      </div>
+      <div style={{ height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 8 }}>
+        <div style={{ width: `${pct ?? 0}%`, height: '100%', borderRadius: 'var(--r-pill)', background: MC.run }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px 14px', flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: MC.muted }}>
+        <span>{copy.week} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.week)}</b></span>
+        <span>{copy.month} <b style={{ fontWeight: 600, color: MC.body }}>{formatMoney(cost.month)}</b></span>
+        <span style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)' }}>
+          {copy.forecastToday} {formatMoney(cost.forecastToday)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// The current project leads the page flat on the mesh: identity, then today's spend against budget.
+function CurrentProject({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
+  return (
+    <div style={{ padding: '4px 14px 2px' }}>
+      <CurrentHead current={current} copy={copy} />
+      {current.cost && <Budget cost={current.cost} copy={copy} />}
+    </div>
   );
 }
 
 // Approval bar — project-scoped since ApprovalInfo.projectId: count = current project + 全局
 // (unattributed) pending entries; the 全局 portion is called out so the scoped part stays honest.
+// The one tinted surface on the page: it is the only thing here that asks for action.
 function ApprovalBar({
   pending,
   globalPending,
@@ -250,258 +236,129 @@ function ApprovalBar({
   return (
     <div
       onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        flexWrap: 'wrap',
-        border: `1px solid ${MC.amberBorder}`,
-        background: MC.amberCard,
-        borderRadius: 'var(--r-card)',
-        padding: '12px 13px',
-        cursor: 'pointer',
-      }}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, background: MC.amberBg, borderRadius: 12, padding: '11px 14px', cursor: 'pointer' }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>
-        {copy.approvals} · {pending} {copy.pending}
-      </span>
-      <span style={{ font: `400 11px ${MONO}`, color: MC.amberText }}>
-        {globalPending > 0 ? `${globalPending} ${copy.globalPending} · ` : ''}
-        {waitingThreads} {copy.threadsWaiting}
-      </span>
-      <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.amberInk }}>
-        {copy.handle} ›
-      </span>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-amber-fg)', ...M_NUM }}>
+          {copy.approvals} · {pending} {copy.pending}
+        </div>
+        <div style={{ fontSize: 12, color: MC.amberText, marginTop: 1, ...M_NUM }}>
+          {globalPending > 0 ? `${globalPending} ${copy.globalPending} · ` : ''}
+          {waitingThreads} {copy.threadsWaiting}
+        </div>
+      </div>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.amberInk, flex: 'none' }}>{copy.handle} ›</span>
     </div>
   );
 }
 
-// Issues card (design sec-24 24a, mobile column): neutral chrome — deliberately NOT amber and NOT
-// part of the 需要你 bar (issues never block a thread). Shows the first 2 titles + `+ N more`
-// (design-verbatim mono suffix). Hidden entirely at 0 (rendered conditionally by the parent).
-function IssuesCard({
-  issues,
-  copy,
-  onClick,
-}: {
-  issues: MProjectIssues;
-  copy: MProjectCopy;
-  onClick: () => void;
-}) {
+function CountTag({ n }: { n: number }) {
+  return <span style={{ fontSize: 12, fontWeight: 500, color: MC.faint, ...M_NUM }}>{n}</span>;
+}
+
+// Issues row (design sec-24 24a, mobile column): neutral — deliberately NOT amber and NOT part of
+// the 需要你 bar (issues never block a thread). First titles + `+ N more`; hidden at 0 by the parent.
+function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: MProjectCopy; onClick: () => void }) {
   const more = issues.count - issues.previews.length;
   return (
-    <MCard padding="12px 14px" onClick={onClick} style={{ cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{copy.issuesTitle}</span>
-        <span
-          style={{
-            font: `600 11px ${MONO}`,
-            color: MC.sub,
-            background: 'var(--proto-line-2)',
-            padding: '2px 8px',
-            borderRadius: 'var(--r-pill)',
-          }}
-        >
-          {issues.count}
-        </span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.muted }}>›</span>
+    <div className="m-press" onClick={onClick} style={ROW}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{copy.issuesTitle}</span>
+        <CountTag n={issues.count} />
+        {CHEVRON}
       </div>
       {issues.previews.map((title) => (
-        <div
-          key={title}
-          style={{
-            fontSize: 12,
-            lineHeight: 1.55,
-            color: MC.sub,
-            marginTop: 4,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
+        <div key={title} style={{ fontSize: 13, lineHeight: 1.5, color: MC.sub, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {title}
         </div>
       ))}
-      {more > 0 && (
-        <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 7 }}>+ {more} more</div>
-      )}
-    </MCard>
-  );
-}
-
-function InfoRow({
-  label,
-  onClick,
-  divider,
-}: {
-  label: string;
-  onClick: () => void;
-  divider: boolean;
-}) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 9,
-        padding: '11px 13px',
-        borderBottom: divider ? `1px solid ${MC.divider}` : undefined,
-        cursor: 'pointer',
-      }}
-    >
-      <span style={{ fontSize: 13, color: MC.sub, flex: 'none' }}>{label}</span>
-      <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
+      {more > 0 && <div style={{ fontSize: 12, color: MC.muted, marginTop: 4, ...M_NUM }}>+ {more} more</div>}
     </div>
   );
 }
 
-function SwitchDivider({ label }: { label: string }) {
+function LinkRow({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px 0' }}>
-      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>
-        {label}
-      </div>
-      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+    <div className="m-press" onClick={onClick} style={{ ...ROW, display: 'flex', alignItems: 'center' }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{label}</span>
+      {CHEVRON}
     </div>
   );
 }
 
-function SwitchRow({
-  row,
-  copy,
-  onSwitch,
-  divider,
-}: {
-  row: MProjectSwitchRow;
-  copy: MProjectCopy;
-  onSwitch: (id: string) => void;
-  divider: boolean;
-}) {
-  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. Per-project pending
-  // approvals ride the attention badge (vm actionRequired). 今日 $ omitted when no cost bucket.
-  const money = row.todayCost != null ? `${copy.today} ${formatMoney(row.todayCost)}` : null;
+function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: MProjectCopy }) {
+  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. 今日 $ omitted when
+  // the project has no cost bucket.
+  const money = row.todayCost != null ? ` · ${copy.today} ${formatMoney(row.todayCost)}` : '';
+  const running = row.running > 0;
   return (
-    <div
-      onClick={() => onSwitch(row.id)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '12px 13px',
-        borderBottom: divider ? `1px solid ${MC.divider}` : undefined,
-        cursor: 'pointer',
-      }}
-    >
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 'var(--r-chip)',
-          background: MC.gray,
-          color: MC.sub,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          font: `600 12px ${MONO}`,
-          flex: 'none',
-        }}
-      >
-        {row.initials}
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
+      {running && <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
+      <span>{running ? `${row.running} ${copy.running}` : copy.idle}{money}</span>
+    </div>
+  );
+}
+
+function SwitchRow({ row, copy, onSwitch }: { row: MProjectSwitchRow; copy: MProjectCopy; onSwitch: (id: string) => void }) {
+  return (
+    <div className="m-press" onClick={() => onSwitch(row.id)} style={{ ...ROW, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <Initials text={row.initials} accent={false} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.id}</div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            font: `400 11px ${MONO}`,
-            color: MC.muted,
-            marginTop: 2,
-          }}
-        >
-          {row.running > 0 ? (
-            <>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
-              <span>
-                {row.running} {copy.running}
-                {money ? ` · ${money}` : ''}
-              </span>
-            </>
-          ) : (
-            <span>
-              {copy.idle}
-              {money ? ` · ${money}` : ''}
-            </span>
-          )}
-        </div>
+        <SwitchMeta row={row} copy={copy} />
       </div>
       {/* One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber. */}
       {row.badgeCount > 0 && (
         <span
           aria-label="project attention"
-          style={{
-            minWidth: 18,
-            height: 18,
-            padding: '0 6px',
-            borderRadius: 'var(--r-pill)',
-            background: row.badgeTone === 'action' ? MC.amber : MC.run,
-            color: 'var(--ink-solid-fg)',
-            font: `600 11px ${MONO}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: 'none',
-          }}
+          style={{ minWidth: 18, height: 18, padding: '0 6px', boxSizing: 'border-box', borderRadius: 'var(--r-pill)', background: row.badgeTone === 'action' ? MC.amber : MC.run, color: 'var(--ink-solid-fg)', fontSize: 11, fontWeight: 600, display: 'grid', placeItems: 'center', flex: 'none', ...M_NUM }}
         >
           {row.badgeCount}
         </span>
       )}
-      <span style={{ fontSize: 13, color: MC.muted, flex: 'none' }}>›</span>
+      <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, color: MC.faint, flex: 'none' }}>›</span>
     </div>
   );
 }
 
-// Project-scoped zone only: current card → approvals (scoped) → issues → notes → memory.
-// Global entries (machines / settings) moved behind the header gear — no mixed-scope card here.
-function PrimaryProjectCards({ props }: { props: MProjectViewProps }) {
+function NewProjectRow({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
+  return (
+    <div className="m-press" onClick={onClick} style={{ ...ROW, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, color: MC.run }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: MC.runBg, display: 'grid', placeItems: 'center', flex: 'none' }}>
+        <PlusGlyph size={14} strokeWidth={2} />
+      </span>
+      <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.newProject}</span>
+    </div>
+  );
+}
+
+// Project-scoped zone only: current project → approvals (scoped) → issues / notes / memory.
+// Global entries (machines / settings) live behind the header gear — no mixed-scope rows here.
+function PrimaryProjectSection({ props }: { props: MProjectViewProps }) {
   const { copy, current, pendingApprovals, globalPendingApprovals, issues } = props;
   return (
     <>
-      {current && <CurrentCard current={current} copy={copy} />}
+      {current && <CurrentProject current={current} copy={copy} />}
       {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
-      {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
-      <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
-      <MCard padding={0} style={{ overflow: 'hidden' }}>
-        <InfoRow label={copy.memory} onClick={props.onMemory} divider={false} />
-      </MCard>
+      <MGroup style={{ marginTop: 14 }}>
+        {issues.count > 0 && <IssuesRow issues={issues} copy={copy} onClick={props.onIssues} />}
+        <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
+        <LinkRow label={copy.memory} onClick={props.onMemory} />
+      </MGroup>
     </>
   );
 }
 
-function ProjectSwitchCards({ props }: { props: MProjectViewProps }) {
-  if (props.switchRows.length === 0) return null;
+function ProjectSwitchSection({ props }: { props: MProjectViewProps }) {
   return (
-    <>
-      <SwitchDivider label={props.copy.switchProject} />
-      <MCard padding={0} style={{ overflow: 'hidden' }}>
-        {props.switchRows.map((row, index) => <SwitchRow key={row.id} row={row} copy={props.copy} onSwitch={props.onSwitch} divider={index < props.switchRows.length - 1} />)}
-      </MCard>
-    </>
-  );
-}
-
-const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 'var(--r-card)', padding: 13, cursor: 'pointer' } as const;
-
-function NewProjectButton({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
-  return (
-    <div onClick={onClick} style={NEW_PROJECT_STYLE}>
-      <span style={{ color: MC.run, display: 'flex' }}><PlusGlyph size={14} /></span>
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.run }}>{copy.newProject}</span>
-    </div>
+    <section style={{ marginTop: 22 }}>
+      {props.switchRows.length > 0 && <MGroupLabel>{props.copy.switchProject}</MGroupLabel>}
+      <MGroup inset={58}>
+        {props.switchRows.map((row) => <SwitchRow key={row.id} row={row} copy={props.copy} onSwitch={props.onSwitch} />)}
+        <NewProjectRow copy={props.copy} onClick={props.onNewProject} />
+      </MGroup>
+    </section>
   );
 }
 
@@ -517,10 +374,9 @@ export function MProjectView(props: MProjectViewProps) {
   );
   return (
     <MScreen label="1e 项目" floatingHeader header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
-      <MScrollBody gap={10}>
-        <PrimaryProjectCards props={props} />
-        <ProjectSwitchCards props={props} />
-        <NewProjectButton copy={props.copy} onClick={props.onNewProject} />
+      <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
+        <PrimaryProjectSection props={props} />
+        <ProjectSwitchSection props={props} />
       </MScrollBody>
     </MScreen>
   );

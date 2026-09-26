@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
-import { MONO, M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
+import { M_GUTTER, M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
 import { type Vocab } from '@/i18n';
 
 const ACTIVE = 'var(--proto-accent)';
@@ -54,8 +54,8 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
     <div
       style={{
         position: 'absolute',
-        left: 14,
-        right: 14,
+        left: M_GUTTER,
+        right: M_GUTTER,
         bottom: M_TABBAR_BOTTOM,
         height: 62,
         borderRadius: 22,
@@ -116,7 +116,9 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                     // Amber, not accent: this is the pending-approvals count — the app's「需要你」colour.
                     background: 'var(--proto-amber)',
                     color: 'var(--amber-fill-fg)',
-                    font: `600 11px ${MONO}`,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontVariantNumeric: 'tabular-nums',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',

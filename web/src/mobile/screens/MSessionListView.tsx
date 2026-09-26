@@ -1,7 +1,7 @@
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
-import { MScreen, MTabHeader, MScrollBody, MDot, MC, MONO, M_FLOAT_SURFACE } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MGroup, MEmpty, MC, M_GUTTER, M_NUM, M_TABBAR_BOTTOM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
 
 export interface MSessionListCopy {
@@ -22,24 +22,12 @@ const PRESENCE: Record<ConnectionStatus, string> = {
   disconnected: MC.muted,
 };
 
-// The brand tile carrying the live link state as a presence dot.
+// The brand mark carrying the live link state as a presence dot. Bare on the header bar — no tile
+// of its own, so the header holds one frame at most.
 function BrandTile({ presence }: { presence: ConnectionStatus }) {
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: 28,
-        height: 28,
-        flex: 'none',
-        borderRadius: 9,
-        background: 'var(--material-control-bg)',
-        border: '1px solid var(--proto-line)',
-        boxShadow: 'var(--material-control-shadow)',
-        display: 'grid',
-        placeItems: 'center',
-      }}
-    >
-      <svg width={20} height={20} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <div style={{ position: 'relative', width: 26, height: 26, flex: 'none', display: 'grid', placeItems: 'center' }}>
+      <svg width={26} height={26} viewBox="0 0 64 64" fill="none" aria-hidden="true">
         <circle cx="33" cy="32" r="6" fill="var(--proto-ink)" />
         <path
           d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
@@ -57,13 +45,13 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
       <span
         style={{
           position: 'absolute',
-          right: -3,
-          bottom: -3,
-          width: 9,
-          height: 9,
+          right: -1,
+          bottom: 0,
+          width: 8,
+          height: 8,
           borderRadius: '50%',
           background: PRESENCE[presence],
-          border: '2px solid var(--glass-2)',
+          boxShadow: '0 0 0 2px var(--m-canvas)',
         }}
       />
     </div>
@@ -107,7 +95,9 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
             right: 2,
             background: MC.run,
             color: 'var(--ink-solid-fg)',
-            font: `600 11px ${MONO}`,
+            fontSize: 11,
+            fontWeight: 600,
+            ...M_NUM,
             padding: '1px 4.5px',
             borderRadius: 'var(--r-pill)',
           }}
@@ -119,43 +109,14 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
   );
 }
 
-// The dot column: live/awaiting solid dot, an external wait is a still hollow ring, an unread idle row
-// borrows the slot so its title stays aligned with the rows above it.
-function RowDot({ row }: { row: MSessionRow }) {
-  const kind = row.status.kind;
-  if (isLive(row.status)) return <MDot color="var(--proto-accent)" size={7} />;
-  if (kind === 'awaiting') return <MDot color="var(--proto-amber)" size={7} />;
-  if (kind === 'waiting-external') {
-    return (
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          boxSizing: 'border-box',
-          border: `1.5px solid ${MC.muted}`,
-          flex: 'none',
-        }}
-      />
-    );
-  }
-  if (row.unread) {
-    // Unread marker (mirrors desktop LeftRail); cleared by useMarkSessionRead once the chat opens.
-    return (
-      <span
-        aria-label="unread"
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: 'var(--proto-accent)',
-          flex: 'none',
-        }}
-      />
-    );
-  }
-  return null;
-}
+// A session row's status glyph: live and background share the run-blue dot, awaiting is the amber
+// 「需要你」dot, an external wait is a hollow ring.
+const STATUS_GLYPH: Record<Exclude<MSessionStatus['kind'], 'idle'>, CSSProperties> = {
+  running: { background: 'var(--proto-accent)' },
+  background: { background: 'var(--proto-accent)' },
+  awaiting: { background: 'var(--proto-amber)' },
+  'waiting-external': { border: `1.5px solid ${MC.muted}` },
+};
 
 const STATUS_COLOR: Record<MSessionStatus['kind'], string> = {
   running: 'var(--proto-accent)',
@@ -165,114 +126,77 @@ const STATUS_COLOR: Record<MSessionStatus['kind'], string> = {
   idle: MC.muted,
 };
 
-// Each session is its own floating glass tile: the list has no container, so the mesh shows between
-// tiles and there is no endless card edge. A live tile takes an accent wash and ring; the rest keep
-// the shared pane.
-const TILE: CSSProperties = {
-  ...M_FLOAT_SURFACE,
-  position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  borderRadius: 'var(--r-card)',
-  cursor: 'pointer',
-  overflow: 'hidden',
-};
+const TRUNCATE: CSSProperties = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
-const LIVE_TILE: CSSProperties = {
-  background: 'color-mix(in srgb, var(--proto-accent) 9%, var(--m-float-bg))',
-  boxShadow: '0 0 0 1px var(--m-run-border), var(--m-float-shadow)',
-};
-
-function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
-  const kind = row.status.kind;
-  const live = isLive(row.status);
-  // The only shape without a dot: a read idle row. It drops the status line with it and indents to
-  // keep its title on the same x as the dotted rows.
-  const quiet = kind === 'idle' && !row.unread;
-  const showStatus = kind !== 'idle';
+function StatusLine({ status }: { status: MSessionStatus }) {
+  if (status.kind === 'idle') return null;
   return (
-    <div
-      onClick={() => onOpen(row.id)}
-      style={{
-        ...TILE,
-        ...(live ? LIVE_TILE : null),
-        minHeight: showStatus ? 54 : 46,
-        padding: quiet ? '0 12px 0 31px' : '0 12px 0 14px',
-      }}
-    >
-      {live && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 12,
-            bottom: 12,
-            width: 3,
-            borderRadius: '0 2px 2px 0',
-            background: 'var(--proto-accent)',
-          }}
-        />
-      )}
-      <RowDot row={row} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: quiet ? 450 : 600,
-            color: live ? 'var(--proto-accent)' : quiet ? MC.body : MC.ink,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {row.title}
-        </div>
-        {showStatus && (
-          <div
-            style={{
-              font: `400 11px ${MONO}`,
-              color: STATUS_COLOR[kind],
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              marginTop: 2,
-            }}
-          >
-            {row.status.text}
-          </div>
-        )}
-      </div>
-      <span
-        style={
-          live
-            ? { flex: 'none', font: `500 11px ${MONO}`, color: 'var(--proto-accent)' }
-            : { flex: 'none', font: `400 11px ${MONO}`, color: MC.muted }
-        }
-      >
-        {row.time}
-      </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 12, color: STATUS_COLOR[status.kind], ...M_NUM }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', boxSizing: 'border-box', flex: 'none', ...STATUS_GLYPH[status.kind] }} />
+      <span style={{ minWidth: 0, ...TRUNCATE }}>{status.text}</span>
     </div>
   );
 }
 
+// Time on the title line; an unread session adds the accent dot after it (mirrors the desktop rail's
+// unread marker, cleared by useMarkSessionRead once the chat opens).
+function RowMeta({ row, twoLine }: { row: MSessionRow; twoLine: boolean }) {
+  return (
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, alignSelf: twoLine ? 'flex-start' : 'center', paddingTop: twoLine ? 2 : 0 }}>
+      <span style={{ fontSize: 12, color: row.unread ? 'var(--proto-accent)' : MC.muted, ...M_NUM }}>{row.time}</span>
+      {row.unread && <span aria-label="unread" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
+    </div>
+  );
+}
+
+// A live row takes a faint accent wash so a running session stands out while scanning the list.
+const LIVE_WASH = 'color-mix(in srgb, var(--proto-accent) 7%, transparent)';
+
+function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
+  const twoLine = row.status.kind !== 'idle';
+  const strong = row.unread || twoLine;
+  return (
+    <div
+      className="m-press"
+      onClick={() => onOpen(row.id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        minHeight: 48,
+        padding: twoLine ? '9px 14px' : '0 14px',
+        boxSizing: 'border-box',
+        borderRadius: 10,
+        cursor: 'pointer',
+        background: isLive(row.status) ? LIVE_WASH : undefined,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: strong ? 600 : 400, color: strong ? MC.ink : MC.body, ...TRUNCATE }}>
+          {row.title}
+        </div>
+        <StatusLine status={row.status} />
+      </div>
+      <RowMeta row={row} twoLine={twoLine} />
+    </div>
+  );
+}
+
+// New session: a round accent FAB in thumb reach, on the list's right edge just above the Tab bar.
 const FAB_STYLE: CSSProperties = {
   position: 'absolute',
-  right: 18,
-  bottom: 'calc(104px + env(safe-area-inset-bottom))',
-  height: 48,
-  padding: '0 18px 0 14px',
+  right: M_GUTTER,
+  bottom: `calc(${M_TABBAR_BOTTOM} + 74px)`,
+  width: 52,
+  height: 52,
   border: 0,
-  borderRadius: 'var(--r-float)',
+  borderRadius: '50%',
   background: 'var(--proto-accent)',
   color: 'var(--ink-solid-fg)',
-  fontSize: 14,
-  fontWeight: 600,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
+  display: 'grid',
+  placeItems: 'center',
   cursor: 'pointer',
-  boxShadow: 'var(--accent-glow)',
+  boxShadow: '0 8px 20px -8px color-mix(in srgb, var(--proto-accent) 75%, transparent), 0 1px 3px rgba(16, 24, 40, 0.12)',
 };
 
 export function MSessionListView({
@@ -288,7 +212,7 @@ export function MSessionListView({
   copy: MSessionListCopy;
   /** Live link state → the brand tile's presence dot. */
   presence: ConnectionStatus;
-  /** Label for the new-session FAB (vocab `wbNewSession`). */
+  /** Accessible label for the new-session FAB (vocab `wbNewSession`). */
   newLabel: string;
   /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
   scheduled?: { unread: number; onOpen: () => void };
@@ -307,20 +231,19 @@ export function MSessionListView({
         />
       }
       overlay={
-        <button type="button" onClick={onNew} style={FAB_STYLE}>
-          <PlusGlyph size={15} strokeWidth={1.8} />
-          {newLabel}
+        <button type="button" aria-label={newLabel} title={newLabel} onClick={onNew} style={FAB_STYLE}>
+          <PlusGlyph size={20} strokeWidth={2} />
         </button>
       }
     >
-      <MScrollBody gap={6} padding="12px 12px 0">
+      <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
         {rows.length === 0 ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
-            {copy.empty}
-          </div>
+          <MEmpty>{copy.empty}</MEmpty>
         ) : (
-          rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)
+          <MGroup>{rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
         )}
+        {/* Room for the FAB, so the last row can scroll clear of it. */}
+        <div style={{ height: 64, flex: 'none' }} />
       </MScrollBody>
     </MScreen>
   );

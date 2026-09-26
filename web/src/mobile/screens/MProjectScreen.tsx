@@ -43,7 +43,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     memory: 'Project memory',
     usage: 'Usage',
     settings: 'Settings',
-    switchProject: 'SWITCH PROJECT',
+    switchProject: 'Switch project',
     running: 'running',
     today: 'today',
     idle: 'idle',

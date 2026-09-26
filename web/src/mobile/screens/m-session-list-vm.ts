@@ -3,7 +3,9 @@
 // first, then most recent). Each row carries its own relative time, so there are no day buckets.
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { orderSessions } from '@/features/session/list/session-groups';
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime } from '@/mobile/ui/format';
+
+type Lang = 'en' | 'zh';
 
 export type MSessionStatus = ReturnType<typeof sessionStatusLine>;
 
@@ -19,47 +21,61 @@ export interface MSessionRow {
   status: MSessionStatus;
 }
 
+const STATUS_TEXT: Record<Lang, {
+  awaiting: string;
+  background: string;
+  running: (turns: number | null) => string;
+  waiting: (n: number) => string;
+  idle: string;
+}> = {
+  en: {
+    awaiting: 'Needs your input',
+    background: 'Running in background',
+    running: (turns) => (turns != null ? `Running · ${turns} turns` : 'Running'),
+    waiting: (n) => `Waiting on ${n} signal${n === 1 ? '' : 's'}`,
+    idle: 'Idle',
+  },
+  zh: {
+    awaiting: '等待操作',
+    background: '后台运行',
+    running: (turns) => (turns != null ? `运行中 · ${turns} 轮` : '运行中'),
+    waiting: (n) => `等 ${n} 个信号`,
+    idle: '空闲',
+  },
+};
+
 /**
- * The status-line for a session row. Awaiting user action (pending ask-user / plan approval) →
- * `awaiting` + `等待操作` — the ONLY state that renders the amber「需要你」dot; it wins even while a
- * turn or a background task is technically live (the agent is blocked on the interaction).
- * Background-held (web bg-hold snapshot: foreground turn done, background task still running) →
- * `background` + `后台运行`, now rendered with the SAME run-blue dot as running (background is no
- * longer amber — only a needed user action is). Running → `running · N turns` (turns only when
- * known); idle-but-waiting-on-a-waitpoint → `等 N 个信号` with a hollow ring; idle → `空闲`. Per-session cost has NO DTO source (SessionInfo carries none) →
- * deliberately omitted, never fabricated (the scheme's `· $0.31` is a design mock).
+ * The status-line for a session row. Awaiting user action (pending ask-user / plan approval) wins
+ * even while a turn or a background task is live — it is the ONLY amber「需要你」state. Background-held
+ * (foreground turn done, background task still running) and running share the run-blue dot; an idle
+ * session still expecting a waitpoint signal gets a hollow ring. Per-session cost has no DTO source
+ * (SessionInfo carries none), so it is deliberately omitted.
  */
-export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
-  if (s.awaitingInput) {
-    return { kind: 'awaiting', text: '等待操作' };
-  }
-  if (s.running && s.backgroundRunning) {
-    return { kind: 'background', text: '后台运行' };
-  }
+export function sessionStatusLine(s: SessionInfo, lang: Lang = 'en'): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
+  const t = STATUS_TEXT[lang];
+  if (s.awaitingInput) return { kind: 'awaiting', text: t.awaiting };
   if (s.running) {
-    return { kind: 'running', text: s.numTurns != null ? `running · ${s.numTurns} turns` : 'running' };
+    return s.backgroundRunning
+      ? { kind: 'background', text: t.background }
+      : { kind: 'running', text: t.running(s.numTurns) };
   }
-  // Idle, but an external signal is still expected (an armed waitpoint). Ranked below every live
-  // state and below `awaiting`: nothing here needs the user, so it must not borrow amber.
-  if ((s.waitingOn ?? 0) > 0) {
-    return { kind: 'waiting-external', text: `等 ${s.waitingOn} 个信号` };
-  }
-  return { kind: 'idle', text: '空闲' };
+  if ((s.waitingOn ?? 0) > 0) return { kind: 'waiting-external', text: t.waiting(s.waitingOn ?? 0) };
+  return { kind: 'idle', text: t.idle };
 }
 
-function toRow(s: SessionInfo, now: number): MSessionRow {
+function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
   return {
     id: s.sessionId,
     title: s.label || s.name || s.sessionId,
-    time: relTimeZh(s.lastUsedAt || s.createdAt, now),
+    time: relTime(s.lastUsedAt || s.createdAt, now, lang),
     running: s.running,
     numTurns: s.numTurns,
     unread: s.unread,
-    status: sessionStatusLine(s),
+    status: sessionStatusLine(s, lang),
   };
 }
 
 /** Rows for the 会话 list, in desktop rail-folder order. */
-export function buildSessionRows(sessions: SessionInfo[], now: number = Date.now()): MSessionRow[] {
-  return orderSessions(sessions).map((s) => toRow(s, now));
+export function buildSessionRows(sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en'): MSessionRow[] {
+  return orderSessions(sessions).map((s) => toRow(s, now, lang));
 }

@@ -61,7 +61,7 @@ export function MSessionListScreen() {
     trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
   );
   const sessions = sessionsQuery.data ?? [];
-  const rows = useMemo(() => buildSessionRows(sessions), [sessions]);
+  const rows = useMemo(() => buildSessionRows(sessions, Date.now(), lang), [sessions, lang]);
   const scheduleRows = useMemo(
     () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? [], Date.now()),
     [schedulesQuery.data, scheduledQuery.data],

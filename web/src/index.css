@@ -89,6 +89,22 @@ textarea::placeholder {
     }
   }
 
+  /* Mobile scrollers scroll by touch: no gutter (Android WebView otherwise reserves the styled 8px
+     bar and the list stops short of the header and Tab bar edges). */
+  [data-m-scroller] {
+    scrollbar-width: none;
+  }
+  [data-m-scroller]::-webkit-scrollbar {
+    display: none;
+  }
+  .m-press {
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.12s;
+  }
+  .m-press:active {
+    background-color: var(--proto-line);
+  }
+
   .sess-row .sess-more {
     opacity: 0;
     transition: opacity 0.12s;

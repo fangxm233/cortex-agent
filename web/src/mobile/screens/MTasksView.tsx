@@ -1,10 +1,10 @@
-import type { ComponentType, CSSProperties, MouseEvent } from 'react';
+import type { ComponentType, CSSProperties, MouseEvent, ReactNode } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from '@/features/tasks/task-claim';
 import { unresolvedDependencyIds } from '@/features/tasks/task-dependencies';
 import type { TaskGroup, TaskGroupKind } from '@/features/tasks/group-tasks';
 import { formatTaskTime } from '@/features/tasks/task-time';
-import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MGroup, MGroupLabel, MEmpty, MC, MONO, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 
 export interface MTasksCopy {
   title: string;
@@ -49,68 +49,71 @@ interface CardProps {
   onOpenApprovals: () => void;
 }
 
-function IdText({ task, textColor = MC.body }: { task: TaskInfo; textColor?: string }) {
+// One task row: title line (+ optional right accessory), then a meta line led by the mono task id.
+// `after` renders below the meta (the expanded done-when block).
+function TaskRow({ task, onOpenTask, textColor = MC.ink, accessory, meta, after }: {
+  task: TaskInfo;
+  onOpenTask: (id: string) => void;
+  textColor?: string;
+  accessory?: ReactNode;
+  meta?: ReactNode;
+  after?: ReactNode;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, flex: 1 }}>
-      <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: '0 1 auto', maxWidth: '35%', overflowWrap: 'anywhere' }}>{task.id}</span>
-      <span style={{ fontSize: 12.5, color: textColor, lineHeight: 1.45, ...TEXT_TRUNCATE }} title={task.text}>
-        {task.text}
-      </span>
+    <div className="m-press" onClick={() => onOpenTask(task.id)} style={{ padding: '10px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ fontSize: 14, color: textColor, ...TEXT_TRUNCATE }} title={task.text}>{task.text}</span>
+        {accessory}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
+        <span style={{ font: `500 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{task.id}</span>
+        {meta}
+      </div>
+      {after}
     </div>
   );
 }
 
-function StatusLine({ text, color, dot, onClick, singleLine = false }: {
+function StatusLine({ text, color, dot, onClick }: {
   text: string;
   color: string;
   dot?: string;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
-  singleLine?: boolean;
 }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, minWidth: 0, cursor: onClick ? 'pointer' : 'default' }}>
-      {dot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: dot, flex: 'none' }} />}
-      <span
-        data-task-blocker={singleLine ? 'true' : undefined}
-        style={{ font: `400 11px ${MONO}`, color, ...(singleLine ? TEXT_TRUNCATE : {}) }}
-      >
-        {text}
-      </span>
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: 1, cursor: onClick ? 'pointer' : 'inherit' }}>
+      {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flex: 'none' }} />}
+      <span style={{ fontSize: 12, color, ...M_NUM, ...TEXT_TRUNCATE }}>{text}</span>
     </div>
   );
 }
 
 function InProgressCard({ task, copy, onOpenTask, onOpenThread }: CardProps) {
   const claimId = displayClaimId(task);
-  const threadId = claimId;
   const openThread = (event: MouseEvent<HTMLSpanElement>) => {
     event.stopPropagation();
-    if (threadId) onOpenThread(threadId);
+    if (claimId) onOpenThread(claimId);
   };
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <IdText task={task} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
-        <span onClick={openThread} style={{ font: `500 11px ${MONO}`, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', cursor: threadId ? 'pointer' : 'default' }}>
-          {copy.claim}{claimId ? ` · ${claimId}` : ''}{threadId ? ' ›' : ''}
-        </span>
-      </div>
-    </MCard>
+  const chip = (
+    <span onClick={openThread} style={{ fontSize: 11.5, fontWeight: 600, color: MC.run, background: MC.runBg, padding: '1px 8px', borderRadius: 'var(--r-pill)', cursor: claimId ? 'pointer' : 'default', ...M_NUM, ...TEXT_TRUNCATE, flex: '0 1 auto' }}>
+      {copy.claim}{claimId ? ` · ${claimId} ›` : ''}
+    </span>
   );
+  return <TaskRow task={task} onOpenTask={onOpenTask} meta={chip} />;
 }
 
 function ActionableCard({ task, copy, expanded, onToggle, onOpenTask }: CardProps) {
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-        <IdText task={task} />
-        <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ marginLeft: 'auto', color: MC.muted, fontSize: 8.5, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '-10px -8px -10px 0' }}>
-          {expanded ? '▾' : '▸'}
-        </span>
-      </div>
-      {expanded && <div style={{ marginTop: 7, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 'var(--r-chip)', font: `400 11px/1.6 ${MONO}`, color: MC.sub }}>{copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}</div>}
-    </MCard>
+  const toggle = (
+    <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ color: MC.muted, fontSize: 9, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '-14px -14px -14px 0' }}>
+      {expanded ? '▾' : '▸'}
+    </span>
   );
+  const doneWhen = expanded && (
+    <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--proto-alt)', borderRadius: 'var(--r-chip)', fontSize: 12, lineHeight: 1.55, color: MC.sub }}>
+      {copy.doneWhen}: {task.doneWhen ?? copy.doneWhenGap}
+    </div>
+  );
+  return <TaskRow task={task} onOpenTask={onOpenTask} accessory={toggle} after={doneWhen || undefined} />;
 }
 
 function ApprovalNeededCard({ task, copy, onOpenTask, onOpenApprovals }: CardProps) {
@@ -118,49 +121,26 @@ function ApprovalNeededCard({ task, copy, onOpenTask, onOpenApprovals }: CardPro
     event.stopPropagation();
     onOpenApprovals();
   };
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <IdText task={task} />
-      <StatusLine text={`${copy.approvalNeeded} · ${copy.openApprovals}`} color={MC.amberText} dot={MC.amber} onClick={openApprovals} />
-    </MCard>
-  );
+  const status = <StatusLine text={`${copy.approvalNeeded} · ${copy.openApprovals} ›`} color={MC.amberText} dot={MC.amber} onClick={openApprovals} />;
+  return <TaskRow task={task} onOpenTask={onOpenTask} meta={status} />;
 }
 
 function WaitingCard({ task, copy, onOpenTask }: CardProps) {
   const dependencies = unresolvedDependencyIds(task);
   const text = dependencies.length > 0 ? `${copy.needs} ${dependencies.join(', ')}` : copy.waiting;
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <IdText task={task} textColor={MC.sub} />
-      <StatusLine text={text} color={MC.muted} />
-    </MCard>
-  );
+  return <TaskRow task={task} onOpenTask={onOpenTask} textColor={MC.body} meta={<StatusLine text={text} color={MC.muted} />} />;
 }
 
 function BlockedCard({ task, copy, onOpenTask }: CardProps) {
   const text = task.blockedBy ? `${copy.blocked} · ${task.blockedBy}` : copy.blocked;
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <IdText task={task} textColor={MC.sub} />
-      <StatusLine text={text} color={MC.amberText} dot={MC.amber} singleLine />
-    </MCard>
-  );
+  return <TaskRow task={task} onOpenTask={onOpenTask} textColor={MC.body} meta={<StatusLine text={text} color={MC.amberText} dot={MC.amber} />} />;
 }
 
 function DoneCard({ task, onOpenTask }: CardProps) {
-  // Real `completed-at` in local wall clock; the line is dropped when the task never recorded one.
+  // Real `completed-at` in local wall clock; dropped when the task never recorded one.
   const completedAt = formatTaskTime(task.completedAt);
-  return (
-    <MCard padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-        <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.done, flex: 'none' }} />
-        <IdText task={task} textColor={MC.sub} />
-        {completedAt && (
-          <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{completedAt}</span>
-        )}
-      </div>
-    </MCard>
-  );
+  const meta = completedAt ? <span style={{ fontSize: 12, color: MC.muted, ...M_NUM }}>{completedAt}</span> : undefined;
+  return <TaskRow task={task} onOpenTask={onOpenTask} textColor={MC.sub} meta={meta} />;
 }
 
 const CARD_COMPONENTS: Record<TaskGroupKind, ComponentType<CardProps>> = {
@@ -182,16 +162,21 @@ export function MTasksView({ groups, scope, copy, expandedIds, onToggleExpand, o
   onOpenThread: (threadId: string) => void;
   onOpenApprovals: () => void;
 }) {
+  const handlers = { copy, onToggle: onToggleExpand, onOpenTask, onOpenThread, onOpenApprovals };
   return (
     <MScreen label="1d 任务" floatingHeader header={<MTabHeader title={copy.title} qn={scope} />}>
-      <MScrollBody gap={6}>
-        {groups.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>}
+      <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
+        {groups.length === 0 && <MEmpty>{copy.empty}</MEmpty>}
         {groups.map((group, index) => {
           const Card = CARD_COMPONENTS[group.kind];
-          return <div key={group.kind} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <MGroupLabel style={{ padding: index === 0 ? '0 2px 2px' : '6px 2px 2px' }}>{copy[GROUP_COPY_KEYS[group.kind]]} · {group.tasks.length}</MGroupLabel>
-            {group.tasks.map((task) => <Card key={task.id} task={task} copy={copy} expanded={expandedIds.has(task.id)} onToggle={onToggleExpand} onOpenTask={onOpenTask} onOpenThread={onOpenThread} onOpenApprovals={onOpenApprovals} />)}
-          </div>;
+          return (
+            <section key={group.kind} style={{ marginTop: index === 0 ? 0 : 18 }}>
+              <MGroupLabel>
+                {copy[GROUP_COPY_KEYS[group.kind]]} <span style={{ color: MC.faint, fontWeight: 500, ...M_NUM }}>{group.tasks.length}</span>
+              </MGroupLabel>
+              <MGroup>{group.tasks.map((task) => <Card key={task.id} task={task} expanded={expandedIds.has(task.id)} {...handlers} />)}</MGroup>
+            </section>
+          );
         })}
       </MScrollBody>
     </MScreen>

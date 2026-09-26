@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
+import { MTabHeader, MGroup, MGroupLabel, MPill, statusPillTone, MC, M_NUM } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import type { ThreadGroup } from '@/features/session/composer/scope';
 import {
@@ -67,13 +67,13 @@ export function MThreadsHeader({ copy, qn, band }: {
       title={copy.title}
       qn={qn}
       below={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
-          <div style={{ flex: 1, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line)', overflow: 'hidden' }}>
-            <div style={{ width: `${band.pct}%`, height: '100%', background: MC.run }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
+          <div style={{ flex: 1, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+            <div style={{ width: `${band.pct}%`, height: '100%', borderRadius: 'var(--r-pill)', background: MC.run }} />
           </div>
-          <span style={{ font: `500 11px ${MONO}`, color: MC.ink }}>
-            {band.numerator} / {band.denominator}
+          <span style={{ fontSize: 12, color: MC.muted, ...M_NUM }}>
+            <b style={{ fontWeight: 600, color: MC.ink }}>{band.numerator}</b> / {band.denominator}
           </span>
         </div>
       }
@@ -87,11 +87,11 @@ export function MThreadSections({ groups, copy, renderThread }: {
   renderThread: (thread: ThreadInfo) => ReactNode;
 }) {
   return <>{groups.map((group, index) => (
-    <section key={group.kind} style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <MGroupLabel style={{ padding: index === 0 ? '0 2px 2px' : '6px 2px 2px' }}>
-        {copy[group.kind]} · {group.threads.length}
+    <section key={group.kind} style={{ marginTop: index === 0 ? 0 : 18 }}>
+      <MGroupLabel>
+        {copy[group.kind]} <span style={{ color: MC.faint, fontWeight: 500, ...M_NUM }}>{group.threads.length}</span>
       </MGroupLabel>
-      {group.threads.map(renderThread)}
+      <MGroup inset={37}>{group.threads.map(renderThread)}</MGroup>
     </section>
   ))}</>;
 }
@@ -164,8 +164,10 @@ function Pipeline({ steps }: { steps: MPipelineStep[] }) {
   );
 }
 
-// ── Running pipeline card (scheme L195–211) ───────────────────────────────────
-export function MRunningCard({
+// ── Thread row (scheme L195–211) ─────────────────────────────────────────────
+// Template + status pill, the live pipeline when the thread has stages, then the id/age/cost meta.
+// The whole row opens the thread; text hangs off one x after the node glyph (divider inset 37).
+export function MThreadRow({
   info,
   detail,
   now,
@@ -182,21 +184,20 @@ export function MRunningCard({
   const pill = threadPill(info.status, copy);
   const nodeColor = info.status === 'running' ? MC.run : info.status === 'waiting' ? MC.amber : MC.muted;
   return (
-    <MCard onClick={onOpen}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <NodeIcon color={nodeColor} />
-        <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.templateName}</span>
-        <span style={{ marginLeft: 'auto', flex: 'none' }}>
-          <MPill tone={pill.tone}>{pill.label}</MPill>
-        </span>
-      </div>
-      {steps.length > 0 && <Pipeline steps={steps} />}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginTop: 4 }}>
-        <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>
+    <div className="m-press" onClick={onOpen} style={{ display: 'flex', gap: 10, padding: '11px 14px', borderRadius: 10, cursor: 'pointer' }}>
+      <span style={{ paddingTop: 2 }}><NodeIcon color={nodeColor} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.templateName}</span>
+          <span style={{ marginLeft: 'auto', flex: 'none' }}>
+            <MPill tone={pill.tone}>{pill.label}</MPill>
+          </span>
+        </div>
+        {steps.length > 0 && <Pipeline steps={steps} />}
+        <div style={{ fontSize: 12, color: MC.muted, marginTop: steps.length > 0 ? 2 : 3, ...M_NUM }}>
           {runningMeta(info, detail, now, copy.subthread)}
-        </span>
-        <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.run }}>{copy.open} ›</span>
+        </div>
       </div>
-    </MCard>
+    </div>
   );
 }

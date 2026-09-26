@@ -45,7 +45,8 @@ describe('sessionStatusLine', () => {
 
   it('separates "idle" from "idle but waiting on an external signal"', () => {
     expect(sessionStatusLine(sess({ waitingOn: 2 })).kind).toBe('waiting-external');
-    expect(sessionStatusLine(sess({ waitingOn: 2 })).text).toBe('等 2 个信号');
+    expect(sessionStatusLine(sess({ waitingOn: 2 }), 'zh').text).toBe('等 2 个信号');
+    expect(sessionStatusLine(sess({ waitingOn: 2 }), 'en').text).toBe('Waiting on 2 signals');
     // Ranked below everything live and below a pending user action — it asks nothing of the user.
     expect(sessionStatusLine(sess({ waitingOn: 2, running: true })).kind).toBe('running');
     expect(sessionStatusLine(sess({ waitingOn: 2, awaitingInput: true })).kind).toBe('awaiting');
@@ -79,5 +80,11 @@ describe('buildSessionRows', () => {
     );
     // 'b' is days older but unread → floats above the read 'a'.
     expect(rows.map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
+  it('labels status and relative time in the UI language', () => {
+    const row = sess({ running: true, numTurns: 3, lastUsedAt: '2026-07-15T08:00:00Z' });
+    expect(buildSessionRows([row], now, 'en')[0]).toMatchObject({ time: '4h', status: { text: 'Running · 3 turns' } });
+    expect(buildSessionRows([row], now, 'zh')[0]).toMatchObject({ time: '4小时前', status: { text: '运行中 · 3 轮' } });
   });
 });

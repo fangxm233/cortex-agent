@@ -1,11 +1,11 @@
 //
 // Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport + floating Tab bar;
 // a screen renders <MScreen> with its own header, scroll body, and optional footer.
-import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { Children, Fragment, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
 import { statusTone, type Tone } from '@/design/tone';
-import { MC, MONO, M_FLOAT_TOP } from '@/design/mobile-tokens';
+import { MC, M_GUTTER } from '@/design/mobile-tokens';
 
-export { MC, MONO, M_FLOAT_TOP, M_TABBAR_BOTTOM } from '@/design/mobile-tokens';
+export { MC, MONO, M_FLOAT_TOP, M_TABBAR_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
 // MBottomSheet lives in design/ (both chromes use it); the mobile screens keep importing it from
 // the kit they compose everything else from.
 export { MBottomSheet, shouldFlingClose } from '@/design';
@@ -26,9 +26,48 @@ export {
 // (`--m-*`) run a touch darker than desktop; `--ink-solid-*` handles the inverted send/stop keys.
 
 // ── MScreen — the flex-column frame (header · scroll body · optional footer) ───
-// `floatingHeader` lifts the header out of the flow: it hovers over the scroller as glass chrome and
-// the content scrolls underneath it. Its measured height is published as `--m-header-clearance`,
-// which MScrollBody spends as a top spacer so the first card still starts below the header.
+// `floatingHeader` lifts the header out of the flow: it hovers over the scroller and the content
+// scrolls underneath it. Its measured height is published as `--m-header-clearance`, which
+// MScrollBody spends as a top spacer so the first row still starts below the header. The header
+// sits flat on the mesh at rest and takes its glass (fill, blur, bottom hairline) only once content
+// has scrolled under it — published as the `--m-header-*` variables MTabHeader paints with.
+const HEADER_AT_REST = {} as CSSProperties;
+const HEADER_SCROLLED = {
+  '--m-header-bg': MC.glass,
+  '--m-header-filter': MC.glassFilter,
+  '--m-header-edge': '0 1px 0 var(--proto-line)',
+} as CSSProperties;
+
+function useFloatingHeader(enabled: boolean) {
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [clearance, setClearance] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!enabled || !el) return;
+    const measure = () => setClearance(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [enabled]);
+  const onScroll = (event: UIEvent<HTMLDivElement>) => setScrolled(event.currentTarget.scrollTop > 2);
+  return { headerRef, clearance, scrolled, onScroll };
+}
+
+const SCREEN_STYLE: CSSProperties = {
+  height: '100%',
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
+  boxSizing: 'border-box',
+  // No fill: the screen shares the shell's mesh.
+  background: 'transparent',
+};
+
 export function MScreen({
   header,
   footer,
@@ -49,41 +88,19 @@ export function MScreen({
   label?: string;
   style?: CSSProperties;
 }) {
-  const headerRef = useRef<HTMLDivElement | null>(null);
-  const [clearance, setClearance] = useState(0);
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!floatingHeader || !el) return;
-    const measure = () => setClearance(el.offsetHeight);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [floatingHeader]);
   const floating = floatingHeader && header != null;
+  const { headerRef, clearance, scrolled, onScroll } = useFloatingHeader(floating);
   return (
     <div
       data-screen-label={label}
-      style={{
-        height: '100%',
-        minWidth: 0,
-        overflowWrap: 'anywhere',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        boxSizing: 'border-box',
-        // No fill: the screen shares the shell's mesh; cards choose their own material.
-        background: 'transparent',
-        ...(floating ? { '--m-header-clearance': `${clearance}px` } : {}),
-        ...style,
-      } as CSSProperties}
+      style={{ ...SCREEN_STYLE, ...(floating ? { '--m-header-clearance': `${clearance}px` } : {}), ...style } as CSSProperties}
     >
       {floating ? (
         <div
           ref={headerRef}
           data-floating-header="true"
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, pointerEvents: 'none' }}
+          data-scrolled={scrolled ? 'true' : 'false'}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, pointerEvents: 'none', ...(scrolled ? HEADER_SCROLLED : HEADER_AT_REST) }}
         >
           {header}
         </div>
@@ -91,13 +108,15 @@ export function MScreen({
         header
       )}
       <div
+        data-m-scroller=""
+        onScroll={floating ? onScroll : undefined}
         style={{
           flex: 1,
           minHeight: 0,
           overflow: 'auto',
-          // Floating chrome: rows vanish at the header pill's top edge and the Tab bar's bottom edge
-          // instead of showing, unblurred, under the status bar and the home indicator.
-          clipPath: floating ? `inset(${M_FLOAT_TOP} 0 var(--m-tabbar-bottom, 0px) 0)` : undefined,
+          // Floating chrome: rows vanish at the Tab bar's bottom edge instead of showing, unblurred,
+          // over the home indicator. The header bar runs to the top edge and blurs what passes under it.
+          clipPath: floating ? 'inset(0 0 var(--m-tabbar-bottom, 0px) 0)' : undefined,
         }}
       >
         {children}
@@ -109,10 +128,10 @@ export function MScreen({
 }
 
 // ── MTabHeader — the tab header (会话 / 线程 / 任务 / 项目) ──────────────────────
-// A floating glass pill mirroring the Tab bar: blurs whatever scrolls beneath it (render it through
-// `MScreen floatingHeader`). 20/700 title, an optional `leading` slot (brand tile), an optional
-// passive QN scope tag and a trailing slot. `below` renders a second row inside the pill (线程
-// budget band). Keys inside the pill stay bare — the pill is already the frame.
+// A full-bleed bar under the status bar (render it through `MScreen floatingHeader`): the 22/700
+// title sits straight on the mesh at rest and the bar frosts once rows scroll beneath it. The title
+// shares the row text x (gutter + 14). Optional `leading` (brand mark), passive QN scope tag,
+// `trailing` keys (bare — no frame of their own) and a `below` second row (线程 budget band).
 export function MTabHeader({
   title,
   leading,
@@ -121,7 +140,7 @@ export function MTabHeader({
   below,
 }: {
   title: string;
-  /** Rendered before the title (brand tile / presence). */
+  /** Rendered before the title (brand mark / presence). */
   leading?: ReactNode;
   /** Passive project-scope tag (real current-project initials, e.g. "NI"); omitted → no tag. */
   qn?: string;
@@ -130,49 +149,43 @@ export function MTabHeader({
 }) {
   return (
     <div
+      data-tab-header="true"
       style={{
         flex: 'none',
-        padding: '0 12px',
-        paddingTop: M_FLOAT_TOP,
+        pointerEvents: 'auto',
+        padding: `calc(6px + env(safe-area-inset-top)) ${M_GUTTER}px ${below ? 12 : 6}px`,
+        background: 'var(--m-header-bg, transparent)',
+        backdropFilter: 'var(--m-header-filter, none)',
+        WebkitBackdropFilter: 'var(--m-header-filter, none)',
+        boxShadow: 'var(--m-header-edge, none)',
+        transition: 'background-color .2s, box-shadow .2s',
       }}
     >
-      <div
-        data-tab-header="true"
-        style={{
-          pointerEvents: 'auto',
-          borderRadius: 20,
-          background: MC.glass,
-          backdropFilter: MC.glassFilter,
-          WebkitBackdropFilter: MC.glassFilter,
-          boxShadow: '0 0 0 1px var(--proto-line), var(--shadow-chrome-float)',
-          padding: below ? '4px 6px 10px 14px' : '4px 6px 4px 14px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44 }}>
-          {leading}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 48, paddingLeft: 14 }}>
+        {leading}
+        <span
+          style={{ fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {title}
+        </span>
+        {qn && (
           <span
-            style={{ fontSize: 20, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            style={{
+              fontSize: 11,
+              fontWeight: 650,
+              color: MC.run,
+              background: MC.runBg,
+              padding: '2px 7px',
+              borderRadius: 'var(--r-pill)',
+              flex: 'none',
+            }}
           >
-            {title}
+            {qn}
           </span>
-          {qn && (
-            <span
-              style={{
-                font: `600 11px ${MONO}`,
-                color: MC.run,
-                background: MC.runBg,
-                padding: '2px 7px',
-                borderRadius: 4,
-                flex: 'none',
-              }}
-            >
-              {qn}
-            </span>
-          )}
-          {trailing && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>{trailing}</div>}
-        </div>
-        {below && <div style={{ paddingRight: 8 }}>{below}</div>}
+        )}
+        {trailing && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>{trailing}</div>}
       </div>
+      {below && <div style={{ padding: '0 14px' }}>{below}</div>}
     </div>
   );
 }
@@ -402,19 +415,53 @@ export function MDot({
   );
 }
 
-// ── MGroupLabel — the tiny section header (今天 / 进行中 · 1) ───────────────────
+// ── MGroupLabel — the section header above a group (进行中 · 1) ──────────────────
+// Sentence case at body weight, inset to the row text so the label, rows and dividers share one x.
 export function MGroupLabel({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <div
       style={{
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: '.07em',
+        fontSize: 12,
+        fontWeight: 600,
         color: MC.muted,
-        padding: '0 2px 2px',
+        padding: '0 14px 6px',
         ...style,
       }}
     >
+      {children}
+    </div>
+  );
+}
+
+// ── MGroup — a run of rows laid straight on the mesh, split by inset hairlines ─────────
+// No pane of its own: only the header and the Tab bar float, so a list never reads as a stack of
+// boxes. `inset` is where a divider starts (the row text x), so dividers never run under a glyph.
+export function MGroup({
+  children,
+  inset = 14,
+  style,
+}: {
+  children: ReactNode;
+  inset?: number;
+  style?: CSSProperties;
+}) {
+  const rows = Children.toArray(children).filter(isValidElement);
+  return (
+    <div data-m-group="" style={{ minWidth: 0, ...style }}>
+      {rows.map((row, index) => (
+        <Fragment key={row.key ?? index}>
+          {index > 0 && <div aria-hidden="true" style={{ height: 1, marginLeft: inset, background: 'var(--proto-line)' }} />}
+          {row}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+// ── MEmpty — centered empty state for a tab list ─────────────────────────────────
+export function MEmpty({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ padding: '56px 24px', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
       {children}
     </div>
   );

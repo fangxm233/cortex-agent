@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
-import { MCard, MC, MONO } from '@/mobile/ui/kit';
+import { MC, M_NUM } from '@/mobile/ui/kit';
 import type { MNotesVm } from './m-notes-vm';
 
 function QuickNoteInput({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean; onAdd: (text: string) => Promise<unknown> }) {
@@ -14,13 +14,15 @@ function QuickNoteInput({ copy, busy, onAdd }: { copy: NotesCopy; busy: boolean;
     setText('');
   };
   return (
-    <form onSubmit={submit} onClick={(event) => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9, border: `1px solid ${MC.divider}`, borderRadius: 'var(--r-control)', padding: '6px 10px', minHeight: 44, boxSizing: 'border-box' }}>
-      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.6"><path d="M9.8 1.8l2.4 2.4L4.6 11.8l-3 .6.6-3z" /></svg>
+    <form onSubmit={submit} onClick={(event) => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', padding: '0 12px', minHeight: 40, boxSizing: 'border-box' }}>
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.6" style={{ flex: 'none' }}><path d="M9.8 1.8l2.4 2.4L4.6 11.8l-3 .6.6-3z" /></svg>
+      {/* 16px keeps iOS from zooming the page when the field takes focus. */}
       <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.quickPlaceholder} aria-label={copy.quickPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16, color: MC.ink }} />
     </form>
   );
 }
 
+// The project page's notes row: title + open count, the first open notes, and a quick-add field.
 export function MNotesProjectCard({ vm, copy, busy, onOpen, onAdd }: {
   vm: MNotesVm;
   copy: NotesCopy;
@@ -29,21 +31,19 @@ export function MNotesProjectCard({ vm, copy, busy, onOpen, onAdd }: {
   onAdd: (text: string) => Promise<unknown>;
 }) {
   return (
-    <div data-mobile-notes-card="">
-      <MCard tone="blue" padding="12px 14px" onClick={onOpen} style={{ cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{copy.title}</span>
-        <span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: 'var(--proto-line-2)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{vm.activeCount}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.muted }}>›</span>
+    <div data-mobile-notes-card="" className="m-press" onClick={onOpen} style={{ padding: '12px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{copy.title}</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: MC.faint, ...M_NUM }}>{vm.activeCount}</span>
+        <span aria-hidden="true" style={{ marginLeft: 'auto', fontSize: 17, lineHeight: 1, color: MC.faint }}>›</span>
       </div>
       {vm.previews.map((row) => (
-        <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
+        <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <span style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid ${MC.hairline}`, boxSizing: 'border-box', flex: 'none' }} />
-          <span style={{ fontSize: 12, lineHeight: 1.55, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
+          <span style={{ fontSize: 13, lineHeight: 1.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
         </div>
       ))}
-        <QuickNoteInput copy={copy} busy={busy} onAdd={onAdd} />
-      </MCard>
+      <QuickNoteInput copy={copy} busy={busy} onAdd={onAdd} />
     </div>
   );
 }

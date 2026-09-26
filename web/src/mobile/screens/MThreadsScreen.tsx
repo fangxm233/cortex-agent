@@ -11,8 +11,8 @@ import { groupThreads } from '@/features/session/composer/scope';
 import { useRecentNow } from '@/lib/useRecentNow';
 import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
-import { MScreen, MScrollBody, MC } from '@/mobile/ui/kit';
-import { MThreadSections, MThreadsHeader, MRunningCard, type MThreadsCopy } from './MThreadsView';
+import { MScreen, MScrollBody, MEmpty, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
+import { MThreadSections, MThreadsHeader, MThreadRow, type MThreadsCopy } from './MThreadsView';
 import { threadsBudgetBand, isLiveThread } from './m-threads-vm';
 
 const COPY: { en: MThreadsCopy; zh: MThreadsCopy } = {
@@ -45,7 +45,7 @@ function MThreadRunningCard({
   const trpc = useTRPC();
   useThreadGetLiveSync(info.id);
   const detailQuery = useQuery(trpc.threads.get.queryOptions({ threadId: info.id }));
-  return <MRunningCard info={info} detail={detailQuery.data} now={now} copy={copy} onOpen={onOpen} />;
+  return <MThreadRow info={info} detail={detailQuery.data} now={now} copy={copy} onOpen={onOpen} />;
 }
 
 export function MThreadsScreen() {
@@ -75,12 +75,8 @@ export function MThreadsScreen() {
         <MThreadsHeader copy={copy} qn={scope} band={band} />
       }
     >
-      <MScrollBody>
-        {listQuery.isSuccess && groups.length === 0 && (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
-            {copy.empty}
-          </div>
-        )}
+      <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
+        {listQuery.isSuccess && groups.length === 0 && <MEmpty>{copy.empty}</MEmpty>}
         <MThreadSections
           groups={groups}
           copy={copy}
@@ -89,7 +85,7 @@ export function MThreadsScreen() {
             return isLiveThread(thread.status) ? (
               <MThreadRunningCard key={thread.id} info={thread} now={now} copy={copy} onOpen={onOpen} />
             ) : (
-              <MRunningCard key={thread.id} info={thread} detail={undefined} now={now} copy={copy} onOpen={onOpen} />
+              <MThreadRow key={thread.id} info={thread} detail={undefined} now={now} copy={copy} onOpen={onOpen} />
             );
           }}
         />
