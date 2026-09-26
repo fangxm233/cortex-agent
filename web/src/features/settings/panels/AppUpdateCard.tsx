@@ -1,10 +1,9 @@
+import { useVocab, type Vocab } from '@/i18n';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';
 import { SButton, SRow, SRowGroup, Toggle } from '@/features/settings/ui/settings-ui';
 
-// Copy is local to this card rather than vocab: the whole section is APP-shell-only and Chinese,
-// mirroring features/app-update/app-update.ts.
 const MONO = "'IBM Plex Mono',monospace";
 
 const FOOTNOTE_STYLE: CSSProperties = {
@@ -51,24 +50,24 @@ export function hasFallenBackToAsking(prefs: ShellUpdatePrefs): boolean {
 }
 
 /** What the app will actually do with the next version — never what the switch merely claims. */
-export function updateModeDescription(prefs: ShellUpdatePrefs): string {
+export function updateModeDescription(prefs: ShellUpdatePrefs, L: Vocab): string {
   if (hasFallenBackToAsking(prefs)) {
-    return '自动安装连续失败，现在每个新版本都会先询问。'
-      + '点「重试自动安装」后，下次退出时会再试一次。';
+    return L.updateAutoFailed;
   }
   return prefs.silent
-    ? '新版本在后台下载并校验，关闭 App 时自动装好，下次打开就是新版本。'
-    : '新版本下载完成后会先询问，由你决定什么时候安装。';
+    ? L.updateAutoHint
+    : L.updateAskHint;
 }
 
 /** Mono footer: this is a local app setting, plus the last version that actually landed. */
-export function updatePrefsFootnote(prefs: ShellUpdatePrefs): string {
-  const parts = ['本机设置'];
-  if (prefs.lastInstalledVersion) parts.push(`上次更新到 ${prefs.lastInstalledVersion}`);
+export function updatePrefsFootnote(prefs: ShellUpdatePrefs, L: Vocab): string {
+  const parts = [L.updateLocalSetting];
+  if (prefs.lastInstalledVersion) parts.push(L.updateLastInstalled.replace('{version}', prefs.lastInstalledVersion));
   return parts.join(' · ');
 }
 
 export function AppUpdateCard() {
+  const L = useVocab();
   const [prefs, setPrefs] = useState<ShellUpdatePrefs | null>(null);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -102,27 +101,27 @@ export function AppUpdateCard() {
   return (
     <SRowGroup data-app-update-silent="">
       <SRow
-        title="自动安装更新"
+        title={L.updateAutomatic}
         desc={
           <span style={{ color: fallenBack ? 'var(--proto-danger)' : undefined }}>
-            {updateModeDescription(prefs)}
+            {updateModeDescription(prefs, L)}
           </span>
         }
         control={
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             {fallenBack ? (
               <SButton tone="neutral" disabled={pending} data-app-update-retry=""
-                onClick={() => void write(true)}>重试自动安装</SButton>
+                onClick={() => void write(true)}>{L.updateRetryAutomatic}</SButton>
             ) : null}
-            <Toggle on={prefs.silent} inert={pending} ariaLabel="自动安装更新"
+            <Toggle on={prefs.silent} inert={pending} ariaLabel={L.updateAutomatic}
               onClick={pending ? undefined : () => void write(!prefs.silent)} />
           </div>
         }
       >
         {failed ? (
-          <div role="alert" style={ALERT_STYLE}>没能保存更新设置，请再试一次。</div>
+          <div role="alert" style={ALERT_STYLE}>{L.updatePrefsFailed}</div>
         ) : null}
-        <div style={FOOTNOTE_STYLE}>{updatePrefsFootnote(prefs)}</div>
+        <div style={FOOTNOTE_STYLE}>{updatePrefsFootnote(prefs, L)}</div>
       </SRow>
     </SRowGroup>
   );

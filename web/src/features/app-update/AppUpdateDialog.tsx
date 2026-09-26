@@ -1,3 +1,4 @@
+import { useVocab } from '@/i18n';
 import { DesktopUpdateFrame } from '@/design/DesktopUpdateFrame';
 import {
   appUpdateSummaryLine,
@@ -21,13 +22,14 @@ export interface AppUpdateDialogProps {
 }
 
 function AppUpdateActions(props: AppUpdateDialogProps) {
+  const L = useVocab();
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <button type="button" onClick={props.onSkip} className={GHOST_BTN_CLASS}>
-        跳过此版本
+        {L.updateSkipVersion}
       </button>
       <button type="button" onClick={props.onDismiss} className={GHOST_BTN_CLASS}>
-        稍后
+        {L.updateLater}
       </button>
       <button
         type="button"
@@ -35,23 +37,24 @@ function AppUpdateActions(props: AppUpdateDialogProps) {
         disabled={props.busy}
         className="box-border flex h-9 items-center rounded-[var(--r-control)] bg-state-ink px-4 text-[12.5px] font-semibold text-[var(--ink-solid-fg)] transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-proto-accent"
       >
-        {props.busy ? '正在处理…' : installCtaLabel(props.update.kind)}
+        {props.busy ? L.updateBusy : installCtaLabel(props.update.kind, L)}
       </button>
     </div>
   );
 }
 
 export function AppUpdateDialog(props: AppUpdateDialogProps) {
+  const L = useVocab();
   return (
     <DesktopUpdateFrame
-      title="App 新版本已就绪"
-      summary={appUpdateSummaryLine(props.update)}
+      title={L.updateReady}
+      summary={appUpdateSummaryLine(props.update, L)}
       descriptionId="app-update-desc"
-      description={installDescription(props.update.kind)}
+      description={installDescription(props.update.kind, L)}
       onDismiss={props.onDismiss}
     >
       {props.error ? (
-        <div className="mb-3 text-[11.5px] leading-snug text-state-fail">安装失败：{props.error}</div>
+        <div className="mb-3 text-[11.5px] leading-snug text-state-fail">{L.updateInstallFailed.replace('{error}', props.error)}</div>
       ) : null}
       <AppUpdateActions {...props} />
     </DesktopUpdateFrame>

@@ -19,7 +19,7 @@ export function useManualUpdateCheck() {
   }, [toast]);
   const check = useCallback(async () => {
     if (getManualCheckBusy()) return;
-    progress.current = toast?.toast({ title: L.updateCheckBusy, description: L.updateCheckProgress,
+    progress.current = toast?.toast({ title: L.updateCheckBusy,
       tone: 'running', duration: Infinity });
     const report = await checkForUpdates();
     if (!mounted.current) return;
