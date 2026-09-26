@@ -1,3 +1,7 @@
+// input:  child_process, hook registry, session environment
+// output: Hook host types, installHookBridge, tool hook handlers
+// pos:    Bridge Cortex hook entries to Pi extension events
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -43,7 +47,7 @@ export interface ToolResultEvent {
 
 export interface BeforeAgentStartEvent {
   prompt?: string;
-  systemPrompt?: string;
+  readonly systemPrompt?: string;
 }
 
 /** Return type for tool_call handlers: block the tool call or let it proceed. */
@@ -505,15 +509,15 @@ async function handleBeforeAgentStart(
   let systemPrompt = event.systemPrompt ?? '';
   let modified = false;
   for (const entry of entries) {
-    event.systemPrompt = systemPrompt;
-    const result = asHookResult(await runHookEntry(entry, lifecyclePayload(entry, event, ctx, env), env));
+    // Pi exposes a getter-only prompt; hooks receive a snapshot, updates travel in the return value.
+    const snapshot = { ...event, systemPrompt };
+    const result = asHookResult(await runHookEntry(entry, lifecyclePayload(entry, snapshot, ctx, env), env));
     const context = result.hookSpecificOutput?.additionalContext;
     if (!context) continue;
     systemPrompt += `\n\n${context}`;
     modified = true;
   }
   if (!modified) return undefined;
-  event.systemPrompt = systemPrompt;
   return { systemPrompt };
 }
 

@@ -1,7 +1,12 @@
+// input:  Pi SDK, child request, runtime settings
+// output: createChildSession, child session types
+// pos:    Construct headless in-memory Pi subagent sessions
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as path from 'node:path';
 import type { AgentSession, InlineExtension } from '@earendil-works/pi-coding-agent';
 import { createLogger } from '@core/log.js';
 import { loadPiSdk, type PiSdkModule } from '@core/pi-sdk.js';
+import { createRuntimeSettings } from './runtime-settings.js';
 
 const log = createLogger('pi-subagent');
 
@@ -28,11 +33,6 @@ export interface ChildSessionHandle {
 
 export type ChildSessionFactory = (request: ChildSessionRequest) => Promise<ChildSessionHandle>;
 
-function projectTrusted(sdk: PiSdkModule, cwd: string, agentDir: string): boolean {
-  if (!sdk.hasTrustRequiringProjectResources(cwd)) return true;
-  return new sdk.ProjectTrustStore(agentDir).get(cwd) === true;
-}
-
 /** PI's own CLI resolver, so a role's `provider/model` selection behaves as `--provider --model` did. */
 function resolveModel(
   sdk: PiSdkModule,
@@ -50,22 +50,14 @@ function resolveModel(
   return resolved.model;
 }
 
-/**
- * One nested PI session for a subagent, in this process. It keeps no transcript (in-memory
- * session manager), loads only the extensions handed in, and runs headless: with no UI context
- * bound, PI's extension dialogs resolve as cancelled instead of waiting on a host.
- */
-export async function createChildSession(request: ChildSessionRequest): Promise<ChildSessionHandle> {
-  const sdk = await loadPiSdk();
-  const settingsManager = sdk.SettingsManager.create(request.cwd, request.agentDir, {
-    projectTrusted: projectTrusted(sdk, request.cwd, request.agentDir),
-  });
+async function createChildServices(sdk: PiSdkModule, request: ChildSessionRequest) {
+  const settingsManager = createRuntimeSettings(sdk, request.cwd, request.agentDir);
   const modelRuntime = await sdk.ModelRuntime.create({
     authPath: path.join(request.agentDir, 'auth.json'),
     modelsPath: path.join(request.agentDir, 'models.json'),
     allowModelNetwork: false,
   });
-  const services = await sdk.createAgentSessionServices({
+  return sdk.createAgentSessionServices({
     cwd: request.cwd,
     agentDir: request.agentDir,
     settingsManager,
@@ -76,6 +68,16 @@ export async function createChildSession(request: ChildSessionRequest): Promise<
       appendSystemPrompt: request.appendSystemPrompt,
     },
   });
+}
+
+/**
+ * One nested PI session for a subagent, in this process. It keeps no transcript (in-memory
+ * session manager), loads only the extensions handed in, and runs headless: with no UI context
+ * bound, PI's extension dialogs resolve as cancelled instead of waiting on a host.
+ */
+export async function createChildSession(request: ChildSessionRequest): Promise<ChildSessionHandle> {
+  const sdk = await loadPiSdk();
+  const services = await createChildServices(sdk, request);
   for (const diagnostic of services.diagnostics) {
     if (diagnostic.type === 'error') log.warn(`PI subagent session: ${diagnostic.message}`);
   }

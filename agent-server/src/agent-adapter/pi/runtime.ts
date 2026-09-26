@@ -1,3 +1,7 @@
+// input:  Pi SDK, session request, extensions, runtime settings
+// output: createPiRuntime, runtime handle and collaborator types
+// pos:    Construct the main in-process Pi session runtime
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import * as path from 'node:path';
 import type {
   AgentSession,
@@ -12,6 +16,7 @@ import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
 import { ensureCompactionReserve } from './agent-dir.js';
 import { createPiUiContext } from './ui-context.js';
+import { createRuntimeSettings } from './runtime-settings.js';
 import { createCortexExtensions } from './extensions.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
 import type { OpenBundledMcpServer } from './mcp-bridge.js';
@@ -109,11 +114,30 @@ function resolveModel(
   return { model: resolved.model, thinking: thinking ?? resolved.thinkingLevel };
 }
 
-function projectTrusted(sdk: PiSdkModule, cwd: string, agentDir: string): boolean {
-  // Same default PI applies to its own non-interactive modes: a project without trust-requiring
-  // resources is trusted outright; one with them needs a recorded decision.
-  if (!sdk.hasTrustRequiringProjectResources(cwd)) return true;
-  return new sdk.ProjectTrustStore(agentDir).get(cwd) === true;
+async function createRuntimeServices(
+  sdk: PiSdkModule,
+  request: PiSessionRequest,
+  extensions: InlineExtension[],
+  cwd: string,
+  agentDir: string,
+) {
+  // Before the manager reads the file: Pi has no setter for the compaction reserve.
+  ensureCompactionReserve(getSettings().piCompactReserveTokens, { agentDir });
+  const settingsManager = createRuntimeSettings(sdk, cwd, agentDir);
+  const modelRuntime = await sdk.ModelRuntime.create({
+    authPath: path.join(agentDir, 'auth.json'),
+    modelsPath: path.join(agentDir, 'models.json'),
+    allowModelNetwork: false,
+  });
+  return sdk.createAgentSessionServices({
+    cwd, agentDir, settingsManager, modelRuntime,
+    resourceLoaderOptions: {
+      additionalSkillPaths: request.skillPaths,
+      extensionFactories: extensions,
+      systemPrompt: request.systemPrompt ?? undefined,
+      appendSystemPrompt: request.appendSystemPrompt,
+    },
+  });
 }
 
 function runtimeFactory(
@@ -122,29 +146,7 @@ function runtimeFactory(
   extensions: InlineExtension[],
 ): CreateAgentSessionRuntimeFactory {
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
-    // Before the manager reads the file: PI has no setter for the compaction reserve, so the
-    // current Cortex setting has to be on disk by the time SettingsManager.create() parses it.
-    ensureCompactionReserve(getSettings().piCompactReserveTokens, { agentDir });
-    const settingsManager = sdk.SettingsManager.create(cwd, agentDir, {
-      projectTrusted: projectTrusted(sdk, cwd, agentDir),
-    });
-    const modelRuntime = await sdk.ModelRuntime.create({
-      authPath: path.join(agentDir, 'auth.json'),
-      modelsPath: path.join(agentDir, 'models.json'),
-      allowModelNetwork: false,
-    });
-    const services = await sdk.createAgentSessionServices({
-      cwd,
-      agentDir,
-      settingsManager,
-      modelRuntime,
-      resourceLoaderOptions: {
-        additionalSkillPaths: request.skillPaths,
-        extensionFactories: extensions,
-        systemPrompt: request.systemPrompt ?? undefined,
-        appendSystemPrompt: request.appendSystemPrompt,
-      },
-    });
+    const services = await createRuntimeServices(sdk, request, extensions, cwd, agentDir);
     const diagnostics = [
       ...services.diagnostics,
       ...services.resourceLoader.getExtensions().errors.map(({ path: extensionPath, error }) => ({
