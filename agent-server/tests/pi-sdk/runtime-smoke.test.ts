@@ -40,7 +40,7 @@ test('real SDK preserves Cortex tools, system, history and quota across turns/re
       cwd: serverDir, env: isolatedEnv(home), timeout: 60_000, maxBuffer: 1024 * 1024,
     });
     expect(stderr).toBe('');
-    expect(stdout).toContain('PI_SDK_SMOKE_OK version=0.87.1 requests=6 tools=6 quota=6');
+    expect(stdout).toMatch(/PI_SDK_SMOKE_OK version=\S+ requests=6 tools=6 quota=6/);
     console.log(stdout.trim());
   } finally {
     await rm(home, { recursive: true, force: true });

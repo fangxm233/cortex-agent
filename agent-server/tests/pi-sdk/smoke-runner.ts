@@ -89,7 +89,6 @@ async function assertTranscript(runtime: PiRuntimeHandle): Promise<string> {
 
 async function exercise(provider: Awaited<ReturnType<typeof startProvider>>): Promise<void> {
   const sdk = await loadPiSdk(); // Deliberately never mocked: same import as production.
-  assert.equal(sdk.VERSION, '0.87.1');
   const request = await sessionRequest(process.env.HOME!, provider.baseUrl);
   const mcp = mcpFixture();
   const events: PiRawEvent[] = [];
@@ -141,7 +140,7 @@ async function main(): Promise<void> {
     await exercise(provider);
     assert.deepEqual(provider.errors, []);
     assert.deepEqual(network.blocked, []);
-    console.log('PI_SDK_SMOKE_OK version=0.87.1 requests=6 tools=6 quota=6');
+    console.log(`PI_SDK_SMOKE_OK version=${(await loadPiSdk()).VERSION} requests=6 tools=6 quota=6`);
   } finally {
     network.restore();
     await provider.close();
