@@ -291,7 +291,9 @@ function applySpendRows(
 ): void {
   for (const row of rows) {
     const billing: UsageBilling = subscriptionModes.has(row.billingMode) ? 'subscription' : 'api';
-    const draft = ensureDraft(drafts, row.provider, billing);
+    const provider = row.provider === 'openai' && row.billingMode === CODEX_PROVIDER
+      ? CODEX_PROVIDER : row.provider;
+    const draft = ensureDraft(drafts, provider, billing);
     if (row.billingMode) draft.modes.add(row.billingMode);
     // Subscription cost is an imputed API-equivalent price, not a bill — never surfaced.
     if (billing === 'subscription') continue;

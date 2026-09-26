@@ -301,6 +301,55 @@ describe('UsageService', () => {
     assert.deepEqual(metered?.spend, { today: 2.25, month: 8.5 });
   });
 
+  test.each(['grouped', 'records'])('%s normalizes only OpenAI Codex spend attribution', async (route) => {
+    const today = [spend('openai', 'openai-codex', 12.5), spend('openai', 'api', 2.25),
+      spend('vendor', 'openai-codex', 3)];
+    const month = [spend('openai', 'openai-codex', 91.75), spend('openai', 'api', 8.5),
+      spend('vendor', 'openai-codex', 9)];
+    const records = (rows: typeof today) => rows.map(({ cost_usd, ...row }) => ({ ...row, cost: cost_usd }));
+    const fetch = route === 'grouped'
+      ? gatewayFetch(today, month)
+      : legacyGatewayFetch(records(today), records(month));
+    const { service } = serviceWith({ fetch, anthropicModes: [] });
+
+    const result = await service.collect();
+
+    assert.deepEqual(result.map(usageRecordKey), ['openai::api', 'openai-codex::subscription', 'vendor::subscription']);
+    const codex = result.find((row) => row.provider === 'openai-codex');
+    assert.equal(codex?.displayName, 'OpenAI Codex');
+    assert.deepEqual(codex?.modes, ['openai-codex']);
+    assert.equal(codex?.spend, undefined);
+    const api = result.find((row) => row.provider === 'openai');
+    assert.deepEqual(api?.modes, ['api']);
+    assert.deepEqual(api?.spend, { today: 2.25, month: 8.5 });
+  });
+
+  test('healthy refresh removes persisted empty OpenAI subscription and retains Codex quota', async () => {
+    const store = durableMemoryStore();
+    await store.update(usage('openai', 'unsupported', {
+      billing: 'subscription', modes: ['openai-codex'],
+    }));
+    const quota = usage('openai-codex', 'stale', {
+      displayName: 'OpenAI Codex', billing: 'subscription',
+      windows: [{ type: 'codex_primary', utilization: 0.2, resetsAt: null }],
+    });
+    await store.update(quota);
+    const service = new UsageService({
+      store,
+      getAdapter: () => fakeAdapter('pi', async () => [quota]),
+      getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: ['openai-codex'] }),
+      fetch: gatewayFetch([spend('openai', 'openai-codex', 5)], [spend('openai', 'openai-codex', 20)]),
+      gatewayUrl: 'http://gateway.test',
+    });
+    assert.ok(await store.get('openai', 'subscription'));
+
+    const result = await service.refresh();
+
+    assert.equal(await store.get('openai', 'subscription'), null);
+    assert.deepEqual(await store.list(), [quota]);
+    assert.deepEqual(result, [quota]);
+  });
+
   test('settings decide which modes count as subscription', async () => {
     const rows = [spend('vendor', 'vendor-plan', 4)];
     const covered = serviceWith({
