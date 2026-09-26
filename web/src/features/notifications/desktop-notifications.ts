@@ -1,6 +1,6 @@
 // input:  native-bridge, desktop-config, legacy OS delivery
-// output: Desktop notification post and retained action listener
-// pos:    Desktop native notification adapter
+// output: Desktop notification post and retrying action listener
+// pos:    Desktop native notification delivery and click recovery
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { readDesktopConfig } from '@/lib/desktop-config';
 import { isNativeCommandMissing, listenNativeEvent, safeInvoke,
@@ -25,19 +25,43 @@ async function routeAction(action: DesktopNotificationAction, cb: ActionHandler,
     await safeInvoke('desktop_notifications_ack', { actionId: action.actionId });
     return;
   }
-  if (await cb(action, current)) await safeInvoke('desktop_notifications_ack', { actionId: action.actionId });
+  if (await cb(action, current) && current()) {
+    await safeInvoke('desktop_notifications_ack', { actionId: action.actionId });
+  }
 }
 
-function actionDrainer(cb: ActionHandler, current: () => boolean): () => Promise<void> {
+async function drainActions(cb: ActionHandler, current: () => boolean) {
+  if (!current()) return;
+  const result = await safeInvoke('desktop_notifications_pending');
+  if (!current() || isNativeCommandMissing(result)) return;
+  if (!result.ok) throw new Error('Unable to read pending desktop notification actions');
+  for (const action of result.value.actions) await routeAction(action, cb, current);
+}
+
+const ACTION_RETRY_DELAYS = [1_000, 2_000, 4_000];
+
+function actionDrainer(cb: ActionHandler, current: () => boolean) {
   let tail = Promise.resolve();
-  const drain = async () => {
-    if (!current()) return;
-    const result = await safeInvoke('desktop_notifications_pending');
-    if (!result.ok || !current()) return;
-    for (const action of result.value.actions) await routeAction(action, cb, current);
+  let attempt = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const clearRetry = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
   };
-  // Serialize event drains so the same retained click cannot route twice before ack.
-  return () => { tail = tail.then(drain).catch(() => {}); return tail; };
+  // Retry and resume drains share the event queue: never route a retained click concurrently.
+  const drain = () => {
+    tail = tail.then(async () => {
+      clearRetry();
+      await drainActions(cb, current);
+      attempt = 0;
+    }).catch(() => {
+      if (!current() || attempt >= ACTION_RETRY_DELAYS.length) return;
+      timer = setTimeout(() => { timer = undefined; void drain(); }, ACTION_RETRY_DELAYS[attempt++]);
+    });
+    return tail;
+  };
+  const resume = () => { clearRetry(); attempt = 0; void drain(); };
+  return { drain, resume, dispose: clearRetry };
 }
 
 export async function listenDesktopNotificationActions(cb: ActionHandler, signal?: AbortSignal): Promise<() => void> {
@@ -45,12 +69,25 @@ export async function listenDesktopNotificationActions(cb: ActionHandler, signal
   let unregister = () => {};
   const sameConnection = notificationConnectionGuard();
   const current = () => !disposed && sameConnection();
-  const off = () => { disposed = true; signal?.removeEventListener('abort', off); unregister(); };
+  const actions = actionDrainer(cb, current);
+  const off = () => {
+    disposed = true;
+    actions.dispose();
+    signal?.removeEventListener('abort', off);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', actions.resume);
+      window.removeEventListener('online', actions.resume);
+    }
+    unregister();
+  };
   if (disposed) return off;
   signal?.addEventListener('abort', off, { once: true });
-  const drain = actionDrainer(cb, current);
-  unregister = await listenNativeEvent('desktop-notification-action', () => { void drain(); });
+  unregister = await listenNativeEvent('desktop-notification-action', actions.resume);
   if (disposed) { unregister(); return off; }
-  await drain();
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', actions.resume);
+    window.addEventListener('online', actions.resume);
+  }
+  await actions.drain();
   return off;
 }
