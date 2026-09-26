@@ -241,9 +241,6 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
           {vm.rows.map((row) => (
             <WaitRow key={row.id} row={row} copy={copy} onCancel={confirmCancel} cancelling={cancelling} />
           ))}
-          <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', marginTop: 6, lineHeight: 1.5 }}>
-            {copy.secretNote}
-          </div>
         </div>
       )}
     </div>

@@ -183,7 +183,6 @@ export interface WaitRailChromeCopy {
   cancel: string;
   confirm: (label: string) => string;
   noSignals: string;
-  secretNote: string;
   externalNote: string;
 }
 
@@ -194,7 +193,6 @@ export const WAIT_RAIL_COPY: Record<WaitRailLanguage, WaitRailChromeCopy> = {
     cancel: 'cancel',
     confirm: (label: string) => `Cancel the waitpoint "${label}"? Its signal will no longer wake this session.`,
     noSignals: 'no signals yet',
-    secretNote: 'The signal secret is shown once, when the waitpoint is armed — it cannot be retrieved here.',
     externalNote: 'Reported by the external process',
   },
   zh: {
@@ -202,7 +200,6 @@ export const WAIT_RAIL_COPY: Record<WaitRailLanguage, WaitRailChromeCopy> = {
     cancel: '取消',
     confirm: (label: string) => `取消等待点「${label}」？它的信号将不再唤醒本会话。`,
     noSignals: '还没有信号',
-    secretNote: '发信号用的 secret 只在布点时出现一次，这里无法重新获取。',
     externalNote: '以下内容由外部进程写入',
   },
 };
