@@ -1,5 +1,5 @@
 import { runInvocation } from '@core/agents/subagent/orchestrate.js';
-import { startSubagentRun, stopSubagentRun } from '@domain/agents/subagent/registry.js';
+import { startSubagentRun, stopSubagentRun, trackSubagentChildren } from '@domain/agents/subagent/registry.js';
 import type {
   BackgroundSubagentHandle, BackgroundSubagentRequest,
 } from '../agent-adapter/pi/background-subagent.js';
@@ -26,8 +26,11 @@ export async function startBackgroundSubagent(
     onSettled,
     // The tool call that started this has already returned, so its own signal is gone; the
     // registry's is the only one that can still stop these children.
-    execute: async (signal) =>
-      runInvocation(request.invocation, request.runChild, signal, request.channel),
+    execute: async (signal, runId) => runInvocation(
+      request.invocation,
+      trackSubagentChildren(runId, index => `${request.toolCallId}#${index}`, request.runChild),
+      signal, request.channel,
+    ),
   }), request.conduit);
   return { id: view.id };
 }

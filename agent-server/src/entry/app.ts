@@ -121,6 +121,7 @@ import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
+import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { deliverToSessionDetached } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
@@ -575,6 +576,7 @@ process.on('SIGTERM', async () => {
     runningExecutions: sessionStates,
     costSummary: getCostSummary,
     conversationHistory,
+    getSubagentChildStatuses,
     pendingInjections: pendingInjectionRepo,
     // S4 chat send: inject a genuine user turn into a session via the orchestration send path.
     // Injected here (entry layer) so the ui-service domain never imports orchestration.

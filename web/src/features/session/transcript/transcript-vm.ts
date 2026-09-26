@@ -289,8 +289,7 @@ export type ChatRow =
   // block so its working notes and tool calls stop interleaving with the main agent's. The block
   // sits exactly where the spawning call happened, and REPLACES that call's chip — the header says
   // what was asked for. `children` is an ordinary ChatRow list, rendered by the same renderer.
-  // `status` is derived, not reported: a batch of subagents is finished the moment the main agent
-  // does anything again, which is what closes them (see buildTranscriptRows).
+  // Explicit per-child lifecycle wins; only legacy histories use parent-turn heuristics.
   // `model` is what actually answered, not what was requested: the CLI ships no `subagent_model`,
   // so it comes off `message.model` of the subagent's own messages and is therefore null until the
   // subagent has said something — the anchor alone cannot know it.
@@ -303,7 +302,8 @@ export interface BuildOpts {
   streaming?: boolean;
   /**
    * Whether the session is genuinely executing (status snapshot + delta), which is what decides
-   * if a subagent block may still show as running. NOT the same as `streaming`: that one is a
+   * if a legacy subagent block may still show as running. Explicit child status outranks it.
+   * NOT the same as `streaming`: that one is a
    * 2.5s quiet-gap timer that drops between events mid-turn, so deriving the block's state from
    * it made the badge blink on and off for the whole run. Falls back to `streaming` when the
    * caller has no status of its own.
@@ -695,6 +695,8 @@ export function buildTranscriptRows(
     for (const m of turn.messages) push(m as TranscriptMessageWithSpawns, turn.turnIndex);
   }
   for (const lm of liveTail) push({ ...liveToMessage(lm), liveTail: true });
+  // Ends are order-independent, including an end arriving before its anchor or late output.
+  const reportedEnds = new Set(flat.filter(m => m.subagentEnded && m.subagentId).map(m => m.subagentId!));
 
   const rows: ChatRow[] = [];
   let curDay: string | null = null;
@@ -744,12 +746,11 @@ export function buildTranscriptRows(
    */
   const closeBlocksTheMainAgentOutran = (): void => {
     for (const b of blocks.values()) {
-      if (b.liveOpen && !b.ended) continue;
+      if (!b.ended && (b.summary?.status === 'running' || b.liveOpen)) continue;
       b.row.status = 'done';
     }
   };
-  /** The end-of-transcript sweep, which answers to a different fact: an idle session has nothing
-   *  running in it, however recently a child was producing rows. */
+  /** Parent-idle fallback for legacy blocks only; explicit child authority is applied below. */
   const closeOpenBlocks = (): void => {
     for (const b of blocks.values()) b.row.status = 'done';
   };
@@ -781,6 +782,7 @@ export function buildTranscriptRows(
       return existing;
     }
     flushTools(top);
+    const ended = reportedEnds.has(id) || (!!summary?.status && summary.status !== 'running');
     const row: Extract<ChatRow, { kind: 'subagent' }> = {
       kind: 'subagent',
       id,
@@ -788,7 +790,7 @@ export function buildTranscriptRows(
       description: summary?.description ?? m.subagentDescription ?? spawn?.description ?? null,
       prompt: spawn?.prompt ?? null,
       model: summary?.model ?? m.subagentModel ?? null,
-      status: 'running',
+      status: ended ? 'done' : 'running',
       toolCount: summary?.toolCount ?? 0,
       children: [],
       ...(summaryAuthority && summary
@@ -798,6 +800,7 @@ export function buildTranscriptRows(
     rows.push(row);
     const entry = {
       row, sink: { rows: row.children, toolBuf: [] } as RowSink, summary,
+      ended,
       ...(m.liveTail ? { liveOpen: true } : {}),
     };
     blocks.set(id, entry);
@@ -843,7 +846,7 @@ export function buildTranscriptRows(
       continue;
     }
     const block = m.subagentId ? openBlock(m, m.subagentId) : null;
-    if (!block) closeBlocksTheMainAgentOutran();
+    if (!block && !(m.type === 'user' && m.systemOrigin)) closeBlocksTheMainAgentOutran();
     const sink = block ? block.sink : top;
     if (m.type === 'tool') {
       if (block && !block.summary) block.row.toolCount += 1;
@@ -894,18 +897,18 @@ export function buildTranscriptRows(
     }
   }
   flushAll();
-  // Anything still open when the turn is over was finished by a turn that ended, not by a
-  // main-agent row we can point at. Only a live session may leave a block genuinely running.
+  // Legacy compatibility only: a known running child can outlive its parent's turn.
   const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText);
   if (!sessionLive) closeOpenBlocks();
   if (summaryAuthority) {
     for (const block of blocks.values()) {
       if (!block.summary) continue;
-      // A summary may not close what live rows just proved open: the transcript refetch that
-      // produced it raced the events still arriving, so `structurallyOpen` can be a snapshot of a
-      // moment already past. Only a reported end (`ended`) or an idle session closes a block.
-      const open = block.summary.structurallyOpen || block.liveOpen === true;
-      block.row.status = !block.ended && sessionLive && open ? 'running' : 'done';
+      // Explicit lifecycle outranks parent idle and stale output. Old-server summaries retain
+      // the live-tail compatibility heuristic because false there is only structural inference.
+      const open = block.summary.status !== undefined
+        ? block.summary.status === 'running'
+        : sessionLive && (block.summary.structurallyOpen || block.liveOpen === true);
+      block.row.status = !block.ended && open ? 'running' : 'done';
       block.row.toolCount = block.summary.toolCount;
       block.row.hasDetails = block.summary.hasDetails;
       block.row.detailMode = 'lazy';

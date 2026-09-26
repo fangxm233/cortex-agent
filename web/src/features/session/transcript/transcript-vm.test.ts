@@ -1423,6 +1423,41 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(child.status).toBe('running');
   });
 
+  it.each(['running', 'completed', 'failed', 'killed'] as const)(
+    'explicit %s survives human/main rows, parent idle, and stale live output', (status) => {
+      const transcript: SessionTranscript = {
+        sessionId: 'authority', turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'tool', toolName: 'Agent', subagentId: 'child' }),
+          msg({ type: 'user', text: 'sibling result', systemOrigin: 'agent-result' }),
+          msg({ type: 'user', text: 'question' }),
+          msg({ type: 'assistant', text: 'parent reply' }),
+        ] }],
+        subagentSummaries: [{ id: 'child', toolCount: 1, hasDetails: true, structurallyOpen: false, status }],
+      };
+      const late: LiveSessionMessage = {
+        sessionId: 'authority', role: 'tool', text: '', toolName: 'Read', subagentId: 'child', ts: '2026-08-01T02:00:00Z',
+      };
+      for (const running of [false, true]) {
+        for (const tail of [[], [late]]) {
+          const child = buildTranscriptRows(transcript, tail, { running }).find(row => row.kind === 'subagent');
+          expect(child).toMatchObject({ status: status === 'running' ? 'running' : 'done' });
+        }
+      }
+    },
+  );
+
+  it('an end before the anchor beats runtime running and late output', () => {
+    const transcript: SessionTranscript = {
+      sessionId: 'authority', turns: [],
+      subagentSummaries: [{ id: 'child', toolCount: 0, hasDetails: false, structurallyOpen: true, status: 'running' }],
+    };
+    const rows = buildTranscriptRows(transcript, [
+      { sessionId: 'authority', role: 'assistant', text: '', subagentId: 'child', subagentEnded: 'killed', ts: '2026-08-01T02:00:00Z' },
+      { sessionId: 'authority', role: 'tool', text: '', toolName: 'Read', subagentId: 'child', ts: '2026-08-01T02:00:01Z' },
+    ], { running: true });
+    expect(rows.find(row => row.kind === 'subagent')).toMatchObject({ status: 'done' });
+  });
+
   it('lets a reported end close a subagent even while its live rows are in the tail', () => {
     const rows = buildTranscriptRows(
       {

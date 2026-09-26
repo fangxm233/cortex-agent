@@ -1154,6 +1154,8 @@ export interface TranscriptSubagentSummary {
   toolCount: number;
   hasDetails: boolean;
   structurallyOpen: boolean;
+  /** Explicit per-child lifecycle authority; absent for legacy structural inference. */
+  status?: 'running' | 'completed' | 'failed' | 'killed';
 }
 
 /** Rows that changed since a client's cursor, addressed by flat position across the transcript. */
@@ -2929,6 +2931,8 @@ export interface UiServiceDeps {
     | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }
     | { ok: false; reason: 'not-found' | 'unsupported' | 'running' }
   >;
+  /** Snapshot of started Cortex-managed children only; native CLI tasks use their own tracker. */
+  getSubagentChildStatuses?: (sessionId: string) => ReadonlyMap<string, NonNullable<TranscriptSubagentSummary['status']>>;
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {
     getHistory(

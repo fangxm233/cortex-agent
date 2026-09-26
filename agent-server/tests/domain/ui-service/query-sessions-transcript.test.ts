@@ -14,6 +14,26 @@ function makeDeps(history: SessionHistory | null): UiServiceDeps {
   } as unknown as UiServiceDeps;
 }
 
+test('compact authority overlays snapshots without mutating cached history or inventing children', async () => {
+  const summaries = Object.freeze([
+    Object.freeze({ id: 'quiet', toolCount: 1, hasDetails: true, structurallyOpen: false }),
+    Object.freeze({ id: 'ended', toolCount: 0, hasDetails: false, structurallyOpen: false, status: 'killed' as const }),
+    Object.freeze({ id: 'legacy', toolCount: 0, hasDetails: false, structurallyOpen: false }),
+  ]);
+  const deps = {
+    conversationHistory: { getCompactHistory: async () => ({ events: [], subagentSummaries: summaries }) },
+    getSubagentChildStatuses: (sessionId: string) => sessionId === 'owner'
+      ? new Map([['quiet', 'running'], ['ended', 'running'], ['unanchored', 'running']]) : new Map(),
+  } as unknown as UiServiceDeps;
+  const read = (sessionId: string) => handleSessionsTranscript(deps, { sessionId, compactSubagents: true });
+  assert.deepEqual((await read('owner')).subagentSummaries, [
+    { ...summaries[0], structurallyOpen: true, status: 'running' }, summaries[1], summaries[2],
+  ]);
+  assert.deepEqual((await read('other')).subagentSummaries, summaries);
+  delete deps.getSubagentChildStatuses;
+  assert.deepEqual((await read('owner')).subagentSummaries, summaries, 'missing registry preserves conservative history');
+});
+
 test('sessions.transcript exposes debug metadata and forwards the folded large-tool warning', async (t) => {
   const previous = process.env.DEBUG;
   t.onTestFinished(() => {

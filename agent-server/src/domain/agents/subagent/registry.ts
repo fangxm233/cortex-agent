@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
-import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
-import type { Invocation, SubagentMode } from '@core/agents/subagent/types.js';
+import { endStatusOf, type SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
+import type { Invocation, RunChildFn, SubagentEndStatus, SubagentMode } from '@core/agents/subagent/types.js';
 
 const log = createLogger('subagent-registry');
 
@@ -49,6 +49,8 @@ export interface SubagentRunView {
 }
 
 interface SubagentRunRecord extends SubagentRunView {
+  /** Exact transcript IDs, populated only as each child actually starts. */
+  children: Map<string, 'running' | SubagentEndStatus>;
   abort: AbortController;
   /** Resolves when the run reaches a terminal state. Never rejects. */
   settled: Promise<void>;
@@ -150,6 +152,7 @@ export function startSubagentRun(options: StartSubagentRunOptions): SubagentRunV
     startedAt: now,
     endedAt: null,
     error: null,
+    children: new Map(),
     abort: new AbortController(),
     settled: Promise.resolve(),
     result: null,
@@ -171,6 +174,39 @@ export function startSubagentRun(options: StartSubagentRunOptions): SubagentRunV
     ),
   );
   return viewOf(record);
+}
+
+/** Wrap the execution seam, not the batch: chain links that never start have no authority.
+ *  Callers supply transcript IDs explicitly (MCP run IDs and PI tool-call IDs differ). */
+export function trackSubagentChildren(
+  runId: string,
+  blockId: (index: number) => string,
+  runChild: RunChildFn,
+): RunChildFn {
+  const children = runs.get(runId)!.children;
+  return async (task, index, signal, forward) => {
+    const id = blockId(index);
+    children.set(id, 'running');
+    try {
+      const result = await runChild(task, index, signal, forward);
+      children.set(id, signal?.aborted ? 'killed' : endStatusOf(result));
+      return result;
+    } catch (error) {
+      children.set(id, signal?.aborted ? 'killed' : 'failed');
+      throw error;
+    }
+  };
+}
+
+/** Detached, session-scoped snapshot. Missing entries mean unknown, never completed.
+ *  Native CLI tasks have their own lifecycle tracker and are not represented here. */
+export function getSubagentChildStatuses(sessionId: string): ReadonlyMap<string, 'running' | SubagentEndStatus> {
+  const snapshot = new Map<string, 'running' | SubagentEndStatus>();
+  for (const record of runs.values()) {
+    if (record.sessionId !== sessionId) continue;
+    for (const [id, status] of record.children) snapshot.set(id, status);
+  }
+  return snapshot;
 }
 
 export function getSubagentRun(id: string): SubagentRunView | null {

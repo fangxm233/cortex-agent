@@ -190,7 +190,7 @@ function buildRunChild(
         })
         : await runForeignChild(ctx, deps, task, role, backend, ref, signal);
       if (backend === 'pi') reportChildUsage(deps, result);
-      seal(endStatusOf(result));
+      seal(signal?.aborted ? 'killed' : endStatusOf(result));
       return result;
     } catch (error) {
       if (signal?.aborted) { seal('killed'); throw error; }
@@ -248,6 +248,7 @@ async function startInBackground(
   const { id } = await deps.startBackgroundSubagent({
     invocation,
     runChild,
+    toolCallId,
     channel: subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
     sessionId: deps.parentEnv.CORTEX_SESSION_ID || null,
     conduit: deps.parentEnv.SLACK_CHANNEL || deps.parentEnv.FEISHU_CHANNEL || undefined,

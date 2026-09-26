@@ -12,7 +12,7 @@ import {
   deliverBackgroundSubagentResult, holdSessionForBackgroundRun, startBackgroundSubagentRun,
 } from '../src/orchestration/subagent-delivery.js';
 import {
-  _resetSubagentRuns, startSubagentRun, waitForSubagentRun,
+  _resetSubagentRuns, startSubagentRun, waitForSubagentRun, getSubagentChildStatuses,
 } from '../src/domain/agents/subagent/registry.js';
 import { beginForegroundSession } from '../src/orchestration/agent-runner.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
@@ -358,7 +358,22 @@ test('PI\'s agent tool hands a backgrounded call to the shared registry, session
   assert.equal(calls[0].sessionId, SESSION);
   assert.equal(calls[0].conduit, CHANNEL);
   assert.equal(calls[0].invocation.mode, 'single');
+  assert.equal(calls[0].toolCallId, 'call-1');
   assert.equal(typeof calls[0].runChild, 'function');
+});
+
+test.each(['completed', 'failed', 'killed'] as const)('PI background authority uses tool-call IDs for %s children', async (status) => {
+  const { startBackgroundSubagent } = await import('../src/orchestration/pi-background-subagent.js');
+  const gate = deferred<any>();
+  const handle = await startBackgroundSubagent({
+    invocation: invocation(), toolCallId: 'call-exact', sessionId: SESSION, conduit: undefined,
+    runChild: () => gate.promise,
+  });
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-exact#0', 'running']]);
+  gate.resolve({ description: 'd', prompt: 'p', subagentType: 'general-purpose', output: '', usage: emptyUsage(),
+    stopReason: { completed: 'stop', failed: 'error', killed: 'aborted' }[status] });
+  await waitForSubagentRun(handle.id, 1000);
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-exact#0', status]]);
 });
 
 test('PI refuses run_in_background rather than silently blocking when it cannot background', async () => {
