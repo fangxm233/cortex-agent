@@ -1,3 +1,4 @@
+import { useVocab } from '@/i18n';
 import type { CSSProperties } from 'react';
 import { updateSummaryLine, type StagedUpdate } from '@/features/hot-update/frontend-update';
 import { MUpdateFrame } from './MUpdateFrame';
@@ -23,20 +24,22 @@ export interface MHotUpdateDialogProps {
 }
 
 function MHotUpdateActions(props: Pick<MHotUpdateDialogProps, 'onApply' | 'onDismiss'>) {
+  const L = useVocab();
   return (
     <div style={ACTIONS_STYLE}>
-      <button type="button" onClick={props.onApply} style={PRIMARY_STYLE}>退出 App</button>
-      <button type="button" onClick={props.onDismiss} style={SECONDARY_STYLE}>忽略</button>
+      <button type="button" onClick={props.onApply} style={PRIMARY_STYLE}>{L.updateExitApp}</button>
+      <button type="button" onClick={props.onDismiss} style={SECONDARY_STYLE}>{L.updateIgnore}</button>
     </div>
   );
 }
 
 export function MHotUpdateDialog(props: MHotUpdateDialogProps) {
+  const L = useVocab();
   return (
     <MUpdateFrame
-      title="新版本已就绪"
-      summary={updateSummaryLine(props.update)}
-      description="热更新已在后台下载完成，重启 App 后生效。运行中的线程在服务端继续执行，不受重启影响。"
+      title={L.updateReady}
+      summary={updateSummaryLine(props.update, L)}
+      description={L.updateHotHint}
     >
       <MHotUpdateActions onApply={props.onApply} onDismiss={props.onDismiss} />
     </MUpdateFrame>

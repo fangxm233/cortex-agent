@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useToastOptional } from '@/design/Toast';
+import { useVocab } from '@/i18n';
 import {
   getAppUpdateSnapshot,
   silentUpdateNotice,
@@ -16,6 +17,7 @@ import {
 } from '@/features/app-update/app-update';
 
 export function useSilentUpdateNotice(): void {
+  const L = useVocab();
   const pending = useSyncExternalStore(subscribeAppUpdate, getAppUpdateSnapshot);
   const toast = useToastOptional();
   const announced = useRef<string | null>(null);
@@ -26,9 +28,9 @@ export function useSilentUpdateNotice(): void {
     if (announced.current === pending.version) return;
     announced.current = pending.version;
     toast?.toast({
-      title: '新版本已就绪',
-      description: silentUpdateNotice(pending),
+      title: L.updateReady,
+      description: silentUpdateNotice(pending, L),
       dedupeKey: `app-update-silent:${pending.version}`,
     });
-  }, [pending, toast]);
+  }, [pending, toast, L]);
 }

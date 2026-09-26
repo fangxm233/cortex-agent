@@ -1,3 +1,4 @@
+import { useVocab } from '@/i18n';
 import type { CSSProperties } from 'react';
 import {
   appUpdateSummaryLine,
@@ -31,6 +32,7 @@ export interface MAppUpdateDialogProps {
 }
 
 function MAppUpdateActions(props: MAppUpdateDialogProps) {
+  const L = useVocab();
   return (
     <div style={ACTIONS_STYLE}>
       <button
@@ -39,26 +41,27 @@ function MAppUpdateActions(props: MAppUpdateDialogProps) {
         disabled={props.busy}
         style={{ ...PRIMARY_STYLE, opacity: props.busy ? 0.6 : 1 }}
       >
-        {props.busy ? '正在处理…' : installCtaLabel(props.update.kind)}
+        {props.busy ? L.updateBusy : installCtaLabel(props.update.kind, L)}
       </button>
       <div style={{ display: 'flex', width: '100%' }}>
-        <button type="button" onClick={props.onSkip} style={SECONDARY_STYLE}>跳过此版本</button>
-        <button type="button" onClick={props.onDismiss} style={SECONDARY_STYLE}>稍后</button>
+        <button type="button" onClick={props.onSkip} style={SECONDARY_STYLE}>{L.updateSkipVersion}</button>
+        <button type="button" onClick={props.onDismiss} style={SECONDARY_STYLE}>{L.updateLater}</button>
       </div>
     </div>
   );
 }
 
 export function MAppUpdateDialog(props: MAppUpdateDialogProps) {
+  const L = useVocab();
   return (
     <MUpdateFrame
-      title="App 新版本已就绪"
-      summary={appUpdateSummaryLine(props.update)}
-      description={installDescription(props.update.kind)}
+      title={L.updateReady}
+      summary={appUpdateSummaryLine(props.update, L)}
+      description={installDescription(props.update.kind, L)}
     >
       {props.error ? (
         <div style={{ fontSize: 12, color: 'var(--proto-danger)', marginBottom: 10, textAlign: 'center' }}>
-          安装失败：{props.error}
+          {L.updateInstallFailed.replace('{error}', props.error)}
         </div>
       ) : null}
       <MAppUpdateActions {...props} />

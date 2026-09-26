@@ -1,5 +1,6 @@
 // Desktop and Android stage a bundle, emit `frontend-update-staged`, then relaunch/exit to promote it.
 // Plain browsers remain safe no-ops through the guarded global Tauri seam.
+import type { Vocab } from '@/i18n/vocab';
 import { isNativeShell } from '@/lib/desktop-config';
 import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { formatBytes } from '@/lib/format';
@@ -39,11 +40,11 @@ export function formatUpdateSize(bytes: number | undefined): string | null {
 
 /** The full mono meta line under the title: `<versions> · <size> · 已下载` (size segment omitted when
  *  unknown). Matches scheme.dc.html 21a / scheme-mobile 3a ("v… → v… · 8.4 MB · 已下载"). */
-export function updateSummaryLine(update: StagedUpdate): string {
+export function updateSummaryLine(update: StagedUpdate, L: Vocab): string {
   const size = formatUpdateSize(update.size);
   const parts = [versionTransitionLabel(update)];
   if (size) parts.push(size);
-  parts.push('已下载');
+  parts.push(L.updateDownloaded);
   return parts.join(' · ');
 }
 

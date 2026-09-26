@@ -7,6 +7,7 @@
 // Off-shell (plain browser / ui-http) every seam function is a no-op — the prompt is APP-only.
 // A pending shell update SUPERSEDES the SPA-only hot-update prompt (the new shell ships a fresh
 // SPA seed and OTA converges the rest), so the shared headless prompt owner selects this store first.
+import type { Vocab } from '@/i18n/vocab';
 import { isNativeShell } from '@/lib/desktop-config';
 import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { formatUpdateSize } from '@/features/hot-update/frontend-update';
@@ -56,50 +57,48 @@ export function parseAppUpdate(payload: unknown): AppUpdateInfo | null {
 }
 
 /** Toast copy for an update that will install itself on quit — the only notice a silent update gets. */
-export function silentUpdateNotice(update: AppUpdateInfo): string {
-  const size = formatUpdateSize(update.size);
-  const suffix = size ? ` · ${size}` : '';
-  return `Cortex ${update.version} 已下载${suffix}，关闭 App 后会自动完成更新。`;
+export function silentUpdateNotice(update: AppUpdateInfo, L: Vocab): string {
+  return L.updateSilentNotice.replace('{version}', update.version);
 }
 
 /** Mono meta line under the title: `Cortex <version> · <size> · 已下载` (size omitted if unknown). */
-export function appUpdateSummaryLine(update: AppUpdateInfo): string {
+export function appUpdateSummaryLine(update: AppUpdateInfo, L: Vocab): string {
   const parts = [`Cortex ${update.version}`];
   const size = formatUpdateSize(update.size);
   if (size) parts.push(size);
-  parts.push('已下载');
+  parts.push(L.updateDownloaded);
   return parts.join(' · ');
 }
 
 /** Primary-button label per install flow. */
-export function installCtaLabel(kind: string): string {
+export function installCtaLabel(kind: string, L: Vocab): string {
   switch (kind) {
-    case 'appimage': return '重启更新';
-    case 'nsis': return '运行安装程序';
-    case 'apk': return '安装';
+    case 'appimage': return L.updateRestartInstall;
+    case 'nsis': return L.updateRunInstaller;
+    case 'apk': return L.updateInstall;
     case 'dmg':
     case 'deb':
-    case 'rpm': return '打开安装包';
-    default: return '更新';
+    case 'rpm': return L.updateOpenInstaller;
+    default: return L.updateApply;
   }
 }
 
 /** Reassurance / instruction copy per install flow. */
-export function installDescription(kind: string): string {
+export function installDescription(kind: string, L: Vocab): string {
   switch (kind) {
     case 'appimage':
-      return '新版本已在后台下载并校验完成，点击后自动替换并重启。运行中的线程在服务端继续执行，不受影响。';
+      return L.updateAppimageHint;
     case 'nsis':
-      return '新版本已在后台下载并校验完成。点击后将退出 App 并启动安装程序，按提示完成安装后重新打开即可。';
+      return L.updateNsisHint;
     case 'apk':
-      return '新版本已在后台下载并校验完成。点击安装后按系统提示完成升级，运行中的线程在服务端继续执行。';
+      return L.updateApkHint;
     case 'dmg':
-      return '新版本已在后台下载并校验完成。将打开磁盘映像，把 Cortex 拖入 Applications 即完成升级。';
+      return L.updateDmgHint;
     case 'deb':
     case 'rpm':
-      return '新版本已在后台下载并校验完成。将打开安装包，用系统安装器完成升级后重新打开 App。';
+      return L.updatePackageHint;
     default:
-      return '新版本已在后台下载并校验完成。';
+      return L.updateInstallHint;
   }
 }
 
