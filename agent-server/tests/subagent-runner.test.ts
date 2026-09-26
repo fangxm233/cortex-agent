@@ -26,7 +26,7 @@ vi.mock('../src/domain/agents/subagent/runner.js', async (importOriginal) => ({
   runSubagent,
 }));
 const { startDaemonSubagentRun } = await import('../src/domain/agents/subagent/service.js');
-const { _resetSubagentRuns, waitForSubagentRun } = await import(
+const { _resetSubagentRuns, waitForSubagentRun, getSubagentChildStatuses, stopSubagentRun } = await import(
   '../src/domain/agents/subagent/registry.js'
 );
 
@@ -381,6 +381,57 @@ test('each child gets its own attribution ref, keyed on the run id and its index
   assert.deepEqual(refs, [`${view.id}#0`, `${view.id}#1`]);
 });
 
+test('MCP authority tracks only started children, independently of the batch and session', async () => {
+  writeRole('general-purpose');
+  const gate = deferred<SubagentResult>();
+  runSubagent.mockImplementation((req: any) => req.task.description === 'quiet' ? gate.promise : Promise.resolve(ok('fast')));
+  const view = startDaemonSubagentRun({
+    params: { parallel: [task({ description: 'quiet' }), task({ description: 'fast' })] },
+    background: true, cwd: '/tmp', parent: parentIsClaude, sessionId: 's1',
+  });
+  await vi.waitFor(() => assert.equal(getSubagentChildStatuses('s1').get(`${view.id}#1`), 'completed'));
+  const snapshot = getSubagentChildStatuses('s1');
+  assert.equal(snapshot.get(`${view.id}#0`), 'running');
+  assert.equal(getSubagentChildStatuses('other').size, 0);
+  gate.resolve(ok('quiet'));
+  await waitForSubagentRun(view.id, 1000);
+  assert.equal(getSubagentChildStatuses('s1').get(`${view.id}#0`), 'completed');
+  assert.equal(snapshot.get(`${view.id}#0`), 'running', 'snapshots do not change underneath readers');
+});
+
+test('a stopped chain reports killed without inventing an unstarted child', async () => {
+  writeRole('general-purpose');
+  runSubagent.mockImplementation((req: any) => new Promise((_resolve, reject) => {
+    req.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  }));
+  const view = startDaemonSubagentRun({
+    params: { chain: [task(), task()] }, background: true,
+    cwd: '/tmp', parent: parentIsClaude, sessionId: 's1',
+  });
+  assert.deepEqual([...getSubagentChildStatuses('s1')], [[`${view.id}#0`, 'running']]);
+  stopSubagentRun(view.id);
+  await waitForSubagentRun(view.id, 1000);
+  assert.deepEqual([...getSubagentChildStatuses('s1')], [[`${view.id}#0`, 'killed']]);
+  _resetSubagentRuns();
+  assert.equal(getSubagentChildStatuses('s1').size, 0, 'restart is not evidence of activity');
+});
+
+test('an abort that resolves normally still seals both runtime and transcript as killed', async () => {
+  writeRole('general-purpose');
+  const notices: any[] = [];
+  runSubagent.mockImplementation((req: any) => new Promise(resolve => {
+    req.signal.addEventListener('abort', () => resolve(ok('stopped')), { once: true });
+  }));
+  const view = startDaemonSubagentRun({
+    params: task(), background: true, cwd: '/tmp', parent: parentIsClaude, sessionId: 's1',
+    onNotice: notice => notices.push(notice),
+  });
+  stopSubagentRun(view.id);
+  await waitForSubagentRun(view.id, 1000);
+  assert.equal(getSubagentChildStatuses('s1').get(`${view.id}#0`), 'killed');
+  assert.equal(notices[0].status, 'killed');
+});
+
 test('the delegating session rides along on every child\'s parent context', async () => {
   // Only the daemon entry knows which session asked; the runner reads it off `parent` to attribute
   // the child's cost. Without this hand-off the child bills to nobody.
@@ -433,6 +484,7 @@ test('every child seals its block when it settles, whichever way it settled', as
   );
   // The block key is the same one the child's own rows carried, and the notice is an end.
   for (const notice of notices) assert.equal(notice.kind, 'end');
+  assert.deepEqual(getSubagentChildStatuses('s1'), new Map(notices.map(notice => [notice.ref, notice.status])));
 });
 
 test('an unknown role is refused before anything is registered — no half-run fan-out', () => {

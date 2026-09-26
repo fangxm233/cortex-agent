@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
 import { flattenTurns, groupRows, mergeTranscriptDelta } from './transcript-delta';
+import { buildTranscriptRows } from './transcript-vm';
 
 function message(text: string): TranscriptMessage {
   return { type: 'assistant', text, toolName: null, toolInput: null, ts: '2026-09-09T00:00:00.000Z', elapsedMs: null };
@@ -60,6 +61,27 @@ describe('transcript delta merge', () => {
     })).toBeNull();
     // A total larger than what the merge can account for.
     expect(mergeTranscriptDelta(cached, { sessionId: 's1', turns: [], delta: { total: 9, changed: [] } })).toBeNull();
+  });
+
+  it('runtime-only summary changes converge with reload despite an unchanged cursor and stale tail', () => {
+    const initial: SessionTranscript = {
+      sessionId: 's1', cursor: 'e1:2',
+      turns: [{ turnIndex: 0, messages: [{ ...message(''), type: 'tool', toolName: 'Agent', subagentId: 'child' }] }],
+      subagentSummaries: [{ id: 'child', toolCount: 0, hasDetails: false, structurallyOpen: true, status: 'running' }],
+    };
+    expect(buildTranscriptRows(initial, [], { running: false }).find(row => row.kind === 'subagent')).toMatchObject({ status: 'running' });
+    const subagentSummaries: SessionTranscript['subagentSummaries'] = [
+      { ...initial.subagentSummaries![0], status: 'completed', structurallyOpen: false },
+    ];
+    const merged = mergeTranscriptDelta(initial, {
+      sessionId: 's1', turns: [], cursor: initial.cursor, subagentSummaries, delta: { total: 1, changed: [] },
+    })!;
+    const staleTail = [{ sessionId: 's1', role: 'assistant' as const, text: 'late', ts: '2026-09-09T00:00:01Z', subagentId: 'child' }];
+    const status = (transcript: SessionTranscript, tail = staleTail) =>
+      buildTranscriptRows(transcript, tail, { running: true }).find(row => row.kind === 'subagent');
+    expect(status(merged)).toMatchObject({ status: 'done' });
+    expect(status({ ...initial, subagentSummaries }, [])).toMatchObject({ status: 'done' });
+    expect(initial.subagentSummaries![0].status).toBe('running');
   });
 
   it('round-trips turns through the flat form', () => {

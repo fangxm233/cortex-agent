@@ -715,6 +715,7 @@ test('a subagent stays open beside the main agent until its end is reported', as
   await repo.appendSubagentEnd(sid, { subagentId: child.id, status: 'completed', ts: '2026-09-08T00:00:07.000Z' });
   const sealed = await repo.getCompactHistory(sid);
   assert.equal(sealed!.subagentSummaries[0].structurallyOpen, false, 'a reported end seals the block');
+  assert.equal(sealed!.subagentSummaries[0].status, 'completed');
   // The end record carries no prose and must never surface as a transcript row.
   assert.deepEqual(
     sealed!.events.map((event) => event.type),
@@ -725,7 +726,7 @@ test('a subagent stays open beside the main agent until its end is reported', as
   assert.equal(history!.events.some((event) => (event as { subagentEnded?: string }).subagentEnded), false);
 });
 
-test('a killed subagent is sealed by its reported end, and a new user turn seals unreported leftovers', async () => {
+test('reported ends survive synthetic turns; a human turn closes only legacy unreported leftovers', async () => {
   const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
   const sid = 'sess-bg-subagent-boundary';
   const killed = { id: 'bg-killed', type: 'explore', description: 'Killed sweep' } as const;
@@ -747,6 +748,10 @@ test('a killed subagent is sealed by its reported end, and a new user turn seals
     [[killed.id, false], [silent.id, true]],
   );
 
+  await repo.appendUser(sid, { text: 'sibling result', systemOrigin: 'agent-result', ts: '2026-09-08T01:04:00.000Z' });
+  const synthetic = await repo.getCompactHistory(sid);
+  assert.deepEqual(synthetic!.subagentSummaries.map(summary => [summary.id, summary.structurallyOpen, summary.status]),
+    [[killed.id, false, 'killed'], [silent.id, true, undefined]]);
   await repo.appendUser(sid, { text: 'next question', ts: '2026-09-08T01:05:00.000Z' });
   const nextTurn = await repo.getCompactHistory(sid);
   assert.deepEqual(

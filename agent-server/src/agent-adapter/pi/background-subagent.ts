@@ -4,6 +4,8 @@ import type { Invocation, RunChildFn } from '@core/agents/subagent/types.js';
 export interface BackgroundSubagentRequest {
   invocation: Invocation;
   runChild: RunChildFn;
+  /** Original tool-call identity used by the runner and attribution channel, not the registry ID. */
+  toolCallId: string;
   /** Attribution sink for the children, already bound to this `agent` call. */
   channel?: SubagentChannel;
   /** Owning Cortex session and its conduit — where the answer is delivered. */

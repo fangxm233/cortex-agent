@@ -464,6 +464,21 @@ async function fullTranscript(
   );
 }
 
+/** Never mutate resident history: lifecycle changes can arrive without a new history cursor.
+ *  Persisted ends outrank runtime; absence from the registry is not evidence of completion. */
+function authoritativeSubagentSummaries(
+  deps: UiServiceDeps,
+  sessionId: string,
+  summaries: NonNullable<SessionTranscript['subagentSummaries']>,
+): NonNullable<SessionTranscript['subagentSummaries']> {
+  const statuses = deps.getSubagentChildStatuses?.(sessionId);
+  return summaries.map(summary => {
+    if (summary.status && summary.status !== 'running') return { ...summary };
+    const status = statuses?.get(summary.id);
+    return status ? { ...summary, status, structurallyOpen: status === 'running' } : { ...summary };
+  });
+}
+
 async function compactTranscript(
   deps: UiServiceDeps,
   params: SessionsTranscriptParams,
@@ -472,7 +487,7 @@ async function compactTranscript(
   const { value: history, cursor } = await compactHistoryAt(deps, params.sessionId);
   const events = history?.events ?? [];
   const pendingUserMessages = pendingMessages(pendingSnapshot, history?.committedSourceIds);
-  const subagentSummaries = history?.subagentSummaries ?? [];
+  const subagentSummaries = authoritativeSubagentSummaries(deps, params.sessionId, history?.subagentSummaries ?? []);
   // Pending messages and subagent summaries are per-session, not per-row, and small: they ride
   // every response whole, so a delta only ever has to describe transcript ROWS.
   const delta = cursor === undefined

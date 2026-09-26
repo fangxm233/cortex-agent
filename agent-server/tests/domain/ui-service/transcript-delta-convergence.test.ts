@@ -26,6 +26,50 @@ function applyDelta(rows: FlatRow[], transcript: SessionTranscript): FlatRow[] {
   return next;
 }
 
+test('quiet child authority converges across human turns, cold reads and runtime-only deltas', async () => {
+  const repo = new ConversationHistoryRepo(DIR);
+  const sid = 'sess-child-authority';
+  const states = new Map<string, 'running' | 'completed' | 'failed' | 'killed'>([['a', 'running'], ['b', 'completed']]);
+  const deps = { conversationHistory: repo, getSubagentChildStatuses: () => new Map(states) } as unknown as UiServiceDeps;
+  const read = (since?: string) => handleSessionsTranscript(deps, { sessionId: sid, compactSubagents: true, since });
+  await repo.clear(sid);
+  await repo.appendUser(sid, { text: 'start' });
+  await repo.appendTool(sid, { toolName: 'agent', toolInput: 'parallel', subagentSpawns:
+    ['a', 'b'].map(id => ({ id, description: id, prompt: 'inspect' })) });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'waiting', subagent: { id: 'a' } });
+  await repo.appendSubagentEnd(sid, { subagentId: 'b', status: 'completed' });
+  let previous = await read();
+  let rows = flatten(previous);
+  for (const append of [
+    () => repo.appendUser(sid, { text: 'B result', systemOrigin: 'agent-result' }),
+    () => repo.appendUser(sid, { text: 'human question' }),
+    () => repo.appendAssistant(sid, { text: 'parent reply' }),
+  ]) {
+    await append();
+    const delta = await read(previous.cursor);
+    rows = applyDelta(rows, delta);
+    const cold = await handleSessionsTranscript({ ...deps, conversationHistory: new ConversationHistoryRepo(DIR) },
+      { sessionId: sid, compactSubagents: true });
+    assert.deepEqual(rows, flatten(cold));
+    assert.deepEqual(delta.subagentSummaries, cold.subagentSummaries);
+    assert.deepEqual(cold.subagentSummaries!.map(s => [s.id, s.status]), [['a', 'running'], ['b', 'completed']]);
+    previous = delta;
+  }
+  for (const status of ['completed', 'failed', 'killed'] as const) {
+    states.set('a', status);
+    states.set('b', 'running'); // stale runtime must not reopen a persisted end
+    const delta = await read(previous.cursor);
+    assert.equal(delta.cursor, previous.cursor, 'runtime updates do not need a history revision');
+    assert.deepEqual(delta.delta?.changed, []);
+    assert.deepEqual(delta.subagentSummaries!.map(s => [s.id, s.status]), [['a', status], ['b', 'completed']]);
+    assert.deepEqual(delta.subagentSummaries, (await read()).subagentSummaries);
+  }
+  states.clear();
+  const absent = await read(previous.cursor);
+  assert.equal(absent.subagentSummaries![0].status, undefined);
+  assert.equal(absent.subagentSummaries![0].structurallyOpen, false, 'unknown old children retain the human-turn fallback');
+});
+
 test('replaying deltas converges on exactly the whole transcript, append after append', async () => {
   const repo = new ConversationHistoryRepo(DIR);
   const sid = 'sess-delta-convergence';

@@ -1,4 +1,4 @@
-import type { HistoryEvent, SessionHistory } from './conversation-history-repo.js';
+import type { HistoryEvent, SessionHistory, SubagentEndStatus } from './conversation-history-repo.js';
 
 export interface CompactConversationEvent extends HistoryEvent {
   elapsedMs: number | null;
@@ -12,6 +12,8 @@ export interface CompactSubagentSummary {
   toolCount: number;
   hasDetails: boolean;
   structurallyOpen: boolean;
+  /** Explicit lifecycle evidence; absent on legacy structural inferences. */
+  status?: 'running' | SubagentEndStatus;
 }
 
 export interface CompactConversationHistory {
@@ -110,18 +112,9 @@ function updateSummaryFromSpawn(summary: SummaryState, spawn: NonNullable<Histor
   if (!summary.description && spawn.description) summary.description = spawn.description;
 }
 
-/**
- * Close every open subagent at a USER-TURN boundary — the one structural fact that survives without
- * a reported end: whatever a previous turn spawned is not what the new turn is waiting on.
- *
- * Deliberately NOT "the main agent acted again". That inference is only valid for a foreground
- * subagent, which blocks its parent; a backgrounded one runs BESIDE the main agent, so main-agent
- * rows interleave with its own throughout its life and closing on them marked a working subagent
- * finished within seconds of every spawn (and reopened it on its next row, which is what made the
- * block's status dot flicker for the whole run). The authoritative end is `subagent-end`, applied
- * in `projectCompactHistory`; this boundary is only the backstop for histories that carry none
- * (older CLIs, resumed sessions whose `task_started` this process never saw).
- */
+/** Legacy orphan fallback only: a human turn closes unreported leftovers, not known live children.
+ *  Runtime authority is overlaid at the query boundary, outside this pure cached projection.
+ *  Synthetic user turns and main-agent output prove nothing about a background child's lifecycle. */
 function consumeTurnBoundary(state: CompactState): void {
   for (const summary of state.summaries.values()) summary.structurallyOpen = false;
 }
@@ -175,7 +168,7 @@ function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: num
 function consumeCompactEvent(state: CompactState, event: HistoryEvent, rev = 0): void {
   const elapsed = elapsedMs(state.previousMs, event.ts);
   state.previousMs = nextPreviousMs(event.ts);
-  if (event.type === 'user') consumeTurnBoundary(state);
+  if (event.type === 'user' && !event.systemOrigin) consumeTurnBoundary(state);
   openSpawnSummaries(state, event);
   if (event.subagentId && !isStructuralSpawnTool(event)) consumeChildEvent(state, event);
   if (keepCompactEvent(state, event)) pushCompactEvent(state, event, elapsed, rev);
@@ -202,7 +195,9 @@ function keepDetailEvent(event: HistoryEvent): boolean {
 function sealReportedEnds(state: CompactState, history: SessionHistory): void {
   for (const end of history.subagentEnds ?? []) {
     const summary = state.summaries.get(end.id);
-    if (summary) summary.structurallyOpen = false;
+    if (!summary) continue;
+    summary.structurallyOpen = false;
+    summary.status = end.status;
   }
 }
 

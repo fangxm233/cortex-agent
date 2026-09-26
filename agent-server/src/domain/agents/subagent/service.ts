@@ -4,7 +4,7 @@ import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/suba
 import { subagentEndNotice } from '../../../agent-adapter/pi/child-events.js';
 import type { SubagentEndStatus } from '@core/agents/subagent/types.js';
 import { resolveInvocation } from '@core/agents/subagent/schema.js';
-import { startSubagentRun, type SubagentRunView } from './registry.js';
+import { startSubagentRun, trackSubagentChildren, type SubagentRunView } from './registry.js';
 import { runSubagent, type SubagentParentContext } from './runner.js';
 import type { RunChildFn } from '@core/agents/subagent/types.js';
 
@@ -69,7 +69,7 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
             signal: childSignal,
             onNotice: request.onNotice,
           });
-          seal(endStatusOf(result));
+          seal(childSignal?.aborted ? 'killed' : endStatusOf(result));
           return result;
         } catch (error) {
           if (childSignal?.aborted) { seal('killed'); throw error; }
@@ -77,7 +77,7 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
           return failedChildResult(task, error);
         }
       };
-      return runInvocation(invocation, runChild, signal);
+      return runInvocation(invocation, trackSubagentChildren(runId, index => `${runId}#${index}`, runChild), signal);
     },
   });
 }

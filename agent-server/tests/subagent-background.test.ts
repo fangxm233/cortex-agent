@@ -12,7 +12,7 @@ import {
   deliverBackgroundSubagentResult, holdSessionForBackgroundRun, startBackgroundSubagentRun,
 } from '../src/orchestration/subagent-delivery.js';
 import {
-  _resetSubagentRuns, startSubagentRun, waitForSubagentRun,
+  _resetSubagentRuns, startSubagentRun, waitForSubagentRun, getSubagentChildStatuses, listSubagentRuns,
 } from '../src/domain/agents/subagent/registry.js';
 import { beginForegroundSession } from '../src/orchestration/agent-runner.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
@@ -358,7 +358,53 @@ test('PI\'s agent tool hands a backgrounded call to the shared registry, session
   assert.equal(calls[0].sessionId, SESSION);
   assert.equal(calls[0].conduit, CHANNEL);
   assert.equal(calls[0].invocation.mode, 'single');
+  assert.equal(calls[0].toolCallId, 'call-1');
   assert.equal(typeof calls[0].runChild, 'function');
+});
+
+test.each(['completed', 'failed', 'killed'] as const)('PI background authority uses tool-call IDs for %s children', async (status) => {
+  const { startBackgroundSubagent } = await import('../src/orchestration/pi-background-subagent.js');
+  const gate = deferred<any>();
+  const handle = await startBackgroundSubagent({
+    invocation: invocation(), toolCallId: 'call-exact', sessionId: SESSION, conduit: undefined,
+    runChild: () => gate.promise,
+  });
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-exact#0', 'running']]);
+  gate.resolve({ description: 'd', prompt: 'p', subagentType: 'general-purpose', output: '', usage: emptyUsage(),
+    stopReason: { completed: 'stop', failed: 'error', killed: 'aborted' }[status] });
+  await waitForSubagentRun(handle.id, 1000);
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-exact#0', status]]);
+});
+
+test('PI tool, channel and registry agree on a stopped chain child without starting the next link', async () => {
+  const { startBackgroundSubagent, stopBackgroundSubagent } = await import('../src/orchestration/pi-background-subagent.js');
+  const gate = deferred<void>();
+  const notices: any[] = [];
+  const createSession = vi.fn(async () => ({
+    session: {
+      subscribe: (listener: (event: unknown) => void) => {
+        listener({ type: 'tool_execution_start', toolCallId: 'read', toolName: 'Read', args: {} });
+        return () => {};
+      },
+      prompt: () => gate.promise,
+      abort: async () => gate.resolve(),
+    },
+    dispose: () => {},
+  }));
+  const tool = createSubagentTool(piDeps({ createSession, startBackgroundSubagent, onEvent: (notice: unknown) => notices.push(notice) }));
+  const foreground = new AbortController();
+  await tool.execute('call-chain', { chain: [invocation().tasks[0], invocation().tasks[0]], run_in_background: true } as any,
+    foreground.signal, () => {}, { cwd: '/tmp' } as any);
+  foreground.abort(); // the already-returned tool no longer owns the background children
+  const run = listSubagentRuns(SESSION)[0];
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-chain#0', 'running']]);
+  await stopBackgroundSubagent(run.id);
+  await waitForSubagentRun(run.id, 1000);
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-chain#0', 'killed']]);
+  assert.equal(createSession.mock.calls.length, 1);
+  assert.deepEqual(notices.map(n => [n.ref, n.kind, n.status]), [
+    ['call-chain#0', 'tool_use', undefined], ['call-chain#0', 'end', 'killed'],
+  ]);
 });
 
 test('PI refuses run_in_background rather than silently blocking when it cannot background', async () => {
