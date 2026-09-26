@@ -123,6 +123,16 @@ An ordinary template slot can use its agent defaults or customize a complete plu
 
 To change servers, open the daemon or connectivity status, choose **Disconnect**, and enter the new endpoint and token on the connection screen.
 
+## Desktop and browser notifications
+
+**Settings → Notifications → System notifications** controls notifications on this device and defaults to on. Browser permission is separate: click **Allow notifications** to grant it. Browsers require HTTPS or localhost and a supported Notifications API; a denied permission must be changed in the browser's site settings.
+
+While the desktop app or browser page is running and connected, completed replies and system notices use operating-system notifications when the window is hidden or unfocused. In the foreground, Cortex keeps its in-app notifications and suppresses replies for the conversation being viewed. Disabling system notifications, missing permission, or a delivery error leaves the in-app notifications available.
+
+Clicking a session notification restores/focuses the app or browser page and opens that conversation. A system notice without a conversation only focuses the window. Desktop click routing requires the native notification bridge in the installed app; a frontend update alone cannot add it to an older shell. Switching servers invalidates pending desktop notification targets.
+
+Desktop and browser notifications require the app or page to remain running; closing it stops delivery. Browser tabs receive events independently. System notification settings, Do Not Disturb, and Linux notification-server/window-manager support can restrict display, click actions, or focus. Some mobile browsers do not support page-created notifications and keep the in-app fallback. Android has its own background service, described below.
+
 ## Android interface
 
 Android uses four bottom tabs: Sessions, Threads, Tasks, and Project. Session chat, plan review, thread details, task details, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens. The Android back action closes overlays first, then returns through the app's navigation stack.
