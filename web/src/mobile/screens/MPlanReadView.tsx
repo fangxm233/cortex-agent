@@ -55,7 +55,7 @@ export interface MPlanReadViewProps {
 
 export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPlanReadViewProps): JSX.Element {
   const pending = model.status === 'pending';
-  // Furthest-seen reading progress (6b: main button shows 已读 N% until read to the bottom).
+  // Furthest-seen reading progress, displayed in the header progress bar.
   const [pct, setPct] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const onScroll = (): void => {
