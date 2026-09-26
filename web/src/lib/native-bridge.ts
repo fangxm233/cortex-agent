@@ -1,3 +1,7 @@
+// input:  Tauri global IPC and event APIs
+// output: Typed native commands, events and mobile actions
+// pos:    Safe native bridge for web and shell capabilities
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 type NativeArgs = Record<string, unknown>;
 type NativeUnlisten = () => unknown;
 type NativeEventHandler = (event: unknown) => void;
@@ -49,7 +53,20 @@ export interface NativeNotificationAction {
   approvalId?: string;
 }
 
+export interface DesktopNotificationAction {
+  actionId: string;
+  serverUrl: string;
+  sessionId?: string;
+  projectId?: string;
+}
+
 interface NativeCommandMap {
+  desktop_notifications_post: {
+    args: { title: string; body: string; data?: { sessionId?: string; projectId?: string } };
+    result: void;
+  };
+  desktop_notifications_pending: { args: undefined; result: { actions: DesktopNotificationAction[] } };
+  desktop_notifications_ack: { args: { actionId: string }; result: void };
   setup_claude_status: { args: undefined; result: { installed: boolean; version: string | null } };
   setup_install_claude: { args: undefined; result: { installed: boolean; version: string | null } };
   mobile_notifications_configure: {
@@ -121,7 +138,8 @@ type CommandArgs<K extends NativeCommand> = NativeCommandMap[K]['args'] extends 
   ? [args?: undefined]
   : [args: NativeCommandMap[K]['args']];
 type CommandResult<K extends NativeCommand> = NativeCommandMap[K]['result'];
-type NativeEventName = 'app-update-available' | 'frontend-update-staged' | 'native-menu' | 'setup-log';
+type NativeEventName = 'app-update-available' | 'frontend-update-staged' | 'native-menu' | 'setup-log'
+  | 'desktop-notification-action';
 
 function readNativeGlobal(): NativeGlobal | undefined {
   const value: unknown = Reflect.get(globalThis, '__TAURI__');

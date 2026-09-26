@@ -1,3 +1,7 @@
+// input:  react-test-renderer, MNotificationMount
+// output: Android and browser mobile notification tests
+// pos:    Mobile notification lifecycle and routing coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseNotificationFeedOptions } from '@/features/notifications/useNotificationFeed';
@@ -43,6 +47,7 @@ function item(): NotificationItem {
 let mounted: ReactTestRenderer;
 beforeEach(async () => {
   vi.clearAllMocks();
+  vi.stubGlobal('__CORTEX_MOBILE__', true);
   h.pathname = '/m/project';
   h.toasts = [];
   h.status.mockResolvedValue({ scope: 'current' });
@@ -128,6 +133,32 @@ describe('mobile notification delivery', () => {
     expect(h.visible).toHaveBeenLastCalledWith(null);
     act(() => mounted.unmount());
     expect(h.visible).toHaveBeenLastCalledWith(null);
+  });
+
+  it('uses the browser adapter in mobile browser layout without Android lifecycle calls', async () => {
+    act(() => mounted.unmount());
+    vi.clearAllMocks();
+    vi.stubGlobal('__CORTEX_MOBILE__', false);
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { focus: vi.fn() }));
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => false });
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    let click: (() => void) | null = null;
+    vi.stubGlobal('Notification', class {
+      static permission = 'granted';
+      set onclick(handler: (() => void) | null) { click = handler; }
+      close() {}
+    });
+    h.pathname = '/m/session/s1';
+    await act(async () => { mounted = create(<MNotificationMount />); });
+    expect(h.feed?.isSessionOpen('s1')).toBe(false);
+    await expect(h.feed?.externalDelivery?.(item())).resolves.toBe(true);
+    await act(async () => { (click as (() => void) | null)?.(); });
+    expect(h.navigate).toHaveBeenCalledWith('/m/session/s1');
+    expect(h.project).toHaveBeenCalledWith('atlas');
+    expect(h.lifecycle).not.toHaveBeenCalled();
+    expect(h.visible).not.toHaveBeenCalled();
+    expect(h.send).not.toHaveBeenCalled();
   });
 
   it('publishes an in-app reply onto the shared queue and routes when activated', () => {

@@ -1,4 +1,9 @@
+// input:  Runtime config, local notifications, mobile controls
+// output: MNotificationsScreen, MAdvancedScreen
+// pos:    Mobile notification and advanced settings screens
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
+import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
@@ -179,7 +184,7 @@ function RuntimeScreen({ kind }: { kind: 'notifications' | 'advanced' }) {
     ? <NotificationsContent snapshot={query.data} write={write} />
     : <AdvancedContent snapshot={query.data} write={write} />;
   return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
-    {kind === 'notifications' && <MNativeNotificationsCard />}
+    {kind === 'notifications' && <><MNativeNotificationsCard /><LocalNotificationsCard /></>}
     {content}
   </MSettingsPage>;
 }

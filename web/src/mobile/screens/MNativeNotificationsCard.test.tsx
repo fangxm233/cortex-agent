@@ -1,8 +1,13 @@
+// input:  Mobile notification settings and native lifecycle
+// output: Native and browser settings visibility tests
+// pos:    Mobile device notification settings regression coverage
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ status: vi.fn(), invoke: vi.fn(), permission: vi.fn(), locale: 'en', mobile: true }));
 vi.mock('@/lib/native-bridge', () => ({ mobileNotificationStatus: h.status, safeInvoke: h.invoke }));
-vi.mock('@/lib/desktop-config', () => ({ isMobileShell: () => h.mobile }));
+vi.mock('@/lib/desktop-config', () => ({ isMobileShell: () => h.mobile,
+  isDesktopShell: () => false, isNativeShell: () => h.mobile }));
 vi.mock('@/features/notifications/os-notify', () => ({ ensureOsNotifyPermission: h.permission, refreshOsNotifyPermission: h.permission }));
 vi.mock('@/i18n', async () => {
   const { en, zh } = await import('@/i18n/vocab');
@@ -50,12 +55,14 @@ describe('native device notification settings', () => {
     expect(renderer.root.findByProps({ role: 'switch' }).props['aria-checked']).toBe(false);
   });
 
-  it('hides the local card on unsupported old APKs and browsers', async () => {
+  it('hides unsupported old-APK controls but exposes separate browser settings', async () => {
     off(); h.status.mockResolvedValue(null);
     await act(async () => { off = startMobileNotifications('en'); await new Promise((done) => setTimeout(done, 0)); });
     expect(renderer.root.findAllByProps({ role: 'switch' })).toHaveLength(0);
     h.mobile = false;
     act(() => renderer.update(<MNotificationsScreen />));
-    expect(renderer.root.findAllByProps({ role: 'switch' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ role: 'switch' })).toHaveLength(1);
+    expect(renderer.root.findByProps({ role: 'switch' }).props['aria-checked']).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Unavailable');
   });
 });

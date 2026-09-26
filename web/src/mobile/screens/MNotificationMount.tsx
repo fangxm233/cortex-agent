@@ -1,4 +1,10 @@
+// input:  Native mobile lifecycle, shared feed, browser mount
+// output: MNotificationMount
+// pos:    Selects native Android or browser mobile notifications
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef } from 'react';
+import { isMobileShell } from '@/lib/desktop-config';
+import { MBrowserNotificationMount } from './MBrowserNotificationMount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';
 import { useLang } from '@/i18n';
@@ -74,7 +80,7 @@ function useNativeVisibleSession(): void {
   }, [sessionId]);
 }
 
-export function MNotificationMount() {
+function MNativeNotificationMount() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { setCurrentProject } = useCurrentProject();
@@ -94,4 +100,8 @@ export function MNotificationMount() {
   }, [openSession, toast]);
   useNotificationFeed({ isSessionOpen, publish, externalDelivery });
   return <MNotificationBanners />;
+}
+
+export function MNotificationMount() {
+  return isMobileShell() ? <MNativeNotificationMount /> : <MBrowserNotificationMount />;
 }
