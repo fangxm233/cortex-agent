@@ -52,7 +52,7 @@ Mobile screens with native Android and ordinary browser integrations.
 | MNotesProjectCard.tsx | module | Provide MNotes Project Card |
 | MNotesScreen.tsx | module | Provide MNotes Screen |
 | MNotesView.tsx | module | Provide MNotes View |
-| MNotificationMount.test.tsx | test | Test MNotification Mount |
+| MNotificationMount.test.tsx | test | Verify native and browser notification delivery |
 | MNotificationMount.tsx | entry | Select native or browser mobile notifications |
 | MNotificationToaster.tsx | module | Provide MNotification Toaster |
 | MPlanReadScreen.tsx | module | Provide MPlan Read Screen |

@@ -75,7 +75,8 @@ beforeEach(() => {
   harness.notices = [];
   vi.stubGlobal('Notification', class {
     static permission = 'granted'; onclick = null; close = vi.fn();
-    constructor() { harness.notices.push(this); }
+    onshow: (() => void) | null = null;
+    constructor() { harness.notices.push(this); queueMicrotask(() => this.onshow?.()); }
   });
   harness.sessions.mockResolvedValue([{ sessionId: 'session-1', projectId: 'real-project' }]);
   harness.pathname = '/workbench';

@@ -146,6 +146,8 @@ describe('mobile notification delivery', () => {
     let click: (() => void) | null = null;
     vi.stubGlobal('Notification', class {
       static permission = 'granted';
+      onshow: (() => void) | null = null;
+      constructor() { queueMicrotask(() => this.onshow?.()); }
       set onclick(handler: (() => void) | null) { click = handler; }
       close() {}
     });

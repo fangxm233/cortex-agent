@@ -6,11 +6,11 @@ Live notification feeds, OS delivery adapters and local preferences.
 |---|---|---|
 | NotificationMount.test.tsx | test | Test Notification Mount |
 | NotificationMount.tsx | entry | Mount desktop-layout notification delivery |
-| browser-notifications.ts | adapter | Deliver and clean up browser notifications |
+| browser-notifications.ts | adapter | Confirm browser delivery and clean up notices |
 | desktop-notifications.test.ts | test | Test desktop notifications |
-| desktop-notifications.ts | adapter | Post native notices and drain retained clicks |
+| desktop-notifications.ts | adapter | Post native notices and retry retained clicks |
 | local-notification-state.ts | state | Persist device-local notification preference |
-| local-notifications.test.ts | test | Test local notifications |
+| local-notifications.test.ts | test | Verify delivery errors, clicks and local opt-out |
 | mobile-notifications.test.ts | test | Test mobile notifications |
 | mobile-notifications.ts | module | Provide mobile notifications |
 | notification-connection.ts | utility | Guard clicks against connection changes |

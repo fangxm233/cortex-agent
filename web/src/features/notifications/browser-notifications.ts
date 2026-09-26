@@ -1,12 +1,15 @@
 // input:  Notification API, connection guard
-// output: Browser permission and notification adapter
-// pos:    Browser-only OS delivery with disposable click handlers
+// output: Browser permission and confirmed delivery adapter
+// pos:    Browser OS delivery with disposable click handlers
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { isNativeShell } from '@/lib/desktop-config';
 import { notificationConnectionGuard } from './notification-connection';
 import type { OsNotificationSpec } from './os-notify';
 
 export type BrowserPermission = NotificationPermission | 'unsupported';
+type Activate = (current: () => boolean) => void | Promise<void>;
+type Notices = Map<Notification, () => void>;
+
 export function browserPermission(): BrowserPermission {
   if (isNativeShell() || !globalThis.isSecureContext || typeof Notification !== 'function') return 'unsupported';
   return Notification.permission;
@@ -17,29 +20,41 @@ export async function requestBrowserPermission(): Promise<BrowserPermission> {
   try { return await Notification.requestPermission(); } catch { return browserPermission(); }
 }
 
+function watchNotice(notice: Notification, notices: Notices, activate: Activate, current: () => boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      notice.onclick = null; notice.onclose = null; notice.onshow = null; notice.onerror = null;
+      notices.delete(notice);
+      resolve(false);
+    };
+    notices.set(notice, cleanup);
+    notice.onshow = () => resolve(true);
+    notice.onclose = cleanup;
+    notice.onerror = () => { cleanup(); notice.close(); };
+    notice.onclick = () => {
+      if (!current()) return;
+      resolve(true);
+      window.focus();
+      void Promise.resolve(activate(current)).catch(() => {});
+      notice.close();
+    };
+  });
+}
+
 export function createBrowserNotifications() {
-  const notices = new Set<Notification>();
+  const notices: Notices = new Map();
   let disposed = false;
-  const send = (spec: OsNotificationSpec, activate: (current: () => boolean) => void | Promise<void>): boolean => {
+  const send = async (spec: OsNotificationSpec, activate: Activate): Promise<boolean> => {
     if (disposed || browserPermission() !== 'granted') return false;
     const sameConnection = notificationConnectionGuard();
     const current = () => !disposed && sameConnection();
     try {
-      const notice = new Notification(spec.title, { body: spec.body });
-      notices.add(notice);
-      notice.onclose = () => { notice.onclick = null; notices.delete(notice); };
-      notice.onclick = () => {
-        if (!current()) return;
-        window.focus();
-        void Promise.resolve(activate(current)).catch(() => {});
-        notice.close();
-      };
-      return true;
+      return await watchNotice(new Notification(spec.title, { body: spec.body }), notices, activate, current);
     } catch { return false; }
   };
   const dispose = () => {
     disposed = true;
-    notices.forEach((notice) => { notice.onclick = null; notice.onclose = null; notice.close(); });
+    notices.forEach((cleanup, notice) => { cleanup(); notice.close(); });
     notices.clear();
   };
   return { send, dispose };
