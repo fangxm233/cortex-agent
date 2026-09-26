@@ -1,16 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "test-session"
-  },
-  {
-    "type": "rate_limit",
-    "raw": {
-      "status": "allowed",
-      "isUsingOverage": false
-    }
-  },
-  {
     "type": "turn_progress",
     "numTurns": 1
   },

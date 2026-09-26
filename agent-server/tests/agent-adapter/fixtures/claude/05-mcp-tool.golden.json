@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "test-session"
-  },
-  {
     "type": "tool_use",
     "toolUseId": "toolu_05a",
     "name": "mcp__cortex__remote_read",

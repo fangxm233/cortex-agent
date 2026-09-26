@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "test-session"
-  },
-  {
     "type": "tool_use",
     "toolUseId": "toolu_01",
     "name": "Bash",

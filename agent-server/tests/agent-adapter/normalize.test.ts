@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { replayClaudeTurns } from './replay-harness.js';
+import { extractAskUserQuestions } from '../../src/agent-adapter/claude/event-parser.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 
 const json = (value: unknown): string => JSON.stringify(value);
@@ -45,9 +46,10 @@ test('Claude engine: init and other system lines do not duplicate the engine sta
     result(),
   ]]);
 
-  assert.deepEqual(eventsOf(replay.normalized, 'session_started'), [
-    { type: 'session_started', sessionId: 'test-session' },
+  assert.deepEqual(replay.events.filter((event) => event.type === 'engine_started'), [
+    { type: 'engine_started', backendSessionId: 'test-session' },
   ]);
+  assert.deepEqual(eventsOf(replay.normalized, 'session_started'), []);
 });
 
 test('Claude engine: turn-complete cost uses the session cumulative-cost delta', async () => {
@@ -88,9 +90,8 @@ test('Claude engine: rate-limit lines reach the adapter reporter seam', async ()
     result(),
   ]]);
 
-  assert.deepEqual(eventsOf(replay.normalized, 'rate_limit'), [
-    { type: 'rate_limit', raw: rawInfo },
-  ]);
+  assert.deepEqual(replay.rateLimits, [rawInfo]);
+  assert.deepEqual(eventsOf(replay.normalized, 'rate_limit'), []);
 });
 
 test('Claude engine: AskUserQuestion remains a production tool_use event', async () => {
@@ -106,7 +107,16 @@ test('Claude engine: AskUserQuestion remains a production tool_use event', async
   assert.deepEqual(eventsOf(replay.normalized, 'tool_use'), [{
     type: 'tool_use', toolUseId: 'tu-ask', name: 'AskUserQuestion', input,
   }]);
-  assert.equal(eventsOf(replay.normalized, 'ask_user_question').length, 0);
+});
+
+test('Claude question extractor: legacy reference contract preserves question metadata', () => {
+  const questions = [{ question: 'Go?', multi: false, options: ['yes', 'no'] }];
+  const metadata = extractAskUserQuestions({
+    message: { content: [{ type: 'tool_use', id: 'tu-ask', name: 'AskUserQuestion', input: { questions } }] },
+  }, 'test-session');
+  // This preserves the extractor contract, not a claim that raw AskUserQuestion lines
+  // populate result metadata: the turn machine currently does not collect it.
+  assert.deepEqual(metadata, [{ toolUseId: 'tu-ask', questions, sessionId: 'test-session' }]);
 });
 
 test('Claude engine: plan Write and ExitPlanMode retain production tool and derived events', async () => {

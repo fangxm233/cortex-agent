@@ -48,6 +48,8 @@ export function listFixtures(backend: 'claude' | 'pi'): string[] {
 export interface ClaudeReplay {
   /** Normalized events observed through the production engine's callback seam. */
   normalized: NormalizedEvent[];
+  /** Provider observations delivered to the adapter reporter, not the normalized stream. */
+  rateLimits: RateLimitObservation[];
   /** Run events observed from the same production engine run. */
   events: RunEvent[];
   result: AgentResult | null;
@@ -57,12 +59,13 @@ export interface ClaudeReplay {
 /** Replay one or more foreground turns through the real Claude engine/session seam. */
 export async function replayClaudeTurns(turns: readonly string[][]): Promise<ClaudeReplay> {
   const normalized: NormalizedEvent[] = [];
+  const rateLimits: RateLimitObservation[] = [];
   const events: RunEvent[] = [];
   let result: AgentResult | null = null;
   let error: Error | null = null;
   const { engine, session, close } = openClaudeTestEngine({
     onRateLimit: (info) => {
-      normalized.push({ type: 'rate_limit', raw: info });
+      rateLimits.push(info);
     },
   });
   let run: EngineRun | null = null;
@@ -77,10 +80,6 @@ export async function replayClaudeTurns(turns: readonly string[][]): Promise<Cla
       const collected = collectRun(run);
       done = collected.done;
       await tick();
-      const started = collected.events.find((event) => event.type === 'engine_started');
-      if (started?.type === 'engine_started') {
-        normalized.push({ type: 'session_started', sessionId: started.backendSessionId });
-      }
       for (const line of lines) {
         session.handleLine(line);
         await tick();
@@ -99,7 +98,7 @@ export async function replayClaudeTurns(turns: readonly string[][]): Promise<Cla
     if (done) await done;
     close();
   }
-  return { normalized, events, result, error };
+  return { normalized, rateLimits, events, result, error };
 }
 
 export async function replayClaudeFixture(name: string): Promise<NormalizedEvent[]> {
