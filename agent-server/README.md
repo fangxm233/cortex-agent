@@ -69,7 +69,7 @@ stage, not a polite suggestion.
 
 ## Quickstart
 
-Requirements: Node 20+. The PI backend ships inside the server package; the
+Requirements: Node ≥22.19.0. The PI backend ships inside the server package; the
 Claude Code backend is a separate install that `cortex init` performs for you.
 
 ```bash
