@@ -321,10 +321,12 @@ export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
 
   return (
     <MenuCard kind="selection" level={pane} placement={placement} align={align}>
-      {pane === 'root' && <RootPane props={props} shared={shared} />}
-      {pane === 'model' && <ModelPane props={props} shared={shared} />}
-      {pane === 'thinking' && <ThinkingPane props={props} shared={shared} />}
-      {pane === 'mode' && <ModePane props={props} shared={shared} />}
+      <div key={pane} className="selection-pane" data-pane={pane}>
+        {pane === 'root' && <RootPane props={props} shared={shared} />}
+        {pane === 'model' && <ModelPane props={props} shared={shared} />}
+        {pane === 'thinking' && <ThinkingPane props={props} shared={shared} />}
+        {pane === 'mode' && <ModePane props={props} shared={shared} />}
+      </div>
     </MenuCard>
   );
 }

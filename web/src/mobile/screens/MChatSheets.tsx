@@ -207,38 +207,40 @@ export function SelectionSheet({ vm, copy, pending, onClose, onPick }: {
 
   return (
     <MBottomSheet onClose={onClose} onBack={section ? back : undefined}>
-      {section ? (
-        <>
-          <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
-            <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
-            <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
-          </div>
-          <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
-          {section.key === 'model' && pending && <SheetNote text={copy.selectionPending} />}
-          {section.footer && <SheetNote text={section.footer} />}
-        </>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.profileSubtitle}</span></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-            {vm.sections[0] && (
-              <div>
-                <SectionRows section={vm.sections[0]} copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
-                {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
-              </div>
-            )}
-            <SheetCard>
-              {vm.rootRows.map((row, index) => (
-                <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
-              ))}
-              {vm.clearRow && (
-                <SelectionRow row={vm.clearRow} last copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
+      <div key={pane ?? 'root'} className="selection-pane" data-pane={pane ?? 'root'}>
+        {section ? (
+          <>
+            <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
+              <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
+              <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
+            </div>
+            <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
+            {section.key === 'model' && pending && <SheetNote text={copy.selectionPending} />}
+            {section.footer && <SheetNote text={section.footer} />}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.profileSubtitle}</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+              {vm.sections[0] && (
+                <div>
+                  <SectionRows section={vm.sections[0]} copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
+                  {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
+                </div>
               )}
-            </SheetCard>
-          </div>
-          <SheetNote text={copy.profileFooter} />
-        </>
-      )}
+              <SheetCard>
+                {vm.rootRows.map((row, index) => (
+                  <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
+                ))}
+                {vm.clearRow && (
+                  <SelectionRow row={vm.clearRow} last copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
+                )}
+              </SheetCard>
+            </div>
+            <SheetNote text={copy.profileFooter} />
+          </>
+        )}
+      </div>
     </MBottomSheet>
   );
 }

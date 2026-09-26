@@ -114,6 +114,25 @@ function renderSheet(pending = true) {
 }
 
 describe('SelectionSheet', () => {
+  it.each(['model', 'thinking'])('replays directional motion entering and leaving %s', (pane) => {
+    const { renderer, open } = renderSheet();
+    const shell = renderer.root.findByProps({ 'data-bottom-sheet': true });
+    const content = () => renderer.root.findByProps({ className: 'selection-pane' });
+    const root = content();
+    expect(root.props['data-pane']).toBe('root');
+    open(pane);
+    const child = content();
+    expect(child.props['data-pane']).toBe(pane);
+    expect(child).not.toBe(root);
+    act(() => renderer.root.findByProps({ 'data-selection-back': 'true' }).props.onClick());
+    expect(content().props['data-pane']).toBe('root');
+    expect(content()).not.toBe(root);
+    open(pane);
+    expect(content()).not.toBe(child);
+    expect(renderer.root.findByProps({ 'data-bottom-sheet': true })).toBe(shell);
+    act(() => renderer.unmount());
+  });
+
   it('a pane pick sends the row, returns to the root and leaves the sheet open', () => {
     const { renderer, onPick, onClose, open } = renderSheet();
     open('model');

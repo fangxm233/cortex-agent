@@ -166,6 +166,26 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
 
+  it.each(['model', 'thinking'])('replays directional motion entering and leaving %s', (pane) => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    open(renderer);
+    const shell = renderer.root.findByProps({ 'data-menu': 'selection' });
+    const content = () => renderer.root.findByProps({ className: 'selection-pane' });
+    const root = content();
+    expect(root.props['data-pane']).toBe('root');
+    drill(renderer, pane);
+    const child = content();
+    expect(child.props['data-pane']).toBe(pane);
+    expect(child).not.toBe(root);
+    act(() => renderer.root.findByProps({ 'data-selection-back': 'true' }).props.onClick({ stopPropagation: vi.fn() }));
+    expect(content().props['data-pane']).toBe('root');
+    expect(content()).not.toBe(root);
+    drill(renderer, pane);
+    expect(content()).not.toBe(child);
+    expect(renderer.root.findByProps({ 'data-menu': 'selection' })).toBe(shell);
+    act(() => renderer.unmount());
+  });
+
   it('uses a focusable button beside the anchored menu, not around its buttons', () => {
     const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
     const trigger = renderer.root.findByProps({ 'data-chip': 'selection' });

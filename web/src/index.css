@@ -328,6 +328,27 @@ textarea::placeholder {
   outline-offset: -2px;
 }
 
+/* Keyed pane contents replay this on navigation; the glass shell stays still. */
+.selection-pane {
+  --selection-pane-offset: 12px;
+  animation: selection-pane-in 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.selection-pane[data-pane='root'] {
+  --selection-pane-offset: -12px;
+}
+
+@keyframes selection-pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--selection-pane-offset));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .usage-meter-fill {
   transition: width 450ms ease-out;
 }
