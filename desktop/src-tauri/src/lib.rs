@@ -1,3 +1,7 @@
+// input:  Tauri, connection config, native shell modules
+// output: Native shell commands, state and application runtime
+// pos:    Desktop and Android shell composition root
+// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -36,6 +40,7 @@ mod native_menu;
 mod clipboard_history;
 mod creds;
 mod mobile_notifications;
+mod desktop_notifications;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
 // Android: the SPA is served over the `cortexui://` scheme from an on-disk frontend directory, and
 // the OTA updater (reqwest[rustls]/sha2/zip — all cross-compile cleanly for Android) stages new
@@ -571,6 +576,7 @@ pub fn run() {
             app_update: Mutex::new(None),
         })
         .manage(forward::ForwardState::default())
+        .manage(desktop_notifications::NotificationState::default())
         .invoke_handler(tauri::generate_handler![
             get_connection_config,
             set_connection_config,
@@ -578,6 +584,9 @@ pub fn run() {
             disconnect,
             mobile_notifications::mobile_notifications_configure,
             mobile_notifications::mobile_notifications_status,
+            desktop_notifications::desktop_notifications_post,
+            desktop_notifications::desktop_notifications_pending,
+            desktop_notifications::desktop_notifications_ack,
             update_checks::check_for_updates,
             update_checks::apply_frontend_update,
             update_checks::get_staged_update,

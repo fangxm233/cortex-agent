@@ -79,10 +79,16 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
+# Reuse the locked native notification backend without pulling it into Android.
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+notify-rust = "=4.18.0"
+
 # ── Windows-only dependencies ──
 # windows-sys: the clipboard listener in src/clipboard_history.rs (Win32 clipboard, process
 #   snapshot, a message-only window). Already in the lock through mio/socket2, so no new crate.
 [target.'cfg(target_os = "windows")'.dependencies]
+# Direct WinRT activation preserves body clicks (notify-rust loses Default).
+tauri-winrt-notification = "=0.7.3"
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
