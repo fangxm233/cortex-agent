@@ -40,6 +40,30 @@ export interface UseZoomReturn {
 }
 
 const ZOOM_STEP = 0.4;
+const TAP_MAX_MS = 250;
+const TAP_SLOP_PX = 10;
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_SLOP_PX = 40;
+
+/** A touch sample: time (ms) and screen position. */
+export interface TouchSample {
+  t: number;
+  x: number;
+  y: number;
+}
+
+const dist = (a: TouchSample, b: TouchSample): number => Math.hypot(b.x - a.x, b.y - a.y);
+
+/** A finished single-finger touch is a tap only if it was short and nearly stationary. */
+export function isTap(down: TouchSample, up: TouchSample): boolean {
+  return up.t - down.t <= TAP_MAX_MS && dist(down, up) <= TAP_SLOP_PX;
+}
+
+/** A touch-down completes a double-tap only if it lands soon after, and near, a previous tap
+ * (`lastTap` is that tap's release sample, or null when the previous touch was not a tap). */
+export function isDoubleTap(lastTap: TouchSample | null, down: TouchSample): boolean {
+  return lastTap !== null && down.t - lastTap.t <= DOUBLE_TAP_MS && dist(lastTap, down) <= DOUBLE_TAP_SLOP_PX;
+}
 
 /** Whether a wheel event should zoom (vs. let the scroll container scroll).
  * - 'css-zoom' (PDF in a scroll container): scroll on a plain wheel, zoom ONLY while Ctrl/⌘ is held.
@@ -276,11 +300,18 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
     };
 
     // --- Double-tap to toggle zoom (mobile) ---
-    let lastTap = 0;
+    // Only a real tap (short, stationary, single finger) arms the double-tap; a pan stroke or pinch
+    // does not, so quick successive pan strokes on a zoomed image no longer reset the zoom.
+    let lastTap: TouchSample | null = null;
+    let tapDown: TouchSample | null = null;
+    const sample = (t: Touch): TouchSample => ({ t: Date.now(), x: t.clientX, y: t.clientY });
     const onDoubleTap = (e: TouchEvent): void => {
-      if (e.touches.length !== 1) return;
-      const now = Date.now();
-      if (now - lastTap < 300) {
+      if (e.touches.length !== 1) { tapDown = null; lastTap = null; return; }
+      const down = sample(e.touches[0]);
+      tapDown = down;
+      if (isDoubleTap(lastTap, down)) {
+        tapDown = null;
+        lastTap = null;
         e.preventDefault();
         const cur = zoomRef.current;
         if (cur.scale > 1) {
@@ -301,7 +332,14 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
           }
         }
       }
-      lastTap = now;
+    };
+
+    const onTapEnd = (e: TouchEvent): void => {
+      if (tapDown && e.touches.length === 0 && e.changedTouches.length === 1) {
+        const up = sample(e.changedTouches[0]);
+        lastTap = isTap(tapDown, up) ? up : null;
+      }
+      tapDown = null;
     };
 
     // --- Single-finger pan when zoomed (transform mode only) ---
@@ -318,18 +356,25 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
     };
 
     const onPanMove = (e: TouchEvent): void => {
-      if (!panState.current || e.touches.length !== 1) return;
+      const pan = panState.current;
+      if (!pan || e.touches.length !== 1) return;
       e.preventDefault();
-      const dx = e.touches[0].clientX - panState.current.startX;
-      const dy = e.touches[0].clientY - panState.current.startY;
-      setZoom((prev) => ({
-        ...prev,
-        x: panState.current!.startTranslateX + dx,
-        y: panState.current!.startTranslateY + dy,
-      }));
+      // Resolve the target now, not inside the updater: when the render is deferred (throttled
+      // device) touchend has already cleared panState by the time the updater runs.
+      const x = pan.startTranslateX + e.touches[0].clientX - pan.startX;
+      const y = pan.startTranslateY + e.touches[0].clientY - pan.startY;
+      setZoom((prev) => (prev.scale > 1 ? { ...prev, x, y } : prev));
     };
 
     const onPanEnd = (): void => { panState.current = null; };
+
+    // The OS took the touch (e.g. a system edge gesture): drop every in-flight gesture.
+    const onTouchCancel = (): void => {
+      touchState.current = null;
+      panState.current = null;
+      tapDown = null;
+      lastTap = null;
+    };
 
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -339,6 +384,8 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
     el.addEventListener('touchmove', onPanMove, { passive: false });
     el.addEventListener('touchend', onTouchEnd);
     el.addEventListener('touchend', onPanEnd);
+    el.addEventListener('touchend', onTapEnd);
+    el.addEventListener('touchcancel', onTouchCancel);
 
     return () => {
       el.removeEventListener('wheel', onWheel);
@@ -349,6 +396,8 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
       el.removeEventListener('touchmove', onPanMove);
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchend', onPanEnd);
+      el.removeEventListener('touchend', onTapEnd);
+      el.removeEventListener('touchcancel', onTouchCancel);
     };
   }, [el, clamp, mode]);
 

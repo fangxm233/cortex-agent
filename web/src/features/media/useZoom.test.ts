@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wheelShouldZoom, anchoredZoom, anchoredPinch } from './useZoom';
+import { wheelShouldZoom, anchoredZoom, anchoredPinch, isTap, isDoubleTap } from './useZoom';
 
 describe('wheelShouldZoom', () => {
   it('css-zoom (PDF): plain wheel scrolls, does NOT zoom', () => {
@@ -87,5 +87,36 @@ describe('anchoredPinch (two-finger)', () => {
     const projected = project(newTopLeft, next.scale, pLocal);
     expect(projected.x).toBeCloseTo(mid.x, 6);
     expect(projected.y).toBeCloseTo(mid.y, 6);
+  });
+});
+
+// A double-tap is two short, stationary taps close in time and place — not any two touch-downs
+// within 300 ms. Counting touch-downs made quick successive pan strokes on a zoomed image reset it.
+describe('tap / double-tap classification', () => {
+  const at = (t: number, x = 100, y = 100) => ({ t, x, y });
+
+  it('a short, stationary touch is a tap', () => {
+    expect(isTap(at(0), at(120, 104, 97))).toBe(true);
+  });
+
+  it('a drag is not a tap, however short', () => {
+    expect(isTap(at(0), at(80, 160, 100))).toBe(false);
+  });
+
+  it('a long press is not a tap', () => {
+    expect(isTap(at(0), at(600))).toBe(false);
+  });
+
+  it('a touch-down soon after and near a tap completes a double-tap', () => {
+    expect(isDoubleTap(at(120), at(300, 110, 95))).toBe(true);
+  });
+
+  it('no preceding tap (e.g. the previous touch was a pan stroke) is never a double-tap', () => {
+    expect(isDoubleTap(null, at(100))).toBe(false);
+  });
+
+  it('a touch-down too late or too far away is not a double-tap', () => {
+    expect(isDoubleTap(at(0), at(450))).toBe(false);
+    expect(isDoubleTap(at(0), at(150, 250, 100))).toBe(false);
   });
 });
