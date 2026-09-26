@@ -81,6 +81,7 @@ _By trigger:_
 • thread: today $13.00 | month $13.00 | total $13.00`;
 
 beforeAll(async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW);
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-cost-report-test-'));
   costsPath = path.join(tmpDir, 'costs.jsonl');
   budgetPath = path.join(tmpDir, 'budget.json');
@@ -100,6 +101,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  vi.restoreAllMocks();
   if (originalCostsPath === undefined) delete process.env.CORTEX_COSTS_FILE;
   else process.env.CORTEX_COSTS_FILE = originalCostsPath;
   if (originalBudgetPath === undefined) delete process.env.CORTEX_BUDGET_FILE;
