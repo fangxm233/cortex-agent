@@ -43,7 +43,7 @@ These steps take you from a fresh checkout to a Cortex server serving the browse
 
 ### 1. Prerequisites
 
-- Node.js ≥ 20 and [pnpm](https://pnpm.io) (this repo is a pnpm workspace).
+- Node.js ≥ 22.19.0 and [pnpm](https://pnpm.io) (this repo is a pnpm workspace).
 - A running Cortex server (see [Quickstart](quickstart.md)).
 
 ### 2. Build the SPA

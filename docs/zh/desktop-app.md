@@ -31,7 +31,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 ## 从应用内安装服务端 {#installing-a-server-from-the-app}
 
-在首屏选择**安装 Cortex**。应用会自动检查 Node.js、npm、Git 与已有 Cortex，然后按需安装或升级服务端。本机需已有 Node.js 20 或更高版本、npm 和 Git；缺少依赖时会停止并给出指引。如果 Node 通过 nvm 安装而应用看不到它，可从终端启动应用，让它继承该 shell 的 `PATH`。
+在首屏选择**安装 Cortex**。应用会自动检查 Node.js、npm、Git 与已有 Cortex，然后按需安装或升级服务端。本机需已有 Node.js 22.19.0 或更高版本、npm 和 Git；缺少依赖时会停止并给出指引。如果 Node 通过 nvm 安装而应用看不到它，可从终端启动应用，让它继承该 shell 的 `PATH`。
 
 安装使用 `npm install -g @cortex-agent/server@latest`；已有受支持版本时直接复用。命令运行期间持续显示当前进度，**查看运行日志**可展开详细输出。失败时会显示出错的操作与重试入口。
 

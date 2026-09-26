@@ -15,8 +15,7 @@ The [desktop app](desktop-app.md) can install and configure the server for you: 
 
 ## Prerequisites
 
-- **Node.js ≥ 20** (Cortex itself targets 20+; the bundled coding-agent
-  backends prefer 22).
+- **Node.js ≥ 22.19.0**, required by the PI SDK included with the server.
 - **A Slack workspace or a Feishu (Lark) organization** where you can
   create an app.
 - **About 2 GB of free disk** for backends, plugins, and logs.
@@ -36,7 +35,7 @@ Open a terminal and run:
 node --version
 ```
 
-You should see something like `v22.14.0`. If the version is below 20,
+You should see something like `v22.19.0`. If the version is below 22.19.0,
 or if you see `command not found: node`, install or upgrade Node.js
 using one of the methods below.
 
@@ -59,7 +58,7 @@ nvm install 22
 nvm use 22
 ```
 
-**Linux (apt, Ubuntu/Debian 24.04+):**
+**Linux (apt, only if your repository provides Node ≥22.19.0):**
 
 ```bash
 sudo apt update && sudo apt install nodejs npm
@@ -68,13 +67,13 @@ sudo apt update && sudo apt install nodejs npm
 **Windows:**
 
 Download the LTS installer from [nodejs.org](https://nodejs.org/)
-(choose the "LTS" version, 22.x or later). Run the `.msi` installer
+(choose an LTS version ≥22.19.0). Run the `.msi` installer
 and follow the prompts. After installation, restart your terminal.
 
 Verify the installation:
 
 ```bash
-node --version   # should print v22.x.y or v20.x.y
+node --version   # must print v22.19.0 or later
 npm --version    # should print 10.x.y or later
 ```
 

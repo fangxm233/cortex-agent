@@ -33,7 +33,7 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 ## Installing a server from the app
 
-Choose **Install Cortex** on the first screen. The app automatically checks Node.js, npm, Git, and any existing Cortex installation, then installs or upgrades the server as needed. Node.js 20 or newer, npm, and Git must already be available. Missing prerequisites stop setup with instructions. If Node was installed through nvm and the app cannot see it, launch the app from a terminal so it inherits that shell's `PATH`.
+Choose **Install Cortex** on the first screen. The app automatically checks Node.js, npm, Git, and any existing Cortex installation, then installs or upgrades the server as needed. Node.js 22.19.0 or newer, npm, and Git must already be available. Missing prerequisites stop setup with instructions. If Node was installed through nvm and the app cannot see it, launch the app from a terminal so it inherits that shell's `PATH`.
 
 Installation uses `npm install -g @cortex-agent/server@latest`; a supported existing installation is reused. Progress remains visible while commands run, and **Activity log** expands their output. Failures show the failing operation and a retry action.
 

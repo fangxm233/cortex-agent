@@ -38,7 +38,7 @@ Web UI 传输层**内置**于 `@cortex-agent/server`，按需在 `CORTEX_UI_HTTP
 
 ### 1. 前置条件 {#1-prerequisites}
 
-- Node.js ≥ 20 与 [pnpm](https://pnpm.io)（本仓库是 pnpm workspace）。
+- Node.js ≥ 22.19.0 与 [pnpm](https://pnpm.io)（本仓库是 pnpm workspace）。
 - 一台运行中的 Cortex 服务器（见 [快速入门](quickstart.md)）。
 
 ### 2. 构建 SPA {#2-build-the-spa}

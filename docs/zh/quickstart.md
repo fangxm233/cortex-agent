@@ -10,7 +10,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 前置条件 {#prerequisites}
 
-- **Node.js ≥ 20**（Cortex 本身要求 20+；捆绑的编程智能体后端推荐 22）。
+- **Node.js ≥ 22.19.0**，服务端内置 PI SDK 要求此版本或更高。
 - **一个 Slack 工作区或一个飞书（Lark）组织**，你可以在其中创建应用。
 - **大约 2 GB 空闲磁盘空间**，用于后端、插件和日志。
 
@@ -24,7 +24,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 node --version
 ```
 
-你应该看到类似 `v22.14.0` 的输出。如果版本低于 20，或看到 `command not found: node`，请使用以下方法安装或升级 Node.js。
+你应该看到类似 `v22.19.0` 的输出。如果版本低于 22.19.0，或看到 `command not found: node`，请使用以下方法安装或升级 Node.js。
 
 
 
@@ -45,7 +45,7 @@ nvm install 22
 nvm use 22
 ```
 
-**Linux（apt，Ubuntu/Debian 24.04+）：**
+**Linux（apt，仅适用于软件源提供 Node ≥22.19.0 的系统）：**
 
 ```bash
 sudo apt update && sudo apt install nodejs npm
@@ -53,12 +53,12 @@ sudo apt update && sudo apt install nodejs npm
 
 **Windows：**
 
-从 [nodejs.org](https://nodejs.org/) 下载 LTS 安装包（选择 "LTS" 版本，22.x 或更高）。运行 `.msi` 安装程序并按提示操作。安装完成后重启终端。
+从 [nodejs.org](https://nodejs.org/) 下载 LTS 安装包（选择 ≥22.19.0 的 LTS 版本）。运行 `.msi` 安装程序并按提示操作。安装完成后重启终端。
 
 验证安装：
 
 ```bash
-node --version   # 应输出 v22.x.y 或 v20.x.y
+node --version   # 必须输出 v22.19.0 或更高版本
 npm --version    # 应输出 10.x.y 或更高
 ```
 
