@@ -1,5 +1,5 @@
 // input:  Cortex createPiRuntime, real Pi SDK, local fixtures
-// output: assertions for tools, context, persistence and quota
+// output: assertions for hooks, tools, history, warming, quota
 // pos:    Exercise the production Pi runtime without credentials
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -11,7 +11,7 @@ import {
   createPiRuntime, type PiRuntimeHandle, type PiRawEvent,
 } from '../../src/agent-adapter/pi/runtime.js';
 import {
-  APPEND, MODEL, PROVIDER, SYSTEM, TODO_RESULT, mcpFixture, restrictFetch,
+  APPEND, HOOK, MODEL, PROVIDER, SYSTEM, TODO_RESULT, mcpFixture, restrictFetch,
   sessionRequest, startProvider, type CapturedRequest, type ChatRequest,
 } from './fixtures.js';
 
@@ -22,6 +22,7 @@ function assertSurface(body: ChatRequest): void {
   assert.ok(system);
   assert.match(String(system.content), new RegExp(SYSTEM));
   assert.match(String(system.content), new RegExp(APPEND));
+  assert.match(String(system.content), new RegExp(HOOK));
   const tools = body.tools.map(tool => tool.function.name);
   assert.equal(new Set(tools).size, tools.length, 'no duplicate tools after discovery');
   for (const name of ['todo_write', 'smoke_echo', 'read']) assert.ok(tools.includes(name), name);
@@ -119,6 +120,7 @@ async function exercise(provider: Awaited<ReturnType<typeof startProvider>>): Pr
 
 function assertFinished(runtime: PiRuntimeHandle, turn: number): void {
   assert.equal(runtime.session.isStreaming, false);
+  assert.equal(runtime.session.settingsManager?.getCacheWarmingMode(), 'off');
   const last = runtime.session.agent?.state.messages.at(-1);
   assert.ok(last?.role === 'assistant');
   assert.equal(last.stopReason, 'stop');

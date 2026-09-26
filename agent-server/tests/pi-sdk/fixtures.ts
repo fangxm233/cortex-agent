@@ -1,5 +1,5 @@
 // input:  node HTTP/fs, MCP SDK, Pi session request types
-// output: loopback provider, in-memory MCP server, private config
+// output: local provider, MCP server, private config and hook
 // pos:    Credential-free transport fixtures for the SDK smoke
 // >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 
@@ -14,6 +14,7 @@ import type { PiSessionRequest } from '../../src/agent-adapter/pi/session-option
 
 export const SYSTEM = 'SDK smoke system sentinel: preserve me across every turn.';
 export const APPEND = 'SDK smoke append sentinel: tools remain available.';
+export const HOOK = 'SDK smoke hook sentinel: startup context is present.';
 export const PROVIDER = 'cortex-smoke-local';
 export const MODEL = 'smoke-model';
 export const DUMMY_KEY = 'local-fixture-not-a-credential';
@@ -162,16 +163,27 @@ async function writeConfig(agentDir: string, baseUrl: string): Promise<void> {
   }));
 }
 
+async function writeStartupHook(home: string): Promise<void> {
+  const dir = join(home, 'cortex', 'config', 'hooks');
+  await mkdir(dir, { recursive: true });
+  const output = JSON.stringify({ hookSpecificOutput: { additionalContext: HOOK } });
+  await writeFile(join(dir, 'smoke-start.json'), JSON.stringify({
+    id: 'smoke-start', event: 'agent:session-start', enabled: true,
+    run: { command: `printf '%s' '${output}'` },
+  }));
+}
+
 export async function sessionRequest(home: string, baseUrl: string): Promise<PiSessionRequest> {
   const cwd = join(home, 'workspace');
   const agentDir = join(home, 'agent');
   const sessionDir = join(home, 'sessions');
   for (const dir of [cwd, agentDir, sessionDir]) await mkdir(dir, { recursive: true });
   await writeConfig(agentDir, baseUrl);
+  await writeStartupHook(home);
   return {
     sessionKey: 'sdk-smoke', cwd, agentDir, sessionDir, sessionPath: null,
     provider: PROVIDER, model: MODEL, thinking: 'off', systemPrompt: SYSTEM,
-    appendSystemPrompt: [APPEND], skillPaths: [], disableHooks: true,
+    appendSystemPrompt: [APPEND], skillPaths: [], disableHooks: false,
     reportsProviderQuota: true, pluginMcpServers: [], streamDeltas: true,
     env: { PI_CODING_AGENT_DIR: agentDir, CORTEX_PI_ALLOWED_TOOLS: 'TodoWrite',
       CORTEX_PI_MCP_COMPOSITION: 'direct' },
