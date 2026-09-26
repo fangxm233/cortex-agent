@@ -1,4 +1,4 @@
-import { test, beforeAll, afterAll, vi } from 'vitest';
+import { test, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -80,8 +80,11 @@ _By source:_
 _By trigger:_
 • thread: today $13.00 | month $13.00 | total $13.00`;
 
-beforeAll(async () => {
+beforeEach(() => {
   vi.spyOn(Date, 'now').mockReturnValue(NOW);
+});
+
+beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-cost-report-test-'));
   costsPath = path.join(tmpDir, 'costs.jsonl');
   budgetPath = path.join(tmpDir, 'budget.json');
