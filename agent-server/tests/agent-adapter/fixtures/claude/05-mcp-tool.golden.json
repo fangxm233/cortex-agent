@@ -1,7 +1,7 @@
 [
   {
     "type": "session_started",
-    "sessionId": "sess-05-mcp"
+    "sessionId": "test-session"
   },
   {
     "type": "tool_use",
@@ -13,15 +13,37 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 1
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_05a",
-    "ok": true,
-    "content": "# Example Research\nPhase C in progress"
+    "content": "# Example Research\nPhase C in progress",
+    "ok": true
   },
   {
     "type": "assistant_text",
-    "text": "Example-research is in Phase C per STATUS.md on gpu-server.",
-    "blockId": "msg_05b"
+    "text": "Example-research is in Phase C per STATUS.md on gpu-server."
+  },
+  {
+    "type": "turn_progress",
+    "numTurns": 2
+  },
+  {
+    "type": "cost_record",
+    "provider": "anthropic",
+    "model": "unknown",
+    "tokens_in": null,
+    "tokens_out": 0,
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cache_read_tokens": null,
+    "cache_creation_tokens": null,
+    "provider_requests": 1,
+    "cost_usd": 0.018
   },
   {
     "type": "turn_complete",

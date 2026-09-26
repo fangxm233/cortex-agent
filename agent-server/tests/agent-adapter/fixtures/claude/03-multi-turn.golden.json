@@ -1,7 +1,7 @@
 [
   {
     "type": "session_started",
-    "sessionId": "sess-03-multi"
+    "sessionId": "test-session"
   },
   {
     "type": "tool_use",
@@ -13,10 +13,14 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 1
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_03a",
-    "ok": true,
-    "content": " M src/app.ts"
+    "content": " M src/app.ts",
+    "ok": true
   },
   {
     "type": "tool_use",
@@ -28,10 +32,14 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 2
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_03b",
-    "ok": true,
-    "content": "@@ -1 +1 @@\n-old\n+new"
+    "content": "@@ -1 +1 @@\n-old\n+new",
+    "ok": true
   },
   {
     "type": "tool_use",
@@ -43,10 +51,29 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 3
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_03c",
-    "ok": true,
-    "content": "abc123 msg"
+    "content": "abc123 msg",
+    "ok": true
+  },
+  {
+    "type": "cost_record",
+    "provider": "anthropic",
+    "model": "unknown",
+    "tokens_in": null,
+    "tokens_out": 0,
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cache_read_tokens": null,
+    "cache_creation_tokens": null,
+    "provider_requests": 3,
+    "cost_usd": 0.05
   },
   {
     "type": "turn_complete",

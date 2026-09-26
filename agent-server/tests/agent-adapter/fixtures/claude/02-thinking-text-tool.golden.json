@@ -1,7 +1,7 @@
 [
   {
     "type": "session_started",
-    "sessionId": "sess-02-tkt"
+    "sessionId": "test-session"
   },
   {
     "type": "rate_limit",
@@ -11,9 +11,12 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 1
+  },
+  {
     "type": "assistant_text",
-    "text": "I'll check the repository state, then answer your question.",
-    "blockId": "msg_02b"
+    "text": "I'll check the repository state, then answer your question."
   },
   {
     "type": "tool_use",
@@ -25,15 +28,37 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 2
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_02",
-    "ok": true,
-    "content": "total 8\ndrwxr-xr-x README.md"
+    "content": "total 8\ndrwxr-xr-x README.md",
+    "ok": true
   },
   {
     "type": "assistant_text",
-    "text": "The repo has README.md at root.",
-    "blockId": "msg_02c"
+    "text": "The repo has README.md at root."
+  },
+  {
+    "type": "turn_progress",
+    "numTurns": 3
+  },
+  {
+    "type": "cost_record",
+    "provider": "anthropic",
+    "model": "unknown",
+    "tokens_in": null,
+    "tokens_out": 0,
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cache_read_tokens": null,
+    "cache_creation_tokens": null,
+    "provider_requests": 2,
+    "cost_usd": 0.025
   },
   {
     "type": "turn_complete",
