@@ -24,6 +24,7 @@ const harness = vi.hoisted(() => ({
   sendPending: false,
   createAndSendPending: false,
   navigate: vi.fn(),
+  setCurrentProject: vi.fn(),
   invalidateQueries: vi.fn(),
   liveState: {} as any,
   liveSyncArgs: null as any[] | null,
@@ -128,7 +129,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({
-  useCurrentProject: () => ({ currentProjectId: harness.projectId }),
+  useCurrentProject: () => ({ currentProjectId: harness.projectId, setCurrentProject: harness.setCurrentProject }),
 }));
 
 vi.mock('@/features/session/live/useSessionMessageLiveSync', () => ({
@@ -268,6 +269,7 @@ beforeEach(() => {
   harness.sendPending = false;
   harness.createAndSendPending = false;
   harness.navigate.mockReset();
+  harness.setCurrentProject.mockReset();
   harness.invalidateQueries.mockReset();
   harness.liveState = emptyLiveState();
   harness.liveSyncArgs = null;
@@ -277,6 +279,25 @@ beforeEach(() => {
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+});
+
+describe('mobile chat project pinning', () => {
+  it('pins the current project to the open session', () => {
+    harness.sessions = [{ ...SESSION, projectId: 'orbit' }];
+
+    mounted = mountChat();
+
+    expect(harness.setCurrentProject).toHaveBeenCalledWith('orbit');
+  });
+
+  it('leaves the project alone for a new-session draft', () => {
+    harness.routeParam = 'new';
+    harness.sessions = [{ ...SESSION, projectId: 'orbit' }];
+
+    mounted = mountChat();
+
+    expect(harness.setCurrentProject).not.toHaveBeenCalled();
+  });
 });
 
 describe('mobile chat run status priority', () => {

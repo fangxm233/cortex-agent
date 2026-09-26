@@ -69,7 +69,7 @@ import {
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
-import { useProjectSessions } from '@/features/projects/useProjectSessions';
+import { useAllSessions } from '@/features/projects/useProjectSessions';
 import {
   buildMobileChatRows,
   chatHeaderStatus,
@@ -198,18 +198,23 @@ export function MChatScreen(): JSX.Element {
   const lang = useLang();
   const vocab = useVocab();
   const copy = pickCopy(lang, COPY);
-  const { currentProjectId } = useCurrentProject();
+  const { currentProjectId, setCurrentProject } = useCurrentProject();
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
   const isDraft = routeParam === 'new';
 
-  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
+  // Looked up across every project: the open session decides the project, not the other way round.
+  const sessionsQuery = useAllSessions('direct');
   // Scheduled runs open on the same page (scheme-mobile 8d) — the Scheduled sheet navigates here,
   // so the active-session membership must include them.
-  const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
+  const scheduledSessionsQuery = useAllSessions('scheduled');
   const active = useMemo(() => {
     const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
     return list.find((s) => s.sessionId === routeParam) ?? null;
   }, [sessionsQuery.data, scheduledSessionsQuery.data, routeParam]);
+  const activeProjectId = isDraft ? null : active?.projectId ?? null;
+  useEffect(() => {
+    if (activeProjectId && activeProjectId !== currentProjectId) setCurrentProject(activeProjectId);
+  }, [activeProjectId, currentProjectId, setCurrentProject]);
   const sessionId = isDraft ? '' : (active?.sessionId ?? routeParam ?? '');
   // Un-adopted scheduled run (8d): title「schedule 名 · run #n」+ reply-adopts hint; replying
   // converts it to a normal session server-side (nothing special to send).

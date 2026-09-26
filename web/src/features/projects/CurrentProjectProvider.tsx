@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -29,6 +29,12 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
     sessionsQuery.data ?? [],
     projects,
   );
+  // The most-recent session only picks the starting project. Latch it once the session list is in,
+  // so activity elsewhere (another device, a background turn) never moves the project under the user.
+  const sessionsLoaded = sessionsQuery.isSuccess;
+  useEffect(() => {
+    if (override === null && sessionsLoaded && currentProjectId) setOverride(currentProjectId);
+  }, [override, sessionsLoaded, currentProjectId]);
   const setCurrentProject = useCallback((id: string) => setOverride(id), []);
   const setProjectOrder = useCallback((ids: string[]) => {
     setProjectOrderState((previous) => (

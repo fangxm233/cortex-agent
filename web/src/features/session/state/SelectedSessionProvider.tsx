@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { useProjectSessions } from '@/features/projects/useProjectSessions';
+import { useAllSessions, useProjectSessions } from '@/features/projects/useProjectSessions';
 import {
   applyDraftSelection,
   resolveSelectedSessionId,
@@ -19,8 +19,9 @@ import { prefillProjectDraft } from '@/features/session/composer/composer-draft'
 // shows, written by the LeftRail session rows (+ the "+ New session" control) and read by CenterChat.
 // The provider owns the derivation: it queries the current project's direct sessions (react-query
 // dedupes with LeftRail's identical query — no extra network) and holds an explicit user override.
-// Effective selection = override (while still in the list) else the most-recent session. Because the
-// session list is scoped to the current project, switching project re-points the chat automatically.
+// Effective selection = override (while still in the list) else the most-recent session, which is
+// then latched as the override so later activity cannot move the chat. Because the session list is
+// scoped to the current project, switching project re-points the chat automatically.
 // Scoped to WorkbenchPage, inside CurrentProjectProvider (it reads the current project).
 
 interface SelectedSessionContextValue {
@@ -62,6 +63,8 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   // Scheduled runs are selectable rail rows too (design 27a-B) — without them in the membership
   // list, clicking a run would bounce the selection back to the most recent direct session.
   const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
+  const allDirectQuery = useAllSessions('direct');
+  const allScheduledQuery = useAllSessions('scheduled');
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftSelection, setDraftSelectionState] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
@@ -80,6 +83,18 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const pendingCreatedId = pendingCreatedSession?.sessionId ?? null;
   const selectedSessionId = resolveSelectedSessionId(override, selectableSessions, pendingCreatedId, sessions);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
+
+  // The most-recent fallback is a starting point, not a live value: latch it once both lists are in.
+  // A stale override is replaced only when it provably belongs to another project, never while the
+  // list merely has not caught up with a session selected elsewhere.
+  const listsLoaded = sessionsQuery.isSuccess && scheduledSessionsQuery.isSuccess;
+  const overrideElsewhere = override !== null && override !== DRAFT_SENTINEL
+    && [...(allDirectQuery.data ?? []), ...(allScheduledQuery.data ?? [])]
+      .some((s) => s.sessionId === override && s.projectId !== currentProjectId);
+  useEffect(() => {
+    if (!listsLoaded || !selectedSessionId || selectedSessionId === override) return;
+    if (override === null || overrideElsewhere) setOverride(selectedSessionId);
+  }, [listsLoaded, selectedSessionId, override, overrideElsewhere]);
 
   // Once the freshly created session appears in the list, drop the pending marker — the plain
   // override now resolves it via the normal list-membership path.
