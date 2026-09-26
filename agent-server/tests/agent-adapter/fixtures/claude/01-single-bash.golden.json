@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "sess-01-single-bash"
-  },
-  {
     "type": "tool_use",
     "toolUseId": "toolu_01",
     "name": "Bash",
@@ -13,10 +9,29 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 1
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_01",
-    "ok": true,
-    "content": "On branch main\nnothing to commit, working tree clean"
+    "content": "On branch main\nnothing to commit, working tree clean",
+    "ok": true
+  },
+  {
+    "type": "cost_record",
+    "provider": "anthropic",
+    "model": "unknown",
+    "tokens_in": null,
+    "tokens_out": 0,
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cache_read_tokens": null,
+    "cache_creation_tokens": null,
+    "provider_requests": 1,
+    "cost_usd": 0.0123
   },
   {
     "type": "turn_complete",

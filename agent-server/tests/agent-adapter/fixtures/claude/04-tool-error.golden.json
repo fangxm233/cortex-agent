@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "sess-04-err"
-  },
-  {
     "type": "tool_use",
     "toolUseId": "toolu_04a",
     "name": "Bash",
@@ -13,15 +9,18 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 1
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_04a",
-    "ok": false,
-    "content": "Exit code 128\nerror: cannot pull with rebase: You have unstaged changes."
+    "content": "Exit code 128\nerror: cannot pull with rebase: You have unstaged changes.",
+    "ok": false
   },
   {
     "type": "assistant_text",
-    "text": "Recovering via stash + pull + pop.",
-    "blockId": "msg_04b"
+    "text": "Recovering via stash + pull + pop."
   },
   {
     "type": "tool_use",
@@ -33,10 +32,29 @@
     }
   },
   {
+    "type": "turn_progress",
+    "numTurns": 2
+  },
+  {
     "type": "tool_result",
     "toolUseId": "toolu_04b",
-    "ok": true,
-    "content": "ok"
+    "content": "ok",
+    "ok": true
+  },
+  {
+    "type": "cost_record",
+    "provider": "anthropic",
+    "model": "unknown",
+    "tokens_in": null,
+    "tokens_out": 0,
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cache_read_tokens": null,
+    "cache_creation_tokens": null,
+    "provider_requests": 2,
+    "cost_usd": 0.03
   },
   {
     "type": "turn_complete",

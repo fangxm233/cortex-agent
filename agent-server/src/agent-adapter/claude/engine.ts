@@ -1,6 +1,6 @@
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
-import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
+import { ContinuationPhase } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type { EngineRunOptions } from '../types.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -82,10 +82,6 @@ export class ClaudeEngineSession implements EngineSession {
   private injectionSeq = 0;
   /** Only the first run of a session emits `session_started`, matching `spawn()`'s `started` flag. */
   private started = false;
-  /** What this run asked for. The background phase it selects is carried by `ContinuationPhase`,
-   *  which the engine installs the moment the run begins. */
-  private lastAwaitBackground: AwaitBackground = 'none';
-
   /** `identity` is passed in rather than computed here: it is derived from `adapter.ts`'s private
    *  `compatibilityFromOptions`, and importing that back would make `adapter.ts` ↔ `engine.ts` a
    *  runtime cycle. `ClaudeAdapter.open()` is the only constructor caller and supplies it. */
@@ -130,7 +126,6 @@ export class ClaudeEngineSession implements EngineSession {
         else queue.push(event);
       },
     });
-    this.lastAwaitBackground = opts.awaitBackground;
     if (!this.started) {
       // Claude has no turn-stream `session_started`; synthesize it exactly as `spawn().send()` does.
       queue.push(toRunEvent({ type: 'session_started', sessionId: this.session.sessionId }, 'foreground'));

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { MC, MONO } from '@/mobile/ui/kit';
 import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
-import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from '@/features/session/interaction/plan-read-vm';
+import { readProgressPct, planStatusLabel, planMetaLine } from '@/features/session/interaction/plan-read-vm';
 
 export interface MPlanReadCopy {
   lang: 'zh' | 'en';
@@ -55,7 +55,7 @@ export interface MPlanReadViewProps {
 
 export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPlanReadViewProps): JSX.Element {
   const pending = model.status === 'pending';
-  // Furthest-seen reading progress (6b: main button shows 已读 N% until read to the bottom).
+  // Furthest-seen reading progress, displayed in the header progress bar.
   const [pct, setPct] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const onScroll = (): void => {
@@ -66,7 +66,6 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
   };
 
   const statusLabel = planStatusLabel(model.status, copy.lang);
-  const approveSub = approveSubLabel(pct, copy.lang);
 
   const stamp =
     model.status === 'approved' ? { text: `${copy.approvedStamp}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: MC.done, bg: MC.doneBg }
@@ -145,7 +144,6 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
               style={{ flex: 1.3, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
-              {approveSub && <span style={{ font: `400 11px ${MONO}`, color: MC.inkSolidFgDim }}>{approveSub}</span>}
             </button>
           </div>
         ) : (

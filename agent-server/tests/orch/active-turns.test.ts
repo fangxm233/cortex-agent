@@ -1,7 +1,6 @@
 //
-// The streaming-slot case moved here from tests/runs/registry.test.ts; the supersede cases are
-// covered end-to-end in tests/orch/superseded-edits.test.ts (which calls the same three methods —
-// the `supersededEdits` facade it used to import was deleted in T4.1).
+// The streaming-slot case moved here from tests/runs/registry.test.ts; supersede state is covered
+// here through the ActiveTurns methods, not through the edit-to-terminal call path.
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 
@@ -62,10 +61,13 @@ test('register / unregister is scoped to the registering turn', () => {
 });
 
 test('markSuperseded / isSuperseded / clearSuperseded are per channel and per reason', () => {
+  assert.equal(activeTurns.isSuperseded('web:a', 'edit'), false);
+
   activeTurns.markSuperseded('web:a', 'edit');
   assert.equal(activeTurns.isSuperseded('web:a', 'edit'), true);
   assert.equal(activeTurns.isSuperseded('web:b', 'edit'), false);
 
   assert.equal(activeTurns.clearSuperseded('web:a', 'edit'), true);
+  assert.equal(activeTurns.isSuperseded('web:a', 'edit'), false);
   assert.equal(activeTurns.clearSuperseded('web:a', 'edit'), false, 'clearing twice reports nothing to clear');
 });

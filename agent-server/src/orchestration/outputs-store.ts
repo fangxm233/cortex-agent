@@ -151,12 +151,10 @@ export async function receiveIntoOutputs(
 export async function writeTextIntoOutputs(a: {
   sessionId: string; text: string; fileName: string; subdir?: string;
 }): Promise<StoredOutput> {
-  const displayName = sanitizeDisplayFilename(a.fileName);
-  const storageName = sanitizeStorageFilename(displayName);
-  const { dir, relPrefix } = outputsDir(a.sessionId, a.subdir);
-  await fs.mkdir(dir, { recursive: true });
-  const { destPath, finalName } = await resolveAvailablePath(dir, storageName);
+  const { destPath, relPath, displayName } = await reserveOutputPath({
+    sessionId: a.sessionId, fileName: a.fileName, subdir: a.subdir,
+  });
   await fs.writeFile(destPath, a.text, 'utf8');
   const outStat = await fs.stat(destPath);
-  return { relPath: `${relPrefix}/${finalName}`, name: displayName, size: outStat.size };
+  return { relPath, name: displayName, size: outStat.size };
 }

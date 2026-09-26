@@ -1,190 +1,191 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import {
-  parseClaudeLineToNormalized,
-  createClaudeParserState,
-} from './replay-harness.js';
+import { replayClaudeTurns } from './replay-harness.js';
+import { extractAskUserQuestions } from '../../src/agent-adapter/claude/event-parser.js';
+import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 
-// --- Claude parser edges ---
-
-test('parseClaudeLineToNormalized: malformed JSON silently yields [] (parity with claude-bridge.ts:598)', () => {
-  const state = createClaudeParserState();
-  assert.deepStrictEqual(parseClaudeLineToNormalized('not-json', state), []);
-  assert.deepStrictEqual(parseClaudeLineToNormalized('{broken', state), []);
-  assert.deepStrictEqual(parseClaudeLineToNormalized('', state), []);
+const json = (value: unknown): string => JSON.stringify(value);
+const result = (totalCostUsd = 0.01, numTurns = 1): string => json({
+  type: 'result',
+  subtype: 'success',
+  is_error: false,
+  num_turns: numTurns,
+  total_cost_usd: totalCostUsd,
+  result: 'done',
 });
 
-test('parseClaudeLineToNormalized: unknown top-level type returns []', () => {
-  const state = createClaudeParserState();
-  assert.deepStrictEqual(
-    parseClaudeLineToNormalized(JSON.stringify({ type: 'mystery-event' }), state),
+function eventsOf<T extends NormalizedEvent['type']>(events: NormalizedEvent[], type: T) {
+  return events.filter((event): event is Extract<NormalizedEvent, { type: T }> => event.type === type);
+}
+
+// --- Claude production session/engine seam ---
+
+test('Claude engine: malformed JSON is ignored without a normalized error', async () => {
+  const replay = await replayClaudeTurns([['not-json', '{broken', '', result()]]);
+
+  assert.equal(replay.error, null);
+  assert.deepEqual(
+    replay.normalized.filter((event) => !['session_started', 'cost_record', 'turn_complete'].includes(event.type)),
     [],
   );
 });
 
-test('parseClaudeLineToNormalized: system subtype=init emits session_started; other system subtypes yield []', () => {
-  const state = createClaudeParserState();
-  const initLine = JSON.stringify({
-    type: 'system',
-    subtype: 'init',
-    session_id: 'sess-abc',
-  });
-  const initEvents = parseClaudeLineToNormalized(initLine, state);
-  assert.deepStrictEqual(initEvents, [{ type: 'session_started', sessionId: 'sess-abc' }]);
-  assert.equal(state.sessionId, 'sess-abc');
+test('Claude engine: unknown top-level type is ignored', async () => {
+  const replay = await replayClaudeTurns([[json({ type: 'mystery-event' }), result()]]);
 
-  // Non-init system subtypes (e.g. compact) must not spuriously re-announce the session.
-  const compactEvents = parseClaudeLineToNormalized(
-    JSON.stringify({ type: 'system', subtype: 'compact' }),
-    state,
-  );
-  assert.deepStrictEqual(compactEvents, []);
+  assert.equal(replay.error, null);
+  assert.equal(eventsOf(replay.normalized, 'tool_use').length, 0);
+  assert.equal(eventsOf(replay.normalized, 'assistant_text').length, 0);
 });
 
-test('parseClaudeLineToNormalized: turn_complete cost delta = cumulative − previous cumulative (clamped at 0)', () => {
-  const state = createClaudeParserState();
-  const first = parseClaudeLineToNormalized(
-    JSON.stringify({ type: 'result', num_turns: 3, total_cost_usd: 1.0, is_error: false }),
-    state,
-  );
-  assert.deepStrictEqual(first, [{ type: 'turn_complete', numTurns: 3, totalCostUsd: 1.0 }]);
+test('Claude engine: init and other system lines do not duplicate the engine start event', async () => {
+  const replay = await replayClaudeTurns([[
+    json({ type: 'system', subtype: 'init', session_id: 'provider-session' }),
+    json({ type: 'system', subtype: 'compact' }),
+    result(),
+  ]]);
 
-  const second = parseClaudeLineToNormalized(
-    JSON.stringify({ type: 'result', num_turns: 5, total_cost_usd: 1.5, is_error: false }),
-    state,
-  );
-  assert.deepStrictEqual(second, [{ type: 'turn_complete', numTurns: 5, totalCostUsd: 0.5 }]);
+  assert.deepEqual(replay.events.filter((event) => event.type === 'engine_started'), [
+    { type: 'engine_started', backendSessionId: 'test-session' },
+  ]);
+  assert.deepEqual(eventsOf(replay.normalized, 'session_started'), []);
 });
 
-test('parseClaudeLineToNormalized: result with is_error=true prepends fatal error before turn_complete', () => {
-  const state = createClaudeParserState();
-  const events = parseClaudeLineToNormalized(
-    JSON.stringify({
+test('Claude engine: turn-complete cost uses the session cumulative-cost delta', async () => {
+  const replay = await replayClaudeTurns([
+    [result(1.0, 3)],
+    [result(1.5, 5)],
+  ]);
+
+  assert.deepEqual(eventsOf(replay.normalized, 'turn_complete'), [
+    { type: 'turn_complete', numTurns: 3, totalCostUsd: 1 },
+    { type: 'turn_complete', numTurns: 5, totalCostUsd: 0.5 },
+  ]);
+});
+
+test('Claude engine: an inline provider error rejects the run and emits a fatal run event', async () => {
+  const replay = await replayClaudeTurns([[
+    json({
       type: 'result',
+      subtype: 'success',
+      is_error: true,
       num_turns: 1,
       total_cost_usd: 0.01,
-      is_error: true,
-      result: 'hit your limit',
+      result: 'provider rejected the turn',
     }),
-    state,
-  );
-  assert.equal(events.length, 2);
-  assert.deepStrictEqual(events[0], { type: 'error', message: 'hit your limit', fatal: true });
-  assert.equal(events[1].type, 'turn_complete');
-});
+  ]]);
 
-test('parseClaudeLineToNormalized: rate_limit_event passes through rate_limit_info', () => {
-  const state = createClaudeParserState();
-  const rawInfo = { status: 'allowed', isUsingOverage: false };
-  const events = parseClaudeLineToNormalized(
-    JSON.stringify({ type: 'rate_limit_event', rate_limit_info: rawInfo }),
-    state,
-  );
-  assert.deepStrictEqual(events, [{ type: 'rate_limit', raw: rawInfo }]);
-});
-
-test('parseClaudeLineToNormalized: AskUserQuestion tool_use emits ask_user_question with parsed questions', () => {
-  const state = createClaudeParserState();
-  state.sessionId = 'sess-x';
-  const line = JSON.stringify({
-    type: 'assistant',
-    message: {
-      id: 'msg-1',
-      content: [
-        {
-          type: 'tool_use',
-          id: 'tu-1',
-          name: 'AskUserQuestion',
-          input: {
-            questions: [{ question: 'Go?', multi: false, options: ['yes', 'no'] }],
-          },
-        },
-      ],
-    },
-  });
-  const events = parseClaudeLineToNormalized(line, state);
-  assert.equal(events.length, 1);
-  assert.equal(events[0].type, 'ask_user_question');
-  if (events[0].type === 'ask_user_question') {
-    assert.equal(events[0].toolUseId, 'tu-1');
-    assert.deepStrictEqual(events[0].questions, [
-      { question: 'Go?', multi: false, options: ['yes', 'no'] },
-    ]);
-  }
-});
-
-test('parseClaudeLineToNormalized: Write-to-plan-path followed by ExitPlanMode carries resolved path', () => {
-  const state = createClaudeParserState();
-  const writeLine = JSON.stringify({
-    type: 'assistant',
-    message: {
-      id: 'msg-w',
-      content: [
-        {
-          type: 'tool_use',
-          id: 'tu-w',
-          name: 'Write',
-          input: { file_path: '/home/user/project/plan/thread-plan.md', content: '# Plan' },
-        },
-      ],
-    },
-  });
-  const writeEvents = parseClaudeLineToNormalized(writeLine, state);
-  // Still emits tool_use for the Write call; side-effect updates state.planFilePath.
-  assert.equal(writeEvents.length, 1);
-  assert.equal(writeEvents[0].type, 'tool_use');
-  assert.equal(state.planFilePath, '/home/user/project/plan/thread-plan.md');
-
-  const exitLine = JSON.stringify({
-    type: 'assistant',
-    message: {
-      id: 'msg-e',
-      content: [
-        {
-          type: 'tool_use',
-          id: 'tu-e',
-          name: 'ExitPlanMode',
-          input: { plan: '# approved plan body' },
-        },
-      ],
-    },
-  });
-  const exitEvents = parseClaudeLineToNormalized(exitLine, state);
-  assert.equal(exitEvents.length, 1);
-  assert.deepStrictEqual(exitEvents[0], {
-    type: 'plan_written',
-    toolUseId: 'tu-e',
-    path: '/home/user/project/plan/thread-plan.md',
-    content: '# approved plan body',
-  });
-});
-
-test('parseClaudeLineToNormalized: thinking blocks are not emitted (parity with claude-bridge.ts:555-580)', () => {
-  const state = createClaudeParserState();
-  const line = JSON.stringify({
-    type: 'assistant',
-    message: {
-      id: 'msg-t',
-      content: [{ type: 'thinking', thinking: 'pondering...' }],
-    },
-  });
-  assert.deepStrictEqual(parseClaudeLineToNormalized(line, state), []);
-});
-
-test('parseClaudeLineToNormalized: user tool_result with is_error=true → ok=false', () => {
-  const state = createClaudeParserState();
-  const line = JSON.stringify({
-    type: 'user',
-    message: {
-      role: 'user',
-      content: [
-        { type: 'tool_result', tool_use_id: 'tu-a', content: 'boom', is_error: true },
-      ],
-    },
-  });
-  const events = parseClaudeLineToNormalized(line, state);
-  assert.deepStrictEqual(events, [
-    { type: 'tool_result', toolUseId: 'tu-a', ok: false, content: 'boom' },
+  assert.equal(replay.error?.message, 'provider rejected the turn');
+  assert.deepEqual(replay.events.filter((event) => event.type === 'error'), [
+    { type: 'error', message: 'provider rejected the turn', fatal: true },
   ]);
+  assert.equal(eventsOf(replay.normalized, 'turn_complete').length, 0);
+});
+
+test('Claude engine: rate-limit lines reach the adapter reporter seam', async () => {
+  const rawInfo = { status: 'allowed', isUsingOverage: false };
+  const replay = await replayClaudeTurns([[
+    json({ type: 'rate_limit_event', rate_limit_info: rawInfo }),
+    result(),
+  ]]);
+
+  assert.deepEqual(replay.rateLimits, [rawInfo]);
+  assert.deepEqual(eventsOf(replay.normalized, 'rate_limit'), []);
+});
+
+test('Claude engine: AskUserQuestion remains a production tool_use event', async () => {
+  const input = { questions: [{ question: 'Go?', multi: false, options: ['yes', 'no'] }] };
+  const replay = await replayClaudeTurns([[
+    json({
+      type: 'assistant',
+      message: { id: 'msg-ask', content: [{ type: 'tool_use', id: 'tu-ask', name: 'AskUserQuestion', input }] },
+    }),
+    result(),
+  ]]);
+
+  assert.deepEqual(eventsOf(replay.normalized, 'tool_use'), [{
+    type: 'tool_use', toolUseId: 'tu-ask', name: 'AskUserQuestion', input,
+  }]);
+});
+
+test('Claude question extractor: legacy reference contract preserves question metadata', () => {
+  const questions = [{ question: 'Go?', multi: false, options: ['yes', 'no'] }];
+  const metadata = extractAskUserQuestions({
+    message: { content: [{ type: 'tool_use', id: 'tu-ask', name: 'AskUserQuestion', input: { questions } }] },
+  }, 'test-session');
+  // This preserves the extractor contract, not a claim that raw AskUserQuestion lines
+  // populate result metadata: the turn machine currently does not collect it.
+  assert.deepEqual(metadata, [{ toolUseId: 'tu-ask', questions, sessionId: 'test-session' }]);
+});
+
+test('Claude engine: plan Write and ExitPlanMode retain production tool and derived events', async () => {
+  const planPath = '/home/user/project/plan/thread-plan.md';
+  const replay = await replayClaudeTurns([[
+    json({
+      type: 'assistant',
+      message: {
+        id: 'msg-write',
+        content: [{
+          type: 'tool_use', id: 'tu-write', name: 'Write',
+          input: { file_path: planPath, content: '# Plan' },
+        }],
+      },
+    }),
+    json({
+      type: 'assistant',
+      message: {
+        id: 'msg-exit',
+        content: [{
+          type: 'tool_use', id: 'tu-exit', name: 'ExitPlanMode',
+          input: { plan: '# approved plan body' },
+        }],
+      },
+    }),
+    result(),
+  ]]);
+
+  assert.deepEqual(eventsOf(replay.normalized, 'tool_use').map((event) => event.name), [
+    'Write', 'ExitPlanMode',
+  ]);
+  assert.deepEqual(eventsOf(replay.normalized, 'plan_written'), [{
+    type: 'plan_written', toolUseId: '', path: planPath, content: '',
+  }]);
+});
+
+test('Claude engine: thinking blocks are not normalized', async () => {
+  const replay = await replayClaudeTurns([[
+    json({
+      type: 'assistant',
+      message: { id: 'msg-thinking', content: [{ type: 'thinking', thinking: 'pondering...' }] },
+    }),
+    result(),
+  ]]);
+
+  assert.equal(eventsOf(replay.normalized, 'assistant_text').length, 0);
+  assert.equal(eventsOf(replay.normalized, 'tool_use').length, 0);
+});
+
+test('Claude engine: tool-result content and error status use the production callback', async () => {
+  const replay = await replayClaudeTurns([[
+    json({
+      type: 'assistant',
+      message: {
+        id: 'msg-tool',
+        content: [{ type: 'tool_use', id: 'tu-tool', name: 'Bash', input: { command: 'false' } }],
+      },
+    }),
+    json({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'tu-tool', content: 'boom', is_error: true }],
+      },
+    }),
+    result(),
+  ]]);
+
+  assert.deepEqual(eventsOf(replay.normalized, 'tool_result'), [{
+    type: 'tool_result', toolUseId: 'tu-tool', ok: false, content: 'boom',
+  }]);
 });

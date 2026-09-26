@@ -489,15 +489,16 @@ function formatTokens(count: number): string {
  */
 async function formatCostReport(project: string | null = null): Promise<string> {
   const summary = await getCostSummary(project);
-  const budget = await checkBudget(project);
+  const dailyRemaining = Math.max(0, summary.dailyBudget - summary.today);
+  const monthlyRemaining = Math.max(0, summary.monthlyBudget - summary.month);
   const scopeNote = project
-    ? budget.scope === 'project' ? ' _(per-project limits)_' : ' _(inherited global limits)_'
+    ? summary.budgetScope === 'project' ? ' _(per-project limits)_' : ' _(inherited global limits)_'
     : '';
 
   const lines = [];
   lines.push(project ? `*Cost Report (project: ${project})*${scopeNote}` : '*Cost Report*');
-  lines.push(`• Today: $${summary.today.toFixed(2)} / $${budget.dailyBudget} (remaining: $${budget.dailyRemaining.toFixed(2)})`);
-  lines.push(`• This month: $${summary.month.toFixed(2)} / $${budget.monthlyBudget} (remaining: $${budget.monthlyRemaining.toFixed(2)})`);
+  lines.push(`• Today: $${summary.today.toFixed(2)} / $${summary.dailyBudget} (remaining: $${dailyRemaining.toFixed(2)})`);
+  lines.push(`• This month: $${summary.month.toFixed(2)} / $${summary.monthlyBudget} (remaining: $${monthlyRemaining.toFixed(2)})`);
   lines.push(`• This week: $${summary.week.toFixed(2)}`);
   lines.push(`• Total (90d): $${summary.total.toFixed(2)}`);
   lines.push('');

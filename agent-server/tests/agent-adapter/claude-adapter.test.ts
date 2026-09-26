@@ -9,8 +9,8 @@ import {
 const fixtures = listFixtures('claude');
 
 for (const name of fixtures) {
-  test(`claude fixture ${name}: NormalizedEvent sequence matches golden`, () => {
-    const observed = replayClaudeFixture(name);
+  test(`claude fixture ${name}: production NormalizedEvent sequence matches golden`, async () => {
+    const observed = await replayClaudeFixture(name);
     assertMatchesGolden(observed, 'claude', name);
   });
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { PlanCardModel } from './interaction-vm';
-import { readProgressPct, planStatusLabel, planMetaLine, approveSubLabel } from './plan-read-vm';
+import { readProgressPct, planStatusLabel, planMetaLine } from './plan-read-vm';
 import type { DIntCopy } from './InteractionCards';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -36,7 +36,6 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
   }, [onClose]);
 
   const statusLabel = planStatusLabel(model.status, lang);
-  const approveSub = approveSubLabel(pct, lang);
   const stamp =
     model.status === 'approved'
       ? { text: `${copy.planApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: 'var(--proto-success)', bg: 'var(--proto-success-bg)' }
@@ -123,7 +122,6 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
                 style={{ fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-control)', padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
               >
                 <span>{copy.approvePlan}</span>
-                {approveSub && <span style={{ font: `400 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>{approveSub}</span>}
               </button>
             </div>
           ) : (
