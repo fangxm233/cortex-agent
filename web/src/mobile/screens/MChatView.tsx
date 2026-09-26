@@ -465,7 +465,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
   // clear of it, so a transcript scrolled to the end stays fully opaque.
   const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
-  const transcriptFade = `linear-gradient(to bottom, #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
+  // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
+  // Only the transcript is masked, leaving the floating title and its glass unchanged.
+  const transcriptFade = `linear-gradient(to bottom, transparent calc(60px + env(safe-area-inset-top)), #000 calc(72px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
 
   // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the

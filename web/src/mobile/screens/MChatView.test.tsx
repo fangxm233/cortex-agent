@@ -165,9 +165,15 @@ describe('MChatView floating composer clearance', () => {
           .toBe(`calc(${reserved}px + env(safe-area-inset-bottom))`);
         // The transcript fade ends at the shell top and follows it as the shell grows.
         const edge = `calc(100% - ${measured + 20}px - env(safe-area-inset-bottom))`;
-        expect(renderer.root.findByProps({ 'data-transcript-scroller': true }).props.style.maskImage)
-          .toBe(`linear-gradient(to bottom, #000 calc(${edge} - 48px), transparent ${edge})`);
+        const style = renderer.root.findByProps({ 'data-transcript-scroller': true }).props.style;
+        expect(style.maskImage)
+          .toBe(`linear-gradient(to bottom, transparent calc(60px + env(safe-area-inset-top)), #000 calc(72px + env(safe-area-inset-top)), #000 calc(${edge} - 48px), transparent ${edge})`);
+        expect(style.WebkitMaskImage).toBe(style.maskImage);
       }
+      const header = renderer.root.findByProps({ 'data-chat-header': 'true' });
+      expect(header.props.style.maskImage).toBeUndefined();
+      expect(header.props.style.top).toBe('calc(8px + env(safe-area-inset-top))');
+      expect(header.props.style.height).toBe(52);
       expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
         .toBe('calc(20px + env(safe-area-inset-bottom))');
     } finally {
