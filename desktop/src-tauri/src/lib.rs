@@ -1,7 +1,3 @@
-// input:  Tauri, connection config, native shell modules
-// output: Native shell commands, state and application runtime
-// pos:    Desktop and Android shell composition root
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;

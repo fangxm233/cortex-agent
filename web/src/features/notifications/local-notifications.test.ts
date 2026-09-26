@@ -1,7 +1,3 @@
-// input:  vitest, browser adapter, device preference
-// output: Delivery and local preference regression tests
-// pos:    Browser notification safety and lifecycle coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { browserPermission, createBrowserNotifications, requestBrowserPermission } from './browser-notifications';
 import { localNotificationsEnabled, setLocalNotificationsEnabled } from './local-notification-state';

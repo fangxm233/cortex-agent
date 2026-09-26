@@ -1,7 +1,3 @@
-// input:  react-test-renderer, local notification settings
-// output: Permission gesture and local preference tests
-// pos:    Device notification settings regression coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ lang: 'en', nativeGranted: false, nativeRequest: vi.fn() }));

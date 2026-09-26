@@ -1,7 +1,3 @@
-// input:  Shared feed and browser delivery, mobile router
-// output: MBrowserNotificationMount
-// pos:    Ordinary mobile browser notification integration
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';

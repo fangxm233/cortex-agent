@@ -1,7 +1,3 @@
-// input:  Tauri global IPC and event APIs
-// output: Typed native commands, events and mobile actions
-// pos:    Safe native bridge for web and shell capabilities
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 type NativeArgs = Record<string, unknown>;
 type NativeUnlisten = () => unknown;
 type NativeEventHandler = (event: unknown) => void;

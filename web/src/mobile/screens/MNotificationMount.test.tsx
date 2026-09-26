@@ -1,7 +1,3 @@
-// input:  react-test-renderer, MNotificationMount
-// output: Android and browser mobile notification tests
-// pos:    Mobile notification lifecycle and routing coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseNotificationFeedOptions } from '@/features/notifications/useNotificationFeed';

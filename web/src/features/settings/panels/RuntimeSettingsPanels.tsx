@@ -1,7 +1,3 @@
-// input:  Runtime configuration, local notifications, settings UI
-// output: NotificationsPanel, AdvancedPanel and setting controls
-// pos:    Desktop notification and advanced settings panels
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { LocalNotificationsCard } from './LocalNotificationsCard';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';

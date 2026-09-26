@@ -1,7 +1,3 @@
-// input:  React, localStorage
-// output: Local notification preference and subscription
-// pos:    Device-local opt-out independent of OS permission
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useSyncExternalStore } from 'react';
 
 const KEY = 'cortex.local.notifications.enabled';

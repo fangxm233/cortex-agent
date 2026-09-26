@@ -1,7 +1,3 @@
-// input:  AppState, Tauri, platform notifications
-// output: Native notification post, pending and ack commands
-// pos:    Desktop notification IPC and activation bridge
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 mod platform;
 mod queue;
 

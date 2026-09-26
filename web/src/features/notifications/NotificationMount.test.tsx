@@ -1,7 +1,3 @@
-// input:  react-test-renderer, NotificationMount
-// output: Desktop layout notification integration tests
-// pos:    Feed delivery, foreground suppression and click routes
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ToastInput } from '@/design';

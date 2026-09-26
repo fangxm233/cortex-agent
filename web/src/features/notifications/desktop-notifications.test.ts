@@ -1,7 +1,3 @@
-// input:  vitest, desktop adapter, native bridge
-// output: Native delivery, activation and retry regression tests
-// pos:    Desktop bridge recovery and cleanup coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { listenDesktopNotificationActions, sendDesktopNotification } from './desktop-notifications';
 const legacy = vi.hoisted(() => vi.fn(async () => true));

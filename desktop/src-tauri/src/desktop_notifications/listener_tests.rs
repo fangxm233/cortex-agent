@@ -1,7 +1,3 @@
-// input:  Linux listener registry, Tokio tasks and oneshots
-// output: Bounded listener cancellation regression tests
-// pos:    Verify listener eviction and state shutdown cleanup
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 use super::{Listeners, CAPACITY};
 use tokio::sync::oneshot;
 

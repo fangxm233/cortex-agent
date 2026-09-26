@@ -1,7 +1,3 @@
-// input:  native-bridge, desktop-config, legacy OS delivery
-// output: Desktop notification post and retrying action listener
-// pos:    Desktop native notification delivery and click recovery
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { readDesktopConfig } from '@/lib/desktop-config';
 import { isNativeCommandMissing, listenNativeEvent, safeInvoke,
   type DesktopNotificationAction } from '@/lib/native-bridge';

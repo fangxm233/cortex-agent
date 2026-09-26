@@ -1,7 +1,3 @@
-// input:  Local notification settings, language, settings controls
-// output: LocalNotificationsCard
-// pos:    Shared desktop and mobile-browser notification control
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useLang } from '@/i18n';
 import { isDesktopShell, isMobileShell } from '@/lib/desktop-config';
 import { useLocalNotificationSettings } from '@/features/notifications/useLocalNotificationSettings';

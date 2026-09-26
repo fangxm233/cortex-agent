@@ -1,7 +1,3 @@
-// input:  Notification queue and connection snapshots
-// output: Scoped routing, acknowledgement and privacy tests
-// pos:    Native notification queue regression tests
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 use super::*;
 
 fn config(server: &str, token: &str) -> ConnectionConfig {

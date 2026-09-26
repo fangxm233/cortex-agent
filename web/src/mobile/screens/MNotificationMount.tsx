@@ -1,7 +1,3 @@
-// input:  Native mobile lifecycle, shared feed, browser mount
-// output: MNotificationMount
-// pos:    Selects native Android or browser mobile notifications
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef } from 'react';
 import { isMobileShell } from '@/lib/desktop-config';
 import { MBrowserNotificationMount } from './MBrowserNotificationMount';

@@ -1,7 +1,3 @@
-// input:  React, local preference, browser/native permissions
-// output: useLocalNotificationSettings
-// pos:    Notification permission status and gesture-only requests
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useState } from 'react';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { browserPermission, requestBrowserPermission, type BrowserPermission } from './browser-notifications';

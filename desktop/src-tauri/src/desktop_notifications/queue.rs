@@ -1,7 +1,3 @@
-// input:  ConnectionConfig, serde, notification routing data
-// output: Bounded connection-scoped notification action queue
-// pos:    Process-lifetime notification routing state
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 use crate::ConnectionConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;

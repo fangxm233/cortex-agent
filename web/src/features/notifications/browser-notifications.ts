@@ -1,7 +1,3 @@
-// input:  Notification API, connection guard
-// output: Browser permission and confirmed delivery adapter
-// pos:    Browser OS delivery with disposable click handlers
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { isNativeShell } from '@/lib/desktop-config';
 import { notificationConnectionGuard } from './notification-connection';
 import type { OsNotificationSpec } from './os-notify';

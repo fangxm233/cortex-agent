@@ -1,7 +1,3 @@
-// input:  Mobile notification settings and native lifecycle
-// output: Native and browser settings visibility tests
-// pos:    Mobile device notification settings regression coverage
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ status: vi.fn(), invoke: vi.fn(), permission: vi.fn(), locale: 'en', mobile: true }));

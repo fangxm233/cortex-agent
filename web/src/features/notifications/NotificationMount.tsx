@@ -1,7 +1,3 @@
-// input:  Notification feed, local delivery, project/session state
-// output: NotificationMount
-// pos:    Desktop layout notification delivery and activation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';

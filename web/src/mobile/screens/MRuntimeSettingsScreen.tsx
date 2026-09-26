@@ -1,7 +1,3 @@
-// input:  Runtime config, local notifications, mobile controls
-// output: MNotificationsScreen, MAdvancedScreen
-// pos:    Mobile notification and advanced settings screens
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useEffect, useState } from 'react';
 import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';

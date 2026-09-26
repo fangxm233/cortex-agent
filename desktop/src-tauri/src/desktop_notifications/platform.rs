@@ -1,7 +1,3 @@
-// input:  notify-rust, WinRT, Tauri notification state
-// output: Platform delivery and activation callbacks
-// pos:    Native desktop notification backend adapters
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 #[cfg(target_os = "linux")]
 use super::{queue::CAPACITY, NotificationState};
 #[cfg(target_os = "linux")]

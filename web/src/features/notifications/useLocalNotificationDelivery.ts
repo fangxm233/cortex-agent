@@ -1,7 +1,3 @@
-// input:  React, tRPC, browser and desktop adapters
-// output: useLocalNotificationDelivery, NotificationSession
-// pos:    Shared non-Android OS delivery and session activation
-// >>> Once I am updated, be sure to update my header comment and the parent folder AGENTS.md <<<
 import { useCallback, useEffect, useRef } from 'react';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { useTRPCClient } from '@/lib/trpc';
