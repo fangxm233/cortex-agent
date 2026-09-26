@@ -416,6 +416,22 @@ test('a stopped chain reports killed without inventing an unstarted child', asyn
   assert.equal(getSubagentChildStatuses('s1').size, 0, 'restart is not evidence of activity');
 });
 
+test('an abort that resolves normally still seals both runtime and transcript as killed', async () => {
+  writeRole('general-purpose');
+  const notices: any[] = [];
+  runSubagent.mockImplementation((req: any) => new Promise(resolve => {
+    req.signal.addEventListener('abort', () => resolve(ok('stopped')), { once: true });
+  }));
+  const view = startDaemonSubagentRun({
+    params: task(), background: true, cwd: '/tmp', parent: parentIsClaude, sessionId: 's1',
+    onNotice: notice => notices.push(notice),
+  });
+  stopSubagentRun(view.id);
+  await waitForSubagentRun(view.id, 1000);
+  assert.equal(getSubagentChildStatuses('s1').get(`${view.id}#0`), 'killed');
+  assert.equal(notices[0].status, 'killed');
+});
+
 test('the delegating session rides along on every child\'s parent context', async () => {
   // Only the daemon entry knows which session asked; the runner reads it off `parent` to attribute
   // the child's cost. Without this hand-off the child bills to nobody.
