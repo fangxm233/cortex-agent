@@ -1,6 +1,6 @@
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
-import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
+import { ContinuationPhase } from '../continuation-phase.js';
 import type { EngineRunOptions } from '../types.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type {
@@ -56,10 +56,6 @@ export class PIEngineSession implements EngineSession {
    *  time). `steer()` targets it for id correlation and immediate refusals. */
   private active: { queue: RunEventQueue; pending: PendingInjection[]; phase: ContinuationPhase | null } | null = null;
   private injectionSeq = 0;
-  /** Recorded for diagnostics. PI has no spontaneous continuation turns, so every run takes the
-   *  `none` path through `ContinuationPhase` and ends at its own foreground result. */
-  private lastAwaitBackground: AwaitBackground = 'none';
-
   constructor(
     session: PISession,
     request: PiSessionRequest,
@@ -104,10 +100,6 @@ export class PIEngineSession implements EngineSession {
         else queue.push(event);
       },
     });
-    // Accepted and recorded, but changes nothing: PI has no spontaneous continuation turns, so
-    // every run is foreground-only and ends after its `turn_complete` (D1).
-    this.lastAwaitBackground = opts.awaitBackground;
-
     const result = this.sendTurn(prompt);
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
     // rejection when a consumer reads `events` without awaiting `result`.
