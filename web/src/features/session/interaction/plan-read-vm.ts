@@ -28,8 +28,3 @@ export function planMetaLine(filePath: string | null, lineCount: number, statusL
   const lines = lang === 'zh' ? `${lineCount} 行` : `${lineCount} lines`;
   return [filePath, lines, statusLabel].filter(Boolean).join(' · ');
 }
-
-/** Approval stays text-only; reading progress is shown by the progress bar. */
-export function approveSubLabel(_pct: number, _lang: 'zh' | 'en'): null {
-  return null;
-}

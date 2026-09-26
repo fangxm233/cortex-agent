@@ -88,7 +88,20 @@ describe('interaction presentation', () => {
     expect(tree.root.findByProps({ role: 'dialog' }).props.style.backdropFilter).toBe('var(--glass-filter)');
     act(() => addEventListener.mock.calls[0][1]({ key: 'Escape' }));
     expect(onClose).toHaveBeenCalledOnce();
-    act(() => tree.root.findAllByType('button')[2].props.onClick());
+    const progressBars = tree.root.findAll((node) => node.type === 'div' && node.props.style?.height === 3);
+    expect(progressBars).toHaveLength(1);
+    expect(progressBars[0].findAllByType('div').find((node) => node.props.style?.width !== undefined)?.props.style.width).toBe('0%');
+    const approve = tree.root.findAllByType('button')[2];
+    act(() => approve.props.onClick());
     expect(onApprove).toHaveBeenCalledOnce();
+  });
+
+  it('keeps sealed overlay status readable without a progress bar or action button', () => {
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const tree = mount(<PlanReadOverlay model={{ ...plan, status: 'approved' }} copy={copy}
+      onClose={vi.fn()} onApprove={vi.fn()} onRequestChanges={vi.fn()} />);
+    expect(tree.root.findAll((node) => node.type === 'div' && node.props.style?.height === 3)).toHaveLength(0);
+    expect(tree.root.findAllByType('button')).toHaveLength(1);
+    expect(JSON.stringify(tree.toJSON())).toContain('approved');
   });
 });
