@@ -159,7 +159,7 @@ fn show_mac(app: tauri::AppHandle, title: String, body: String, id: String) -> R
     } else {
         &app.config().identifier
     };
-    notify_rust::set_application(identifier).map_err(|error| error.to_string())?;
+    mac_application_ready(notify_rust::set_application(identifier))?;
     notify_rust::Notification::new()
         .summary(&title)
         .body(&body)
@@ -170,6 +170,52 @@ fn show_mac(app: tauri::AppHandle, title: String, body: String, id: String) -> R
             respond(&app, id, response)
         })
         .map_err(|error| error.to_string())
+}
+
+// The backend sets its application once per process. A previous post or the
+// stock notification plugin may already have initialized it; only that typed
+// error is benign, while actual initialization failures must reach the caller.
+#[cfg(target_os = "macos")]
+fn mac_application_ready(result: Result<(), notify_rust::error::MacOsError>) -> Result<(), String> {
+    use notify_rust::error::{ApplicationError, MacOsError};
+    match result {
+        Ok(()) | Err(MacOsError::Application(ApplicationError::AlreadySet(_))) => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod mac_application_tests {
+    use super::mac_application_ready;
+    use notify_rust::error::{ApplicationError, MacOsError, NotificationError};
+
+    #[test]
+    fn first_and_repeated_initialization_can_deliver() {
+        assert_eq!(mac_application_ready(Ok(())), Ok(()));
+        for _ in 0..2 {
+            let repeated =
+                MacOsError::Application(ApplicationError::AlreadySet("com.apple.Terminal".into()));
+            assert_eq!(mac_application_ready(Err(repeated)), Ok(()));
+        }
+    }
+
+    #[test]
+    fn application_already_initialized_by_plugin_can_deliver() {
+        let preset = MacOsError::Application(ApplicationError::AlreadySet("app.cortex".into()));
+        assert_eq!(mac_application_ready(Err(preset)), Ok(()));
+    }
+
+    #[test]
+    fn real_initialization_errors_are_propagated() {
+        let failures = [
+            MacOsError::Application(ApplicationError::CouldNotSet("app.cortex".into())),
+            MacOsError::Notification(NotificationError::UnableToDeliver),
+        ];
+        for error in failures {
+            let message = error.to_string();
+            assert_eq!(mac_application_ready(Err(error)), Err(message));
+        }
+    }
 }
 
 // This API cannot cancel a wait, so refuse excess work rather than grow threads.

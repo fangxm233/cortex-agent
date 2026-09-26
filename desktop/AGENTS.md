@@ -4,7 +4,6 @@ Native shell workspace, mobile plugins and desktop packaging tools.
 
 | filename | role | function |
 |---|---|---|
-| notification-bridge.md | doc | Describe native notification contract and limits |
 | package.json | config | Declare desktop development and build commands |
 | scripts/ | build | Support shell and mobile packaging |
 | src-tauri/ | core | Implement the desktop and Android native shell |
