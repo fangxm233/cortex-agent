@@ -59,7 +59,7 @@ const TOUCH_HEADER_HEIGHT = 44;
 function headerStyle(hover: boolean, expanded: boolean, touch: boolean): CSSProperties {
   return {
     ...MENU_BUTTON_STYLE,
-    position: 'sticky', top: 0, zIndex: 1,
+    position: 'sticky', top: 'var(--transcript-sticky-top, 0px)', zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
     ...(touch ? { flexWrap: 'wrap', minHeight: TOUCH_HEADER_HEIGHT, boxSizing: 'border-box' } : {}),
     color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',

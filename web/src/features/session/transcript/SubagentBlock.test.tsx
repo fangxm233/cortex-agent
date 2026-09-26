@@ -31,6 +31,7 @@ describe('SubagentBlock', () => {
     expect(header.type).toBe('button');
     expect(header.props.className).toContain('focus-visible:outline');
     expect(header.props.style.position).toBe('sticky');
+    expect(header.props.style.top).toBe('var(--transcript-sticky-top, 0px)');
     expect(header.props.style.background).toBe('var(--proto-card)');
     expect(header.props.style.backdropFilter).toBeUndefined();
     act(() => header.props.onClick());
@@ -51,7 +52,7 @@ describe('SubagentBlock', () => {
       );
     });
     const header = renderer.root.findByProps({ role: 'button' });
-    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'var(--proto-card)' });
+    expect(header.props.style).toMatchObject({ minHeight: 44, flexWrap: 'wrap', background: 'var(--proto-card)', top: 'var(--transcript-sticky-top, 0px)' });
     expect(header.props.onMouseEnter).toBeUndefined();
     act(() => header.props.onClick());
     expect(JSON.stringify(renderer.toJSON())).toContain('child output');

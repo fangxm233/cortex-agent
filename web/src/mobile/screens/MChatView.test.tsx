@@ -140,6 +140,27 @@ beforeEach(() => {
   harness.queryCalls = [];
 });
 
+describe('MChatView sticky agent clearance', () => {
+  it('pins expanded agent headers below the title and top fade', () => {
+    const rows: ChatRow[] = [{
+      kind: 'subagent', id: 'tu_sticky', agentType: 'explore', description: 'Inspect layout',
+      prompt: 'Inspect the transcript', model: null, status: 'running', toolCount: 1,
+      children: [{ kind: 'assistant', text: 'child output', streaming: false }],
+    }];
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={rows}
+      status={{ running: true, tone: 'running', text: 'running' }} /></LangProvider>); });
+    const scroller = renderer.root.findByProps({ 'data-transcript-scroller': true });
+    expect(scroller.props.style['--transcript-sticky-top']).toBe('calc(72px + env(safe-area-inset-top))');
+    expect(scroller.findAllByType('div')[1].props.style.padding).toBe('var(--transcript-sticky-top) 16px 0');
+    const header = scroller.findByProps({ 'aria-expanded': false });
+    act(() => header.props.onClick());
+    expect(header.props['aria-expanded']).toBe(true);
+    expect(header.props.style.top).toBe('var(--transcript-sticky-top, 0px)');
+    act(() => renderer.unmount());
+  });
+});
+
 describe('MChatView floating composer clearance', () => {
   it('reserves the whole shell as it grows and shrinks, without moving the composer', () => {
     let height = 94;

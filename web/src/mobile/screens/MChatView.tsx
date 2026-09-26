@@ -545,9 +545,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade }}>
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': 'calc(72px + env(safe-area-inset-top))' } as CSSProperties}>
           {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
-          <div ref={contentRef} style={{ padding: 'calc(72px + env(safe-area-inset-top)) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream
               rows={props.rows}
               copyLabel={copy.copy}
