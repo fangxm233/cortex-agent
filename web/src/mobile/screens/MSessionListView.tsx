@@ -119,12 +119,12 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
   );
 }
 
-// The dot column: live/awaiting pulse, an external wait is a still hollow ring, an unread idle row
+// The dot column: live/awaiting solid dot, an external wait is a still hollow ring, an unread idle row
 // borrows the slot so its title stays aligned with the rows above it.
 function RowDot({ row }: { row: MSessionRow }) {
   const kind = row.status.kind;
-  if (isLive(row.status)) return <MDot color="var(--proto-accent)" size={7} pulse />;
-  if (kind === 'awaiting') return <MDot color="var(--proto-amber)" size={7} pulse />;
+  if (isLive(row.status)) return <MDot color="var(--proto-accent)" size={7} />;
+  if (kind === 'awaiting') return <MDot color="var(--proto-amber)" size={7} />;
   if (kind === 'waiting-external') {
     return (
       <span

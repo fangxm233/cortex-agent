@@ -92,7 +92,7 @@ function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
 function RunLine({ run }: { run: MachineRunRow }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META, marginTop: 5 }}>
-      <MDot color={MC.run} size={5} pulse />
+      <MDot color={MC.run} size={5} />
       <span style={{ color: MC.body, fontWeight: 600 }}>{run.label}</span>
       {run.duration && <span style={{ marginLeft: 'auto', color: MC.muted }}>{run.duration}</span>}
     </div>
@@ -188,7 +188,7 @@ function OnlineCard({
           </span>
           {card.liveRuns > 0 && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
-              <MDot color={MC.run} size={6} pulse />
+              <MDot color={MC.run} size={6} />
             </span>
           )}
         </div>

@@ -45,7 +45,6 @@ function NodeCell({ row }: { row: ThreadCardRow }) {
             background: 'var(--proto-accent)',
             flex: 'none',
             boxShadow: '0 0 0 3px var(--proto-accent-bg)',
-            animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
       )}
@@ -125,7 +124,6 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
                     height: 6,
                     borderRadius: '50%',
                     background: 'var(--proto-accent)',
-                    animation: 'cxpulse 1.6s ease-in-out infinite',
                   }}
                 />
               )}

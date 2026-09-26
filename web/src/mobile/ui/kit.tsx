@@ -377,16 +377,14 @@ export function statusPillTone(status: string): PillTone {
   return statusTone(status);
 }
 
-// ── MDot — small status dot, optional pulse (uses the cxpulse keyframes in index.css) ──
+// ── MDot — small status dot ──
 export function MDot({
   color,
   size = 6,
-  pulse = false,
   style,
 }: {
   color: string;
   size?: number;
-  pulse?: boolean;
   style?: CSSProperties;
 }) {
   return (
@@ -398,7 +396,6 @@ export function MDot({
         background: color,
         flex: 'none',
         display: 'inline-block',
-        animation: pulse ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
         ...style,
       }}
     />

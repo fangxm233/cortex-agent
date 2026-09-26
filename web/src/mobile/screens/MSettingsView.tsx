@@ -50,8 +50,7 @@ function DaemonRow(props: Pick<MSettingsViewProps, 'copy' | 'connectionStatus' |
     <button type="button" onClick={props.onOpenDaemon} data-settings-daemon
       style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
         display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
-      <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot.color,
-        animation: dot.pulse ? 'cxpulse 1.6s ease-in-out infinite' : undefined }} />
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot.color }} />
       <span style={TITLE}>{props.copy.daemon}</span>
       <span style={{ marginLeft: 'auto', fontSize: 12, color: dot.color }}>
         {L[connectionLabelKey(props.connectionStatus)]}

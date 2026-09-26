@@ -10,7 +10,6 @@ function RateLimitDemo() {
   return (
     <DegradedState
       severity="waiting"
-      pulse
       title="Rate limit reached — 3 items auto-paused"
       meta="resets 14:00 · 2h 08m"
     >
@@ -110,7 +109,6 @@ function OverBudgetDemo() {
   return (
     <DegradedState
       severity="waiting"
-      pulse
       title="Thread paused — would exceed today's budget"
       meta="waiting"
       detail={

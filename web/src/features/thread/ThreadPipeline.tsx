@@ -49,7 +49,6 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
           borderRadius: '50%',
           background: 'var(--proto-accent)',
           boxShadow: '0 0 0 3px var(--proto-accent-bg)',
-          animation: 'cxpulse 1.6s ease-in-out infinite',
           flex: 'none',
         }}
       />
@@ -249,7 +248,6 @@ function ExpandedStep({
                 height: 6,
                 borderRadius: '50%',
                 background: 'var(--proto-accent)',
-                animation: 'cxpulse 1.6s ease-in-out infinite',
               }}
             />
           )}

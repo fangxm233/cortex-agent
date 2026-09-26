@@ -344,7 +344,6 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               ...(row.running || row.awaitingInput
                 ? {
                   background: row.awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                  animation: 'cxpulse 1.6s ease-in-out infinite',
                 }
                 : { background: 'transparent', border: '1.5px solid var(--proto-muted-3)' }),
             }}
@@ -624,7 +623,6 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                     height: 6,
                     borderRadius: '50%',
                     background: 'var(--proto-accent)',
-                    animation: 'cxpulse 1.6s ease-in-out infinite',
                   }}
                 />
                 {node.running}

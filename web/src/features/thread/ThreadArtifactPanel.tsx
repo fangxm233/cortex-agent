@@ -39,7 +39,7 @@ function ArtifactFileHeader({ artifact }: { artifact: DetailArtifact }) {
 function LivePill({ label }: { label: string }) {
   return (
     <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', flex: 'none', whiteSpace: 'nowrap' }}>
-      <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', marginRight: 4, animation: 'cxpulse 1.6s ease-in-out infinite' }} />
+      <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', marginRight: 4 }} />
       {label}
     </span>
   );

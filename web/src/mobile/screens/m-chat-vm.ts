@@ -79,7 +79,7 @@ export interface ChatHeaderStatus {
    *   • ask   → `等待你的回答 k/n · Agent 已暂停`
    */
   text: string;
-  /** Header dot: running = blue pulse · waiting = amber (pending interaction) · idle = grey. */
+  /** Header dot: running = blue · waiting = amber (pending interaction) · idle = grey. */
   tone: 'running' | 'idle' | 'waiting';
 }
 

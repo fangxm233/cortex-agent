@@ -62,7 +62,7 @@ export interface RailProjectNode {
   expanded: boolean;
   /** No sessions, no schedules and no running threads: rendered dimmed, sorted last. */
   empty: boolean;
-  /** Active thread count (running + waiting) — the blue pulse. */
+  /** Active thread count (running + waiting) — the blue dot. */
   running: number;
   /** Unread + awaiting-input sessions, in one badge. */
   attention: number;
@@ -70,7 +70,7 @@ export interface RailProjectNode {
   attentionTone: ProjectAttentionBadgeTone;
   /** '⌘1'…'⌘9' by visible order, non-empty projects only; null past nine or when an age shows. */
   hotkey: string | null;
-  /** Last-activity age, only for quiet rows that show neither badge nor pulse. */
+  /** Last-activity age, only for quiet rows that show neither badge nor dot. */
   idleAge: string | null;
   sessions: RailSessionRow[];
   /** Sessions this project has beyond the ones in `sessions`. */

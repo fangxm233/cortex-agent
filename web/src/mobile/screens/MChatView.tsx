@@ -76,7 +76,7 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)', animation: props.status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined }} />
+          <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)' }} />
           <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {props.title}
           </span>

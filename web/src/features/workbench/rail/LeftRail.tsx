@@ -117,7 +117,6 @@ export function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label:
           borderRadius: '50%',
           background: dot.color,
           border: '2px solid var(--glass-2)',
-          ...(dot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
         }}
       />
     </div>
@@ -647,7 +646,6 @@ export function LeftRail(): JSX.Element {
                       borderRadius: '50%',
                       background: 'var(--proto-amber)',
                       flex: 'none',
-                      animation: 'cxpulse 2s ease-in-out infinite',
                     }}
                   />
                   <div style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>

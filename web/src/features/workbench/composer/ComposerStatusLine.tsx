@@ -25,7 +25,7 @@ export function ComposerStatusLine({
       {/* The live segment never yields width: a truncated "running · 2m 4s" is worse than a
           truncated total, so the totals segment is the one allowed to shrink. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 'none' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', animation: running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, transform: 'translateY(0.5px)', flex: 'none' }} />
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', transform: 'translateY(0.5px)', flex: 'none' }} />
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
       </span>
       {sessionText && (

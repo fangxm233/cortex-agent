@@ -29,15 +29,13 @@ export interface DegradedStateProps {
   actions?: ReactNode;
   /** Extra structured body content (lists, step notes). */
   children?: ReactNode;
-  /** Pulse the status dot (waiting/live states). */
-  pulse?: boolean;
   className?: string;
 }
 
-function DegradedHeader({ severity, title, meta, pulse }: DegradedStateProps) {
+function DegradedHeader({ severity, title, meta }: DegradedStateProps) {
   return (
     <div className={['flex flex-wrap items-center gap-1g px-1.5g py-1g', HEADER_CLASS[severity]].join(' ')}>
-      <span className={['h-1g w-1g flex-none rounded-full', DOT_CLASS[severity], pulse ? 'animate-pulse' : ''].join(' ')} />
+      <span className={['h-1g w-1g flex-none rounded-full', DOT_CLASS[severity]].join(' ')} />
       <span className="min-w-0 text-ui font-semibold leading-snug [overflow-wrap:anywhere]">{title}</span>
       {meta && <span className="ml-auto font-mono text-ui [overflow-wrap:anywhere]">{meta}</span>}
     </div>

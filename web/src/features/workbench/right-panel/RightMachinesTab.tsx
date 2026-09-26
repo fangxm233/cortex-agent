@@ -105,7 +105,7 @@ function RunRow({ run }: { run: MachineRunRow }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, font: META_FONT, color: 'var(--proto-muted)' }}>
       <span
-        style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0, animation: 'cxpulse 1.6s ease-in-out infinite' }}
+        style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0 }}
       />
       <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{run.label}</span>
       {run.duration && <span style={{ marginLeft: 'auto', color: 'var(--proto-muted)' }}>{run.duration}</span>}
@@ -191,8 +191,7 @@ function MachineCardMeta({ machine }: { machine: MachineInfo }) {
       {parts.join(' · ')}
     </span>
     {machine.liveRuns > 0 && <span style={{ marginLeft: 'auto', width: 6, height: 6,
-      borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0,
-      animation: 'cxpulse 1.6s ease-in-out infinite' }} />}
+      borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0 }} />}
   </div>;
 }
 

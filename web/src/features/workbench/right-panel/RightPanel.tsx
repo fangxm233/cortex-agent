@@ -60,13 +60,11 @@ function PanelIcon({ target, size = 14 }: { target: PanelTarget; size?: number }
   );
 }
 
-function PanelRailButton({ target, label, active, count = 0, pulse, onClick }: {
+function PanelRailButton({ target, label, active, count = 0, onClick }: {
   target: PanelTarget;
   label: string;
   active: boolean;
   count?: number;
-  /** Badges only breathe while the drawer is shut — once it is open the same counts are on screen. */
-  pulse?: boolean;
   onClick: () => void;
 }) {
   return <button
@@ -107,7 +105,6 @@ function PanelRailButton({ target, label, active, count = 0, pulse, onClick }: {
             justifyContent: 'center',
             background: 'var(--proto-accent)',
             color: 'var(--ink-solid-fg)',
-            ...(pulse ? { animation: 'cxglow 1.6s ease-in-out infinite' } : {}),
           }}
         >
           {count}
@@ -156,7 +153,7 @@ function RightPanelRail({ active, labels, counts, budget, budgetLabel, navigatio
     <nav aria-label={navigationLabel} style={{ width: PANEL_RAIL_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0' }}>
       <PaneToggle side="right" expanded={expanded} label={toggleLabel} onClick={onToggle} />
       <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0' }} />
-      {workTargets.map((target) => <PanelRailButton key={target} target={target} label={labels[target]} active={active === target} count={counts[target]} pulse={!expanded} onClick={() => onSelect(target)} />)}
+      {workTargets.map((target) => <PanelRailButton key={target} target={target} label={labels[target]} active={active === target} count={counts[target]} onClick={() => onSelect(target)} />)}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <RailBudgetMeter budget={budget} label={budgetLabel} />
         <PanelRailButton target="notes" label={labels.notes} active={active === 'notes'} onClick={() => onSelect('notes')} />

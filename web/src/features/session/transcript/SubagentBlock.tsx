@@ -27,7 +27,7 @@ const metaStyle: CSSProperties = {
 };
 
 /** The dot stands where the disclosure caret used to, so the row leads with state instead of with
- *  chrome. Pulsing accent while the subagent works, `--proto-success` once it is done — the same
+ *  chrome. Accent while the subagent works, `--proto-success` once it is done — the same
  *  green `TaskRow` uses for a finished task. It never unmounts, so a block settling does not shift
  *  the header text sideways. With the caret gone, `aria-expanded` on the header carries the
  *  open/closed state that the triangle used to show. */
@@ -35,7 +35,6 @@ function statusDotStyle(running: boolean): CSSProperties {
   return {
     width: 6, height: 6, borderRadius: '50%', flex: 'none',
     background: running ? 'var(--proto-accent)' : 'var(--proto-success)',
-    ...(running ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
   };
 }
 const bodyStyle: CSSProperties = {

@@ -55,7 +55,6 @@ const RailBannerTrigger = forwardRef<
           borderRadius: '50%',
           background: 'var(--pill-waiting-fg)',
           flex: 'none',
-          animation: 'cxpulse 2s ease-in-out infinite',
         }}
       />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

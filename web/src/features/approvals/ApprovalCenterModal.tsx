@@ -137,7 +137,6 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                   height: 6,
                   borderRadius: '50%',
                   background: 'var(--proto-amber)',
-                  animation: 'cxpulse 2s ease-in-out infinite',
                 }}
               />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-amber-fg)'  }}>
@@ -308,7 +307,6 @@ function PendingList({
                     background: 'var(--proto-amber)',
                     flex: 'none',
                     marginTop: 5,
-                    animation: sel ? 'cxpulse 2s ease-in-out infinite' : 'none',
                   }}
                 />
                 <div style={{ minWidth: 0, flex: 1 }}>

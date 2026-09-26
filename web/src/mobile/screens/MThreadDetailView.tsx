@@ -138,7 +138,6 @@ function StepDotColumn({ kind, hasConnector }: { kind: MThreadStepVm['kind']; ha
             background: MC.run,
             flex: 'none',
             boxShadow: `0 0 0 3px ${MC.runBg}`,
-            animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
       )}
@@ -156,7 +155,7 @@ function AgentBox({ agent }: { agent: NonNullable<MThreadStepVm['agent']> }) {
   return (
     <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 'var(--r-chip)', padding: '9px 11px', marginTop: 6, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `400 11px ${MONO}`, color: MC.muted }}>
-        {agent.live && <MDot color={MC.run} size={5} pulse />}
+        {agent.live && <MDot color={MC.run} size={5} />}
         <span>{agent.turnLabel}</span>
         {agent.cost && <span style={{ marginLeft: 'auto' }}>{agent.cost}</span>}
       </div>

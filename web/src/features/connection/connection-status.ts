@@ -27,20 +27,18 @@ export function deriveConnectionStatus(
 export interface ConnectionDot {
   /** CSS variable driving the dot + label color (light/dark themed). */
   color: string;
-  /** Whether the dot pulses — true while the link is (re)connecting. */
-  pulse: boolean;
 }
 
 /** Presentational tokens for the badge dot/label per status (theme CSS vars, no raw hex). */
 export function connectionDot(status: ConnectionStatus): ConnectionDot {
   switch (status) {
     case 'connected':
-      return { color: 'var(--proto-success)', pulse: false };
+      return { color: 'var(--proto-success)' };
     case 'connecting':
     case 'reconnecting':
-      return { color: 'var(--proto-amber)', pulse: true };
+      return { color: 'var(--proto-amber)' };
     case 'disconnected':
-      return { color: 'var(--proto-danger)', pulse: false };
+      return { color: 'var(--proto-danger)' };
   }
 }
 

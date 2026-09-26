@@ -286,15 +286,13 @@ export function SNotice({ tone = 'muted', icon, action, children, className, ...
   );
 }
 
-/** The pulsing dot an attention notice leads with. */
-export function SDot({ color = 'var(--proto-amber)', pulse, size = 8 }: {
+/** The dot an attention notice leads with. */
+export function SDot({ color = 'var(--proto-amber)', size = 8 }: {
   color?: string;
-  pulse?: boolean;
   size?: number;
 }) {
   return (
-    <span className={pulse ? 'animate-cxpulse motion-reduce:animate-none' : undefined}
-      style={{ width: size, height: size, borderRadius: '50%', background: color, flex: 'none' }} />
+    <span style={{ width: size, height: size, borderRadius: '50%', background: color, flex: 'none' }} />
   );
 }
 

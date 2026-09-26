@@ -70,7 +70,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
           borderBottom: `1px solid ${MC.divider}`,
         }}
       >
-        <MDot color={dotColor(rebuildStatusTone(rebuild.status))} pulse={rebuild.running} />
+        <MDot color={dotColor(rebuildStatusTone(rebuild.status))} />
         <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{copy.rebuildTitle}</span>
         <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>
           {copy.rebuildProgress(rebuild.completed, rebuild.total)} · {rebuild.elapsed}
@@ -90,7 +90,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
       >
         {rebuild.steps.map((step) => (
           <div key={step.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MDot color={dotColor(step.tone)} size={5} pulse={step.status === 'running'} />
+            <MDot color={dotColor(step.tone)} size={5} />
             <span style={{ color: step.status === 'pending' ? MC.faint : MC.sub }}>{step.name}</span>
             {step.detail && <span style={{ color: MC.faint }}>({step.detail})</span>}
             <span style={{ marginLeft: 'auto', color: MC.faint }}>{step.duration ?? copy.dash}</span>
@@ -294,7 +294,7 @@ export function MDaemonView({
             {copy.title}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            {mConnPulse(connStatus) && <MDot color={MC.amber} pulse />}
+            {mConnPulse(connStatus) && <MDot color={MC.amber} />}
             <MPill tone={mConnTone(connStatus)}>{copy[CONN_LABEL[connStatus]]}</MPill>
           </span>
         </div>

@@ -152,7 +152,6 @@ export function ChatHeader({
             borderRadius: '50%',
             background: 'var(--proto-accent)',
             flex: 'none',
-            animation: 'cxglow 1.8s ease-out infinite',
           }}
         />
       )}

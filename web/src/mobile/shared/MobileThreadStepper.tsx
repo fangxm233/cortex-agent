@@ -96,7 +96,6 @@ export function MobileThreadStepper({
               height: 4,
               borderRadius: 'var(--r-pill)',
               background: barColor(node.state),
-              animation: node.state === 'running' ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
             }}
           />
         ))}

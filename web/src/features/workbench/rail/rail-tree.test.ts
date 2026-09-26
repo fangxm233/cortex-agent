@@ -207,7 +207,7 @@ describe('buildRailTree badges and hotkeys', () => {
     expect(tree.projects[0].sessions[0].waitingOn).toBe(false);
   });
 
-  it('counts running and waiting threads as the blue pulse', () => {
+  it('counts running and waiting threads as the blue dot', () => {
     const tree = buildRailTree(
       input({
         projects: [project('nimbus')],
@@ -229,7 +229,7 @@ describe('buildRailTree badges and hotkeys', () => {
     expect(keys).toEqual({ a: '⌘1', b: '⌘2', c: '⌘3', empty1: null });
   });
 
-  it('shows an idle age only when neither a pulse nor a badge is present', () => {
+  it('shows an idle age only when neither a dot nor a badge is present', () => {
     const tree = buildRailTree(
       input({
         projects: [project('quiet'), project('busy')],

@@ -64,7 +64,6 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
             background: 'var(--proto-accent)',
             flex: 'none',
             boxShadow: '0 0 0 3px var(--proto-accent-bg)',
-            animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
       )}
@@ -101,7 +100,6 @@ function ActivityDot({ tone }: { tone: ActivityTone }) {
         borderRadius: '50%',
         background: ACTIVITY_COLORS[tone],
         flex: 'none',
-        animation: tone === 'running' ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
       }}
     />
   );

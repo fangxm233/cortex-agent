@@ -107,7 +107,7 @@ function PipelineDot({ state }: { state: MPipelineStep['state'] }) {
   }
   if (state === 'active') {
     return (
-      <span style={{ width: 14, height: 14, borderRadius: '50%', background: MC.run, boxShadow: `0 0 0 3px ${MC.runBg}`, animation: 'cxpulse 1.6s ease-in-out infinite', flex: 'none' }} />
+      <span style={{ width: 14, height: 14, borderRadius: '50%', background: MC.run, boxShadow: `0 0 0 3px ${MC.runBg}`, flex: 'none' }} />
     );
   }
   return <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />;

@@ -64,7 +64,6 @@ function StatusDot({ status, allDone }: { status: TodoStatus; allDone: boolean }
           ...base,
           background: allDone ? 'var(--proto-success)' : 'var(--proto-accent)',
           boxShadow: `0 0 0 3px ${allDone ? 'var(--proto-success-bg)' : 'var(--proto-accent-bg)'}`,
-          animation: 'cxpulse 1.6s ease-in-out infinite',
         }}
       />
     );
