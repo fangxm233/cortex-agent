@@ -184,6 +184,11 @@ TUI and Claude print. Their dialogs travel over PI's extension UI protocol,
 which `ui-context.ts` answers inside the server; see
 [safety-and-approvals.md](./safety-and-approvals.md).
 
+**Cache warming.** Cortex disables PI's automatic prompt-cache warming in both
+main and subagent sessions. Ordinary provider prompt caching remains available;
+Cortex does not issue extra warming requests whose usage is outside its cost
+accounting. This is a runtime override and leaves the terminal PI settings intact.
+
 **Credentials.** PI provider credentials are managed by Cortex — `!login pi` in
 chat or **Settings → Accounts** on the web — and stored in PI's own auth file at
 `~/.pi/agent/auth.json`. Cortex makes that file visible inside its private PI

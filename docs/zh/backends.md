@@ -77,6 +77,8 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **交互工具。** 用户发起的直接 PI 会话会把 interaction bundle 加入其进程内的 Cortex 工具集，因此 PI 暴露与 Claude TUI、Claude print 相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具。它们的对话走 PI 的 extension UI 协议，由 `ui-context.ts` 在服务器内应答；参见 [safety-and-approvals.md](./safety-and-approvals.md)。
 
+**缓存预热。** Cortex 在主会话和子代理会话中关闭 PI 自动 prompt-cache warming。Provider 的普通提示缓存仍可使用；Cortex 不会额外发起未纳入费用统计的预热请求。这是运行时覆盖，不会改写终端 PI 的设置。
+
 **凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 会让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的机器与 Cortex 共用同一份凭据和同一份 provider catalog。
 
 PI transcript retention 走文件系统扫描：仍在使用的 PI backend session id 会在保留扫描中被保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下失去引用的 transcript bundle 只有在超过保留截止线且连续两轮确认后才会删除。
