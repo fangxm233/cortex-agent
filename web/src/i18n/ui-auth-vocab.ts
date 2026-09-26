@@ -1,6 +1,6 @@
 export const uiAuthEn = {
   uiLoginTitle: 'Sign in to Cortex',
-  uiLoginHint: "Paste this server's client token. It is exchanged for a session cookie and is not stored in this page.",
+  uiLoginHint: "Enter this server's client token. It is not saved on this page.",
   uiLoginTokenLabel: 'Client token',
   uiLoginSubmit: 'Sign in',
   uiLoginBusy: 'Signing in…',
@@ -13,7 +13,7 @@ export const uiAuthEn = {
 
 export const uiAuthZh: Record<keyof typeof uiAuthEn, string> = {
   uiLoginTitle: '登录 Cortex',
-  uiLoginHint: '粘贴本服务器的 client token。它会被换成一个会话 cookie，不会保存在此页面中。',
+  uiLoginHint: "输入本服务器的 client token，不会保存在此页面。",
   uiLoginTokenLabel: 'Client token',
   uiLoginSubmit: '登录',
   uiLoginBusy: '正在登录…',

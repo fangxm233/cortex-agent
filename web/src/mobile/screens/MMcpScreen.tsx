@@ -18,7 +18,7 @@ export function MMcpScreen() {
     <MSettingsCard><div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div></MSettingsCard>
   </MSettingsPage>;
   return <MSettingsPage title={L.stNavMcp} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard title={L.stServers} note={L.stMcpFootNote}>
+    <MSettingsCard title={L.stServers}>
       {servers.length === 0
         ? <MSettingsRow title={L.stNoServers} last />
         : servers.map((server, index) => <MSettingsRow key={server} title={server}

@@ -221,7 +221,7 @@ function DefaultProfileRow({ current, names, onPick }: {
             style={PICKER_STYLE}
           />
         ) : (
-          <SSelectChip disabled title="Select a profile to write profiles.json defaultProfile">
+          <SSelectChip disabled title="Select an existing profile as the default">
             <span style={{ font: `500 12px ${MONO}` }}>{current ?? '—'}</span>
           </SSelectChip>
         )}

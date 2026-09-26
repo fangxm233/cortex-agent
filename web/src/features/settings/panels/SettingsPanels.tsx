@@ -48,9 +48,10 @@ const MCP_VARIANTS: SegmentOption<McpVariant>[] = [
 // No `onChange`: the variant is chosen by the runtime that started the server, so the segment
 // reports the shape of that choice without offering to write it.
 function VariantSegment() {
+  const L = useVocab();
   return (
     <span
-      title="full / core / tui variant is a runtime-mode selection — no config.set for it (inert)"
+      title={L.stMcpVariantReadOnly}
       style={{ display: 'inline-flex' }}
     >
       <SSegmented value="full" options={MCP_VARIANTS} mono />
@@ -81,12 +82,6 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
     <SCard style={{ overflow: 'hidden' }}>
       <SCardHeader title={L.stServers} right={<VariantSegment />} />
       <ServerRows servers={servers} />
-      <div style={{
-        borderTop: '1px solid var(--proto-line-2)', padding: '12px 16px',
-        fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)',
-      }}>
-        {L.stMcpFootNote}
-      </div>
     </SCard>
   );
 }

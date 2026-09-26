@@ -6,6 +6,7 @@ import type { MThreadDetailVm, MThreadStepVm, MThreadArtifactVm } from './m-thre
 
 export interface MThreadDetailCopy {
   pause: string;
+  pauseUnavailable: string;
   cancel: string;
   artifacts: string;
   noArtifacts: string;
@@ -262,7 +263,7 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
         <>
           {/* GAP: no pause backend op — rendered per scheme but inert. */}
           <div
-            title="Pause has no backend op yet"
+            title={copy.pauseUnavailable}
             style={{
               flex: 1,
               height: 44,

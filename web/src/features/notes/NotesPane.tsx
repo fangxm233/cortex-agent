@@ -175,9 +175,10 @@ function NotesPaneHeader({ copy, activeCount, headerIcon, headerAction, onClose 
       {headerIcon && <span aria-hidden="true" style={{ color: 'var(--proto-muted)', display: 'grid', placeItems: 'center' }}>{headerIcon}</span>}
       <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{copy.title}</span>
       <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{activeCount}</span>
-      <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>context/NOTES.md</span>
-      {headerAction}
-      <button type="button" onClick={onClose} style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {headerAction}
+        <button type="button" onClick={onClose} style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-control)', padding: '2px 6px', background: 'transparent', cursor: 'pointer' }}>{copy.escape}</button>
+      </div>
     </div>
   );
 }

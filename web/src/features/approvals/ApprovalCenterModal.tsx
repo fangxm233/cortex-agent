@@ -145,17 +145,13 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
               </span>
             </span>
           )}
-          <span
-            style={{ marginLeft: 'auto', minWidth: 0, overflowWrap: 'anywhere', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}
-          >
-            ~/.cortex/context/PENDING_APPROVALS.md
-          </span>
           <button
             type="button"
             className={focusClass}
             aria-label="Close"
             onClick={props.onClose}
             style={{
+              marginLeft: 'auto',
               font: `500 11px ${mono}`,
               color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
@@ -234,9 +230,6 @@ function EmptyState() {
         ✓
       </span>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.aprEmptyTitle}</div>
-      <div style={{ fontSize: 12, color: 'var(--proto-muted)'  }}>
-        {L.aprEmptyDesc}
-      </div>
     </div>
   );
 }
@@ -560,9 +553,6 @@ function DetailPane({
           gap: 10,
         }}
       >
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: '1 1 120px'  }}>
-          {L.apFootNote}
-        </span>
         <div style={{ display: 'flex', gap: 10, marginLeft: 'auto', alignItems: 'center' }}>
         {!armed && (
           <>

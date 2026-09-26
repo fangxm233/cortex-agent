@@ -12,7 +12,6 @@ import {
   SDot,
   SLinkAction,
   SNotice,
-  SPill,
   SRow,
   SRowGroup,
   SSection,
@@ -36,12 +35,11 @@ import {
 import { useBudgetWriter } from '@/features/settings/controllers/useBudgetWriter';
 
 // Desktop Budget panel — a live-write settings surface. A scope selector switches between the
-// GLOBAL limits and a per-project override; both the daily and the monthly limit are editable in
+// global limits and a per-project override; both the daily and the monthly limit are editable in
 // either scope, by quick chip or by typed amount. Every write is a complete pair because overrides
 // are pair-only, so a project that has never been overridden is seeded from the globals it is
-// currently inheriting. WARN AT + over-budget policy still have no budget.json field, so they
-// remain inert structural placeholders (no fabricated data, and no fabricated enforcement — the
-// budget is advisory: nothing in the server gates on it).
+// currently inheriting. Warn and policy controls stay disabled because the server reports budgets
+// as advisory and does not enforce them.
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -51,10 +49,10 @@ const SCOPE_TAG_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(-
 const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' };
 const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
 
-const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab; def: boolean }[] = [
-  { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc', def: true },
-  { titleKey: 'stPolicyWarnTitle', descKey: 'stPolicyWarnDesc', def: false },
-  { titleKey: 'stPolicyStopTitle', descKey: 'stPolicyStopDesc', def: false },
+const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab }[] = [
+  { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc' },
+  { titleKey: 'stPolicyWarnTitle', descKey: 'stPolicyWarnDesc' },
+  { titleKey: 'stPolicyStopTitle', descKey: 'stPolicyStopDesc' },
 ];
 
 // SMeter wants a number; the vm owns the clamp and formats it as `NN%`.
@@ -82,7 +80,6 @@ function SpendSection({ scopeLabel, today, month, limits }: {
           value={formatBudgetUsd(month)}
           caption={`${L.month} / ${formatBudgetUsd(limits.monthly)}`}
           percent={meterPct(month, limits.monthly)} tone="var(--proto-accent-2)"
-          footnote={L.stBudgetFootNote}
         />
         <SNotice tone="amber" icon={<SDot size={6} />}>{L.stObNote}</SNotice>
       </div>
@@ -159,7 +156,7 @@ function LimitRow(props: LimitRowProps) {
   );
 }
 
-// WARN AT has no budget.json field — the chips are structure, not a setting.
+// WARN AT is displayed as disabled until a writable server setting exists.
 function WarnRow() {
   const L = useVocab();
   return (
@@ -168,7 +165,7 @@ function WarnRow() {
         <span style={{ ...AMOUNT_STYLE, color: 'var(--proto-faint)' }}>—</span>
         <div style={CHIPS_STYLE}>
           {WARN_CHIPS.map((value) => (
-            <SChip key={value} disabled title="No warn-threshold field in budget.json — inert">
+            <SChip key={value} disabled title={L.warnNote}>
               {value + '%'}
             </SChip>
           ))}
@@ -222,7 +219,7 @@ function PolicySection() {
   const L = useVocab();
   return (
     <SSection label={L.stOverBudgetBehavior} action={<span style={SCOPE_TAG_STYLE}>{L.obNote}</span>}>
-      <SRowGroup title="No over-budget-policy field in budget.json — inert" style={{ cursor: 'not-allowed' }}>
+      <SRowGroup title={L.obNote} style={{ cursor: 'not-allowed' }}>
         {POLICY_ROWS.map((row) => (
           <SRow
             key={row.titleKey} align="flex-start" control={<RadioDot selected={false} />}
@@ -230,7 +227,6 @@ function PolicySection() {
             title={
               <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, color: 'var(--proto-muted)' }}>
                 {L[row.titleKey]}
-                {row.def ? <SPill tone="accent">{L.default}</SPill> : null}
               </span>
             }
           />

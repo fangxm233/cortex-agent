@@ -28,7 +28,7 @@ function LiveActions({ onCancel, pending }: { onCancel: () => void; pending: boo
   const L = useVocab();
   return (
     <>
-      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'not-allowed', opacity: 0.6 }}>
+      <span title={L.thPauseUnavailable} style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-ink)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'not-allowed', opacity: 0.6 }}>
         {L.pause}
       </span>
       <button type="button" disabled={pending} onClick={onCancel} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-control)', padding: '4px 12px', color: 'var(--proto-danger)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1 }}>

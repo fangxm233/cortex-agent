@@ -101,9 +101,6 @@ export function ExecutionDrawerView({
 
       {/* Footer (prototype L1557) */}
       <div style={FOOTER_STYLE}>
-        <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--log-fg)' }}>
-          {L.exFooterHeartbeat}
-        </span>
         <button
           type="button"
           onClick={onKill}

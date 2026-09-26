@@ -29,8 +29,6 @@ import { SRowGroup, SRow, SSection, SSegmented } from '@/features/settings/ui/se
 
 // Device-local appearance controls persist through their providers with no daemon round-trip.
 
-const MONO = "'IBM Plex Mono',monospace";
-
 // ── Theme cards ─────────────────────────────────────────────────────────────
 // Theme is the one appearance choice with a picture, so it gets one: a miniature of the workspace
 // — backdrop, rail, content pane — rather than a third row of the same three-option segment.
@@ -96,7 +94,6 @@ function ThemeSection() {
           <ThemeCard key={spec.id} spec={spec} active={spec.id === theme} onSelect={setTheme} />
         ))}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: '9px 2px 0', lineHeight: 1.6 }}>{L.stThemeHint}</div>
     </SSection>
   );
 }
@@ -143,9 +140,9 @@ function ColorSection() {
   return (
     <SSection label={L.stPaletteLabel}>
       <SRowGroup>
-        <SRow title={L.stAccentLabel} desc={L.stAccentHint}
+        <SRow title={L.stAccentLabel}
           control={<AccentPicker hue={accentHue} copy={accentCopy} onChange={setAccentHue} />} />
-        <SRow title={L.stAccentIntensityLabel} desc={L.stAccentIntensityHint} control={
+        <SRow title={L.stAccentIntensityLabel} control={
           <SSegmented<AccentIntensity> value={accentIntensity} dataAttr="data-accent-intensity-option"
             ariaLabel={L.stAccentIntensityLabel} onChange={setAccentIntensity}
             options={[
@@ -154,7 +151,7 @@ function ColorSection() {
               { id: 'vivid', label: L.stAccentIntensityVivid },
             ]} />
         } />
-        <SRow title={L.stPaletteLabel} desc={L.stPaletteHint} align="flex-start">
+        <SRow title={L.stPaletteLabel} align="flex-start">
           <div style={{ marginTop: 12 }}>
             <PaletteControls
               palette={palette} copy={paletteCopy} activePreset={activePreset}
@@ -186,7 +183,7 @@ function SurfaceSection() {
               { id: 'medium', label: L.stGlassMedium }, { id: 'strong', label: L.stGlassStrong },
             ]} />
         } />
-        <SRow title={L.stMotionLabel} desc={L.stMotionHint} control={
+        <SRow title={L.stMotionLabel} control={
           <SSegmented<MotionMode> value={motionMode} dataAttr="data-motion-option" ariaLabel={L.stMotionLabel}
             onChange={setMotionMode}
             options={[
@@ -224,9 +221,6 @@ export function AppearancePanel() {
       <ThemeSection />
       <ColorSection />
       <SurfaceSection />
-      <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', paddingLeft: 2, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
-        localStorage · cortex.lang · cortex.theme · cortex.palette · cortex.accent-hue · cortex.accent-intensity · cortex.glass · cortex.motion
-      </div>
     </>
   );
 }

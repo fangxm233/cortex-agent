@@ -326,12 +326,9 @@ export function OverviewView(): JSX.Element {
         <div style={{ ...CARD, cursor: 'pointer' }} role="button" tabIndex={0}
           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate('/memory'); } }}
           onClick={() => navigate('/memory')}>
-          <CardHeader title={L.projectMemory} right={L.ovGitBacked} />
+          <CardHeader title={L.projectMemory} />
           <div style={{ padding: '18px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>{L.ovOpenMemoryViewer} ›</div>
-            <div style={{ fontSize: 11, color: 'var(--proto-muted)', lineHeight: 1.5 }}>
-              {L.ovMemoryDesc}
-            </div>
           </div>
         </div>
 
@@ -347,7 +344,7 @@ export function OverviewView(): JSX.Element {
             design mock's source slot has no markdown field → only title + date (honest). */}
         {issues.length > 0 && (
           <div style={CARD} data-issues-card="">
-            <CardHeader title={L.issuesTitle} right="ISSUES.md" />
+            <CardHeader title={L.issuesTitle} />
             <div style={{ padding: '4px 14px 6px' }}>
               {issues.slice(0, 3).map((i, idx) => (
                 <div
@@ -557,8 +554,6 @@ export function OverviewView(): JSX.Element {
         <div className="overview-executions" style={{ ...CARD, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
             <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.execFlow}</span>
-            <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 8 }}>{L.ovExecSubtitle}</span>
-            <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>executions.json</span>
           </div>
           <div className="overview-table-scroll" tabIndex={0} role="region" aria-label={L.execFlow}>
           <div

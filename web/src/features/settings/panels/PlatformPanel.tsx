@@ -123,7 +123,6 @@ export function PlatformPanelView(props: {
   // `.ps-panel` owns the vertical rhythm here rather than the settings sheet, because the mobile
   // platform screen hosts this same view without the sheet's panel stack.
   return <div className="ps-panel">
-    <p style={PROSE_STYLE}>{L.psIntro}</p>
     {!props.secure && <SNotice tone="amber" role="alert">{L.psHttps}</SNotice>}
     {props.feedback && <SNotice tone="accent" role="status">{feedback[props.feedback]}</SNotice>}
     <div className="ps-grid">{props.snapshot.platforms.map(platform => <PlatformCard key={platform.platform}

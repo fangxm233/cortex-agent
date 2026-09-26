@@ -32,8 +32,6 @@ const mono = "'IBM Plex Mono',monospace";
 interface IssueCenterViewProps {
   entries: IssueInfo[];
   selectedId: string | null;
-  /** Current project id — shown in the header path label `<project>/ISSUES.md`. */
-  projectId: string | null;
   /** Delete armed (two-step confirm). */
   armed: boolean;
   pending: boolean;
@@ -124,12 +122,10 @@ function IssueCenterView(props: IssueCenterViewProps) {
               {count}
             </span>
           )}
-          <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-            {props.projectId ? `${props.projectId}/ISSUES.md` : 'ISSUES.md'}
-          </span>
           <button type="button" className="content-text-action"
             onClick={props.onClose}
             style={{
+              marginLeft: 'auto',
               font: `500 11px ${mono}`,
               color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line-2)',
@@ -290,19 +286,6 @@ function IssueQueue({
             </div>
           );
         })}
-      </div>
-      <div
-        style={{
-          marginTop: 'auto',
-          padding: '12px 18px',
-          borderTop: '1px solid var(--proto-line-2)',
-          font: `400 11px ${mono}`,
-          color: 'var(--proto-muted)',
-          lineHeight: 1.7,
-          flex: 'none',
-        }}
-      >
-        {L.isNoStatusNote}
       </div>
     </div>
   );
@@ -598,7 +581,6 @@ export function IssueCenterModal({
     <IssueCenterView
       entries={entries}
       selectedId={selectedId}
-      projectId={currentProjectId}
       armed={armed}
       pending={pending}
       onSelect={setRawSelectedId}

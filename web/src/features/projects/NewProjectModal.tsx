@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
-import { canCreateProject, NP_BREADCRUMB, NP_PLACEHOLDER } from './new-project';
+import { canCreateProject, NP_PLACEHOLDER } from './new-project';
 import { useCreateProject } from './useCreateProject';
 
 // NEW PROJECT MODAL — 1:1 from prototype.dc.html L1407-1429 (+ backdrop L1291), task c551. Raw inline
@@ -63,9 +63,6 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
         {/* header (L1410-1414) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.newProject}</span>
-          <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , marginLeft: 10 }}>
-            {NP_BREADCRUMB}
-          </span>
           <button
             type="button"
             aria-label="Close"
@@ -127,16 +124,18 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               style={{ flex: 1, minWidth: 0, font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
             />
           </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: error ? 'var(--proto-danger)' : 'var(--proto-muted)',
-              marginTop: 8,
-              lineHeight: 1.6,
-            }}
-          >
-            {error ?? L.npHint}
-          </div>
+          {error && (
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--proto-danger)',
+                marginTop: 8,
+                lineHeight: 1.6,
+              }}
+            >
+              {error}
+            </div>
+          )}
         </div>
 
         {/* footer (L1423-1426) */}

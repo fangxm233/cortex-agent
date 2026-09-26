@@ -1,13 +1,9 @@
 import '@/features/settings/ui/desktop-panels.css';
-import type { CSSProperties } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import { useVocab } from '@/i18n';
 import {
-  MonoKV,
-  SCard,
-  SCardHeader,
   SCount,
   SDot,
   SEntityName,
@@ -18,16 +14,6 @@ import {
   SSection,
 } from '@/features/settings/ui/settings-ui';
 
-const MONO = "'IBM Plex Mono',monospace";
-
-const HINT_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
-const FOOTNOTE_STYLE: CSSProperties = {
-  fontSize: 12, lineHeight: 1.7, color: 'var(--proto-muted-2)', paddingLeft: 2,
-};
-const KV_BODY_STYLE: CSSProperties = {
-  padding: '12px 16px', font: `400 12px ${MONO}`, lineHeight: 1.7, color: 'var(--proto-ink)',
-};
-
 function MachineEntity({ machine }: { machine: MachineInfo }) {
   const L = useVocab();
   const ssh = machine.sshConfigured;
@@ -37,7 +23,7 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
     meta={`${machine.cortexPath ?? '—'} · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
     trailing={<div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       <SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>
-      <SLinkAction tone="muted" disabled title="No machine logs/registry backend op — inert">
+      <SLinkAction tone="muted" disabled title={L.stMachineLogsUnavailable}>
         {L.stLogs}
       </SLinkAction>
     </div>} />;
@@ -45,13 +31,10 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
 
 function AddMachineAction({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {
   const L = useVocab();
-  return <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
-    <span style={HINT_STYLE}>{L.stMachineFieldsHint}</span>
-    <SLinkAction onClick={disabled ? undefined : onAdd} disabled={disabled} role="button"
-      data-add-machine="" aria-disabled={disabled} title={L.stAddMachineApprovalTitle}>
-      {L.stAddMachine}
-    </SLinkAction>
-  </span>;
+  return <SLinkAction onClick={disabled ? undefined : onAdd} disabled={disabled} role="button"
+    data-add-machine="" aria-disabled={disabled} title={L.stAddMachineApprovalTitle}>
+    {L.stAddMachine}
+  </SLinkAction>;
 }
 
 function MachinesHeading({ count }: { count: number }) {
@@ -59,27 +42,6 @@ function MachinesHeading({ count }: { count: number }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
     {L.machines}<SCount tone="accent">{count}</SCount>
   </span>;
-}
-
-function MachineGuidance() {
-  const L = useVocab();
-  return <>
-    <div className="settings-adaptive-cards">
-      <SCard><SCardHeader title={L.stClientLifecycle} right="client-manager" /><div style={KV_BODY_STYLE}>
-        <MonoKV k={L.mHeartbeat} value="5s · 15s timeout" />
-        <MonoKV k={L.mRecover} value="SSH restart · 60s backoff" />
-        <MonoKV k="PID" value="data/client-pids.json" />
-        <MonoKV k="WebSocket" value=":3002 · CORTEX_CLIENT_TOKEN" />
-      </div></SCard>
-      <SCard><SCardHeader title={L.stConnectivity} right="cortex-client.json" /><div style={KV_BODY_STYLE}>
-        <MonoKV k="LAN" value="serverHost = LAN IP" />
-        <MonoKV k="Tailscale" value="100.x.y.z" />
-        <MonoKV k="CF Tunnel" value="serverUrl = wss://…" />
-        <MonoKV k={L.mFirewall} value="STCP" />
-      </div></SCard>
-    </div>
-    <div style={FOOTNOTE_STYLE}>{L.stMachinesFootNote}</div>
-  </>;
 }
 
 export interface MachinesPanelViewProps {
@@ -103,7 +65,6 @@ export function MachinesPanelView(props: MachinesPanelViewProps) {
           : props.machines.map((machine) => <MachineEntity key={machine.name} machine={machine} />)}
       </div>
     </SSection>
-    <MachineGuidance />
   </>;
 }
 

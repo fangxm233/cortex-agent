@@ -5,6 +5,7 @@ import { MThreadDetailView, type MThreadDetailCopy } from './MThreadDetailView';
 
 const copy: MThreadDetailCopy = {
   pause: 'pause-action',
+  pauseUnavailable: 'Pause is not available yet.',
   cancel: 'cancel-action',
   artifacts: 'artifacts',
   noArtifacts: 'none',

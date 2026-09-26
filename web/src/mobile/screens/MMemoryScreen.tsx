@@ -21,7 +21,7 @@ const COPY: { en: MMemoryCopy; zh: MMemoryCopy } = {
     core: 'Core',
     filesUnit: 'files',
     emptyDir: 'Empty',
-    footer: 'Tap a file for a read-only preview · agent writes to behavioral content (rules/skills) go through approval',
+    footer: 'Read-only; rule and skill changes require approval.',
     empty: 'No project memory yet',
   },
   zh: {
@@ -29,7 +29,7 @@ const COPY: { en: MMemoryCopy; zh: MMemoryCopy } = {
     core: '核心',
     filesUnit: '个文件',
     emptyDir: '空',
-    footer: '点文件只读预览 · agent 写入行为性内容（规则/技能）走审批',
+    footer: '只读预览；规则和技能修改需审批。',
     empty: '暂无项目记忆',
   },
 };

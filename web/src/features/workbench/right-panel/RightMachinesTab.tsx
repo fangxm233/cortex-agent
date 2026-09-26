@@ -232,8 +232,6 @@ function MachineListState({ loading, error, empty }: { loading: boolean; error: 
   return <div style={{ textAlign: 'center', padding: '26px 12px',
     border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
     <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.mNoMachines}</div>
-    <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginTop: 4,
-      lineHeight: 1.6 }}>{L.rpNoMachinesHint}</div>
   </div>;
 }
 

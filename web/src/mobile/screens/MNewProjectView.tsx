@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
-import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { canCreateProject } from '@/features/projects/new-project';
 
 export interface MNewProjectCopy {
   title: string;
-  tag: string;
   placeholder: string;
   create: string;
 }
@@ -36,9 +35,6 @@ export function MNewProjectView({
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
           {copy.title}
-        </span>
-        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
-          {copy.tag}
         </span>
       </div>
 
