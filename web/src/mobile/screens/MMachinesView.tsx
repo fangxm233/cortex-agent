@@ -280,9 +280,7 @@ function OfflineCard({
 function RegistryFooter({ vm, copy }: { vm: MMachinesVm; copy: MMachinesCopy }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '2px 4px', fontSize: 12, color: MC.muted }}>
-      <span>
-        machines.json · {vm.total} {copy.registered}
-      </span>
+      <span>{vm.total} {copy.registered}</span>
       <span style={{ marginLeft: 'auto', color: MC.muted }}>{copy.editDesktop}</span>
     </div>
   );

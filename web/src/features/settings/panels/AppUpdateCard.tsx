@@ -15,8 +15,8 @@ const ALERT_STYLE: CSSProperties = {
 };
 
 /**
- * Shell-side `<appDataDir>/updates/prefs.json` (desktop/src-tauri/src/update_prefs.rs) — a property
- * of THIS copy of the app, not of the server it talks to.
+ * Shell-side update preferences (desktop/src-tauri/src/update_prefs.rs) — a property of THIS copy
+ * of the app, not of the server it talks to.
  */
 export interface ShellUpdatePrefs {
   /** The user-facing switch. Default true: updates install themselves on quit. */
@@ -53,17 +53,17 @@ export function hasFallenBackToAsking(prefs: ShellUpdatePrefs): boolean {
 /** What the app will actually do with the next version — never what the switch merely claims. */
 export function updateModeDescription(prefs: ShellUpdatePrefs): string {
   if (hasFallenBackToAsking(prefs)) {
-    return `连续 ${prefs.failedAttempts} 次自动安装都失败了，现在每个新版本都会先询问。`
-      + '点「重试自动安装」清零失败计数，下次退出时再自动装一次。';
+    return '自动安装连续失败，现在每个新版本都会先询问。'
+      + '点「重试自动安装」后，下次退出时会再试一次。';
   }
   return prefs.silent
     ? '新版本在后台下载并校验，关闭 App 时自动装好，下次打开就是新版本。'
     : '新版本下载完成后会先询问，由你决定什么时候安装。';
 }
 
-/** Mono footer: where this lives, plus the last version that actually landed. */
+/** Mono footer: this is a local app setting, plus the last version that actually landed. */
 export function updatePrefsFootnote(prefs: ShellUpdatePrefs): string {
-  const parts = ['updates/prefs.json · 本机'];
+  const parts = ['本机设置'];
   if (prefs.lastInstalledVersion) parts.push(`上次更新到 ${prefs.lastInstalledVersion}`);
   return parts.join(' · ');
 }

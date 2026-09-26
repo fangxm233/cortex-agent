@@ -1,13 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
 import { ExecutionDrawerView } from './ExecutionDrawerView';
 
-it('keeps log ink readable and exposes native close and disabled kill buttons', () => {
+afterEach(() => vi.unstubAllGlobals());
+
+it.each(['en', 'zh'])('keeps controls and real execution details without a technical footer (%s)', (lang) => {
+  vi.stubGlobal('window', { localStorage: { getItem: () => lang } });
   const html = renderToStaticMarkup(<LangProvider><ExecutionDrawerView
     title="execution-example" pill="Running" meta="worker · 1m" now="12:00"
     notice="No captured output" killDisabled onKill={() => {}} onClose={() => {}} />
   </LangProvider>);
+  expect(html).not.toContain('costs.jsonl');
+  expect(html).not.toContain('30s');
   expect(html).toContain('color:var(--log-fg)');
   expect(html).not.toContain('color:var(--proto-line)');
   expect(html).toMatch(/<button[^>]+aria-label="Close"/);

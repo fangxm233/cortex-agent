@@ -19,7 +19,6 @@ import type {
 import type { TaskInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 
 export interface MTaskDetailCopy {
-  tasksTag: string;
   doneWhen: string;
   doneWhenGap: string;
   blockerLabel: string;
@@ -44,7 +43,6 @@ export interface MTaskDetailCopy {
 }
 
 export const ZH_COPY: MTaskDetailCopy = {
-  tasksTag: 'tasks.json',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'done-when 未记录',
   blockerLabel: '阻塞原因',
@@ -69,7 +67,6 @@ export const ZH_COPY: MTaskDetailCopy = {
 };
 
 export const EN_COPY: MTaskDetailCopy = {
-  tasksTag: 'tasks.json',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'no done-when recorded',
   blockerLabel: 'Blocked',
@@ -165,10 +162,7 @@ export function MTaskDetailView({
   }
 
   const header = (
-    <MDrillHeader
-      onBack={onBack}
-      trailing={<span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>{copy.tasksTag}</span>}
-    >
+    <MDrillHeader onBack={onBack}>
       <span style={{ font: `600 15px ${MONO}`, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{vm.displayId}</span>
       <MPill tone={PILL_TONE[vm.statusKind]}>{copy.status[vm.statusKind]}</MPill>
     </MDrillHeader>

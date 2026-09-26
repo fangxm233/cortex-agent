@@ -159,7 +159,7 @@ export function MNotesView(props: MNotesViewProps) {
   return (
     <MScreen
       label="26c 移动端笔记"
-      header={<MDrillHeader onBack={props.onBack} trailing={<span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>context/NOTES.md</span>}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.copy.title}</span><span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: MC.hairline, padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{props.vm.activeCount}</span></MDrillHeader>}
+      header={<MDrillHeader onBack={props.onBack}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.copy.title}</span><span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: MC.hairline, padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{props.vm.activeCount}</span></MDrillHeader>}
       footer={<FixedComposer copy={props.copy} busy={props.busy} onAdd={props.onAdd} />}
     >
       <MScrollBody gap={9}>

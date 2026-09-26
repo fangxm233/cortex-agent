@@ -209,7 +209,6 @@ export function MemoryView(): JSX.Element {
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.memMemory}</span>
         <span style={{ color: 'var(--proto-line-3)' }}>/</span>
         <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted)' }}>{effectivePath ?? '—'}</span>
-        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.ovGitBacked}</span>
       </div>
 
       {/* body: 200px tree + fluid rendered pane (prototype L667) */}
@@ -299,8 +298,7 @@ export function MemoryView(): JSX.Element {
               >
                 {blameRows ? (
                   <>
-                    {lineDiff ? `${lineDiff.added} / ${lineDiff.removed} ${L.memLinesChanged} ` : ''}
-                    {L.memBlameNote}
+                    {lineDiff ? `${lineDiff.added} / ${lineDiff.removed} ${L.memLinesChanged}` : L.memBlameNote}
                   </>
                 ) : (
                   <>{L.memBlameUnavailable}</>

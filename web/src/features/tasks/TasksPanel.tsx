@@ -62,12 +62,10 @@ function TaskSections({ groups, onOpen }: {
 }
 
 function TaskFooter({ tasks, groups }: { tasks: TaskInfo[]; groups: ReturnType<typeof groupTasks> }) {
-  const vocab = useVocab();
   const done = groups.find((group) => group.kind === 'done')?.tasks.length ?? 0;
   return (
-    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '8px 2px 0', borderTop: '1px solid var(--proto-line-2)', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-      <span>TASKS.yaml · {vocab.synced}</span>
-      <span style={{ marginLeft: 'auto' }}>{tasks.length} total · {done} done</span>
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 2px 0', borderTop: '1px solid var(--proto-line-2)', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
+      <span>{tasks.length} total · {done} done</span>
     </div>
   );
 }

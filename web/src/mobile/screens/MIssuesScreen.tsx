@@ -23,14 +23,14 @@ const COPY: { en: MIssuesCopy; zh: MIssuesCopy } = {
     del: 'Delete',
     handle: 'Handle',
     empty: 'No issues',
-    footer: 'Handle = new session carrying this issue · handle / delete removes it',
+    footer: 'Handle opens a new session and removes the issue; Delete removes it directly.',
   },
   zh: {
     title: 'Issues',
     del: '删除',
     handle: '处理',
     empty: '没有 issue',
-    footer: '处理 = 新建会话携带此 issue · 处理 / 删除后即离场',
+    footer: '处理会新建会话并移除此问题；删除会直接移除。',
   },
 };
 

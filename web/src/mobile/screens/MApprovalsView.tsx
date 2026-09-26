@@ -48,12 +48,7 @@ export function MApprovalsView({
     <MScreen
       label="1f 审批"
       header={
-        <MDrillHeader
-          onBack={onBack}
-          trailing={
-            <span style={{ font: `400 11px ${MONO}`, color: MC.muted }}>PENDING_APPROVALS.md</span>
-          }
-        >
+        <MDrillHeader onBack={onBack}>
           <div
             style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
           >

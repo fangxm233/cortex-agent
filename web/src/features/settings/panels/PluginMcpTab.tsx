@@ -131,7 +131,6 @@ function ConvertNotice(props: { pluginId: string; busy: boolean; actions: Plugin
         </SButton>
       )}>
       <span style={{ display: 'block' }}>{L.plMcpLegacyNote}</span>
-      <span style={{ display: 'block', marginTop: 4 }}>{L.plConvertNote}</span>
     </SNotice>
   );
 }

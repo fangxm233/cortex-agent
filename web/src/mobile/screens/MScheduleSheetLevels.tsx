@@ -254,11 +254,7 @@ function RunsFooter({ row, copy, onEdit, onMarkAllRead, markAllPending = false }
       {onMarkAllRead && unreadIds.length > 0 ? (
         <MarkAllReadAction unreadIds={unreadIds} copy={copy} pending={markAllPending}
           onMarkAllRead={onMarkAllRead} />
-      ) : (
-        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>
-          {copy.runListHint}
-        </span>
-      )}
+      ) : null}
     </div>
   );
 }

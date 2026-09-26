@@ -33,8 +33,6 @@ export interface SettingsNavGroup {
 export interface SettingsSectionMeta {
   /** Content-area title. */
   title: string;
-  /** Content-area sub-line. */
-  sub: string;
 }
 
 // Vocab key for each nav label (also used as section meta title).
@@ -52,23 +50,6 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   notifications: 'stNavNotifications',
   hooks: 'stNavHooks',
   advanced: 'stNavAdvanced',
-};
-
-// Vocab key for each section meta sub description.
-const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
-  appearance: 'stMetaAppearanceSub',
-  platform: 'stMetaPlatformSub',
-  accounts: 'stMetaAccountsSub',
-  profiles: 'stMetaProfilesSub',
-  budget: 'stMetaBudgetSub',
-  usage: 'stMetaUsageSub',
-  machines: 'stMetaMachinesSub',
-  templates: 'stMetaTemplatesSub',
-  plugins: 'stMetaPluginsSub',
-  mcp: 'stMetaMcpSub',
-  notifications: 'stMetaNotificationsSub',
-  hooks: 'stMetaHooksSub',
-  advanced: 'stMetaAdvancedSub',
 };
 
 // One stroked glyph per section, drawn on a 24×24 grid so they share a weight and optical size. The
@@ -131,10 +112,9 @@ export function getSettingsNav(L: Vocab): SettingsNavEntry[] {
   return NAV_GROUPS.flatMap((group) => group.keys.map((key) => navEntry(L, key)));
 }
 
-/** Returns section meta (title + sub) resolved from the given vocab. */
+/** Returns the section title resolved from the given vocab. */
 export function getSectionMeta(L: Vocab, key: SettingsSectionKey): SettingsSectionMeta {
   return {
     title: L[NAV_LABEL_KEYS[key]],
-    sub: L[NAV_SUB_KEYS[key]],
   };
 }

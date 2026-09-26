@@ -205,9 +205,6 @@ function ProviderFilter({ filter, onFilter }: { filter: string; onFilter: (value
         value={filter} onChange={event => onFilter(event.target.value)}
         placeholder={L.accountsFilterPlaceholder} style={S_CONTROL_STYLE}
       />
-      <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', marginTop: 8, padding: '0 2px' }}>
-        {L.accountsSyncModelsHint}
-      </div>
     </div>
   );
 }

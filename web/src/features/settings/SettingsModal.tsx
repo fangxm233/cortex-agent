@@ -266,7 +266,6 @@ function SettingsPanelHeader(props: {
     <div className="settings-panel-header" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--proto-line-2)' }}>
       <div className="settings-panel-heading">
         <span className="settings-panel-title">{meta.title}</span>
-        <span className="settings-panel-subtitle">{meta.sub}</span>
       </div>
       <div ref={props.actionsRef} data-settings-header-actions
         style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }} />

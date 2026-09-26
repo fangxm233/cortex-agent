@@ -4,14 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/mobile/ui/kit', () => ({
   MBottomSheet: ({ children }: { children: unknown }) => children,
   MC: { ink: 'ink', faint: 'faint' },
-  MONO: 'mono',
 }));
 
 import { MNewProjectView } from './MNewProjectView';
 
 const copy = {
   title: 'New project',
-  tag: 'projects/',
   placeholder: 'Project name',
   create: 'Create and start a chat',
 };

@@ -183,11 +183,6 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           >
             {tm.pill.text}
           </span>
-          <span
-            style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 4 }}
-          >
-            TASKS.yaml
-          </span>
           <button type="button" className="content-text-action"
             onClick={onClose}
             style={{

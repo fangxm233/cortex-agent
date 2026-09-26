@@ -79,13 +79,11 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
 const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
   en: {
     title: 'New project',
-    tag: 'projects/',
     placeholder: 'Project name, e.g. rl-locomotion',
     create: 'Create and start a chat',
   },
   zh: {
     title: '新建项目',
-    tag: 'projects/',
     placeholder: '项目名字，如 rl-locomotion',
     create: '创建并开始对话',
   },

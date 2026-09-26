@@ -48,11 +48,6 @@ type SettingSource = ConfigSettingEntry['source'];
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// Which setting a row writes, and where its current value came from, is an identifier rather than
-// prose: it gets its own mono line under the description instead of competing with the control.
-const KEY_LINE_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
-};
 const MONO_VALUE_STYLE: CSSProperties = {
   font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
 };
@@ -69,10 +64,6 @@ const DURATION_UNITS = [
   { value: 'min', label: 'min' },
   { value: 'hr', label: 'hr' },
 ] satisfies Array<{ value: DurationUnit; label: string }>;
-
-function KeyLine({ children }: { children: ReactNode }) {
-  return <div style={KEY_LINE_STYLE}>{children}</div>;
-}
 
 export interface RuntimeSettingToggleRowProps {
   settingKey: WritableBooleanSettingKey;
@@ -96,9 +87,7 @@ export function RuntimeSettingToggleRow(props: RuntimeSettingToggleRowProps) {
       title={props.title}
       desc={props.desc}
       control={<Toggle on={props.value} onClick={onClick} inert={!onClick} />}
-    >
-      <KeyLine>{`settings.${props.settingKey} · ${props.source ?? '—'}`}</KeyLine>
-    </SRow>
+    />
   );
 }
 
@@ -141,14 +130,12 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
           platform="Slack"
           glyph="S"
           present={hasAnyKey(snapshot.env, 'SLACK_')}
-          setting="adminChannel"
           channel={typeof slackChannel === 'string' ? slackChannel : null}
         />
         <RoutingRow
           platform="飞书"
           glyph="飞"
           present={hasAnyKey(snapshot.env, 'FEISHU_')}
-          setting="feishuAdminChannel"
           channel={typeof feishuChannel === 'string' ? feishuChannel : null}
         />
       </SRowGroup>
@@ -160,7 +147,6 @@ function RoutingRow(props: {
   platform: string;
   glyph: string;
   present: boolean;
-  setting: 'adminChannel' | 'feishuAdminChannel';
   channel: string | null;
 }) {
   return (
@@ -174,7 +160,6 @@ function RoutingRow(props: {
       }
       control={
         <span style={MONO_VALUE_STYLE}>
-          {`settings.${props.setting}: `}
           <span style={{ color: props.channel ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
             {props.channel ?? '—'}
           </span>
@@ -283,9 +268,7 @@ function ReadOnlyEnvRow({ snapshot, title, desc }: {
       title={title}
       desc={desc}
       control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
-    >
-      <KeyLine>DEBUG</KeyLine>
-    </SRow>
+    />
   );
 }
 
@@ -325,9 +308,7 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
           {typeof value === 'number' ? value : value === null ? L.stAuto : '—'}
         </SPill>
       }
-    >
-      <KeyLine>{`settings.taskDispatchMaxConcurrent · ${entry?.source ?? '—'}`}</KeyLine>
-    </SRow>
+    />
   );
 }
 
@@ -381,9 +362,7 @@ function NumberSettingRow(props: {
           withinRange={withinRange} onDraft={setDraft}
           onSave={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }} />
       }
-    >
-      <KeyLine>{`settings.${props.descriptor.setting} · ${entry?.source ?? '—'}`}</KeyLine>
-    </SRow>
+    />
   );
 }
 
@@ -497,9 +476,7 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
       title={L.stGpuMock}
       desc={L.advMock}
       control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
-    >
-      <KeyLine>CORTEX_GPU_MONITOR_MOCK</KeyLine>
-    </SRow>
+    />
   );
 }
 

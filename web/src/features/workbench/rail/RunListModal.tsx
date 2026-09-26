@@ -154,7 +154,7 @@ export function RunListModal({
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)'  }}>
             {L.wbAllRuns.replace('{n}', String(row.runs.length))}
           </span>
-          {onMarkAllRead && unreadIds.length > 0 ? (
+          {onMarkAllRead && unreadIds.length > 0 && (
             <button
               type="button"
               disabled={markAllPending}
@@ -171,8 +171,6 @@ export function RunListModal({
             >
               {L.wbSchedMarkAllRead.replace('{n}', String(unreadIds.length))}
             </button>
-          ) : (
-            <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>{L.wbSchedRunListHint}</span>
           )}
         </div>
     </Modal>

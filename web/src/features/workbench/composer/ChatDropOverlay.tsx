@@ -19,7 +19,7 @@ export function ChatDropOverlay({ target, fileCount, attachedCount }: {
     : fileCount > 0 ? L.wbDropFilesPlural.replace('{n}', String(fileCount)) : L.wbDropFilesSingular;
   const detail = adding
     ? L.wbDragOverCount.replace('{n}', String(attachedCount)).replace('{m}', String(attachedCount + fileCount))
-    : L.wbAttachPath;
+    : null;
 
   return createPortal(
     <div
@@ -53,7 +53,7 @@ export function ChatDropOverlay({ target, fileCount, attachedCount }: {
         }}
       >
         <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>{headline}</span>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{detail}</span>
+        {detail && <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{detail}</span>}
       </div>
     </div>,
     target,

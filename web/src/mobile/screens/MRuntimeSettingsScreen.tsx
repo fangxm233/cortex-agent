@@ -30,7 +30,7 @@ function ToggleRow(props: {
   const entry = getSetting(props.settings, props.descriptor.setting);
   const value = typeof entry?.value === 'boolean' ? entry.value : false;
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
-    sub={`${L[props.descriptor.descKey]} · ${entry?.source ?? '—'}`}
+    sub={L[props.descriptor.descKey]}
     trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
       disabled={!entry || props.pending} onChange={(next) => props.onToggle(props.descriptor.setting, next)} />} />;
 }
@@ -57,7 +57,7 @@ function EnvFlagRow(props: {
   const L = useVocab();
   const value = indexEnv(props.snapshot.env)[props.descriptor.env]?.present === true;
   return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
-    sub={`${L[props.descriptor.descKey]} · ${props.descriptor.env}`}
+    sub={L[props.descriptor.descKey]}
     trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
 }
 

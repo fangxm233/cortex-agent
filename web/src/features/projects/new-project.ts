@@ -1,4 +1,3 @@
-export const NP_BREADCRUMB = 'context/projects/';
 export const NP_PLACEHOLDER = 'nimbus';
 
 /** A trimmed project name must contain content before either surface may submit it. */

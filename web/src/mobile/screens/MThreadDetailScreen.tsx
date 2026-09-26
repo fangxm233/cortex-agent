@@ -13,6 +13,7 @@ import { buildMThreadDetailVm, type MThreadTrailCrumb, type MThreadArtifactVm } 
 const COPY: { en: MThreadDetailCopy; zh: MThreadDetailCopy } = {
   en: {
     pause: 'Pause',
+    pauseUnavailable: 'Pause is not available yet.',
     cancel: 'Cancel',
     artifacts: 'Artifacts',
     noArtifacts: 'No artifacts',
@@ -22,6 +23,7 @@ const COPY: { en: MThreadDetailCopy; zh: MThreadDetailCopy } = {
   },
   zh: {
     pause: '暂停',
+    pauseUnavailable: '暂不支持暂停。',
     cancel: '取消',
     artifacts: '产物',
     noArtifacts: '暂无产物',
