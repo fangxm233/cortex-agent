@@ -310,7 +310,6 @@ export const enExtra = {
   accountsFilterPlaceholder: 'Filter by provider name…',
   accountsNoProviders: 'No providers match this filter.',
   accountsSyncModels: 'Rescan models',
-  accountsSyncModelsHint: 'Refresh available models after login changes.',
   accountsSyncModelsDone: 'Models rescanned',
   accountsSyncModelsEmpty: 'No backend models found — log in to a backend first.',
   accountsSyncModelsFailed: 'Rescan failed',

@@ -655,7 +655,6 @@ export const enBase = {
   stOverBudgetBehavior: 'Over-budget behavior',
   stCurrentSpend: 'Current spend',
   stObNote: 'Budgets are advisory; work is not stopped automatically.',
-  stBudgetFootNote: "Budgets are advisory; work is not stopped automatically.",
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: 'Appearance',
@@ -685,9 +684,7 @@ export const enBase = {
   stThemeLight: 'Light',
   stThemeDark: 'Dark',
   stThemeSystem: 'System',
-  stThemeHint: 'Choose how Cortex looks on this device.',
   stAccentLabel: 'Accent color',
-  stAccentHint: 'Changes actions, selected items, running states, and focus rings without changing status semantics.',
   stAccentDefault: 'Default indigo',
   stAccentBlue: 'Blue',
   stAccentTeal: 'Teal',
@@ -697,14 +694,12 @@ export const enBase = {
   stAccentCustom: 'Custom accent hue',
   stAccentReset: 'Reset',
   stAccentIntensityLabel: 'Accent intensity',
-  stAccentIntensityHint: 'Controls how strong the accent color appears.',
   stAccentIntensitySoft: 'Soft',
   stAccentIntensityNormal: 'Normal',
   stAccentIntensityVivid: 'Vivid',
 
   // ── Appearance / palette control ──
   stPaletteLabel: 'Palette',
-  stPaletteHint: 'Use a preset or adjust the colors yourself.',
   stPalettePresets: 'Presets',
   stPaletteCustom: 'custom',
   stPaletteReset: 'Reset',
@@ -724,7 +719,6 @@ export const enBase = {
 
   // ── Appearance / motion control ──
   stMotionLabel: 'Motion',
-  stMotionHint: 'Controls panel, modal, and message animations.',
   stMotionSystem: 'System',
   stMotionFull: 'Full',
   stMotionReduced: 'Reduced',

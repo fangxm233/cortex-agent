@@ -310,7 +310,6 @@ export const zhExtra = {
   accountsFilterPlaceholder: '按 Provider 名称筛选…',
   accountsNoProviders: '没有符合筛选条件的 Provider。',
   accountsSyncModels: '重新扫描模型',
-  accountsSyncModelsHint: '登录变更后刷新可用模型。',
   accountsSyncModelsDone: '模型已重新扫描',
   accountsSyncModelsEmpty: '未发现任何后端模型 —— 请先登录一个后端。',
   accountsSyncModelsFailed: '扫描失败',

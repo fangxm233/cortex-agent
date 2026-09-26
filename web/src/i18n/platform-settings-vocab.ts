@@ -1,5 +1,4 @@
 export const platformEn = {
-  psIntro: 'Set up messaging apps and notification destinations.',
   psFeishu: 'Feishu / Lark', psSlack: 'Slack', psSetup: 'Connection settings',
   psEnabled: 'Enable this platform', psEnableHint: 'Takes effect after restarting the daemon. Turning off keeps saved credentials.',
   psReady: 'Configuration complete', psMissing: 'Missing required fields', psDisabled: 'Disabled in saved configuration',
@@ -27,7 +26,6 @@ export const platformEn = {
   psRuntimeSaved: 'Setting saved', psUnsaved: 'Discard unsaved platform changes?',
 };
 export const platformZh: Record<keyof typeof platformEn, string> = {
-  psIntro: '设置消息平台与通知目标。',
   psFeishu: '飞书 / Lark', psSlack: 'Slack', psSetup: '接入配置',
   psEnabled: '启用此平台', psEnableHint: '重启守护进程后生效。关闭平台会保留已保存的凭据。',
   psReady: '接入配置齐全', psMissing: '缺少必填配置', psDisabled: '已在保存的配置中关闭',

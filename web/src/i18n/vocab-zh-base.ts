@@ -651,7 +651,6 @@ export const zhBase = {
   stOverBudgetBehavior: '超预算行为',
   stCurrentSpend: '当前支出',
   stObNote: '预算仅作提示；不会自动停止工作。',
-  stBudgetFootNote: "预算仅供参考，不会自动停止工作。",
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: '外观',
@@ -681,9 +680,7 @@ export const zhBase = {
   stThemeLight: '浅色',
   stThemeDark: '深色',
   stThemeSystem: '跟随系统',
-  stThemeHint: '选择 Cortex 在本设备上的外观。',
   stAccentLabel: '强调色',
-  stAccentHint: '调整操作、选中项、运行状态和焦点环，不改变成功、警告与失败的语义色。',
   stAccentDefault: '默认靛蓝',
   stAccentBlue: '蓝色',
   stAccentTeal: '青色',
@@ -693,14 +690,12 @@ export const zhBase = {
   stAccentCustom: '自定义强调色色相',
   stAccentReset: '恢复默认',
   stAccentIntensityLabel: '强调色浓度',
-  stAccentIntensityHint: '调整强调色的强度。',
   stAccentIntensitySoft: '柔和',
   stAccentIntensityNormal: '标准',
   stAccentIntensityVivid: '鲜明',
 
   // ── Appearance / palette control ──
   stPaletteLabel: '配色',
-  stPaletteHint: '使用预设，或手动调整颜色。',
   stPalettePresets: '预设',
   stPaletteCustom: '自定义',
   stPaletteReset: '恢复默认',
@@ -720,7 +715,6 @@ export const zhBase = {
 
   // ── Appearance / motion control ──
   stMotionLabel: '动效',
-  stMotionHint: '控制面板、弹窗与消息动画。',
   stMotionSystem: '跟随系统',
   stMotionFull: '完整',
   stMotionReduced: '减弱',
