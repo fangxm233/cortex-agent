@@ -38,6 +38,7 @@ vi.mock('./useApprovalQueue', () => ({ useApprovalQueue: () => queue }));
 vi.mock('@/design', () => ({ useToast: () => ({ toast: adapter.toast }) }));
 vi.mock('@/i18n', () => ({
   useVocab: () => new Proxy({}, { get: (_target, key) => String(key) }),
+  useLang: () => 'en',
 }));
 
 import { ApprovalCenterModal } from './ApprovalCenterModal';
@@ -63,7 +64,7 @@ describe('ApprovalCenterModal', () => {
     act(() => selected.props.onKeyDown({ key: ' ', preventDefault, currentTarget: { click } }));
     expect(click).toHaveBeenCalledOnce();
     expect(preventDefault).toHaveBeenCalledOnce();
-    const close = renderer.root.findByProps({ 'aria-label': 'Close' });
+    const close = renderer.root.findByProps({ 'aria-label': 'cmClose' });
     expect(close.type).toBe('button');
     act(() => renderer.unmount());
   });

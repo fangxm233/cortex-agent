@@ -1,4 +1,5 @@
 import type { ApprovalInfo, ApprovalStatus } from '@cortex-agent/ui-contract';
+import type { Lang } from '@/i18n';
 
 // Pure view-model for the approval center overlay (design 7a, prototype.dc.html L1317-1405).
 // Maps the REAL `ApprovalInfo` DTO (parsed from PENDING_APPROVALS.md) into the prototype's slots.
@@ -19,23 +20,36 @@ export interface ApprovalPill {
   fg: string;
 }
 
+const APPROVAL_COPY = {
+  en: {
+    pending: '● pending', approved: '✓ approved', rejected: '✕ rejected', failed: 'failed',
+    one: 'approval pending', many: 'approvals pending', queued: 'queued',
+  },
+  zh: {
+    pending: '● 待审批', approved: '✓ 已批准', rejected: '✕ 已拒绝', failed: '失败',
+    one: '条待审批', many: '条待审批', queued: '排队于',
+  },
+} as const;
+
 /** Status → the prototype's amber/green/red pill (prototype L1357 uses the pending amber pair). */
-export function statusPill(status: ApprovalStatus): ApprovalPill {
+export function statusPill(status: ApprovalStatus, lang: Lang = 'en'): ApprovalPill {
+  const copy = APPROVAL_COPY[lang];
   switch (status) {
     case 'pending':
-      return { text: '● pending', bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)' };
+      return { text: copy.pending, bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)' };
     case 'approved':
-      return { text: '✓ approved', bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)' };
+      return { text: copy.approved, bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)' };
     case 'rejected':
-      return { text: '✕ rejected', bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
+      return { text: copy.rejected, bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
     case 'failed':
-      return { text: 'failed', bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
+      return { text: copy.failed, bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)' };
   }
 }
 
-/** Header badge / banner copy: "N approval pending" (singular) / "N approvals pending". */
-export function pendingLabel(n: number): string {
-  return `${n} ${n === 1 ? 'approval pending' : 'approvals pending'}`;
+/** Header badge / banner copy: "N approval pending" (singular) / "N approvals pending" / "N 条待审批". */
+export function pendingLabel(n: number, lang: Lang = 'en'): string {
+  const copy = APPROVAL_COPY[lang];
+  return `${n} ${n === 1 ? copy.one : copy.many}`;
 }
 
 export interface ApprovalListCard {
@@ -75,14 +89,14 @@ export interface ApprovalDetailVm {
   project: string | null;
 }
 
-export function toDetail(a: ApprovalInfo): ApprovalDetailVm {
+export function toDetail(a: ApprovalInfo, lang: Lang = 'en'): ApprovalDetailVm {
   const command = a.command;
   return {
     id: a.id,
     title: a.title,
     project: a.projectId,
-    pill: statusPill(a.status),
-    queued: a.queuedAt ? `queued ${a.queuedAt}` : null,
+    pill: statusPill(a.status, lang),
+    queued: a.queuedAt ? `${APPROVAL_COPY[lang].queued} ${a.queuedAt}` : null,
     operation: a.operation ?? DASH,
     reason: a.reason ?? DASH,
     impact: a.impact ?? DASH,

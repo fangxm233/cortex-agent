@@ -40,6 +40,7 @@ vi.mock('@/i18n', () => ({
     wbSchedManage: 'manage ↗', wbAllRuns: '{n} runs', wbSchedRunListHint: 'Select a run',
     wbSchedMarkAllRead: 'mark {n} read',
     wbSessionStats: 'Session stats', wbSessionStatsHint: 'Totals for the whole conversation.',
+    winClose: 'Close', cmClose: 'Close',
   }),
 }));
 

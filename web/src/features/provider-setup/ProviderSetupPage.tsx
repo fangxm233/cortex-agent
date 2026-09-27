@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthAccountStatus, LoginFlowState } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowModal';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
-import { orderedProviders, ProviderSetupController } from './provider-setup';
+import { orderedProviders, ProviderSetupController, setupErrorText } from './provider-setup';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
 import { listenNativeEvent } from '@/lib/native-bridge';
 import { SetupHeader } from './SetupHeader';
@@ -64,7 +64,7 @@ function ClaudeActions({ controller, account, login }: {
 function ClaudeSection({ controller, login }: {
   controller: ProviderSetupController; login: (target: LoginFlowTarget) => void;
 }) {
-  const L = useVocab(), s = controller.state;
+  const L = useVocab(), lang = useLang(), s = controller.state;
   const log = useClaudeLog();
   const installed = s.claude === null ? L.setupUnknown : s.claude.installed ? L.setupCcInstalled : L.setupCcMissing;
   return <section className="setup-card">
@@ -74,7 +74,7 @@ function ClaudeSection({ controller, login }: {
       <ClaudeActions controller={controller} account={s.status?.accounts.find(a => a.backend === 'claude')} login={login} />
       {s.claudeBusy ? <p className="setup-hint" role="status">{L.setupWorking}</p> : null}
       {log ? <pre className="setup-log">{log}</pre> : null}
-      {s.claudeError ? <p role="alert" className="setup-error">{s.claudeError}</p> : null}
+      {s.claudeError ? <p role="alert" className="setup-error">{setupErrorText(s.claudeError, lang)}</p> : null}
     </div>
   </section>;
 }
@@ -125,10 +125,10 @@ function PiSection({ controller, login }: { controller: ProviderSetupController;
   </section>;
 }
 function SetupFeedback({ controller }: { controller: ProviderSetupController }) {
-  const L = useVocab(), s = controller.state;
+  const L = useVocab(), lang = useLang(), s = controller.state;
   return <>
     {s.sync === 'success' ? <p className="setup-feedback" role="status">{L.setupSyncSuccess}</p> : null}
-    {s.error ? <p role="alert" className="setup-error">{L.setupSyncFailed}: {s.error}</p> : null}
+    {s.error ? <p role="alert" className="setup-error">{L.setupSyncFailed}: {setupErrorText(s.error, lang)}</p> : null}
   </>;
 }
 export function ProviderSetupView({ controller, leave }: { controller: ProviderSetupController; leave: () => void }) {

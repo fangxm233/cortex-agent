@@ -4,6 +4,7 @@ import { fileDownloadUrl } from '@/lib/files';
 import { useBackDismiss } from '@/design/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
+import { useMediaCopy } from './media-copy';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { useDockIntake } from '@/design/dock-intake';
@@ -43,6 +44,7 @@ const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {
 export function TextBody({ item, source = false }: { item: DocItem; source?: boolean }): JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
+  const copy = useMediaCopy();
 
   useEffect(() => {
     let alive = true;
@@ -62,9 +64,9 @@ export function TextBody({ item, source = false }: { item: DocItem; source?: boo
     return () => { alive = false; };
   }, [item.path]);
 
-  if (state === 'loading') return <Centered>Loading…</Centered>;
-  if (state === 'failed') return <Centered failed>Failed to load {item.name}</Centered>;
-  if (state === 'toolarge') return <Centered>File too large to preview — download to view.</Centered>;
+  if (state === 'loading') return <Centered>{copy.loading}</Centered>;
+  if (state === 'failed') return <Centered failed>{copy.loadFailed.replace('{name}', item.name)}</Centered>;
+  if (state === 'toolarge') return <Centered>{copy.textTooLarge}</Centered>;
 
   if (!source && isMarkdownName(item.name)) {
     return (
@@ -96,6 +98,7 @@ export function TextBody({ item, source = false }: { item: DocItem; source?: boo
  *  can still be downloaded.
  *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
 export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode }): JSX.Element {
+  const copy = useMediaCopy();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement[]>([]);
@@ -201,8 +204,8 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
         onScroll={onScroll}
         style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 16px', boxSizing: 'border-box' }}
       >
-        {state === 'loading' && <Centered>Loading PDF…</Centered>}
-        {state === 'failed' && <Centered failed>Failed to render {item.name}</Centered>}
+        {state === 'loading' && <Centered>{copy.pdfLoading}</Centered>}
+        {state === 'failed' && <Centered failed>{copy.pdfFailed.replace('{name}', item.name)}</Centered>}
         <div ref={containerRef} style={{ ...zoomStyle, maxWidth: 900, margin: '0 auto' }} />
       </div>
     </div>
@@ -216,6 +219,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
   scale: number; onZoomIn: () => void; onZoomOut: () => void; onZoomReset: () => void;
   actions?: ReactNode;
 }): JSX.Element {
+  const copy = useMediaCopy();
   const [draft, setDraft] = useState(String(current));
   useEffect(() => { setDraft(String(current)); }, [current]);
 
@@ -241,7 +245,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       {total > 0 && (
       <button type="button" className="content-text-action"
         role="button"
-        title="Previous page"
+        title={copy.prevPage}
         disabled={current <= 1}
         onClick={() => { if (current > 1) onJump(current - 1); }}
         style={pagerBtnStyle(current <= 1)}
@@ -254,7 +258,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         <input
           value={draft}
           inputMode="numeric"
-          aria-label="Page number"
+          aria-label={copy.pageNumber}
           onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
           onFocus={(e) => e.currentTarget.select()}
           onKeyDown={(e) => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } }}
@@ -276,7 +280,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       {total > 0 && (
       <button type="button" className="content-text-action"
         role="button"
-        title="Next page"
+        title={copy.nextPage}
         disabled={current >= total}
         onClick={() => { if (current < total) onJump(current + 1); }}
         style={pagerBtnStyle(current >= total)}
@@ -288,16 +292,16 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       {/* Zoom controls */}
       {total > 0 && (
       <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-        <button type="button" className="content-text-action" role="button" title="Zoom out" disabled={scale <= 1} onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</button>
+        <button type="button" className="content-text-action" role="button" title={copy.zoomOut} disabled={scale <= 1} onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</button>
         <button type="button" className="content-text-action"
           role="button"
-          title="Reset zoom"
+          title={copy.zoomReset}
           onClick={onZoomReset}
           style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', cursor: 'pointer', padding: '0 4px', userSelect: 'none', minWidth: 36, textAlign: 'center' }}
         >
           {Math.round(scale * 100)}%
         </button>
-        <button type="button" className="content-text-action" role="button" title="Zoom in" disabled={scale >= 5} onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</button>
+        <button type="button" className="content-text-action" role="button" title={copy.zoomIn} disabled={scale >= 5} onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</button>
       </div>
       )}
       {actions && <div style={{ marginLeft: total > 0 ? 12 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>{actions}</div>}
@@ -335,6 +339,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 
 function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   const dl = useDownloadFile();
+  const copy = useMediaCopy();
   // Android hardware back (and browser back) close the doc modal instead of navigating a route.
   useBackDismiss(onClose);
   // Esc closes; lock body scroll while open.
@@ -401,19 +406,19 @@ function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void
             {item.name}
           </span>
           {onPin && (
-            <button type="button" className="content-text-action" role="button" title="Pin preview beside the chat" onClick={onPin} style={btnStyle}>
+            <button type="button" className="content-text-action" role="button" title={copy.pin} onClick={onPin} style={btnStyle}>
               ◧
             </button>
           )}
           <button type="button" className="content-text-action"
             role="button"
-            title="Download"
+            title={copy.download}
             onClick={() => dl(item.path, item.name)}
             style={btnStyle}
           >
             ↓
           </button>
-          <button type="button" className="content-text-action" role="button" title="Close" onClick={onClose} style={{ ...btnStyle, fontSize: 16 }}>
+          <button type="button" className="content-text-action" role="button" title={copy.close} onClick={onClose} style={{ ...btnStyle, fontSize: 16 }}>
             ×
           </button>
         </div>

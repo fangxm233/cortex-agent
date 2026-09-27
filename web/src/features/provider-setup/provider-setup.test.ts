@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthAccountStatus, ConfigProfileEntry } from '@cortex-agent/ui-contract';
-import { ProviderSetupController, readyProfiles, orderedProviders } from './provider-setup';
+import { ProviderSetupController, readyProfiles, orderedProviders, setupErrorText } from './provider-setup';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
   backend: 'pi', provider: 'openai', label: 'OpenAI', state: 'logged-in',
@@ -120,5 +120,12 @@ describe('provider onboarding', () => {
     await controller.load();
     expect(controller.state.error).toBe('offline');
     expect(controller.canContinue()).toBe(false);
+  });
+});
+
+describe('setupErrorText', () => {
+  it('localizes setup codes and leaves raw detail alone', () => {
+    expect(setupErrorText('not-installed', 'zh')).toBe('Claude Code 仍未安装');
+    expect(setupErrorText('no-endpoints', 'zh')).toBe('no-endpoints');
   });
 });

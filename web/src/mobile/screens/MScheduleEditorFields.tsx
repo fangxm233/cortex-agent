@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
-import { useVocab } from '@/i18n';
+import { useLangOptional, useVocab } from '@/i18n';
+import { pickCopy } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
@@ -26,6 +27,17 @@ const field: CSSProperties = {
 const pair: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 };
 
 type Vocab = ReturnType<typeof useVocab>;
+
+// Option words for the unit / target / fallback enums; en keeps the familiar tokens.
+const OPTION_COPY: { en: Record<string, string>; zh: Record<string, string> } = {
+  en: { min: 'min', hr: 'hr', 'current-channel': 'current channel', fresh: 'fresh', project: 'project', skip: 'skip', wait: 'wait' },
+  zh: { min: '分钟', hr: '小时', 'current-channel': '当前频道', fresh: '新会话', project: '项目', skip: '跳过', wait: '等待' },
+};
+
+function useOptionWord(): (token: string) => string {
+  const words = pickCopy(useLangOptional(), OPTION_COPY);
+  return (token) => words[token] ?? token;
+}
 
 export interface MScheduleEditorProps {
   form: ScheduleForm;
@@ -100,6 +112,7 @@ function TimeField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
+  const word = useOptionWord();
   if (!visibleFields(form.type).interval) return null;
   return (
     <div>
@@ -110,7 +123,7 @@ function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
           onChange={(event) => onChange({ intervalValue: Number(event.target.value) })} />
         <select style={field} value={form.intervalUnit} disabled={!editableFields.interval}
           onChange={(event) => onChange({ intervalUnit: event.target.value as ScheduleForm['intervalUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{word(unit)}</option>)}
         </select>
       </div>
     </div>
@@ -118,6 +131,7 @@ function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
+  const word = useOptionWord();
   if (!visibleFields(form.type).delay || !editableFields.delay) return null;
   return (
     <div data-schedule-delay>
@@ -127,7 +141,7 @@ function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
           onChange={(event) => onChange({ delayValue: Number(event.target.value) })} />
         <select style={field} value={form.delayUnit}
           onChange={(event) => onChange({ delayUnit: event.target.value as ScheduleForm['delayUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{word(unit)}</option>)}
         </select>
       </div>
     </div>
@@ -154,7 +168,7 @@ function DayField({ copy, form, editableFields, onChange }: FieldsProps) {
       <select style={field} value={form.dayOfWeek} disabled={!editableFields.dayOfWeek}
         onChange={(event) => onChange({ dayOfWeek: Number(event.target.value) })}>
         {DAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>
-          {labels[day.value] ?? day.label}
+          {labels[day.value]}
         </option>)}
       </select>
     </label>
@@ -185,20 +199,21 @@ function MessageField({ copy, form, editableFields, onChange }: FieldsProps) {
 }
 
 function RoutingFields({ copy, form, mode, editableFields, onChange }: FieldsProps) {
+  const word = useOptionWord();
   return (
     <div style={{ ...pair, opacity: mode === 'edit' ? 0.6 : 1 }}>
       <label>
         <span style={label}>{copy.scTarget}</span>
         <select style={field} value={form.target} disabled={!editableFields.target}
           onChange={(event) => onChange({ target: event.target.value as ScheduleForm['target'] })}>
-          {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{target}</option>)}
+          {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{word(target)}</option>)}
         </select>
       </label>
       <label>
         <span style={label}>{copy.scFallback}</span>
         <select style={field} value={form.fallback} disabled={!editableFields.fallback}
           onChange={(event) => onChange({ fallback: event.target.value as ScheduleForm['fallback'] })}>
-          {FALLBACK_OPTIONS.map((fallback) => <option key={fallback} value={fallback}>{fallback}</option>)}
+          {FALLBACK_OPTIONS.map((fallback) => <option key={fallback} value={fallback}>{word(fallback)}</option>)}
         </select>
       </label>
     </div>

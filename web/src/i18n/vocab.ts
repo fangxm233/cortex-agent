@@ -1,4 +1,5 @@
 import { windowActionsEn, windowActionsZh } from './window-actions-vocab';
+import { commonEn, commonZh } from './common-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
@@ -18,6 +19,7 @@ export const en = {
   ...updateCheckEn,
   ...uiAuthEn,
   ...windowActionsEn,
+  ...commonEn,
 };
 
 export type Vocab = typeof en;
@@ -31,4 +33,5 @@ export const zh: Record<keyof Vocab, string> = {
   ...updateCheckZh,
   ...uiAuthZh,
   ...windowActionsZh,
+  ...commonZh,
 };

@@ -72,7 +72,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     today: '今日',
     idle: '空闲',
     newProject: '新建项目',
-    issuesTitle: 'Issues',
+    issuesTitle: '问题',
   },
 };
 

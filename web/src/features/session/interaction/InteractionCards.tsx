@@ -46,6 +46,8 @@ export interface DIntCopy {
   rejectedFoot: string;
   viewPlan: string;
   viewOriginalPlan: string;
+  lineCount: (n: number) => string;
+  close: string;
 }
 
 export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
@@ -76,6 +78,8 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     rejectedFoot: '',
     viewPlan: '查看计划 ›',
     viewOriginalPlan: '查看原计划 ›',
+    lineCount: (n) => `${n} 行`,
+    close: '关闭',
   },
   en: {
     askPill: 'Your call',
@@ -104,6 +108,8 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     rejectedFoot: '',
     viewPlan: 'View plan ›',
     viewOriginalPlan: 'View original plan ›',
+    lineCount: (n) => `${n} lines`,
+    close: 'Close',
   },
 };
 
@@ -306,7 +312,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         <path d="M5 6.5h4M5 9h4" />
       </svg>
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? `${model.lineCount} lines`}</span>
+        <span style={{ display: 'block', font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? copy.lineCount(model.lineCount)}</span>
         <span style={{ display: 'block', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2 }}>{copy.fileSub}</span>
       </span>
       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>{copy.readLink}</span>

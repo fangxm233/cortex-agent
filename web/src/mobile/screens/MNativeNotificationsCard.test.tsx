@@ -7,7 +7,11 @@ vi.mock('@/lib/desktop-config', () => ({ isMobileShell: () => h.mobile,
 vi.mock('@/features/notifications/os-notify', () => ({ ensureOsNotifyPermission: h.permission, refreshOsNotifyPermission: h.permission }));
 vi.mock('@/i18n', async () => {
   const { en, zh } = await import('@/i18n/vocab');
-  return { useLang: () => h.locale, useVocab: () => h.locale === 'zh' ? zh : en };
+  const vocab = () => h.locale === 'zh' ? zh : en;
+  return {
+    useLang: () => h.locale, useVocab: vocab,
+    useLangOptional: () => h.locale, useVocabOptional: vocab,
+  };
 });
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ isError: true }) }));

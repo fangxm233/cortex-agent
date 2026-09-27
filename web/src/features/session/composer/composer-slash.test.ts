@@ -40,20 +40,21 @@ describe('UI slash command model', () => {
   });
 
   it('expands profile arguments into filtered configured-profile suggestions', () => {
-    expect(buildSlashSuggestions('/pro', profiles).map((item) => item.command)).toEqual(['/profile']);
-    expect(buildSlashSuggestions('/profile ', profiles)).toEqual([
+    expect(buildSlashSuggestions('/pro', profiles, 'en').map((item) => item.command)).toEqual(['/profile']);
+    expect(buildSlashSuggestions('/profile ', profiles, 'en')).toEqual([
       { command: '/profile plan', description: 'opus · claude', action: { type: 'profile', profileName: 'plan' }, disabled: false },
       { command: '/profile execute', description: 'sonnet · claude', action: { type: 'profile', profileName: 'execute' }, disabled: false },
       { command: '/profile remote', description: 'glm · pi', action: { type: 'profile', profileName: 'remote' }, disabled: true },
     ]);
-    expect(buildSlashSuggestions('/profile ex', profiles).map((item) => item.command)).toEqual(['/profile execute']);
+    expect(buildSlashSuggestions('/profile ex', profiles, 'en').map((item) => item.command)).toEqual(['/profile execute']);
+    expect(buildSlashSuggestions('/new', profiles, 'zh')[0].description).toBe('开始新会话');
   });
 
   it('marks unavailable actions disabled for menu and typed execution', () => {
     const availability = {
       newDisabled: true, cancelDisabled: true, compactDisabled: true, settingsDisabled: true,
     };
-    const suggestions = buildSlashSuggestions('/', profiles, availability);
+    const suggestions = buildSlashSuggestions('/', profiles, 'en', availability);
     expect(suggestions.find((item) => item.command === '/new')?.disabled).toBe(true);
     expect(suggestions.find((item) => item.command === '/cancel')?.disabled).toBe(true);
     expect(suggestions.find((item) => item.command === '/compact')?.disabled).toBe(true);

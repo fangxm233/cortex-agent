@@ -15,7 +15,7 @@ it.each(['en', 'zh'])('keeps controls and real execution details without a techn
   expect(html).not.toContain('30s');
   expect(html).toContain('color:var(--log-fg)');
   expect(html).not.toContain('color:var(--proto-line)');
-  expect(html).toMatch(/<button[^>]+aria-label="Close"/);
+  expect(html).toMatch(new RegExp(`<button[^>]+aria-label="${lang === 'zh' ? '关闭' : 'Close'}"`));
   expect(html).toMatch(/<button[^>]+disabled=""[^>]+data-action="kill-run"/);
   for (const value of ['execution-example', 'worker · 1m', '12:00', 'No captured output']) {
     expect(html).toContain(value);

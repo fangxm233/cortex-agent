@@ -16,6 +16,10 @@ export interface MScheduleSheetCopy {
   runListHint: string;
   edit: string;
   markAllRead: string;
+  /** Runs-table column captions (mono uppercase in en). */
+  colRun: string;
+  colFired: string;
+  colCost: string;
 }
 
 function ClockIcon({ size, color }: { size: number; color: string }) {
@@ -166,11 +170,11 @@ function RunsHeader({ row, copy, now, onBack }: {
   );
 }
 
-function RunsCaptions() {
+function RunsCaptions({ copy }: { copy: MScheduleSheetCopy }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 70px', gap: 10,
       padding: '4px 15px 6px', font: `600 11px ${MONO}`, color: MC.muted, letterSpacing: '.05em' }}>
-      <span>RUN</span><span>FIRED</span><span style={{ textAlign: 'right' }}>COST</span>
+      <span>{copy.colRun}</span><span>{copy.colFired}</span><span style={{ textAlign: 'right' }}>{copy.colCost}</span>
     </div>
   );
 }
@@ -272,8 +276,8 @@ export function RunsLevel({ row, copy, now, onBack, onOpenRun, onEdit, onMarkAll
   return (
     <>
       <RunsHeader row={row} copy={copy} now={now} onBack={onBack} />
-      {/* Column captions are design constants (mono uppercase in both languages), not copy. */}
-      <RunsCaptions />
+      {/* Column captions follow the UI language; en keeps the mono uppercase look. */}
+      <RunsCaptions copy={copy} />
       <RunsList row={row} now={now} onOpenRun={onOpenRun} />
       <RunsFooter row={row} copy={copy} onEdit={onEdit} onMarkAllRead={onMarkAllRead}
         markAllPending={markAllPending} />

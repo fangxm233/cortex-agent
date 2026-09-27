@@ -59,7 +59,6 @@ interface WaitRailCopy {
   delivery: (n: number) => string;
   quota: (used: number, limit: number) => string;
   fire: (n: number, max: number) => string;
-  failFast: string;
   on: (device: string) => string;
 }
 
@@ -74,7 +73,6 @@ const COPY: Record<WaitRailLanguage, WaitRailCopy> = {
     delivery: (n: number) => `delivery retrying · ${n} attempts`,
     quota: (used: number, limit: number) => `${used}/${limit} wakes this hour`,
     fire: (n: number, max: number) => `fire ${n}/${max}`,
-    failFast: 'fail-fast',
     on: (device: string) => `on ${device}`,
   },
   zh: {
@@ -87,7 +85,6 @@ const COPY: Record<WaitRailLanguage, WaitRailCopy> = {
     delivery: (n: number) => `投递重试中 · ${n} 次`,
     quota: (used: number, limit: number) => `本小时已唤醒 ${used}/${limit}`,
     fire: (n: number, max: number) => `第 ${n}/${max} 次`,
-    failFast: '任一失败即结束',
     on: (device: string) => `在 ${device}`,
   },
 };
@@ -175,6 +172,8 @@ export interface WaitRailChromeCopy {
   confirm: (label: string) => string;
   noSignals: string;
   externalNote: string;
+  failFast: string;
+  signalStatus: Record<WaitRailSignalRow['status'], string>;
 }
 
 /** Copy for the bits the component renders itself (labels, confirm prompt). */
@@ -185,6 +184,8 @@ export const WAIT_RAIL_COPY: Record<WaitRailLanguage, WaitRailChromeCopy> = {
     confirm: (label: string) => `Cancel the waitpoint "${label}"? Its signal will no longer wake this session.`,
     noSignals: 'no signals yet',
     externalNote: 'Reported by the external process',
+    failFast: 'fail-fast',
+    signalStatus: { ok: 'ok', fail: 'fail', progress: 'progress' },
   },
   zh: {
     title: '等待中',
@@ -192,5 +193,7 @@ export const WAIT_RAIL_COPY: Record<WaitRailLanguage, WaitRailChromeCopy> = {
     confirm: (label: string) => `取消等待点「${label}」？它的信号将不再唤醒本会话。`,
     noSignals: '还没有信号',
     externalNote: '以下内容由外部进程写入',
+    failFast: '任一失败即结束',
+    signalStatus: { ok: '成功', fail: '失败', progress: '进度' },
   },
 };

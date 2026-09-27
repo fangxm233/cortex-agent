@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import type { ConfigSnapshot, PlatformSettingsSnapshot, PlatformSettingsPatch } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import { apiBase } from '@/lib/desktop-config';
 import { PlatformConnectionFields } from './PlatformConnectionFields';
 import { PlatformRuntimeFields, type PlatformRuntimePatch } from './PlatformRuntimeFields';
@@ -46,13 +46,14 @@ function PlatformHeaderNotes({ platform }: { platform: PlatformSettingsSnapshot 
 
 function PlatformHeader({ platform }: { platform: PlatformSettingsSnapshot }) {
   const L = useVocab();
+  const feishuGlyph = useLang() === 'zh' ? '飞' : 'F';
   const title = platform.platform === 'feishu' ? L.psFeishu : L.psSlack;
   const status = statusPill(platform, L);
   const guide = platform.platform === 'feishu' ? 'https://open.feishu.cn/document/develop-an-echo-bot/introduction'
     : 'https://fangxm233.github.io/cortex-agent/slack-setup/';
   return <header style={{ padding: '14px 16px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <PlatformAvatar glyph={platform.platform === 'feishu' ? '飞' : 'S'} />
+      <PlatformAvatar glyph={platform.platform === 'feishu' ? feishuGlyph : 'S'} />
       <h2 style={HEADING_STYLE}>{title}</h2>
       <SPill tone={status.tone}>{status.label}</SPill>
       <a href={guide} target="_blank" rel="noreferrer" style={GUIDE_STYLE}>{L.psGuide}</a>

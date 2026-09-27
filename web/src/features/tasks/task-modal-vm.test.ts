@@ -46,3 +46,12 @@ describe('buildTaskModalVm action guards', () => {
     expect(buildTaskModalVm(task({ blockedBy: 'T-1' }), []).completable).toBe(false);
   });
 });
+
+describe('buildTaskModalVm language', () => {
+  it('translates field labels, values and the complete button in zh', () => {
+    const vm = buildTaskModalVm(task({ priority: 'high' }), [], null, 'zh');
+    expect(vm.fields.find((field) => field.k === '优先级')?.v).toBe('高');
+    expect(vm.fields.find((field) => field.k === '状态')?.v).toBe('未完成');
+    expect(vm.completeLabel).toBe('完成');
+  });
+});

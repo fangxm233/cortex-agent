@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useSettings } from '@/features/settings/useSettings';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
+import { PALETTE_COPY, paletteKindText } from './palette-copy';
 
 // ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
 // label, right-aligned hint); real sessions/threads/tasks over tRPC are substituted into that
@@ -110,16 +111,17 @@ export interface CommandPaletteProps {
 // (var(--proto-accent-bg) bg, var(--proto-accent) label) is applied there via `.cmdk-row` CSS in index.css.
 function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   const L = useVocab();
+  const copy = PALETTE_COPY[useLang()];
   // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
   const label = row.labelKey ? L[row.labelKey] : row.label;
   const sub = row.subKey ? L[row.subKey] : row.sub;
   // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
   // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
   const kind = row.labelKey ? 'command' : row.kbd;
-  const hint = [sub, row.kbd === kind ? null : row.kbd].filter(Boolean).join(' · ');
+  const hint = [sub, row.kbd === kind ? null : paletteKindText(row.kbd, copy)].filter(Boolean).join(' · ');
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
-      <span style={KIND_STYLE}>{kind}</span>
+      <span style={KIND_STYLE}>{paletteKindText(kind, copy)}</span>
       <span className="cmdk-row-label">{label}</span>
       <span style={HINT_STYLE} title={hint}>{hint}</span>
     </Command.Item>
@@ -157,13 +159,14 @@ function PaletteHeader({ query, setQuery, close }: {
   query: string; setQuery: (value: string) => void; close: () => void;
 }) {
   const L = useVocab();
+  const copy = PALETTE_COPY[useLang()];
   return (
     <div style={HEADER_STYLE}>
       <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="var(--proto-muted-3)" strokeWidth="1.5">
         <circle cx="5" cy="5" r="3.8" /><path d="M8 8l2.6 2.6" />
       </svg>
       <Command.Input autoFocus value={query} onValueChange={setQuery} placeholder={L.cmdkPh} style={INPUT_STYLE} />
-      <button type="button" aria-label="Close command palette" style={ESC_STYLE} onClick={close}>esc</button>
+      <button type="button" aria-label={copy.close} style={ESC_STYLE} onClick={close}>esc</button>
     </div>
   );
 }
@@ -180,12 +183,13 @@ function PaletteResults({ rows, go }: { rows: PaletteRow[]; go: (row: PaletteRow
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const L = useVocab();
+  const copy = PALETTE_COPY[useLang()];
   const [query, setQuery] = useState('');
   useEffect(() => { if (open) setQuery(''); }, [open]);
   const rows = usePaletteRows(open, query);
   const go = usePaletteTarget(onOpenChange);
   return (
-    <Command.Dialog open={open} onOpenChange={onOpenChange} label="Command palette"
+    <Command.Dialog open={open} onOpenChange={onOpenChange} label={copy.label}
       shouldFilter={false} loop overlayClassName="cmdk-backdrop" contentClassName="cmdk-panel">
       <PaletteHeader query={query} setQuery={setQuery} close={() => onOpenChange(false)} />
       <PaletteResults rows={rows} go={go} />

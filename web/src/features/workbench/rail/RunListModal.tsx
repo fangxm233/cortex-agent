@@ -1,5 +1,6 @@
 import { Modal } from '@/design/Modal';
 import { useLang, useVocab } from '@/i18n';
+import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { runOrdinals, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';
@@ -39,6 +40,7 @@ export function RunListModal({
 }): JSX.Element {
   const L = useVocab();
   const lang = useLang();
+  const copy = workbenchCopy(lang);
   const now = Date.now();
   const ordinals = runOrdinals(row.runs);
   const unreadIds = unreadRunIds(row);
@@ -104,7 +106,7 @@ export function RunListModal({
           )}
           <button
             type="button"
-            aria-label="Close"
+            aria-label={L.winClose}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             data-action="run-list-close"
             onClick={onClose}
@@ -113,11 +115,11 @@ export function RunListModal({
             ✕
           </button>
         </div>
-        {/* Column captions are design constants (mono uppercase in both languages), not copy. */}
+        {/* Column captions: mono uppercase in English, plain words in Chinese. */}
         <div style={{ ...GRID, background: 'transparent', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
-          <span>RUN</span>
-          <span>FIRED</span>
-          <span style={{ textAlign: 'right' }}>COST</span>
+          <span>{copy.runCaption}</span>
+          <span>{copy.firedCaption}</span>
+          <span style={{ textAlign: 'right' }}>{copy.costCaption}</span>
         </div>
         <div style={{ background: 'transparent', overflowY: 'auto', minHeight: 0 }}>
           {row.runs.map((r, i) => {

@@ -26,10 +26,10 @@ const COPY: { en: MIssuesCopy; zh: MIssuesCopy } = {
     footer: 'Handle opens a new session and removes the issue; Delete removes it directly.',
   },
   zh: {
-    title: 'Issues',
+    title: '问题',
     del: '删除',
     handle: '处理',
-    empty: '没有 issue',
+    empty: '没有问题',
     footer: '处理会新建会话并移除此问题；删除会直接移除。',
   },
 };
@@ -73,7 +73,7 @@ export function MIssuesScreen() {
         const entry = entries.find((e) => e.id === id);
         if (!entry) return;
         // Pre-fill the new-session draft composer with the issue prompt (editable before send).
-        const prompt = buildIssuePrompt(currentProjectId, entry);
+        const prompt = buildIssuePrompt(currentProjectId, entry, lang);
         const key = draftStorageKey({ isDraft: true, projectId: currentProjectId });
         saveDraft(key, { text: prompt, attachments: [] });
         // Navigate to the draft chat screen.

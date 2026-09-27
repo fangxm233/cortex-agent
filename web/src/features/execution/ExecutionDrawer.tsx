@@ -1,7 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import '@/design/content-surfaces.css';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { ExecutionDrawerView } from './ExecutionDrawerView';
@@ -89,6 +89,7 @@ export function ExecutionDrawer({ executionId, onClose }: ExecutionDrawerProps) 
 function DrawerBody({ executionId, onClose }: { executionId: string; onClose: () => void }) {
   const trpc = useTRPC();
   const L = useVocab();
+  const lang = useLang();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -127,8 +128,8 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
   return (
     <ExecutionDrawerView
       title={detail?.id ?? executionId}
-      pill={detail ? execPill(detail.status) : null}
-      meta={detail ? execMeta(detail) : ''}
+      pill={detail ? execPill(detail.status, lang) : null}
+      meta={detail ? execMeta(detail, lang) : ''}
       now={detail ? execNow(detail) : ''}
       notice={L.exNoLiveLog}
       killDisabled={cancel.isPending}

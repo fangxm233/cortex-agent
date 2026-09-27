@@ -7,6 +7,8 @@ import type {
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
 import { formatUsd } from '@/lib/format';
 import { formatSpanPrecise, relTime, type TimeLang } from '@/lib/time-format';
+import { pickVocab } from '@/i18n';
+import { fillStep, workbenchCopy } from '@/features/workbench/workbench-copy';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
@@ -21,18 +23,19 @@ export interface Pill {
  * Real thread vocabulary: running | waiting | completed | failed | cancelled | aborted.
  * `completed` maps to the prototype's 'done' pill; `cancelled`/`aborted` to the default (Cancelled).
  */
-export function threadPill(status: ThreadInfo['status']): Pill {
+export function threadPill(status: ThreadInfo['status'], lang: TimeLang): Pill {
+  const L = pickVocab(lang);
   switch (status) {
     case 'running':
-      return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: 'Running' };
+      return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: L.pillRunning };
     case 'waiting':
-      return { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: 'Waiting' };
+      return { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: L.pillWaiting };
     case 'completed':
-      return { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: 'Done' };
+      return { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: L.pillDone };
     case 'failed':
-      return { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: 'Failed' };
+      return { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: L.pillFailed };
     default:
-      return { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'Cancelled' };
+      return { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: L.pillCancelled };
   }
 }
 
@@ -80,12 +83,13 @@ export function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
 export type ActivityTone = 'running' | 'done' | 'failed' | 'idle';
 export interface ActivityState { label: string; tone: ActivityTone }
 
-export function subtaskActivity(task: ThreadSubtaskInfo): ActivityState {
-  if (task.status === 'done') return { label: 'Done', tone: 'done' };
-  if (task.blockedBy) return { label: 'Blocked', tone: 'failed' };
-  if (task.claimedBy) return { label: 'Running', tone: 'running' };
-  if (task.actionable) return { label: 'Open', tone: 'idle' };
-  return { label: 'Waiting', tone: 'idle' };
+export function subtaskActivity(task: ThreadSubtaskInfo, lang: TimeLang): ActivityState {
+  const L = pickVocab(lang);
+  if (task.status === 'done') return { label: L.pillDone, tone: 'done' };
+  if (task.blockedBy) return { label: L.mBlockedPill, tone: 'failed' };
+  if (task.claimedBy) return { label: L.pillRunning, tone: 'running' };
+  if (task.actionable) return { label: workbenchCopy(lang).actOpen, tone: 'idle' };
+  return { label: L.pillWaiting, tone: 'idle' };
 }
 
 /** Relative age of an ISO timestamp: "now" / "42m" / "3h" / "2d" · "刚刚" / "42分钟前". */
@@ -96,8 +100,8 @@ export function formatAge(iso: string, now: number, lang: TimeLang): string {
 /** Thread card meta line "thr_8f2c · task a293 · step 3/4 · 42m". */
 export function threadMetaLine(info: ThreadInfo, now: number, lang: TimeLang): string {
   const parts: string[] = [info.id];
-  if (info.taskId) parts.push(`task ${info.taskId}`);
-  if (info.currentStep) parts.push(`step ${info.currentStep.index + 1}/${info.totalSteps}`);
+  if (info.taskId) parts.push(pickVocab(lang).cmTaskRef.replace('{id}', info.taskId));
+  if (info.currentStep) parts.push(fillStep(workbenchCopy(lang).metaStep, info.currentStep.index + 1, info.totalSteps));
   parts.push(formatAge(info.createdAt, now, lang));
   return parts.join(' · ');
 }
@@ -126,8 +130,9 @@ export function onlineMachineCount(machines: MachineInfo[] | undefined): number 
  * Machine online status → status-pill colors + label, mirroring threadPill convention.
  * Online maps to the done-green pair; offline to the default grey.
  */
-export function machinePill(online: boolean): Pill {
+export function machinePill(online: boolean, lang: TimeLang): Pill {
+  const copy = workbenchCopy(lang);
   return online
-    ? { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: 'Online' }
-    : { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'Offline' };
+    ? { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: copy.machineOnline }
+    : { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: copy.machineOffline };
 }

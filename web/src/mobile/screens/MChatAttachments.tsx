@@ -7,6 +7,7 @@ import { mediaKindOf } from '@/features/media/media-kind';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
+import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import type { PendingAttachmentVM } from './m-chat-vm';
 
@@ -14,11 +15,12 @@ const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--p
 
 function ViewTile({ attachment }: { attachment: Attachment }): JSX.Element {
   const { openDoc } = useDocViewer();
+  const vocab = useVocabOptional();
   const item = { kind: 'html' as const, name: attachment.name, path: attachment.path, mimeType: attachment.mimeType };
   return (
     <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--material-control-bg)', cursor: 'pointer' }}>
-        <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>VIEW</span>
+        <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>{vocab.wbViewBadge}</span>
         <span style={{ font: `500 11px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.name}</span>
         <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
       </div>
@@ -111,12 +113,13 @@ function UploadStatus({ attachment, onRetry }: {
   attachment: PendingAttachmentVM;
   onRetry: () => void;
 }): JSX.Element | null {
-  if (attachment.status === 'queued') return <span style={{ font: `500 11px ${MONO}`, color: MC.muted }}>queued</span>;
+  const vocab = useVocabOptional();
+  if (attachment.status === 'queued') return <span style={{ font: `500 11px ${MONO}`, color: MC.muted }}>{vocab.cmQueued}</span>;
   if (attachment.status === 'uploading') {
     return <><div style={{ width: 34, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ font: `400 11px ${MONO}`, color: MC.run }}>{attachment.progress}%</span></>;
   }
   if (attachment.status === 'done') return <span style={{ fontSize: 11, color: MC.done, fontWeight: 700 }}>✓</span>;
-  if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ font: `600 11px ${MONO}`, color: MC.fail, cursor: 'pointer' }}>retry</span>;
+  if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ font: `600 11px ${MONO}`, color: MC.fail, cursor: 'pointer' }}>{vocab.cmRetry}</span>;
   return null;
 }
 

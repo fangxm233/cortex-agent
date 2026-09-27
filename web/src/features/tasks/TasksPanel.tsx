@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { groupTasks, type TaskGroupKind } from './group-tasks';
 import { TaskRow } from './TaskRow';
 import { useTaskModal } from './useTaskModal';
@@ -63,9 +63,10 @@ function TaskSections({ groups, onOpen }: {
 
 function TaskFooter({ tasks, groups }: { tasks: TaskInfo[]; groups: ReturnType<typeof groupTasks> }) {
   const done = groups.find((group) => group.kind === 'done')?.tasks.length ?? 0;
+  const lang = useLang();
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 2px 0', borderTop: '1px solid var(--proto-line-2)', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-      <span>{tasks.length} total · {done} done</span>
+      <span>{lang === 'zh' ? `共 ${tasks.length} · 已完成 ${done}` : `${tasks.length} total · ${done} done`}</span>
     </div>
   );
 }

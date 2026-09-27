@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { uploadAttachment } from './upload-attachment';
+import { AttachmentUploadError, uploadAttachment, uploadErrorText } from './upload-attachment';
 import type { AttachmentMeta } from './types';
 
 type Handler = (event: any) => void;
@@ -99,5 +99,13 @@ describe('uploadAttachment', () => {
     const pending = uploadAttachment(new File(['x'], 'a.bin'), 's1', () => {}, controller.signal);
     await expect(pending).rejects.toThrow('Upload cancelled');
     expect(MockXHR.instances).toHaveLength(0);
+  });
+});
+
+describe('uploadErrorText', () => {
+  it('localizes its own failures and passes server wording through', () => {
+    expect(uploadErrorText(new AttachmentUploadError('failed', 502), 'zh')).toBe('上传失败 (502)');
+    expect(uploadErrorText(new AttachmentUploadError('too-large'), 'en')).toBe('File too large');
+    expect(uploadErrorText(new Error('quota exceeded'), 'zh')).toBe('quota exceeded');
   });
 });

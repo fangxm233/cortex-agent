@@ -11,6 +11,8 @@ import type {
 import { formatUsd } from '@/lib/format';
 import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 import { threadPill, type Pill } from '@/features/workbench/right-panel/right-panel-vm';
+import { fillStep, workbenchCopy } from '@/features/workbench/workbench-copy';
+import { pickVocab } from '@/i18n';
 
 export interface ThreadCardNested {
   name: string;
@@ -74,21 +76,21 @@ function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
   return parts.join(' · ');
 }
 
-function mapNested(node: ThreadChildNode): ThreadCardNested | null {
+function mapNested(node: ThreadChildNode, lang: TimeLang): ThreadCardNested | null {
   const first = node.children[0];
   if (!first) return null;
   return {
     name: first.templateName ?? first.id,
     level: childLevel(first.depth),
     running: first.status === 'running',
-    meta: first.status === 'running' ? 'running' : 'done',
+    meta: first.status === 'running' ? workbenchCopy(lang).metaRunning : workbenchCopy(lang).metaDone,
   };
 }
 
-function mapSub(node: ThreadChildNode): ThreadCardSub {
+function mapSub(node: ThreadChildNode, lang: TimeLang): ThreadCardSub {
   const running = node.status === 'running';
-  const pill = threadPill(node.status);
-  const nested = mapNested(node);
+  const pill = threadPill(node.status, lang);
+  const nested = mapNested(node, lang);
   return {
     name: node.templateName ?? node.id,
     level: childLevel(node.depth),
@@ -99,7 +101,7 @@ function mapSub(node: ThreadChildNode): ThreadCardSub {
     nameColor: running ? 'var(--proto-ink)' : 'var(--proto-muted)',
     pillBg: pill.bg,
     pillColor: pill.fg,
-    pillText: running ? 'Running' : pill.text,
+    pillText: running ? pickVocab(lang).pillRunning : pill.text,
     hasLine: nested != null,
     line: node.activeAgent ?? '',
     meta: node.costUsd ? formatUsd(node.costUsd) : '',
@@ -113,24 +115,25 @@ function mapSub(node: ThreadChildNode): ThreadCardSub {
  * a chevron; pending rows show the empty ring node.
  */
 export function buildThreadCard(detail: ThreadDetail, lang: TimeLang): ThreadCardVm {
+  const copy = workbenchCopy(lang);
   const steps = detail.steps;
   const rows: ThreadCardRow[] = steps.map((step, i) => {
     const node: ThreadCardRow['node'] =
       step.status === 'completed' ? 'done' : step.status === 'running' ? 'running' : 'pending';
     const running = node === 'running';
     const done = node === 'done';
-    const subs = running ? detail.children.map(mapSub) : [];
+    const subs = running ? detail.children.map((child) => mapSub(child, lang)) : [];
     const hasTail = i < steps.length - 1;
     return {
       node,
       hasTail,
       padB: hasTail ? '8px' : '2px',
-      name: step.stage ?? `Step ${step.stepIndex + 1}`,
+      name: step.stage ?? pickVocab(lang).cmStepN.replace('{n}', String(step.stepIndex + 1)),
       fw: running ? 600 : 500,
       color: running ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)',
       sub: running ? (detail.activeStage ?? '') : (step.outputSummary ?? ''),
       subColor: running ? 'var(--proto-muted-3)' : 'var(--proto-faint)',
-      meta: running ? stepMeta(step, lang) || 'running' : done ? stepMeta(step, lang) : 'gated',
+      meta: running ? stepMeta(step, lang) || copy.metaRunning : done ? stepMeta(step, lang) : copy.metaGated,
       metaColor: running ? 'var(--proto-accent)' : done ? 'var(--proto-faint)' : 'var(--proto-disabled)',
       chev: done,
       expanded: running,
@@ -138,10 +141,10 @@ export function buildThreadCard(detail: ThreadDetail, lang: TimeLang): ThreadCar
     };
   });
 
-  const pill = threadPill(detail.status);
+  const pill = threadPill(detail.status, lang);
   const pillText =
     detail.status === 'running' && detail.currentStep
-      ? `Step ${detail.currentStep.index + 1}/${detail.totalSteps}`
+      ? fillStep(copy.pillStep, detail.currentStep.index + 1, detail.totalSteps)
       : pill.text;
 
   return {

@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { buildThreadCard, type ThreadCardVm, type ThreadCardRow, type ThreadCardSub } from './inline-thread-card-vm';
@@ -69,6 +69,7 @@ function NodeCell({ row }: { row: ThreadCardRow }) {
 }
 
 function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () => void }) {
+  const L = useVocab();
   return (
     <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 'var(--r-control)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px' }}>
@@ -133,7 +134,7 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
                 onClick={onOpenNested}
                 style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
               >
-                Open ›
+                {L.rpOpen} ›
               </span>
             </div>
           )}
@@ -144,6 +145,7 @@ function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () =
 }
 
 function InlineCardHeader({ card, onOpen }: { card: ThreadCardVm; onOpen: () => void }) {
+  const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', padding: '8px 13px', background: 'var(--proto-rail)', borderBottom: '1px solid var(--proto-line-2)' }}>
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.6">
@@ -154,7 +156,7 @@ function InlineCardHeader({ card, onOpen }: { card: ThreadCardVm; onOpen: () => 
       <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{card.id}</span>
       <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: card.pill.bg, color: card.pill.fg }}>{card.pillText}</span>
       <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{card.meta}</span>
-      <span onClick={onOpen} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>Open →</span>
+      <span onClick={onOpen} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.rpOpen} →</span>
     </div>
   );
 }

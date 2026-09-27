@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
-import { parseIssueBody, defaultSelectedId } from './issues-vm';
+import { parseIssueBody, defaultSelectedId, buildIssuePrompt } from './issues-vm';
 
 const issue = (over: Partial<IssueInfo> = {}): IssueInfo => ({
   id: 'abc12345',
@@ -53,5 +53,14 @@ describe('defaultSelectedId', () => {
   });
   test('empty list → null', () => {
     expect(defaultSelectedId([], 'a1')).toBeNull();
+  });
+});
+
+describe('buildIssuePrompt', () => {
+  test('follows the UI language and keeps the entry verbatim', () => {
+    const en = buildIssuePrompt('proj', issue(), 'en');
+    expect(en).toContain('Handle the issue recorded in ISSUES.md of project proj');
+    expect(en).toContain('**EXP-023 验证集 return 回落 9.4%** (2026-07-02)');
+    expect(buildIssuePrompt('proj', issue(), 'zh')).toContain('处理项目 proj 的 ISSUES.md 中登记的 issue');
   });
 });

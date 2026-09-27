@@ -124,7 +124,7 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
 
 function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
   const L = useVocab();
-  const running = sub.pill.text === 'Running';
+  const running = sub.pill.tone === 'running';
   return (
     <div
       data-sub-thread-id={sub.id}

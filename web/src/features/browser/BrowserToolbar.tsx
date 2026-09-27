@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react';
 import { openExternalUrl } from '@/lib/external-navigation';
+import { useBrowserCopy } from './browser-copy';
 import { browserTabForwardSource, canGoBack, canGoForward, VIEWPORT_PRESETS, type BrowserTabState, type ViewportPreset } from './browser-target';
 
 interface ToolbarProps {
@@ -17,22 +18,23 @@ interface ToolbarProps {
 }
 
 export function BrowserToolbar(props: ToolbarProps): JSX.Element {
+  const copy = useBrowserCopy();
   return (
-    <div className="browser-toolbar" aria-label="Browser controls">
+    <div className="browser-toolbar" aria-label={copy.toolbar}>
       <div className="browser-navigation">
-        <BrowserButton title="Back" disabled={!canGoBack(props.tab.history)} onClick={() => props.onStep('back')}>‹</BrowserButton>
-        <BrowserButton title="Forward" disabled={!canGoForward(props.tab.history)} onClick={() => props.onStep('forward')}>›</BrowserButton>
-        <BrowserButton title="Reload" disabled={props.url === null} onClick={props.onReload}>⟳</BrowserButton>
+        <BrowserButton title={copy.back} disabled={!canGoBack(props.tab.history)} onClick={() => props.onStep('back')}>‹</BrowserButton>
+        <BrowserButton title={copy.forward} disabled={!canGoForward(props.tab.history)} onClick={() => props.onStep('forward')}>›</BrowserButton>
+        <BrowserButton title={copy.reload} disabled={props.url === null} onClick={props.onReload}>⟳</BrowserButton>
       </div>
       <BrowserAddress {...props} />
       <div className="browser-tools">
-        <select className="browser-control" title="Viewport width" aria-label="Viewport width" value={props.tab.viewportId}
+        <select className="browser-control" title={copy.viewportWidth} aria-label={copy.viewportWidth} value={props.tab.viewportId}
           onChange={(event) => props.onViewport(event.target.value as ViewportPreset['id'])}>
-          {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+          {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.id === 'fit' ? copy.viewportFit : preset.label}</option>)}
         </select>
-        <button type="button" className="browser-control" title="Ports listening on the server or a connected device"
-          aria-expanded={props.portsOpen} aria-controls={`browser-ports-${props.tab.id}`} onClick={props.onTogglePorts}>Ports</button>
-        <BrowserButton title="Open in system browser" disabled={props.url === null}
+        <button type="button" className="browser-control" title={copy.portsTitle}
+          aria-expanded={props.portsOpen} aria-controls={`browser-ports-${props.tab.id}`} onClick={props.onTogglePorts}>{copy.ports}</button>
+        <BrowserButton title={copy.openExternal} disabled={props.url === null}
           onClick={() => { if (props.url) void openExternalUrl(props.url); }}>↗</BrowserButton>
       </div>
     </div>
@@ -40,12 +42,13 @@ export function BrowserToolbar(props: ToolbarProps): JSX.Element {
 }
 
 function BrowserAddress({ tab, inputRef, onDraft, onNavigate, onResetDraft }: ToolbarProps): JSX.Element {
+  const copy = useBrowserCopy();
   const origin = browserTabForwardSource(tab);
   return (
     <div className="browser-address">
-      {origin && <span className="browser-origin" data-forward-origin={origin} title={`Forwarded from ${origin}`}>{origin} →</span>}
-      <input ref={inputRef} aria-label="Browser address" value={tab.draft} spellCheck={false}
-        placeholder="Port or http://host:port" onChange={(event) => onDraft(event.target.value)}
+      {origin && <span className="browser-origin" data-forward-origin={origin} title={copy.forwardedFrom.replace('{source}', origin)}>{origin} →</span>}
+      <input ref={inputRef} aria-label={copy.address} value={tab.draft} spellCheck={false}
+        placeholder={copy.addressPlaceholder} onChange={(event) => onDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') onNavigate();
           if (event.key === 'Escape') onResetDraft();

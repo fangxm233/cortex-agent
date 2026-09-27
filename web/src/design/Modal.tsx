@@ -1,5 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactNode } from 'react';
+import { useVocabOptional } from '@/i18n';
 
 // Radix owns focus trapping, Escape dismissal, aria-modal, scroll lock, and focus restore in both
 // chrome modes. Standard retains the token-styled shell; bare only removes visible design chrome so
@@ -80,7 +81,7 @@ export interface ModalProps {
 }
 
 function CloseControl(): JSX.Element {
-  return <RadixDialog.Close aria-label="Close" className={CLOSE_CLASS}>✕</RadixDialog.Close>;
+  return <RadixDialog.Close aria-label={useVocabOptional().cmClose} className={CLOSE_CLASS}>✕</RadixDialog.Close>;
 }
 
 function ModalHeader({ title, hideTitle, showClose }: Pick<ModalProps, 'title' | 'hideTitle'> & {

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useVocabOptional } from '@/i18n';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ThreadStepChat } from '@/features/thread/ThreadStepChat';
@@ -40,6 +41,7 @@ function Header({
   onMore: () => void;
 }) {
   const tone = statusPillTone(vm.status);
+  const vocab = useVocabOptional();
   return (
     <div
       style={{
@@ -53,7 +55,7 @@ function Header({
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <button
           type="button"
-          aria-label="Back"
+          aria-label={vocab.back}
           onClick={onBack}
           style={{
             border: 'none',

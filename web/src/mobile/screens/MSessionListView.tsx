@@ -2,7 +2,15 @@ import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { MScreen, MTabHeader, MScrollBody, MGroup, MEmpty, MC, M_GUTTER, M_NUM, M_TABBAR_BOTTOM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
+import { useLangOptional } from '@/i18n';
+import { pickCopy } from '@/mobile/ui/format';
 import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
+
+// Accessible names for the list chrome; `{n}` is the unread-schedule count.
+const A11Y = {
+  en: { scheduled: 'Scheduled', unreadScheduled: '{n} unread scheduled', unread: 'unread' },
+  zh: { scheduled: '定时任务', unreadScheduled: '{n} 个未读定时任务', unread: '未读' },
+};
 
 export interface MSessionListCopy {
   title: string;
@@ -62,11 +70,12 @@ function BrandTile({ presence }: { presence: ConnectionStatus }) {
 // the frame); unread schedules ride as a badge (blue — failed runs have no data source, so the badge
 // never turns red here).
 function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
+  const a11y = pickCopy(useLangOptional(), A11Y);
   return (
     <div style={{ position: 'relative', flex: 'none' }}>
       <button
         type="button"
-        aria-label="Scheduled"
+        aria-label={a11y.scheduled}
         onClick={onClick}
         style={{
           width: 44,
@@ -88,7 +97,7 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
       </button>
       {unread > 0 && (
         <span
-          aria-label={`${unread} unread scheduled`}
+          aria-label={a11y.unreadScheduled.replace('{n}', String(unread))}
           style={{
             position: 'absolute',
             top: 4,
@@ -141,10 +150,11 @@ function StatusLine({ status }: { status: MSessionStatus }) {
 // Time on the title line; an unread session adds the accent dot after it (mirrors the desktop rail's
 // unread marker, cleared by useMarkSessionRead once the chat opens).
 function RowMeta({ row, twoLine }: { row: MSessionRow; twoLine: boolean }) {
+  const a11y = pickCopy(useLangOptional(), A11Y);
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, alignSelf: twoLine ? 'flex-start' : 'center', paddingTop: twoLine ? 2 : 0 }}>
       <span style={{ fontSize: 12, color: row.unread ? 'var(--proto-accent)' : MC.muted, ...M_NUM }}>{row.time}</span>
-      {row.unread && <span aria-label="unread" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
+      {row.unread && <span aria-label={a11y.unread} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />}
     </div>
   );
 }

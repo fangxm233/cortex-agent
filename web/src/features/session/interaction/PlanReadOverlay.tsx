@@ -71,7 +71,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
             <button
               type="button"
               className={focusClass}
-              aria-label="Close"
+              aria-label={copy.close}
               onClick={onClose}
               style={{ width: 26, height: 26, borderRadius: 'var(--r-chip)', border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
             >

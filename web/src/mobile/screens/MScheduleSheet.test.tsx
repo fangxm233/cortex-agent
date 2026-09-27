@@ -40,7 +40,7 @@ function run(p: Partial<SessionInfo> = {}): SessionInfo {
 const copy: MScheduleSheetCopy = {
   title: 'Scheduled', countUnit: '{n}', once: 'once', paused: 'paused', nextIn: 'next in {d}',
   allRuns: 'all {n} runs', runListHint: 'tap a run', edit: 'Edit schedule',
-  markAllRead: 'mark {n} read',
+  markAllRead: 'mark {n} read', colRun: 'RUN', colFired: 'FIRED', colCost: 'COST',
 };
 
 function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {

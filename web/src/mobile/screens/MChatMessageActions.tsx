@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { useLangOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
 import type { MChatEditCopy, MMsgMenu } from './MChatView.types';
@@ -153,11 +154,12 @@ export function MsgActionMenu({ row, menu, copy }: {
 }
 
 export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
+  const cancelLabel = useLangOptional() === 'zh' ? '取消编辑' : 'Cancel edit';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--material-inset-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-      <div role="button" aria-label="Cancel edit" onClick={onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}>×</div>
+      <div role="button" aria-label={cancelLabel} onClick={onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}>×</div>
     </div>
   );
 }

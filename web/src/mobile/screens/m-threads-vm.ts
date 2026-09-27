@@ -1,6 +1,7 @@
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { relTime, type TimeLang } from '@/lib/time-format';
+import { pickVocab } from '@/i18n';
 import { formatUsd } from '@/lib/format';
 
 // ── 今日 budget band (scheme L188–192) ────────────────────────────────────────
@@ -74,7 +75,7 @@ export function runningMeta(
   lang: TimeLang,
 ): string {
   const parts: string[] = [info.id];
-  if (info.taskId) parts.push(`task ${info.taskId}`);
+  if (info.taskId) parts.push(pickVocab(lang).cmTaskRef.replace('{id}', info.taskId));
   parts.push(relTime(info.createdAt, now, lang));
   if (detail) {
     parts.push(formatUsd(detail.totalCostUsd));

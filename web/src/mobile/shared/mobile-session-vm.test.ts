@@ -91,4 +91,9 @@ describe('buildMobileStepper', () => {
     const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }), 'en');
     expect(s.nodes).toEqual([]);
   });
+  it('localizes the unnamed-step label and the non-running status pill', () => {
+    const d = detail({ status: 'waiting', steps: [step({ stepIndex: 0, stage: null })] });
+    expect(buildMobileStepper(d, 'en')).toMatchObject({ pillText: 'Waiting', nodes: [{ label: 'Step 1' }] });
+    expect(buildMobileStepper(d, 'zh')).toMatchObject({ pillText: '等待中', nodes: [{ label: '步骤 1' }] });
+  });
 });

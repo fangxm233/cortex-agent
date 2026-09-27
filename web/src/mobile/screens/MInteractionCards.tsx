@@ -31,6 +31,8 @@ export interface MIntCopy {
   viewFullPlan: string;
   viewOriginalPlan: string;
   rewriteNote: string;
+  /** `{n}` → line count; shown in place of the plan path when there is none. */
+  lineCount: string;
 }
 
 export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
@@ -55,6 +57,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     viewFullPlan: '查看完整计划 ›',
     viewOriginalPlan: '查看原计划 ›',
     rewriteNote: '',
+    lineCount: '{n} 行',
   },
   en: {
     askPill: 'Agent question',
@@ -77,6 +80,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     viewFullPlan: 'View full plan ›',
     viewOriginalPlan: 'View original plan ›',
     rewriteNote: '',
+    lineCount: '{n} lines',
   },
 };
 
@@ -371,7 +375,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           >
             {FILE_SVG}
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ font: `500 11px ${MONO}`, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? `${model.lineCount} lines`}</div>
+              <div style={{ font: `500 11px ${MONO}`, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? copy.lineCount.replace('{n}', String(model.lineCount))}</div>
               <div style={{ fontSize: 11, color: MC.muted, marginTop: 2 }}>{copy.readHint}</div>
             </div>
             <span style={{ fontSize: 12, fontWeight: 600, color: MC.run, flex: 'none' }}>{copy.readLink}</span>

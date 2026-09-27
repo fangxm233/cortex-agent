@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
 import { PS_HINT_STYLE, psFieldStyle } from '@/features/settings/ui/platform-ui';
 import { SFieldRow, SLinkAction } from '@/features/settings/ui/settings-ui';
@@ -33,11 +33,13 @@ function SecretControls({ field, draft, disabled, onChange }: FieldProps) {
 
 function FieldInput({ field, draft, disabled, onChange }: FieldProps) {
   const L = useVocab();
+  const zh = useLang() === 'zh';
   const value = draft[field.key] ?? (field.secret ? '' : field.value ?? '');
   const locked = disabled || draft[field.key] === null;
   if (field.key === 'FEISHU_DOMAIN') return <select id={`ps-${field.key}`} value={value || 'feishu'}
     disabled={disabled} onChange={e => onChange(field.key, e.target.value)} style={psFieldStyle(disabled)}>
-    <option value="feishu">Feishu · 飞书</option><option value="lark">Lark · International</option>
+    <option value="feishu">{zh ? '飞书' : 'Feishu'}</option>
+    <option value="lark">{zh ? 'Lark · 国际版' : 'Lark · International'}</option>
   </select>;
   return <input id={`ps-${field.key}`} name={field.key} type={field.secret ? 'password' : 'text'}
     value={value} autoComplete="off" spellCheck={false} maxLength={4096} disabled={locked}

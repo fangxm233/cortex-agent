@@ -71,16 +71,17 @@ describe('askCardModel', () => {
 
 describe('planCardModel / planTitle', () => {
   it('derives the title from the first markdown heading (stripped)', () => {
-    expect(planTitle('# Nimbus sweep plan\nbody', null)).toBe('Nimbus sweep plan');
-    expect(planTitle('## Deep title\nbody', null)).toBe('Deep title');
+    expect(planTitle('# Nimbus sweep plan\nbody', null, 'en')).toBe('Nimbus sweep plan');
+    expect(planTitle('## Deep title\nbody', null, 'en')).toBe('Deep title');
   });
   it('falls back to the first non-empty line, then the file basename, then Plan', () => {
-    expect(planTitle('just a text line\nmore', null)).toBe('just a text line');
-    expect(planTitle('', 'plans/atlas-plan.md')).toBe('atlas-plan.md');
-    expect(planTitle('', null)).toBe('Plan');
+    expect(planTitle('just a text line\nmore', null, 'en')).toBe('just a text line');
+    expect(planTitle('', 'plans/atlas-plan.md', 'en')).toBe('atlas-plan.md');
+    expect(planTitle('', null, 'en')).toBe('Plan');
+    expect(planTitle('', null, 'zh')).toBe('计划');
   });
   it('maps path / REAL line count / status / feedback', () => {
-    const m = planCardModel(planDetail('rejected', { feedback: 'cap friction at 1.0' }), '2026-07-16T07:44:00.000Z');
+    const m = planCardModel(planDetail('rejected', { feedback: 'cap friction at 1.0' }), '2026-07-16T07:44:00.000Z', 'en');
     expect(m.title).toBe('Nimbus sweep plan');
     expect(m.filePath).toBe('plans/nimbus-plan.md');
     expect(m.lineCount).toBe(5); // real \n count of the snapshot
@@ -174,38 +175,40 @@ describe('desktop ask state (13b — all questions, one submit)', () => {
 
 describe('interactionView', () => {
   it('pending ask entity → ask view with the full model', () => {
-    const v = interactionView({ subtype: 'ask-user-pending', text: 'A or B?', detail: askDetail('pending'), ts: '2026-07-16T07:38:00.000Z' });
+    const v = interactionView({ subtype: 'ask-user-pending', text: 'A or B?', detail: askDetail('pending'), ts: '2026-07-16T07:38:00.000Z' }, 'en');
     expect(v.kind).toBe('ask');
     if (v.kind !== 'ask') return;
     expect(v.model.questions).toHaveLength(3);
     expect(v.model.status).toBe('pending');
   });
   it('answered ask entity → sealed ask view (card, not one-line summary)', () => {
-    const v = interactionView({ subtype: 'ask-user-answered', text: 'A or B? → A', detail: askDetail('answered', { answers: { 'A or B?': 'A' } }) });
+    const v = interactionView({ subtype: 'ask-user-answered', text: 'A or B? → A', detail: askDetail('answered', { answers: { 'A or B?': 'A' } }) }, 'en');
     expect(v.kind).toBe('ask');
   });
   it('pending / approved / rejected plan entity → plan view', () => {
     for (const status of ['pending', 'approved', 'rejected'] as const) {
-      const v = interactionView({ subtype: `plan-${status}`, text: 'Plan', detail: planDetail(status) });
+      const v = interactionView({ subtype: `plan-${status}`, text: 'Plan', detail: planDetail(status) }, 'en');
       expect(v.kind).toBe('plan');
       if (v.kind !== 'plan') return;
       expect(v.model.status).toBe(status);
     }
   });
   it('expired / cancelled entities stay inactive one-line summaries', () => {
-    const expired = interactionView({ subtype: 'plan-expired', text: 'Plan approval expired', detail: planDetail('expired') });
+    const expired = interactionView({ subtype: 'plan-expired', text: 'Plan approval expired', detail: planDetail('expired') }, 'en');
     expect(expired).toEqual({ kind: 'summary', tone: 'inactive', label: 'Plan expired', text: 'Plan approval expired' });
-    const cancelled = interactionView({ subtype: 'ask-user-cancelled', text: 'Question cancelled', detail: askDetail('cancelled') });
+    const cancelled = interactionView({ subtype: 'ask-user-cancelled', text: 'Question cancelled', detail: askDetail('cancelled') }, 'en');
     expect(cancelled).toEqual({ kind: 'summary', tone: 'inactive', label: 'Cancelled', text: 'Question cancelled' });
+    const expiredZh = interactionView({ subtype: 'plan-expired', text: 'Plan approval expired', detail: planDetail('expired') }, 'zh');
+    expect(expiredZh).toMatchObject({ kind: 'summary', label: '计划已过期' });
   });
   it('legacy rows (no detail) keep the old subtype-driven summary', () => {
-    expect(interactionView({ subtype: 'plan-approved', text: 'Plan approved' }))
+    expect(interactionView({ subtype: 'plan-approved', text: 'Plan approved' }, 'en'))
       .toEqual({ kind: 'summary', tone: 'done', label: 'Plan approved', text: 'Plan approved' });
-    expect(interactionView({ subtype: 'ask-user-answered', text: 'Q → A' }))
+    expect(interactionView({ subtype: 'ask-user-answered', text: 'Q → A' }, 'en'))
       .toEqual({ kind: 'summary', tone: 'done', label: 'Answered', text: 'Q → A' });
   });
   it('an ask entity with no questions degrades to a summary (never a broken card)', () => {
-    const v = interactionView({ subtype: 'ask-user-pending', text: 'q', detail: { id: 'x', kind: 'ask-user', status: 'pending', payload: {} } });
+    const v = interactionView({ subtype: 'ask-user-pending', text: 'q', detail: { id: 'x', kind: 'ask-user', status: 'pending', payload: {} } }, 'en');
     expect(v.kind).toBe('summary');
   });
 });

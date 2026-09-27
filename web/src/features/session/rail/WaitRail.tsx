@@ -125,7 +125,7 @@ function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
           <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{row.device}</span>
         )}
         {row.failFast && (
-          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>fail-fast</span>
+          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.failFast}</span>
         )}
         {row.badges.map((b) => <Badge key={b.key} badge={b} />)}
       </div>
@@ -141,7 +141,7 @@ function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
           {row.signals.map((s) => (
             <div key={s.key} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', font: `400 11px ${MONO}`, color: 'var(--proto-muted)', lineHeight: 1.6, minWidth: 0 }}>
               <span style={{ flex: 'none' }}>{s.at}</span>
-              <span style={{ flex: 'none', color: STATUS_COLOR[s.status] ?? 'var(--proto-muted)' }}>{s.status}</span>
+              <span style={{ flex: 'none', color: STATUS_COLOR[s.status] ?? 'var(--proto-muted)' }}>{copy.signalStatus[s.status] ?? s.status}</span>
               {s.who && <span style={{ flex: 'none' }}>{s.who}</span>}
               <span style={{ flex: 'none', color: 'var(--proto-muted)' }}>{s.source}</span>
               {s.message && (

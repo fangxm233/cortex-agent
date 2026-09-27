@@ -65,7 +65,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.newProject}</span>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={L.cmClose}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             style={{

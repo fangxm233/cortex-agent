@@ -9,9 +9,12 @@ import {
   INTERVAL_UNITS,
   FALLBACK_OPTIONS,
   TARGET_OPTIONS,
+  type FallbackKind,
+  type IntervalUnit,
   type ScheduleEditableFields,
   type ScheduleForm,
   type SchedType,
+  type TargetChoice,
 } from './schedule-modal-vm';
 
 // New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
@@ -32,6 +35,25 @@ const LABEL: CSSProperties = {
 // one cell. A select used to get a shorter, rounder box than the input beside it; sharing the cell
 // (and fixing its height rather than inferring one from padding) keeps the row aligned whatever the
 // control inside it is.
+// Option labels per UI language; the option VALUES stay the scheduler's own spellings.
+const OPTION_COPY: Record<'en' | 'zh', {
+  unit: Record<IntervalUnit, string>; target: Record<TargetChoice, string>;
+  fallback: Record<FallbackKind, string>; clock: string;
+}> = {
+  en: {
+    unit: { min: 'min', hr: 'hr' },
+    target: { 'current-channel': 'current-channel', fresh: 'fresh', project: 'project' },
+    fallback: { fresh: 'fresh', skip: 'skip', wait: 'wait' },
+    clock: '24h',
+  },
+  zh: {
+    unit: { min: '分钟', hr: '小时' },
+    target: { 'current-channel': '当前频道', fresh: '新会话', project: '项目' },
+    fallback: { fresh: '新会话', skip: '跳过', wait: '等待' },
+    clock: '24 小时制',
+  },
+};
+
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 const CELL_BOX: CSSProperties = {
   display: 'flex',
@@ -78,6 +100,7 @@ export interface ScheduleModalProps {
 export function ScheduleModal({ form, mode = 'create', editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
   const lang = useLang();
+  const optionCopy = OPTION_COPY[lang];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) onCancel();
@@ -156,7 +179,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
           <button
             type="button"
             className={focusClass}
-            aria-label="Close"
+            aria-label={L.cmClose}
             onClick={onCancel}
             style={{
               marginLeft: 'auto',
@@ -168,7 +191,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
               cursor: 'pointer',
             }}
           >
-            esc
+            {L.dmEsc}
           </button>
         </div>
 
@@ -230,7 +253,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>24h</span>
+                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{optionCopy.clock}</span>
                   </div>
                 </>
               )}
@@ -260,7 +283,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       aria-label={L.scEvery}
                       value={form.intervalUnit}
                       disabled={!editableFields.interval}
-                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: optionCopy.unit[unit] }))}
                       onValueChange={(intervalUnit) => onChange({ intervalUnit })}
                       style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
@@ -291,7 +314,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                       density="bare"
                       aria-label={L.scIn}
                       value={form.delayUnit}
-                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
+                      options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: optionCopy.unit[unit] }))}
                       onValueChange={(delayUnit) => onChange({ delayUnit })}
                       style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
                     />
@@ -384,7 +407,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                   aria-label={L.scTarget}
                   value={form.target}
                   disabled={!editableFields.target}
-                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: target }))}
+                  options={TARGET_OPTIONS.map((target) => ({ value: target, label: optionCopy.target[target] }))}
                   onValueChange={(target) => onChange({ target })}
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),
@@ -402,7 +425,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                   aria-label={L.scFallback}
                   value={form.fallback}
                   disabled={!editableFields.fallback}
-                  options={FALLBACK_OPTIONS.map((fallback) => ({ value: fallback, label: fallback }))}
+                  options={FALLBACK_OPTIONS.map((fallback) => ({ value: fallback, label: optionCopy.fallback[fallback] }))}
                   onValueChange={(fallback) => onChange({ fallback })}
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),

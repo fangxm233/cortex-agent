@@ -83,7 +83,7 @@ export function formatSince(iso: string | null, lang: TimeLang, now: number = Da
   return coarseDuration(Math.floor((now - started) / 1000), lang);
 }
 
-function buildMeters(vitals: MachineVitals | null): MachineMeter[] {
+function buildMeters(vitals: MachineVitals | null, lang: TimeLang): MachineMeter[] {
   if (!vitals) return [];
   const meters: MachineMeter[] = [];
   const { cpuCores, loadAvg1, memUsedMb, memTotalMb, diskFreeGb, diskTotalGb } = vitals;
@@ -91,10 +91,10 @@ function buildMeters(vitals: MachineVitals | null): MachineMeter[] {
     meters.push({ key: 'cpu', label: 'CPU', percent: pct(loadAvg1, cpuCores), text: `${loadAvg1.toFixed(2)} / ${cpuCores}` });
   }
   if (memUsedMb !== null && memTotalMb !== null) {
-    meters.push({ key: 'mem', label: 'RAM', percent: pct(memUsedMb, memTotalMb), text: `${gb(memUsedMb)} / ${gb(memTotalMb)} GB` });
+    meters.push({ key: 'mem', label: lang === 'zh' ? '内存' : 'RAM', percent: pct(memUsedMb, memTotalMb), text: `${gb(memUsedMb)} / ${gb(memTotalMb)} GB` });
   }
   if (diskFreeGb !== null && diskTotalGb !== null) {
-    meters.push({ key: 'disk', label: 'DISK', percent: pct(diskTotalGb - diskFreeGb, diskTotalGb), text: `${diskFreeGb.toFixed(1)} GB free` });
+    meters.push({ key: 'disk', label: lang === 'zh' ? '磁盘' : 'DISK', percent: pct(diskTotalGb - diskFreeGb, diskTotalGb), text: lang === 'zh' ? `剩余 ${diskFreeGb.toFixed(1)} GB` : `${diskFreeGb.toFixed(1)} GB free` });
   }
   return meters;
 }
@@ -126,7 +126,7 @@ function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
 /** Map the machines.detail DTO into render slots. No fabrication: absent probe fields drop their row. */
 export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang, now: number = Date.now()): MachineDetailVm {
   return {
-    meters: buildMeters(detail.vitals),
+    meters: buildMeters(detail.vitals, lang),
     gpus: detail.gpus.map((gpu) => buildGpuRow(gpu)),
     liveRuns: detail.liveRuns.map((run) => ({
       key: run.executionId,

@@ -80,10 +80,11 @@ export interface DiffToggleStyle {
  * The diff-toggle pill's two visual states, verbatim from the prototype bindings (L2376/L2776):
  * ON → filled blue "Viewing diff"; OFF → light-outline "Diff hidden".
  */
-export function diffToggle(on: boolean): DiffToggleStyle {
+export function diffToggle(on: boolean, lang: TimeLang): DiffToggleStyle {
+  const zh = lang === 'zh';
   return on
-    ? { label: 'Viewing diff', color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
-    : { label: 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--glass-2)', border: 'var(--proto-accent-border)' };
+    ? { label: zh ? '正在查看 diff' : 'Viewing diff', color: 'var(--ink-solid-fg)', bg: 'var(--proto-accent)', border: 'var(--proto-accent)' }
+    : { label: zh ? 'diff 已隐藏' : 'Diff hidden', color: 'var(--proto-accent)', bg: 'var(--glass-2)', border: 'var(--proto-accent-border)' };
 }
 
 export interface LineDiffLabel {

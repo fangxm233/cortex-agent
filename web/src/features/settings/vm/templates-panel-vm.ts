@@ -1,4 +1,5 @@
 import type { ThreadTemplateEntry, ThreadTemplateDetail } from '@cortex-agent/ui-contract';
+import type { Lang } from '@/i18n';
 
 export type TemplateKind = ThreadTemplateEntry['kind'];
 export type TemplateFilterKey = 'all' | TemplateKind;
@@ -115,12 +116,27 @@ export interface ParsedEditor {
   parseError: string | null;
 }
 
-export function parseEditor(text: string): ParsedEditor {
-  if (text.trim() === '') return { body: null, parseError: 'Body is empty' };
+const EDITOR_ERRORS = {
+  en: {
+    bodyEmpty: 'Body is empty',
+    bodyNotObject: 'Body must be a JSON object',
+    nameRequired: 'Name is required',
+    nameInvalid: "Name must start with a letter or digit and contain only letters, digits, '-' and '_'",
+  },
+  zh: {
+    bodyEmpty: '内容为空',
+    bodyNotObject: '内容必须是 JSON 对象',
+    nameRequired: '名称不能为空',
+    nameInvalid: "名称须以字母或数字开头，且只能包含字母、数字、'-' 和 '_'",
+  },
+} as const;
+
+export function parseEditor(text: string, lang: Lang = 'en'): ParsedEditor {
+  if (text.trim() === '') return { body: null, parseError: EDITOR_ERRORS[lang].bodyEmpty };
   try {
     const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { body: null, parseError: 'Body must be a JSON object' };
+      return { body: null, parseError: EDITOR_ERRORS[lang].bodyNotObject };
     }
     return { body: parsed as Record<string, unknown>, parseError: null };
   } catch (error) {
@@ -133,11 +149,9 @@ export function isDirty(text: string, loaded: string): boolean {
   return text !== loaded;
 }
 
-export function validateName(name: string): string | null {
-  if (name.trim() === '') return 'Name is required';
-  if (!TEMPLATE_NAME_PATTERN.test(name)) {
-    return "Name must start with a letter or digit and contain only letters, digits, '-' and '_'";
-  }
+export function validateName(name: string, lang: Lang = 'en'): string | null {
+  if (name.trim() === '') return EDITOR_ERRORS[lang].nameRequired;
+  if (!TEMPLATE_NAME_PATTERN.test(name)) return EDITOR_ERRORS[lang].nameInvalid;
   return null;
 }
 

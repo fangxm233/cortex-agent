@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useMemo, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { defineModal } from '@/design/modal-registry';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { ThreadDetailView } from './ThreadDetailView';
 import { useThreadDetailController } from './useThreadDetailController';
 
@@ -49,12 +49,13 @@ const CONTENT_STYLE: React.CSSProperties = {
 function ModalFrame({ threadId, onClose, children }: {
   threadId: string; onClose: () => void; children: ReactNode;
 }) {
+  const lang = useLang();
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay style={OVERLAY_STYLE} />
         <Dialog.Content aria-describedby={undefined} data-thread-detail-modal={threadId} style={CONTENT_STYLE}>
-          <Dialog.Title className="sr-only">Thread {threadId}</Dialog.Title>
+          <Dialog.Title className="sr-only">{lang === 'zh' ? '线程' : 'Thread'} {threadId}</Dialog.Title>
           {children}
         </Dialog.Content>
       </Dialog.Portal>

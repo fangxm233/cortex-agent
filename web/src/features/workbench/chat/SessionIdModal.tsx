@@ -68,7 +68,7 @@ export function SessionIdModal({
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={L.winClose}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
             onClick={onClose}
             style={{

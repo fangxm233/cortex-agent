@@ -4,6 +4,7 @@
 import { Children, Fragment, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
 import { statusTone, type Tone } from '@/design/tone';
 import { MC, M_GUTTER } from '@/design/mobile-tokens';
+import { useVocabOptional } from '@/i18n';
 
 export { MC, MONO, M_FLOAT_TOP, M_TABBAR_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
 // MBottomSheet lives in design/ (both chromes use it); the mobile screens keep importing it from
@@ -201,6 +202,7 @@ export function MDrillHeader({
   children: ReactNode;
   trailing?: ReactNode;
 }) {
+  const vocab = useVocabOptional();
   return (
     <div
       style={{
@@ -216,7 +218,7 @@ export function MDrillHeader({
     >
       <button
         type="button"
-        aria-label="Back"
+        aria-label={vocab.back}
         onClick={onBack}
         style={{
           border: 'none',
@@ -244,10 +246,11 @@ export function MDrillHeader({
 
 // The ⋯ round button used in drill headers (rename/export/archive menu trigger).
 export function MMoreButton({ onClick }: { onClick?: () => void }) {
+  const vocab = useVocabOptional();
   return (
     <button
       type="button"
-      aria-label="More"
+      aria-label={vocab.more}
       onClick={onClick}
       style={{
         width: 44,

@@ -1,5 +1,6 @@
+import type { Lang } from '@/i18n';
 import { fetchFileObjectUrl } from '@/lib/files';
-import { uploadAttachment, type AttachmentUploadTransport } from './upload-attachment';
+import { uploadAttachment, uploadErrorText, type AttachmentUploadTransport } from './upload-attachment';
 import type { AttachmentMeta, AttachmentUploadItem } from './types';
 
 const DEFAULT_CONCURRENCY = 3;
@@ -29,10 +30,6 @@ function defaultPreview(path: string): Promise<string> {
   return fetchFileObjectUrl(path, 'inline');
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Upload failed';
-}
-
 function needsPreview(item: AttachmentUploadItem): boolean {
   return !item.file && !item.previewUrl && item.status === 'done' && !!item.meta
     && previewable(item.meta.mimeType);
@@ -44,6 +41,8 @@ export interface AttachmentStoreOptions {
   concurrency?: number;
   transport?: AttachmentUploadTransport;
   fetchPreview?: (path: string) => Promise<string>;
+  /** Language the error line is worded in; defaults to English. */
+  lang?: Lang;
 }
 
 type Listener = () => void;
@@ -56,7 +55,7 @@ export class AttachmentUploadStore {
   private revoked = new Set<string>();
   private generation = 0;
   private disposalVersion = 0;
-  private options: Required<Pick<AttachmentStoreOptions, 'scope' | 'bucket' | 'concurrency' | 'transport' | 'fetchPreview'>>;
+  private options: Required<Pick<AttachmentStoreOptions, 'scope' | 'bucket' | 'concurrency' | 'transport' | 'fetchPreview' | 'lang'>>;
 
   constructor(options: AttachmentStoreOptions) {
     this.options = this.normalized(options);
@@ -69,6 +68,7 @@ export class AttachmentUploadStore {
       concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
       transport: options.transport ?? uploadAttachment,
       fetchPreview: options.fetchPreview ?? defaultPreview,
+      lang: options.lang ?? 'en',
     };
   }
 
@@ -191,7 +191,7 @@ export class AttachmentUploadStore {
     this.controllers.delete(id);
     this.publish(this.items.map((item) => item.id !== id ? item : meta
       ? { ...item, status: 'done', progress: 100, meta, errorMsg: undefined }
-      : { ...item, status: 'error', errorMsg: errorMessage(error) }));
+      : { ...item, status: 'error', errorMsg: uploadErrorText(error, this.options.lang) }));
     this.pump();
   }
 

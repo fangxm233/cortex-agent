@@ -81,7 +81,7 @@ export function ExecutionDrawerView({
         </span>
         <button type="button" className="content-text-action"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={L.cmClose}
           role="button"
           tabIndex={0}
           style={{ color: 'var(--log-fg)', fontSize: 13, cursor: 'pointer', padding: '2px 4px' }}

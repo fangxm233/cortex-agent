@@ -1,4 +1,7 @@
+import type { Lang } from '@/i18n';
 import { SLASH_COMMANDS } from './chat-content';
+
+const PROFILE_DESC = SLASH_COMMANDS.find((item) => item.cmd === '/profile')!.desc;
 
 export interface SlashProfileOption {
   name: string;
@@ -109,12 +112,12 @@ function resolveProfile(parsed: ParsedSlash, profiles: SlashProfileOption[]): Sl
   return { kind: 'action', action: { type: 'profile', profileName: profile.name } };
 }
 
-function profileSuggestions(query: string, profiles: SlashProfileOption[]): SlashSuggestion[] {
+function profileSuggestions(query: string, profiles: SlashProfileOption[], lang: Lang): SlashSuggestion[] {
   return profiles
     .filter((profile) => profile.name.toLowerCase().startsWith(query))
     .map((profile) => ({
       command: `/profile ${profile.name}`,
-      description: profile.detail ?? 'Switch this session profile',
+      description: profile.detail ?? PROFILE_DESC[lang],
       action: { type: 'profile' as const, profileName: profile.name },
       disabled: profile.disabled ?? false,
     }));
@@ -123,19 +126,20 @@ function profileSuggestions(query: string, profiles: SlashProfileOption[]): Slas
 export function buildSlashSuggestions(
   text: string,
   profiles: SlashProfileOption[],
+  lang: Lang,
   availability: SlashAvailability = {},
 ): SlashSuggestion[] {
   const parsed = parseSlashInput(text);
   if (!parsed) return [];
   if (parsed.command === 'profile' && parsed.hasArgsSeparator) {
-    return profileSuggestions(parsed.args.toLowerCase(), profiles);
+    return profileSuggestions(parsed.args.toLowerCase(), profiles, lang);
   }
   if (parsed.hasArgsSeparator) return [];
   return SLASH_COMMANDS
     .filter((item) => item.cmd.slice(1).startsWith(parsed.command))
     .map((item) => ({
       command: item.cmd,
-      description: item.desc,
+      description: item.desc[lang],
       action: item.cmd === '/profile' ? null : actionFor(item.cmd.slice(1)),
       disabled: item.cmd === '/profile'
         ? false

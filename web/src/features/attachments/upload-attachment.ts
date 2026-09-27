@@ -1,7 +1,33 @@
+import type { Lang } from '@/i18n';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import type { AttachmentMeta } from './types';
 
 const UPLOAD_PATH = '/api/attachments/upload';
+
+type UploadErrorCode = 'too-large' | 'failed' | 'network' | 'cancelled';
+
+const UPLOAD_ERROR_COPY: Record<Lang, Record<UploadErrorCode, string>> = {
+  en: { 'too-large': 'File too large', failed: 'Upload failed', network: 'Network error', cancelled: 'Upload cancelled' },
+  zh: { 'too-large': '文件太大', failed: '上传失败', network: '网络错误', cancelled: '已取消上传' },
+};
+
+/** A failure this module words itself; `uploadErrorText` localizes it. Server messages stay plain Errors. */
+export class AttachmentUploadError extends Error {
+  constructor(readonly code: UploadErrorCode, readonly status?: number) {
+    super(uploadErrorWording(code, 'en', status));
+  }
+}
+
+function uploadErrorWording(code: UploadErrorCode, lang: Lang, status?: number): string {
+  const text = UPLOAD_ERROR_COPY[lang][code];
+  return status === undefined ? text : `${text} (${status})`;
+}
+
+/** The chip's error line in the UI language; raw server detail passes through unchanged. */
+export function uploadErrorText(error: unknown, lang: Lang): string {
+  if (error instanceof AttachmentUploadError) return uploadErrorWording(error.code, lang, error.status);
+  return error instanceof Error ? error.message : uploadErrorWording('failed', lang);
+}
 
 function uploadHeaders(file: File, bucket: string): Record<string, string> {
   return {
@@ -13,15 +39,15 @@ function uploadHeaders(file: File, bucket: string): Record<string, string> {
 }
 
 function uploadFailure(xhr: XMLHttpRequest): Error {
-  if (xhr.status === 413) return new Error('File too large');
+  if (xhr.status === 413) return new AttachmentUploadError('too-large');
   const body = xhr.response as { message?: string } | null;
-  return new Error(body?.message || `Upload failed (${xhr.status})`);
+  return body?.message ? new Error(body.message) : new AttachmentUploadError('failed', xhr.status);
 }
 
 function readUploadResponse(xhr: XMLHttpRequest): AttachmentMeta {
   const body = xhr.response as { ok?: boolean; data?: AttachmentMeta; message?: string } | null;
   if (body?.ok && body.data) return body.data;
-  throw new Error(body?.message || `Upload failed (${xhr.status})`);
+  throw body?.message ? new Error(body.message) : new AttachmentUploadError('failed', xhr.status);
 }
 
 function bindProgress(xhr: XMLHttpRequest, onProgress: (pct: number) => void): void {
@@ -42,8 +68,8 @@ function sendUpload(
     if (xhr.status < 200 || xhr.status >= 300) return settle(uploadFailure(xhr));
     try { settle(undefined, readUploadResponse(xhr)); } catch (error) { settle(error as Error); }
   });
-  xhr.addEventListener('error', () => settle(new Error('Network error')));
-  xhr.addEventListener('abort', () => settle(new Error('Upload cancelled')));
+  xhr.addEventListener('error', () => settle(new AttachmentUploadError('network')));
+  xhr.addEventListener('abort', () => settle(new AttachmentUploadError('cancelled')));
   xhr.send(file);
 }
 
@@ -53,7 +79,7 @@ export function uploadAttachment(
   onProgress: (pct: number) => void,
   signal: AbortSignal,
 ): Promise<AttachmentMeta> {
-  if (signal.aborted) return Promise.reject(new Error('Upload cancelled'));
+  if (signal.aborted) return Promise.reject(new AttachmentUploadError('cancelled'));
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let settled = false;

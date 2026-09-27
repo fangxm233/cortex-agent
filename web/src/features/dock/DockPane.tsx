@@ -4,6 +4,7 @@ import { splitFromDrag } from './dock-split';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
+import { useDockCopy } from './dock-copy';
 import {
   isFileTab,
   syncBodyOrder,
@@ -26,12 +27,11 @@ import {
 // source toggle up there would belong to whatever happened to be active. Each body owns its own
 // row instead (`FileBar`, or a PDF's page pager); the strip keeps only the dock-wide close.
 
-const EMPTY_HINT = 'Click a file to preview it here, or open a web page with ＋.';
-
 export function DockPane(): JSX.Element | null {
   const { open, state, split, closeDock, select, close, reorder, openWeb, updateWeb, setSplit, registerHost } = useDock();
   const paneRef = useRef<HTMLDivElement | null>(null);
   const bodyOrder = useRef<string[]>([]);
+  const copy = useDockCopy();
 
   useEffect(() => registerHost(), [registerHost]);
 
@@ -74,7 +74,7 @@ export function DockPane(): JSX.Element | null {
       <div
         role="separator"
         aria-orientation="vertical"
-        title="Drag to resize"
+        title={copy.resize}
         onMouseDown={onResizeStart}
         style={{ position: 'absolute', left: -3, top: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 3 }}
       />
@@ -86,14 +86,14 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <button type="button" className="dock-control" data-close-dock="" title="Close the dock" aria-label="Close the dock" onClick={closeDock}>×</button>
+          <button type="button" className="dock-control" data-close-dock="" title={copy.closeDock} aria-label={copy.closeDock} onClick={closeDock}>×</button>
         }
       />
 
       {/* Chrome lets the workspace sheet show through; documents own their opaque fill. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {state === null
-          ? <DockCentered>{EMPTY_HINT}</DockCentered>
+          ? <DockCentered>{copy.emptyHint}</DockCentered>
           : bodyOrder.current.map((id) => (
             <DockTabBody key={id} state={state} id={id} onUpdateWeb={updateWeb} />
           ))}

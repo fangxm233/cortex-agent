@@ -6,6 +6,8 @@ import type { MediaItem } from '@/features/media/preview-item';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaSrc } from '@/features/media/useMediaSrc';
 import { useZoom } from '@/features/media/useZoom';
+import { useMediaCopy } from '@/features/media/media-copy';
+import { useDockCopy } from './dock-copy';
 import { FileBar, FileBarToggle } from './FileBar';
 import { isDocItem, type FileItem } from './dock-tabs';
 
@@ -21,6 +23,8 @@ const mono = "'IBM Plex Mono',monospace";
 
 export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
   const dl = useDownloadFile();
+  const media = useMediaCopy();
+  const copy = useDockCopy();
   const [source, setSource] = useState(false);
   const path = item.path;
   const download = path ? () => dl(path, item.name) : undefined;
@@ -32,7 +36,7 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
         <PdfBody
           item={item}
           actions={download && (
-            <button type="button" data-file-download="" title="Download" aria-label="Download" onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
+            <button type="button" data-file-download="" title={media.download} aria-label={media.download} onClick={download} style={PAGER_BUTTON_STYLE}>↓</button>
           )}
         />
       </div>
@@ -46,8 +50,8 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
           {markdown && (
             <FileBarToggle
               on={source}
-              label={source ? 'Rendered' : 'Source'}
-              title={source ? 'Show the rendered Markdown' : 'Show the unrendered Markdown source'}
+              label={source ? copy.rendered : copy.source}
+              title={source ? copy.showRendered : copy.showSource}
               onClick={() => setSource((on) => !on)}
               data-file-source-toggle=""
             />
@@ -66,10 +70,11 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
 /** Full-size image / video inside the docked pane (wheel + pinch zoom, like the lightbox). */
 function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   const { src, failed } = useMediaSrc(item);
+  const copy = useMediaCopy();
   const { containerRef, contentRef, style: zoomStyle } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
 
-  if (failed) return <DockCentered failed>Failed to load {item.name}</DockCentered>;
-  if (!src) return <DockCentered>Loading…</DockCentered>;
+  if (failed) return <DockCentered failed>{copy.loadFailed.replace('{name}', item.name)}</DockCentered>;
+  if (!src) return <DockCentered>{copy.loading}</DockCentered>;
 
   return (
     <div

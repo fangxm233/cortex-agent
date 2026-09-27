@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLangOptional } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { canCreateProject, projectCreateErrorMessage } from './new-project';
+import { canCreateProject, projectCreateErrorMessage, PROJECT_CREATE_FAILED } from './new-project';
 
 export interface CreateProjectController {
   createProject: (name: string) => Promise<string | null>;
@@ -18,6 +19,7 @@ export function useCreateProject({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const fallbackError = PROJECT_CREATE_FAILED[useLangOptional()];
   const mutation = useMutation(trpc.projects.create.mutationOptions({}));
 
   const clearError = useCallback(() => setError(null), []);
@@ -29,14 +31,14 @@ export function useCreateProject({
     try {
       created = await mutation.mutateAsync({ name: name.trim() });
     } catch (caught) {
-      setError(projectCreateErrorMessage(caught));
+      setError(projectCreateErrorMessage(caught, fallbackError));
       return null;
     }
 
     await queryClient.invalidateQueries(trpc.projects.list.queryFilter());
     await onCreated?.(created.id);
     return created.id;
-  }, [mutation, onCreated, queryClient, trpc.projects.list]);
+  }, [fallbackError, mutation, onCreated, queryClient, trpc.projects.list]);
 
   return {
     createProject,

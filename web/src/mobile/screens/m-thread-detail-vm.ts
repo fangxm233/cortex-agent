@@ -112,15 +112,20 @@ function mobileStepTime(item: ThreadDetailStepFacts, lang: TimeLang): string {
   return item.kind === 'done' && duration != null ? formatSpanPrecise(Math.round(duration) * 1000, lang) : '';
 }
 
+function turnLabel(numTurns: number, profile: string, lang: TimeLang): string {
+  return lang === 'zh' ? `第 ${numTurns} 轮 · ${profile}` : `turn ${numTurns} · ${profile}`;
+}
+
 function mobileStepAgent(
   item: ThreadDetailStepFacts,
   facts: ThreadDetailFacts,
+  lang: TimeLang,
 ): MThreadStepAgent | undefined {
   if (item.kind !== 'running') return undefined;
   const profile = facts.activeProfile ?? item.step.agentSlotId;
   const output = facts.activeOutput ?? '';
   return {
-    turnLabel: item.step.numTurns != null ? `turn ${item.step.numTurns} · ${profile}` : profile,
+    turnLabel: item.step.numTurns != null ? turnLabel(item.step.numTurns, profile, lang) : profile,
     cost: item.step.costUsd != null ? formatUsd(item.step.costUsd) : '',
     lines: output.split('\n').map((line) => line.trim()).filter(Boolean),
     text: output, live: facts.live,
@@ -139,7 +144,7 @@ function mobileStep(
     kind: item.kind, name: step.stage ?? `#${step.stepIndex + 1}`,
     note: item.kind === 'done' ? (step.outputSummary ?? '') : '',
     time: mobileStepTime(item, lang), hasConnector: index < lastIndex,
-    agent: mobileStepAgent(item, facts), sessionId: step.sessionId ?? null,
+    agent: mobileStepAgent(item, facts, lang), sessionId: step.sessionId ?? null,
   };
 }
 

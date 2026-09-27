@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
+import { useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import type { PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import { readProgressPct, planStatusLabel, planMetaLine } from '@/features/session/interaction/plan-read-vm';
@@ -55,6 +56,7 @@ export interface MPlanReadViewProps {
 
 export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPlanReadViewProps): JSX.Element {
   const pending = model.status === 'pending';
+  const vocab = useVocabOptional();
   // Furthest-seen reading progress, displayed in the header progress bar.
   const [pct, setPct] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -83,7 +85,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <button
             type="button"
-            aria-label="Back"
+            aria-label={vocab.back}
             onClick={onBack}
             style={{ border: 'none', background: 'transparent', color: MC.run, fontSize: 15, lineHeight: 1, padding: '0 2px', margin: 0, cursor: 'pointer', flex: 'none', minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center' }}
           >

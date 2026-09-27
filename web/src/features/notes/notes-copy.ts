@@ -15,6 +15,8 @@ export interface NotesCopy {
   privateHint: string;
   enter: string;
   escape: string;
+  completeNote: string;
+  reopenNote: string;
 }
 
 export const NOTES_COPY: { en: NotesCopy; zh: NotesCopy } = {
@@ -35,6 +37,8 @@ export const NOTES_COPY: { en: NotesCopy; zh: NotesCopy } = {
     privateHint: 'Private notes · not read by agents',
     enter: '↵',
     escape: 'esc',
+    completeNote: 'complete note',
+    reopenNote: 'reopen note',
   },
   zh: {
     title: '笔记',
@@ -53,5 +57,7 @@ export const NOTES_COPY: { en: NotesCopy; zh: NotesCopy } = {
     privateHint: '私人备忘 · agent 不读取',
     enter: '↵',
     escape: 'esc',
+    completeNote: '完成笔记',
+    reopenNote: '重新打开笔记',
   },
 };

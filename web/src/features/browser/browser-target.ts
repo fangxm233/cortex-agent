@@ -107,9 +107,6 @@ export function frameRefusedEmbedding(probe: { loaded: boolean; documentReachabl
   return probe.loaded && probe.documentReachable;
 }
 
-/** Shown when the target refuses framing. Names the cause, because a blank pane reads as OUR bug. */
-export const FRAME_REFUSED_HINT = 'This site refuses to be embedded (X-Frame-Options). Open it in a real browser:';
-
 // ── History ───────────────────────────────────────────────────────────────────
 // The pane owns its own back/forward stack. A cross-origin iframe's internal history is invisible
 // to us (and `history.back()` on it is not reachable), so navigation means re-pointing `src`.
@@ -164,7 +161,7 @@ export interface ViewportPreset {
   width: number | null;
 }
 
-/** `fit` is the default — the pane is usually narrower than a desktop viewport already. The fixed
+/** `fit` is the default (its label is localized by the toolbar) — the pane is usually narrower than a desktop viewport already. The fixed
  *  widths render the frame at that width and let the pane scroll, for checking breakpoints. */
 export const VIEWPORT_PRESETS: ViewportPreset[] = [
   { id: 'fit', label: 'Fit', width: null },
@@ -217,11 +214,12 @@ export function isBlankWebTab(tab: BrowserTabState): boolean {
   return currentUrl(tab.history) === null;
 }
 
-/** Tab label: the page title, else the address without the port the chip already carries. */
-export function browserTabLabel(tab: BrowserTabState): string {
+/** Tab label: the page title, else the address without the port the chip already carries,
+ *  else `blankLabel` (the localized "New tab"). */
+export function browserTabLabel(tab: BrowserTabState, blankLabel: string): string {
   if (tab.pageTitle !== null) return tab.pageTitle;
   const url = currentUrl(tab.history);
-  if (url === null) return 'New tab';
+  if (url === null) return blankLabel;
   return browserTabChip(tab) === null ? browserItemName(url) : browserHostPath(url);
 }
 

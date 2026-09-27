@@ -4,6 +4,7 @@ import { authHeaders } from '@/lib/desktop-config';
 import { useTheme } from '@/theme';
 import type { DocItem } from './preview-item';
 import { useViewHeight } from './useViewHeight';
+import { useMediaCopy } from './media-copy';
 import {
   VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, VIEW_HEIGHT_MAX, VIEW_HEIGHT_MAX_EXPANDED, wrapViewDocument,
 } from './html-sandbox';
@@ -33,6 +34,7 @@ export interface HtmlBodyProps {
 
 export function HtmlBody({ item, mode = 'expanded', initialHeight = VIEW_HEIGHT_DEFAULT }: HtmlBodyProps): JSX.Element {
   const theme = useTheme();
+  const copy = useMediaCopy();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [html, setHtml] = useState<string | null>(null);
@@ -83,9 +85,9 @@ export function HtmlBody({ item, mode = 'expanded', initialHeight = VIEW_HEIGHT_
   if (state !== 'ok' || srcDoc === null) {
     return (
       <Placeholder height={inline ? initialHeight : undefined}>
-        {state === 'loading' && 'Loading view…'}
-        {state === 'failed' && `Failed to load ${item.name}`}
-        {state === 'toolarge' && 'View too large to render — download to open it.'}
+        {state === 'loading' && copy.viewLoading}
+        {state === 'failed' && copy.loadFailed.replace('{name}', item.name)}
+        {state === 'toolarge' && copy.viewTooLarge}
       </Placeholder>
     );
   }

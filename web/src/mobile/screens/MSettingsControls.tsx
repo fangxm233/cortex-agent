@@ -1,5 +1,6 @@
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
+import { useVocabOptional } from '@/i18n';
 import '@/features/settings/ui/settings-style.css';
 import './mobile-settings.css';
 
@@ -11,8 +12,9 @@ export function MSettingsFrame(props: { label?: string; header?: ReactNode; chil
 }
 
 export function MSettingsHeader(props: { onBack: () => void; trailing?: ReactNode; children: ReactNode }) {
+  const vocab = useVocabOptional();
   return <header className="mobile-settings-header">
-    <button type="button" aria-label="Back" onClick={props.onBack} className="mobile-settings-back">‹</button>
+    <button type="button" aria-label={vocab.back} onClick={props.onBack} className="mobile-settings-back">‹</button>
     <div className="mobile-settings-heading">{props.children}</div>
     {props.trailing && <div className="mobile-settings-header-actions">{props.trailing}</div>}
   </header>;

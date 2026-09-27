@@ -1,5 +1,5 @@
 import { relTime, type TimeLang } from '@/lib/time-format';
-import { useLang } from '@/i18n';
+import { pickVocab, useLang } from '@/i18n';
 import { MC } from '@/mobile/ui/kit';
 import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';
 
@@ -118,7 +118,7 @@ function MBanner({ item, now, lang, onDismiss }: { item: ToastItem; now: number;
       </span>
       <button
         type="button"
-        aria-label="Dismiss"
+        aria-label={pickVocab(lang).cmDismiss}
         onClick={(e) => {
           e.stopPropagation();
           onDismiss(item.id);

@@ -18,7 +18,7 @@ export interface MDaemonCopy {
   connDisconnected: string;
   threadsRunning: (n: number) => string;
   schedules: (n: number) => string;
-  /** Mono label prefix for the uptime metric (technical token, e.g. `uptime`). */
+  /** Mono label prefix for the uptime metric (`uptime` / `运行时长`). */
   uptimeLabel: string;
   /** Honest placeholder for any null DTO metric. */
   dash: string;
@@ -34,6 +34,7 @@ export interface MDaemonCopy {
   /** Label for the line carrying what triggered the rebuild. */
   rebuildTriggerLabel: string;
   status: Record<ExecutionInfo['status'], string>;
+  rebuildStatus: Record<DaemonRebuildVm['status'], string>;
   softRestart: string;
   forceKill: string;
   softNote: (n: number) => string;
@@ -76,7 +77,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
           {copy.rebuildProgress(rebuild.completed, rebuild.total)} · {rebuild.elapsed}
         </span>
         <span style={{ marginLeft: 'auto' }}>
-          <MPill tone={rebuildStatusTone(rebuild.status)}>{rebuild.status}</MPill>
+          <MPill tone={rebuildStatusTone(rebuild.status)}>{copy.rebuildStatus[rebuild.status] ?? rebuild.status}</MPill>
         </span>
       </div>
       <div

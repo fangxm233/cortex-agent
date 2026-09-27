@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
@@ -134,7 +134,7 @@ function IssueCenterView(props: IssueCenterViewProps) {
               cursor: 'pointer',
             }}
           >
-            esc
+            {L.dmEsc}
           </button>
         </div>
 
@@ -525,6 +525,7 @@ export function IssueCenterModal({
   onClose: () => void;
 }) {
   const L = useVocab();
+  const lang = useLang();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -598,7 +599,7 @@ export function IssueCenterModal({
         const entry = entries.find((e) => e.id === id);
         if (!entry) return;
         // Pre-fill the new-session draft composer with the issue prompt (editable before send).
-        const prompt = buildIssuePrompt(currentProjectId, entry);
+        const prompt = buildIssuePrompt(currentProjectId, entry, lang);
         const key = draftStorageKey({ isDraft: true, projectId: currentProjectId });
         saveDraft(key, { text: prompt, attachments: [] });
         // Enter draft mode + navigate (optimistic — don't wait for the delete round-trip).

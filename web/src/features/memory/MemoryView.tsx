@@ -172,7 +172,7 @@ export function MemoryView(): JSX.Element {
   const file = fileQuery.data;
 
   const rows = buildTreeRows(treeFacts, effectivePath);
-  const dt = diffToggle(diffOn);
+  const dt = diffToggle(diffOn, lang);
   // Real per-file git line counts (memory.file.lineDiff); null → honest placeholder (never fabricated).
   const lineDiff = formatLineDiff(file?.lineDiff);
   // Real per-line git blame (memory.file.blame); null → honest placeholder (no per-line highlight).
@@ -196,6 +196,7 @@ export function MemoryView(): JSX.Element {
       >
         <button type="button" className="content-text-action"
           onClick={() => navigate('/overview')}
+          aria-label={L.back}
           style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
         >
           ‹

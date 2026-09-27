@@ -16,6 +16,7 @@ import {
   subtaskActivity,
   type ActivityTone,
 } from './right-panel-vm';
+import { workbenchCopy } from '@/features/workbench/workbench-copy';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 type TaskProjectDetail = Pick<ThreadDetail, 'projectId' | 'artifacts'>;
@@ -109,7 +110,8 @@ export function SubtaskCard({ task, onOpen }: {
   task: ThreadSubtaskInfo;
   onOpen: (taskId: string) => void;
 }) {
-  const state = subtaskActivity(task);
+  const L = useVocab();
+  const state = subtaskActivity(task, useLang());
   return (
     <div
       data-subtask-id={task.id}
@@ -126,7 +128,7 @@ export function SubtaskCard({ task, onOpen }: {
       }}
     >
       <ActivityDot tone={state.tone} />
-      <span style={{ flex: 'none', font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>task {task.id}</span>
+      <span style={{ flex: 'none', font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{L.cmTaskRef.replace('{id}', task.id)}</span>
       <span style={{ minWidth: 0, fontSize: 11, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</span>
       <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, color: ACTIVITY_COLORS[state.tone] }}>{state.label}</span>
     </div>
@@ -190,6 +192,7 @@ export function StepRow({ step, isLast, detail, onOpenTask }: StepRowProps) {
 
 function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
   const L = useVocab();
+  const copy = workbenchCopy(useLang());
   const trpc = useTRPC();
   const { openThread } = useThreadDetailModal();
   const queryClient = useQueryClient();
@@ -201,7 +204,7 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
   }));
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)' }}>
-      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
+      <span title={copy.pauseUnavailable} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
       <span data-cancel-thread-id={threadId} onClick={() => cancel.mutate({ threadId })} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}>{L.cancel}</span>
       <span onClick={() => openThread(threadId)} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.open}</span>
       <span style={{ marginLeft: 'auto', font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>Σ {formatCost(cost)}</span>
@@ -247,7 +250,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
     enabled: open,
   });
 
-  const pill = threadPill(thread.status);
+  const pill = threadPill(thread.status, lang);
   const iconColor = running ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   const detail = open ? detailQuery.data : undefined;
   const dots = detail ? depthInfo(detail) : null;

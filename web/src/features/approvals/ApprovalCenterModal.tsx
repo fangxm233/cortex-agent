@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import {
   defaultSelectedId,
   pendingLabel,
@@ -53,13 +53,14 @@ interface ApprovalCenterViewProps {
 
 function ApprovalCenterView(props: ApprovalCenterViewProps) {
   const L = useVocab();
+  const lang = useLang();
   const { entries, selectedId, armed, feedback, pending } = props;
   const count = entries.length;
   const hasItems = count > 0;
   // The displayed entry is the source of truth for the footer actions: fall back to the first entry
   // so Approve/Reject always act on what the user sees (never a stale/null container selection).
   const selected = entries.find((e) => e.id === selectedId) ?? entries[0] ?? null;
-  const detail = selected ? toDetail(selected) : null;
+  const detail = selected ? toDetail(selected, lang) : null;
 
   return (
     <>
@@ -140,14 +141,14 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                 }}
               />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-amber-fg)'  }}>
-                {pendingLabel(count)}
+                {pendingLabel(count, lang)}
               </span>
             </span>
           )}
           <button
             type="button"
             className={focusClass}
-            aria-label="Close"
+            aria-label={L.cmClose}
             onClick={props.onClose}
             style={{
               marginLeft: 'auto',
@@ -160,7 +161,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
               cursor: 'pointer',
             }}
           >
-            esc
+            {L.dmEsc}
           </button>
         </div>
 

@@ -4,7 +4,7 @@ import { en } from '@/i18n/vocab';
 import type { AuthAccountStatus } from '@cortex-agent/ui-contract';
 import { ProviderSetupView } from './ProviderSetupPage';
 import { ProviderSetupController } from './provider-setup';
-vi.mock('@/i18n', () => ({ useVocab: () => en }));
+vi.mock('@/i18n', () => ({ useVocab: () => en, useLang: () => 'en' }));
 vi.mock('@/features/auth/LoginFlowModal', () => ({ LoginFlowModal: (props: object) => <aside {...props} /> }));
 vi.mock('@/lib/trpc', () => ({ useTRPCClient: vi.fn() }));
 it('always offers warned skip, disables unready continuation and refreshes login success', async () => {

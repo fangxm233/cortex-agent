@@ -7,6 +7,8 @@ import {
   whereItGoesRows,
   nextRunLabel,
   lastRunLabel,
+  execStatusPill,
+  execSummary,
 } from './overview-vm';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
@@ -120,5 +122,13 @@ describe('schedule run labels', () => {
     expect([nextRunLabel(next, now, 'zh'), lastRunLabel(last, now, 'zh')]).toEqual(['19小时后', '上次 2小时前']);
     expect([nextRunLabel(last, now, 'zh'), nextRunLabel(null, now, 'zh'), lastRunLabel(null, now, 'zh')]).toEqual(['到期', '—', '从未运行']);
     expect([nextRunLabel(last, now, 'en'), lastRunLabel(null, now, 'en')]).toEqual(['due', 'never run']);
+  });
+});
+
+describe('execution row copy', () => {
+  it('follows the UI language for the status pill and summary', () => {
+    expect(execStatusPill('completed', 'en').text).toBe('done');
+    expect(execStatusPill('completed', 'zh').text).toBe('完成');
+    expect(execSummary(exec({ taskId: 'T-1' }), 'zh')).toBe('任务 T-1');
   });
 });

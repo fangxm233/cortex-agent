@@ -18,6 +18,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
       legacyFallbackTitle: 'Legacy fallback',
       legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
       clearLegacy: 'Clear legacy fallback',
+      toggleLabel: 'Usage throttle {key}',
     },
   },
   zh: {
@@ -33,6 +34,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
       legacyFallbackTitle: '旧版兜底',
       legacyFallbackBody: '未单独设置的行会继续继承旧的 provider 级策略，直到你清除它。',
       clearLegacy: '清除旧版兜底',
+      toggleLabel: '限流开关 {key}',
     },
   },
 };

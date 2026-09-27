@@ -1,6 +1,14 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/design/mobile-tokens';
+import { useLangOptional, useVocabOptional } from '@/i18n';
+import { pickCopy } from './format';
+
+// Composer-only words; the shared ones (Send/Stop/Attach/Expand/Collapse) come from the vocab.
+const COPY = {
+  en: { slashCommand: 'Slash command', lineUnit: 'lines', charUnit: 'chars' },
+  zh: { slashCommand: '斜杠命令', lineUnit: '行', charUnit: '字' },
+};
 
 export function composerLineCount(value: string): number {
   return value === '' ? 1 : value.split('\n').length;
@@ -55,10 +63,11 @@ function SecondarySendKey({ enabled, onSend, size = 36 }: {
   onSend?: () => void;
   size?: number;
 }): JSX.Element {
+  const vocab = useVocabOptional();
   return (
     <button
       type="button"
-      aria-label="Send"
+      aria-label={vocab.cmSend}
       disabled={!enabled}
       onClick={onSend}
       style={{ ...circleKeyBase, width: size, height: size, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`, opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
@@ -75,10 +84,11 @@ function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
   onStop?: () => void;
   size?: number;
 }): JSX.Element {
+  const vocab = useVocabOptional();
   return (
     <button
       type="button"
-      aria-label={running ? 'Stop' : 'Send'}
+      aria-label={running ? vocab.stop : vocab.cmSend}
       disabled={!enabled}
       onClick={running ? onStop : onSend}
       style={{ ...circleKeyBase, width: size, height: size, background: MC.inkSolid, border: 'none',
@@ -178,10 +188,11 @@ function ComposerField(props: ComposerCardProps): JSX.Element {
 }
 
 function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
+  const vocab = useVocabOptional();
   return (
     <button
       type="button"
-      aria-label="Expand"
+      aria-label={vocab.cmExpand}
       onClick={onClick}
       style={{ position: 'absolute', top: 1, right: 0, width: 22, height: 22, borderRadius: '50%', background: 'var(--m-gray)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
     >
@@ -282,10 +293,11 @@ function FullscreenField({ props, textareaRef }: {
   props: ComposerFullscreenProps;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
 }): JSX.Element {
+  const vocab = useVocabOptional();
   return (
     <>
       <textarea ref={textareaRef} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} placeholder={props.placeholder} style={fullscreenTextareaStyle} />
-      <button type="button" aria-label="Collapse" onClick={props.onCollapse} style={{ position: 'absolute', top: 11, right: 11, width: 26, height: 26, borderRadius: '50%', background: 'var(--m-gray)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+      <button type="button" aria-label={vocab.cmCollapse} onClick={props.onCollapse} style={{ position: 'absolute', top: 11, right: 11, width: 26, height: 26, borderRadius: '50%', background: 'var(--m-gray)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
         <CollapseIcon />
       </button>
     </>
@@ -297,12 +309,14 @@ function FullscreenTools({ props, insertSlash }: {
   insertSlash: () => void;
 }): JSX.Element {
   const running = props.running ?? false;
+  const vocab = useVocabOptional();
+  const copy = pickCopy(useLangOptional(), COPY);
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderTop: `1px solid ${MC.divider}` }}>
-      <button type="button" aria-label="Attach" onClick={props.onPlus} style={fullscreenToolStyle}><PlusGlyph /></button>
-      <button type="button" aria-label="Slash command" onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
+      <button type="button" aria-label={vocab.cmAttach} onClick={props.onPlus} style={fullscreenToolStyle}><PlusGlyph /></button>
+      <button type="button" aria-label={copy.slashCommand} onClick={insertSlash} style={{ ...fullscreenToolStyle, font: `600 13px ${MONO}` }}>/</button>
       <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', font: `400 11px ${MONO}`, color: MC.muted }}>
-        {composerCountLabel(props.value, props.lineUnit ?? '行', props.charUnit ?? '字')}
+        {composerCountLabel(props.value, props.lineUnit ?? copy.lineUnit, props.charUnit ?? copy.charUnit)}
       </span>
       {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={34} />}
       <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={38} />

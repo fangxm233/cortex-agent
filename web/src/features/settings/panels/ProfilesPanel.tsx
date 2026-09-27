@@ -2,7 +2,7 @@ import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import {
   MonoKV,
   SButton,
@@ -205,6 +205,7 @@ function DefaultProfileRow({ current, names, onPick }: {
   onPick?: (name: string) => void;
 }) {
   const L = useVocab();
+  const lang = useLang();
   return (
     <SRowGroup>
       <SRow
@@ -221,7 +222,7 @@ function DefaultProfileRow({ current, names, onPick }: {
             style={PICKER_STYLE}
           />
         ) : (
-          <SSelectChip disabled title="Select an existing profile as the default">
+          <SSelectChip disabled title={lang === 'zh' ? '选择一个已有配置作为默认' : 'Select an existing profile as the default'}>
             <span style={{ font: `500 12px ${MONO}` }}>{current ?? '—'}</span>
           </SSelectChip>
         )}

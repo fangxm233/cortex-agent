@@ -1,4 +1,5 @@
 import type { AuthAccountStatus, AuthStatusSnapshot, ConfigProfileEntry, ConfigProfiles } from '@cortex-agent/ui-contract';
+import type { Lang } from '@/i18n';
 
 export interface ClaudeStatus { installed: boolean; version: string | null }
 interface Ports {
@@ -11,7 +12,30 @@ interface Ports {
   canInstall: () => boolean;
 }
 const usable = (state: string) => state === 'logged-in' || state === 'expiring';
-const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+const message = (error: unknown) => error instanceof ClaudeSetupError ? error.code
+  : error instanceof Error ? error.message : String(error);
+
+// Failures this app words itself are stored as a stable code and localized where they render
+// (`setupErrorText`); raw server / native detail is stored and shown as-is.
+type SetupErrorCode = 'local-required' | 'native-unavailable' | 'invalid-status' | 'not-installed' | 'not-configured';
+export class ClaudeSetupError extends Error {
+  constructor(readonly code: SetupErrorCode) { super(code); }
+}
+const SETUP_ERROR_COPY: Record<Lang, Record<SetupErrorCode, string>> = {
+  en: {
+    'local-required': 'Local desktop setup required', 'native-unavailable': 'Native setup unavailable',
+    'invalid-status': 'Invalid Claude installation status', 'not-installed': 'Claude Code is still not installed',
+    'not-configured': 'no models configured',
+  },
+  zh: {
+    'local-required': '需要在本机桌面应用中设置', 'native-unavailable': '本机设置不可用',
+    'invalid-status': 'Claude 安装状态无效', 'not-installed': 'Claude Code 仍未安装',
+    'not-configured': '没有配置任何模型',
+  },
+};
+export function setupErrorText(error: string, lang: Lang): string {
+  return (SETUP_ERROR_COPY[lang] as Record<string, string>)[error] ?? error;
+}
 
 export function orderedProviders(accounts: AuthAccountStatus[], search: string): AuthAccountStatus[] {
   const needle = search.trim().toLowerCase();
@@ -70,7 +94,7 @@ export class ProviderSetupController {
   private async syncModels() {
     try {
       const result = await this.ports.sync();
-      this.patch({ sync: result.configured ? 'success' : 'failed', error: result.configured ? null : result.reason ?? 'configured: false' });
+      this.patch({ sync: result.configured ? 'success' : 'failed', error: result.configured ? null : result.reason ?? 'not-configured' });
     } catch (error) { this.patch({ sync: 'failed', error: message(error) }); }
   }
   load = async () => { await Promise.all([this.scan(false), this.detectClaude()]); };
@@ -107,7 +131,7 @@ export class ProviderSetupController {
     try {
       const claude = await this.ports.install();
       this.patch({ claude });
-      if (!claude.installed) throw new Error('installed: false');
+      if (!claude.installed) throw new ClaudeSetupError('not-installed');
       return true;
     } catch (error) { this.patch({ claudeError: message(error) }); return false; }
     finally { this.patch({ claudeBusy: false }); }

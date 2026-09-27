@@ -41,6 +41,7 @@ function LiveActions({ onCancel, pending }: { onCancel: () => void; pending: boo
 function DetailHeader({ vm, onClose, onCancel, cancelPending }: {
   vm: ThreadDetailVm; onClose: () => void; onCancel: () => void; cancelPending: boolean;
 }) {
+  const L = useVocab();
   return (
     <div className="thread-detail-header" style={{ flex: 'none', borderBottom: '1px solid var(--proto-line-2)', display: 'flex', alignItems: 'center', gap: 9, padding: '0 20px', background: 'transparent' }}>
       <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{vm.name}</span>
@@ -48,7 +49,7 @@ function DetailHeader({ vm, onClose, onCancel, cancelPending }: {
       <StatusPill vm={vm} />
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         {vm.live && <LiveActions onCancel={onCancel} pending={cancelPending} />}
-        <button data-close-thread-detail="true" type="button" aria-label="Close" onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--proto-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
+        <button data-close-thread-detail="true" type="button" aria-label={L.cmClose} onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--proto-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
       </div>
     </div>
   );

@@ -106,7 +106,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachCommands: '命令',
 
     attachPlaceholder: '补充说明…',
-    profileTitle: 'Profile',
+    profileTitle: '配置',
     profileSubtitle: '仅本会话',
     profileCurrent: '当前',
     profileFooter: '下轮生效，不影响运行中的线程。',
@@ -117,11 +117,11 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     selectionModel: '模型',
     selectionThinking: '思考强度',
     selectionMode: '计费路由',
-    selectionFollow: '跟随 profile',
-    selectionFollowAll: '全部跟随 profile',
+    selectionFollow: '跟随配置',
+    selectionFollowAll: '全部跟随配置',
     selectionHiddenModels: '{n} 个模型本会话不可用',
-    selectionHiddenProfiles: '{n} 个 profile 本会话不可用',
-    selectionHiddenNoProfile: '{n} 个模型无可用 profile',
+    selectionHiddenProfiles: '{n} 个配置本会话不可用',
+    selectionHiddenNoProfile: '{n} 个模型无可用配置',
     selectionPending: '正在加载模型…',
     lineUnit: '行',
     charUnit: '字',
@@ -227,8 +227,8 @@ export function MChatScreen(): JSX.Element {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const sched = (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(sched, runs, active.sessionId);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data]);
+    return scheduledRunTitle(sched, runs, active.sessionId, lang);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data, lang]);
 
   const transcriptQuery = useTranscriptQuery(sessionId);
   // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.
@@ -294,7 +294,7 @@ export function MChatScreen(): JSX.Element {
     ? askCardModel(pendingInteraction.detail, pendingInteraction.ts)
     : null;
   const pendingPlanModel = pendingInteraction?.detail.kind === 'plan-approval'
-    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts)
+    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts, lang)
     : null;
 
   // Session-local progressive answers per ask card (5b: 答一题进一题, the entity resolves once
@@ -590,7 +590,7 @@ export function MChatScreen(): JSX.Element {
   };
   const slashSuggestions = editArmed || rejectArmed || pendingAskModel
     ? []
-    : buildSlashSuggestions(text, slashProfiles, slashAvailability);
+    : buildSlashSuggestions(text, slashProfiles, lang, slashAvailability);
   const slashHandlers: SlashActionHandlers = {
     onNew: () => navigate('/m/session/new'),
     onCancel: () => { if (running) onStop(); },
@@ -721,7 +721,7 @@ export function MChatScreen(): JSX.Element {
     // The line is written once the change has actually landed, so a refusal leaves no trace claiming
     // it did. The draft has nothing to refuse it, so it writes immediately.
     const note = (): void => setSystemLines((prev) => [...prev, lang === 'zh'
-      ? `引擎切换 ${from} → ${label} · 下一 turn 生效`
+      ? `引擎切换 ${from} → ${label} · 下一轮生效`
       : `engine ${from} → ${label} · takes effect next turn`]);
     if (isDraft) {
       setDraftSelection((prev) => applyDraftSelection(prev, change));
@@ -815,14 +815,14 @@ export function MChatScreen(): JSX.Element {
   // 8d hint above the composer: replying extracts the run into a normal session.
   const schedHint = isScheduledRun
     ? (lang === 'zh'
-        ? '发送消息后提取为普通会话 · schedule 下次 run 不受影响'
+        ? '发送消息后提取为普通会话 · 定时任务下次运行不受影响'
         : 'Replying converts this run into a normal session · the schedule\'s next run is unaffected')
     : null;
   const attachmentsVM: PendingAttachmentVM[] = uploads.map((upload) => {
     const type = attachmentType(upload);
     return {
       id: upload.id,
-      name: upload.file?.name ?? upload.meta?.name ?? 'file',
+      name: upload.file?.name ?? upload.meta?.name ?? (lang === 'zh' ? '文件' : 'file'),
       progress: upload.progress,
       status: upload.status,
       type: type === 'image' || type === 'video' ? type : 'file',

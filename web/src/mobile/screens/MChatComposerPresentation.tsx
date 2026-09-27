@@ -3,6 +3,7 @@ import type { SlashSuggestion } from '@/features/session/composer/composer-slash
 import { TodoRail } from '@/features/session/rail/TodoRail';
 import { WaitRail } from '@/features/session/rail/WaitRail';
 import { PlusGlyph } from '@/design';
+import { useLangOptional, useVocabOptional } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 import { EditBar } from './MChatMessageActions';
@@ -79,12 +80,13 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
 }
 
 function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null {
+  const cancelLabel = useLangOptional() === 'zh' ? '取消驳回' : 'Cancel reject';
   if (!props.rejectBar) return null;
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 'var(--r-control)', padding: '8px 8px 8px 12px', marginBottom: 7 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} /><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
-        <div role="button" aria-label="Cancel reject" onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
+        <div role="button" aria-label={cancelLabel} onClick={props.rejectBar.onCancel} style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}>✕</div>
       </div>
       <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>{props.rejectBar.chips.map((chip) => <span key={chip} role="button" onClick={() => props.rejectBar!.onChipTap(chip)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', borderRadius: 'var(--r-pill)', padding: '5px 11px', cursor: 'pointer' }}>{chip}</span>)}</div>
     </>
@@ -230,8 +232,9 @@ export function BrowserChip({ device, label, onClick }: {
 }
 
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
+  const vocab = useVocabOptional();
   return (
-    <button type="button" aria-label="Attach" onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--proto-line-3)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
+    <button type="button" aria-label={vocab.cmAttach} onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--proto-line-3)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
       <PlusGlyph size={15} />
     </button>
   );

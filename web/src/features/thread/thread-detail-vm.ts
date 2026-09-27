@@ -20,28 +20,46 @@ import {
 } from './thread-detail-facts';
 import { formatUsd } from '@/lib/format';
 import { formatSpanPrecise, timeAgo, type TimeLang } from '@/lib/time-format';
+import { pickVocab, type Lang, type Vocab } from '@/i18n';
+
+export type DetailPillTone = 'running' | 'waiting' | 'done' | 'failed' | 'cancelled';
 
 export interface DetailPill {
   bg: string;
   fg: string;
   text: string;
+  /** Status bucket behind the pill — logic compares this, never the translated `text`. */
+  tone: DetailPillTone;
 }
 
-/** Thread status → the prototype status-pill pair + word (prototype pill(), L1838–1849). */
-export function threadPill(status: ThreadInfo['status']): DetailPill {
+function pillTone(status: ThreadInfo['status']): DetailPillTone {
   switch (status) {
-    case 'running':
-      return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: 'Running' };
-    case 'waiting':
-      return { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: 'Waiting' };
-    case 'completed':
-      return { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: 'Done' };
-    case 'failed':
-      return { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: 'Failed' };
-    default:
-      return { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'Cancelled' };
+    case 'running': return 'running';
+    case 'waiting': return 'waiting';
+    case 'completed': return 'done';
+    case 'failed': return 'failed';
+    default: return 'cancelled';
   }
 }
+
+const PILL_WORD: Record<DetailPillTone, keyof Vocab> = {
+  running: 'pillRunning', waiting: 'pillWaiting', done: 'pillDone', failed: 'pillFailed', cancelled: 'pillCancelled',
+};
+
+/** Thread status → the prototype status-pill pair + word (prototype pill(), L1838–1849). */
+export function threadPill(status: ThreadInfo['status'], lang: Lang = 'en'): DetailPill {
+  const tone = pillTone(status);
+  return {
+    bg: `var(--pill-${tone}-bg)`, fg: `var(--pill-${tone}-fg)`, text: pickVocab(lang)[PILL_WORD[tone]], tone,
+  };
+}
+
+// Feature-specific words for the step/artifact slots; the generic status words live in the vocab.
+const DETAIL_COPY = {
+  en: { step: 'step', done: 'done', editing: 'editing', queued: 'queued', local: 'local', agent: 'agent', running: 'running', gated: 'gated' },
+  zh: { step: '步骤', done: '完成', editing: '编辑中', queued: '排队中', local: '本地', agent: 'agent', running: '运行中', gated: '待开始' },
+} as const;
+type DetailCopy = (typeof DETAIL_COPY)[Lang];
 
 /** Zero-padded MM:SS clock; minutes are not rolled into hours (prototype fmtClock). */
 export function fmtClock(totalSeconds: number): string {
@@ -148,12 +166,12 @@ export interface ThreadDetailVm {
   artifact: DetailArtifact;
 }
 
-function stepTitle(step: ThreadStepDetail): string {
-  return `${step.stepIndex + 1} · ${step.stage ?? 'step'}`;
+function stepTitle(step: ThreadStepDetail, copy: DetailCopy): string {
+  return `${step.stepIndex + 1} · ${step.stage ?? copy.step}`;
 }
 
-function mapSub(node: ThreadChildNode): DetailStepSub {
-  const pill = threadPill(node.status);
+function mapSub(node: ThreadChildNode, lang: Lang): DetailStepSub {
+  const pill = threadPill(node.status, lang);
   return {
     id: node.id,
     name: node.templateName ?? node.id,
@@ -168,10 +186,10 @@ function mapSub(node: ThreadChildNode): DetailStepSub {
 
 /** Per-step artifact write-trail chips (prototype `writtenBy`). Derived from step stage + status —
  *  the DTO has no per-step artifact-write record, so the running step is the active writer. */
-function buildWrittenBy(steps: ThreadStepDetail[]): WrittenByChip[] {
+function buildWrittenBy(steps: ThreadStepDetail[], copy: DetailCopy): WrittenByChip[] {
   return steps.map((s) => {
-    const stage = s.stage ?? `step ${s.stepIndex + 1}`;
-    const word = s.status === 'completed' ? 'done' : s.status === 'running' ? 'editing' : 'queued';
+    const stage = s.stage ?? `${copy.step} ${s.stepIndex + 1}`;
+    const word = s.status === 'completed' ? copy.done : s.status === 'running' ? copy.editing : copy.queued;
     return { label: `${s.stepIndex + 1} ${stage} · ${word}`, active: s.status === 'running' };
   });
 }
@@ -179,11 +197,12 @@ function buildWrittenBy(steps: ThreadStepDetail[]): WrittenByChip[] {
 function buildRunningAgent(
   item: ThreadDetailStepFacts,
   facts: ThreadDetailFacts,
+  copy: DetailCopy,
 ): DetailStepAgent {
   const step = item.step;
-  const execInfo = [step.executionId, 'local'].filter(Boolean).join(' · ');
+  const execInfo = [step.executionId, copy.local].filter(Boolean).join(' · ');
   return {
-    profile: facts.activeProfile ?? 'agent', execInfo,
+    profile: facts.activeProfile ?? copy.agent, execInfo,
     lastOutput: facts.activeOutput, streaming: true, live: facts.live,
   };
 }
@@ -197,11 +216,12 @@ function mapStep(
 ): DetailStep {
   const step = item.step;
   const running = item.kind === 'running';
-  const subs = running ? detail.children.map(mapSub) : [];
+  const copy = DETAIL_COPY[lang];
+  const subs = running ? detail.children.map((node) => mapSub(node, lang)) : [];
   return {
-    kind: item.kind, title: stepTitle(step), note: step.outputSummary ?? '',
-    meta: running ? stepMeta(item, lang) || 'running' : item.kind === 'done' ? stepMeta(item, lang) : 'gated',
-    hasConnector: index > 0, agent: running ? buildRunningAgent(item, facts) : undefined,
+    kind: item.kind, title: stepTitle(step, copy), note: step.outputSummary ?? '',
+    meta: running ? stepMeta(item, lang) || copy.running : item.kind === 'done' ? stepMeta(item, lang) : copy.gated,
+    hasConnector: index > 0, agent: running ? buildRunningAgent(item, facts, copy) : undefined,
     subs, subCount: subs.length, stepIndex: step.stepIndex,
     sessionId: step.sessionId, sessionName: step.sessionName,
     profile: running ? (facts.activeProfile ?? step.agentSlotId) : step.agentSlotId,
@@ -212,7 +232,7 @@ function buildArtifact(detail: ThreadDetail, live: boolean, now: number, lang: T
   return {
     path: detail.artifacts.artifactPath, live, updated: timeAgo(detail.updatedAt, now, lang),
     taskId: detail.artifacts.taskId, taskProject: detail.artifacts.taskProject,
-    workspacePath: detail.artifacts.workspacePath, writtenBy: buildWrittenBy(detail.steps),
+    workspacePath: detail.artifacts.workspacePath, writtenBy: buildWrittenBy(detail.steps, DETAIL_COPY[lang]),
     content: detail.artifacts.content ?? null,
   };
 }
@@ -223,7 +243,7 @@ export function buildThreadDetailVm(detail: ThreadDetail, now: number, lang: Tim
     { length: facts.depth.limit }, (_, index) => ({ filled: index < facts.depth.level }),
   );
   return {
-    name: detail.templateName, tid: detail.id, pill: threadPill(detail.status),
+    name: detail.templateName, tid: detail.id, pill: threadPill(detail.status, lang),
     template: detail.templateName, started: fmtHM(detail.createdAt),
     elapsed: fmtClock(facts.elapsedSeconds), cost: `Σ ${formatUsd(detail.totalCostUsd)}`,
     task: detail.artifacts.taskId ?? '—', depthDots,

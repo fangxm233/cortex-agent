@@ -21,10 +21,8 @@ import {
 import { matchFrameTitleMessage } from './frame-title';
 import { BrowserToolbar } from './BrowserToolbar';
 import { BrowserEmpty, BrowserNotice, PortsPanel, type PortPickerState } from './BrowserPanels';
+import { forwardErrorText, useBrowserCopy } from './browser-copy';
 import './browser.css';
-
-const INVALID_ADDRESS = 'Not a previewable address — use http(s), a host:port, or a bare port.';
-const ORIGIN_CONFLICT = 'Refused: that is this app’s own origin. Previewing it would hand the page your session.';
 
 const EMPTY_PORTS: PortPickerState = { open: false, ports: null, error: null, device: '', devices: [] };
 
@@ -38,6 +36,7 @@ export function WebBody({ tab, active, onUpdate }: {
   active: boolean;
   onUpdate: (update: (tab: BrowserTabState) => BrowserTabState) => void;
 }): JSX.Element {
+  const copy = useBrowserCopy();
   const [ports, setPorts] = useState<PortPickerState>(EMPTY_PORTS);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -52,9 +51,9 @@ export function WebBody({ tab, active, onUpdate }: {
 
   const navigate = (raw: string): void => {
     const next = normalizeBrowserUrl(raw);
-    if (next === null) return onUpdate((entry) => rejectNavigation(entry, INVALID_ADDRESS));
+    if (next === null) return onUpdate((entry) => rejectNavigation(entry, copy.invalidAddress));
     if (previewOriginConflict(next, forbiddenOrigins)) {
-      return onUpdate((entry) => rejectNavigation(entry, ORIGIN_CONFLICT));
+      return onUpdate((entry) => rejectNavigation(entry, copy.originConflict));
     }
     forwardOperation.current = 0;
     onUpdate((entry) => navigateTab(entry, next));
@@ -106,7 +105,7 @@ export function WebBody({ tab, active, onUpdate }: {
     const request = device === '' ? listRemotePorts() : listDeviceRemotePorts(device);
     request
       .then((next) => setPorts((state) => state.device === device ? { ...state, ports: next } : state))
-      .catch((error: Error) => setPorts((state) => state.device === device ? { ...state, error: error.message } : state));
+      .catch((error: Error) => setPorts((state) => state.device === device ? { ...state, error: forwardErrorText(error, copy) } : state));
   };
 
   const pickDevice = (device: string): void => {
@@ -143,14 +142,14 @@ export function WebBody({ tab, active, onUpdate }: {
       const rawTarget = canForward() ? (await startForward(serverPort)).url : `http://127.0.0.1:${serverPort}/`;
       if (forwardOperation.current !== operationId) return;
       const target = normalizeBrowserUrl(rawTarget);
-      if (!target) throw new Error(INVALID_ADDRESS);
-      if (previewOriginConflict(target, forbiddenOrigins)) throw new Error(ORIGIN_CONFLICT);
+      if (!target) throw new Error(copy.invalidAddress);
+      if (previewOriginConflict(target, forbiddenOrigins)) throw new Error(copy.originConflict);
       forwardOperation.current = 0;
       onUpdate((entry) => completeForward(entry, operationId, device, port, target));
     } catch (error) {
       if (forwardOperation.current !== operationId) return;
       forwardOperation.current = 0;
-      onUpdate((entry) => failForward(entry, operationId, (error as Error).message));
+      onUpdate((entry) => failForward(entry, operationId, forwardErrorText(error, copy)));
     }
   };
 

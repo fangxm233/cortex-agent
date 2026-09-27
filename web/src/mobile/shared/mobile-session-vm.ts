@@ -1,6 +1,7 @@
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
 import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
+import { pickVocab, type Vocab } from '@/i18n';
 
 /**
  * Day-divider label for the mobile chat stream (scheme L2946 "今天 07:42"): Today / Yesterday for
@@ -34,21 +35,35 @@ function stepState(status: ThreadDetail['steps'][number]['status']): StepperStat
   return status === 'completed' ? 'done' : status === 'running' ? 'running' : 'pending';
 }
 
+// Thread status → localized pill word (aborted reads as failed, like the thread list).
+function statusWord(status: ThreadDetail['status'], vocab: Vocab): string {
+  switch (status) {
+    case 'running': return vocab.pillRunning;
+    case 'waiting': return vocab.pillWaiting;
+    case 'completed': return vocab.pillDone;
+    case 'failed':
+    case 'aborted': return vocab.pillFailed;
+    case 'cancelled': return vocab.pillCancelled;
+    default: return status;
+  }
+}
+
 /**
  * Build the horizontal stepper card model from a live ThreadDetail (scheme L2954-2973). Nodes come
  * from the real `steps` (data-driven — not the scheme's fixed 计划/执行/评审/提交); elapsed derives
  * from createdAt→updatedAt, cost from totalCostUsd, sub-thread count from children.length.
  */
 export function buildMobileStepper(detail: ThreadDetail, lang: TimeLang): MobileStepper {
+  const vocab = pickVocab(lang);
   const nodes: StepperNode[] = detail.steps.map((s) => ({
-    label: s.stage ?? `Step ${s.stepIndex + 1}`,
+    label: s.stage ?? vocab.cmStepN.replace('{n}', String(s.stepIndex + 1)),
     state: stepState(s.status),
   }));
 
   const pillText =
     detail.status === 'running' && detail.currentStep
       ? `${detail.currentStep.name} ${detail.currentStep.index + 1}/${detail.totalSteps}`
-      : detail.status;
+      : statusWord(detail.status, vocab);
 
   const elapsedMs = new Date(detail.updatedAt).getTime() - new Date(detail.createdAt).getTime();
 

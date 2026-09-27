@@ -46,7 +46,7 @@ export function MPlanReadScreen(): JSX.Element {
     );
   }
 
-  const model = planCardModel(hit.detail, hit.ts);
+  const model = planCardModel(hit.detail, hit.ts, lang);
   return (
     <MPlanReadView
       model={model}

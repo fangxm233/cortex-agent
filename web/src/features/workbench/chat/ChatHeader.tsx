@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
+import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { useDockIntake } from '@/design/dock-intake';
@@ -82,12 +83,13 @@ function NotesGlyph(): JSX.Element {
 // uses: this row also carries the title and the project chip, so the buttons give the width back.
 function BrowserIconButton(): JSX.Element | null {
   const { canDock, active, activeKind, openWeb } = useDockIntake();
+  const copy = workbenchCopy(useLang());
   if (!canDock) return null;
   return (
     <HeaderIconButton
       attr={{ 'data-browser-button': '' }}
       active={active && activeKind === 'web'}
-      title="Open a web page in the dock"
+      title={copy.openWebPage}
       onClick={openWeb}
     >
       <GlobeGlyph />
@@ -110,6 +112,7 @@ export function ChatHeader({
   sessionName: string | null;
 }): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
   const notes = useNotes();
   const [moreHover, setMoreHover] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -228,7 +231,7 @@ export function ChatHeader({
             type="button"
             className={MENU_FOCUS}
             data-chip="more"
-            aria-label="Session menu"
+            aria-label={workbenchCopy(lang).sessionMenu}
             aria-expanded={moreMenuOpen}
             onMouseEnter={() => setMoreHover(true)}
             onMouseLeave={() => setMoreHover(false)}

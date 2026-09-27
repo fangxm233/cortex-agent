@@ -12,6 +12,10 @@ interface StatusProps {
   status: RateLimitView | null;
 }
 
+function statusAriaLabel(lang: Lang): string {
+  return lang === 'zh' ? '限流状态' : 'Rate limit status';
+}
+
 // Radix Popover.Trigger (asChild) injects its interaction props (onClick, aria-*, data-state)
 // into this element — they MUST be spread onto the real <button> or the popover never opens.
 //
@@ -20,15 +24,15 @@ interface StatusProps {
 // carrying the waiting tokens, which is what distinguishes "wait it out" from "act on it".
 const RailBannerTrigger = forwardRef<
   HTMLButtonElement,
-  { label: string } & ButtonHTMLAttributes<HTMLButtonElement>
->(function RailBannerTrigger({ label, ...triggerProps }, ref) {
+  { label: string; lang: Lang } & ButtonHTMLAttributes<HTMLButtonElement>
+>(function RailBannerTrigger({ label, lang, ...triggerProps }, ref) {
   return (
     <button
       ref={ref}
       type="button"
       {...triggerProps}
       className={`content-surface ${triggerProps.className ?? ''}`}
-      aria-label="Rate limit status"
+      aria-label={statusAriaLabel(lang)}
       title={label}
       style={{
         width: '100%',
@@ -67,7 +71,7 @@ const RailBannerTrigger = forwardRef<
 export function RailRateLimitStatus({ status }: StatusProps): JSX.Element | null {
   if (!status) return null;
   return (
-    <Popover trigger={<RailBannerTrigger label={status.label} />} side="top" align="center">
+    <Popover trigger={<RailBannerTrigger label={status.label} lang={status.lang} />} side="top" align="center">
       <RateLimitDetails status={status} />
     </Popover>
   );
@@ -82,7 +86,7 @@ export function MobileRateLimitStatus({
     <button
       type="button"
       className="content-surface"
-      aria-label="Rate limit status"
+      aria-label={statusAriaLabel(status.lang)}
       title={status.label}
       onClick={onOpen}
       style={{

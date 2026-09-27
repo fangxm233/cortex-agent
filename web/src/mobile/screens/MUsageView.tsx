@@ -46,6 +46,8 @@ export interface MUsageCopy {
     legacyFallbackTitle: string;
     legacyFallbackBody: string;
     clearLegacy: string;
+    /** Accessible name of a row's on/off toggle; `{key}` is the policy target key. */
+    toggleLabel: string;
   };
 }
 
@@ -82,12 +84,13 @@ function Observation({ provider, copy }: { provider: ProviderUsageView; copy: MU
 
 function PolicyToggle(props: {
   target: UsagePolicyTarget;
+  label: string;
   enabled: boolean;
   disabled: boolean;
   onClick: () => void;
 }) {
   return (
-    <MSettingsToggle label={`Usage throttle ${targetKey(props.target)}`}
+    <MSettingsToggle label={props.label.replace('{key}', targetKey(props.target))}
       value={props.enabled} disabled={props.disabled} onChange={props.onClick} />
   );
 }
@@ -211,7 +214,7 @@ function PolicyEditor(props: PolicyEditorProps) {
   return (
     <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <PolicyToggle
-        target={props.policy.target} enabled={props.policy.enabled} disabled={state.disabled}
+        target={props.policy.target} label={props.copy.policy.toggleLabel} enabled={props.policy.enabled} disabled={state.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
           enabled: !props.policy.enabled, thresholdPercent: props.policy.thresholdPercent,
         })}

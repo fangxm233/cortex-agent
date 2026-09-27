@@ -1,5 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
+import { useVocabOptional } from '@/i18n';
 
 // Radix owns focus trapping, dismissal, scroll locking and focus restoration.
 const OVERLAY_CLASS =
@@ -39,12 +40,13 @@ export interface DrawerProps {
 }
 
 function DrawerHeader({ title, hideTitle }: DrawerProps) {
+  const closeLabel = useVocabOptional().cmClose;
   return (
     <div className="flex items-start justify-between gap-2g">
       <RadixDialog.Title className={hideTitle ? 'sr-only' : 'text-body font-medium text-state-ink'}>
         {title}
       </RadixDialog.Title>
-      <RadixDialog.Close aria-label="Close" className={CLOSE_CLASS}>✕</RadixDialog.Close>
+      <RadixDialog.Close aria-label={closeLabel} className={CLOSE_CLASS}>✕</RadixDialog.Close>
     </div>
   );
 }

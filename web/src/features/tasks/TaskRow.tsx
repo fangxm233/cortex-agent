@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Lang, type Vocab } from '@/i18n';
 import { displayClaimId } from './task-claim';
 import { unresolvedDependencyIds } from './task-dependencies';
 import { formatTaskTime } from './task-time';
@@ -60,7 +60,8 @@ const BLOCKED_META_STYLE: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta | null {
+function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab, lang: Lang): TaskMeta | null {
+  const claimed = lang === 'zh' ? '已认领' : 'claimed';
   const claimId = displayClaimId(task);
   const dependencies = unresolvedDependencyIds(task);
   const completedAt = formatTaskTime(task.completedAt);
@@ -72,7 +73,7 @@ function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta |
       ? { kind: 'blocked', text: `${vocab.mBlockedPill} · ${task.blockedBy}` }
       : null,
     kind === 'in-progress'
-      ? { kind: 'claim', text: claimId ? `claimed · ${claimId}` : 'claimed' }
+      ? { kind: 'claim', text: claimId ? `${claimed} · ${claimId}` : claimed }
       : null,
     kind === 'approval-needed' ? { kind: 'approval', text: vocab.tkApprovalNeeded } : null,
     kind === 'waiting-deps' && dependencies.length > 0
@@ -128,7 +129,8 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
 
 export function TaskRow({ task, kind, onOpen }: TaskRowProps) {
   const vocab = useVocab();
-  const meta = taskMeta(task, kind, vocab);
+  const lang = useLang();
+  const meta = taskMeta(task, kind, vocab, lang);
   const [hover, setHover] = useState(false);
   return (
     <div

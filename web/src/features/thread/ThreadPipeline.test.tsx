@@ -12,7 +12,7 @@ function step(kind: DetailStep['kind'], stepIndex: number): DetailStep {
 }
 
 const vm: ThreadDetailVm = {
-  name: 'Example', tid: 'example', pill: { text: 'Running', bg: '', fg: '' },
+  name: 'Example', tid: 'example', pill: { text: 'Running', bg: '', fg: '', tone: 'running' },
   template: '', started: '', elapsed: '', cost: '', task: '', depthDots: [], depthText: '', live: true,
   steps: [step('pending', 0), step('running', 1)],
   artifact: { path: null, live: false, updated: '', taskId: null, taskProject: null,

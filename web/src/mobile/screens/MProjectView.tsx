@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';
+import { useLangOptional, useVocabOptional } from '@/i18n';
 import { MScreen, MTabHeader, MScrollBody, MGroup, MGroupLabel, MC, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
@@ -261,6 +262,7 @@ function CountTag({ n }: { n: number }) {
 // the 需要你 bar (issues never block a thread). First titles + `+ N more`; hidden at 0 by the parent.
 function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: MProjectCopy; onClick: () => void }) {
   const more = issues.count - issues.previews.length;
+  const vocab = useVocabOptional();
   return (
     <div className="m-press" onClick={onClick} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -273,7 +275,7 @@ function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: MP
           {title}
         </div>
       ))}
-      {more > 0 && <div style={{ fontSize: 12, color: MC.muted, marginTop: 4, ...M_NUM }}>+ {more} more</div>}
+      {more > 0 && <div style={{ fontSize: 12, color: MC.muted, marginTop: 4, ...M_NUM }}>{vocab.cmMoreCount.replace('{n}', String(more))}</div>}
     </div>
   );
 }
@@ -301,6 +303,7 @@ function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: MProjectCopy 
 }
 
 function SwitchRow({ row, copy, onSwitch }: { row: MProjectSwitchRow; copy: MProjectCopy; onSwitch: (id: string) => void }) {
+  const attentionLabel = useLangOptional() === 'zh' ? '项目待处理' : 'project attention';
   return (
     <div className="m-press" onClick={() => onSwitch(row.id)} style={{ ...ROW, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
       <Initials text={row.initials} accent={false} />
@@ -311,7 +314,7 @@ function SwitchRow({ row, copy, onSwitch }: { row: MProjectSwitchRow; copy: MPro
       {/* One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber. */}
       {row.badgeCount > 0 && (
         <span
-          aria-label="project attention"
+          aria-label={attentionLabel}
           style={{ minWidth: 18, height: 18, padding: '0 6px', boxSizing: 'border-box', borderRadius: 'var(--r-pill)', background: row.badgeTone === 'action' ? MC.amber : MC.run, color: 'var(--ink-solid-fg)', fontSize: 11, fontWeight: 600, display: 'grid', placeItems: 'center', flex: 'none', ...M_NUM }}
         >
           {row.badgeCount}

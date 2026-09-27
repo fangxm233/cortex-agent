@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
+import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOf } from '@/features/media/doc-kind';
@@ -96,7 +97,8 @@ function MediaContent({ a, model }: { a: AttachmentUploadItem; model: ChipModel 
 }
 
 function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: string) => void }): JSX.Element | null {
-  if (a.status === 'queued') return <span style={uploadOverlayStyle}>queued</span>;
+  const copy = workbenchCopy(useLang());
+  if (a.status === 'queued') return <span style={uploadOverlayStyle}>{copy.attachQueued}</span>;
   if (a.status === 'uploading') {
     return (
       <>
@@ -106,7 +108,7 @@ function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: st
     );
   }
   if (a.status !== 'error') return null;
-  return <button type="button" className={MENU_FOCUS} onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>retry</button>;
+  return <button type="button" className={MENU_FOCUS} onClick={(event) => { event.stopPropagation(); onRetry(a.id); }} style={errorOverlayStyle}>{copy.attachRetry}</button>;
 }
 
 function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
@@ -158,10 +160,10 @@ function FileIcon({ model }: { model: ChipModel }): JSX.Element {
   return <span style={style}>{model.ext}</span>;
 }
 
-function fileStatus(a: AttachmentUploadItem): string {
-  if (a.status === 'queued') return 'Queued';
+function fileStatus(a: AttachmentUploadItem, L: Vocab): string {
+  if (a.status === 'queued') return L.cmQueued;
   if (a.status === 'uploading') return `${a.progress}%`;
-  if (a.status === 'error') return a.errorMsg || 'Failed';
+  if (a.status === 'error') return a.errorMsg || L.cmFailed;
   return formatAttachmentSize(attachmentSize(a));
 }
 
@@ -172,6 +174,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
   onRemove: (id: string) => void;
   onOpen?: () => void;
 }): JSX.Element {
+  const L = useVocab();
   const statusColor = a.status === 'uploading'
     ? 'var(--proto-accent)'
     : a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted)';
@@ -184,7 +187,7 @@ function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
           role={a.status === 'error' ? 'button' : undefined}
           onClick={a.status === 'error' ? (event) => { event.stopPropagation(); onRetry(a.id); } : undefined}
           style={{ font: `400 11px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
-        >{fileStatus(a)}</span>
+        >{fileStatus(a, L)}</span>
       </span>
       <RemoveButton id={a.id} onRemove={onRemove} />
     </div>

@@ -74,6 +74,8 @@ vi.mock('@/i18n', () => ({
     stToastBudgetCleared: 'cleared',
     stToastWriteFailed: 'failed',
   }),
+  useVocabOptional: () => ({ back: 'Back' }),
+  useLangOptional: () => 'en',
 }));
 
 import { MBudgetScreen } from './MBudgetScreen';

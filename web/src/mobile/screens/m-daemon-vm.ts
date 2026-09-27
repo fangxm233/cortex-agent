@@ -61,14 +61,19 @@ function fallbackProcesses(facts: DaemonVm, ok: boolean): MDaemonProcess[] {
   return [process('cortex-server'), process('cortex-daemon')];
 }
 
+const EXECUTION_TYPE_ZH: Record<ExecutionInfo['type'], string> = { local: '本地', dispatch: '派发' };
+
 function mapEvents(executions: ExecutionInfo[], now: number, lang: TimeLang): MDaemonEvent[] {
-  return executions.slice(0, MAX_EVENTS).map((execution) => ({
-    id: execution.id,
-    time: relTime(execution.startedAt, now, lang),
-    ref: execution.taskId ? `${execution.type} · ${execution.taskId}` : execution.type,
-    status: execution.status,
-    tone: FAIL_STATUS.has(execution.status) ? 'fail' : 'default',
-  }));
+  return executions.slice(0, MAX_EVENTS).map((execution) => {
+    const type = lang === 'zh' ? EXECUTION_TYPE_ZH[execution.type] ?? execution.type : execution.type;
+    return {
+      id: execution.id,
+      time: relTime(execution.startedAt, now, lang),
+      ref: execution.taskId ? `${type} · ${execution.taskId}` : type,
+      status: execution.status,
+      tone: FAIL_STATUS.has(execution.status) ? 'fail' : 'default',
+    };
+  });
 }
 
 function restartEvent(facts: DaemonVm, now: number, lang: TimeLang): MDaemonRestart | null {

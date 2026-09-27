@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
+import { useLangOptional } from '@/i18n';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 
 export interface MIssuesCopy {
@@ -111,6 +112,7 @@ function ExpandedCard({
   onDelete: (id: string) => void;
   onHandle: (id: string) => void;
 }) {
+  const fieldSep = useLangOptional() === 'zh' ? '：' : ': ';
   return (
     <MCard
       tone="blue"
@@ -134,7 +136,7 @@ function ExpandedCard({
         )}
         {card.fields.map((f, i) => (
           <div key={`${f.label}-${i}`} style={{ fontSize: 12, lineHeight: 1.55, color: MC.sub, marginTop: 4, whiteSpace: 'pre-wrap' }}>
-            <b style={{ color: MC.body }}>{f.label}</b>：{f.text}
+            <b style={{ color: MC.body }}>{f.label}</b>{fieldSep}{f.text}
           </div>
         ))}
       </div>

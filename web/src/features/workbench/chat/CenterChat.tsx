@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
+import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
 import { InlineThreadCard } from './InlineThreadCard';
@@ -150,15 +151,15 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const runTitle = useMemo(() => {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return scheduledRunTitle(activeSchedule, runs, active.sessionId);
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data]);
+    return scheduledRunTitle(activeSchedule, runs, active.sessionId, lang);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data, lang]);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft
     ? L.wbNewConversation
     : active
       ? runTitle ?? active.label ?? active.name
-      : 'No session';
+      : workbenchCopy(lang).noSession;
 
   const transcriptQuery = useTranscriptQuery(sessionId);
 

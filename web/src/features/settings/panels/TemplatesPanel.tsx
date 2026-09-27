@@ -2,7 +2,7 @@ import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState } from 'react';
 import type { ThreadTemplateDetail, ThreadTemplateEntry, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import { SChip, SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
 import { useTemplatesController } from '@/features/settings/controllers/useTemplatesController';
 import {
@@ -254,6 +254,7 @@ export function TemplatesPanelView(props: TemplatesPanelViewProps) {
 
 export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const L = useVocab();
+  const lang = useLang();
   const { toast } = useToast();
 
   const [creating, setCreating] = useState<{ kind: TemplateKind } | null>(null);
@@ -391,7 +392,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       }}
       onValidate={() => {
         if (!kind) return;
-        const parsed = parseEditor(currentText);
+        const parsed = parseEditor(currentText, lang);
         if (parsed.body === null) {
           toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
           return;
@@ -404,7 +405,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       onPluginDirtyChange={setPluginDirty}
       onPluginSaved={templates.invalidate}
       onFormat={() => {
-        const parsed = parseEditor(currentText);
+        const parsed = parseEditor(currentText, lang);
         if (parsed.body === null) {
           toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
           return;

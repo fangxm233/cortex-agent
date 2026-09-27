@@ -194,6 +194,9 @@ describe('buildThreadDetailVm', () => {
     expect(vm.artifact.content).toBe('# Verified artifact\n\nBody marker.');
     expect(vm.artifact.updated).toBe('42m ago');
     expect(buildThreadDetailVm(expDetail, NOW, 'zh').artifact.updated).toBe('42分钟前');
+    const zhVm = buildThreadDetailVm(expDetail, NOW, 'zh');
+    expect(zhVm.pill).toMatchObject({ text: '运行中', tone: 'running' });
+    expect(zhVm.steps[2].agent?.execInfo).toBe('exec_31b0 · 本地');
     // written-by has one chip per step; the running step is the active writer
     expect(vm.artifact.writtenBy).toHaveLength(4);
     expect(vm.artifact.writtenBy[0]).toMatchObject({ active: false });

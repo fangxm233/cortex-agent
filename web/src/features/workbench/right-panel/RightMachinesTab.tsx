@@ -172,7 +172,7 @@ function MachineDetailBody({ detail }: { detail: MachineDetailResource }) {
 }
 
 function MachineCardTitle({ machine, open }: { machine: MachineInfo; open: boolean }) {
-  const pill = machinePill(machine.online);
+  const pill = machinePill(machine.online, useLang());
   const iconColor = machine.online ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
     <span style={{ display: 'inline-flex', color: 'var(--proto-muted-3)' }}><Chevron open={open} /></span>

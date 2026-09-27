@@ -39,7 +39,7 @@ export const router = createShellRouter([
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: <WorkbenchPage /> },
       { path: 'tasks', element: <TasksPage /> },
-      { path: 'threads', element: <EmptyPane title="Threads" /> },
+      { path: 'threads', element: <EmptyPane titleKey="threads" /> },
       { path: 'overview', element: <OverviewPage /> },
       { path: 'memory', element: <MemoryPage /> },
       { path: 'skills', element: <SkillsPage /> },

@@ -16,14 +16,14 @@ const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
     title: 'Tasks', inProgress: 'In progress', actionable: 'Actionable',
     approvalNeeded: 'Approval needed', waiting: 'Waiting', blocked: 'Blocked',
     claim: 'claimed', needs: 'needs', doneWhen: 'done-when',
-    doneWhenGap: 'no done-when recorded', openApprovals: 'open approvals',
+    doneWhenGap: 'no done-when recorded', toggleDoneWhen: 'Toggle done-when', openApprovals: 'open approvals',
     done: 'Done', empty: 'No tasks',
   },
   zh: {
     title: '任务', inProgress: '进行中', actionable: '可执行',
     approvalNeeded: '需要审批', waiting: '等待', blocked: '阻塞',
     claim: '认领', needs: '依赖', doneWhen: 'done-when',
-    doneWhenGap: 'done-when 未记录', openApprovals: '打开审批',
+    doneWhenGap: 'done-when 未记录', toggleDoneWhen: '展开/收起 done-when', openApprovals: '打开审批',
     done: '完成', empty: '暂无任务',
   },
 };

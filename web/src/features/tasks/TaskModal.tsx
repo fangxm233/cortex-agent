@@ -120,7 +120,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
     trpc.tasks.verification.queryOptions({ projectId: task.project, taskId: task.id }),
   );
   const verification = verifyQuery.data ?? null;
-  const tm = buildTaskModalVm(task, allTasks, verification);
+  const tm = buildTaskModalVm(task, allTasks, verification, lang);
   const vv: TaskVerificationVm | null = verification
     ? buildTaskVerificationVm(verification, lang)
     : null;
@@ -196,7 +196,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               cursor: 'pointer',
             }}
           >
-            esc
+            {L.dmEsc}
           </button>
         </div>
 
@@ -312,7 +312,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       color: 'var(--proto-muted)',
                     }}
                   >
-                    {vv.dispatches.length} run{vv.dispatches.length === 1 ? '' : 's'}
+                    {lang === 'zh' ? `${vv.dispatches.length} 次运行` : `${vv.dispatches.length} run${vv.dispatches.length === 1 ? '' : 's'}`}
                   </span>
                 )}
               </div>

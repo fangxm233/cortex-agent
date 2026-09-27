@@ -19,7 +19,7 @@ function render(stepper: MobileStepper, onOpen: () => void): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <MobileThreadStepper card={stepper} pill={threadPill('running')} running
+      <MobileThreadStepper card={stepper} pill={threadPill('running', 'en')} running
         subthreadsLabel="sub-threads" openLabel="Open" onOpen={onOpen} />,
     );
   });

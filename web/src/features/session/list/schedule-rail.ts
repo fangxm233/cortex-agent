@@ -134,16 +134,18 @@ export function scheduleSubline(row: ScheduleRow, now: number, lang: TimeLang): 
   };
 }
 
-/** 30c/8d chat title for an UN-ADOPTED run:「message · run #n」. Null when the schedule record is
+/** 30c/8d chat title for an UN-ADOPTED run:「message · run #n」/「message · 第 n 次运行」. Null when the schedule record is
  *  gone (fired-once / deleted — the plain session label stands) or the session is not a run. */
 export function scheduledRunTitle(
   schedule: ScheduleInfo | null | undefined,
   runs: SessionInfo[],
   sessionId: string,
+  lang: TimeLang,
 ): string | null {
   if (!schedule) return null;
   const n = runOrdinals(runs).get(sessionId);
-  return n == null ? null : `${schedule.message} · run #${n}`;
+  if (n == null) return null;
+  return lang === 'zh' ? `${schedule.message} · 第 ${n} 次运行` : `${schedule.message} · run #${n}`;
 }
 
 /** Session ids behind the run list's「mark all read」: this row's unread runs, nothing else —

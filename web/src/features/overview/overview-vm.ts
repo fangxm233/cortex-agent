@@ -5,6 +5,7 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
 import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/lib/time-format';
+import { execStatusWord } from '@/features/execution/execution-drawer-view';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
 // task df67). No JSX, no hex outside the verbatim-prototype status-pill map. Precedent:
@@ -151,8 +152,8 @@ export function formatDuration(ms: number | null, lang: TimeLang): string {
   return ms == null ? '—' : formatSpanPrecise(ms, lang);
 }
 
-export function execMachine(e: ExecutionInfo): string {
-  return e.machine ?? 'local';
+export function execMachine(e: ExecutionInfo, lang: TimeLang): string {
+  return e.machine ?? (lang === 'zh' ? '本地' : 'local');
 }
 
 export function execCost(cost: number | null): string {
@@ -166,20 +167,21 @@ export interface ExecPill {
   dot: boolean;
 }
 
-/** Status → prototype pill tones (§5 state palette; verbatim hexes). */
-export function execStatusPill(status: ExecutionInfo['status']): ExecPill {
+/** Status → prototype pill tones (§5 state palette; verbatim hexes); the word follows the UI language. */
+export function execStatusPill(status: ExecutionInfo['status'], lang: TimeLang): ExecPill {
+  const word = (s: ExecutionInfo['status']) => execStatusWord(s, lang);
   switch (status) {
     case 'running':
-      return { text: 'running', bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', dot: true };
+      return { text: word('running'), bg: 'var(--pill-running-bg)', color: 'var(--pill-running-fg)', dot: true };
     case 'completed':
-      return { text: 'done', bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', dot: false };
+      return { text: word('completed'), bg: 'var(--pill-done-bg)', color: 'var(--pill-done-fg)', dot: false };
     case 'failed':
-      return { text: 'failed', bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', dot: false };
+      return { text: word('failed'), bg: 'var(--pill-failed-bg)', color: 'var(--pill-failed-fg)', dot: false };
     case 'cancelled':
-      return { text: 'cancelled', bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
+      return { text: word('cancelled'), bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
     case 'stale':
     default:
-      return { text: 'stale', bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
+      return { text: word('stale'), bg: 'var(--pill-cancelled-bg)', color: 'var(--pill-cancelled-fg)', dot: false };
   }
 }
 
@@ -187,8 +189,9 @@ export function execStatusPill(status: ExecutionInfo['status']): ExecPill {
  * Best-effort summary. ExecutionInfo has no free-text summary field (the prototype's
  * "review step · thr_8f2c" is mock), so we surface the strongest identifier we have. Flagged.
  */
-export function execSummary(e: ExecutionInfo): string {
-  if (e.taskId) return `task ${e.taskId}`;
-  if (e.sessionId) return `session ${e.sessionId}`;
-  return `${e.type} execution`;
+export function execSummary(e: ExecutionInfo, lang: TimeLang): string {
+  const zh = lang === 'zh';
+  if (e.taskId) return zh ? `任务 ${e.taskId}` : `task ${e.taskId}`;
+  if (e.sessionId) return zh ? `会话 ${e.sessionId}` : `session ${e.sessionId}`;
+  return zh ? `${e.type} 执行` : `${e.type} execution`;
 }

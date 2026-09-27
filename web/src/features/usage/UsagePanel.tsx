@@ -1,6 +1,6 @@
 import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import {
   SButton,
   SCard,
@@ -216,7 +216,9 @@ function PolicySummary(props: { policy: UsageWindowPolicyView; open: boolean; on
 
 function PolicyEditor(props: PolicyEditorProps) {
   const L = useVocab();
+  const lang = useLang();
   const key = targetKey(props.policy.target);
+  const toggleLabel = lang === 'zh' ? `限流开关 ${key}` : `Usage throttle ${key}`;
   const pending = props.isPolicySaving(props.policy.target);
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
   const state = policyActionState(props.controlsState !== 'ready', pending, parsedThreshold, props.policy);
@@ -232,7 +234,7 @@ function PolicyEditor(props: PolicyEditorProps) {
       });
   return (
     <div data-usage-policy-controls={key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-      <Toggle on={props.policy.enabled} onClick={onToggle} ariaLabel={`Usage throttle ${key}`} inert={state.disabled} />
+      <Toggle on={props.policy.enabled} onClick={onToggle} ariaLabel={toggleLabel} inert={state.disabled} />
       <span style={{ ...META_TEXT, marginLeft: 4 }}>{L.usagePolicyThreshold}</span>
       <ThresholdField disabled={state.disabled} target={props.policy.target} value={draft} onChange={setDraft}
         onSubmit={() => saveThreshold(buttons)} />

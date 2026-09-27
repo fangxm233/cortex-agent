@@ -3,9 +3,10 @@ import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotifica
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { MC } from '@/mobile/ui/kit';
+import { pickCopy } from '@/mobile/ui/format';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
@@ -22,6 +23,12 @@ import {
   MSET_KEY, MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
+
+// Interval-unit picker words (the option values stay sec/min/hr).
+const UNIT_COPY = {
+  en: { unit: 'Unit', sec: 'sec', min: 'min', hr: 'hr' },
+  zh: { unit: '单位', sec: '秒', min: '分钟', hr: '小时' },
+};
 
 function ToggleRow(props: {
   descriptor: SettingToggleDescriptor; settings: SettingsIndex; pending: boolean;
@@ -46,7 +53,7 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeS
       descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle} />)}</MSettingsCard>
     <MSettingsCard title={L.stNotifyRoutingTitle}>
       <MSettingsRow title="Slack" sub={hasAnyKey(props.snapshot.env, 'SLACK_') ? String(slack ?? '—') : '—'} />
-      <MSettingsRow title="飞书" sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
+      <MSettingsRow title={L.psFeishu} sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
     </MSettingsCard>
   </>;
 }
@@ -117,6 +124,7 @@ function JobInterval(props: {
   write: RuntimeSettingWriter;
 }) {
   const L = useVocab();
+  const units = pickCopy(useLang(), UNIT_COPY);
   const current = typeof props.entry?.value === 'number' ? props.entry.value : null;
   const initial = current === null ? { value: 1, unit: 'min' as const } : durationDraftFromMs(current);
   const [draft, setDraft] = useState(initial);
@@ -125,9 +133,9 @@ function JobInterval(props: {
   return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: '0 13px 11px' }}>
     <MSettingsField label={L.stBuiltinInterval} type="number" min={1} value={draft.value}
       onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} />
-    <MSettingsSelect label="Unit" value={draft.unit}
+    <MSettingsSelect label={units.unit} value={draft.unit}
       onChange={(event) => setDraft({ ...draft, unit: event.target.value as typeof draft.unit })}>
-      <option value="sec">sec</option><option value="min">min</option><option value="hr">hr</option>
+      <option value="sec">{units.sec}</option><option value="min">{units.min}</option><option value="hr">{units.hr}</option>
     </MSettingsSelect>
     <div style={{ gridColumn: '1 / -1' }}><MSettingsButton
       disabled={current === null || next === null || next === current || props.write.pending}

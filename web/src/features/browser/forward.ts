@@ -27,6 +27,13 @@ export function canForward(): boolean {
   return isDesktopShell() && hasNativeCapability('invoke');
 }
 
+/** A failure this module words itself; the view localizes it by `code` (see `forwardErrorText`). */
+export class ForwardError extends Error {
+  constructor(readonly code: 'unavailable' | 'list-ports' | 'request', readonly status?: number) {
+    super(code === 'unavailable' ? 'Port forwarding needs the desktop app.' : `${code} failed (${status})`);
+  }
+}
+
 function nativeValue<T>(result: NativeInvokeResult<T>, unavailable: Error): T {
   if (result.ok) return result.value;
   if (result.reason === 'failed') throw result.error;
@@ -36,7 +43,7 @@ function nativeValue<T>(result: NativeInvokeResult<T>, unavailable: Error): T {
 /** Start (or reuse) the forward for a server-side port. Idempotent on the Rust side. */
 export async function startForward(port: number): Promise<ForwardInfo> {
   const result = await safeInvoke('forward_start', { port });
-  return nativeValue(result, new Error('Port forwarding needs the desktop app.'));
+  return nativeValue(result, new ForwardError('unavailable'));
 }
 
 export async function stopForward(port: number): Promise<void> {
@@ -47,7 +54,7 @@ export async function stopForward(port: number): Promise<void> {
 export async function listForwards(): Promise<ForwardInfo[]> {
   const result = await safeInvoke('forward_list');
   if (!result.ok && result.reason === 'unavailable') return [];
-  return nativeValue(result, new Error('Port forwarding needs the desktop app.'));
+  return nativeValue(result, new ForwardError('unavailable'));
 }
 
 /**
@@ -56,7 +63,7 @@ export async function listForwards(): Promise<ForwardInfo[]> {
  */
 export async function listRemotePorts(): Promise<ListeningPort[]> {
   const res = await fetch(`${apiBase()}/api/forward/ports`, { headers: authHeaders() });
-  if (!res.ok) throw new Error(`Could not list server ports (${res.status})`);
+  if (!res.ok) throw new ForwardError('list-ports', res.status);
   const body = (await res.json()) as { ok?: boolean; data?: { ports?: ListeningPort[] } };
   return body.data?.ports ?? [];
 }
@@ -86,7 +93,7 @@ async function forwardApi<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { ...authHeaders(), ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
   });
   const body = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: string };
-  if (!res.ok || !body.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  if (!res.ok || !body.ok) throw body.error ? new Error(body.error) : new ForwardError('request', res.status);
   return body.data as T;
 }
 

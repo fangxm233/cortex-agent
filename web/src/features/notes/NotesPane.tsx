@@ -13,12 +13,12 @@ interface PaneActions {
   onHandoff: (text: string) => void;
 }
 
-function Circle({ completed, onClick, disabled }: { completed: boolean; onClick: () => void; disabled: boolean }) {
+function Circle({ completed, onClick, disabled, copy }: { completed: boolean; onClick: () => void; disabled: boolean; copy: NotesCopy }) {
   return (
     <button
       type="button"
       disabled={disabled}
-      aria-label={completed ? 'reopen note' : 'complete note'}
+      aria-label={completed ? copy.reopenNote : copy.completeNote}
       onClick={(event) => { event.stopPropagation(); onClick(); }}
       style={{
         width: 15,
@@ -109,7 +109,7 @@ function ActiveNoteRow({ row, copy, busy, actions, targeted, onSelect }: { row: 
       style={{ border: targeted ? '1px solid var(--proto-accent-border)' : '1px solid transparent', borderRadius: 'var(--r-chip)', background: targeted ? 'var(--proto-accent-bg)' : 'transparent', padding: '9px 10px', cursor: 'pointer' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-        <Circle completed={false} disabled={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
+        <Circle completed={false} copy={copy} disabled={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.45, minWidth: 0, overflowWrap: 'anywhere' }}>{row.text}</span>
         <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', flex: 'none' }}>{row.timeLabel}</span>
       </div>
@@ -124,10 +124,10 @@ function ActiveNoteRow({ row, copy, busy, actions, targeted, onSelect }: { row: 
   );
 }
 
-function CompletedRow({ row, busy, onReopen }: { row: NoteRowVm; busy: boolean; onReopen: () => void }) {
+function CompletedRow({ row, copy, busy, onReopen }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; onReopen: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px' }}>
-      <Circle completed disabled={busy} onClick={onReopen} />
+      <Circle completed copy={copy} disabled={busy} onClick={onReopen} />
       <span style={{ fontSize: 12.5, color: 'var(--proto-muted)', textDecoration: 'line-through', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
       <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', flex: 'none' }}>{row.timeLabel}</span>
     </div>
@@ -201,7 +201,7 @@ export function NotesPaneView(props: NotesPaneViewProps) {
           <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, background: 'transparent', padding: 0, fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted)', cursor: 'pointer' }}>{props.copy.completed} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
           {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: 'var(--proto-danger)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{props.copy.clear}</button>}
         </div>
-        {completedOpen && props.vm.completed.map((row) => <CompletedRow key={row.id} row={row} busy={props.busy} onReopen={() => void props.onSetCompleted(row.id, false)} />)}
+        {completedOpen && props.vm.completed.map((row) => <CompletedRow key={row.id} row={row} copy={props.copy} busy={props.busy} onReopen={() => void props.onSetCompleted(row.id, false)} />)}
       </div>
       <div style={{ padding: '9px 16px', borderTop: '1px solid var(--proto-line-2)', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{props.copy.privateHint}</div>
     </aside>

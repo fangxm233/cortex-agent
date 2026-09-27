@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { useMediaCopy } from '@/features/media/media-copy';
 
 // A docked tab has no header of its own — the strip above is shared by every tab — so each file body
 // carries this row: where the file is, and what can be done with it. A PDF already has such a row
@@ -13,6 +14,7 @@ export function FileBar({ path, onDownload, children }: {
   /** Body-specific controls placed left of the download (the Markdown source toggle). */
   children?: ReactNode;
 }): JSX.Element {
+  const copy = useMediaCopy();
   return (
     <div style={BAR_STYLE}>
       {/* Paths are long and their INFORMATIVE end is the tail, so the ellipsis goes at the front:
@@ -20,7 +22,7 @@ export function FileBar({ path, onDownload, children }: {
       <span data-file-path={path} title={path} style={PATH_STYLE}>{path}</span>
       {children}
       {onDownload && (
-        <button type="button" data-file-download="" title="Download" aria-label="Download" onClick={onDownload} style={BUTTON_STYLE}>↓</button>
+        <button type="button" data-file-download="" title={copy.download} aria-label={copy.download} onClick={onDownload} style={BUTTON_STYLE}>↓</button>
       )}
     </div>
   );

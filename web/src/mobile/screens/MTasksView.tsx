@@ -17,6 +17,7 @@ export interface MTasksCopy {
   needs: string;
   doneWhen: string;
   doneWhenGap: string;
+  toggleDoneWhen: string;
   openApprovals: string;
   done: string;
   empty: string;
@@ -104,7 +105,7 @@ function InProgressCard({ task, copy, onOpenTask, onOpenThread }: CardProps) {
 
 function ActionableCard({ task, copy, expanded, onToggle, onOpenTask }: CardProps) {
   const toggle = (
-    <span role="button" aria-label="Toggle done-when" aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ color: MC.muted, fontSize: 9, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '-14px -14px -14px 0' }}>
+    <span role="button" aria-label={copy.toggleDoneWhen} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onToggle(task.id); }} style={{ color: MC.muted, fontSize: 9, flex: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '-14px -14px -14px 0' }}>
       {expanded ? '▾' : '▸'}
     </span>
   );

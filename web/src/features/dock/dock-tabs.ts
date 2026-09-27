@@ -118,8 +118,8 @@ export function dockDownloadPath(tab: DockTab): string | null {
   return isFileTab(tab) ? tab.item.path ?? null : null;
 }
 
-export function dockTabLabel(tab: DockTab): string {
-  return isFileTab(tab) ? tab.item.name : browserTabLabel(tab);
+export function dockTabLabel(tab: DockTab, blankLabel: string): string {
+  return isFileTab(tab) ? tab.item.name : browserTabLabel(tab, blankLabel);
 }
 
 /** Mark a file tab as just-used, so eviction sheds the genuinely cold ones. */

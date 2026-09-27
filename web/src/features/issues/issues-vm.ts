@@ -1,4 +1,5 @@
 import type { IssueInfo } from '@cortex-agent/ui-contract';
+import type { Lang } from '@/i18n';
 
 // Pure view-model for the Issues surfaces (design scheme.dc.html sec-24: 24b desktop modal + 24a
 // entry cards; also reused by the mobile 24c screen). Maps the REAL `IssueInfo` DTO (parsed from
@@ -85,14 +86,21 @@ export function defaultSelectedId(entries: IssueInfo[], current: string | null):
   return entries[0]?.id ?? null;
 }
 
-/** Build the prompt text for a "处理" draft session — mirrors the server's `buildIssuePrompt` in
- *  `mutate/issues.ts`. The entry's title + body are carried verbatim so the agent has full context. */
-export function buildIssuePrompt(projectId: string, entry: IssueInfo): string {
+/** Build the prompt text for a "处理 / Handle" draft session — mirrors the server's `buildIssuePrompt`
+ *  in `mutate/issues.ts`, in the UI language (the user sends it as their own message). The entry's
+ *  title + body are carried verbatim so the agent has full context. */
+export function buildIssuePrompt(projectId: string, entry: IssueInfo, lang: Lang): string {
   const dateSuffix = entry.date ? ` (${entry.date})` : '';
+  const body = `**${entry.title}**${dateSuffix}\n` + (entry.body ? `${entry.body}\n` : '');
+  if (lang === 'en') {
+    return (
+      `Handle the issue recorded in ISSUES.md of project ${projectId}:\n\n` + body +
+      `\nThe entry has been removed from ISSUES.md and handed to this session. Please investigate and ` +
+      `resolve the problem above; if the conclusion should be kept, write it to the matching project context file.`
+    );
+  }
   return (
-    `处理项目 ${projectId} 的 ISSUES.md 中登记的 issue：\n\n` +
-    `**${entry.title}**${dateSuffix}\n` +
-    (entry.body ? `${entry.body}\n` : '') +
+    `处理项目 ${projectId} 的 ISSUES.md 中登记的 issue：\n\n` + body +
     `\n该条目已从 ISSUES.md 移除并交由本会话处理。请调查并解决上述问题；` +
     `如需持久记录结论，写入项目上下文相应文件。`
   );

@@ -315,7 +315,7 @@ export function InteractionRowCard({ row, actions }: {
   const [askState, setAskState] = useState<DeskAskState>(emptyDeskAsk);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [readOpen, setReadOpen] = useState(false);
-  const v = interactionView(row);
+  const v = interactionView(row, lang);
 
   if (v.kind === 'ask') {
     const m = v.model;

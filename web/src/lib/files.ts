@@ -15,7 +15,7 @@ export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attach
 /** Fetch a workspace file's bytes (authenticated) and return an object URL. Caller revokes it. */
 export async function fetchFileObjectUrl(relPath: string, disposition: 'inline' | 'attachment' = 'inline'): Promise<string> {
   const res = await fetch(fileDownloadUrl(relPath, disposition), { headers: authHeaders() });
-  if (!res.ok) throw new Error(`download failed: ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`); // shown under the localized "download failed" toast title, so no English prefix
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
@@ -53,7 +53,7 @@ async function nativeDownload(relPath: string, name: string): Promise<DownloadRe
     return result.ok ? {} : null;
   }
   const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
-  if (!res.ok) throw new Error(`download failed: ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
   const result = await safeInvoke('save_download', { name, bytes });
   throwNativeFailure(result);

@@ -161,6 +161,7 @@ export function OverviewView(): JSX.Element {
       >
         <button type="button" className="content-text-action"
           onClick={() => navigate('/workbench')}
+          aria-label={L.back}
           style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
         >
           ‹
@@ -507,7 +508,7 @@ export function OverviewView(): JSX.Element {
                       when the schedule has no recorded profile — honest placeholder, no fabrication. */}
                   {scheduleProfileLabel(s) && (
                     <span
-                      title="profile"
+                      title={L.wbProfile}
                       style={{ marginLeft: 7, font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}
                     >
                       {scheduleProfileLabel(s)}
@@ -580,7 +581,7 @@ export function OverviewView(): JSX.Element {
             <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted)' }}>{L.ovNoExecutions}</div>
           )}
           {executions.map((x: ExecutionInfo) => {
-            const pill = execStatusPill(x.status);
+            const pill = execStatusPill(x.status, lang);
             return (
               <div
                 key={x.id}
@@ -607,9 +608,9 @@ export function OverviewView(): JSX.Element {
                   {x.id}
                 </span>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 12 }}>
-                  {execSummary(x)}
+                  {execSummary(x, lang)}
                 </span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x)}</span>
+                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x, lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now), lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>

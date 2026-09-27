@@ -66,6 +66,7 @@ const copy: MUsageCopy = {
     legacyFallbackTitle: 'Legacy fallback',
     legacyFallbackBody: 'Unset rows inherit the old provider-wide policy until you clear it.',
     clearLegacy: 'Clear legacy fallback',
+    toggleLabel: 'Usage throttle {key}',
   },
 };
 

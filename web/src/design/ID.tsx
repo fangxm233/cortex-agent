@@ -1,3 +1,4 @@
+import { useVocabOptional } from '@/i18n';
 import { MonoText } from './MonoText';
 import { useClipboardFeedback } from './useClipboardFeedback';
 
@@ -10,6 +11,7 @@ export interface IDProps {
 export function ID({ value, copyable, className }: IDProps) {
   const { copiedKey, copy } = useClipboardFeedback<true>(1200);
   const copied = copiedKey === true;
+  const L = useVocabOptional();
 
   if (!copyable) return <MonoText muted className={className}>{value}</MonoText>;
 
@@ -17,7 +19,7 @@ export function ID({ value, copyable, className }: IDProps) {
     <button
       type="button"
       onClick={() => { void copy(value, true); }}
-      title={copied ? 'Copied' : 'Copy'}
+      title={copied ? L.cmCopied : L.cmCopy}
       className={[
         'group inline-flex items-center gap-0.5g rounded-[var(--r-chip)] px-0.5g font-mono text-ui',
         'text-proto-muted transition-colors hover:bg-surface-canvas-alt hover:text-state-ink',

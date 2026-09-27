@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import {
   MonoKV,
   SButton,
@@ -324,6 +324,7 @@ function CapabilityNotices({ hook, note }: { hook: HookDetail | null; note: Hook
 /** Structural facts the API never accepts as input, shown so the declaration reads whole. */
 function RegistryFacts({ hook }: { hook: HookDetail }) {
   const L = useVocab();
+  const minUnit = useLang() === 'zh' ? '分钟' : 'min';
   return (
     <>
       <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>
@@ -334,7 +335,7 @@ function RegistryFacts({ hook }: { hook: HookDetail }) {
         <MonoKV k={L.hkFieldVersion} value={hook.version ?? '—'} />
         <MonoKV
           k={L.hkFieldBlocking}
-          value={hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} min`}
+          value={hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} ${minUnit}`}
         />
         <MonoKV k={L.hkFieldMountsOn} value={hook.mountsOn.join(' · ') || '—'} />
       </div>

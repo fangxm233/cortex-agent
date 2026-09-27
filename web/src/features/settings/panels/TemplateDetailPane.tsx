@@ -1,6 +1,6 @@
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { ThreadTemplateDetail, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import {
   SButton,
   SCount,
@@ -397,16 +397,17 @@ function DetailBody(props: TemplateDetailPaneProps & {
   dirty: boolean;
   issues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] };
 }) {
+  const lang = useLang();
   const creating = props.creating !== null;
   return (
     <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
       <DetailNotices
-        nameError={creating ? validateName(props.draftName) : null}
+        nameError={creating ? validateName(props.draftName, lang) : null}
         runningThreads={!creating && needsRunningConfirm(props.detail) ? props.detail?.runningThreads ?? 0 : null}
         forkWarn={!creating && props.dirty && forksFromDefaults(props.detail)}
       />
       {props.tab === 'body' ? (
-        <BodyTab text={props.text} parseError={parseEditor(props.text).parseError} onText={props.onText} />
+        <BodyTab text={props.text} parseError={parseEditor(props.text, lang).parseError} onText={props.onText} />
       ) : null}
       {props.tab === 'validation' ? <ValidationTab issues={props.issues} /> : null}
       {props.tab === 'plugins' && showsPluginTab(props.kind, creating) ? (

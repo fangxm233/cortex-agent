@@ -60,11 +60,15 @@ const NUMBER_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 96 };
 const DURATION_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 64 };
 const DURATION_SELECT: CSSProperties = { ...S_CONTROL_STYLE, width: 78, cursor: 'pointer' };
 
-const DURATION_UNITS = [
-  { value: 'sec', label: 'sec' },
-  { value: 'min', label: 'min' },
-  { value: 'hr', label: 'hr' },
-] satisfies Array<{ value: DurationUnit; label: string }>;
+const DURATION_UNIT_LABELS: Record<'en' | 'zh', Record<DurationUnit, string>> = {
+  en: { sec: 'sec', min: 'min', hr: 'hr' },
+  zh: { sec: '秒', min: '分钟', hr: '小时' },
+};
+
+function durationUnits(lang: 'en' | 'zh'): Array<{ value: DurationUnit; label: string }> {
+  const labels = DURATION_UNIT_LABELS[lang];
+  return (['sec', 'min', 'hr'] as const).map((value) => ({ value, label: labels[value] }));
+}
 
 export interface RuntimeSettingToggleRowProps {
   settingKey: WritableBooleanSettingKey;
@@ -121,6 +125,7 @@ function notifyRows(args: {
 
 function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot; settings: SettingsIndex }) {
   const L = useVocab();
+  const zh = useLang() === 'zh';
   const slackChannel = getSetting(settings, 'adminChannel')?.value;
   const feishuChannel = getSetting(settings, 'feishuAdminChannel')?.value;
   return (
@@ -134,8 +139,8 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
           channel={typeof slackChannel === 'string' ? slackChannel : null}
         />
         <RoutingRow
-          platform="飞书"
-          glyph="飞"
+          platform={zh ? '飞书' : 'Feishu'}
+          glyph={zh ? '飞' : 'F'}
           present={hasAnyKey(snapshot.env, 'FEISHU_')}
           channel={typeof feishuChannel === 'string' ? feishuChannel : null}
         />
@@ -378,6 +383,7 @@ function DurationFields(props: {
   onSave: () => void;
 }) {
   const L = useVocab();
+  const lang = useLang();
   return (
     <>
       <span style={MONO_VALUE_STYLE}>{L.stBuiltinInterval}</span>
@@ -385,7 +391,7 @@ function DurationFields(props: {
         onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
       <Select popupClassName="settings-surface settings-select-popup"
         data-duration-unit={props.settingKey} aria-label={L.stBuiltinInterval} density="bare"
-        value={props.draft.unit} options={DURATION_UNITS} style={DURATION_SELECT}
+        value={props.draft.unit} options={durationUnits(lang)} style={DURATION_SELECT}
         onValueChange={(unit) => props.onDraft({ ...props.draft, unit })}
       />
       <SButton tone="neutral" disabled={!props.canSave}

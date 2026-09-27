@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLangOptional } from '@/i18n';
+import { useLangOptional, useVocabOptional } from '@/i18n';
 import { useToastItems, useToastOptional } from './Toast';
 import { relativeAge, splitVisible, type ToastItem, type ToastLevel } from './toast-store';
 
@@ -49,11 +49,12 @@ export function useAutoDismiss(id: string, duration: number, onDismiss: (id: str
 
 function ToastHeading({ item, onDismiss }: BubbleProps) {
   const lang = useLangOptional();
+  const dismissLabel = useVocabOptional().cmDismiss;
   return (
     <div className="flex items-baseline gap-[8px]">
       <span className="truncate text-[12.5px] font-semibold text-proto-ink">{item.title}</span>
       <span className="ml-auto flex-none font-mono text-[10px] text-proto-faint">{relativeAge(item.ts, lang)}</span>
-      <button type="button" aria-label="Dismiss"
+      <button type="button" aria-label={dismissLabel}
         onClick={(e) => { e.stopPropagation(); onDismiss(item.id); }}
         className="flex-none text-[12px] leading-none text-proto-faint transition-colors hover:text-proto-muted">
         ✕
@@ -122,13 +123,16 @@ export function ToastBubble({ item, onDismiss }: BubbleProps) {
   );
 }
 
+const OVERFLOW_HINT = { en: 'more · click to expand', zh: '更多 · 点击展开' };
+
 function OverflowControl({ count, onExpand }: { count: number; onExpand: () => void }) {
+  const hint = OVERFLOW_HINT[useLangOptional()];
   return (
     <button type="button" onClick={onExpand} className={[
       'pointer-events-auto flex items-center gap-[7px] rounded-full px-[12px] py-[5px]', SHELL_CLASS,
     ].join(' ')}>
       <span className="font-mono text-[10.5px] font-semibold text-proto-muted">+{count}</span>
-      <span className="text-[11px] text-proto-muted-2">more · click to expand</span>
+      <span className="text-[11px] text-proto-muted-2">{hint}</span>
     </button>
   );
 }

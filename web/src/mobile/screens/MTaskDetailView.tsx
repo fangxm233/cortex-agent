@@ -42,6 +42,10 @@ export interface MTaskDetailCopy {
   priority: Record<TaskInfo['priority'], string>;
   dispatchStatus: Record<TaskDispatchRecord['status'], string>;
   dispatchType: Record<TaskDispatchRecord['type'], string>;
+  /** Persisted TASKS.yaml status (open/done), shown in the facts list. */
+  persistedStatus: Record<TaskInfo['status'], string>;
+  yes: string;
+  no: string;
 }
 
 export const ZH_COPY: MTaskDetailCopy = {
@@ -63,10 +67,13 @@ export const ZH_COPY: MTaskDetailCopy = {
   historyEmpty: '暂无派发历史',
   footer: '只读 — 编辑 / 派发 / 取消在桌面或对话内完成',
   notFound: '任务未找到',
-  status: { 'in-progress': '进行中', 'approval-needed': 'approval-needed', actionable: '可执行', blocked: '阻塞', done: '完成', waiting: '等待' },
+  status: { 'in-progress': '进行中', 'approval-needed': '需要审批', actionable: '可执行', blocked: '阻塞', done: '完成', waiting: '等待' },
   priority: { high: 'P高', medium: 'P中', low: 'P低' },
   dispatchStatus: { running: '运行中', completed: '完成', failed: '失败', cancelled: '已取消', stale: '停滞' },
   dispatchType: { local: '本地', dispatch: '派发' },
+  persistedStatus: { open: '未完成', done: '已完成' },
+  yes: '是',
+  no: '否',
 };
 
 export const EN_COPY: MTaskDetailCopy = {
@@ -88,10 +95,13 @@ export const EN_COPY: MTaskDetailCopy = {
   historyEmpty: 'No dispatch history',
   footer: 'Read-only — edit / dispatch / cancel on desktop or in chat',
   notFound: 'Task not found',
-  status: { 'in-progress': 'In progress', 'approval-needed': 'approval-needed', actionable: 'Executable', blocked: 'Blocked', done: 'Done', waiting: 'Waiting' },
+  status: { 'in-progress': 'In progress', 'approval-needed': 'Approval needed', actionable: 'Executable', blocked: 'Blocked', done: 'Done', waiting: 'Waiting' },
   priority: { high: 'High', medium: 'Med', low: 'Low' },
   dispatchStatus: { running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled', stale: 'stale' },
   dispatchType: { local: 'local', dispatch: 'dispatch' },
+  persistedStatus: { open: 'open', done: 'done' },
+  yes: 'yes',
+  no: 'no',
 };
 
 const PILL_TONE: Record<MTaskStatusKind, PillTone> = {
@@ -187,7 +197,7 @@ export function MTaskDetailView({
       node: (
         <>
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.statusLabel}</span>
-          <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{vm.status}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{copy.persistedStatus[vm.status] ?? vm.status}</span>
         </>
       ),
     },
@@ -197,7 +207,7 @@ export function MTaskDetailView({
         <>
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.approvalNeededLabel}</span>
           <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>
-            {vm.approvalNeeded == null ? '—' : String(vm.approvalNeeded)}
+            {vm.approvalNeeded == null ? '—' : vm.approvalNeeded ? copy.yes : copy.no}
           </span>
         </>
       ),

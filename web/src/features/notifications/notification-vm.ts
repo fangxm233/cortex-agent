@@ -6,7 +6,15 @@
 // (origin='direct'); the workbench streams these as `session.message` events. This module
 // turns one such event into the toast's on-screen shape.
 
+import type { Lang } from '@/i18n';
+
 export type NotificationLevel = 'info' | 'warning' | 'error';
+
+/** Generic titles for a notification whose source has no name of its own. */
+const FALLBACK_TITLES: Record<Lang, { message: string; notice: string }> = {
+  en: { message: 'New message', notice: 'System notice' },
+  zh: { message: '新消息', notice: '系统通知' },
+};
 
 /** One notification bubble (scheme 18a). */
 export interface NotificationItem {
@@ -45,6 +53,8 @@ export interface BuildNotificationInput {
   ts?: string;
   /** Explicit severity; DM chat replies are always 'info' (no severity guessing / fabrication). */
   level?: NotificationLevel;
+  /** UI language of the fallback title; defaults to English. */
+  lang?: Lang;
 }
 
 /** Shape a session-message event into a NotificationItem. Title = conversation name, meta =
@@ -55,7 +65,7 @@ export function buildNotification(input: BuildNotificationInput): NotificationIt
   return {
     id: input.id,
     level: input.level ?? 'info',
-    title: name || 'New message',
+    title: name || FALLBACK_TITLES[input.lang ?? 'en'].message,
     meta: previewText(input.text),
     ts: input.ts ?? new Date().toISOString(),
     sessionId: input.sessionId,
@@ -72,6 +82,8 @@ export interface BuildSystemNoticeInput {
   /** Optional short title (e.g. "Disk"); falls back to a generic label when blank. */
   title?: string;
   ts?: string;
+  /** UI language of the fallback title; defaults to English. */
+  lang?: Lang;
 }
 
 /** Shape a `system.notice` event (server broadcasts: restart, hot-reload, disk, rate-limit) into a
@@ -82,7 +94,7 @@ export function buildSystemNotice(input: BuildSystemNoticeInput): NotificationIt
   return {
     id: input.id,
     level: input.level ?? 'info',
-    title: title || 'System notice',
+    title: title || FALLBACK_TITLES[input.lang ?? 'en'].notice,
     meta: previewText(input.text),
     ts: input.ts ?? new Date().toISOString(),
     sessionId: '',

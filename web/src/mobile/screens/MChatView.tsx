@@ -7,7 +7,7 @@ import { SubagentTranscriptDetail } from '@/features/session/transcript/Subagent
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
-import { useVocab } from '@/i18n';
+import { useLangOptional, useVocab, useVocabOptional } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
@@ -68,9 +68,10 @@ function BackChevron(): JSX.Element {
  *  of through `MDrillHeader`: that kit header is a bordered flex band the other drill screens still
  *  want. */
 export function MChatHeader(props: MChatHeaderProps): JSX.Element {
+  const vocab = useVocabOptional();
   return (
     <div data-chat-header="true" style={CHAT_HEADER}>
-      <button type="button" aria-label="Back" onClick={props.onBack}
+      <button type="button" aria-label={vocab.back} onClick={props.onBack}
         style={{ ...HEADER_KEY, color: 'var(--proto-accent)', display: 'grid', placeItems: 'center' }}>
         <BackChevron />
       </button>
@@ -84,7 +85,7 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
         <MChatStatusLine {...props} />
       </div>
       {props.contextControl}
-      <button type="button" aria-label="More" onClick={props.onMore}
+      <button type="button" aria-label={vocab.more} onClick={props.onMore}
         style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
         ⋯
       </button>
@@ -201,8 +202,9 @@ function MAssistantBlock({ text, preview, streamKey }: {
  *  — pending actionable, resolved sealed in place; expired/cancelled + legacy rows render a
  *  one-line summary. Without handlers the cards render inert. */
 function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 'interaction' }>; interactions?: MChatInteractions }): JSX.Element {
-  const v = interactionView(row);
-  const copy = interactions?.copy ?? M_INT_COPY.zh;
+  const fallbackLang = useLangOptional();
+  const v = interactionView(row, fallbackLang);
+  const copy = interactions?.copy ?? M_INT_COPY[fallbackLang];
   if (v.kind === 'ask') {
     const m = v.model;
     return (

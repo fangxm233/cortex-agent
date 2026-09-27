@@ -5,6 +5,7 @@ import { useDockIntake } from '@/design/dock-intake';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';
 import { useZoom } from './useZoom';
+import { useMediaCopy } from './media-copy';
 import type { MediaItem } from './preview-item';
 
 // Shared full-screen media lightbox (modal) — the single previewer for every image/video surface on
@@ -35,6 +36,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
   // fetched with auth into one (revoked on close / change) — shared with the docked preview pane.
   const { src, failed } = useMediaSrc(item);
   const dl = useDownloadFile();
+  const copy = useMediaCopy();
   const { containerRef, contentRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
 
   // Android hardware back (and browser back) close the lightbox instead of navigating a route.
@@ -103,7 +105,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         {onPin && (
           <button type="button" className="content-text-action"
             role="button"
-            title="Pin preview beside the chat"
+            title={copy.pin}
             onClick={onPin}
             style={{
               width: 38,
@@ -123,7 +125,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         )}
         <button type="button" className="content-text-action"
           role="button"
-          title="Download"
+          title={copy.download}
           onClick={onDownload}
           style={{
             width: 38,
@@ -142,7 +144,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         </button>
         <button type="button" className="content-text-action"
           role="button"
-          title="Close"
+          title={copy.close}
           onClick={onClose}
           style={{
             width: 38,
@@ -168,9 +170,9 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
         style={{ maxWidth: '94vw', maxHeight: '84vh', width: '94vw', height: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         {failed ? (
-          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
+          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>{copy.loadFailed.replace('{name}', item.name)}</div>
         ) : !src ? (
-          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>Loading…</div>
+          <div style={{ color: 'var(--media-overlay-fg)', font: `500 12px ${mono}` }}>{copy.loading}</div>
         ) : item.kind === 'video' ? (
           <video
             src={src}
