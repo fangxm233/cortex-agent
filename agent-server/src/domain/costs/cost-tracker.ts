@@ -1,5 +1,6 @@
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { projectStore } from '@domain/projects/index.js';
+import { t } from '@core/i18n.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
 
 // ── Dynamic project name discovery (from context/projects/) ──
@@ -475,13 +476,32 @@ function buildModeBucket(periods: Record<string, ModeBuckets>, mode: string): Pe
 }
 
 function formatModeLine(label: string, bucket: PeriodBucket): string {
-  return `  - ${label}: today $${bucket.today.toFixed(2)} | week $${bucket.week.toFixed(2)} | month $${bucket.month.toFixed(2)} | total $${bucket.total.toFixed(2)}`;
+  return `  - ${t('notice.cost.modeLine', { label, today: bucket.today.toFixed(2), week: bucket.week.toFixed(2), month: bucket.month.toFixed(2), total: bucket.total.toFixed(2) })}`;
 }
 
 function formatTokens(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}k`;
   return String(count);
+}
+
+function formatStatsLine(name: string, stats: { today: number; month: number; total: number }): string {
+  return `• ${t('notice.cost.statsLine', { name, today: stats.today.toFixed(2), month: stats.month.toFixed(2), total: stats.total.toFixed(2) })}`;
+}
+
+/** Push a `_Heading:_` section listing each entry's today/month/total, largest total first. */
+function pushStatsSection(lines: string[], heading: string, entries: Record<string, { today: number; month: number; total: number }>): void {
+  lines.push('');
+  lines.push(`_${heading}_`);
+  for (const [name, stats] of Object.entries(entries).sort((a, b) => b[1].total - a[1].total)) {
+    lines.push(formatStatsLine(name, stats));
+  }
+}
+
+function costReportHeader(project: string | null, budgetScope: string): string {
+  if (!project) return `*${t('notice.cost.title')}*`;
+  const scope = budgetScope === 'project' ? t('notice.cost.scopeProject') : t('notice.cost.scopeInherited');
+  return `*${t('notice.cost.titleProject', { project })}* _(${scope})_`;
 }
 
 /**
@@ -491,64 +511,43 @@ async function formatCostReport(project: string | null = null): Promise<string> 
   const summary = await getCostSummary(project);
   const dailyRemaining = Math.max(0, summary.dailyBudget - summary.today);
   const monthlyRemaining = Math.max(0, summary.monthlyBudget - summary.month);
-  const scopeNote = project
-    ? summary.budgetScope === 'project' ? ' _(per-project limits)_' : ' _(inherited global limits)_'
-    : '';
 
-  const lines = [];
-  lines.push(project ? `*Cost Report (project: ${project})*${scopeNote}` : '*Cost Report*');
-  lines.push(`• Today: $${summary.today.toFixed(2)} / $${summary.dailyBudget} (remaining: $${dailyRemaining.toFixed(2)})`);
-  lines.push(`• This month: $${summary.month.toFixed(2)} / $${summary.monthlyBudget} (remaining: $${monthlyRemaining.toFixed(2)})`);
-  lines.push(`• This week: $${summary.week.toFixed(2)}`);
-  lines.push(`• Total (90d): $${summary.total.toFixed(2)}`);
+  const lines: string[] = [];
+  lines.push(costReportHeader(project, summary.budgetScope));
+  lines.push(`• ${t('notice.cost.today', { spent: summary.today.toFixed(2), budget: summary.dailyBudget, remaining: dailyRemaining.toFixed(2) })}`);
+  lines.push(`• ${t('notice.cost.month', { spent: summary.month.toFixed(2), budget: summary.monthlyBudget, remaining: monthlyRemaining.toFixed(2) })}`);
+  lines.push(`• ${t('notice.cost.week', { spent: summary.week.toFixed(2) })}`);
+  lines.push(`• ${t('notice.cost.total', { spent: summary.total.toFixed(2) })}`);
   lines.push('');
-  lines.push('_By cost mode:_');
+  lines.push(`_${t('notice.cost.byMode')}_`);
   lines.push(formatModeLine('API', buildModeBucket(summary.byMode, 'api')));
   lines.push(formatModeLine('Plan', buildModeBucket(summary.byMode, 'plan')));
 
   // Source breakdown (gateway vs estimate)
-  if (Object.keys(summary.bySource).length > 0) {
-    lines.push('');
-    lines.push('_By source:_');
-    for (const [src, stats] of Object.entries(summary.bySource).sort((a, b) => b[1].total - a[1].total)) {
-      lines.push(`• ${src}: today $${stats.today.toFixed(2)} | month $${stats.month.toFixed(2)} | total $${stats.total.toFixed(2)}`);
-    }
-  }
+  if (Object.keys(summary.bySource).length > 0) pushStatsSection(lines, t('notice.cost.bySource'), summary.bySource);
 
   // Backend breakdown — show when PI is present (N2H-2: simplified condition)
-  if ('pi' in summary.byBackend) {
-    lines.push('');
-    lines.push('_By backend:_');
-    for (const [backend, stats] of Object.entries(summary.byBackend).sort((a, b) => b[1].total - a[1].total)) {
-      lines.push(`• ${backend}: today $${stats.today.toFixed(2)} | month $${stats.month.toFixed(2)} | total $${stats.total.toFixed(2)}`);
-    }
-  }
+  if ('pi' in summary.byBackend) pushStatsSection(lines, t('notice.cost.byBackend'), summary.byBackend);
 
   // Token usage (from gateway data)
   const tok = summary.tokens;
   if (tok.total.input > 0 || tok.total.output > 0) {
     lines.push('');
-    lines.push('_Token usage:_');
-    lines.push(`• Today: ${formatTokens(tok.today.input)} in / ${formatTokens(tok.today.output)} out`);
-    lines.push(`• Month: ${formatTokens(tok.month.input)} in / ${formatTokens(tok.month.output)} out`);
-    lines.push(`• Total: ${formatTokens(tok.total.input)} in / ${formatTokens(tok.total.output)} out`);
+    lines.push(`_${t('notice.cost.tokenUsage')}_`);
+    for (const [key, period] of [['notice.cost.tokensToday', tok.today], ['notice.cost.tokensMonth', tok.month], ['notice.cost.tokensTotal', tok.total]] as const) {
+      lines.push(`• ${t(key, { input: formatTokens(period.input), output: formatTokens(period.output) })}`);
+    }
   }
 
   if (!project && Object.keys(summary.byProject).length > 0) {
     lines.push('');
-    lines.push('_By project:_');
+    lines.push(`_${t('notice.cost.byProject')}_`);
     for (const [proj, stats] of Object.entries(summary.byProject).sort((a, b) => b[1].month - a[1].month)) {
-      lines.push(`• ${proj}: today $${stats.today.toFixed(2)} | month $${stats.month.toFixed(2)}`);
+      lines.push(`• ${t('notice.cost.projectLine', { name: proj, today: stats.today.toFixed(2), month: stats.month.toFixed(2) })}`);
     }
   }
 
-  if (Object.keys(summary.byTrigger).length > 0) {
-    lines.push('');
-    lines.push('_By trigger:_');
-    for (const [trigger, stats] of Object.entries(summary.byTrigger).sort((a, b) => b[1].total - a[1].total)) {
-      lines.push(`• ${trigger}: today $${stats.today.toFixed(2)} | month $${stats.month.toFixed(2)} | total $${stats.total.toFixed(2)}`);
-    }
-  }
+  if (Object.keys(summary.byTrigger).length > 0) pushStatsSection(lines, t('notice.cost.byTrigger'), summary.byTrigger);
 
   return lines.join('\n');
 }

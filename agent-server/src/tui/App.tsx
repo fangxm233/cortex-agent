@@ -27,6 +27,7 @@ import { parseTurnStatus, formatTurnStatus } from './turn-status.js';
 import type { WsState } from './ws-client.js';
 import type { TuiFrame, HandshakeAck, ModalOpen, ModalAck } from '../platform/tui/protocol.js';
 import type { ProjectEntry } from './components/ProjectSwitcher.js';
+import { t, setLocale } from '../core/i18n.js';
 
 // ── Types ──
 
@@ -217,7 +218,7 @@ export function App({
         } else {
           setProjects([]);
           setProjectsLoading(false);
-          setProjectsError((frame as any).error?.message ?? 'Failed to load projects');
+          setProjectsError((frame as any).error?.message ?? t('tui.projects.loadFailed'));
         }
         return;
       }
@@ -400,6 +401,14 @@ export function App({
       case 'help':
         // The palette itself lists the commands — nothing else to do.
         break;
+      case 'lang': {
+        // The server persists + applies the switch; mirror it in this process so the TUI's own
+        // text follows immediately (it only reads preferences.json at startup).
+        const lang = args.trim().toLowerCase();
+        if (lang === 'en' || lang === 'zh') setLocale(lang);
+        handleSubmit(`!lang${args ? ` ${args}` : ''}`);
+        break;
+      }
       default:
         // Every other registered slash command mirrors a server `!` command (same name). Forward
         // it as `!<name> <args>` so the server's command dispatcher handles it and replies into
@@ -447,12 +456,12 @@ export function App({
     const text = transcriptRef.current?.getSelectedText(range);
     if (text && text.length > 0) {
       osc52Copy(text);
-      showToast(`Copied ${text.length} chars to clipboard (OSC 52)`);
+      showToast(t('tui.app.copied', { n: text.length }));
     }
   }, [showToast]);
 
   const handleRightClick = useCallback(() => {
-    showToast('Use Ctrl+Shift+V to paste');
+    showToast(t('tui.app.pasteHint'));
   }, [showToast]);
 
   const { selection } = useMouseHandler({

@@ -6,6 +6,10 @@ import { interactionsEn } from './slices/interactions.js';
 import { startupEn } from './slices/startup.js';
 import { initEn } from './slices/init.js';
 import { providersEn } from './slices/providers.js';
+import { noticesEn } from './slices/notices.js';
+import { uimsgEn } from './slices/uimsg.js';
+import { tuiEn } from './slices/tui.js';
+import { uiextraEn } from './slices/uiextra.js';
 
 /** Canonical English message table, aggregated from per-cluster slices. Keys are dot-namespaced
  *  by area (lang/cmd/status/...). Values may contain ${param} placeholders resolved by i18n.t().
@@ -22,6 +26,10 @@ export const en = {
   ...startupEn,
   ...initEn,
   ...providersEn,
+  ...noticesEn,
+  ...uimsgEn,
+  ...tuiEn,
+  ...uiextraEn,
 };
 
 /** The exact keyset every locale must provide. zh.ts is typed against this. */

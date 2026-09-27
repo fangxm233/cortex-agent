@@ -5,6 +5,7 @@ import { STORE_DIR, formatDurationCompact } from '@core/utils.js';
 import { Icons } from '../../core/icons.js';
 import { createLogger } from '@core/log.js';
 import * as executionRegistry from '../executions/registry.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('pending-task-tracker');
 
@@ -60,20 +61,20 @@ function buildTrackingMessage({ taskId, machine, taskText, startedAtMs, elapsed_
   cost_usd?: number | null; duration_s?: number | null; num_turns?: number | null;
   finalOutput?: string | null;
 }): string {
-  const label = taskText ? `${taskText}` : `Task ${taskId}`;
+  const label = taskText ? `${taskText}` : t('notice.task.idLabel', { id: taskId });
   if (status === 'completed') {
     const dur = formatDurationCompact(duration_s || elapsed_s || 0);
     const costStr = cost_usd != null ? ` | $${cost_usd.toFixed(4)}` : '';
     const outputStr = finalOutput ? `\n\n${finalOutput}` : '';
-    return `${Icons.ok} *[${taskId}]* ${label}\nCompleted on ${machine} | ${Icons.stopwatch} ${dur} | ${num_turns || turn_count || '?'} turns${costStr}${outputStr}`;
+    return `${Icons.ok} *[${taskId}]* ${label}\n${t('notice.task.completedOn', { machine: String(machine) })} | ${Icons.stopwatch} ${dur} | ${t('notice.thread.turns', { n: num_turns || turn_count || '?' })}${costStr}${outputStr}`;
   }
   if (status === 'failed') {
     const dur = formatDurationCompact(duration_s || elapsed_s || 0);
     const costStr = cost_usd != null ? ` | $${cost_usd.toFixed(4)}` : '';
     const outputStr = finalOutput ? `\n\n${finalOutput}` : '';
-    return `${Icons.error} *[${taskId}]* ${label}\nFailed on ${machine} | ${Icons.stopwatch} ${dur} | ${num_turns || turn_count || '?'} turns${costStr}${outputStr}`;
+    return `${Icons.error} *[${taskId}]* ${label}\n${t('notice.task.failedOn', { machine: String(machine) })} | ${Icons.stopwatch} ${dur} | ${t('notice.thread.turns', { n: num_turns || turn_count || '?' })}${costStr}${outputStr}`;
   }
-  return `${Icons.satellite} *[${taskId}]* ${label}\nRunning on ${machine} | ${buildTrackingMetaParts({ startedAtMs, elapsed_s })}`;
+  return `${Icons.satellite} *[${taskId}]* ${label}\n${t('notice.task.runningOn', { machine: String(machine) })} | ${buildTrackingMetaParts({ startedAtMs, elapsed_s })}`;
 }
 
 // --- Public API ---

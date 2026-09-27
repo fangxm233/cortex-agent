@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import * as path from 'node:path';
@@ -53,7 +54,7 @@ export async function handleSystemClearRateLimit(
     return {
       ok: false,
       code: 'internal',
-      message: `Failed to clear rate limit: ${(error as Error).message || String(error)}`,
+      message: t('ui.system.clearRateLimitFailed', { error: (error as Error).message || String(error) }),
     };
   }
 }
@@ -67,7 +68,7 @@ export async function handleSystemRefreshUsage(
     return {
       ok: false,
       code: 'internal',
-      message: `Failed to refresh usage: ${(error as Error).message || String(error)}`,
+      message: t('ui.system.refreshUsageFailed', { error: (error as Error).message || String(error) }),
     };
   }
 }
@@ -90,13 +91,13 @@ export async function handleSystemRestart(
       }
       return {
         ok: true,
-        data: { ok: true, message: 'Restart signal sent — daemon will drain and respawn app.js when idle.' },
+        data: { ok: true, message: t('ui.system.restartSignalSent') },
       };
     } catch (err: any) {
       return {
         ok: false,
         code: 'internal',
-        message: `Failed to signal restart: ${err.message || String(err)}`,
+        message: t('ui.system.restartSignalFailed', { error: err.message || String(err) }),
       };
     }
   }
@@ -109,7 +110,7 @@ export async function handleSystemRestart(
     return {
       ok: false,
       code: 'not-found',
-      message: 'No child PID file found — is app.js running under the daemon?',
+      message: t('ui.system.noChildPid'),
     };
   }
 
@@ -117,7 +118,7 @@ export async function handleSystemRestart(
     return {
       ok: false,
       code: 'not-found',
-      message: `Child process (PID ${childPid}) is not running.`,
+      message: t('ui.system.childNotRunning', { pid: childPid }),
     };
   }
 
@@ -127,14 +128,14 @@ export async function handleSystemRestart(
       ok: true,
       data: {
         ok: true,
-        message: `Sent ${signal} to app.js (PID ${childPid}). Daemon will auto-recover.`,
+        message: t('ui.system.signalSent', { signal, pid: childPid }),
       },
     };
   } catch (err: any) {
     return {
       ok: false,
       code: 'internal',
-      message: `Failed to send ${signal} to app.js (PID ${childPid}): ${err.message || String(err)}`,
+      message: t('ui.system.signalFailed', { signal, pid: childPid, error: err.message || String(err) }),
     };
   }
 }

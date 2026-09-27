@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
@@ -83,13 +84,13 @@ export async function writeDefaultProfile(configDir: string, defaultProfile: str
   try {
     raw = JSON.parse(await fs.readFile(file, 'utf8'));
   } catch {
-    throw Object.assign(new Error('profiles.json is missing or unreadable'), { code: 'invalid-args' });
+    throw Object.assign(new Error(t('ui.profile.fileUnreadable')), { code: 'invalid-args' });
   }
   if (!raw || typeof raw !== 'object' || !raw.profiles || typeof raw.profiles !== 'object') {
-    throw Object.assign(new Error('profiles.json has no profiles map'), { code: 'invalid-args' });
+    throw Object.assign(new Error(t('ui.profile.noProfilesMap')), { code: 'invalid-args' });
   }
   if (!Object.prototype.hasOwnProperty.call(raw.profiles, defaultProfile)) {
-    throw Object.assign(new Error(`profile "${defaultProfile}" not found in profiles.json`), {
+    throw Object.assign(new Error(t('ui.profile.notFound', { name: defaultProfile })), {
       code: 'invalid-args',
     });
   }

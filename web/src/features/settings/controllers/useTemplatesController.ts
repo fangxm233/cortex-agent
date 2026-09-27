@@ -7,7 +7,7 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
+import { trpcErrorCode, useTRPC } from '@/lib/trpc';
 import {
   filterEntries,
   resolveSelection,
@@ -93,7 +93,7 @@ export function useTemplatesController(options: TemplatesControllerOptions): Tem
     if (selection) queryClient.invalidateQueries(trpc.threadTemplates.detail.queryFilter(selection));
   };
   const onWriteError = (error: { message: string; data?: unknown }) => {
-    const conflict = /changed on disk/i.test(error.message);
+    const conflict = trpcErrorCode(error) === 'CONFLICT' || /changed on disk/i.test(error.message);
     toast({ title: conflict ? L.ttToastConflict : `${L.ttToastWriteFailed}: ${error.message}`, tone: 'failed' });
   };
 

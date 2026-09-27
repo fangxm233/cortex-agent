@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { SlashCommand } from '../slash-commands.js';
+import { t } from '../../core/i18n.js';
 
 interface SlashMenuProps {
   commands: SlashCommand[];
@@ -11,7 +12,7 @@ export function SlashMenu({ commands, selectedIndex }: SlashMenuProps): React.JS
   if (commands.length === 0) {
     return (
       <Box borderStyle="round" borderDimColor paddingX={1}>
-        <Text dimColor>no matching command</Text>
+        <Text dimColor>{t('tui.slashMenu.noMatch')}</Text>
       </Box>
     );
   }
@@ -31,7 +32,7 @@ export function SlashMenu({ commands, selectedIndex }: SlashMenuProps): React.JS
         );
       })}
       <Box marginTop={0}>
-        <Text dimColor>↑/↓ select · Tab complete · Enter run · Esc dismiss</Text>
+        <Text dimColor>{t('tui.slashMenu.hint')}</Text>
       </Box>
     </Box>
   );

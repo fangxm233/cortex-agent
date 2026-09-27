@@ -15,6 +15,7 @@ import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('session-hook');
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -310,22 +311,22 @@ export async function runSessionHook(
 // ── onNew (pre-close) entry points ────────────────────────────────────────────
 
 const ONNEW_FORMAT: SessionHookFormat = {
-  statusLine: () => `${Icons.hook} Running \`!new\` hook…`,
+  statusLine: () => `${Icons.hook} ${t('notice.hook.newRunning')}`,
   previewLine: (out) => {
     const preview = out.length > 80 ? out.slice(0, 80) + '…' : out;
     return `${Icons.hook} ${preview}`;
   },
-  errorLine: (err) => `${Icons.warning} \`!new\` hook failed: ${err}`,
-  emptyLine: () => `${Icons.hook} hook returned empty output — nothing to inject.`,
+  errorLine: (err) => `${Icons.warning} ${t('notice.hook.newFailed', { error: err })}`,
+  emptyLine: () => `${Icons.hook} ${t('notice.hook.empty')}`,
 };
 
 const ONMESSAGEEND_FORMAT: SessionHookFormat = {
-  statusLine: () => `${Icons.hook} Checking for unreleased locks…`,
+  statusLine: () => `${Icons.hook} ${t('notice.hook.lockChecking')}`,
   previewLine: (out) => {
     const preview = out.length > 80 ? out.slice(0, 80) + '…' : out;
     return `${Icons.hook} ${preview}`;
   },
-  errorLine: (err) => `${Icons.warning} Lock check failed: ${err}`,
+  errorLine: (err) => `${Icons.warning} ${t('notice.hook.lockFailed', { error: err })}`,
   // onMessageEnd is silent on empty output — the common case is "nothing to remind".
   emptyLine: () => null,
 };

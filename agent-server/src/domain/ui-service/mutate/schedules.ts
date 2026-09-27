@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '../types.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 
@@ -28,7 +29,7 @@ export async function handlePauseSchedule(
   try {
     const updated = await deps.scheduler.pause(args.scheduleId);
     if (!updated) {
-      return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+      return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
     }
     return { ok: true, data: undefined };
   } catch (err: any) {
@@ -43,7 +44,7 @@ export async function handleResumeSchedule(
   try {
     const updated = await deps.scheduler.resume(args.scheduleId);
     if (!updated) {
-      return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+      return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
     }
     return { ok: true, data: undefined };
   } catch (err: any) {
@@ -58,7 +59,7 @@ export async function handleRemoveSchedule(
   try {
     const removed = await deps.scheduler.remove(args.scheduleId);
     if (!removed) {
-      return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+      return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
     }
     return { ok: true, data: undefined };
   } catch (err: any) {
@@ -76,19 +77,19 @@ export async function handleAddSchedule(
 ): Promise<Result<ScheduleInfo>> {
   // Per-type required-field validation — return Err BEFORE calling add() so nothing is written.
   if (args.type === 'interval' && args.intervalMs === undefined) {
-    return { ok: false, code: 'invalid-args', message: 'intervalMs is required for type=interval' };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.intervalRequired') };
   }
   if ((args.type === 'daily' || args.type === 'weekly') && !args.time) {
-    return { ok: false, code: 'invalid-args', message: `time is required for type=${args.type}` };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.timeRequired', { type: args.type }) };
   }
   if (args.type === 'weekly' && args.dayOfWeek === undefined) {
-    return { ok: false, code: 'invalid-args', message: 'dayOfWeek is required for type=weekly' };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.dayOfWeekRequired') };
   }
   if (args.type === 'once' && args.delay === undefined) {
-    return { ok: false, code: 'invalid-args', message: 'delay is required for type=once' };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.delayRequired') };
   }
   if (!args.message) {
-    return { ok: false, code: 'invalid-args', message: 'message is required' };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.messageRequired') };
   }
 
   try {
@@ -137,21 +138,21 @@ export async function handleUpdateSchedule(
 ): Promise<Result<ScheduleInfo>> {
   const task = await deps.scheduler.get(args.scheduleId);
   if (!task) {
-    return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+    return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
   }
   const patch = buildUpdatePatch(args);
   if (Object.keys(patch).length === 0) {
-    return { ok: false, code: 'invalid-args', message: 'empty patch — provide at least one field' };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.emptyPatch') };
   }
   const allowed = new Set(['message', 'projectId', 'profile', ...UPDATE_TIMING_FIELDS[task.type]]);
   const invalid = Object.keys(patch).filter((key) => !allowed.has(key));
   if (invalid.length > 0) {
-    return { ok: false, code: 'invalid-args', message: `invalid fields for ${task.type}: ${invalid.join(', ')}` };
+    return { ok: false, code: 'invalid-args', message: t('ui.schedule.invalidFields', { type: task.type, fields: invalid.join(', ') }) };
   }
   try {
     const updated = await deps.scheduler.update(args.scheduleId, patch);
     if (!updated) {
-      return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+      return { ok: false, code: 'not-found', message: t('ui.schedule.notFound', { id: args.scheduleId }) };
     }
     return { ok: true, data: toScheduleInfo(updated) };
   } catch (err: any) {

@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { UncontrolledTextInput } from 'ink-text-input';
+import { t } from '../../core/i18n.js';
 
 export interface ConfirmModalProps {
   title: string;
@@ -59,8 +60,8 @@ export function ConfirmModal({
       <Box marginTop={1}>
         <Text dimColor>
           {reasonInput
-            ? 'Enter to confirm · Esc to cancel'
-            : 'y/Enter confirm · n/Esc cancel'}
+            ? t('tui.confirm.hintReason')
+            : t('tui.confirm.hint')}
         </Text>
       </Box>
     </Box>

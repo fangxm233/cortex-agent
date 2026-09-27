@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Modal, Select, useToast, type SelectOption } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
+import { trpcErrorCode, useTRPC } from '@/lib/trpc';
 import { RadioDot, SButton, SNotice, SPill, SSection, S_CONTROL_STYLE, Toggle } from '@/features/settings/ui/settings-ui';
 import {
   EmptyMessage, McpServerSummary, ROW,
@@ -68,8 +68,8 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function isConflictMessage(message: string): boolean {
-  return /changed on disk/i.test(message);
+function isConflictError(error: unknown, message: string): boolean {
+  return trpcErrorCode(error) === 'CONFLICT' || /changed on disk/i.test(message);
 }
 
 function targetKeyOf(target: PluginAssignmentTarget | null): string | null {
@@ -136,7 +136,7 @@ async function submitAssign(
     await args.assign.mutateAsync(args.payload);
   } catch (error) {
     const message = errorMessage(error);
-    if (!isConflictMessage(message)) {
+    if (!isConflictError(error, message)) {
       args.toast({ title: `${args.L.plToastFailed}: ${message}`, tone: 'failed' });
       return;
     }

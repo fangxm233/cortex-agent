@@ -43,6 +43,7 @@ import { enterCommissionDraft, leaveCommissionDraft } from '@domain/commissions/
 import { commissionRepo } from '@store/commission-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
+import { t } from '@core/i18n.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
@@ -56,8 +57,13 @@ function commissionDisabled(commission: unknown): Result<never> | null {
   return {
     ok: false,
     code: 'invalid-args',
-    message: 'Commission mode is disabled; enable settings.commissionEnabled to use it',
+    message: t('ui.session.commissionDisabled'),
   };
+}
+
+/** The " (expected one of: …)" tail of a refused selection value; empty when the rule gave no list. */
+function expectedOneOf(allowed: readonly string[] | undefined): string {
+  return allowed ? t('ui.session.expectedOneOf', { values: allowed.join(', ') }) : '';
 }
 
 export async function handleCreateSession(
@@ -93,12 +99,12 @@ export async function handleSetCommission(
   const disabled = commissionDisabled(args.commission.mode === 'off' ? null : args.commission);
   if (disabled) return disabled;
   const session = await deps.sessionStore.getById(args.sessionId);
-  if (!session) return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  if (!session) return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   if (session.commissionId) {
     return {
       ok: false,
       code: 'invalid-args',
-      message: 'This session is already bound to a commission — open a new session to work on another one',
+      message: t('ui.session.alreadyBound'),
     };
   }
 
@@ -120,10 +126,10 @@ export async function handleSetCommission(
   if (args.commission.mode === 'join') {
     const commission = await (deps.commissionStore ?? commissionRepo).find(args.commission.commissionId);
     if (!commission) {
-      return { ok: false, code: 'not-found', message: `Commission not found: ${args.commission.commissionId}` };
+      return { ok: false, code: 'not-found', message: t('ui.commission.notFound', { id: args.commission.commissionId }) };
     }
     if (commission.status !== 'active') {
-      return { ok: false, code: 'invalid-args', message: `Commission is ${commission.status}; only an active one accepts new sessions` };
+      return { ok: false, code: 'invalid-args', message: t('ui.commission.notActive', { status: commission.status }) };
     }
     // Joining mid-conversation is safe because the [Commission] block follows the binding rather
     // than the session's first turn: the next turn carries the contract index (DR-0037 v4).
@@ -145,25 +151,25 @@ export async function handleSendSession(
   args: SessionsSendArgs,
 ): Promise<Result<SessionsSendReturn>> {
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
-    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
   }
   if (deps.sessionStore.touchSessionUse && !(await deps.sessionStore.touchSessionUse(args.sessionId))) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   // Scheduled run (design 27b): a reply adopts the run as a normal direct session FIRST — its
   // registry channel is the shared project channel, which a web send must never target.
   let channel = session.channel;
   if (session.kind === 'scheduled') {
     if (!deps.adoptScheduledSession) {
-      return { ok: false, code: 'not-available', message: 'Replying to scheduled runs is not available' };
+      return { ok: false, code: 'not-available', message: t('ui.session.scheduledReplyUnavailable') };
     }
     const adopted = await deps.adoptScheduledSession({ sessionId: args.sessionId });
     if (!adopted) {
-      return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+      return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
     }
     channel = adopted.channel;
   }
@@ -186,7 +192,7 @@ export async function handleCancelSession(
 ): Promise<Result<SessionsCancelReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   const count = await deps.cancelSessionRun({ channel: session.channel });
   return { ok: true, data: { cancelled: count > 0, count } };
@@ -200,10 +206,10 @@ export async function handleCompactSession(
 ): Promise<Result<SessionsCompactReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   if (!deps.compactSession) {
-    return { ok: false, code: 'not-available', message: 'Session compaction is not available' };
+    return { ok: false, code: 'not-available', message: t('ui.session.compactUnavailable') };
   }
   const outcome = await deps.compactSession({ sessionId: args.sessionId });
   if (!('reason' in outcome)) {
@@ -212,16 +218,16 @@ export async function handleCompactSession(
   if (outcome.reason === 'running') {
     return {
       ok: false, code: 'session-running',
-      message: 'Session is running — stop it before compacting context',
+      message: t('ui.session.runningCompact'),
     };
   }
   if (outcome.reason === 'unsupported') {
     return {
       ok: false, code: 'not-available',
-      message: 'This session backend does not support manual context compaction',
+      message: t('ui.session.compactUnsupported'),
     };
   }
-  return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
 }
 
 export async function handleMarkReadSession(
@@ -230,7 +236,7 @@ export async function handleMarkReadSession(
 ): Promise<Result<void>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   await deps.sessionStore.markRead?.(args.sessionId);
   return { ok: true, data: undefined };
@@ -264,7 +270,7 @@ export async function handleCreateAndSend(
   args: SessionsCreateAndSendArgs,
 ): Promise<Result<SessionsCreateAndSendReturn>> {
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
-    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.textOrAttachments') };
   }
   const disabled = commissionDisabled(args.commission);
   if (disabled) return disabled;
@@ -320,17 +326,19 @@ export async function handleSetProfile(
 ): Promise<Result<SessionsSetProfileReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   const res = await deps.switchSessionProfile({ channel: session.channel, name: args.profileName });
   if (!res.ok) {
     if (res.reason === 'unknown-profile') {
-      return { ok: false, code: 'invalid-args', message: `Unknown profile: ${args.profileName}` };
+      return { ok: false, code: 'invalid-args', message: t('ui.session.unknownProfile', { name: args.profileName }) };
     }
     return {
       ok: false,
       code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-      message: `Can't switch to "${res.name}" (${res.targetBackend}) — this conversation runs on ${res.currentBackend}. Start a new session to change backend.`,
+      message: t('ui.session.backendLockedNamed', {
+        name: res.name, target: res.targetBackend, current: res.currentBackend,
+      }),
     };
   }
   return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
@@ -349,21 +357,23 @@ export async function handleSetAgent(
 ): Promise<Result<SessionsSetAgentReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   if (!deps.switchSessionAgent) {
-    return { ok: false, code: 'not-available', message: 'Agent selection is not available' };
+    return { ok: false, code: 'not-available', message: t('ui.session.agentUnavailable') };
   }
   const name = args.agentName ?? null;
   const res = await deps.switchSessionAgent({ channel: session.channel, name });
   if (!res.ok) {
     if (res.reason === 'unknown-agent') {
-      return { ok: false, code: 'invalid-args', message: `Unknown agent: ${String(name)}` };
+      return { ok: false, code: 'invalid-args', message: t('ui.session.unknownAgent', { name: String(name) }) };
     }
     return {
       ok: false,
       code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-      message: `Can't switch to "${String(name)}" (${res.targetBackend}) — this conversation runs on ${res.currentBackend}. Start a new session to change backend.`,
+      message: t('ui.session.backendLockedNamed', {
+        name: String(name), target: res.targetBackend, current: res.currentBackend,
+      }),
     };
   }
   return {
@@ -389,10 +399,10 @@ export async function handleSetSelection(
 ): Promise<Result<SessionsSetSelectionReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   if (!deps.applySessionSelection) {
-    return { ok: false, code: 'not-available', message: 'Model selection is not available' };
+    return { ok: false, code: 'not-available', message: t('ui.session.modelUnavailable') };
   }
   // Wire shape → domain shape: the client states the whole selection, the domain takes a patch, so
   // a field the client left out is an explicit "back to the profile's value".
@@ -412,29 +422,32 @@ export async function handleSetSelection(
       return {
         ok: false,
         code: 'backend-locked', // maps to CONFLICT in the tRPC layer
-        message: `Can't switch to ${result.targetBackend} — this conversation runs on ${result.currentBackend}. Start a new session to change backend.`,
+        message: t('ui.session.backendLocked', { target: result.targetBackend, current: result.currentBackend }),
       };
     }
     if (result.reason === 'invalid-thinking') {
       return {
         ok: false, code: 'invalid-args',
-        message: `Unsupported thinking level: ${String(args.selection?.thinking)}${result.allowed ? ` (expected one of: ${result.allowed.join(', ')})` : ''}`,
+        message: t('ui.session.invalidThinking', {
+          level: String(args.selection?.thinking), expected: expectedOneOf(result.allowed),
+        }),
       };
     }
     if (result.reason === 'invalid-mode') {
       return {
         ok: false, code: 'invalid-args',
-        message: `This session's gateway has no route "${String(args.selection?.mode)}"`
-          + `${result.allowed ? ` (expected one of: ${result.allowed.join(', ')})` : ''}`,
+        message: t('ui.session.invalidMode', {
+          mode: String(args.selection?.mode), expected: expectedOneOf(result.allowed),
+        }),
       };
     }
     if (result.reason === 'provider-not-supported') {
       return {
         ok: false, code: 'invalid-args',
-        message: `This session's backend has no provider to select (requested: ${String(args.selection?.provider)})`,
+        message: t('ui.session.noProvider', { provider: String(args.selection?.provider) }),
       };
     }
-    return { ok: false, code: 'invalid-args', message: `Unknown profile: ${String(args.profileName)}` };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.unknownProfile', { name: String(args.profileName) }) };
   }
   return {
     ok: true,
@@ -462,10 +475,10 @@ export async function handleRewindSession(
 ): Promise<Result<SessionsRewindReturn>> {
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   if (!args.text.trim()) {
-    return { ok: false, code: 'invalid-args', message: 'Edited text must not be empty' };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.editEmpty') };
   }
   if (!deps.rewindSession) {
     return { ok: false, code: 'not-available', message: 'rewindSession not wired' };
@@ -480,9 +493,9 @@ export async function handleRewindSession(
     return { ok: true, data: { accepted: true } };
   }
   if (res.reason === 'running') {
-    return { ok: false, code: 'session-running', message: 'Session is running — stop it before editing' };
+    return { ok: false, code: 'session-running', message: t('ui.session.runningEdit') };
   }
-  return { ok: false, code: 'not-found', message: `No turn ${args.turnIndex} to rewind in session ${args.sessionId}` };
+  return { ok: false, code: 'not-found', message: t('ui.session.noTurn', { turn: args.turnIndex, id: args.sessionId }) };
 }
 
 // Web UI: resolve a pending ask-user-question interaction. The web client renders the question
@@ -501,7 +514,7 @@ export async function handleAnswerQuestion(
   }
   const outcome = deps.answerQuestion(args.requestId, args.answers ?? {});
   if (outcome === 'not-found') {
-    return { ok: false, code: 'not-found', message: `No pending question for requestId: ${args.requestId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.noPendingQuestion', { id: args.requestId }) };
   }
   return { ok: true, data: { outcome } };
 }
@@ -536,21 +549,21 @@ export async function handleRespondDecision(
   }
   const message = (args.message ?? '').trim();
   if (args.action !== 'approve' && !message) {
-    return { ok: false, code: 'invalid-args', message: `message required for action "${args.action}"` };
+    return { ok: false, code: 'invalid-args', message: t('ui.session.decisionMessageRequired', { action: args.action }) };
   }
   if (!deps.conversationHistory.appendDecisionAction) {
     return { ok: false, code: 'not-available', message: 'appendDecisionAction not wired' };
   }
   const session = await deps.sessionStore.getById(args.sessionId);
   if (!session) {
-    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
   }
   const history = await deps.conversationHistory.getHistory(args.sessionId, { includeToolDebug: false });
   const decision = history?.events
     .flatMap(ev => ev.decisions ?? [])
     .find(d => d.id === args.decisionId);
   if (!decision) {
-    return { ok: false, code: 'not-found', message: `No decision ${args.decisionId} in session ${args.sessionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.noDecision', { decision: args.decisionId, id: args.sessionId }) };
   }
   // Idempotent approve: a double-click or a second device is a success, not an error.
   if (args.action === 'approve' && decision.actions.some(a => a.action === 'approve')) {
@@ -597,7 +610,7 @@ export async function handleRespondPlan(
   }
   const outcome = deps.respondPlan(args.requestId, args.approved, args.feedback);
   if (outcome === 'not-found') {
-    return { ok: false, code: 'not-found', message: `No pending plan for requestId: ${args.requestId}` };
+    return { ok: false, code: 'not-found', message: t('ui.session.noPendingPlan', { id: args.requestId }) };
   }
   return { ok: true, data: { outcome } };
 }

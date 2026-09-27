@@ -22,6 +22,7 @@ import type {
   HookContext,
   RunThreadOptions,
 } from '@core/types/thread-types.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('thread-hook');
 
@@ -149,7 +150,7 @@ async function runHookAgent(
   // platform post; the text is unchanged, it is now aggregated with the thread's output).
   const slackLabel = isTargetMode ? `→ ${slotId}` : `hook:${phase}`;
   try {
-    opts.stream.emitText(`${Icons.hook} Hook agent (*${slackLabel}*) starting...`);
+    opts.stream.emitText(`${Icons.hook} ${t('notice.thread.hookStarting', { label: `*${slackLabel}*` })}`);
   } catch {}
 
   const meta = thread.metadata;

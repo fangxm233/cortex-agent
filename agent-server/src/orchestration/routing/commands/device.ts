@@ -5,17 +5,7 @@ import { getOnlineDevices } from '@domain/remote/client-manager.js';
 import { getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
-
-function formatTimeAgo(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
+import { formatTimeAgo } from './time-ago.js';
 
 function buildDevicesText(): string {
   const onlineDevices = getOnlineDevices();

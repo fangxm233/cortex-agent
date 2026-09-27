@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import {
   authLoginService,
   bindAuthNoticeFlow,
@@ -24,22 +25,23 @@ function serviceFor(deps: UiServiceDeps): AuthLoginService {
   return deps.authLogin ?? authLoginService;
 }
 
+// The coordinator's state errors are plain Errors rendered in the active locale; recognise them
+// by the same rendering.
+const FLOW_STATE_ERRORS: ReadonlyArray<[key: string, code: string]> = [
+  ['ux.auth.flowNotFound', 'not-found'],
+  ['ux.auth.flowNotActive', 'already-terminal'],
+  ['ux.auth.flowNotWaiting', 'invalid-args'],
+];
+
 function failure(error: unknown): Result<never> {
   const message = error instanceof Error ? error.message : String(error);
-  if (message === 'Login flow not found or expired.') {
-    return { ok: false, code: 'not-found', message };
-  }
-  if (message === 'Login flow is not active.') {
-    return { ok: false, code: 'already-terminal', message };
-  }
-  if (message === 'Login flow is not waiting for a prompt response.') {
-    return { ok: false, code: 'invalid-args', message };
-  }
+  const stateError = FLOW_STATE_ERRORS.find(([key]) => message === t(key));
+  if (stateError) return { ok: false, code: stateError[1], message };
   if (isLoginFlowError(error)) {
     const code = error.code === 'flow_conflict' ? 'already-exists' : 'invalid-args';
     return { ok: false, code, message: error.message };
   }
-  return { ok: false, code: 'internal', message: 'Authentication flow failed.' };
+  return { ok: false, code: 'internal', message: t('ux.auth.flowFailed') };
 }
 
 async function asResult(operation: () => Promise<LoginFlowState>): Promise<Result<LoginFlowState>> {
@@ -56,7 +58,7 @@ function isWebOwned(service: AuthLoginService, flowId: string): boolean {
 }
 
 function missingWebFlow(): Result<never> {
-  return { ok: false, code: 'not-found', message: 'Login flow not found or expired.' };
+  return { ok: false, code: 'not-found', message: t('ux.auth.flowNotFound') };
 }
 
 function startWebFlow(service: AuthLoginService, args: AuthStartLoginArgs) {
@@ -74,7 +76,7 @@ async function startWebNoticeFlow(
   if (resolved.kind === 'state') {
     return resolved.state.channel === null && resolved.state.sessionId === null
       ? { ok: true, data: resolved.state }
-      : { ok: false, code: 'already-exists', message: 'Login is active on another surface.' };
+      : { ok: false, code: 'already-exists', message: t('ux.auth.activeElsewhere') };
   }
   const result = await asResult(() => startWebFlow(service, args));
   if (result.ok) bindAuthNoticeFlow(service, args.noticeId, result.data.flowId);

@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { taskMutator } from '@domain/tasks/mutator.js';
 import { acquireLockAsync, releaseLockAsync, getOwnerIdentity } from '@domain/tasks/system/task-lock.js';
 import type { UiServiceDeps, Result } from '../types.js';
@@ -11,7 +12,7 @@ async function withTaskLock<T>(
   // Async lock: the UI mutation must not park the event loop while another process holds the lock.
   const acq = await acquireLockAsync(projectId, { owner });
   if (!acq.acquired) {
-    return { ok: false, code: 'task-lock-busy', message: acq.message || 'Task lock is busy' };
+    return { ok: false, code: 'task-lock-busy', message: acq.message || t('ui.task.lockBusy') };
   }
   try {
     const result = await fn();
@@ -28,7 +29,7 @@ export async function handleClaimTask(
   return withTaskLock(deps, args.projectId, async () => {
     const result = await taskMutator.claim(args.taskId, getOwnerIdentity());
     if (!result.success) {
-      throw new Error(result.message || 'Claim failed');
+      throw new Error(result.message || t('ui.task.claimFailed'));
     }
   });
 }
@@ -40,7 +41,7 @@ export async function handleUnclaimTask(
   return withTaskLock(deps, args.projectId, async () => {
     const result = await taskMutator.unclaim(args.taskId);
     if (!result.success) {
-      throw new Error(result.message || 'Unclaim failed');
+      throw new Error(result.message || t('ui.task.unclaimFailed'));
     }
   });
 }
@@ -52,7 +53,7 @@ export async function handleCompleteTask(
   return withTaskLock(deps, args.projectId, async () => {
     const result = await taskMutator.complete(args.taskId, args.note);
     if (!result.success) {
-      throw new Error(result.message || 'Complete failed');
+      throw new Error(result.message || t('ui.task.completeFailed'));
     }
   });
 }
@@ -64,7 +65,7 @@ export async function handleBlockTask(
   return withTaskLock(deps, args.projectId, async () => {
     const result = await taskMutator.block(args.taskId, args.reason);
     if (!result.success) {
-      throw new Error(result.message || 'Block failed');
+      throw new Error(result.message || t('ui.task.blockFailed'));
     }
   });
 }
@@ -76,7 +77,7 @@ export async function handleUnblockTask(
   return withTaskLock(deps, args.projectId, async () => {
     const result = await taskMutator.unblock(args.taskId);
     if (!result.success) {
-      throw new Error(result.message || 'Unblock failed');
+      throw new Error(result.message || t('ui.task.unblockFailed'));
     }
   });
 }

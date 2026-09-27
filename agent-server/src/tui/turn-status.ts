@@ -4,6 +4,8 @@
 //   done/error: "✅ Done | <name> · `<uuid>` | (<dur> · <n> turns · $<cost>)"
 // Parsing is defensive: any missing field is simply omitted.
 
+import { t } from '../core/i18n.js';
+
 export interface TurnStatus {
   /** Leading "<icon> <word>" segment, e.g. "⏳ Processing" or "✅ Done". */
   state: string;
@@ -35,7 +37,7 @@ export function parseTurnStatus(text: string): TurnStatus {
     if (paren) time = paren[1];
   }
 
-  const turnsM = trimmed.match(/([0-9]+)\s*turns?\b/);
+  const turnsM = trimmed.match(/([0-9]+)\s*(?:turns?\b|轮)/);
   const turns = turnsM ? Number(turnsM[1]) : null;
 
   const costM = trimmed.match(/\$([0-9]+(?:\.[0-9]+)?)/);
@@ -48,7 +50,7 @@ export function parseTurnStatus(text: string): TurnStatus {
 export function formatTurnStatus(s: TurnStatus): string {
   const parts: string[] = [s.state];
   if (s.time) parts.push(s.time);
-  if (s.turns != null) parts.push(`${s.turns} turns`);
+  if (s.turns != null) parts.push(t('tui.turnStatus.turns', { n: s.turns }));
   if (s.cost != null) parts.push(`$${s.cost}`);
   return parts.join(' · ');
 }

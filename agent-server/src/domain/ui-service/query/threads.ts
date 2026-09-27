@@ -1,3 +1,4 @@
+import * as i18n from '@core/i18n.js';
 import { readFile } from 'node:fs/promises';
 import type {
   UiServiceDeps,
@@ -92,7 +93,7 @@ export async function handleThreadsGet(
   params: ThreadsGetParams,
 ): Promise<ThreadDetail> {
   const t: any = deps.threadStore.get(params.threadId);
-  if (!t) throw new Error(`thread not found: ${params.threadId}`);
+  if (!t) throw new Error(i18n.t('ui.thread.notFound', { id: params.threadId }));
 
   const steps = buildSteps(t);
   const content = await readArtifactContent(t.artifactPath ?? null, params.includeArtifactContent);

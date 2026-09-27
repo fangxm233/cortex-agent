@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import type { UiServiceDeps, MachineDetail, MachineDetailParams, MachineLiveRun } from '../types.js';
 import { buildProbeCommand, parseMachineProbe, PROBE_TIMEOUT_MS } from './machine-probe.js';
 
@@ -25,7 +26,7 @@ export async function handleMachineDetail(
   params: MachineDetailParams,
 ): Promise<MachineDetail> {
   const entry = deps.clientRegistry.getMachineRegistry()[params.machine];
-  if (!entry) throw new Error(`Unknown machine: ${params.machine}`);
+  if (!entry) throw new Error(t('ui.machine.unknown', { name: params.machine }));
 
   const liveRuns = collectLiveRuns(deps, params.machine);
 
@@ -35,7 +36,7 @@ export async function handleMachineDetail(
   }
 
   const probe = deps.clientRegistry.probeMachine;
-  if (!probe) return emptyDetail(params.machine, true, liveRuns, 'Probe transport unavailable');
+  if (!probe) return emptyDetail(params.machine, true, liveRuns, t('ux.machine.probeUnavailable'));
 
   try {
     const raw = await probe(params.machine, buildProbeCommand(entry.cortexPath), PROBE_TIMEOUT_MS);

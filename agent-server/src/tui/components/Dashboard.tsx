@@ -8,6 +8,7 @@ import { DashboardSchedulesTab } from './DashboardSchedulesTab.js';
 import { DashboardExecutionsTab } from './DashboardExecutionsTab.js';
 import { DashboardCostTab } from './DashboardCostTab.js';
 import type { MutateResult } from '../hooks/useMutate.js';
+import { t } from '../../core/i18n.js';
 
 // ── Types ──
 
@@ -16,12 +17,17 @@ export interface DashboardTabInfo {
   label: string;
 }
 
+// Labels are getters so the tab bar follows the active locale (not the one at module load).
+function tab(key: TabName): DashboardTabInfo {
+  return { key, get label() { return t(`tui.dash.tab.${key}`); } };
+}
+
 export const DASHBOARD_TABS: DashboardTabInfo[] = [
-  { key: 'threads', label: 'Threads' },
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'schedules', label: 'Schedules' },
-  { key: 'executions', label: 'Executions' },
-  { key: 'cost', label: 'Cost' },
+  tab('threads'),
+  tab('tasks'),
+  tab('schedules'),
+  tab('executions'),
+  tab('cost'),
 ];
 
 interface DashboardProps {
@@ -131,7 +137,7 @@ function TabContent({
     case 'cost':
       return <DashboardCostTab data={dashState.tabs.cost} />;
     default:
-      return <Text dimColor>Unknown tab</Text>;
+      return <Text dimColor>{t('tui.dash.unknownTab')}</Text>;
   }
 }
 

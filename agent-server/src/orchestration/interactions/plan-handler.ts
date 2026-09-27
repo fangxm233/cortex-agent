@@ -1,6 +1,7 @@
 import type { PlatformAdapter } from '@platform/index.js';
 import { postOnce } from '@platform/index.js';
 import { Icons } from '../../core/icons.js';
+import { t } from '../../core/i18n.js';
 
 
 async function sendPlanToSlack(
@@ -11,12 +12,12 @@ async function sendPlanToSlack(
 ): Promise<void> {
   if (!planContent) {
     const label = machine ? `**[PLAN: ${machine}]**` : '**[PLAN]**';
-    await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} Plan generated but no content found.`, { threadId: threadAnchorId });
+    await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${t('notice.plan.noContent')}`, { threadId: threadAnchorId });
     return;
   }
 
   const label = '**[PLAN]**';
-  const prompt = 'Generated plan — use the buttons below to approve or provide feedback:';
+  const prompt = t('notice.plan.generated');
 
   await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${prompt}\n${planContent}`, { threadId: threadAnchorId });
 }

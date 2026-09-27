@@ -24,6 +24,7 @@ import type { Destination } from '@platform/index.js';
 // Type-only, so `domain` still never depends on `orchestration` at runtime: the run itself
 // arrives through `ctx.runThreadOnSurface`, injected by app.ts.
 import type { TaskVerdict, ThreadRunOutcome, ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
+import { t } from '@core/i18n.js';
 
 /** The precise shape of `ctx.runThreadOnSurface` — see the type's doc in job-registry for why it
  *  is re-declared here rather than named there. */
@@ -424,8 +425,8 @@ async function quarantineAfterFailure(taskId: string, ownership: { generation: s
 async function postDispatchErrorNotice(destination: Destination, selectedTask: Record<string, any> | null, error: Error, blocked: boolean): Promise<void> {
   const notify = requireJobCtx('notify');
   const text = blocked && selectedTask
-    ? `${Icons.blocked} Auto-blocked after ${DISPATCH_FAILURE_QUARANTINE_THRESHOLD} consecutive dispatch failures. Reason recorded in TASKS.yaml. Task: [${selectedTask.project}] ${String(selectedTask.text).substring(0, 80)}. Last error: ${error.message}. Unblock with \`cortex-task unblock --task-id ${selectedTask.id}\`.`
-    : `${Icons.error} Task dispatch error: ${error.message}`;
+    ? `${Icons.blocked} ${t('notice.dispatch.autoBlocked', { n: DISPATCH_FAILURE_QUARANTINE_THRESHOLD, task: `[${selectedTask.project}] ${String(selectedTask.text).substring(0, 80)}`, error: error.message, id: selectedTask.id })}`
+    : `${Icons.error} ${t('notice.dispatch.error', { error: error.message })}`;
   try {
     await notify(destination, text);
   } catch {}
@@ -463,9 +464,9 @@ export async function cancelDispatchedTask({ taskId, channel }: { taskId: string
   try {
     executionRegistry.cancelExecutionByTaskId(taskId);
     pendingTaskTracker.clearTask(taskId);
-    return { ok: true, message: `${Icons.stopped} Cancelled task [${taskId}].` };
+    return { ok: true, message: `${Icons.stopped} ${t('notice.dispatch.cancelled', { id: taskId })}` };
   } catch (error) {
-    return { ok: false, message: `Failed to cancel \`${taskId}\`: ${(error as Error).message}` };
+    return { ok: false, message: t('notice.dispatch.cancelFailed', { id: taskId, error: (error as Error).message }) };
   }
 }
 

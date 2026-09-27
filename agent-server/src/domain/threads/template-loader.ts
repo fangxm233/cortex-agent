@@ -9,6 +9,7 @@ import { resolveTemplate } from './template-resolver.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
 import { validateRegistry, type RawRegistry, type RefResolver } from './template-validate.js';
 import type { AgentDefinition, ThreadTemplate, ThreadConfigFile, ShellDefinition } from '@core/types/thread-types.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('thread-manager');
 /** Legacy single-file config (pre-Phase-2.5). Auto-migrated to CONFIG_TEMPLATES_DIR on startup. */
@@ -450,7 +451,7 @@ function startPromptsWatcher(): void {
           _promptsReloadTimer = setTimeout(() => {
             _promptsReloadTimer = null;
             log.info(`Detected change in prompts/${rel}/${filename || '?'}, reloading config...`);
-            _adminNotifier?.(`${Icons.refresh} prompts/\`${rel}/${filename || '?'}\` changed — thread-templates reloaded`);
+            _adminNotifier?.(`${Icons.refresh} ${t('notice.templates.reloaded', { file: `${rel}/${filename || '?'}` })}`);
             loadConfig();
           }, 300);
         });

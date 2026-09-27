@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import {
   applyAuthEnv,
   saveAnthropicApiKey,
@@ -16,7 +17,7 @@ export async function loginClaudeApiKey(
 ): Promise<ClaudeApiKeyLoginOutcome> {
   const apiKey = await interaction.prompt({
     type: 'secret',
-    message: 'Enter your Anthropic API key.',
+    message: t('ux.auth.apiKeyPrompt'),
   });
   await saveAnthropicApiKey(apiKey);
   applyAuthEnv();

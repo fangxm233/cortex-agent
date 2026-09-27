@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { commissionRepo } from '@store/commission-repo.js';
 import type { UiServiceDeps, Result, CommissionCloseArgs, CommissionInfo } from '../types.js';
 import { toCommissionInfo } from '../query/commissions.js';
@@ -11,10 +12,10 @@ export async function handleCommissionClose(
   const store = deps.commissionStore ?? commissionRepo;
   const record = await store.find(args.commissionId);
   if (!record) {
-    return { ok: false, code: 'not-found', message: `Commission not found: ${args.commissionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.commission.notFound', { id: args.commissionId }) };
   }
   if (record.status !== 'active') {
-    return { ok: false, code: 'already-terminal', message: `Commission is already ${record.status}` };
+    return { ok: false, code: 'already-terminal', message: t('ui.commission.alreadyClosed', { status: record.status }) };
   }
   const updated = await store.update(args.commissionId, (r) => {
     r.status = args.status;
@@ -22,7 +23,7 @@ export async function handleCommissionClose(
     if (args.note) r.closeNote = args.note;
   });
   if (!updated) {
-    return { ok: false, code: 'not-found', message: `Commission not found: ${args.commissionId}` };
+    return { ok: false, code: 'not-found', message: t('ui.commission.notFound', { id: args.commissionId }) };
   }
   deps.bus.publish({ type: 'commission.updated', commissionId: updated.id, projectId: updated.projectId });
   return { ok: true, data: toCommissionInfo(updated) };

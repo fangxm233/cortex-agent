@@ -11,6 +11,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { ModalDefinition, ModalField, TuiFrame, ModalFieldValue } from '../../platform/tui/protocol.js';
+import { t } from '../../core/i18n.js';
 
 // ── Props ──
 
@@ -84,7 +85,7 @@ export function AskUserModal({
   optionFocusRef.current = optionFocus;
 
   const interactiveFields = useMemo(() => getInteractiveFields(modal.fields), [modal.fields]);
-  const submitLabel = modal.submitLabel || 'Submit';
+  const submitLabel = modal.submitLabel || t('tui.modal.submit');
 
   // --- Build a flat list of keyboard focusable slots ---
   // Each slot is either:
@@ -439,7 +440,7 @@ export function AskUserModal({
               {val ? (
                 <Text>{val}</Text>
               ) : (
-                <Text dimColor>{field.placeholder || 'Type here...'}</Text>
+                <Text dimColor>{field.placeholder || t('tui.modal.typeHere')}</Text>
               )}
             </Box>
           </Box>
@@ -489,8 +490,8 @@ export function AskUserModal({
       <Box marginTop={1}>
         <Text dimColor>
           {fieldFocus === -1
-            ? 'Enter submit · ↑/↓ navigate · Esc cancel'
-            : '↑/↓ navigate · Enter select · Esc cancel'}
+            ? t('tui.modal.hintSubmit')
+            : t('tui.modal.hintSelect')}
         </Text>
       </Box>
     </Box>

@@ -1,6 +1,7 @@
 import type { PlatformAdapter } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { holdNewTurns, releaseNewTurnHold } from '@domain/system/rebuild-hold.js';
+import { t } from '@core/i18n.js';
 
 /** Messages the daemon supervisor pushes DOWN to the running app over the fork IPC channel.
  *  The reverse direction (busy/idle) is owned by orchestration/busy-tracker. */
@@ -34,7 +35,7 @@ export async function handleDaemonMessage(
     return true;
   }
   if (msg?.type !== 'rebuild-aborted' || !msg.text) return false;
-  await emitSystemNotice(adapter, { level: 'error', title: 'Rebuild', text: msg.text });
+  await emitSystemNotice(adapter, { level: 'error', title: t('notice.rebuild.title'), text: msg.text });
   return true;
 }
 

@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import * as fs from 'node:fs';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type {
@@ -14,7 +15,7 @@ import { parseApprovals, headingId } from '../query/approvals.js';
 import { approvalsRequestInput } from '../input-schemas.js';
 
 function notFound(id: string): Error {
-  return Object.assign(new Error(`Approval not found: ${id}`), { code: 'not-found' });
+  return Object.assign(new Error(t('ui.approval.notFound', { id })), { code: 'not-found' });
 }
 
 /**
@@ -117,23 +118,23 @@ export function buildApprovalEntry(
   let impact: string;
   let command: string;
   if (args.kind === 'reconnect-platform') {
-    const label = args.platform === 'feishu' ? '飞书' : 'Slack';
-    title = `Reconnect ${label} gateway`;
-    operation = `Reconnect the ${label} messaging gateway`;
-    impact = `${label} platform connection (restarts the gateway)`;
+    const label = t(args.platform === 'feishu' ? 'ui.approval.platform.feishu' : 'ui.approval.platform.slack');
+    title = t('ui.approval.reconnectTitle', { label });
+    operation = t('ui.approval.reconnectOperation', { label });
+    impact = t('ui.approval.reconnectImpact', { label });
     command = `reconnect ${args.platform}`;
   } else {
     const name = (args.machineName ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 80);
-    title = `Add machine ${name}`;
-    operation = `Register a new machine "${name}" in machines.json`;
-    impact = 'machines.json · client lifecycle (a new remote client will be managed)';
+    title = t('ui.approval.addMachineTitle', { name });
+    operation = t('ui.approval.addMachineOperation', { name });
+    impact = t('ui.approval.addMachineImpact');
     command = `add-machine ${name}`;
   }
   const heading = `## ${today} ${title}`;
   const block =
     `${heading}\n` +
     `- **Operation**: ${operation}\n` +
-    `- **Reason**: Requested from the Web settings panel — high-privilege, gated for approval\n` +
+    `- **Reason**: ${t('ui.approval.webReason')}\n` +
     `- **Impact**: ${impact}\n` +
     `- **Command/Action**: ${command}\n` +
     `- **Status**: pending\n`;

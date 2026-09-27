@@ -1,8 +1,16 @@
+import { t } from '../core/i18n.js';
+
 export interface SlashCommand {
   /** Command id, also the text after the leading `/` (e.g. 'new'). */
   name: string;
   /** One-line description shown in the menu. */
   description: string;
+}
+
+// Descriptions are getters (tui.slash.<name>) so the palette follows the active locale instead of
+// freezing whatever language was set when this module loaded.
+function cmd(name: string): SlashCommand {
+  return { name, get description() { return t(`tui.slash.${name}`); } };
 }
 
 // The palette mirrors the server's `!` command set (see orchestration/routing/commands). Names
@@ -12,39 +20,39 @@ export interface SlashCommand {
 // omitted but still usable by typing the raw `!` form.
 export const SLASH_COMMANDS: SlashCommand[] = [
   // Session / conversation
-  { name: 'new', description: 'New conversation — saves memory, then clears the view' },
-  { name: 'newx', description: 'New conversation (fast) — skips the save, clears the view' },
-  { name: 'resume', description: 'Resume a session — /resume for the picker, /resume <id> to jump' },
-  { name: 'cancel', description: 'Cancel the current turn' },
-  { name: 'restart', description: 'Restart the Cortex server (reconnects automatically)' },
+  cmd('new'),
+  cmd('newx'),
+  cmd('resume'),
+  cmd('cancel'),
+  cmd('restart'),
   // Status / orientation
-  { name: 'status', description: 'Show running executions and system status' },
-  { name: 'orient', description: 'Project-wide status briefing — what to work on next' },
-  { name: 'projects', description: 'List known projects' },
+  cmd('status'),
+  cmd('orient'),
+  cmd('projects'),
   // Cost / budget
-  { name: 'cost', description: 'Show cost summary — /cost [today|week|month]' },
-  { name: 'budget', description: 'Show or set the daily/monthly budget' },
+  cmd('cost'),
+  cmd('budget'),
   // Tasks / threads / scheduling
-  { name: 'tasks', description: 'List or manage tasks — /tasks [args]' },
-  { name: 'thread', description: 'Start or manage a thread — /thread <agent> <message>' },
-  { name: 'agent', description: 'Run a one-off agent — /agent <name> <message>' },
-  { name: 'schedule', description: 'Create or manage scheduled tasks — /schedule [args]' },
-  { name: 'dispatch', description: 'Dispatch a task to the fleet — /dispatch <args>' },
+  cmd('tasks'),
+  cmd('thread'),
+  cmd('agent'),
+  cmd('schedule'),
+  cmd('dispatch'),
   // Mode / model / profile
-  { name: 'mode', description: 'Show the current runtime mode' },
-  { name: 'model', description: 'Show or switch the model — /model [name]' },
-  { name: 'backend', description: 'Show or switch the agent backend — /backend [name]' },
-  { name: 'profile', description: 'Show or switch the agent profile — /profile [name]' },
-  { name: 'skills', description: 'List available skills' },
+  cmd('mode'),
+  cmd('model'),
+  cmd('backend'),
+  cmd('profile'),
+  cmd('skills'),
   // Devices / GPU / logs
-  { name: 'devices', description: 'List connected client devices' },
-  { name: 'nvtop', description: 'GPU usage snapshot (nvtop) — /nvtop [device]' },
-  { name: 'nvidia-smi', description: 'GPU status (nvidia-smi) — /nvidia-smi [device]' },
-  { name: 'tail', description: 'Tail the daemon log — /tail [lines]' },
+  cmd('devices'),
+  cmd('nvtop'),
+  cmd('nvidia-smi'),
+  cmd('tail'),
   // Misc
-  { name: 'lang', description: 'Show or switch the UI language — /lang [zh|en]' },
-  { name: 'mouse', description: 'Toggle mouse capture — off frees the mouse for text selection' },
-  { name: 'help', description: 'Show available slash commands' },
+  cmd('lang'),
+  cmd('mouse'),
+  cmd('help'),
 ];
 
 export interface ParsedSlash {

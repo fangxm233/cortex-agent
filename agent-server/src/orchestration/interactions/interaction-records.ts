@@ -8,6 +8,7 @@ import type {
   InteractionResult,
   InteractionResolvedVia,
 } from '../../store/conversation-history-repo.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('interaction-records');
 
@@ -37,21 +38,21 @@ interface HistoryDep {
 export function buildCreatedText(kind: InteractionKind, payload: InteractionPayload): string {
   if (kind === 'ask-user') {
     const qs = payload.questions ?? [];
-    return qs.length ? qs.map((q) => q.question).join('\n') : 'Question';
+    return qs.length ? qs.map((q) => q.question).join('\n') : t('notice.interaction.question');
   }
-  return 'Plan submitted for approval';
+  return t('notice.interaction.planSubmitted');
 }
 
 export function buildResolvedText(kind: InteractionKind, status: InteractionStatus, result?: InteractionResult): string {
-  if (status === 'expired') return kind === 'plan-approval' ? 'Plan approval expired' : 'Question expired';
-  if (status === 'cancelled') return kind === 'plan-approval' ? 'Plan approval cancelled' : 'Question cancelled';
+  if (status === 'expired') return t(kind === 'plan-approval' ? 'notice.interaction.planExpired' : 'notice.interaction.questionExpired');
+  if (status === 'cancelled') return t(kind === 'plan-approval' ? 'notice.interaction.planCancelled' : 'notice.interaction.questionCancelled');
   if (kind === 'ask-user') {
     const answers = result?.answers ?? {};
     const parts = Object.entries(answers).map(([q, a]) => `${q} → ${a}`);
-    return parts.length ? parts.join('\n') : 'Question answered';
+    return parts.length ? parts.join('\n') : t('notice.interaction.questionAnswered');
   }
-  if (status === 'approved') return 'Plan approved';
-  return result?.feedback ? `Plan rejected: ${result.feedback}` : 'Plan rejected';
+  if (status === 'approved') return t('notice.interaction.planApproved');
+  return result?.feedback ? t('notice.interaction.planRejectedWith', { feedback: result.feedback }) : t('notice.interaction.planRejected');
 }
 
 /** Legacy-compatible subtype for display (old clients render InteractionRow off this). */

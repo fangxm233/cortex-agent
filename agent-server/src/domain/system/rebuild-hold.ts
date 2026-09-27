@@ -105,7 +105,7 @@ export async function refuseTurnForRebuild(p: {
   }
   await emitSystemNotice(p.adapter, {
     level: 'warning',
-    title: 'Rebuild',
+    title: t('notice.rebuild.title'),
     text: t('startup.rebuildHoldDropped', { phase, channel: p.channel, preview: preview(p.text) }),
   }).catch(() => {});
 }

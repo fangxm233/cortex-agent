@@ -1,5 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { setLocale } from '../../../src/core/i18n.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -126,12 +127,26 @@ test('handleRejectApproval returns not-found for unknown id', async () => {
 // ── (7) approvals.request: enqueue-only, server-constructed prose ─────────────────────────────
 test('buildApprovalEntry builds a parseable pending entry from the closed kind enum', () => {
   const { heading, block } = buildApprovalEntry({ kind: 'reconnect-platform', platform: 'feishu' }, '2026-07-10');
-  assert.match(heading, /^## 2026-07-10 Reconnect 飞书 gateway$/);
+  assert.match(heading, /^## 2026-07-10 Reconnect Feishu gateway$/);
   const parsed = parseApprovals(block);
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0].status, 'pending');
-  assert.equal(parsed[0].title, 'Reconnect 飞书 gateway');
+  assert.equal(parsed[0].title, 'Reconnect Feishu gateway');
   assert.match(parsed[0].command!, /reconnect feishu/);
+});
+
+test('buildApprovalEntry renders its prose in the active locale — 飞书 in zh, Feishu in en', () => {
+  try {
+    setLocale('zh');
+    const { heading, block } = buildApprovalEntry({ kind: 'reconnect-platform', platform: 'feishu' }, '2026-07-10');
+    assert.equal(heading, '## 2026-07-10 重连飞书网关');
+    // The bullet labels are the parser's format and stay English; only their values follow the locale.
+    const [entry] = parseApprovals(block);
+    assert.equal(entry.operation, '重连飞书消息网关');
+    assert.equal(entry.status, 'pending');
+  } finally {
+    setLocale('en');
+  }
 });
 
 test('buildApprovalEntry sanitizes machineName — no markdown injection (newlines stripped)', () => {

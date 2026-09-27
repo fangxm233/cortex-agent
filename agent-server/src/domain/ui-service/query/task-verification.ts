@@ -5,6 +5,7 @@
 // per-task execution join by `dispatch.taskId`. Every field with no structured source is an honest
 // null / [] — never fabricated.
 
+import { t } from '@core/i18n.js';
 import type {
   UiServiceDeps,
   TaskVerificationParams,
@@ -41,7 +42,7 @@ export async function handleTaskVerification(
   deps.taskStore.refresh();
   const task = deps.taskStore.getById(taskId);
   if (!task || task.project !== projectId) {
-    throw Object.assign(new Error(`Task not found: ${projectId}/${taskId}`), { code: 'not-found' });
+    throw Object.assign(new Error(t('ui.task.notFound', { id: `${projectId}/${taskId}` })), { code: 'not-found' });
   }
 
   // Per-task execution/dispatch join by taskId, newest first.

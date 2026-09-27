@@ -72,8 +72,8 @@ export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
   'interaction.noSpecificFeedback': '没有具体反馈',
   'interaction.cancelledPreserved': '已取消。会话已保留 — 下一条消息将继续。',
   'interaction.sessionActive': '会话 `${sessionName}` 已激活 — 请在下方发送你的消息。${profileNote}',
-  'interaction.sessionProfileNote': '（profile：${profileName}）',
-  'interaction.newConversation': '--- 新会话 --- (profile: ${profileName})',
+  'interaction.sessionProfileNote': '（配置：${profileName}）',
+  'interaction.newConversation': '--- 新会话 ---（配置：${profileName}）',
 
   // --- update-prompt.ts / update-prompt-slack.ts ---
   'update.installing': '正在安装 @cortex-agent/server@${version}……守护进程稍后将重启。',

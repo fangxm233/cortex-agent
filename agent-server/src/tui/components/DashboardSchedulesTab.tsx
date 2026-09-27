@@ -5,6 +5,7 @@ import type { MutateResult, MutateError } from '../hooks/useMutate.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { computeFocusWindow } from '../logic.js';
 import { DASHBOARD_MAX_VISIBLE_ROWS } from './dashboard-constants.js';
+import { t } from '../../core/i18n.js';
 
 interface DashboardSchedulesTabProps {
   data: TabData;
@@ -15,13 +16,13 @@ interface DashboardSchedulesTabProps {
 
 export function DashboardSchedulesTab({ data, mutate, active = true }: DashboardSchedulesTabProps): React.JSX.Element {
   if (data.loading && data.data.length === 0) {
-    return <Text dimColor>Loading schedules...</Text>;
+    return <Text dimColor>{t('tui.dash.schedules.loading')}</Text>;
   }
   if (data.error) {
-    return <Text color="red">Error: {data.error}</Text>;
+    return <Text color="red">{t('tui.common.error', { message: data.error })}</Text>;
   }
   if (data.data.length === 0) {
-    return <Text dimColor>No schedules</Text>;
+    return <Text dimColor>{t('tui.dash.schedules.empty')}</Text>;
   }
 
   return <SchedulesList data={data} mutate={mutate} active={active} />;
@@ -129,13 +130,13 @@ function SchedulesList({ data, mutate, active = true }: DashboardSchedulesTabPro
         <Box marginLeft={2}>
           <Text dimColor>
             {sched.paused
-              ? `paused by ${sched.pausedBy ?? '?'}`
-              : `next: ${sched.nextRun ? new Date(sched.nextRun).toLocaleString() : 'never'}`}
+              ? t('tui.dash.schedules.pausedBy', { who: sched.pausedBy ?? '?' })
+              : nextRunLabel(sched.nextRun)}
           </Text>
         </Box>
         {isFocused ? (
           <Box marginLeft={2}>
-            <Text>[p] Pause [r] Resume [x] Remove</Text>
+            <Text>{t('tui.dash.schedules.keys')}</Text>
           </Box>
         ) : null}
         {errorState?.scheduleId === sched.id ? (
@@ -153,12 +154,12 @@ function SchedulesList({ data, mutate, active = true }: DashboardSchedulesTabPro
   if (removingScheduleId !== null) {
     const sched = schedules.find(s => s.id === removingScheduleId);
     const body = sched
-      ? `${sched.type}: ${sched.message ?? ''} | next: ${sched.nextRun ? new Date(sched.nextRun).toLocaleString() : 'never'}`
+      ? `${sched.type}: ${sched.message ?? ''} | ${nextRunLabel(sched.nextRun)}`
       : '';
 
     confirmModal = (
       <ConfirmModal
-        title="Remove schedule?"
+        title={t('tui.dash.schedules.removeTitle')}
         body={body}
         onConfirm={() => {
           const id = removingScheduleIdRef.current;
@@ -178,12 +179,18 @@ function SchedulesList({ data, mutate, active = true }: DashboardSchedulesTabPro
 
   return (
     <Box flexDirection="column">
-      {hiddenAbove > 0 ? <Text dimColor>↑ {hiddenAbove} more above</Text> : null}
+      {hiddenAbove > 0 ? <Text dimColor>{t('tui.common.moreAbove', { n: hiddenAbove })}</Text> : null}
       {rows}
-      {hiddenBelow > 0 ? <Text dimColor>↓ {hiddenBelow} more below</Text> : null}
+      {hiddenBelow > 0 ? <Text dimColor>{t('tui.common.moreBelow', { n: hiddenBelow })}</Text> : null}
       {confirmModal}
     </Box>
   );
+}
+
+/** "next: <local time>" (or "next: never") for a schedule's nextRun. */
+function nextRunLabel(nextRun: string | number | null | undefined): string {
+  const when = nextRun ? new Date(nextRun).toLocaleString() : t('tui.dash.schedules.never');
+  return t('tui.dash.schedules.next', { when });
 }
 
 function ScheduleTypeBadge({ type, paused, focused }: { type: string; paused: boolean; focused: boolean }): React.JSX.Element {

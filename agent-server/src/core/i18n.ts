@@ -23,7 +23,8 @@ export function detectSystemLocale(env: NodeJS.ProcessEnv = process.env): Locale
 
 // Initial locale comes only from the environment (escape hatch / boot default). The wiring layer
 // overrides it with the persisted preference via setLocale() right after config load.
-let currentLocale: Locale = normalizeLocale(process.env.CORTEX_LANG);
+// `process` is guarded: input-schemas (and so this module) can end up in a browser bundle.
+let currentLocale: Locale = normalizeLocale(typeof process !== 'undefined' ? process.env.CORTEX_LANG : undefined);
 
 export function setLocale(loc: Locale): void {
   currentLocale = normalizeLocale(loc);

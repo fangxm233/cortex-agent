@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import {
   convertToPortable,
   createPlugin,
@@ -120,10 +121,10 @@ export async function handlePluginsRemove(
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(async () => {
     if (pluginOrigin(args.id) === 'managed') {
-      throw fail('invalid-args', `'${args.id}' is shipped by Cortex and would be redeployed on the next update`);
+      throw fail('invalid-args', t('ui.plugin.managed', { id: args.id }));
     }
     const used = await pluginReferences(deps, args.id);
-    if (used.length > 0) throw fail('invalid-args', `'${args.id}' is still assigned to: ${used.join(', ')}`);
+    if (used.length > 0) throw fail('invalid-args', t('ui.plugin.stillAssigned', { id: args.id, targets: used.join(', ') }));
     removePlugin(args.id);
     return { id: args.id };
   });
@@ -135,8 +136,8 @@ export async function handlePluginsConvertToPortable(
 ): Promise<Result<PluginsPackageReturn>> {
   return guarded(() => {
     const entry = readPluginCatalogSnapshot().byId.get(args.id);
-    if (!entry) throw fail('not-found', `Unknown plugin: '${args.id}'`);
-    if (entry.kind === 'portable') throw fail('invalid-args', `'${args.id}' is already portable`);
+    if (!entry) throw fail('not-found', t('ui.plugin.unknown', { id: args.id }));
+    if (entry.kind === 'portable') throw fail('invalid-args', t('ui.plugin.alreadyPortable', { id: args.id }));
     convertToPortable(args.id);
     return { id: args.id };
   });
@@ -156,7 +157,7 @@ function secretMap(
     }
     const kept = existing[key];
     if (typeof kept !== 'string') {
-      throw fail('invalid-args', `${label} '${key}' has no stored value to keep; provide one`);
+      throw fail('invalid-args', t('ui.plugin.noStoredValue', { label, key }));
     }
     out[key] = kept;
   }
@@ -176,12 +177,12 @@ function buildServer(input: PluginsMcpServerInput, stored: unknown): Record<stri
     const server: Record<string, unknown> = { type: 'stdio', command: input.command ?? '' };
     if (input.args && input.args.length > 0) server.args = input.args;
     if (input.cwd) server.cwd = input.cwd;
-    const env = secretMap(input.env, existingSecrets(stored, 'env'), 'env key');
+    const env = secretMap(input.env, existingSecrets(stored, 'env'), t('ui.plugin.envKeyLabel'));
     if (env) server.env = env;
     return server;
   }
   const server: Record<string, unknown> = { type: input.type, url: input.url ?? '' };
-  const headers = secretMap(input.headers, existingSecrets(stored, 'headers'), 'header');
+  const headers = secretMap(input.headers, existingSecrets(stored, 'headers'), t('ui.plugin.headerLabel'));
   if (headers) server.headers = headers;
   return server;
 }
@@ -201,7 +202,7 @@ export async function handlePluginsMcpWrite(
 ): Promise<Result<PluginsMcpRead>> {
   return guarded(() => {
     const duplicate = duplicateName(args.servers);
-    if (duplicate) throw fail('invalid-args', `Duplicate MCP server name: '${duplicate}'`);
+    if (duplicate) throw fail('invalid-args', t('ui.plugin.duplicateMcp', { name: duplicate }));
     const current = readMcpEnvelope(args.pluginId);
     const next: Record<string, unknown> = {};
     for (const server of args.servers) {

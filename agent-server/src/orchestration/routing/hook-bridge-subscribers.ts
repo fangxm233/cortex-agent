@@ -9,6 +9,7 @@ import { interactionRecords as defaultInteractionRecords, type InteractionRecord
 import { resolveRequest as resolveHookRequest } from './hook-bridge.js';
 import { activeTurns } from '../turn/active-turns.js';
 import { deliverToSessionDetached } from '../session-gateway.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('hook-bridge');
 
@@ -156,7 +157,7 @@ export function registerHookBridgeSubscribers(
       // state so subsequent assistant output starts a fresh message instead of
       // merging back into the message that preceded the form.
       if (stream) {
-        await stream.postInteractive('Plan approval', {
+        await stream.postInteractive(t('notice.plan.approvalCard'), {
           richBlocks: planApproval.richBlocks,
           actions: planApproval.actions,
         });
@@ -165,7 +166,7 @@ export function registerHookBridgeSubscribers(
         // explicitly so the approval card lands inside the conversation topic via
         // message.reply instead of being posted as a standalone message.
         await adapter.postInteractive(planDest, {
-          text: 'Plan approval',
+          text: t('notice.plan.approvalCard'),
           ...planApproval,
         }, { threadId: ev.threadId ?? undefined });
       }

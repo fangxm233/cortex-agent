@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import * as path from 'node:path';
 import { HOOKS_DIR } from '@core/paths.js';
 import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
@@ -152,7 +153,7 @@ export async function handleHooksTest(
   args: HooksTestArgs,
 ): Promise<Result<HooksTestReturn>> {
   const hook = loadMountedHooks().find((candidate) => candidate.id === args.id);
-  if (!hook) return { ok: false, code: 'not-found', message: `Unknown hook id: '${args.id}'` };
+  if (!hook) return { ok: false, code: 'not-found', message: t('ui.hook.unknownId', { id: args.id }) };
   try {
     const result = await runHookProcess(testProcessOptions(hook, HOOKS_DIR, args.payload));
     return {

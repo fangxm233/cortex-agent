@@ -1,3 +1,4 @@
+import * as i18n from '@core/i18n.js';
 import { initTRPC } from '@trpc/server';
 
 /**
@@ -34,7 +35,7 @@ const t = initTRPC.create({
   sse: UI_SSE_KEEPALIVE,
   errorFormatter({ shape, path }) {
     if (path !== 'config.setPlatform') return shape;
-    return { ...shape, message: 'Platform configuration request failed',
+    return { ...shape, message: i18n.t('ui.platform.requestFailed'),
       data: { ...shape.data, stack: undefined } };
   },
 });

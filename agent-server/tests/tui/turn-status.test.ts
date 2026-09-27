@@ -27,3 +27,8 @@ test('processing line without turns', () => {
   assert.equal(s.turns, null);
   assert.equal(formatTurnStatus(s), '⏳ Processing · 1s');
 });
+
+test('parses the turn count from a zh status line', () => {
+  const s = parseTurnStatus('⏳ 处理中 | cortex-x · `id` | claude/sonnet | ⏱️ 2s | 🔁 3 轮');
+  assert.equal(s.turns, 3);
+});

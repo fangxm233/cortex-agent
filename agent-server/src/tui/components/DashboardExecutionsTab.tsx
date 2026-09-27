@@ -5,6 +5,7 @@ import { computeFocusWindow } from '../logic.js';
 import { DASHBOARD_MAX_VISIBLE_ROWS } from './dashboard-constants.js';
 import type { TabData } from '../hooks/useDashboardData.js';
 import type { MutateResult, MutateError } from '../hooks/useMutate.js';
+import { t } from '../../core/i18n.js';
 
 interface DashboardExecutionsTabProps {
   data: TabData;
@@ -53,7 +54,7 @@ export function DashboardExecutionsTab({ data, mutate, active = true }: Dashboar
     if (!result.ok) {
       const err = result as MutateError;
       if (err.error.code === 'not-found') {
-        setNotFoundMsg({ index: confirmIndexRef.current, message: 'not found' });
+        setNotFoundMsg({ index: confirmIndexRef.current, message: t('tui.dash.executions.notFound') });
         if (notFoundTimerRef.current) clearTimeout(notFoundTimerRef.current);
         notFoundTimerRef.current = setTimeout(() => setNotFoundMsg(null), 5000);
       }
@@ -66,13 +67,13 @@ export function DashboardExecutionsTab({ data, mutate, active = true }: Dashboar
   }, []);
 
   if (data.loading && data.data.length === 0) {
-    return <Text dimColor>Loading executions...</Text>;
+    return <Text dimColor>{t('tui.dash.executions.loading')}</Text>;
   }
   if (data.error) {
-    return <Text color="red">Error: {data.error}</Text>;
+    return <Text color="red">{t('tui.common.error', { message: data.error })}</Text>;
   }
   if (data.data.length === 0) {
-    return <Text dimColor>No executions</Text>;
+    return <Text dimColor>{t('tui.dash.executions.empty')}</Text>;
   }
 
   // Clamp focused index to valid range
@@ -100,7 +101,7 @@ export function DashboardExecutionsTab({ data, mutate, active = true }: Dashboar
 
   return (
     <Box flexDirection="column">
-      {hiddenAbove > 0 ? <Text dimColor>↑ {hiddenAbove} more above</Text> : null}
+      {hiddenAbove > 0 ? <Text dimColor>{t('tui.common.moreAbove', { n: hiddenAbove })}</Text> : null}
       {visible.map((exec: any, vi: number) => {
         const i = start + vi;
         return (
@@ -124,10 +125,10 @@ export function DashboardExecutionsTab({ data, mutate, active = true }: Dashboar
         </Box>
         );
       })}
-      {hiddenBelow > 0 ? <Text dimColor>↓ {hiddenBelow} more below</Text> : null}
+      {hiddenBelow > 0 ? <Text dimColor>{t('tui.common.moreBelow', { n: hiddenBelow })}</Text> : null}
       {showConfirm && focusedExec ? (
         <ConfirmModal
-          title="Cancel execution?"
+          title={t('tui.dash.executions.cancelTitle')}
           body={confirmBody}
           onConfirm={handleConfirm}
           onCancel={handleCancel}

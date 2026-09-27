@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import type {
   UiServiceDeps,
   ExecutionInfo,
@@ -56,7 +57,7 @@ export async function handleExecutionsGet(
 ): Promise<ExecutionDetailInfo> {
   const e = deps.executionRegistry.getExecution(params.executionId);
   if (!e) {
-    throw Object.assign(new Error(`Execution not found: ${params.executionId}`), {
+    throw Object.assign(new Error(t('ui.execution.notFound', { id: params.executionId })), {
       code: 'not-found',
     });
   }

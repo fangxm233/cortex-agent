@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { UiQueryResult, UiEvent } from '../../platform/tui/protocol.js';
+import { t } from '../../core/i18n.js';
 
 // ── Types ──
 
@@ -79,7 +80,7 @@ export function _handleQueryResult(
   } else {
     const tabs = {
       ...prev.tabs,
-      [tab]: { data: [], loading: false, error: (frame as any).error?.message ?? 'Unknown error', lastUpdated: null },
+      [tab]: { data: [], loading: false, error: (frame as any).error?.message ?? t('tui.common.unknownError'), lastUpdated: null },
     };
     const pending = new Set(prev.pendingQueries);
     pending.delete(tab);

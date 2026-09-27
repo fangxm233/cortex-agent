@@ -10,6 +10,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { ModalDefinition, TuiFrame } from '../../platform/tui/protocol.js';
+import { t } from '../../core/i18n.js';
 
 // ── Props (same contract as AskUserModal) ──
 
@@ -25,14 +26,15 @@ interface PlanFeedbackModalProps {
 
 interface OptionDef {
   id: 'approve' | 'feedback' | 'cancel';
-  label: string;
+  /** i18n key for the option label, resolved at render so it follows the active locale. */
+  labelKey: string;
   value: string;
 }
 
 const OPTIONS: OptionDef[] = [
-  { id: 'approve', label: 'Approve', value: 'approve' },
-  { id: 'feedback', label: 'Provide Feedback', value: 'feedback' },
-  { id: 'cancel', label: 'Cancel', value: 'cancel' },
+  { id: 'approve', labelKey: 'tui.plan.approve', value: 'approve' },
+  { id: 'feedback', labelKey: 'tui.plan.feedback', value: 'feedback' },
+  { id: 'cancel', labelKey: 'tui.plan.cancel', value: 'cancel' },
 ];
 
 /** Return all interactive fields for ack-error label lookup. */
@@ -188,7 +190,7 @@ export function PlanFeedbackModal({
 
   // ── Render ──
 
-  const submitLabel = modal.submitLabel || 'Submit';
+  const submitLabel = modal.submitLabel || t('tui.modal.submit');
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1} borderStyle="single">
@@ -210,7 +212,7 @@ export function PlanFeedbackModal({
           return (
             <Box key={opt.id}>
               <Text bold={isFocused}>
-                {isFocused ? '▶' : ' '} {isSelected ? '●' : '○'} {idx + 1}. {opt.label}
+                {isFocused ? '▶' : ' '} {isSelected ? '●' : '○'} {idx + 1}. {t(opt.labelKey)}
               </Text>
             </Box>
           );
@@ -228,7 +230,7 @@ export function PlanFeedbackModal({
             {feedbackText ? (
               <Text>{feedbackText}</Text>
             ) : (
-              <Text dimColor>Type your feedback...</Text>
+              <Text dimColor>{t('tui.plan.typeFeedback')}</Text>
             )}
           </Box>
         </Box>
@@ -264,8 +266,8 @@ export function PlanFeedbackModal({
       <Box marginTop={1}>
         <Text dimColor>
           {mode === 'feedback-text'
-            ? 'Enter to submit · Esc back'
-            : '↑/↓ navigate · Enter confirm · Esc cancel'}
+            ? t('tui.plan.hintFeedback')
+            : t('tui.plan.hint')}
         </Text>
       </Box>
     </Box>

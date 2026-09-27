@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '@core/atomic-write.js';
+import { t } from '@core/i18n.js';
 import {
   validateEntity,
   withCandidate,
@@ -43,10 +44,7 @@ export function entityPath(dir: string, kind: EntityKind, name: string): string 
 
 function assertName(name: string): void {
   if (typeof name !== 'string' || !NAME_PATTERN.test(name)) {
-    throw writeError(
-      'invalid-args',
-      `Name '${String(name)}' must start with a letter or digit and contain only letters, digits, '-' and '_'`,
-    );
+    throw writeError('invalid-args', t('ux.tpl.invalidName', { name: String(name) }));
   }
 }
 
@@ -76,7 +74,7 @@ export function readEntity(dir: string, kind: EntityKind, name: string): EntityR
   assertName(name);
   const filePath = entityPath(dir, kind, name);
   if (!existsSync(filePath)) {
-    throw writeError('not-found', `Unknown ${kind}: '${name}'`);
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind, name }));
   }
   const raw = readFileSync(filePath, 'utf8');
   let body: Record<string, unknown> | null = null;
@@ -117,7 +115,7 @@ export function saveEntity(dir: string, input: SaveInput, refs?: RefResolver): S
   const { kind, name, body, baseHash } = input;
   assertName(name);
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw writeError('invalid-args', 'Body must be a JSON object');
+    throw writeError('invalid-args', t('ux.tpl.bodyNotObject'));
   }
 
   const filePath = entityPath(dir, kind, name);
@@ -125,16 +123,13 @@ export function saveEntity(dir: string, input: SaveInput, refs?: RefResolver): S
   const current = exists ? readFileSync(filePath, 'utf8') : null;
 
   if (baseHash === null && exists) {
-    throw writeError('invalid-args', `${kind} '${name}' already exists`);
+    throw writeError('invalid-args', t('ux.tpl.alreadyExists', { kind, name }));
   }
   if (baseHash !== null && !exists) {
-    throw writeError('not-found', `Unknown ${kind}: '${name}'`);
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind, name }));
   }
   if (baseHash !== null && current !== null && sha256(current) !== baseHash) {
-    throw writeError(
-      'conflict',
-      `${kind} '${name}' changed on disk since it was loaded — reload before saving to avoid discarding that edit`,
-    );
+    throw writeError('conflict', t('ux.tpl.changedOnDisk', { kind, name }));
   }
 
   const registry = withCandidate(rawRegistryFromDir(dir, io), kind, name, body);
@@ -142,7 +137,7 @@ export function saveEntity(dir: string, input: SaveInput, refs?: RefResolver): S
   if (errors.length > 0) {
     throw writeError(
       'invalid-args',
-      `${kind} '${name}' is not valid: ${errors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
+      t('ux.tpl.notValid', { kind, name, issues: errors.map((e) => `${e.path}: ${e.message}`).join('; ') }),
       errors,
     );
   }
@@ -171,14 +166,14 @@ export function removeEntity(dir: string, kind: EntityKind, name: string): Remov
   assertName(name);
   const filePath = entityPath(dir, kind, name);
   if (!existsSync(filePath)) {
-    throw writeError('not-found', `Unknown ${kind}: '${name}'`);
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind, name }));
   }
 
   const dependents = dependentTemplates(kind, name, rawRegistryFromDir(dir, io));
   if (dependents.length > 0) {
     throw writeError(
       'invalid-args',
-      `${kind} '${name}' is still used by ${dependents.length} template(s): ${dependents.join(', ')}`,
+      t('ux.tpl.stillUsed', { kind, name, count: dependents.length, names: dependents.join(', ') }),
     );
   }
 

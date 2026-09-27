@@ -31,6 +31,7 @@ import { writeFile } from 'fs/promises';
 import { updateSettings } from '@core/settings.js';
 import { IMAGE_MIMES } from '@core/media-types.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('slack');
 
@@ -199,7 +200,7 @@ export class SlackAdapter implements PlatformAdapter {
         this._persistAdminChannel(msg.channel).catch(e =>
           log.warn(`Failed to persist adminChannel to settings.json: ${e.message}`));
         this.postMessage({ type: 'system-notice' }, {
-          text: `:wave: This DM channel has been auto-registered as the Cortex admin channel. \`adminChannel=${msg.channel}\` has been written to \`settings.json\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
+          text: `:wave: ${t('notice.admin.autoRegistered', { setting: 'adminChannel', channel: msg.channel })}`,
         }).catch(e => log.warn(`Failed to send admin auto-detect notification: ${e.message}`));
       }
 

@@ -2,6 +2,7 @@ import { getClaudeEngineAdapter, getPiEngineAdapter } from '../runs/adapters.js'
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
+import { t } from '@core/i18n.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import {
   usageStore,
@@ -311,9 +312,7 @@ function settleSpend(draft: RowDraft, prior: ProviderUsage | undefined): void {
     const carried = prior?.spend?.[period];
     draft.spend[period] = carried ?? null;
     draft.notes.push(
-      carried === undefined
-        ? `gateway ${period} cost was unreadable`
-        : `gateway ${period} cost was unreadable; showing the last known figure`,
+      t(carried === undefined ? 'ux.usage.costUnreadable' : 'ux.usage.costUnreadableCarried', { period }),
     );
   }
 }
@@ -425,10 +424,10 @@ export class UsageService {
     applySpendRows(drafts, result.value.rows, subscriptionModes, period);
     const warnings: string[] = [];
     if (result.value.truncated) {
-      warnings.push(`gateway ${period} usage was truncated at ${GATEWAY_RECORDS_LIMIT} records; spend may be understated`);
+      warnings.push(t('ux.usage.truncated', { period, limit: GATEWAY_RECORDS_LIMIT }));
     }
     if (result.value.droppedRecords > 0) {
-      warnings.push(`gateway ${period} usage skipped ${result.value.droppedRecords} unreadable records; spend may be understated`);
+      warnings.push(t('ux.usage.dropped', { period, count: result.value.droppedRecords }));
     }
     if (warnings.length === 0) return;
     for (const draft of drafts.values()) {
@@ -444,7 +443,7 @@ export class UsageService {
   ): void {
     if (anthropicModes.length === 0) {
       const existing = drafts.get(draftKey(ANTHROPIC_PROVIDER, 'subscription'));
-      if (existing) existing.notes.push('Anthropic account usage collection disabled by settings');
+      if (existing) existing.notes.push(t('ux.usage.anthropicDisabled'));
       return;
     }
     const draft = ensureDraft(drafts, ANTHROPIC_PROVIDER, 'subscription');
@@ -457,9 +456,9 @@ export class UsageService {
       return;
     }
     if (result.status === 'rejected') {
-      draft.notes.push(`Anthropic gateway quota collection failed: ${errorMessage(result.reason)}`);
+      draft.notes.push(t('ux.usage.anthropicQuotaFailed', { error: errorMessage(result.reason) }));
     } else {
-      draft.notes.push('gateway has no Anthropic quota observation');
+      draft.notes.push(t('ux.usage.anthropicNoQuota'));
     }
     this.carryQuotaFromPrior(draft, prior);
   }
@@ -486,7 +485,7 @@ export class UsageService {
     draft.quotaPolled = true;
     draft.modes.add(CODEX_PROVIDER);
     if (result.status === 'rejected') {
-      draft.notes.push(`OpenAI Codex usage collection failed: ${errorMessage(result.reason)}`);
+      draft.notes.push(t('ux.usage.codexFailed', { error: errorMessage(result.reason) }));
     }
     this.carryQuotaFromPrior(draft, prior);
   }
@@ -514,9 +513,8 @@ export class UsageService {
     month: PromiseSettledResult<PeriodSpend>,
   ): ProviderUsage[] {
     if (today.status === 'fulfilled' && month.status === 'fulfilled') return composed;
-    const note = today.status === 'rejected'
-      ? `gateway usage collection failed: ${errorMessage(today.reason)}`
-      : `gateway usage collection failed: ${errorMessage((month as PromiseRejectedResult).reason)}`;
+    const reason = today.status === 'rejected' ? today.reason : (month as PromiseRejectedResult).reason;
+    const note = t('ux.usage.gatewayFailed', { error: errorMessage(reason) });
     const seen = new Set(composed.map(usageRecordKey));
     const retained = prior
       .filter((row) => !seen.has(usageRecordKey(row)))

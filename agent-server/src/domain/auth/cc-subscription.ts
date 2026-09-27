@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
@@ -15,7 +16,6 @@ import {
   type LoginOutcome,
 } from './login-flow.js';
 
-const AUTH_PROMPT = 'Paste code here if prompted.';
 const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
 
 export interface ClaudeSubscriptionLoginDependencies {
@@ -42,13 +42,13 @@ function loginError(code: string, message: string): ClaudeSubscriptionLoginError
 function safeLoginError(error: unknown): ClaudeSubscriptionLoginError {
   if (error instanceof ClaudeAuthCliError) {
     if (error.code === 'claude_auth_cancelled') {
-      return loginError('claude_subscription_cancelled', 'Claude subscription login was cancelled.');
+      return loginError('claude_subscription_cancelled', t('ux.auth.ccCancelled'));
     }
     if (error.code === 'claude_auth_timeout') {
-      return loginError('claude_subscription_timeout', 'Claude subscription login timed out.');
+      return loginError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  return loginError('claude_subscription_failed', 'Claude subscription login failed.');
+  return loginError('claude_subscription_failed', t('ux.auth.ccFailed'));
 }
 
 function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
@@ -56,10 +56,10 @@ function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
     signal: interaction.signal,
     async onAuthorization(url) {
       interaction.notify({ type: 'auth_url', url });
-      return interaction.prompt({ type: 'manual_code', message: AUTH_PROMPT });
+      return interaction.prompt({ type: 'manual_code', message: t('ux.auth.ccPasteCode') });
     },
     onCodeSubmitted() {
-      interaction.notify({ type: 'progress', message: 'Completing Claude subscription login.' });
+      interaction.notify({ type: 'progress', message: t('ux.auth.ccCompleting') });
     },
   };
 }
@@ -73,7 +73,7 @@ async function clearLegacyToken(
   } catch {
     throw loginError(
       'claude_subscription_cleanup_failed',
-      'Claude subscription login completed but legacy authentication cleanup failed.',
+      t('ux.auth.ccCleanupFailed'),
     );
   }
 }

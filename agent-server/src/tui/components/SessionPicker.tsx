@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { computeFocusWindow } from '../logic.js';
+import { t } from '../../core/i18n.js';
 
 /** Max session rows shown at once — the list is windowed around the selection so a long
  *  session history can't overflow the terminal (Ink can't clear rows scrolled past the
@@ -49,7 +50,7 @@ export function SessionPicker({ sessions, onSelect, onCancel }: SessionPickerPro
   });
 
   if (sessions.length === 0) {
-    return <Text dimColor>No resumable sessions</Text>;
+    return <Text dimColor>{t('tui.sessions.empty')}</Text>;
   }
 
   const { start, end, hiddenAbove, hiddenBelow } = computeFocusWindow(
@@ -58,9 +59,9 @@ export function SessionPicker({ sessions, onSelect, onCancel }: SessionPickerPro
 
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
-      <Text bold>Select a session to resume ({sessions.length}):</Text>
+      <Text bold>{t('tui.sessions.title', { n: sessions.length })}</Text>
       <Box flexDirection="column" marginTop={1}>
-        {hiddenAbove > 0 ? <Text dimColor>  ↑ {hiddenAbove} more above</Text> : null}
+        {hiddenAbove > 0 ? <Text dimColor>  {t('tui.common.moreAbove', { n: hiddenAbove })}</Text> : null}
         {sessions.slice(start, end).map((s, vi) => {
           const i = start + vi;
           return (
@@ -73,10 +74,10 @@ export function SessionPicker({ sessions, onSelect, onCancel }: SessionPickerPro
             </Box>
           );
         })}
-        {hiddenBelow > 0 ? <Text dimColor>  ↓ {hiddenBelow} more below</Text> : null}
+        {hiddenBelow > 0 ? <Text dimColor>  {t('tui.common.moreBelow', { n: hiddenBelow })}</Text> : null}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>↑/↓ navigate · Enter resume · Esc fresh session</Text>
+        <Text dimColor>{t('tui.sessions.hint')}</Text>
       </Box>
     </Box>
   );

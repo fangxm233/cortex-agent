@@ -215,7 +215,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
 
     // 0 executions: nothing to cancel
     if (executions.length === 0) {
-      await adapter.postMessage(dest, { text: 'Nothing running to cancel.' });
+      await adapter.postMessage(dest, { text: t('notice.cancel.nothingRunning') });
       return;
     }
 

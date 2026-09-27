@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
@@ -96,14 +97,14 @@ type LoginTarget =
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    return { failure: failed(providerId, 'runtime_unavailable', 'PI runtime is unavailable.') };
+    return { failure: failed(providerId, 'runtime_unavailable', t('ux.auth.piRuntimeUnavailable')) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
-    return { failure: failed(providerId, 'provider_not_found', 'PI provider was not found.') };
+    return { failure: failed(providerId, 'provider_not_found', t('ux.auth.piProviderNotFound')) };
   }
   if (!supportsOAuthLogin(provider)) {
-    const message = 'PI provider does not support OAuth login.';
+    const message = t('ux.auth.piOAuthUnsupported');
     return { failure: failed(providerId, 'oauth_unsupported', message) };
   }
   return { runtime: result.runtime };
@@ -118,14 +119,14 @@ export async function loginPiOAuth(
   try {
     target = resolveTarget(await loadRuntime(dependencies), providerId);
   } catch {
-    return failed(providerId, 'login_failed', 'PI OAuth login failed.');
+    return failed(providerId, 'login_failed', t('ux.auth.piOAuthFailed'));
   }
   if ('failure' in target) return target.failure;
   try {
     const credential = await target.runtime.login(providerId, 'oauth', interaction);
     return finishLogin(providerId, credentialExpiresAt(credential), dependencies);
   } catch {
-    return failed(providerId, 'login_failed', 'PI OAuth login failed.');
+    return failed(providerId, 'login_failed', t('ux.auth.piOAuthFailed'));
   }
 }
 

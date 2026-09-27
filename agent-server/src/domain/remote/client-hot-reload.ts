@@ -11,6 +11,7 @@ import {
 import { STORE_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('client-hot-reload');
 
@@ -207,7 +208,7 @@ function onHello(device: string, bundleHash: string | null): void {
     if (last && last.hash === _bundle.hash) {
       _lastPush.delete(device);
       log.info(`${device} converged on ${short(_bundle.hash)} (v${_bundle.version})`);
-      _notify(`${Icons.ok} client on \`${device}\` updated → \`${short(_bundle.hash)}\` (v${_bundle.version})`);
+      _notify(`${Icons.ok} ${t('notice.client.updated', { device, hash: short(_bundle.hash), version: _bundle.version })}`);
     }
     return;
   }
@@ -226,7 +227,7 @@ function onUpdateResult(device: string, result: { ok: boolean; hash?: string; er
     log.info(`${device} installed ${short(result.hash ?? null)} — awaiting reconnect`);
   } else {
     log.warn(`${device} update failed: ${result.error ?? 'unknown error'}`);
-    _notify(`${Icons.error} client update failed on \`${device}\`: ${result.error ?? 'unknown error'}`);
+    _notify(`${Icons.error} ${t('notice.client.updateFailed', { device, error: result.error ?? t('notice.unknownError') })}`);
   }
 }
 

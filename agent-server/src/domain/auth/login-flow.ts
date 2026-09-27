@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { randomUUID } from 'node:crypto';
 import type { AuthType } from './auth-status.js';
 
@@ -201,13 +202,13 @@ function getInternalFlow(flowId: string): InternalFlow | null {
 
 function requireFlow(flowId: string): InternalFlow {
   const flow = getInternalFlow(flowId);
-  if (!flow) throw new Error('Login flow not found or expired.');
+  if (!flow) throw new Error(t('ux.auth.flowNotFound'));
   return flow;
 }
 
 function requireActiveFlow(flowId: string): InternalFlow {
   const flow = requireFlow(flowId);
-  if (isTerminal(flow)) throw new Error('Login flow is not active.');
+  if (isTerminal(flow)) throw new Error(t('ux.auth.flowNotActive'));
   return flow;
 }
 
@@ -324,7 +325,7 @@ function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   flow.state.step = 'failed';
   flow.state.pendingPrompt = null;
   flow.state.outcome = null;
-  flow.state.error = safeError?.message ?? 'Login failed.';
+  flow.state.error = safeError?.message ?? t('ux.auth.loginFailed');
   flow.state.errorCode = safeError?.code ?? null;
   releasePair(flow);
 }
@@ -381,7 +382,7 @@ export async function startFlow(
 export async function respondPrompt(flowId: string, value: string): Promise<LoginFlowState> {
   const flow = requireActiveFlow(flowId);
   const pending = takePending(flow);
-  if (!pending) throw new Error('Login flow is not waiting for a prompt response.');
+  if (!pending) throw new Error(t('ux.auth.flowNotWaiting'));
   flow.state.step = 'running';
   pending.resolve(value);
   return snapshot(flow);

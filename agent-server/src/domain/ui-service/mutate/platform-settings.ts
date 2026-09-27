@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
 import { platformSettingsInput, type PlatformSettingsPatch } from '@core/platform-settings-spec.js';
@@ -8,11 +9,11 @@ export async function handlePlatformSettingsSet(
   input: PlatformSettingsPatch,
 ): Promise<Result<{ written: true; restartRequired: true }>> {
   const parsed = platformSettingsInput.safeParse(input);
-  if (!parsed.success) return { ok: false, code: 'invalid-args', message: 'Invalid platform configuration' };
+  if (!parsed.success) return { ok: false, code: 'invalid-args', message: t('ui.platform.invalid') };
   try {
     await writePlatformSettings(path.join(CONFIG_DIR, '.env'), parsed.data);
     return { ok: true, data: { written: true, restartRequired: true } };
   } catch {
-    return { ok: false, code: 'internal', message: 'Could not save platform configuration' };
+    return { ok: false, code: 'internal', message: t('ui.platform.saveFailed') };
   }
 }

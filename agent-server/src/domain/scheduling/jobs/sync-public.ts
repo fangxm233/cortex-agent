@@ -2,6 +2,7 @@ import { runFile } from '@core/exec-async.js';
 import * as path from 'path';
 import { register, ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
+import { t } from '@core/i18n.js';
 
 export function resolveSyncPublicScript(agentServerDir = process.env.CORTEX_REPO ?? ''): string | null {
   const checkout = agentServerDir.trim();
@@ -26,13 +27,13 @@ register('sync-public', async (payload: unknown) => {
       // Quiet success — no message needed unless there were actual syncs
       const countLine = lines.find(l => l.includes('cherry-picked'));
       if (countLine && !countLine.includes('0 cherry-picked')) {
-        await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.refresh} Public sync: ${countLine.trim()}` });
+        await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.refresh} ${t('notice.ops.publicSync', { detail: countLine.trim() })}` });
       }
     } else {
-      await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} Public sync issue:\n\`\`\`\n${output.slice(-500)}\n\`\`\`` });
+      await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} ${t('notice.ops.publicSyncIssue')}\n\`\`\`\n${output.slice(-500)}\n\`\`\`` });
     }
   } catch (err: any) {
     const msg = err?.stderr || err?.message || String(err);
-    await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} Public sync error: ${msg.slice(0, 500)}` });
+    await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} ${t('notice.ops.publicSyncError', { error: msg.slice(0, 500) })}` });
   }
 });

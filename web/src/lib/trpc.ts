@@ -114,3 +114,10 @@ export function createTrpcClient(config?: RemoteConfig) {
     ],
   });
 }
+
+/** The tRPC error code of a failed call (`NOT_FOUND`, `CONFLICT`, …), or null. Match on this rather
+ *  than on the message: server messages follow the UI language. */
+export function trpcErrorCode(error: unknown): string | null {
+  const code = (error as { data?: { code?: unknown } } | null)?.data?.code;
+  return typeof code === 'string' ? code : null;
+}

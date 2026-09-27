@@ -10,6 +10,7 @@ import { type ThreadExecCtx, downloadFiles, bufferUserMessage } from './thread-i
 import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
 import { createLogger } from '@core/log.js';
 import type { AttachmentFailure } from './routing/file-handler.js';
+import { t } from '@core/i18n.js';
 
 export type { ThreadExecCtx };
 
@@ -98,8 +99,8 @@ export class ThreadExecutor {
     } catch (error) {
       const isCancelled = (error as any)?.cancelled;
       const text = isCancelled
-        ? `${Icons.stopped} Cancelled`
-        : `${Icons.error} Thread failed: ${(error as Error)?.message || 'Unknown error'}`;
+        ? `${Icons.stopped} ${t('status.cancelled')}`
+        : `${Icons.error} ${t('notice.thread.failed', { error: (error as Error)?.message || t('notice.unknownError') })}`;
       await ctx.adapter.postMessage(
         { type: 'interactive-reply', conduit: ctx.channel, sessionId: '' },
         { text },
@@ -113,7 +114,7 @@ export class ThreadExecutor {
     const list = failures.map((f) => `• ${f.name} — ${f.reason}`).join('\n');
     await ctx.adapter.postMessage(
       { type: 'interactive-reply', conduit: ctx.channel, sessionId: '' },
-      { text: `${Icons.warning} Could not download ${failures.length} attachment(s); the thread runs without them:\n${list}` },
+      { text: `${Icons.warning} ${t('notice.thread.attachmentsFailed', { n: failures.length })}\n${list}` },
       ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined,
     ).catch(() => {});
   }
@@ -160,7 +161,7 @@ async function handleThreadAdd(args: HandlerArgs & { threadAddMatch: RegExpMatch
   if (!target) return;
 
   await addAgentToThread(target.id, addAgentName, addMessage);
-  const startText = `${Icons.add} Adding *${addAgentName}* to thread ${target.id.substring(0, 12)}...`;
+  const startText = `${Icons.add} ${t('notice.thread.adding', { agent: `*${addAgentName}*`, id: target.id.substring(0, 12) })}`;
   await openThreadRun({
     ...interactiveRunInput(args, target.id, startText),
     mode: { kind: 'start' },
@@ -171,7 +172,7 @@ async function handleThreadAdd(args: HandlerArgs & { threadAddMatch: RegExpMatch
 async function validateThreadAddTarget(addAgentName: string, existingThread: any, channel: string, adapter: PlatformAdapter, threadAnchorId: string | null): Promise<any> {
   const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   if (!getAgent(addAgentName)) {
-    await adapter.postMessage(interactiveDest, { text: `${Icons.error} Unknown agent: \`${addAgentName}\`. Use \`!thread agents\` to see available agents.` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
+    await adapter.postMessage(interactiveDest, { text: `${Icons.error} ${t('notice.thread.unknownAgent', { name: addAgentName })}` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
     return null;
   }
   // Plain user conversations are no longer wrapped in a thread (templateName='default'), so they
@@ -179,18 +180,18 @@ async function validateThreadAddTarget(addAgentName: string, existingThread: any
   // user must start an explicit thread with `!thread <agent> <message>` to use `!thread add`.
   const targetThread = existingThread || threadStore.findByChannel(channel).find((t: any) => (t.status === 'completed' || t.status === 'waiting') && t.templateName !== 'default');
   if (!targetThread) {
-    await adapter.postMessage(interactiveDest, { text: `${Icons.error} No thread found. Start one first with \`!thread <agent> <message>\`.` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
+    await adapter.postMessage(interactiveDest, { text: `${Icons.error} ${t('notice.thread.noneFound')}` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
     return null;
   }
   if (targetThread.status === 'running' && getActiveHandle(channel)) {
-    await adapter.postMessage(interactiveDest, { text: `${Icons.warning} Thread ${targetThread.id.substring(0, 12)} is currently running. Wait for it to finish.` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
+    await adapter.postMessage(interactiveDest, { text: `${Icons.warning} ${t('notice.thread.busy', { id: targetThread.id.substring(0, 12) })}` }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
     return null;
   }
   return targetThread;
 }
 
 async function handleThreadContinue(args: HandlerArgs & { existingThread: any; agentMessage: string }): Promise<void> {
-  const startText = `${Icons.processing} Continuing thread ${args.existingThread.id.substring(0, 12)}...`;
+  const startText = `${Icons.processing} ${t('notice.thread.continuing', { id: args.existingThread.id.substring(0, 12) })}`;
   await openThreadRun({
     ...interactiveRunInput(args, args.existingThread.id, startText),
     mode: { kind: 'continue', userMessage: args.agentMessage },
@@ -204,7 +205,7 @@ async function handleThreadStart(args: HandlerArgs & { threadStartMatch: RegExpM
   if (!template && !agent) {
     await args.adapter.postMessage(
       { type: 'interactive-reply', conduit: args.channel, sessionId: '' },
-      { text: `${Icons.error} Unknown template or agent: \`${name}\`. Use \`!thread templates\` or \`!thread agents\`.` },
+      { text: `${Icons.error} ${t('notice.thread.unknownTemplate', { name })}` },
     );
     return;
   }
@@ -215,6 +216,6 @@ async function handleThreadStart(args: HandlerArgs & { threadStartMatch: RegExpM
     userMessage: args.threadStartMatch[2].trim(), userMessageTs: args.messageId,
     platformThreadId: args.threadAnchorId,
   });
-  const startText = `${Icons.processing} Starting thread (${template ? name : `agent:${name}`})...`;
+  const startText = `${Icons.processing} ${t('notice.thread.starting', { target: template ? name : `agent:${name}` })}`;
   await openThreadRun({ ...interactiveRunInput(args, thread.id, startText), mode: { kind: 'start' } });
 }

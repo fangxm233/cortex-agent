@@ -68,6 +68,7 @@ function staticQuery(key: string, value?: unknown, error?: string) {
 }
 
 vi.mock('@/lib/trpc', () => ({
+  trpcErrorCode: () => null,
   useTRPC: () => ({
     config: { get: configQuery(), set: staticMutation() },
     cost: { summary: staticQuery('cost.summary', {}) },

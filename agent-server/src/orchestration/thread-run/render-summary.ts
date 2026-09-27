@@ -11,6 +11,7 @@ import {
 } from '../status-helpers.js';
 import type { ProgressRenderer } from './thread-surface.js';
 import type { ThreadVerdict } from './verdict.js';
+import { t } from '@core/i18n.js';
 
 /** Where a summary-style run draws itself. Assembled once by `ThreadRun`. */
 export interface SummaryRenderTarget {
@@ -130,7 +131,7 @@ export async function renderSummaryOutcome(target: SummaryRenderTarget, outcome:
     if (!statusMsg || !thread) return;
     const n = (thread.metadata?.waitingOn?.length ?? 0) + (thread.metadata?.waitingOnTasks?.length ?? 0);
     // No action blocks: this is the shape the webhook has always written for a suspended thread.
-    await writeStatus(adapter, statusMsg, `${Icons.processing} Thread suspended — waiting on ${n} child(ren)`, { blocks: false });
+    await writeStatus(adapter, statusMsg, `${Icons.processing} ${t('notice.thread.suspended', { n })}`, { blocks: false });
     return;
   }
   if (verdict === 'rate_limited') {
@@ -140,19 +141,19 @@ export async function renderSummaryOutcome(target: SummaryRenderTarget, outcome:
   }
   if (verdict === 'failed' || verdict === 'cancelled') {
     const { elapsedStr } = computeElapsed(target.startTime);
-    const message = error?.message || 'Unknown error';
+    const message = error?.message || t('notice.unknownError');
     if (statusMsg) {
       const text = verdict === 'cancelled'
-        ? `${Icons.stopped} Cancelled (${elapsedStr})`
-        : `${Icons.error} Thread failed (${elapsedStr}): ${message}`;
+        ? `${Icons.stopped} ${t('status.cancelled')} (${elapsedStr})`
+        : `${Icons.error} ${t('notice.thread.failedAfter', { elapsed: elapsedStr, error: message })}`;
       await sealSummaryText(adapter, statusMsg, text, blocks);
       return;
     }
     // No status message to seal — say it once on the destination instead (the elapsed-less
     // variant the `!thread` catch and the channel-less webhook path have always posted).
     const text = verdict === 'cancelled'
-      ? `${Icons.stopped} Cancelled`
-      : `${Icons.error} Thread failed: ${message}`;
+      ? `${Icons.stopped} ${t('status.cancelled')}`
+      : `${Icons.error} ${t('notice.thread.failed', { error: message })}`;
     await adapter.postMessage(
       target.destination, { text },
       target.threadAnchorId ? { threadId: target.threadAnchorId } : undefined,

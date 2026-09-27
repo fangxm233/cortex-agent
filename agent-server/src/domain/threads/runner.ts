@@ -63,6 +63,7 @@ import type {
   RunThreadOptions,
   TransitionResult,
 } from '@core/types/thread-types.js';
+import { t } from '@core/i18n.js';
 
 /** Subagent attribution carried on the run's tool/assistant events. Derived from RunEvent so the
  *  thread runner keeps a single upstream type dependency (the run event stream). */
@@ -222,7 +223,7 @@ async function resolveAndNotifyStep(
 
   // Post step boundary notification for multi-agent threads via OutputStream
   if (ctx.stream && multiAgent && !isFirstStep) {
-    ctx.stream.emitText(`${Icons.arrowRight} Step ${threadRecord.currentStepIndex + 1}: *${label}* starting (prev: ${prevLabel ?? '?'})`);
+    ctx.stream.emitText(`${Icons.arrowRight} ${t('notice.thread.stepStarting', { n: threadRecord.currentStepIndex + 1, label: `*${label}*`, prev: prevLabel ?? '?' })}`);
   }
 
   // Report the step boundary. The surface owner decides whether it renders a status line
@@ -891,7 +892,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
         if (ctx.stream) {
           const reasonStr = reason ? `: ${reason}` : '';
           const abortLabel = formatAgentStageLabel(stepCtx.agentSlotId, stepCtx.stage);
-          ctx.stream.emitText(`${Icons.stopped} Thread aborted by *${abortLabel}*${reasonStr}`);
+          ctx.stream.emitText(`${Icons.stopped} ${t('notice.thread.abortedBy', { label: `*${abortLabel}*` })}${reasonStr}`);
         }
         break;
       }
@@ -903,7 +904,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
         if (ctx.stream) {
           const splitLabel = formatAgentStageLabel(stepCtx.agentSlotId, stepCtx.stage);
           const n = Array.isArray(control.subtasks) ? control.subtasks.length : 0;
-          ctx.stream.emitText(`${Icons.arrowRight} Thread split by *${splitLabel}* into ${n} subtask(s)`);
+          ctx.stream.emitText(`${Icons.arrowRight} ${t('notice.thread.split', { label: `*${splitLabel}*`, n })}`);
         }
         break;
       }
@@ -925,15 +926,15 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
           // a new executionId that no longer matches the original owner). See registry.ts.
           await executionRegistry.releaseExecutionLocksAsync(stepCtx.execution.id);
           const n = threadStore.get(threadId)?.metadata?.waitingOn?.length ?? 0;
-          if (ctx.stream) ctx.stream.emitText(`${Icons.processing} Thread suspended — waiting on ${n} child thread(s)`);
+          if (ctx.stream) ctx.stream.emitText(`${Icons.processing} ${t('notice.thread.suspendedThreads', { n })}`);
           break;
         }
-        const t = threadStore.get(threadId);
-        if (t?.metadata?.pendingMessages?.length || t?.metadata?.pendingUserInputs?.length) {
+        const rec = threadStore.get(threadId);
+        if (rec?.metadata?.pendingMessages?.length || rec?.metadata?.pendingUserInputs?.length) {
           // Ad-hoc parents bypass transition evaluation, so the contract budget breaker
           // must gate the re-entry loop here (template threads get it in checkTemplateLimits).
-          if (t && checkContractBudget(t)) {
-            if (ctx.stream) ctx.stream.emitText(`${Icons.warning} Contract budget exhausted — not re-entering wait loop`);
+          if (rec && checkContractBudget(rec)) {
+            if (ctx.stream) ctx.stream.emitText(`${Icons.warning} ${t('notice.thread.budgetExhausted')}`);
           } else {
             continue;
           }
@@ -1060,6 +1061,18 @@ async function resumeThread(threadId: string, opts: RunThreadOptions): Promise<T
 
 // --- Thread summary for Slack ---
 
+/** The summary's first line (after the status emoji): suspended / paused / complete. */
+function summaryHeadline(thread: ThreadRunResult['thread'], totalCostUsd: number, elapsed: number): string {
+  const steps = thread.steps.length;
+  const cost = totalCostUsd.toFixed(4);
+  if (thread.status === 'waiting') {
+    const n = (thread.metadata?.waitingOn?.length ?? 0) + (thread.metadata?.waitingOnTasks?.length ?? 0);
+    return t('notice.thread.summaryWaiting', { n, steps, cost });
+  }
+  if (thread.status === 'rate_limited') return t('notice.thread.summaryPaused', { steps, cost });
+  return t('notice.thread.summaryComplete', { steps, cost, duration: formatDurationCompact(elapsed) });
+}
+
 function buildThreadSummary(result: ThreadRunResult): string {
   const { thread, totalCostUsd, totalNumTurns } = result;
   const steps = thread.steps;
@@ -1074,17 +1087,12 @@ function buildThreadSummary(result: ThreadRunResult): string {
     : thread.status === 'rate_limited' ? Icons.warning
     : Icons.error;
 
-  const headline = thread.status === 'waiting'
-    ? `${statusEmoji} Thread suspended — waiting on ${(thread.metadata?.waitingOn?.length ?? 0) + (thread.metadata?.waitingOnTasks?.length ?? 0)} child(ren) | ${steps.length} steps | $${totalCostUsd.toFixed(4)}`
-    : thread.status === 'rate_limited'
-    ? `${statusEmoji} Thread paused — rate limited, will auto-resume | ${steps.length} steps | $${totalCostUsd.toFixed(4)}`
-    : `${statusEmoji} Thread complete | ${steps.length} steps | $${totalCostUsd.toFixed(4)} | ${formatDurationCompact(elapsed)}`;
-  const lines = [headline];
+  const lines = [`${statusEmoji} ${summaryHeadline(thread, totalCostUsd, elapsed)}`];
 
   if (steps.length > 1) {
     for (const step of steps) {
       const costStr = step.costUsd != null ? `$${step.costUsd.toFixed(4)}` : '?';
-      const turnsStr = step.numTurns != null ? `${step.numTurns} turns` : '?';
+      const turnsStr = step.numTurns != null ? t('notice.thread.turns', { n: step.numTurns }) : '?';
       const durStr = step.durationS != null ? formatDurationCompact(step.durationS) : '?';
       const label = formatAgentStageLabel(step.agentSlotId, step.stage);
       lines.push(`  ${label}: ${turnsStr} · ${costStr} · ${durStr}`);
@@ -1092,12 +1100,12 @@ function buildThreadSummary(result: ThreadRunResult): string {
   }
 
   if (thread.abortReason) {
-    lines.push(`Aborted: ${thread.abortReason}`);
+    lines.push(t('notice.thread.abortedReason', { reason: thread.abortReason }));
   } else if (thread.status === 'aborted') {
-    lines.push(`Aborted (no reason given)`);
+    lines.push(t('notice.thread.abortedNoReason'));
   }
   if (thread.error) {
-    lines.push(`Error: ${thread.error}`);
+    lines.push(t('notice.thread.errorLine', { error: thread.error }));
   }
 
   return lines.join('\n');

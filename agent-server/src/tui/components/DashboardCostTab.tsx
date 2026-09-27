@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { TabData } from '../hooks/useDashboardData.js';
+import { t } from '../../core/i18n.js';
 
 interface DashboardCostTabProps {
   data: TabData;
@@ -8,13 +9,13 @@ interface DashboardCostTabProps {
 
 export function DashboardCostTab({ data }: DashboardCostTabProps): React.JSX.Element {
   if (data.loading && data.data.length === 0) {
-    return <Text dimColor>Loading cost summary...</Text>;
+    return <Text dimColor>{t('tui.dash.cost.loading')}</Text>;
   }
   if (data.error) {
-    return <Text color="red">Error: {data.error}</Text>;
+    return <Text color="red">{t('tui.common.error', { message: data.error })}</Text>;
   }
   if (!data.data || (Array.isArray(data.data) && data.data.length === 0)) {
-    return <Text dimColor>No cost data</Text>;
+    return <Text dimColor>{t('tui.dash.cost.empty')}</Text>;
   }
 
   // The server returns a CostSummary object (domain/costs/cost-tracker.ts): top-level
@@ -32,32 +33,32 @@ export function DashboardCostTab({ data }: DashboardCostTabProps): React.JSX.Ele
   const hasAnyTotal = costData?.total != null || costData?.month != null || costData?.today != null;
 
   if (!hasAnyTotal && modeEntries.length === 0) {
-    return <Text dimColor>No cost summary available</Text>;
+    return <Text dimColor>{t('tui.dash.cost.unavailable')}</Text>;
   }
 
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
-        <Text bold>Cost Summary</Text>
+        <Text bold>{t('tui.dash.cost.title')}</Text>
       </Box>
 
       {costData?.total != null ? (
-        <Box><Text>Total:      </Text><Text>{usd(costData.total)}</Text></Box>
+        <Box><Text>{t('tui.dash.cost.total')}</Text><Text>{usd(costData.total)}</Text></Box>
       ) : null}
       {costData?.month != null ? (
-        <Box><Text>This month: </Text><Text>{usd(costData.month)}</Text></Box>
+        <Box><Text>{t('tui.dash.cost.month')}</Text><Text>{usd(costData.month)}</Text></Box>
       ) : null}
       {costData?.week != null ? (
-        <Box><Text>This week:  </Text><Text>{usd(costData.week)}</Text></Box>
+        <Box><Text>{t('tui.dash.cost.week')}</Text><Text>{usd(costData.week)}</Text></Box>
       ) : null}
       {costData?.today != null ? (
-        <Box><Text>Today:      </Text><Text>{usd(costData.today)}</Text></Box>
+        <Box><Text>{t('tui.dash.cost.today')}</Text><Text>{usd(costData.today)}</Text></Box>
       ) : null}
 
       {/* All-time cost-type breakdown (api vs plan), strongest first */}
       {modeEntries.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
-          <Text dimColor>By cost type (all-time):</Text>
+          <Text dimColor>{t('tui.dash.cost.byType')}</Text>
           {modeEntries
             .sort(([, a]: [string, any], [, b]: [string, any]) => (b as number) - (a as number))
             .map(([mode, v]: [string, any]) => (

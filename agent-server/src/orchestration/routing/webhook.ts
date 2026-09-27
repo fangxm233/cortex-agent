@@ -30,6 +30,7 @@ import { sendAgentFile } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
 import type { Destination } from '@platform/index.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('webhook');
 
@@ -486,7 +487,7 @@ function createWebhookHandler(_options: {
               render: {
                 kind: 'summary',
                 blocks: haveChannel ? { channel, sessionName: null, isDm: false, threadId: thread.id } : null,
-                startText: haveChannel ? `${Icons.processing} Starting thread (${template ? label : `agent:${label}`})...` : null,
+                startText: haveChannel ? `${Icons.processing} ${t('notice.thread.starting', { target: template ? label : `agent:${label}` })}` : null,
               },
               // No interactive capture on the MCP path (no live user to route plan/ask dialogs to).
               interactive: false,

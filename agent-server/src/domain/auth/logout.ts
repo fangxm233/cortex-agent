@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
@@ -60,18 +61,18 @@ export interface LogoutAccountDependencies {
   piAuthPath?: string;
 }
 
-const ERROR_MESSAGES: Record<AuthLogoutErrorCode, string> = {
-  not_manageable: 'Credential is not manageable by Cortex.',
-  external_credential: 'OAuth credential is managed by Anthropic. Run `claude auth logout` in a terminal.',
-  runtime_unavailable: 'PI runtime is unavailable.',
-  logout_failed: 'Account logout failed.',
+const ERROR_KEYS: Record<AuthLogoutErrorCode, string> = {
+  not_manageable: 'ux.auth.notManageable',
+  external_credential: 'ux.auth.externalCredential',
+  runtime_unavailable: 'ux.auth.piRuntimeUnavailable',
+  logout_failed: 'ux.auth.logoutFailed',
 };
 
 function failed(
   input: LogoutAccountInput,
   code: AuthLogoutErrorCode,
 ): AuthLogoutFailure {
-  return { ok: false, ...input, error: { code, message: ERROR_MESSAGES[code] } };
+  return { ok: false, ...input, error: { code, message: t(ERROR_KEYS[code]) } };
 }
 
 function succeeded(input: LogoutAccountInput): AuthLogoutSuccess {

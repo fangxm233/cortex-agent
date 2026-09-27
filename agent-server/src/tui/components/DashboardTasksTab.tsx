@@ -5,6 +5,7 @@ import type { MutateResult, MutateError } from '../hooks/useMutate.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { computeFocusWindow } from '../logic.js';
 import { DASHBOARD_MAX_VISIBLE_ROWS } from './dashboard-constants.js';
+import { t } from '../../core/i18n.js';
 
 // ── Types ──
 
@@ -22,13 +23,13 @@ type ConfirmMode = 'complete' | 'block' | null;
 
 export function DashboardTasksTab({ data, mutate, projectId, active = true }: DashboardTasksTabProps): React.JSX.Element {
   if (data.loading && data.data.length === 0) {
-    return <Text dimColor>Loading tasks...</Text>;
+    return <Text dimColor>{t('tui.dash.tasks.loading')}</Text>;
   }
   if (data.error) {
-    return <Text color="red">Error: {data.error}</Text>;
+    return <Text color="red">{t('tui.common.error', { message: data.error })}</Text>;
   }
   if (data.data.length === 0) {
-    return <Text dimColor>No tasks</Text>;
+    return <Text dimColor>{t('tui.dash.tasks.empty')}</Text>;
   }
 
   return <TasksList data={data} mutate={mutate} projectId={projectId} active={active} />;
@@ -164,7 +165,7 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
     } else if (confirmMode === 'complete') {
       return (
         <ConfirmModal
-          title="Mark task done?"
+          title={t('tui.dash.tasks.doneTitle')}
           body={String(task.text ?? '')}
           onConfirm={() => {
             const idx = confirmingIndexRef.current;
@@ -187,9 +188,9 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
     } else if (confirmMode === 'block') {
       return (
         <ConfirmModal
-          title="Block task"
+          title={t('tui.dash.tasks.blockTitle')}
           body={String(task.text ?? '')}
-          reasonInput={{ label: 'Block reason' }}
+          reasonInput={{ label: t('tui.dash.tasks.blockReason') }}
           onConfirm={(reason) => {
             const idx = confirmingIndexRef.current;
             if (idx !== null) {
@@ -220,7 +221,7 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
 
   return (
     <Box flexDirection="column">
-      {hiddenAbove > 0 ? <Text dimColor>↑ {hiddenAbove} more above</Text> : null}
+      {hiddenAbove > 0 ? <Text dimColor>{t('tui.common.moreAbove', { n: hiddenAbove })}</Text> : null}
       {tasks.slice(start, end).map((task: any, vi: number) => {
         const i = start + vi;
         const isFocused = i === focusedIndex;
@@ -239,18 +240,18 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
             </Box>
             <Box marginLeft={2}>
               <Text dimColor>
-                {task.claimedBy ? `👤 ${task.claimedBy}` : 'unclaimed'}
-                {task.blockedBy ? ` | blocked: ${task.blockedBy}` : ''}
+                {task.claimedBy ? `👤 ${task.claimedBy}` : t('tui.dash.tasks.unclaimed')}
+                {task.blockedBy ? t('tui.dash.tasks.blockedBy', { by: task.blockedBy }) : ''}
               </Text>
             </Box>
             {isFocused && mutate ? (
               <Box marginLeft={2}>
-                <Text dimColor>[c] Claim [u] Unclaim [d] Done [b] Block [B] Unblock</Text>
+                <Text dimColor>{t('tui.dash.tasks.keys')}</Text>
               </Box>
             ) : null}
             {isLockBusy ? (
               <Box marginLeft={2}>
-                <Text color="yellow">busy — another agent holds the lock (auto-expires in 20m)</Text>
+                <Text color="yellow">{t('tui.dash.tasks.lockBusy')}</Text>
               </Box>
             ) : null}
             {hasError ? (
@@ -261,7 +262,7 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
           </Box>
         );
       })}
-      {hiddenBelow > 0 ? <Text dimColor>↓ {hiddenBelow} more below</Text> : null}
+      {hiddenBelow > 0 ? <Text dimColor>{t('tui.common.moreBelow', { n: hiddenBelow })}</Text> : null}
     </Box>
   );
 }
@@ -279,9 +280,9 @@ function TaskStatusIcon({ status }: { status: string }): React.JSX.Element {
 
 function PriorityBadge({ priority }: { priority: string }): React.JSX.Element {
   switch (priority) {
-    case 'high': return <Text color="red">high</Text>;
-    case 'medium': return <Text color="yellow">med</Text>;
-    case 'low': return <Text color="green">low</Text>;
+    case 'high': return <Text color="red">{t('tui.dash.tasks.prioHigh')}</Text>;
+    case 'medium': return <Text color="yellow">{t('tui.dash.tasks.prioMedium')}</Text>;
+    case 'low': return <Text color="green">{t('tui.dash.tasks.prioLow')}</Text>;
     default: return <Text dimColor>{priority}</Text>;
   }
 }

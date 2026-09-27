@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { t } from '@core/i18n.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
 import { parseTarget } from './utils.js';
 import type { AgentDefinition, ShellDefinition, ShellTemplateBinding } from '@core/types/thread-types.js';
@@ -181,7 +182,7 @@ function zodIssues(result: z.ZodSafeParseResult<unknown>): Issue[] {
 function unknownKeyWarnings(body: Record<string, unknown>, known: ReadonlySet<string>): Issue[] {
   return Object.keys(body)
     .filter((key) => !known.has(key))
-    .map((key) => ({ path: key, message: `Unrecognised field "${key}" — it will be ignored` }));
+    .map((key) => ({ path: key, message: t('ux.tpl.unknownField', { key }) }));
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -213,7 +214,7 @@ function checkRegex(pattern: string, path: string, errors: Issue[]): void {
   } catch (error) {
     errors.push({
       path,
-      message: `Invalid regex: ${error instanceof Error ? error.message : String(error)} — this transition can never fire`,
+      message: t('ux.tpl.invalidRegex', { error: error instanceof Error ? error.message : String(error) }),
     });
   }
 }
@@ -229,14 +230,14 @@ function checkCondition(condition: unknown, path: string, result: ValidationResu
   if (type === 'convergence' && typeof condition.marker !== 'string') {
     result.warnings.push({
       path: `${path}.marker`,
-      message: 'convergence without a marker never converges — it only stops at maxIterations',
+      message: t('ux.tpl.convergenceNoMarker'),
     });
   }
   if (type === 'output_contains' || type === 'output_not_contains') {
     if (typeof condition.pattern !== 'string' || condition.pattern === '') {
       result.warnings.push({
         path: `${path}.pattern`,
-        message: `${String(type)} with an empty pattern matches every output`,
+        message: t('ux.tpl.emptyPattern', { type: String(type) }),
       });
     } else {
       checkRegex(condition.pattern, `${path}.pattern`, result.errors);
@@ -260,7 +261,7 @@ function checkPromptFileRef(
   if (!refs.exists(refs.join(refs.promptsDir, subdir, filename))) {
     warnings.push({
       path,
-      message: `prompts/${subdir}/${filename} does not exist — the literal string "${value}" will be used as the prompt`,
+      message: t('ux.tpl.promptFileMissing', { subdir, filename, value }),
     });
   }
 }
@@ -279,7 +280,7 @@ function validateAgent(
   if (typeof body.name === 'string' && body.name !== name) {
     result.errors.push({
       path: 'name',
-      message: `name "${body.name}" must equal the filename "${name}" — the loader skips the file otherwise`,
+      message: t('ux.tpl.nameMismatch', { name: body.name, file: name }),
     });
   }
 
@@ -287,24 +288,24 @@ function validateAgent(
   if (stages) {
     const stageNames = Object.keys(stages);
     if (stageNames.length === 0) {
-      result.warnings.push({ path: 'stages', message: 'stages is empty — the agent has no prompt to run' });
+      result.warnings.push({ path: 'stages', message: t('ux.tpl.stagesEmpty') });
     }
     if (typeof body.entryStage === 'string' && !stageNames.includes(body.entryStage)) {
       result.errors.push({
         path: 'entryStage',
-        message: `entryStage "${body.entryStage}" is not one of the declared stages (${stageNames.join(', ')})`,
+        message: t('ux.tpl.entryStageUndeclared', { stage: body.entryStage, stages: stageNames.join(', ') }),
       });
     }
     if (body.entryStage === undefined && stageNames.length > 1) {
       result.warnings.push({
         path: 'entryStage',
-        message: `no entryStage with ${stageNames.length} stages — "${stageNames[0]}" is silently used`,
+        message: t('ux.tpl.entryStageImplicit', { count: stageNames.length, first: stageNames[0] }),
       });
     }
     if (typeof body.promptTemplate === 'string') {
       result.warnings.push({
         path: 'promptTemplate',
-        message: 'promptTemplate is ignored when stages is declared',
+        message: t('ux.tpl.promptTemplateIgnored'),
       });
     }
     for (const [stageName, stage] of Object.entries(stages)) {
@@ -315,7 +316,7 @@ function validateAgent(
   } else if (body.promptTemplate === undefined) {
     result.warnings.push({
       path: 'promptTemplate',
-      message: 'agent declares neither promptTemplate nor stages — it has no prompt to run',
+      message: t('ux.tpl.noPrompt'),
     });
   }
 
@@ -328,7 +329,7 @@ function validateAgent(
       if (typeof dir !== 'string') return;
       const abs = refs.isAbsolute(dir) ? dir : refs.join(refs.pluginBaseDir, dir);
       if (!refs.exists(abs)) {
-        result.warnings.push({ path: `pluginDirs[${i}]`, message: `plugin directory "${dir}" does not exist` });
+        result.warnings.push({ path: `pluginDirs[${i}]`, message: t('ux.tpl.pluginDirMissing', { dir }) });
       }
     });
   }
@@ -361,18 +362,18 @@ function checkEndpoint(
   if (!slots.has(agent)) {
     errors.push({
       path,
-      message: `"${agent}" is not one of this template's agents (${[...slots].join(', ')})`,
+      message: t('ux.tpl.endpointNotSlot', { agent, slots: [...slots].join(', ') }),
     });
     return;
   }
   if (stage === null || agent === ACTIVE_AGENT) return;
   const stages = stagesOf(registry.agents[agent]);
   if (!stages) {
-    errors.push({ path, message: `agent "${agent}" declares no stages, so ":${stage}" cannot be selected` });
+    errors.push({ path, message: t('ux.tpl.agentNoStages', { agent, stage }) });
   } else if (!(stage in stages)) {
     errors.push({
       path,
-      message: `agent "${agent}" has no "${stage}" stage (has: ${Object.keys(stages).join(', ')})`,
+      message: t('ux.tpl.agentMissingStage', { agent, stage, stages: Object.keys(stages).join(', ') }),
     });
   }
 }
@@ -390,7 +391,7 @@ function validateFullTemplate(
   if (typeof body.name === 'string' && body.name !== name) {
     result.errors.push({
       path: 'name',
-      message: `name "${body.name}" must equal the filename "${name}" — the loader skips the file otherwise`,
+      message: t('ux.tpl.nameMismatch', { name: body.name, file: name }),
     });
   }
 
@@ -402,14 +403,14 @@ function validateFullTemplate(
     slots.add(agentName);
     if (agentName === ACTIVE_AGENT) return;
     if (!(agentName in registry.agents)) {
-      result.errors.push({ path: `agents[${i}]`, message: `unknown agent "${agentName}"` });
+      result.errors.push({ path: `agents[${i}]`, message: t('ux.tpl.unknownAgent', { name: agentName }) });
     }
   });
 
   if (typeof body.entryAgent === 'string' && !slots.has(body.entryAgent)) {
     result.errors.push({
       path: 'entryAgent',
-      message: `entryAgent "${body.entryAgent}" is not in this template's agents list — the thread cannot take its first step`,
+      message: t('ux.tpl.entryAgentNotListed', { agent: body.entryAgent }),
     });
   }
 
@@ -418,12 +419,14 @@ function validateFullTemplate(
     if (stages && !(body.entryStage in stages)) {
       result.errors.push({
         path: 'entryStage',
-        message: `entryAgent "${body.entryAgent}" has no "${body.entryStage}" stage (has: ${Object.keys(stages).join(', ')})`,
+        message: t('ux.tpl.entryAgentMissingStage', {
+          agent: body.entryAgent, stage: body.entryStage, stages: Object.keys(stages).join(', '),
+        }),
       });
     } else if (!stages && body.entryAgent !== ACTIVE_AGENT) {
       result.warnings.push({
         path: 'entryStage',
-        message: `entryAgent "${body.entryAgent}" declares no stages — entryStage is ignored`,
+        message: t('ux.tpl.entryAgentNoStages', { agent: body.entryAgent }),
       });
     }
   }
@@ -443,7 +446,7 @@ function validateFullTemplate(
 
   for (const slot of slots) {
     if (!reached.has(slot)) {
-      result.warnings.push({ path: 'agents', message: `agent "${slot}" is never reached by any transition` });
+      result.warnings.push({ path: 'agents', message: t('ux.tpl.agentUnreached', { agent: slot }) });
     }
   }
 
@@ -462,7 +465,7 @@ function validateShellBinding(
 
   const shell = registry.shells[typeof body.shell === 'string' ? body.shell : ''];
   if (!isPlainObject(shell)) {
-    result.errors.push({ path: 'shell', message: `unknown shell "${String(body.shell)}"` });
+    result.errors.push({ path: 'shell', message: t('ux.tpl.unknownShell', { shell: String(body.shell) }) });
     return result;
   }
 
@@ -482,7 +485,7 @@ function validateShellBinding(
       if (!declared.has(key) && !['shell', 'description', 'maxTotalSteps'].includes(key)) {
         result.warnings.push({
           path: key,
-          message: `"${key}" is not a parameter of shell "${String(body.shell)}" (declares: ${[...declared].join(', ')})`,
+          message: t('ux.tpl.notShellParam', { key, shell: String(body.shell), params: [...declared].join(', ') }),
         });
       }
     }
@@ -510,9 +513,9 @@ function validateShell(body: Record<string, unknown>): ValidationResult {
       const param = dot < 0 ? token : token.slice(0, dot);
       const prop = dot < 0 ? '' : token.slice(dot + 1);
       if (!params.has(param)) {
-        result.errors.push({ path, message: `unknown placeholder "{${token}}" — "${param}" is not in params` });
+        result.errors.push({ path, message: t('ux.tpl.unknownPlaceholder', { token, param }) });
       } else if (prop !== '' && prop !== 'entryStage') {
-        result.errors.push({ path, message: `unknown placeholder property "{${token}}" — only .entryStage is supported` });
+        result.errors.push({ path, message: t('ux.tpl.unknownPlaceholderProp', { token }) });
       }
     }
   };
@@ -596,7 +599,7 @@ export function validateEntity(
   refs?: RefResolver,
 ): ValidationResult {
   if (!isPlainObject(body)) {
-    return { errors: [{ path: '(root)', message: 'Body must be a JSON object' }], warnings: [] };
+    return { errors: [{ path: '(root)', message: t('ux.tpl.bodyNotObject') }], warnings: [] };
   }
 
   let result: ValidationResult;
@@ -632,7 +635,7 @@ export function validateRegistry(
             : isShellBinding(body)
               ? validateShellBinding(name, body as ShellTemplateBinding & Record<string, unknown>, registry)
               : validateFullTemplate(name, body, registry)
-        : { errors: [{ path: '(root)', message: 'Body must be a JSON object' }], warnings: [] };
+        : { errors: [{ path: '(root)', message: t('ux.tpl.bodyNotObject') }], warnings: [] };
       out.set(`${kind}:${name}`, result);
     }
   }

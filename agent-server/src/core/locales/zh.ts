@@ -9,6 +9,10 @@ import { interactionsZh } from './slices/interactions.js';
 import { startupZh } from './slices/startup.js';
 import { initZh } from './slices/init.js';
 import { providersZh } from './slices/providers.js';
+import { noticesZh } from './slices/notices.js';
+import { uimsgZh } from './slices/uimsg.js';
+import { tuiZh } from './slices/tui.js';
+import { uiextraZh } from './slices/uiextra.js';
 
 /** Simplified-Chinese translations, aggregated from per-cluster slices. Must provide every
  *  MessageKey (compiler-enforced via Record<MessageKey,string>) and add none. ${param}
@@ -22,4 +26,8 @@ export const zh: Record<MessageKey, string> = {
   ...startupZh,
   ...initZh,
   ...providersZh,
+  ...noticesZh,
+  ...uimsgZh,
+  ...tuiZh,
+  ...uiextraZh,
 };

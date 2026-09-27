@@ -12,6 +12,7 @@ import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { activeTurns } from '../turn/active-turns.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('edit-handler');
 
@@ -302,7 +303,7 @@ async function cleanupSupersededMessages(supersededTurns: LedgerTurn[], channel:
       promises.push(
         adapter.updateMessage(
           { conduit: channel, messageId: turn.statusMessageTs },
-          { text: `${Icons.superseded} Superseded by edit` },
+          { text: `${Icons.superseded} ${t('status.supersededByEdit')}` },
         ).catch(() => {})
       );
     }

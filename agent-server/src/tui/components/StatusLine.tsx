@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { WsState } from '../ws-client.js';
+import { t } from '../../core/i18n.js';
 
 interface StatusLineProps {
   connectionState: WsState;
@@ -16,11 +17,6 @@ interface StatusLineProps {
   /** Whether mouse capture (wheel scroll) is on. When off the mouse is free for text selection. */
   mouseCapture?: boolean;
 }
-
-/** Full keyboard-shortcut list, revealed by typing '?' on an empty input. */
-const SHORTCUTS =
-  'Ctrl+D Dashboard · Ctrl+N Notifications · Ctrl+P Projects · Ctrl+L Clear · '
-  + '↑/↓ History · PgUp/PgDn Scroll · Ctrl+T Text-select mode (stops wheel) · Ctrl+C Cancel (×2 Exit) · / Commands';
 
 // Memoized (React.memo below): all props are primitives, so App re-renders driven by unrelated
 // state (turn-status ticks, drag-selection, toasts) skip reconciling the status bar entirely.
@@ -42,7 +38,7 @@ function StatusLineImpl({
     return (
       <Text>
         {status ? <Text color={color}>{status}{' — '}</Text> : null}
-        <Text dimColor>{SHORTCUTS}</Text>
+        <Text dimColor>{t('tui.status.shortcuts')}</Text>
       </Text>
     );
   }
@@ -52,11 +48,11 @@ function StatusLineImpl({
       <Box>
         {status ? <Text color={color}>{status}{' — '}</Text> : null}
         {dashboardActive
-          ? <Text dimColor>Press Ctrl+D to return to the input</Text>
-          : <Text dimColor>? for shortcuts</Text>}
+          ? <Text dimColor>{t('tui.status.returnHint')}</Text>
+          : <Text dimColor>{t('tui.status.shortcutsHint')}</Text>}
       </Box>
       <Box>
-        {!mouseCapture ? <Text color="cyan">🖱 select · </Text> : null}
+        {!mouseCapture ? <Text color="cyan">{t('tui.status.selectMode')}</Text> : null}
         {projectId ? <Text dimColor>{projectId}</Text> : null}
         {queuedCount > 0 ? <Text color="yellow"> · ⏳ {queuedCount}</Text> : null}
         {notificationCount > 0 ? <Text color="yellow"> · 🔔 {notificationCount}</Text> : null}
@@ -70,9 +66,9 @@ export const StatusLine = React.memo(StatusLineImpl);
 /** Connection status text, or null when connected normally (nothing to show). */
 function getConnectionStatus(state: WsState, errorMessage?: string | null): string | null {
   if (errorMessage) return `⚠ ${errorMessage}`;
-  if (state === 'reconnecting') return '⟳ Reconnecting...';
-  if (state === 'connecting') return '⟳ Connecting...';
-  if (state === 'disconnected') return '○ Disconnected — press R to retry, Ctrl+C to exit';
+  if (state === 'reconnecting') return t('tui.status.reconnecting');
+  if (state === 'connecting') return t('tui.status.connecting');
+  if (state === 'disconnected') return t('tui.status.disconnected');
   return null;
 }
 

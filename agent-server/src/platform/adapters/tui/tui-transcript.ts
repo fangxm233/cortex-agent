@@ -6,6 +6,7 @@ import type {
 } from '../../tui/protocol.js';
 import type { MessageRef } from '../../types.js';
 import type { TranscriptData } from './ports.js';
+import { t } from '../../../core/i18n.js';
 
 /**
  * Build a TranscriptReplay frame from transcript data.
@@ -29,7 +30,7 @@ export function buildTranscriptReplay(
     if (msg.role === 'tool') {
       // Tool calls render as a dim context line, mirroring the live display. Lead with a space so
       // the `·` marker is indented one column instead of sitting flush against the left edge.
-      const label = msg.toolName ? ` · ${msg.toolName}${msg.toolInput ? `  ${msg.toolInput}` : ''}` : ' · tool';
+      const label = msg.toolName ? ` · ${msg.toolName}${msg.toolInput ? `  ${msg.toolInput}` : ''}` : ` · ${t('tui.transcript.toolFallback')}`;
       items.push({ type: 'chat.post', ref, content: { text: '', richBlocks: [{ type: 'context', text: label }] as any }, seq: ++seq });
     } else if (msg.role === 'user') {
       items.push({ type: 'chat.post', ref, content: { text: `**You:** ${msg.text}` }, seq: ++seq });

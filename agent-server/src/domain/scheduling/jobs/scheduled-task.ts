@@ -20,6 +20,7 @@ import type { ScheduleTarget, ScheduleTask } from '@store/schedule-repo.js';
 // Type-only, so `domain` still never depends on `orchestration` at runtime: the run itself
 // arrives through `ctx.runThreadOnSurface`, injected by app.ts.
 import type { TaskVerdict, ThreadRunOutcome, ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
+import { t } from '@core/i18n.js';
 
 /** The precise shape of `ctx.runThreadOnSurface` — see the type's doc in job-registry for why it
  *  is re-declared here rather than named there. */
@@ -117,7 +118,7 @@ async function runScheduledTaskAsync({ normalizedMessage, message, projectId, sc
     if (plan.kind === 'skip') {
       log.info(`Skipping schedule ${scheduleTaskId}: ${plan.reason}`);
       const notify = requireJobCtx('notify');
-      try { await notify(projectReportDest, `${Icons.superseded} Scheduled task skipped — ${plan.reason}`); } catch {}
+      try { await notify(projectReportDest, `${Icons.superseded} ${t('notice.schedule.skipped', { reason: plan.reason })}`); } catch {}
       return;
     }
 
@@ -130,7 +131,7 @@ async function runScheduledTaskAsync({ normalizedMessage, message, projectId, sc
     // failure here was an unhandled rejection and said nothing at all.)
     const notify = requireJobCtx('notify');
     log.error('Scheduled task setup failed:', (error as Error).message);
-    try { await notify(projectReportDest, `Scheduled task error: ${(error as Error).message}`); } catch {}
+    try { await notify(projectReportDest, t('notice.schedule.error', { error: (error as Error).message })); } catch {}
     return;
   }
 

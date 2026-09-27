@@ -8,6 +8,7 @@ import {
 } from './routing/file-handler.js';
 import { threadStore } from '@store/thread-repo.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
+import { t } from '@core/i18n.js';
 // Same tag as thread-executor's logger on purpose: these lines used to be emitted from there.
 const log = createLogger('thread-executor');
 
@@ -68,6 +69,6 @@ export async function bufferUserMessage(ctx: ThreadExecCtx): Promise<void> {
   await preparation.catch((error) => log.warn(`Failed to prepare buffered input: ${(error as Error).message}`));
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   await adapter.postMessage(dest, {
-    text: `${Icons.inbox} Message buffered — will be included in the next step’s prompt`,
+    text: `${Icons.inbox} ${t('notice.thread.messageBuffered')}`,
   }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
 }

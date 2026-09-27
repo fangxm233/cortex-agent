@@ -31,6 +31,7 @@ import { configureFeishuHttp } from './feishu-http.js';
 import { ProjectConduitsStore } from './project-conduits.js';
 import { uploadFeishuImage } from './feishu-image.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('feishu');
 
@@ -585,7 +586,7 @@ export class FeishuAdapter implements PlatformAdapter {
       this._persistAdminChannel(chatId).catch(e =>
         log.warn(`Failed to persist feishuAdminChannel to settings.json: ${(e as Error).message}`));
       this.postMessage({ type: 'system-notice' }, {
-        text: `👋 This DM has been auto-registered as the Cortex admin channel. \`feishuAdminChannel=${chatId}\` has been written to \`settings.json\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
+        text: `👋 ${t('notice.admin.autoRegistered', { setting: 'feishuAdminChannel', channel: chatId })}`,
       }).catch(e => log.warn(`Failed to send admin auto-detect notification: ${(e as Error).message}`));
     }
 

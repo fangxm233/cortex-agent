@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { randomUUID } from 'crypto';
 import { isUiMutateResult } from '../../platform/tui/protocol.js';
 import type { TuiFrame, UiMutate } from '../../platform/tui/protocol.js';
+import { t } from '../../core/i18n.js';
 
 // ── Types ──
 
@@ -77,7 +78,7 @@ export function useMutate({ sendFrame, onFrame }: UseMutateOpts): UseMutateResul
           const pending = pendingRef.current;
           if (pending.has(id)) {
             pending.delete(id);
-            resolve({ ok: false, error: { code: 'timeout', message: 'no ui.mutateResult within 10s' } });
+            resolve({ ok: false, error: { code: 'timeout', message: t('tui.mutate.timeout') } });
           }
         }, 10_000);
         pendingRef.current.set(id, { resolve, timer });

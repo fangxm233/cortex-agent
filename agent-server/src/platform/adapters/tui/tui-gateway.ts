@@ -49,6 +49,7 @@ import {
 import { sendProjectReport, sendSystemNotice } from './tui-notifications.js';
 import { buildTranscriptReplay } from './tui-transcript.js';
 import { createLogger } from '@core/log.js';
+import { t } from '@core/i18n.js';
 import type { TranscriptData, ConduitQueuePort } from './ports.js';
 import type { EventBus, Subscription } from '@events/index.js';
 
@@ -287,7 +288,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
           kind: 'project-report',
           projectId: destination.projectId,
           sessionId: destination.sessionId ?? '',
-          title: `Report: ${destination.projectId}`,
+          title: t('tui.gateway.reportTitle', { project: destination.projectId }),
           body: content.text,
           seq: 0,
         });
@@ -416,8 +417,8 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
       type: 'notification',
       kind: 'system-notice',
       projectId: conn.activeProjectId,
-      title: 'File available',
-      body: `Absolute path: ${filePath}`,
+      title: t('tui.gateway.fileTitle'),
+      body: t('tui.gateway.filePath', { path: filePath }),
       seq: 0,
     });
   }

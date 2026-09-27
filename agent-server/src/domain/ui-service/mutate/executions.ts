@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import type { UiServiceDeps, Result, ExecutionsCancelReturn } from '../types.js';
 
 export async function handleCancelExecution(
@@ -7,7 +8,7 @@ export async function handleCancelExecution(
   try {
     const record = deps.executionRegistry.cancelExecution(args.executionId);
     if (!record) {
-      return { ok: false, code: 'not-found', message: `Execution not found: ${args.executionId}` };
+      return { ok: false, code: 'not-found', message: t('ui.execution.notFound', { id: args.executionId }) };
     }
     return { ok: true, data: { cancelled: true } };
   } catch (err: any) {

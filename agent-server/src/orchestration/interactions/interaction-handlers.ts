@@ -267,7 +267,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
   conduitQueues.delete(exec.channel ?? channel);
   if (ctx.messageRef) {
     await _adapter.updateMessage(ctx.messageRef, {
-      text: `${Icons.stopped} Cancelled. Session preserved — next message will resume.`,
+      text: `${Icons.stopped} ${t('interaction.cancelledPreserved')}`,
     }).catch(() => {});
   }
 }

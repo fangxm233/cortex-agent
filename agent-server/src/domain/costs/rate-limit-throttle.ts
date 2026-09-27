@@ -4,6 +4,7 @@ import { getSettings } from '@core/settings.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { Icons } from '../../core/icons.js';
+import { t, getLocale } from '@core/i18n.js';
 
 const log = createLogger('rate-limit-throttle');
 
@@ -154,7 +155,7 @@ function fireResume(providers: string[]): void {
   }
 }
 
-function sendDM(text: string, title = 'Rate limit', actions?: ActionElement[]): void {
+function sendDM(text: string, title = t('notice.rateLimit.title'), actions?: ActionElement[]): void {
   if (!_adapter) return;
   void emitSystemNotice(_adapter, {
     text,
@@ -165,11 +166,11 @@ function sendDM(text: string, title = 'Rate limit', actions?: ActionElement[]): 
 }
 
 function clearAction(provider: string): ActionElement[] {
-  return [{ type: 'button', text: 'Resume now', actionId: RATE_LIMIT_CLEAR_ACTION_ID, value: provider, style: 'primary' }];
+  return [{ type: 'button', text: t('notice.rateLimit.resumeNow'), actionId: RATE_LIMIT_CLEAR_ACTION_ID, value: provider, style: 'primary' }];
 }
 
 function formatResetTime(epochSec: number): string {
-  return new Date(epochSec * 1000).toLocaleString('en-GB', {
+  return new Date(epochSec * 1000).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-GB', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
   });
 }
@@ -335,11 +336,11 @@ function pruneExpired(
 function clearedNotice(provider: ClearedProvider): { text: string; title?: string } {
   if (provider.expiredTypes.includes(OUTAGE_WINDOW_TYPE)) {
     return {
-      text: `${Icons.ok} ${provider.displayName} provider outage window cleared.`,
-      title: 'Provider outage',
+      text: `${Icons.ok} ${t('notice.rateLimit.outageCleared', { provider: provider.displayName })}`,
+      title: t('notice.rateLimit.outageTitle'),
     };
   }
-  return { text: `${Icons.ok} ${provider.displayName} rate limit throttle cleared.` };
+  return { text: `${Icons.ok} ${t('notice.rateLimit.cleared', { provider: provider.displayName })}` };
 }
 
 async function persistExpiry(candidate: Map<string, ProviderThrottleState>): Promise<boolean> {
@@ -448,8 +449,7 @@ async function activateOutageWindowLocked(provider: string | null, durationMs: n
   fireChange();
   const reset = state.windows.find((window) => window.type === OUTAGE_WINDOW_TYPE)!.resetsAt;
   log.info(`Provider outage activated: provider=${source.provider}, durationMs=${durationMs}`);
-  sendDM(`${Icons.warning} ${source.displayName} provider outage detected.
-Automated work will retry at ${formatResetTime(reset)} (in ${formatRemaining(reset)}).`, 'Provider outage', clearAction(source.provider));
+  sendDM(`${Icons.warning} ${t('notice.rateLimit.outageDetected', { provider: source.displayName, at: formatResetTime(reset), remaining: formatRemaining(reset) })}`, t('notice.rateLimit.outageTitle'), clearAction(source.provider));
 }
 
 async function activateOutageWindow(provider: string | null, durationMs: number): Promise<void> {
@@ -465,8 +465,7 @@ function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): bool
 function notifyQuotaActivation(info: RateLimitInfo, source: RateLimitSource, isNewProvider: boolean): void {
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (!isNewProvider) return;
-  sendDM(`${Icons.warning} ${source.displayName} rate limit throttle activated [${info.rateLimitType}] — utilization ${(info.utilization! * 100).toFixed(0)}%.
-Auto-resume at ${formatResetTime(info.resetsAt!)} (in ${formatRemaining(info.resetsAt!)}).`, 'Rate limit', clearAction(source.provider));
+  sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: source.displayName, type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), clearAction(source.provider));
 }
 
 async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -527,8 +526,7 @@ async function clearThrottleLocked(provider?: string | null): Promise<ClearThrot
   for (const item of cleared) {
     const names = item.types.join(', ');
     log.info(`Throttle manually cleared: provider=${item.provider}, types=${names}`);
-    sendDM(`${Icons.ok} ${item.displayName} rate limit throttle cleared manually — paused work is resuming now.
-If the provider is still rate-limited, the next request will re-activate the throttle automatically.`);
+    sendDM(`${Icons.ok} ${t('notice.rateLimit.clearedManually', { provider: item.displayName })}`);
   }
   return { cleared };
 }

@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
@@ -42,11 +43,11 @@ async function readProfilesFile(configDir: string): Promise<RawProfilesFile> {
   try {
     raw = JSON.parse(await fs.readFile(profilesPath(configDir), 'utf8'));
   } catch {
-    throw fail('invalid-args', 'profiles.json is missing or unreadable');
+    throw fail('invalid-args', t('ui.profile.fileUnreadable'));
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !raw.profiles
     || typeof raw.profiles !== 'object' || Array.isArray(raw.profiles)) {
-    throw fail('invalid-args', 'profiles.json has no profiles map');
+    throw fail('invalid-args', t('ui.profile.noProfilesMap'));
   }
   return raw as RawProfilesFile;
 }
@@ -96,7 +97,7 @@ export async function createProfile(configDir: string, args: ProfilesCreateArgs)
   const { name, ...draft } = args;
   const raw = await readProfilesFile(configDir);
   if (Object.prototype.hasOwnProperty.call(raw.profiles, name)) {
-    throw fail('invalid-args', `profile "${name}" already exists`);
+    throw fail('invalid-args', t('ui.profile.exists', { name }));
   }
   const entry = buildProfileEntry(draft);
   assertValidEntry(name, entry);
@@ -107,7 +108,7 @@ export async function updateProfile(configDir: string, args: ProfilesUpdateArgs)
   const { name, ...draft } = args;
   const raw = await readProfilesFile(configDir);
   const current = raw.profiles[name];
-  if (!current) throw fail('not-found', `profile "${name}" not found in profiles.json`);
+  if (!current) throw fail('not-found', t('ui.profile.notFound', { name }));
   const entry = buildProfileEntry(draft, current);
   assertValidEntry(name, entry);
   const changed = JSON.stringify(entry) !== JSON.stringify(current);
@@ -126,15 +127,15 @@ export async function removeProfile(configDir: string, args: ProfilesRemoveArgs)
   const { name } = args;
   const raw = await readProfilesFile(configDir);
   if (!Object.prototype.hasOwnProperty.call(raw.profiles, name)) {
-    throw fail('not-found', `profile "${name}" not found in profiles.json`);
+    throw fail('not-found', t('ui.profile.notFound', { name }));
   }
   if (raw.defaultProfile === name) {
-    throw fail('invalid-args', `profile "${name}" is the default profile — point the default at another profile first`);
+    throw fail('invalid-args', t('ui.profile.isDefault', { name }));
   }
   const rest = { ...raw.profiles };
   delete rest[name];
   if (Object.keys(rest).length === 0) {
-    throw fail('invalid-args', 'cannot remove the last profile in profiles.json');
+    throw fail('invalid-args', t('ui.profile.lastOne'));
   }
   await writeProfilesFile(configDir, { ...raw, profiles: rest });
 }

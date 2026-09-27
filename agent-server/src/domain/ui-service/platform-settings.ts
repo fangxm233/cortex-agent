@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import fs from 'node:fs/promises';
 import { parse } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
@@ -41,7 +42,7 @@ async function readEnvFile(file: string): Promise<Env> {
   try { return parse(await fs.readFile(file, 'utf8')); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw new Error('Could not read platform configuration');
+    throw new Error(t('ui.platform.readFailed'));
   }
 }
 
@@ -77,6 +78,6 @@ function patchContents(text: string, patch: PlatformSettingsPatch): string {
 
 export async function writePlatformSettings(file: string, input: PlatformSettingsPatch): Promise<void> {
   const parsed = platformSettingsInput.safeParse(input);
-  if (!parsed.success) throw new Error('Invalid platform configuration');
+  if (!parsed.success) throw new Error(t('ui.platform.invalid'));
   await mutateFileAtomically(file, text => patchContents(text, parsed.data), { mode: 0o600 });
 }

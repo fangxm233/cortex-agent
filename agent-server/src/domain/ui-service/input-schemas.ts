@@ -2,6 +2,7 @@ import { platformSettingsInput } from '@core/platform-settings-spec.js';
 export { platformSettingsInput } from '@core/platform-settings-spec.js';
 
 import { z } from 'zod';
+import { t } from '@core/i18n.js';
 import { SETTINGS_SPEC } from '@core/settings-spec.js';
 // Import the leaf model module, not the pi-providers barrel: this file is bundled for the browser
 // through @cortex-agent/ui-contract, and that module is pure data with no imports of its own.
@@ -345,16 +346,16 @@ export const scheduleAddInput = z
   })
   .superRefine((val, ctx) => {
     if (val.type === 'interval' && val.intervalMs === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalMs'], message: 'intervalMs is required for type=interval' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalMs'], message: t('ui.schedule.intervalRequired') });
     }
     if ((val.type === 'daily' || val.type === 'weekly') && val.time === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['time'], message: `time is required for type=${val.type}` });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['time'], message: t('ui.schedule.timeRequired', { type: val.type }) });
     }
     if (val.type === 'weekly' && val.dayOfWeek === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['dayOfWeek'], message: 'dayOfWeek is required for type=weekly' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['dayOfWeek'], message: t('ui.schedule.dayOfWeekRequired') });
     }
     if (val.type === 'once' && val.delay === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['delay'], message: 'delay is required for type=once' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['delay'], message: t('ui.schedule.delayRequired') });
     }
   });
 
@@ -600,7 +601,7 @@ function requireExactlyOneRun(
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['script'],
-      message: 'exactly one of script or command is required',
+      message: t('ui.hook.exactlyOneRun'),
     });
   }
 }
@@ -786,8 +787,9 @@ export const issueActionInput = z.object({
   id: z.string(),
 });
 
+// `error` as a function so the message follows the locale at validation time, not at module load.
 const noteTextInput = z.string().trim().min(1).max(1000).refine((text) => !/[\r\n]/.test(text), {
-  message: 'Note text must be one line',
+  error: () => t('ui.note.oneLine'),
 });
 
 export const noteAddInput = z.object({
@@ -850,7 +852,7 @@ export const approvalsRequestInput = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['platform'], message: 'platform is required for kind=reconnect-platform' });
     }
     if (val.kind === 'add-machine' && (val.machineName === undefined || val.machineName.trim() === '')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['machineName'], message: 'machineName is required for kind=add-machine' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['machineName'], message: t('ui.approval.machineNameRequired') });
     }
   });
 

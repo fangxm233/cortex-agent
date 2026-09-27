@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { t } from '../../core/i18n.js';
 
 export interface ProjectEntry {
   id: string;
@@ -75,14 +76,14 @@ export function ProjectSwitcher({
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      <Text bold>Switch Project</Text>
+      <Text bold>{t('tui.projects.title')}</Text>
 
       {loading ? (
-        <Text dimColor>Loading projects...</Text>
+        <Text dimColor>{t('tui.projects.loading')}</Text>
       ) : error ? (
-        <Text color="red">Error: {error}</Text>
+        <Text color="red">{t('tui.common.error', { message: error })}</Text>
       ) : projects.length === 0 ? (
-        <Text dimColor>No projects found</Text>
+        <Text dimColor>{t('tui.projects.empty')}</Text>
       ) : (
         <Box flexDirection="column" marginTop={1}>
           {projects.map((proj, i) => (
@@ -98,7 +99,7 @@ export function ProjectSwitcher({
       )}
 
       <Box marginTop={1}>
-        <Text dimColor>↑/↓ navigate · Enter switch · Ctrl+P/Esc cancel</Text>
+        <Text dimColor>{t('tui.projects.hint')}</Text>
       </Box>
     </Box>
   );

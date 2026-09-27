@@ -19,7 +19,7 @@ import { Button, MBottomSheet, Modal, Select, type SelectOption } from '@/design
 import { useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useIsMobile } from '@/lib/use-mobile-layout';
-import { useTRPC, useTRPCClient } from '@/lib/trpc';
+import { trpcErrorCode, useTRPC, useTRPCClient } from '@/lib/trpc';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
 
 const FLOW_POLL_MS = 500;
@@ -455,7 +455,7 @@ function errorMessage(
   conflictMessage: string,
 ): string {
   const message = reason instanceof Error ? reason.message : String(reason);
-  if (message === 'Login flow not found or expired.') return expiredMessage;
+  if (trpcErrorCode(reason) === 'NOT_FOUND' || message === 'Login flow not found or expired.') return expiredMessage;
   return message.includes('active on another surface') ? conflictMessage : message;
 }
 

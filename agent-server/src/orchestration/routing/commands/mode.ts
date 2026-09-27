@@ -193,7 +193,7 @@ async function switchChannelProfileReply(channel: string, name: string): Promise
   if (res.reason === 'cross-backend-live-session') {
     return `${Icons.error} ${t('cmd.profile.crossBackendBlocked', { name, target: res.targetBackend, current: res.currentBackend })}`;
   }
-  return `${Icons.error} Unknown profile: ${name}`;
+  return `${Icons.error} ${t('notice.profile.unknown', { name })}`;
 }
 
 function buildProfileText(channel?: string): string {

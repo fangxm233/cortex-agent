@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import * as fs from 'node:fs';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type {
@@ -11,7 +12,7 @@ import type {
 import { parseIssues, issueLineId, resolveIssuesPath } from '../query/issues.js';
 
 function notFound(id: string): Error {
-  return Object.assign(new Error(`Issue not found: ${id}`), { code: 'not-found' });
+  return Object.assign(new Error(t('ui.issue.notFound', { id })), { code: 'not-found' });
 }
 
 /**
@@ -58,11 +59,10 @@ export function removeIssueEntry(md: string, id: string): { md: string; entry: I
 export function buildIssuePrompt(projectId: string, entry: IssueInfo): string {
   const dateSuffix = entry.date ? ` (${entry.date})` : '';
   return (
-    `处理项目 ${projectId} 的 ISSUES.md 中登记的 issue：\n\n` +
+    `${t('ui.issue.promptHead', { projectId })}\n\n` +
     `**${entry.title}**${dateSuffix}\n` +
     (entry.body ? `${entry.body}\n` : '') +
-    `\n该条目已从 ISSUES.md 移除并交由本会话处理。请调查并解决上述问题；` +
-    `如需持久记录结论，写入项目上下文相应文件。`
+    `\n${t('ui.issue.promptTail')}`
   );
 }
 

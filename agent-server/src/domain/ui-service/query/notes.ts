@@ -1,9 +1,10 @@
+import { t } from '@core/i18n.js';
 import * as path from 'node:path';
 import { projectNotesRepository } from '@store/project-notes-repo.js';
 import type { NoteInfo, NotesListParams, UiServiceDeps } from '../types.js';
 
 function notFound(projectId: string): Error {
-  return Object.assign(new Error(`Project not found: ${projectId}`), { code: 'not-found' });
+  return Object.assign(new Error(t('ui.project.notFound', { id: projectId })), { code: 'not-found' });
 }
 
 export function resolveNotesPath(deps: UiServiceDeps, projectId: string): string {

@@ -1,5 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { setLocale } from '../../../src/core/i18n.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -111,6 +112,22 @@ test('removeIssueEntry throws not-found for an unknown id', () => {
 });
 
 // ── (2) buildIssuePrompt carries the full entry text ─────────────────────────
+test('buildIssuePrompt follows the active locale around the verbatim entry', () => {
+  const entry = parseIssues(SAMPLE)[0];
+  try {
+    const en = buildIssuePrompt('demo', entry);
+    assert.match(en, /^Handle the issue recorded in ISSUES.md of project demo:\n\n\*\*First issue title\*\* \(2026-07-02\)\n/);
+    assert.match(en, /first body line\./);
+    assert.match(en, /handed to this session/);
+    setLocale('zh');
+    const zh = buildIssuePrompt('demo', entry);
+    assert.match(zh, /^处理项目 demo 的 ISSUES.md 中登记的 issue：\n\n\*\*First issue title\*\*/);
+    assert.match(zh, /交由本会话处理/);
+  } finally {
+    setLocale('en');
+  }
+});
+
 
 // ── (3) delete handler ───────────────────────────────────────────────────────
 test('handleIssuesDelete removes the entry from disk and returns ok', async () => {

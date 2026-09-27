@@ -8,6 +8,8 @@ import { makeRenderStdout, newRenderStats, writesPerSecond, type RenderStats } f
 import { WsClient } from './ws-client.js';
 import { isHandshakeAck, isSessionSwitched, isUiQueryResult, isUiEvent, isNotification } from '../platform/tui/protocol.js';
 import { CORTEX_VERSION } from '../core/version.js';
+import { t, setLocale, normalizeLocale } from '../core/i18n.js';
+import { loadLang } from '../domain/system/preferences.js';
 import type { TuiFrame } from '../platform/tui/protocol.js';
 import type { ResumableSession } from './components/SessionPicker.js';
 
@@ -117,6 +119,9 @@ function setupRenderStdout(): { stdout: NodeJS.WriteStream | undefined } {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
+  // The TUI is its own process, so resolve the UI language the same way the server entry does
+  // (entry/app.ts): CORTEX_LANG env > config/preferences.json > 'en'.
+  setLocale(process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : loadLang());
 
   enterFullscreen();
   const { stdout: renderStdout } = setupRenderStdout();
@@ -307,7 +312,7 @@ async function main(): Promise<void> {
         doRender();
       },
       onCapExceeded: () => {
-        errorMessage = 'Connection failed — press R to retry, Ctrl+C to exit';
+        errorMessage = t('tui.app.connectionFailed');
         doRender();
       },
     });
@@ -319,6 +324,6 @@ async function main(): Promise<void> {
 main().catch((e) => {
   try { inkUnmount?.(); } catch { /* best effort */ }
   leaveFullscreen(); // restore the main screen so the error is visible
-  console.error('Fatal error:', e);
+  console.error(t('tui.app.fatal'), e);
   process.exit(1);
 });

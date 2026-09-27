@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -62,7 +63,7 @@ function requireDesiredPluginIds(
 ): string[] {
   const desired = normalizedDesiredPluginIds(pluginIds);
   const invalid = addedInvalidPluginIds(currentIds, desired, snapshot);
-  if (invalid.length > 0) throw fail('invalid-args', `Unassignable plugin ids: ${invalid.join(', ')}`);
+  if (invalid.length > 0) throw fail('invalid-args', t('ui.plugin.unassignable', { ids: invalid.join(', ') }));
   return desired;
 }
 
@@ -114,7 +115,7 @@ function requireTemplateBody(entity: TemplateEntity, templateName: string): Reco
 }
 
 function requireTemplateRefs(body: Record<string, unknown>, templateName: string): unknown[] {
-  if (isShellBinding(body)) throw fail('invalid-args', `Template '${templateName}' is a read-only shell binding`);
+  if (isShellBinding(body)) throw fail('invalid-args', t('ui.plugin.shellBinding', { name: templateName }));
   const refs = Array.isArray(body.agents) ? body.agents : null;
   if (!refs) throw fail('invalid-args', `Template '${templateName}' has no agents array`);
   return refs;
@@ -195,9 +196,9 @@ function writeInheritedSlot(
 
 function requireAssignableSlotRef(current: unknown, target: SlotTarget): string {
   const ref = rawRefName(current);
-  if (ref !== target.ref) throw fail('invalid-args', `Template slot ${target.index} no longer matches ref '${target.ref}'`);
-  if (ref === '__active__') throw fail('invalid-args', `Template slot ${target.index} is read-only (__active__)`);
-  if (!ref) throw fail('invalid-args', `Template slot ${target.index} is not assignable`);
+  if (ref !== target.ref) throw fail('invalid-args', t('ui.plugin.slotRefChanged', { index: target.index, ref: target.ref }));
+  if (ref === '__active__') throw fail('invalid-args', t('ui.plugin.slotReadOnly', { index: target.index }));
+  if (!ref) throw fail('invalid-args', t('ui.plugin.slotNotAssignable', { index: target.index }));
   return ref;
 }
 

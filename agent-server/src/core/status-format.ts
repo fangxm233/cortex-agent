@@ -8,7 +8,7 @@ export function computeElapsed(startTime: number): { elapsedStr: string; elapsed
 }
 
 export function formatMetricsSuffix({ costUsd, numTurns }: { costUsd: number | null; numTurns: number | null }): string {
-  const turnsStr = numTurns != null ? ` · ${numTurns} turns` : '';
+  const turnsStr = numTurns != null ? ` · ${t('notice.thread.turns', { n: numTurns })}` : '';
   const costStr = costUsd != null ? ` · $${costUsd.toFixed(4)}` : '';
   return `${turnsStr}${costStr}`;
 }
@@ -28,7 +28,7 @@ export function buildSessionTag(sessionName: string | null, sessionId: string | 
 export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null; todoProgress?: string | null }): string {
   const elapsed = elapsed_s ?? ((Date.now() - startTime) / 1000);
   const sessionTag = buildSessionTag(sessionName, sessionId);
-  const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${num_turns} turns` : '';
+  const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${t('notice.thread.turns', { n: num_turns })}` : '';
   const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
   return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
 }
@@ -112,8 +112,8 @@ export function buildThreadStatusMessage({ threadId, stepNumber, label, elapsedS
   taskText?: string | null;
 }): string {
   const shortId = threadId.substring(0, THREAD_STATUS_THREAD_ID_LEN);
-  const turnsPart = numTurns != null ? ` (${numTurns} turns)` : '';
-  const stepPart = `Step ${stepNumber}: *${label}*${turnsPart}`;
+  const turnsPart = numTurns != null ? ` (${t('notice.thread.turns', { n: numTurns })})` : '';
+  const stepPart = `${t('notice.thread.stepLabel', { n: stepNumber, label: `*${label}*` })}${turnsPart}`;
   const timePart = `${Icons.stopwatch} ${formatDurationCompact(elapsedS)}`;
   if (taskId) {
     const projPart = taskProject ? `[${taskProject}] ` : '';
@@ -124,5 +124,5 @@ export function buildThreadStatusMessage({ threadId, stepNumber, label, elapsedS
     const textPart = text ? `${text} ` : '';
     return `${Icons.processing} ${projPart}${textPart}· \`${taskId}\` | ${stepPart} | ${shortId} | ${timePart}`;
   }
-  return `${Icons.processing} Thread ${shortId} | ${stepPart} | ${timePart}`;
+  return `${Icons.processing} ${t('notice.thread.idLabel', { id: shortId })} | ${stepPart} | ${timePart}`;
 }

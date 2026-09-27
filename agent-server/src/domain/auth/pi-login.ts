@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
@@ -85,14 +86,14 @@ type LoginTarget =
 
 function resolveTarget(result: PiRuntimeLoadResult | null, providerId: string): LoginTarget {
   if (!result?.available) {
-    return { failure: failed(providerId, 'runtime_unavailable', 'PI runtime is unavailable.') };
+    return { failure: failed(providerId, 'runtime_unavailable', t('ux.auth.piRuntimeUnavailable')) };
   }
   const provider = result.runtime.getProviders().find(candidate => candidate.id === providerId);
   if (!provider) {
-    return { failure: failed(providerId, 'provider_not_found', 'PI provider was not found.') };
+    return { failure: failed(providerId, 'provider_not_found', t('ux.auth.piProviderNotFound')) };
   }
   if (!supportsApiKeyLogin(provider)) {
-    const message = 'PI provider does not support API-key login.';
+    const message = t('ux.auth.piApiKeyUnsupported');
     return { failure: failed(providerId, 'api_key_login_unsupported', message) };
   }
   return { runtime: result.runtime };
@@ -108,7 +109,7 @@ export async function loginPiApiKey(
   try {
     await target.runtime.login(providerId, 'api_key', interaction);
   } catch {
-    return failed(providerId, 'login_failed', 'PI API-key login failed.');
+    return failed(providerId, 'login_failed', t('ux.auth.piApiKeyFailed'));
   }
   return finishLogin(providerId, dependencies);
 }

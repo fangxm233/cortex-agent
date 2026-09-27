@@ -45,7 +45,7 @@ export function makeFallbackLabelNotifier(statusMsg: MessageRef | null, adapter:
     if (statusMsg) {
       try {
         await adapter.updateMessage(statusMsg, {
-          text: `${Icons.warning} ${fromLabel} rate limited, falling back to *${toLabel}*...`,
+          text: `${Icons.warning} ${t('notice.fallback.rateLimited', { from: fromLabel, to: `*${toLabel}*` })}`,
         });
       } catch {}
     }

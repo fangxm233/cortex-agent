@@ -3,6 +3,7 @@ import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
+import { formatTimeAgo } from './time-ago.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { getActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
@@ -16,17 +17,6 @@ import { planApprovals } from '../../interactions/plan-approvals.js';
 import { interactionRecords } from '../../interactions/interaction-records.js';
 
 const log = createLogger('session');
-
-function formatTimeAgo(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 /** Resolve the Slack thread timestamp for the session:
  *  1. Command-level threadAnchorId (user typed !new in-thread)

@@ -14,6 +14,7 @@ import {
   cursorToRowCol, moveCursorVertical, sanitizePastedText, classifyDeleteChunk,
   type InputHistoryState,
 } from '../logic.js';
+import { t } from '../../core/i18n.js';
 
 interface InputBoxProps {
   onSubmit: (text: string) => void;
@@ -263,11 +264,11 @@ function InputBoxImpl({ onSubmit, onCommand, commands = SLASH_COMMANDS, awaiting
       <Box borderStyle="single" borderDimColor paddingX={1}>
         <Box flexDirection="column" flexGrow={1}>
           {value.length === 0 && !focus ? (
-            <Text dimColor>Type a message...</Text>
+            <Text dimColor>{t('tui.input.placeholder')}</Text>
           ) : value.length === 0 ? (
             <Text>
               <Text inverse> </Text>
-              <Text dimColor>Type a message...</Text>
+              <Text dimColor>{t('tui.input.placeholder')}</Text>
             </Text>
           ) : (
             // Multi-line aware: render each logical line; on the cursor's row draw the inverse
@@ -288,7 +289,7 @@ function InputBoxImpl({ onSubmit, onCommand, commands = SLASH_COMMANDS, awaiting
         </Box>
       </Box>
       {awaitingResponse ? (
-        <Text dimColor>Waiting for response — Enter is disabled until the agent replies (Ctrl+C to cancel)</Text>
+        <Text dimColor>{t('tui.input.awaiting')}</Text>
       ) : null}
     </Box>
   );

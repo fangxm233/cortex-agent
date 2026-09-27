@@ -5,6 +5,7 @@ import { createLogger } from '@core/log.js';
 import { DATA_DIR } from '@core/paths.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { Icons } from '../../core/icons.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('disk-monitor');
 
@@ -61,7 +62,7 @@ async function getFreeBytes(path: string): Promise<number> {
 
 function sendDM(text: string): void {
   if (!_adapter) return;
-  void emitSystemNotice(_adapter, { text, level: 'warning', title: 'Disk' });
+  void emitSystemNotice(_adapter, { text, level: 'warning', title: t('notice.disk.title') });
 }
 
 async function checkDiskOnce(): Promise<void> {
@@ -79,7 +80,7 @@ async function checkDiskOnce(): Promise<void> {
   _state = decision.newState;
 
   if (decision.alert) {
-    const msg = `${Icons.warning} Disk low on \`${WATCH_PATH}\`: only *${formatBytes(freeBytes)}* free (< ${formatBytes(WARN_BYTES)} threshold). Clean up or Cortex may crash.`;
+    const msg = `${Icons.warning} ${t('notice.disk.low', { path: WATCH_PATH, free: `*${formatBytes(freeBytes)}*`, threshold: formatBytes(WARN_BYTES) })}`;
     log.info(`ALERT: free=${formatBytes(freeBytes)}`);
     sendDM(msg);
   }

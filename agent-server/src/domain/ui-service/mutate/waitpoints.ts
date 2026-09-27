@@ -1,3 +1,4 @@
+import { t } from '@core/i18n.js';
 import type { Result, UiServiceDeps, WaitpointsCancelArgs, WaitpointsCancelReturn } from '../types.js';
 
 export async function handleCancelWaitpoint(
@@ -5,12 +6,12 @@ export async function handleCancelWaitpoint(
   args: WaitpointsCancelArgs,
 ): Promise<Result<WaitpointsCancelReturn>> {
   if (!deps.waitpointRegistry) {
-    return { ok: false, code: 'not-available', message: 'Waitpoints are not available on this server' };
+    return { ok: false, code: 'not-available', message: t('ui.waitpoint.unavailable') };
   }
   try {
     const outcome = await deps.waitpointRegistry.cancel(args.waitpointId);
     if (!outcome.cancelled && !outcome.state) {
-      return { ok: false, code: 'not-found', message: `Waitpoint not found: ${args.waitpointId}` };
+      return { ok: false, code: 'not-found', message: t('ui.waitpoint.notFound', { id: args.waitpointId }) };
     }
     return { ok: true, data: { cancelled: outcome.cancelled, state: outcome.state ?? null } };
   } catch (err: any) {

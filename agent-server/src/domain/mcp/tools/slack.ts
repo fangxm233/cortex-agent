@@ -7,6 +7,7 @@ import { TokenBucketRateLimiter } from '../../../platform/utils/rate-limiter.js'
 import { Icons } from '../../../core/icons.js';
 import { withStagedRemoteFile } from './remote-file.js';
 import type { CortexToolContext } from './context.js';
+import { t } from '@core/i18n.js';
 
 export interface SlackToolDeps {
   slack: WebClient | null;
@@ -47,8 +48,8 @@ function _envNum(key: string, def: number): number {
 
 function withReplyPrefix(text: string | undefined, { branchMachine, callbackSource }: { branchMachine?: string; callbackSource?: string }): string | undefined {
   if (!text) return text;
-  if (branchMachine) return `${Icons.satellite} *[branch: ${branchMachine}]* ${text}`;
-  if (callbackSource) return `${Icons.reply} *[callback: ${callbackSource}]* ${text}`;
+  if (branchMachine) return `${Icons.satellite} *[${t('notice.reply.branch', { name: branchMachine })}]* ${text}`;
+  if (callbackSource) return `${Icons.reply} *[${t('notice.reply.callback', { name: callbackSource })}]* ${text}`;
   return text;
 }
 

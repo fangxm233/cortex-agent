@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { NotificationEntry } from '../hooks/useNotifications.js';
+import { t } from '../../core/i18n.js';
 
 interface NotificationsProps {
   open: boolean;
@@ -87,10 +88,10 @@ export function NotificationsModal({
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
-      <Text bold>Notifications</Text>
+      <Text bold>{t('tui.notif.title')}</Text>
       <Box flexDirection="column" marginTop={1}>
         {ids.length === 0 ? (
-          <Text dimColor>No notifications</Text>
+          <Text dimColor>{t('tui.notif.empty')}</Text>
         ) : (
           ids.map((id, i) => {
             const notif = notifications.get(id);
@@ -103,7 +104,7 @@ export function NotificationsModal({
                   <Text bold>{notif.title}</Text>
                   <Text dimColor>{notif.kind} | {new Date(notif.ts).toLocaleTimeString()}</Text>
                   <Text>{notif.body}</Text>
-                  <Text dimColor>— Press Enter to mark read, Esc to go back</Text>
+                  <Text dimColor>{t('tui.notif.detailHint')}</Text>
                 </Box>
               );
             }
@@ -123,7 +124,7 @@ export function NotificationsModal({
         )}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>↑/↓ navigate · Enter detail · Ctrl+N/Esc close</Text>
+        <Text dimColor>{t('tui.notif.hint')}</Text>
       </Box>
     </Box>
   );

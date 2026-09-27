@@ -78,6 +78,8 @@ import {
 } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
+import { t, setLocale, normalizeLocale } from '@core/i18n.js';
+import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/utils.js';
@@ -548,8 +550,7 @@ export function planRebuildSteps(dirs: {
  *  explicitly: an aborted rebuild leaves the *previous* build running, so a silent abort looks
  *  exactly like "my restart did nothing". */
 export function buildRebuildAbortNotice(p: { step: string; detail: string; reason: string }): string {
-  return `Rebuild aborted at step "${p.step}" (${p.detail}) — app.ts was NOT restarted and is still `
-    + `running the previously installed build. Trigger: ${p.reason}`;
+  return t('notice.rebuild.aborted', { step: p.step, detail: p.detail, reason: p.reason });
 }
 
 /** Push a message down the fork IPC channel. Best-effort: the child may be mid-exit. */
@@ -646,6 +647,9 @@ function progressStepFor(label: string): RebuildStepName | null {
 
 /** Single exit point for every pipeline abort: log it, mark the step failed, tell the operator. */
 function abortRebuild(step: string, detail: string, reason: string): void {
+  // The daemon never runs the preferences wiring app.ts does, so pick up the operator's current
+  // language here (same precedence as app.ts: CORTEX_LANG, then the persisted preference).
+  setLocale(process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : loadLang());
   const text = buildRebuildAbortNotice({ step, detail, reason });
   log.error(text);
   const failed = progressStepFor(step);

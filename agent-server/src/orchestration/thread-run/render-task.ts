@@ -9,6 +9,7 @@ import { durablePost, durableUpdate, getOutboundQueue } from '@store/outbound-qu
 import { sealStatus } from '../status-helpers.js';
 import { renderSummaryProgress } from './render-summary.js';
 import type { ProgressRenderer } from './thread-surface.js';
+import { t } from '@core/i18n.js';
 
 const log = createLogger('render-task');
 
@@ -72,7 +73,7 @@ function taskLabel(render: TaskRender): string {
 /** The opening line, posted by `ThreadRun` when the job supplied no status message (both jobs). */
 export function taskStartText(render: TaskRender, startTime: number): string {
   if (render.flavour === 'dispatch') {
-    return `${Icons.satellite} Dispatching: ${taskLabel(render)}... | ${render.sessionName} | ${render.profileName}`;
+    return `${Icons.satellite} ${t('notice.task.dispatching', { label: taskLabel(render) })} | ${render.sessionName} | ${render.profileName}`;
   }
   return buildUserProcessingMessage({
     startTime, profileName: render.profileName, sessionName: render.sessionName,
@@ -156,33 +157,33 @@ export async function renderTaskOutcome(
     case 'suspended': {
       if (!statusMsg) return;
       const parts = [
-        verdict.childThreads > 0 ? `${verdict.childThreads} child thread(s)` : null,
-        verdict.childTasks > 0 ? `${verdict.childTasks} child task(s)` : null,
+        verdict.childThreads > 0 ? t('notice.task.childThreads', { n: verdict.childThreads }) : null,
+        verdict.childTasks > 0 ? t('notice.task.childTasks', { n: verdict.childTasks }) : null,
       ].filter(Boolean);
       await writeTaskStatus(
         adapter, statusMsg,
-        `${Icons.processing} ${label} | suspended — waiting on ${parts.join(' + ') || 'children'}`,
+        `${Icons.processing} ${label} | ${t('notice.task.suspended', { what: parts.join(' + ') || t('notice.task.children') })}`,
       );
       return;
     }
     case 'paused': {
       if (!statusMsg) return;
       await writeTaskStatus(adapter, statusMsg, dispatch
-        ? `${Icons.warning} ${label} | paused — rate limited, will auto-resume`
-        : `${Icons.warning} ${tag}Paused — rate limited, will auto-resume (${elapsedStr})`);
+        ? `${Icons.warning} ${label} | ${t('notice.task.pausedLower')}`
+        : `${Icons.warning} ${tag}${t('notice.task.paused')} (${elapsedStr})`);
       return;
     }
     case 'aborted': {
       if (!statusMsg) return;
       await sealTaskStatus(adapter, statusMsg, verdict.blockError
-        ? `${Icons.error} ${label} | worker aborted but block failed: ${verdict.blockError}`
+        ? `${Icons.error} ${label} | ${t('notice.task.abortBlockFailed', { error: verdict.blockError })}`
         : `${Icons.stopped} ${label} | ${verdict.note}`);
       return;
     }
     case 'split': {
       if (!statusMsg) return;
       await sealTaskStatus(adapter, statusMsg, verdict.error
-        ? `${Icons.error} ${label} | [SPLIT] proposal invalid: ${verdict.error} — task unclaimed`
+        ? `${Icons.error} ${label} | [SPLIT] ${t('notice.task.splitInvalid', { error: verdict.error })}`
         : `🌿 ${label} | ${verdict.note}`);
       return;
     }
@@ -191,7 +192,7 @@ export async function renderTaskOutcome(
       const lead = dispatch ? `${label} | ` : '';
       await sealTaskStatus(
         adapter, statusMsg,
-        `${Icons.warning} ${lead}${tag}Rate limited — all fallbacks exhausted (${elapsedStr})`,
+        `${Icons.warning} ${lead}${tag}${t('notice.task.exhausted')} (${elapsedStr})`,
       );
       return;
     }
@@ -201,7 +202,7 @@ export async function renderTaskOutcome(
         costUsd: target.result?.totalCostUsd ?? null,
         numTurns: target.result?.totalNumTurns ?? null,
       });
-      const prefix = dispatch ? `Done: ${label}` : 'Done';
+      const prefix = dispatch ? t('notice.task.doneLabel', { label }) : t('notice.task.done');
       await sealTaskStatus(adapter, statusMsg, `${Icons.ok} ${prefix} | ${tag}(${elapsedStr}${metrics})`);
       return;
     }
@@ -210,11 +211,11 @@ export async function renderTaskOutcome(
       if (statusMsg) {
         await sealTaskStatus(
           adapter, statusMsg,
-          `${Icons.error} ${buildSessionTag(render.sessionName, null)}Error (${elapsedStr})`,
+          `${Icons.error} ${buildSessionTag(render.sessionName, null)}${t('notice.task.error')} (${elapsedStr})`,
         );
       }
       try {
-        await postTaskNotice(adapter, target.destination, `Scheduled task error: ${verdict.message}`);
+        await postTaskNotice(adapter, target.destination, t('notice.schedule.error', { error: verdict.message }));
       } catch { /* the run is over; a failed notice must not escape */ }
       return;
     }
