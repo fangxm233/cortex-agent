@@ -291,6 +291,7 @@ pub fn apply_frontend_update(app: tauri::AppHandle) -> Result<(), String> {
 
 /// User-confirmed only. Hashing and installation share the check guard and run off
 /// the event loop. Assisted installs copy to Downloads before releasing the guard.
+/// Errors are `code` or `code: detail`, worded by web/src/features/app-update/install-error.ts.
 #[tauri::command]
 pub async fn install_app_update(app: tauri::AppHandle) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || install_locked(&app))
@@ -306,9 +307,9 @@ fn install_locked(app: &tauri::AppHandle) -> Result<Option<String>, String> {
         .lock()
         .unwrap()
         .clone()
-        .ok_or("no app update prepared")?;
+        .ok_or("no_update_prepared")?;
     if !app_update::verified(&update) {
-        return Err("update file failed verification".into());
+        return Err("update_verification_failed".into());
     }
     let result = app_update::install(app, &update)?;
     // Direct handoffs may still be reading the original file after install returns

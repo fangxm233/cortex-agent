@@ -1,4 +1,5 @@
 import { windowActionsEn, windowActionsZh } from './window-actions-vocab';
+import { nativeShellEn, nativeShellZh } from './native-shell-vocab';
 import { commonEn, commonZh } from './common-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
@@ -19,6 +20,7 @@ export const en = {
   ...updateCheckEn,
   ...uiAuthEn,
   ...windowActionsEn,
+  ...nativeShellEn,
   ...commonEn,
 };
 
@@ -33,5 +35,6 @@ export const zh: Record<keyof Vocab, string> = {
   ...updateCheckZh,
   ...uiAuthZh,
   ...windowActionsZh,
+  ...nativeShellZh,
   ...commonZh,
 };

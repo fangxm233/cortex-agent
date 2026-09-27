@@ -31,5 +31,9 @@ describe('forwardErrorText', () => {
     expect(forwardErrorText(new ForwardError('unavailable'), BROWSER_COPY.zh)).toBe('端口转发需要桌面应用。');
     expect(forwardErrorText(new ForwardError('list-ports', 500), BROWSER_COPY.en)).toBe('Could not list server ports (500)');
     expect(forwardErrorText(new Error('device offline'), BROWSER_COPY.zh)).toBe('device offline');
+    expect(forwardErrorText('forward_privileged_port', BROWSER_COPY.zh)).toBe('只能转发 1024 及以上的端口');
+    expect(forwardErrorText('forward_no_local_port: address in use', BROWSER_COPY.en))
+      .toBe('No local port is free for the forward (address in use)');
+    expect(forwardErrorText('relay closed', BROWSER_COPY.zh)).toBe('relay closed');
   });
 });

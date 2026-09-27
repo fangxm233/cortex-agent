@@ -1,14 +1,24 @@
 import { useCallback } from 'react';
 import { useToastOptional } from '@/design';
 import type { ToastAction } from '@/design';
-import { useVocabOptional } from '@/i18n';
+import { useVocabOptional, type Vocab } from '@/i18n';
 import { downloadFile, openPath, revealPath } from '@/lib/files';
 import { isMobileShell } from '@/lib/desktop-config';
+import { nativeErrorText } from '@/lib/native-error';
 
 //
 // Mobile native shell is intentionally skipped: Android surfaces its own OS notification
 // (`save_download` / DownloadManager), so an in-app bubble would only repeat it. There the plain
 // `downloadFile` runs and the OS notification is the feedback.
+
+/** A failed download in the UI language: `save_download` rejects with `code: detail` (lib.rs). */
+export function downloadErrorText(error: unknown, L: Vocab): string {
+  return nativeErrorText(error, {
+    download_dir_unavailable: L.downloadErrDir,
+    download_dir_create_failed: L.downloadErrCreateDir,
+    download_write_failed: L.downloadErrWrite,
+  });
+}
 
 export function useDownloadFile(): (relPath: string, name?: string) => void {
   // Optional so a consumer rendered bare in an isolated test (no ToastProvider / LangProvider) still
@@ -50,7 +60,7 @@ export function useDownloadFile(): (relPath: string, name?: string) => void {
         } catch (err) {
           toastCtx?.toast({
             title: L.wbFileDownloadFailed,
-            description: err instanceof Error ? err.message : String(err),
+            description: downloadErrorText(err, L),
             tone: 'failed',
           });
         }

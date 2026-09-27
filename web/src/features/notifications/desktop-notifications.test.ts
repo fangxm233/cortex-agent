@@ -22,6 +22,10 @@ it('posts typed target metadata through the bridge, not stock notification', asy
   expect(invoke).toHaveBeenCalledWith('desktop_notifications_post', { title: 'A', body: 'B', data: { sessionId: 's1' } });
   expect(legacy).not.toHaveBeenCalled();
 });
+it('passes the localized open-action label along with title and body', async () => {
+  await sendDesktopNotification({ title: 'A', body: 'B' }, undefined, '打开 Cortex');
+  expect(invoke).toHaveBeenCalledWith('desktop_notifications_post', { title: 'A', body: 'B', data: undefined, action: '打开 Cortex' });
+});
 it('uses stock display only for missing commands, never delivery errors', async () => {
   invoke.mockRejectedValueOnce('permission denied');
   await expect(sendDesktopNotification({ title: 'A', body: 'B' })).resolves.toBe(false);

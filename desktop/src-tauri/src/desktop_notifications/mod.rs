@@ -21,21 +21,32 @@ pub async fn desktop_notifications_post(
     title: String,
     body: String,
     data: Option<RoutingData>,
+    action: Option<String>,
 ) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
-        let _ = (app, title, body, data);
+        let _ = (app, title, body, data, action);
         Err("Desktop notifications are unavailable on Android".into())
     }
     #[cfg(not(target_os = "android"))]
     {
         let id = reserve(&app, data.unwrap_or_default())?;
-        let result = platform::post(app.clone(), title, body, id.clone()).await;
+        let action = action_label(action);
+        let result = platform::post(app.clone(), title, body, action, id.clone()).await;
         if result.is_err() {
             forget(&app, &id);
         }
         result
     }
+}
+
+/// The SPA sends the action label in its own language with the title and body; older SPAs do not.
+#[cfg_attr(target_os = "android", allow(dead_code))]
+fn action_label(action: Option<String>) -> String {
+    action
+        .map(|label| label.trim().to_string())
+        .filter(|label| !label.is_empty())
+        .unwrap_or_else(|| "Open Cortex".to_string())
 }
 
 #[tauri::command]

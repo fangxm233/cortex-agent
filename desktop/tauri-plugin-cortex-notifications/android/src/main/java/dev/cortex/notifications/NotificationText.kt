@@ -15,7 +15,7 @@ internal class NotificationText(locale: String) {
     fun summary(count: Int?): String = when (count) {
         null -> label("Connecting — status unavailable", "连接中，状态暂不可用")
         0 -> label("Background notifications connected", "后台通知已连接")
-        else -> label("Running $count ${sessionNoun(count)}", "正在运行 $count 个 session")
+        else -> label("Running $count ${sessionNoun(count)}", "正在运行 $count 个会话")
     }
 
     private fun sessionNoun(count: Int): String = if (count == 1) "session" else "sessions"

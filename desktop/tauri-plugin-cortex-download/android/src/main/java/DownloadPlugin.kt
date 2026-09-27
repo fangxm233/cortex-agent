@@ -76,7 +76,7 @@ class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(InstallApkArgs::class.java)
         val file = File(args.path)
         if (!file.isFile) {
-            invoke.reject("apk not found: ${args.path}")
+            invoke.reject("apk_not_found: ${args.path}")
             return
         }
         // Staging streams the whole APK (tens of megabytes) into the session, and Tauri runs plugin
@@ -87,9 +87,16 @@ class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
             activity.runOnUiThread {
                 outcome.fold(
                     onSuccess = { mode -> invoke.resolve(JSObject().also { it.put("mode", mode) }) },
-                    onFailure = { e -> invoke.reject(e.message ?: "apk install failed") },
+                    onFailure = { e -> invoke.reject(installError(e)) },
                 )
             }
         }.start()
+    }
+
+    // Install rejections are `code` or `code: detail`; the webview words the code in its own
+    // language (web/src/features/app-update/install-error.ts) and shows the detail after it.
+    private fun installError(e: Throwable): String {
+        if (e is ApkInstaller.ParkedFailure) return e.message ?: "apk_install_failed"
+        return "apk_install_failed" + (e.message?.let { ": $it" } ?: "")
     }
 }

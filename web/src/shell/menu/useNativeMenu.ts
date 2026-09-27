@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVocab, type Vocab } from '@/i18n';
 import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { flattenItems, toNativeAccel, type MenuDef, type MenuNode } from './menu-model';
 
@@ -37,6 +38,14 @@ function toNative(node: MenuNode): NativeNode {
   };
 }
 
+/** Labels for the macOS application menu, whose items the shell builds itself (native_menu.rs). */
+export function appMenuLabels(L: Vocab) {
+  return {
+    about: L.appMenuAbout, services: L.appMenuServices, hide: L.appMenuHide,
+    hideOthers: L.appMenuHideOthers, showAll: L.appMenuShowAll, quit: L.appMenuQuit,
+  };
+}
+
 export interface NativeMenuState {
   /** True once the shell confirms it installed a real menu — the in-window bar must then not draw
    *  File/Edit/View/Help, and the web accelerator handler must stand down (the native menu owns
@@ -45,13 +54,17 @@ export interface NativeMenuState {
 }
 
 export function useNativeMenu(menus: MenuDef[]): NativeMenuState {
+  const L = useVocab();
   const [active, setActive] = useState(false);
   const menusRef = useRef(menus);
   menusRef.current = menus;
 
   const spec = useMemo(
-    () => ({ menus: menus.map((menu) => ({ kind: 'submenu' as const, id: menu.id, label: menu.label, items: menu.items.map(toNative) })) }),
-    [menus],
+    () => ({
+      menus: menus.map((menu) => ({ kind: 'submenu' as const, id: menu.id, label: menu.label, items: menu.items.map(toNative) })),
+      appMenu: appMenuLabels(L),
+    }),
+    [menus, L],
   );
   // Rebuilding the whole menu is the update mechanism, so push only when the tree actually differs.
   // `useAppMenus` returns a new object on every render; without this the shell would rebuild the

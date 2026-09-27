@@ -1,5 +1,6 @@
 import type { AuthAccountStatus, AuthStatusSnapshot, ConfigProfileEntry, ConfigProfiles } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
+import { nativeErrorText } from '@/lib/native-error';
 
 export interface ClaudeStatus { installed: boolean; version: string | null }
 interface Ports {
@@ -33,8 +34,30 @@ const SETUP_ERROR_COPY: Record<Lang, Record<SetupErrorCode, string>> = {
     'not-configured': '没有配置任何模型',
   },
 };
+// Codes the native Claude Code commands return (desktop/src-tauri/src/setup_claude.rs), as
+// `code` or `code: detail`; the detail is shown after the sentence.
+const NATIVE_ERROR_COPY: Record<Lang, Record<string, string>> = {
+  en: {
+    claude_android_unsupported: 'Claude Code cannot be installed on Android. Install it on your server instead.',
+    claude_local_required: 'Claude Code setup requires a local Cortex setup connection. Remote connections cannot install software on this computer; install Claude Code on the connected server instead.',
+    claude_not_found_after_install: 'Claude Code installation finished, but its executable was not found. Check npm’s global prefix and PATH, then retry.',
+    claude_npm_eacces: 'Claude Code installation failed: npm cannot write to its global directory. Configure a user-owned npm prefix and retry.',
+    claude_install_failed: 'Claude Code installation failed',
+    claude_setup_unavailable: 'Native setup unavailable',
+    PROGRAM_FAILED: 'Could not start the installer',
+  },
+  zh: {
+    claude_android_unsupported: 'Android 上无法安装 Claude Code，请在服务器上安装。',
+    claude_local_required: '安装 Claude Code 需要本机 Cortex 设置连接。远程连接无法在这台电脑上安装软件，请在所连接的服务器上安装 Claude Code。',
+    claude_not_found_after_install: 'Claude Code 已安装完成，但找不到其可执行文件。请检查 npm 全局 prefix 和 PATH 后重试。',
+    claude_npm_eacces: 'Claude Code 安装失败：npm 无法写入全局目录。请将 npm prefix 设置为当前用户可写的目录后重试。',
+    claude_install_failed: 'Claude Code 安装失败',
+    claude_setup_unavailable: '本机设置不可用',
+    PROGRAM_FAILED: '无法启动安装程序',
+  },
+};
 export function setupErrorText(error: string, lang: Lang): string {
-  return (SETUP_ERROR_COPY[lang] as Record<string, string>)[error] ?? error;
+  return (SETUP_ERROR_COPY[lang] as Record<string, string>)[error] ?? nativeErrorText(error, NATIVE_ERROR_COPY[lang]);
 }
 
 export function orderedProviders(accounts: AuthAccountStatus[], search: string): AuthAccountStatus[] {

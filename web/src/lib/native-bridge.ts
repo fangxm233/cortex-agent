@@ -58,7 +58,7 @@ export interface DesktopNotificationAction {
 
 interface NativeCommandMap {
   desktop_notifications_post: {
-    args: { title: string; body: string; data?: { sessionId?: string; projectId?: string } };
+    args: { title: string; body: string; data?: { sessionId?: string; projectId?: string }; action?: string };
     result: void;
   };
   desktop_notifications_pending: { args: undefined; result: { actions: DesktopNotificationAction[] } };

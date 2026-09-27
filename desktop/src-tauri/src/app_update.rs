@@ -409,6 +409,10 @@ fn download_asset(
 //
 // The user-facing entry point `install` always picks the strongest mechanism available, so the
 // dialog's Install button benefits from the same in-place swap the silent path uses.
+//
+// Errors are `code` or `code: detail` (snake_case code, free-form technical detail): the update
+// dialog words the code in the UI language (web/src/features/app-update/install-error.ts) and
+// shows the detail after it.
 
 use crate::install_site::{Apply, InstallSite};
 use std::ffi::OsStr;
@@ -423,11 +427,11 @@ fn copy_to_downloads(app: &tauri::AppHandle, src: &Path) -> Result<PathBuf, Stri
         .path()
         .download_dir()
         .or_else(|_| app.path().app_data_dir().map(|d| d.join("downloads")))
-        .map_err(|e| format!("no download dir: {e}"))?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let name = src.file_name().ok_or("bad source file name")?;
+        .map_err(|e| format!("download_dir_unavailable: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("installer_copy_failed: {e}"))?;
+    let name = src.file_name().ok_or("installer_copy_failed: bad source file name")?;
     let dest = dir.join(name);
-    std::fs::copy(src, &dest).map_err(|e| e.to_string())?;
+    std::fs::copy(src, &dest).map_err(|e| format!("installer_copy_failed: {e}"))?;
     Ok(dest)
 }
 
@@ -436,13 +440,13 @@ fn run_ok(program: &str, args: &[&OsStr]) -> Result<(), String> {
     let status = std::process::Command::new(program)
         .args(args)
         .status()
-        .map_err(|e| format!("{program} could not be started: {e}"))?;
+        .map_err(|e| format!("command_failed: {program} could not be started: {e}"))?;
     if status.success() {
         return Ok(());
     }
     match status.code() {
-        Some(code) => Err(format!("{program} exited with {code}")),
-        None => Err(format!("{program} was terminated by a signal")),
+        Some(code) => Err(format!("command_failed: {program} exited with {code}")),
+        None => Err(format!("command_failed: {program} was terminated by a signal")),
     }
 }
 
@@ -466,14 +470,14 @@ pub fn nsis_args(relaunch: bool) -> Vec<&'static str> {
 
 /// The single `*.app` directory at the root of a mounted disk image.
 fn find_app_bundle(mount: &Path) -> Result<PathBuf, String> {
-    let entries = std::fs::read_dir(mount).map_err(|e| format!("cannot read mounted image: {e}"))?;
+    let entries = std::fs::read_dir(mount).map_err(|e| format!("disk_image_unreadable: {e}"))?;
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension() == Some(OsStr::new("app")) {
             return Ok(path);
         }
     }
-    Err("no .app bundle inside the disk image".to_string())
+    Err("no_app_bundle".to_string())
 }
 
 /// Replace an installed `.app` with the one inside `dmg`.
@@ -489,7 +493,7 @@ fn find_app_bundle(mount: &Path) -> Result<PathBuf, String> {
 fn swap_mac_bundle(dmg: &Path, bundle: &Path) -> Result<(), String> {
     let mount = std::env::temp_dir().join(format!("cortex-dmg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&mount);
-    std::fs::create_dir_all(&mount).map_err(|e| format!("mount point: {e}"))?;
+    std::fs::create_dir_all(&mount).map_err(|e| format!("disk_image_unreadable: mount point: {e}"))?;
 
     run_ok(
         "hdiutil",
@@ -512,7 +516,7 @@ fn swap_mac_bundle(dmg: &Path, bundle: &Path) -> Result<(), String> {
         run_ok("ditto", &[source.as_os_str(), staged.as_os_str()])?;
         let _ = std::fs::remove_dir_all(&previous);
         std::fs::rename(bundle, &previous)
-            .map_err(|e| format!("could not move the current app aside: {e}"))?;
+            .map_err(|e| format!("app_replace_failed: move aside: {e}"))?;
         match std::fs::rename(&staged, bundle) {
             Ok(()) => {
                 // Best effort: the old bundle is still mapped by this process, and macOS is happy
@@ -522,7 +526,7 @@ fn swap_mac_bundle(dmg: &Path, bundle: &Path) -> Result<(), String> {
             }
             Err(e) => {
                 let _ = std::fs::rename(&previous, bundle);
-                Err(format!("could not move the new app into place: {e}"))
+                Err(format!("app_replace_failed: {e}"))
             }
         }
     })();
@@ -551,7 +555,7 @@ pub fn install_auto(
             std::process::Command::new(&update.path)
                 .args(nsis_args(relaunch))
                 .spawn()
-                .map_err(|e| format!("failed to launch installer: {e}"))?;
+                .map_err(|e| format!("installer_launch_failed: {e}"))?;
             Ok(true)
         }
         InstallSite::MacBundle { bundle, .. } => {
@@ -563,16 +567,16 @@ pub fn install_auto(
         }
         InstallSite::LinuxAppImage { path } => {
             // The running process keeps serving from its open inode, so this is safe live.
-            swap_file_keep_old(path, &update.path).map_err(|e| format!("swap failed: {e}"))?;
+            swap_file_keep_old(path, &update.path).map_err(|e| format!("app_replace_failed: {e}"))?;
             if relaunch {
                 std::process::Command::new(path)
                     .spawn()
-                    .map_err(|e| format!("relaunch failed: {e}"))?;
+                    .map_err(|e| format!("relaunch_failed: {e}"))?;
             }
             Ok(true)
         }
         InstallSite::Android => install_android(app, update).map(|()| false),
-        other => Err(format!("{other:?} cannot be installed unattended")),
+        other => Err(format!("install_unsupported: {other:?} cannot be installed unattended")),
     }
 }
 
@@ -588,7 +592,7 @@ fn install_android(app: &tauri::AppHandle, update: &AppUpdate) -> Result<(), Str
 
 #[cfg(not(target_os = "android"))]
 fn install_android(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<(), String> {
-    Err("not an Android build".to_string())
+    Err("install_unsupported: not an Android build".to_string())
 }
 
 /// Drive the owning package manager through one polkit authorization dialog.
@@ -599,29 +603,29 @@ fn install_android(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<(), S
 /// the assisted flow.
 pub fn install_elevated(update: &AppUpdate, site: &InstallSite) -> Result<(), String> {
     let InstallSite::LinuxManaged { manager } = site else {
-        return Err("this install does not need elevation".to_string());
+        return Err("install_unsupported: this install does not need elevation".to_string());
     };
     let file = update.path.to_string_lossy().to_string();
     let status = std::process::Command::new("pkexec")
         .arg(manager.program())
         .args(manager.args(&file))
         .status()
-        .map_err(|e| format!("pkexec could not be started: {e}"))?;
+        .map_err(|e| format!("elevation_failed: pkexec could not be started: {e}"))?;
     if status.success() {
         return Ok(());
     }
     // 126: the authorization dialog was dismissed or authentication failed.
     // 127: pkexec could not run the program — usually no polkit agent in this session.
     match status.code() {
-        Some(code) => Err(format!("pkexec exited with {code}")),
-        None => Err("pkexec was terminated by a signal".to_string()),
+        Some(code) => Err(format!("elevation_failed: pkexec exited with {code}")),
+        None => Err("elevation_failed: pkexec was terminated by a signal".to_string()),
     }
 }
 
 /// Put the installer somewhere the user can find it and open it for them.
 #[cfg(target_os = "android")]
 fn install_assisted(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<Option<String>, String> {
-    Err("Android has no assisted install flow".to_string())
+    Err("install_unsupported: Android has no assisted install flow".to_string())
 }
 
 #[cfg(not(target_os = "android"))]
@@ -877,5 +881,19 @@ mod tests {
         assert_eq!(nsis_args(true), vec!["/S", "/UPDATE", "/NS", "/R"]);
         // /R is only read in silent or passive mode, so /S must always be present.
         assert!(nsis_args(true).contains(&"/S"));
+    }
+
+    #[test]
+    fn install_errors_are_codes_with_detail() {
+        with_tmp(|dir| {
+            assert_eq!(find_app_bundle(dir).unwrap_err(), "no_app_bundle");
+            assert!(find_app_bundle(&dir.join("missing"))
+                .unwrap_err()
+                .starts_with("disk_image_unreadable: "));
+        });
+        let missing = run_ok("cortex-no-such-program", &[]).unwrap_err();
+        assert!(missing.starts_with("command_failed: cortex-no-such-program could not be started"));
+        #[cfg(unix)]
+        assert_eq!(run_ok("false", &[]).unwrap_err(), "command_failed: false exited with 1");
     }
 }

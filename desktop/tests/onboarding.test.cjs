@@ -168,7 +168,7 @@ function node(tag) {
     click() { (this.events.click || []).forEach((fn) => fn()); },
   };
 }
-function shellFixture({ titleBar, platform, maximized = false, native = true } = {}) {
+function shellFixture({ titleBar, platform, maximized = false, native = true, labelled = [] } = {}) {
   const header = node('header');
   const byId = { 'cx-lang-en': node('button'), 'cx-lang-zh': node('button'), 'cx-theme': node('button') };
   const calls = [];
@@ -182,7 +182,7 @@ function shellFixture({ titleBar, platform, maximized = false, native = true } =
       createElement: (tag) => node(tag),
       getElementById: (id) => byId[id],
       querySelector: (selector) => (selector === '.app-header' ? header : null),
-      querySelectorAll: () => [],
+      querySelectorAll: (selector) => (selector === '[data-aria-en]' ? labelled : []),
     },
     listeners: {},
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
@@ -220,6 +220,15 @@ test('a maximized window offers restore, and the label follows the language', as
   assert.match(captions.children[1].innerHTML, /caption-glyph/);
   context.document.getElementById('cx-lang-zh').click();
   assert.deepEqual(captions.children.map((b) => b.getAttribute('aria-label')), ['最小化', '还原', '关闭']);
+});
+test('header controls carry an accessible name in the chosen language', () => {
+  const toggle = node('div');
+  toggle.setAttribute('data-aria-en', 'Language');
+  toggle.setAttribute('data-aria-zh', '语言');
+  const { context } = shellFixture({ titleBar: 'native', platform: 'linux', labelled: [toggle] });
+  assert.equal(toggle.getAttribute('aria-label'), 'Language');
+  context.document.getElementById('cx-lang-zh').click();
+  assert.equal(toggle.getAttribute('aria-label'), '语言');
 });
 test('macOS keeps its real traffic lights and draws no second set of buttons', () => {
   const { header } = shellFixture({ titleBar: 'overlay', platform: 'macos' });

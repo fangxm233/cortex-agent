@@ -39,13 +39,14 @@ pub async fn post(
     app: tauri::AppHandle,
     title: String,
     body: String,
+    action: String,
     id: String,
 ) -> Result<(), String> {
     let handle = notify_rust::Notification::new()
         .summary(&title)
         .body(&body)
         .appname("Cortex")
-        .action("default", "Open Cortex")
+        .action("default", &action)
         .show_async()
         .await
         .map_err(|error| error.to_string())?;
@@ -86,8 +87,11 @@ pub async fn post(
     app: tauri::AppHandle,
     title: String,
     body: String,
+    action: String,
     id: String,
 ) -> Result<(), String> {
+    // Toasts activate on a body click; there is no labelled default action to word.
+    let _ = action;
     tauri::async_runtime::spawn_blocking(move || show_windows(app, title, body, id))
         .await
         .map_err(|error| error.to_string())?
@@ -135,12 +139,13 @@ pub async fn post(
     app: tauri::AppHandle,
     title: String,
     body: String,
+    action: String,
     id: String,
 ) -> Result<(), String> {
     let permit = mac_worker_permit()?;
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
-        show_mac(app, title, body, id)
+        show_mac(app, title, body, action, id)
     })
     .await
     .map_err(|error| error.to_string())?
@@ -149,7 +154,13 @@ pub async fn post(
 // The legacy backend blocks until interaction; show() alone does not send.
 // Await the response off the UI thread so real send errors reach the frontend.
 #[cfg(target_os = "macos")]
-fn show_mac(app: tauri::AppHandle, title: String, body: String, id: String) -> Result<(), String> {
+fn show_mac(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    action: String,
+    id: String,
+) -> Result<(), String> {
     let identifier = if tauri::is_dev() {
         "com.apple.Terminal"
     } else {
@@ -159,7 +170,7 @@ fn show_mac(app: tauri::AppHandle, title: String, body: String, id: String) -> R
     notify_rust::Notification::new()
         .summary(&title)
         .body(&body)
-        .action("default", "Open Cortex")
+        .action("default", &action)
         .show()
         .map_err(|error| error.to_string())?
         .wait_for_response(|response: &notify_rust::NotificationResponse| {
@@ -236,6 +247,7 @@ pub async fn post(
     _app: tauri::AppHandle,
     _title: String,
     _body: String,
+    _action: String,
     _id: String,
 ) -> Result<(), String> {
     Err("Native notifications are unsupported on this platform".into())

@@ -15,7 +15,7 @@ fn select_server_package(package: Option<&OsStr>) -> Result<OsString, String> {
     let path = Path::new(package);
     if !path.is_absolute() || path.extension() != Some(OsStr::new("tgz")) || !path.is_file() {
         return Err(format!(
-            "{PACKAGE_OVERRIDE} must be an absolute path to an existing .tgz file"
+            "SERVER_PACKAGE_INVALID: {PACKAGE_OVERRIDE} must be an absolute path to an existing .tgz file"
         ));
     }
     Ok(package.to_owned())
@@ -26,7 +26,7 @@ pub(super) fn validate_server_version(version: Option<&str>) -> Result<(), Strin
         return Ok(());
     }
     Err(format!(
-        "Installed server version {} does not meet the required minimum {}",
+        "SERVER_TOO_OLD: {} < {}",
         version.unwrap_or("unknown"),
         super::MIN_SERVER_VERSION
     ))
@@ -63,6 +63,7 @@ mod tests {
             "https://example.com/server.tgz",
         ] {
             let error = select_server_package(Some(OsStr::new(package))).unwrap_err();
+            assert!(error.starts_with("SERVER_PACKAGE_INVALID: "));
             assert!(error.contains(PACKAGE_OVERRIDE));
         }
         let missing =
@@ -89,6 +90,7 @@ mod tests {
     fn installed_version_must_be_reported_and_meet_the_floor() {
         for version in [None, Some(""), Some("unknown"), Some("2026.8.19")] {
             let error = validate_server_version(version).unwrap_err();
+            assert!(error.starts_with("SERVER_TOO_OLD: "));
             assert!(error.contains(super::super::MIN_SERVER_VERSION));
         }
         assert!(validate_server_version(Some(super::super::MIN_SERVER_VERSION)).is_ok());

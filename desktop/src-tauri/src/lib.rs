@@ -229,6 +229,8 @@ async fn disconnect(app: tauri::AppHandle, state: State<'_, AppState>) -> Result
 ///
 /// `name` is reduced to its basename and stripped of path separators so a crafted name can never
 /// escape the destination directory. On a name collision a ` (n)` suffix is appended.
+///
+/// Errors are `code: detail`, worded by web/src/features/media/useDownloadFile.ts.
 #[tauri::command]
 fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<String, String> {
     use std::path::Path;
@@ -247,15 +249,15 @@ fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<
         .path()
         .download_dir()
         .or_else(|_| app.path().app_data_dir().map(|d| d.join("downloads")))
-        .map_err(|e| format!("no download dir: {e}"))?;
+        .map_err(|e| format!("download_dir_unavailable: {e}"))?;
     #[cfg(target_os = "android")]
     let dir = app
         .path()
         .app_data_dir()
         .map(|d| d.join("downloads"))
-        .map_err(|e| format!("no download dir: {e}"))?;
+        .map_err(|e| format!("download_dir_unavailable: {e}"))?;
 
-    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("download_dir_create_failed: {e}"))?;
 
     // Avoid clobbering an existing file: `name.ext` → `name (1).ext` → `name (2).ext` …
     let mut target = dir.join(&base);
@@ -276,18 +278,20 @@ fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<
         }
     }
 
-    std::fs::write(&target, &bytes).map_err(|e| format!("write failed: {e}"))?;
+    std::fs::write(&target, &bytes).map_err(|e| format!("download_write_failed: {e}"))?;
     let saved = target.to_string_lossy().to_string();
 
     // Android: surface where it landed via a system notification (the app-private dir is not obvious).
+    // Only pre-DownloadManager pages still reach this and nothing tells Rust the UI language, so the
+    // notification carries no prose: the file name as title, the saved path as body.
     #[cfg(target_os = "android")]
     {
         use tauri_plugin_notification::NotificationExt;
         let _ = app
             .notification()
             .builder()
-            .title("已保存")
-            .body(format!("{base} → {saved}"))
+            .title(&base)
+            .body(&saved)
             .show();
     }
 

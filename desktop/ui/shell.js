@@ -14,6 +14,9 @@
     document.querySelectorAll('[data-en]').forEach(function (node) {
       node.textContent = node.getAttribute('data-' + lang);
     });
+    document.querySelectorAll('[data-aria-en]').forEach(function (node) {
+      node.setAttribute('aria-label', node.getAttribute('data-aria-' + lang));
+    });
     ['en', 'zh'].forEach(function (key) {
       el('cx-lang-' + key).classList.toggle('active', lang === key);
       el('cx-lang-' + key).setAttribute('aria-pressed', String(lang === key));

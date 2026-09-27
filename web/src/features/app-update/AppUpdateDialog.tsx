@@ -6,6 +6,7 @@ import {
   installDescription,
   type AppUpdateInfo,
 } from './app-update';
+import { installErrorText } from './install-error';
 
 const GHOST_BTN_CLASS =
   'box-border flex h-9 items-center rounded-[var(--r-control)] border border-proto-line px-4 text-[12.5px] ' +
@@ -54,7 +55,7 @@ export function AppUpdateDialog(props: AppUpdateDialogProps) {
       onDismiss={props.onDismiss}
     >
       {props.error ? (
-        <div className="mb-3 text-[11.5px] leading-snug text-state-fail">{L.updateInstallFailed.replace('{error}', props.error)}</div>
+        <div className="mb-3 text-[11.5px] leading-snug text-state-fail">{L.updateInstallFailed.replace('{error}', installErrorText(props.error, L))}</div>
       ) : null}
       <AppUpdateActions {...props} />
     </DesktopUpdateFrame>

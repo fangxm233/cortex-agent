@@ -248,13 +248,17 @@ pub fn start_local_daemon(
     if !restarted.ok() {
         let started = run_streaming(app, run, bin, &["daemon"])?;
         if !started.ok() {
-            return Err(started.combined());
+            return Err(format!("DAEMON_START_FAILED: {}", started.combined()));
         }
     }
     Ok(wait_until_ready(url, token, DAEMON_READY_TIMEOUT))
 }
 
 // ─── Tauri commands ────────────────────────────────────────────────────────
+//
+// Errors reaching the wizard are `CODE` or `CODE: detail`, in the upper-case style of the codes the
+// page already raises itself (NODE_REQUIRED, EACCES): desktop/ui/setup.js words the code in the UI
+// language and shows the detail — usually the raw process output — under it.
 
 /// What the machine already has, as the wizard's first screen renders it.
 #[derive(Debug, Default, Serialize)]
@@ -287,7 +291,7 @@ pub struct SetupProbe {
 pub async fn setup_probe() -> Result<SetupProbe, String> {
     tauri::async_runtime::spawn_blocking(probe_machine)
         .await
-        .map_err(|e| format!("setup probe task: {e}"))
+        .map_err(|e| format!("SETUP_TASK_FAILED: probe: {e}"))
 }
 
 fn probe_machine() -> SetupProbe {
@@ -330,7 +334,7 @@ pub struct InstallResult {
 pub async fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult, String> {
     tauri::async_runtime::spawn_blocking(move || install_server(&app, &run))
         .await
-        .map_err(|e| format!("setup install task: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: install: {e}"))?
 }
 
 fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
@@ -346,11 +350,11 @@ fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
         return Err(if is_npm_permission_error(&log) {
             "EACCES".to_string()
         } else {
-            log
+            format!("SERVER_INSTALL_FAILED: {log}")
         });
     }
     let cortex_bin = resolve_cortex_bin()
-        .ok_or_else(|| "cortex was installed but is not on the PATH".to_string())?;
+        .ok_or_else(|| "CLI_NOT_ON_PATH".to_string())?;
     let server_version = probe_server_version(&cortex_bin);
     validate_server_version(server_version.as_deref())?;
     Ok(InstallResult {
@@ -372,7 +376,7 @@ pub async fn setup_run_init(
 ) -> Result<InitResult, String> {
     tauri::async_runtime::spawn_blocking(move || run_init(&app, &run, &bin, &answers))
         .await
-        .map_err(|e| format!("setup init task: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: init: {e}"))?
 }
 
 fn run_init(
@@ -382,17 +386,16 @@ fn run_init(
     answers: &SetupAnswers,
 ) -> Result<InitResult, String> {
     let file = std::env::temp_dir().join(format!("cortex-init-{}.json", std::process::id()));
-    std::fs::write(&file, answers_json(answers)).map_err(|e| format!("answers file: {e}"))?;
+    std::fs::write(&file, answers_json(answers)).map_err(|e| format!("ANSWERS_FILE_FAILED: {e}"))?;
     let path = file.to_string_lossy().to_string();
     let outcome = run_streaming(app, run, bin, &["init", "--answers", &path, "--json"]);
     let _ = std::fs::remove_file(&file);
 
     let outcome = outcome?;
     if !outcome.ok() {
-        return Err(outcome.combined());
+        return Err(format!("INIT_FAILED: {}", outcome.combined()));
     }
-    parse_init_result(&outcome.stdout)
-        .ok_or_else(|| "init finished without reporting a result".to_string())
+    parse_init_result(&outcome.stdout).ok_or_else(|| "INIT_NO_RESULT".to_string())
 }
 
 /// `cortex ui enable --json` — the repair path for an install that predates the wizard, or one whose
@@ -406,16 +409,17 @@ pub async fn setup_enable_ui(
 ) -> Result<UiEndpoint, String> {
     tauri::async_runtime::spawn_blocking(move || enable_ui(&app, &run, &bin, port))
         .await
-        .map_err(|e| format!("setup UI task: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: UI: {e}"))?
 }
 
 fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: u16) -> Result<UiEndpoint, String> {
     let port = port.to_string();
     let outcome = run_streaming(app, run, bin, &["ui", "enable", "--port", &port, "--json"])?;
     if !outcome.ok() {
-        return Err(outcome.combined());
+        return Err(format!("UI_ENABLE_FAILED: {}", outcome.combined()));
     }
-    parse_ui_endpoint(&outcome.stdout).ok_or_else(|| outcome.combined())
+    parse_ui_endpoint(&outcome.stdout)
+        .ok_or_else(|| format!("UI_ENABLE_FAILED: {}", outcome.combined()))
 }
 
 /// Bring the local daemon up at launch, if it is not already answering.
@@ -479,7 +483,7 @@ pub fn autostart_plan(os: &str, home: &str) -> Option<(String, Vec<String>)> {
 pub async fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || enable_autostart(&app, &run))
         .await
-        .map_err(|e| format!("setup autostart task: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: autostart: {e}"))?
 }
 
 fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
@@ -492,7 +496,7 @@ fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
     if outcome.ok() {
         Ok(true)
     } else {
-        Err(outcome.combined())
+        Err(format!("AUTOSTART_FAILED: {}", outcome.combined()))
     }
 }
 
@@ -507,7 +511,7 @@ pub async fn setup_start_daemon(
 ) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token))
         .await
-        .map_err(|e| format!("setup daemon task: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))?
 }
 
 #[cfg(test)]

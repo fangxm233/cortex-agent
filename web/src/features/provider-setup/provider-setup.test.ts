@@ -128,4 +128,13 @@ describe('setupErrorText', () => {
     expect(setupErrorText('not-installed', 'zh')).toBe('Claude Code 仍未安装');
     expect(setupErrorText('no-endpoints', 'zh')).toBe('no-endpoints');
   });
+  it('localizes native Claude setup codes and keeps their detail', () => {
+    expect(setupErrorText('claude_local_required', 'zh')).toContain('本机 Cortex 设置连接');
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', 'zh'))
+      .toBe('Claude Code 安装失败 (exit 1: npm ERR! 404)');
+    expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', 'en'))
+      .toBe('Claude Code installation failed (exit 1: npm ERR! 404)');
+    expect(setupErrorText('Claude Code installation failed (exit 1)', 'zh')).toBe('Claude Code installation failed (exit 1)');
+    expect(setupErrorText('unknown_code: x', 'zh')).toBe('unknown_code: x');
+  });
 });

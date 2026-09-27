@@ -40,13 +40,30 @@ pub struct MenuNodeSpec {
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MenuSpec {
     menus: Vec<MenuNodeSpec>,
+    /// Labels for the application menu the shell builds itself. Optional so an older SPA still
+    /// gets a menu; a missing label falls back to muda's English default.
+    #[serde(default)]
+    app_menu: AppMenuLabels,
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AppMenuLabels {
+    about: Option<String>,
+    services: Option<String>,
+    hide: Option<String>,
+    hide_others: Option<String>,
+    show_all: Option<String>,
+    quit: Option<String>,
 }
 
 #[cfg(target_os = "macos")]
 mod imp {
-    use super::{MenuNodeSpec, MenuSpec};
+    use super::{AppMenuLabels, MenuNodeSpec, MenuSpec};
     use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
     use tauri::{AppHandle, Manager, Wry};
 
@@ -109,24 +126,24 @@ mod imp {
 
     /// The first submenu on macOS is the application menu, and the system expects it to carry
     /// About / Services / Hide / Quit. It is pure platform convention with no web counterpart, so
-    /// the shell owns it rather than asking the SPA to model it.
-    fn app_submenu(app: &AppHandle<Wry>) -> tauri::Result<Submenu<Wry>> {
+    /// the shell owns its structure; only the labels come from the SPA, already translated.
+    fn app_submenu(app: &AppHandle<Wry>, labels: &AppMenuLabels) -> tauri::Result<Submenu<Wry>> {
         let menu = Submenu::new(app, "Cortex", true)?;
-        menu.append(&PredefinedMenuItem::about(app, None, None)?)?;
+        menu.append(&PredefinedMenuItem::about(app, labels.about.as_deref(), None)?)?;
         menu.append(&PredefinedMenuItem::separator(app)?)?;
-        menu.append(&PredefinedMenuItem::services(app, None)?)?;
+        menu.append(&PredefinedMenuItem::services(app, labels.services.as_deref())?)?;
         menu.append(&PredefinedMenuItem::separator(app)?)?;
-        menu.append(&PredefinedMenuItem::hide(app, None)?)?;
-        menu.append(&PredefinedMenuItem::hide_others(app, None)?)?;
-        menu.append(&PredefinedMenuItem::show_all(app, None)?)?;
+        menu.append(&PredefinedMenuItem::hide(app, labels.hide.as_deref())?)?;
+        menu.append(&PredefinedMenuItem::hide_others(app, labels.hide_others.as_deref())?)?;
+        menu.append(&PredefinedMenuItem::show_all(app, labels.show_all.as_deref())?)?;
         menu.append(&PredefinedMenuItem::separator(app)?)?;
-        menu.append(&PredefinedMenuItem::quit(app, None)?)?;
+        menu.append(&PredefinedMenuItem::quit(app, labels.quit.as_deref())?)?;
         Ok(menu)
     }
 
     pub fn apply(app: &AppHandle<Wry>, spec: &MenuSpec) -> tauri::Result<()> {
         let menu = Menu::new(app)?;
-        menu.append(&app_submenu(app)?)?;
+        menu.append(&app_submenu(app, &spec.app_menu)?)?;
         for top in &spec.menus {
             let Some(label) = top.label.as_deref() else { continue };
             let submenu = Submenu::new(app, label, true)?;

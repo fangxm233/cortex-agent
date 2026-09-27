@@ -7,6 +7,8 @@ use tauri::{AppHandle, Manager};
 const INSTALL_ARGS: [&str; 3] = ["install", "-g", "@anthropic-ai/claude-code"];
 const INSTALL_RUN: &str = "claude-install";
 static INSTALL_LOCK: Mutex<()> = Mutex::new(());
+// Errors are `code` or `code: detail`; web/src/features/provider-setup words the codes in the UI
+// language and shows any detail after them.
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct ClaudeStatus {
@@ -18,7 +20,7 @@ pub struct ClaudeStatus {
 // be a tunnel to another host. Require setup's local metadata as well.
 fn validate_connection(config: &ConnectionConfig, os: &str) -> Result<(), String> {
     if os == "android" {
-        return Err("Claude Code installation is not supported on Android. Install it on your server instead.".into());
+        return Err("claude_android_unsupported".into());
     }
     let metadata = config.mode == ConnectionMode::Local
         && config
@@ -30,7 +32,7 @@ fn validate_connection(config: &ConnectionConfig, os: &str) -> Result<(), String
             .as_deref()
             .is_some_and(|s| !s.trim().is_empty());
     if !metadata || !config.server_url.as_deref().is_some_and(is_loopback_url) {
-        return Err("Claude Code setup requires a local Cortex setup connection. Remote connections cannot install software on this computer; install Claude Code on the connected server instead.".into());
+        return Err("claude_local_required".into());
     }
     Ok(())
 }
@@ -54,7 +56,7 @@ fn guard_local_connection(app: &AppHandle) -> Result<(), String> {
     let config = state
         .config
         .lock()
-        .map_err(|_| "Connection state is unavailable".to_string())?;
+        .map_err(|_| "claude_setup_unavailable: connection state".to_string())?;
     validate_connection(&config, std::env::consts::OS)
 }
 
@@ -95,7 +97,7 @@ fn ensure_installed(
     install()?;
     let after = probe();
     if !after.installed {
-        return Err("Claude Code installation finished, but its executable was not found. Check npm's global prefix and PATH, then retry.".into());
+        return Err("claude_not_found_after_install".into());
     }
     Ok(after)
 }
@@ -104,7 +106,7 @@ fn install_claude(app: &AppHandle) -> Result<ClaudeStatus, String> {
     // Serialize explicit requests so concurrent clicks re-probe after the first install.
     let _install = INSTALL_LOCK
         .lock()
-        .map_err(|_| "Claude Code installer is unavailable".to_string())?;
+        .map_err(|_| "claude_setup_unavailable: installer lock".to_string())?;
     guard_local_connection(app)?;
     ensure_installed(probe_claude, || {
         guard_local_connection(app)?;
@@ -114,12 +116,9 @@ fn install_claude(app: &AppHandle) -> Result<ClaudeStatus, String> {
         }
         let log = outcome.combined();
         if super::is_npm_permission_error(&log) {
-            return Err("Claude Code installation failed: npm cannot write to its global directory. Configure a user-owned npm prefix and retry.".into());
+            return Err("claude_npm_eacces".into());
         }
-        Err(format!(
-            "Claude Code installation failed (exit {}): {log}",
-            outcome.code
-        ))
+        Err(format!("claude_install_failed: exit {}: {log}", outcome.code))
     })
 }
 
@@ -130,14 +129,14 @@ pub async fn setup_claude_status(app: AppHandle) -> Result<ClaudeStatus, String>
         Ok(probe_claude())
     })
     .await
-    .map_err(|e| format!("Claude Code status task: {e}"))?
+    .map_err(|e| format!("claude_setup_unavailable: status task: {e}"))?
 }
 
 #[tauri::command]
 pub async fn setup_install_claude(app: AppHandle) -> Result<ClaudeStatus, String> {
     tauri::async_runtime::spawn_blocking(move || install_claude(&app))
         .await
-        .map_err(|e| format!("Claude Code install task: {e}"))?
+        .map_err(|e| format!("claude_setup_unavailable: install task: {e}"))?
 }
 
 #[cfg(test)]
@@ -188,6 +187,18 @@ mod tests {
     }
 
     #[test]
+    fn refusals_are_stable_codes_the_web_ui_localizes() {
+        assert_eq!(
+            validate_connection(&local("http://localhost:3004"), "android").unwrap_err(),
+            "claude_android_unsupported"
+        );
+        assert_eq!(
+            validate_connection(&local("https://remote.example"), "linux").unwrap_err(),
+            "claude_local_required"
+        );
+    }
+
+    #[test]
     fn existing_cli_is_idempotent_even_without_version() {
         let result = ensure_installed(
             || ClaudeStatus {
@@ -218,7 +229,7 @@ mod tests {
         assert_eq!(probes, 2);
         assert!(ensure_installed(|| status(false), || Ok(()))
             .unwrap_err()
-            .contains("not found"));
+            .starts_with("claude_not_found_after_install"));
     }
 
     #[test]

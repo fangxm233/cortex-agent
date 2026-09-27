@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useVocabOptional } from '@/i18n';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { useTRPCClient } from '@/lib/trpc';
 import { createBrowserNotifications } from './browser-notifications';
@@ -50,11 +51,12 @@ function useAdapters(route: Route) {
 export function useLocalNotificationDelivery(navigate: NavigateSession) {
   const route = useSessionRoute(navigate);
   const browser = useAdapters(route);
+  const openAction = useVocabOptional().notificationOpenAction;
   return useCallback(async (item: NotificationItem): Promise<boolean> => {
     if (!localNotificationsEnabled() || notificationForeground()) return false;
     const spec = osNotificationSpec(item);
     const data = { sessionId: item.sessionId || undefined, projectId: item.projectId ?? undefined };
-    if (isDesktopShell()) return sendDesktopNotification(spec, data);
+    if (isDesktopShell()) return sendDesktopNotification(spec, data, openAction);
     return browser.current?.send(spec, async (current) => { await route(data, current); }) ?? false;
-  }, [browser, route]);
+  }, [browser, route, openAction]);
 }

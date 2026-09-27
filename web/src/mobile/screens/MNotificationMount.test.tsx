@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   status: vi.fn(), visible: vi.fn(), owned: vi.fn(() => false),
 }));
 vi.mock('react-router-dom', () => ({ useLocation: () => ({ pathname: h.pathname }), useNavigate: () => h.navigate }));
-vi.mock('@/i18n', () => ({ useLang: () => 'zh' }));
+vi.mock('@/i18n', () => ({ useLang: () => 'zh', useVocabOptional: () => ({ notificationOpenAction: '打开 Cortex' }) }));
 vi.mock('@/lib/native-bridge', () => ({ mobileNotificationStatus: h.status, setNativeVisibleSession: h.visible }));
 vi.mock('@/lib/trpc', () => {
   const client = { sessions: { list: { query: h.sessions } }, approvals: { list: { query: h.approvals } } };

@@ -126,7 +126,7 @@ pub(super) fn run_streaming(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("{program}: {e}"))?;
+        .map_err(|e| format!("PROGRAM_FAILED: {program}: {e}"))?;
     let out = pump_stream(
         app,
         run,
@@ -139,7 +139,7 @@ pub(super) fn run_streaming(
         child.stderr.take().map(|s| Box::new(s) as _),
         "stderr",
     );
-    let status = child.wait().map_err(|e| format!("{program}: {e}"))?;
+    let status = child.wait().map_err(|e| format!("PROGRAM_FAILED: {program}: {e}"))?;
     Ok(RunOutcome {
         code: status.code().unwrap_or(-1),
         stdout: out.join().unwrap_or_default(),

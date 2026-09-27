@@ -59,7 +59,7 @@ fn forward_ws_url(server_url: &str, port: u16) -> Result<String, String> {
     } else if let Some(rest) = trimmed.strip_prefix("http://") {
         format!("ws://{rest}")
     } else {
-        return Err(format!("unsupported server URL: {server_url}"));
+        return Err(format!("forward_unsupported_server_url: {server_url}"));
     };
     Ok(format!("{base}/forward?port={port}"))
 }
@@ -73,8 +73,8 @@ async fn bind_local(preferred: u16) -> Result<(TcpListener, u16), String> {
     }
     let l = TcpListener::bind(("127.0.0.1", 0))
         .await
-        .map_err(|e| format!("no local port available: {e}"))?;
-    let port = l.local_addr().map_err(|e| e.to_string())?.port();
+        .map_err(|e| format!("forward_no_local_port: {e}"))?;
+    let port = l.local_addr().map_err(|e| format!("forward_no_local_port: {e}"))?.port();
     Ok((l, port))
 }
 
@@ -139,6 +139,7 @@ async fn relay(mut tcp: TcpStream, ws_url: String, token: String, mut shutdown: 
 // ─── Commands ──────────────────────────────────────────────────────────────
 
 /// Start (or return the existing) forward for a server-side loopback port.
+/// Errors are `code` or `code: detail`, worded by web/src/features/browser/browser-copy.ts.
 #[tauri::command]
 pub async fn forward_start(
     state: State<'_, ForwardState>,
@@ -146,7 +147,7 @@ pub async fn forward_start(
     port: u16,
 ) -> Result<ForwardInfo, String> {
     if port < 1024 {
-        return Err("only ports ≥ 1024 can be forwarded".into());
+        return Err("forward_privileged_port".into());
     }
     // Idempotent: the pane calls this whenever it opens a target.
     if let Some(existing) = state.entries.lock().unwrap().get(&port) {
@@ -157,8 +158,8 @@ pub async fn forward_start(
         let cfg = app_state.config.lock().unwrap();
         (cfg.server_url.clone(), cfg.token.clone())
     };
-    let server_url = server_url.ok_or("no server configured")?;
-    let token = token.ok_or("no token configured")?;
+    let server_url = server_url.ok_or("forward_no_server")?;
+    let token = token.ok_or("forward_no_token")?;
     let ws_url = forward_ws_url(&server_url, port)?;
 
     let (listener, local_port) = bind_local(port).await?;
@@ -244,6 +245,9 @@ mod tests {
 
     #[test]
     fn rejects_a_non_http_server_url() {
-        assert!(forward_ws_url("cortexui://localhost", 5173).is_err());
+        assert_eq!(
+            forward_ws_url("cortexui://localhost", 5173).unwrap_err(),
+            "forward_unsupported_server_url: cortexui://localhost"
+        );
     }
 }

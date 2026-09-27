@@ -14,8 +14,29 @@
     EACCES: ['npm cannot write to its global directory. Use a user-owned npm prefix, then try again.', 'npm 无法写入全局目录，请将 npm prefix 设置为当前用户可写的目录后重试。'],
     DAEMON_TIMEOUT: ['The server has not answered yet. Check the activity log, then try again.', '服务端尚未响应，请查看运行日志后重试。'],
     INIT_ENDPOINT_MISSING: ['The server did not return connection details. Check that its version supports desktop setup.', '服务端未返回连接信息，请检查其版本是否支持桌面初始化。'],
+    // Codes from the native setup commands (desktop/src-tauri/src/setup*.rs), sent as `CODE: detail`.
+    SERVER_INSTALL_FAILED: ['npm could not install the server.', 'npm 未能安装服务端。'],
+    SERVER_PACKAGE_INVALID: ['The server package override is not usable.', '指定的服务端安装包不可用。'],
+    SERVER_TOO_OLD: ['The installed server is older than this app requires. Update it, then try again.', '已安装的服务端版本低于本应用的要求，请更新后重试。'],
+    CLI_NOT_ON_PATH: ['Cortex was installed but the cortex command is not on the PATH. Check npm’s global prefix, then try again.', 'Cortex 已安装，但 PATH 中找不到 cortex 命令。请检查 npm 全局 prefix 后重试。'],
+    ANSWERS_FILE_FAILED: ['Could not write the setup answers to a temporary file.', '无法将设置写入临时文件。'],
+    INIT_FAILED: ['Server initialization failed.', '服务端初始化失败。'],
+    INIT_NO_RESULT: ['Initialization finished without reporting a result. Check the activity log.', '初始化已结束，但没有返回结果，请查看运行日志。'],
+    UI_ENABLE_FAILED: ['Could not enable the server’s Web UI endpoint.', '未能开启服务端的 Web UI 端点。'],
+    DAEMON_START_FAILED: ['The server could not be started.', '服务端未能启动。'],
+    AUTOSTART_FAILED: ['Auto-start could not be enabled.', '未能开启自动启动。'],
+    PROGRAM_FAILED: ['A required program could not be run.', '无法运行所需的程序。'],
+    SETUP_TASK_FAILED: ['This step stopped unexpectedly. Try again.', '这一步意外中止，请重试。'],
   };
   function translated(pair) { return t(pair[0], pair[1]); }
+  // `CODE` or `CODE: detail` → the sentence for a known code, with the detail (often raw process
+  // output) underneath; anything else is shown as it came.
+  function errorText(error) {
+    var match = /^([A-Za-z][A-Za-z0-9_]*)(?::\s*([\s\S]*))?$/.exec(error);
+    if (!match || !Object.prototype.hasOwnProperty.call(errors, match[1])) return error;
+    var detail = (match[2] || '').trim();
+    return translated(errors[match[1]]) + (detail ? '\n\n' + detail : '');
+  }
   function addLog(event) {
     var data = event.payload || {};
     if (data.run !== 'install' && data.run !== 'start') return;
@@ -77,7 +98,7 @@
     el('cx-edit').hidden = state.stage !== 'start';
     if (!state.error) return;
     el('cx-error-title').textContent = t('Couldn’t finish this step', '这一步未能完成');
-    el('cx-error-message').textContent = errors[state.error] ? translated(errors[state.error]) : state.error;
+    el('cx-error-message').textContent = errorText(state.error);
     el('cx-log-details').open = true;
   }
   function render(state) {

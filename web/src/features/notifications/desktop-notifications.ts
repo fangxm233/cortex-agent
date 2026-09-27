@@ -7,8 +7,9 @@ import { sendOsNotification, type OsNotificationSpec } from './os-notify';
 type Target = { sessionId?: string; projectId?: string };
 type ActionHandler = (action: DesktopNotificationAction, current: () => boolean) => Promise<boolean>;
 
-export async function sendDesktopNotification(spec: OsNotificationSpec, data?: Target): Promise<boolean> {
-  const result = await safeInvoke('desktop_notifications_post', { ...spec, data });
+/** `action` is the notification's open-action label in the UI language (Linux/macOS show it). */
+export async function sendDesktopNotification(spec: OsNotificationSpec, data?: Target, action?: string): Promise<boolean> {
+  const result = await safeInvoke('desktop_notifications_post', { ...spec, data, action });
   if (result.ok) return true;
   // Old shells can display only. Never register stock onAction on desktop.
   if (result.reason === 'failed' && isNativeCommandMissing(result)) return sendOsNotification(spec, data);

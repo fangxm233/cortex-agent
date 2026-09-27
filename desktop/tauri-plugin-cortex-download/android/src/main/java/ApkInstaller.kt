@@ -66,6 +66,12 @@ internal object ApkInstaller {
     /** The system package installer was raised (or parked for the next foreground moment). */
     const val MODE_PROMPT = "prompt"
 
+    /**
+     * A commit failure parked by an earlier call. Its message is already a `code: detail` string
+     * (see [fail]) that the webview words in its own language, so it is rejected as-is.
+     */
+    class ParkedFailure(reason: String) : IllegalStateException(reason)
+
     private val lock = Any()
     private var watching: Application? = null
     private var startedActivities = 0
@@ -106,7 +112,7 @@ internal object ApkInstaller {
         // no caller left to report to. Park it and answer the NEXT call with it: that call does no
         // work, but it is the only seam through which `update_prefs.failed_attempts` can learn
         // that silent updating is not working on this device.
-        consumeError(context)?.let { throw IllegalStateException(it) }
+        consumeError(context)?.let { throw ParkedFailure(it) }
         val failures = prefs(context).getInt(KEY_FAILURES, 0)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || failures >= MAX_SESSION_FAILURES) {
             Log.i(TAG, "handing ${apk.name} to the system installer (api=${Build.VERSION.SDK_INT}, failures=$failures)")
@@ -142,7 +148,7 @@ internal object ApkInstaller {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 val confirm = confirmIntent(intent)
                 if (confirm == null) {
-                    fail(context, "the package installer asked for user action without an intent")
+                    fail(context, "apk_installer_refused: user action requested without an intent")
                     return
                 }
                 Log.i(TAG, "session $session needs user confirmation — raising it at the next foreground moment")
@@ -160,8 +166,7 @@ internal object ApkInstaller {
             // STATUS_FAILURE_ABORTED lands here too — that is the user declining the confirm screen
             // above, which is a perfectly good reason to stop updating silently.
             else -> {
-                fail(context, "the package installer refused the update (status $status" +
-                    (message?.let { ": $it" } ?: "") + ")")
+                fail(context, "apk_installer_refused: status $status" + (message?.let { ": $it" } ?: ""))
                 forget(context)
             }
         }
@@ -228,7 +233,7 @@ internal object ApkInstaller {
                 installer.openSession(session).use { it.commit(statusSender(context, session)) }
                 Log.i(TAG, "committed session $session from the background")
             } catch (e: Exception) {
-                fail(context, "committing the install session failed: ${e.message}")
+                fail(context, "apk_commit_failed: ${e.message}")
                 runCatching { installer.abandonSession(session) }
                 forget(context)
             } finally {
