@@ -303,6 +303,23 @@ describe('MChatStream assistant turn copy', () => {
   });
 });
 
+describe('MChatStream window', () => {
+  it('mounts rows from the window start and keeps their transcript index', () => {
+    const onLongPress = vi.fn();
+    const rows: ChatRow[] = Array.from({ length: 6 }, (_, i) => ({ kind: 'user', text: `u${i}`, turnIndex: i }));
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <MChatStream rows={rows} start={4} copyLabel="copy" copiedLabel="copied" editCopy={{} as any} onLongPress={onLongPress} />
+        </LangProvider>,
+      );
+    });
+    const bubbles = renderer.root.findAll((n) => typeof n.type === 'string' && n.props['data-msg-bubble'] !== undefined);
+    expect(bubbles.map((n) => n.props['data-msg-bubble'])).toEqual([4, 5]);
+  });
+});
+
 describe('MChatStream subagent prompt', () => {
   it('keeps the subagent body in transcript order — a tool run per step, not one merged run', () => {
     const rows: ChatRow[] = [{

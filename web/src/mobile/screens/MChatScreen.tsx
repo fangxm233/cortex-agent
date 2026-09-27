@@ -847,6 +847,7 @@ export function MChatScreen(): JSX.Element {
         status={status}
         project={currentProjectId ?? undefined}
         rows={rows}
+        loading={!!sessionId && transcriptQuery.isPending}
         copy={copy}
         onBack={() => navigate('/m/sessions')}
         moreOpen={moreOpen}

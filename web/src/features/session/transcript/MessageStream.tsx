@@ -21,6 +21,7 @@ import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
+import { useTranscriptWindow } from './useTranscriptWindow';
 
 /** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
@@ -466,11 +467,13 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
  *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
  *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
  *  the rewind. */
-export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
+export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false, start = 0 }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
   /** True → user rows publish their index as a `data-chat-anchor`, which is what the nav rail
    *  scrolls to. Only the top-level workbench transcript sets it: a nested subagent transcript
    *  renders through this same component and its rows are not session-level destinations. */
-  anchors?: boolean }): JSX.Element {
+  anchors?: boolean;
+  /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
+  start?: number }): JSX.Element {
   const lang = useLang();
   const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
@@ -481,7 +484,6 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
   const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && !editingRow.systemOrigin && editingRow.turnIndex !== undefined;
-  const stats = editingValid ? rewindStats(rows, editingIdx!) : null;
 
   const rowKey = (row: ChatRow, i: number): string | number => {
     if (row.kind === 'interaction' && row.detail) return `int-${row.detail.id}`;
@@ -492,56 +494,78 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
 
   // Anchors mirror the nav rail's marks, which skip system-authored rows — see buildNavMarks.
   const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' && !row.systemOrigin ? i : undefined);
+  const plainRows = (from: number, to?: number): JSX.Element[] => rows.slice(from, to).map((row, j) => (
+    <Row key={rowKey(row, from + j)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, from + j)} />
+  ));
 
   if (editingValid) {
-    const er = editingRow as Extract<ChatRow, { kind: 'user' }>;
-    const before = rows.slice(0, editingIdx!);
-    const after = rows.slice(editingIdx! + 1);
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {before.map((row, i) => (
-          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, i)} />
-        ))}
-        <EditBox
-          initialText={er.text}
-          copy={editCopy}
-          busy={edit!.busy}
-          onCancel={() => setEditingIdx(null)}
-          onSubmit={(text) => {
-            edit!.onSubmit(er.turnIndex!, text);
-            setEditingIdx(null);
-          }}
-        />
-        {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} copy={editCopy} />}
-        {after.length > 0 && (
-          <RewindTail copy={editCopy}>
-            {after.map((row, i) => (
-              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, editingIdx! + 1 + i)} />
-            ))}
-          </RewindTail>
-        )}
-      </div>
+      <EditingRows rows={rows} editingIdx={editingIdx!} from={Math.min(start, editingIdx!)} edit={edit!} editCopy={editCopy}
+        plainRows={plainRows} onDone={() => setEditingIdx(null)} />
     );
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {rows.map((row, i) => (
-        <Row
-          key={rowKey(row, i)}
-          row={row}
-          interactionActions={interactionActions}
-          editCopy={editCopy}
-          assistantCopyText={assistantCopies.get(i)}
-          regen={regenIdx.has(i)}
-          onStartEdit={edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
-          editDisabled={edit?.running || edit?.busy}
-          streamKey={streamKey}
-          anchor={anchorOf(row, i)}
-        />
-      ))}
+      {rows.slice(start).map((row, j) => {
+        const i = start + j;
+        return (
+          <Row
+            key={rowKey(row, i)}
+            row={row}
+            interactionActions={interactionActions}
+            editCopy={editCopy}
+            assistantCopyText={assistantCopies.get(i)}
+            regen={regenIdx.has(i)}
+            onStartEdit={edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
+            editDisabled={edit?.running || edit?.busy}
+            streamKey={streamKey}
+            anchor={anchorOf(row, i)}
+          />
+        );
+      })}
     </div>
   );
+}
+
+/** sec-23 edit mode: the edited bubble becomes an in-place EditBox and the rows after it dim under
+ *  the「将被回退」badge. */
+function EditingRows({ rows, editingIdx, from, edit, editCopy, plainRows, onDone }: {
+  rows: ChatRow[];
+  editingIdx: number;
+  from: number;
+  edit: MessageEditCtx;
+  editCopy: MEditCopy;
+  plainRows: (from: number, to?: number) => JSX.Element[];
+  onDone: () => void;
+}): JSX.Element {
+  const er = rows[editingIdx] as Extract<ChatRow, { kind: 'user' }>;
+  const stats = rewindStats(rows, editingIdx);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {plainRows(from, editingIdx)}
+      <EditBox
+        initialText={er.text}
+        copy={editCopy}
+        busy={edit.busy}
+        onCancel={onDone}
+        onSubmit={(text) => {
+          edit.onSubmit(er.turnIndex!, text);
+          onDone();
+        }}
+      />
+      {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} copy={editCopy} />}
+      {editingIdx + 1 < rows.length && <RewindTail copy={editCopy}>{plainRows(editingIdx + 1)}</RewindTail>}
+    </div>
+  );
+}
+
+function scrollToAnchor(el: HTMLElement | null, row: number): void {
+  const node = el?.querySelector<HTMLElement>(`[data-chat-anchor="${row}"]`);
+  if (!el || !node) return;
+  const top = el.scrollTop + (node.getBoundingClientRect().top - el.getBoundingClientRect().top) - JUMP_MARGIN;
+  if (typeof el.scrollTo === 'function') el.scrollTo({ top, behavior: 'smooth' });
+  else el.scrollTop = top;
 }
 
 export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
@@ -583,26 +607,25 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     });
   }, [syncActive]);
 
+  // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
+  const win = useTranscriptWindow({ total: rows.length, streamKey, settled: !loading, scrollRef });
+
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     stickRef.current = distanceFromBottom < 40;
     scheduleSync();
+    win.onScroll();
   };
 
   // Jump to a prompt: put it just under the top edge, where the eye expects the thing it asked for.
   // Releasing the pin first matters — without it the next streamed frame would yank the view back
-  // to the bottom mid-scroll.
-  const jumpTo = useCallback((row: number): void => {
-    const el = scrollRef.current;
-    const node = el?.querySelector<HTMLElement>(`[data-chat-anchor="${row}"]`);
-    if (!el || !node) return;
+  // to the bottom mid-scroll. A prompt above the mounted window is mounted first.
+  const jumpTo = (row: number): void => {
     stickRef.current = false;
-    const top = el.scrollTop + (node.getBoundingClientRect().top - el.getBoundingClientRect().top) - JUMP_MARGIN;
-    if (typeof el.scrollTo === 'function') el.scrollTo({ top, behavior: 'smooth' });
-    else el.scrollTop = top;
-  }, []);
+    win.reveal(row, () => scrollToAnchor(scrollRef.current, row));
+  };
 
   // The stream outlives a session switch (same pane, new rows), so without this a session would open
   // at whatever offset the previous one was left at, with its released pin. Another session always
@@ -673,7 +696,7 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
-          <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
+          <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
           {inlineThreadCard && <div style={{ marginTop: 18 }}>{inlineThreadCard}</div>}
         </div>
       </div>

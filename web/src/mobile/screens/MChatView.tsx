@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
+import { useTranscriptWindow } from '@/features/session/transcript/useTranscriptWindow';
 import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
@@ -273,8 +274,10 @@ function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): J
   );
 }
 
-export function MChatStream({ rows, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
+export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
+  /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
+  start?: number;
   copyLabel: string;
   copiedLabel: string;
   interactions?: MChatInteractions;
@@ -295,7 +298,8 @@ export function MChatStream({ rows, copyLabel, copiedLabel, interactions, editCo
   const editingIdx = editing?.rowIndex ?? null;
   return (
     <>
-      {rows.map((row, i) => {
+      {rows.slice(start).map((row, j) => {
+        const i = start + j;
         const dimmed = editingIdx != null && i > editingIdx;
         const isEditingRow = editingIdx === i;
         // Long-press affordance (复制 / 编辑消息) is user-messages-only — agent messages carry no copy.
@@ -480,10 +484,13 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   // Suppress auto-scroll briefly after user taps inside the stream (e.g. expanding a tool row),
   // so expanded content doesn't scroll out of view on the next streaming tick.
   const tapFreezeUntil = useRef(0);
+  // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
+  const win = useTranscriptWindow({ total: props.rows.length, streamKey: props.streamKey, settled: !props.loading, scrollRef });
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    win.onScroll();
   };
   const onContentClick = (): void => {
     tapFreezeUntil.current = Date.now() + 800;
@@ -552,6 +559,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream
               rows={props.rows}
+              start={win.start}
               copyLabel={copy.copy}
               copiedLabel={copy.copied}
               interactions={props.interactions}

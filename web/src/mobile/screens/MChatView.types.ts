@@ -125,6 +125,8 @@ export interface MChatViewProps {
   /** Project the session belongs to; prefixes the header status line when known. */
   project?: string;
   rows: ChatRow[];
+  /** The session's history is still loading — the transcript window follows the tail until it lands. */
+  loading?: boolean;
   copy: MChatCopy;
   onBack: () => void;
   moreOpen: boolean;
