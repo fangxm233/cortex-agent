@@ -244,7 +244,7 @@ function IssueQueue({
       >
         {L.isListLabel} · {count}
       </div>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {entries.map((e) => {
           const card = toIssueListCard(e);
           const sel = e.id === selectedId;
@@ -321,7 +321,7 @@ function DetailPane({
   const L = useVocab();
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'transparent' }}>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '18px 24px 0' }}>
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '18px 24px 0' }}>
         {/* title — no status pill by design (在列表即待处理) */}
         <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35 }}>
           {detail.title}

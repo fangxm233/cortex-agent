@@ -205,6 +205,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           style={{
             flex: 1,
             overflow: 'auto',
+            scrollbarGutter: 'stable',
             minHeight: 0,
             padding: '14px 18px',
             display: 'grid',

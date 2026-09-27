@@ -49,7 +49,7 @@ const ESC_STYLE: CSSProperties = {
 
 // The prototype list holds ~7 curated rows with no cap; with real data we cap the row count in
 // `selectPaletteRows` and add a max-height + scroll so the panel stays a fixed, usable height.
-const BODY_STYLE: CSSProperties = { padding: 6, maxHeight: 384, overflowY: 'auto' };
+const BODY_STYLE: CSSProperties = { padding: 6, maxHeight: 384, overflowY: 'auto', scrollbarGutter: 'stable' };
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex',

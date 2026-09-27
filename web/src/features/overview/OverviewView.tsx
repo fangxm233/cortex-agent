@@ -271,6 +271,7 @@ export function OverviewView(): JSX.Element {
         style={{
           flex: 1,
           overflow: 'auto',
+          scrollbarGutter: 'stable',
           minHeight: 0,
           padding: '14px 20px',
           display: 'grid',

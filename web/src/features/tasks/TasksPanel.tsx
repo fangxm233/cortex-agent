@@ -88,7 +88,7 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   if (query.isError) return <div style={ERROR_STYLE}>{vocab.tkLoadFailed}: {query.error.message}</div>;
   return (
     <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0 }}>
         <TaskSections groups={groups} onOpen={(task) => openTask(task.project, task.id)} />
       </div>
       <TaskFooter tasks={tasks} groups={groups} />

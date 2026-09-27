@@ -419,7 +419,7 @@ function BudgetBar({ budget }: { budget: PanelBudget }) {
 function ThreadsTab({ groups, ready, now }: { groups: ThreadGroup[]; ready: boolean; now: number }) {
   const L = useVocab();
   return (
-    <div style={{ flex: 1, padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 }}>
+    <div style={{ flex: 1, padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0 }}>
       {groups.map((group) => <ThreadGroupSection key={group.kind} group={group} label={group.kind === 'active' ? L.active : L.history} now={now} />)}
       {ready && groups.length === 0 && (
         <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>

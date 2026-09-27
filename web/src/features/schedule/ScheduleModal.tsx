@@ -196,7 +196,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
         </div>
 
         {/* body (prototype L1435) */}
-        <div style={{ padding: '0 20px 16px', background: 'transparent', minHeight: 0, overflowY: 'auto' }}>
+        <div style={{ padding: '0 20px 16px', background: 'transparent', minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}>
           {/* TYPE (prototype L1436-1442) */}
           <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
           <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>

@@ -42,6 +42,7 @@ const PILL_STYLE: CSSProperties = {
 const BODY_STYLE: CSSProperties = {
   flex: 1,
   overflow: 'auto',
+  scrollbarGutter: 'stable',
   minHeight: 0,
   padding: '13px 18px',
   font: "400 11px/2 'IBM Plex Mono',monospace",

@@ -96,7 +96,7 @@ function DetailContent({ vm, onOpenThread, renderStepChat }: {
 }) {
   const openSub = (sub: DetailStepSub) => onOpenThread(sub.id);
   return (
-    <div className="thread-detail-content" style={{ flex: 1, display: 'flex', gap: 16, padding: '16px 20px', minHeight: 0, background: 'transparent', overflow: 'auto' }}>
+    <div className="thread-detail-content" style={{ flex: 1, display: 'flex', gap: 16, padding: '16px 20px', minHeight: 0, background: 'transparent', overflow: 'auto', scrollbarGutter: 'stable' }}>
       <ThreadPipeline vm={vm} onOpenSub={openSub} renderStepChat={renderStepChat} />
       <ThreadArtifactPanel artifact={vm.artifact} />
     </div>

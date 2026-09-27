@@ -128,7 +128,7 @@ export function SkillsView(): JSX.Element {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', scrollbarGutter: 'stable', padding: '24px 28px' }}>
         {isLoading && (
           <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skLoadingBody}</div>
         )}

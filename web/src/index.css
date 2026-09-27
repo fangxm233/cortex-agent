@@ -57,7 +57,9 @@ textarea::placeholder {
 
   /* One unobtrusive scroll treatment for panes, dialogs and code blocks.
      Leave forced-colors scrollbars native. Standard non-auto scrollbar colors
-     override WebKit thumb styling in Chromium, so use them only as a fallback. */
+     override WebKit thumb styling in Chromium, so use them only as a fallback.
+     The bar takes layout width, so scrollers whose content changes while in view set
+     `scrollbar-gutter: stable` and keep that lane reserved instead of re-flowing. */
   @media (forced-colors: none) {
     @supports selector(::-webkit-scrollbar) {
       ::-webkit-scrollbar { width: 8px; height: 8px; }

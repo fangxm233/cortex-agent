@@ -96,6 +96,7 @@
   flex: none;
   max-height: 190px;
   overflow: auto;
+  scrollbar-gutter: stable;
   border-bottom: 1px solid var(--proto-line);
   background: var(--material-inset-bg);
 }

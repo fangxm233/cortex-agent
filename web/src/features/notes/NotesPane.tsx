@@ -193,7 +193,7 @@ export function NotesPaneView(props: NotesPaneViewProps) {
     <aside className="content-surface" data-notes-pane="" style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <NotesPaneHeader copy={props.copy} activeCount={props.vm.activeCount} headerIcon={props.headerIcon} headerAction={props.headerAction} onClose={props.onClose} />
       <AddInput copy={props.copy} busy={props.busy} onAdd={props.onAdd} />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 14px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '10px 14px 14px' }}>
         <div style={{ padding: '6px 2px 7px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted)' }}>{props.copy.todo} · {props.vm.activeCount}</div>
         {props.vm.active.map((row) => <ActiveNoteRow key={row.id} row={row} copy={props.copy} busy={props.busy} actions={actions} targeted={row.id === props.targetId} onSelect={props.onSelect} />)}
         {props.vm.active.length === 0 && <div style={{ padding: '14px 10px', fontSize: 11, color: 'var(--proto-muted)' }}>{props.copy.empty}</div>}

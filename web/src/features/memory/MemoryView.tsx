@@ -223,6 +223,7 @@ export function MemoryView(): JSX.Element {
             background: 'transparent',
             padding: '8px 6px',
             overflow: 'auto',
+            scrollbarGutter: 'stable',
           }}
         >
           {treeQuery.isLoading && (
@@ -284,7 +285,7 @@ export function MemoryView(): JSX.Element {
           </div>
 
           {/* rendered markdown / per-line blame (prototype L685–716) */}
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '18px 24px 24px' }}>
+          <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '18px 24px 24px' }}>
             {diffOn && (
               <div
                 style={{

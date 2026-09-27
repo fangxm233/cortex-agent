@@ -258,6 +258,7 @@ function PendingList({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'auto',
+        scrollbarGutter: 'stable',
       }}
     >
       <div
@@ -389,7 +390,7 @@ function DetailPane({
   const L = useVocab();
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowWrap: 'anywhere', background: 'transparent' }}>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '16px 22px 0' }}>
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '16px 22px 0' }}>
         {/* title + status pill */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 15.5, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35, flex: 1 }}>

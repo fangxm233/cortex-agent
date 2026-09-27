@@ -116,7 +116,7 @@
 
 /* The available panel width, not screen width, determines whether two panes fit. */
 @container settings-content (max-width: 680px) {
-  .settings-surface .settings-panel-content--bounded { overflow: auto !important; }
+  .settings-surface .settings-panel-content--bounded { overflow: auto !important; scrollbar-gutter: stable; }
   .settings-surface .settings-editor-columns {
     flex-direction: column !important;
     flex: none !important;

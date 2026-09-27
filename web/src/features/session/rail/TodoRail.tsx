@@ -175,7 +175,7 @@ export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailP
         </button>
       )}
       {open && (
-        <div style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', padding: '12px 12px 11px' }}>
+        <div style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', scrollbarGutter: 'stable', padding: '12px 12px 11px' }}>
           {vm.rows.map((row) => <TodoRow key={row.key} row={row} />)}
         </div>
       )}

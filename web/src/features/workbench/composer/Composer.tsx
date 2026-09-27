@@ -625,6 +625,7 @@ export function Composer({
                 background: 'transparent',
                 maxHeight: COMPOSER_MAX_HEIGHT,
                 overflowY: 'auto',
+                scrollbarGutter: 'stable',
               }}
             />
 

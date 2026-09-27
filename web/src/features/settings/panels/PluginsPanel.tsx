@@ -173,7 +173,7 @@ function PluginList(props: {
         </SButton>
         {creating ? <CreatePluginModal actions={props.actions} onClose={() => setCreating(false)} /> : null}
       </div>
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 8px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 8px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {props.visible.length > 0
           ? props.visible.map((plugin) => (
             <PluginListRow key={plugin.id} plugin={plugin}
@@ -278,7 +278,7 @@ function PluginDetail(props: {
         <PluginHeader plugin={plugin} busy={props.actions.busy} onDelete={() => setDeleting(true)} />
         <PluginTabs tab={props.tab} onTab={props.onTab} />
       </div>
-      <div className="settings-detail-fields" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
+      <div className="settings-detail-fields" style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: 16 }}>
         {props.tab === 'overview' ? <OverviewTab plugin={plugin} usage={usage} /> : null}
         {props.tab === 'skills'
           ? <PluginSkillsTab plugin={plugin} plugins={props.plugins} actions={props.actions} />

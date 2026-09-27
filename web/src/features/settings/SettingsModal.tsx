@@ -91,6 +91,7 @@ function panelContentStyle(section: SettingsSectionKey): CSSProperties {
     minWidth: 0,
     minHeight: 0,
     overflow: bounded ? 'hidden' : 'auto',
+    scrollbarGutter: bounded ? undefined : 'stable',
     padding: 'var(--settings-panel-padding, 20px)',
     display: bounded ? 'flex' : 'block',
     flexDirection: bounded ? 'column' : undefined,

@@ -805,7 +805,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
     <>
       {renderHeader()}
       {props.searchOpen && renderSearch()}
-      <div data-zone="tree" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px' }}>
+      <div data-zone="tree" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '0 4px 0 8px' }}>
         {props.nodes.length === 0 ? (
           <div style={{ padding: '26px 16px', textAlign: 'center', color: 'var(--proto-muted)', fontSize: 12 }}>
             {L.wbFilterNoMatch}

@@ -231,7 +231,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
           aria-label={copy.title}
           onClick={toggle}
           onKeyDown={collapseOnKeyDown}
-          style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', padding: '9px 12px 10px', cursor: 'pointer' }}
+          style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', scrollbarGutter: 'stable', padding: '9px 12px 10px', cursor: 'pointer' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4 }}>
             <WaitDot />

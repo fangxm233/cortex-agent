@@ -121,7 +121,7 @@ export function RunListModal({
           <span>{copy.firedCaption}</span>
           <span style={{ textAlign: 'right' }}>{copy.costCaption}</span>
         </div>
-        <div style={{ background: 'transparent', overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ background: 'transparent', overflowY: 'auto', scrollbarGutter: 'stable', minHeight: 0 }}>
           {row.runs.map((r, i) => {
             const active = r.sessionId === selectedSessionId;
             return (

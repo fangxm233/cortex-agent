@@ -694,7 +694,7 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   // it must not travel with the part of it that happens to be on screen.
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
         <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
           {inlineThreadCard && <div style={{ marginTop: 18 }}>{inlineThreadCard}</div>}

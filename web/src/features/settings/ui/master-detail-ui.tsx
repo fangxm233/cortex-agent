@@ -34,11 +34,11 @@ export const PANE_HEADER_STYLE: CSSProperties = {
 };
 
 export const PANE_BODY_STYLE: CSSProperties = {
-  flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', padding: 16,
+  flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: 16,
 };
 
 export const LIST_BODY_STYLE: CSSProperties = {
-  flex: 1, minHeight: 0, overflow: 'auto', padding: '6px 8px',
+  flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '6px 8px',
 };
 
 export const LIST_EMPTY_STYLE: CSSProperties = {

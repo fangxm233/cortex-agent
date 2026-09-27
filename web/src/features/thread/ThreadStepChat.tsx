@@ -51,7 +51,7 @@ export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; 
   }
 
   return (
-    <div style={{ maxHeight: 460, overflow: 'auto', fontSize: 13.5 }}>
+    <div style={{ maxHeight: 460, overflow: 'auto', scrollbarGutter: 'stable', fontSize: 13.5 }}>
       <ChatRows rows={rows} streamKey={sessionId} />
     </div>
   );

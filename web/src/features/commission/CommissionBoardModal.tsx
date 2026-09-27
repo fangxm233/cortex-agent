@@ -252,7 +252,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
               <PaneTab active={pane === 'contract'} label={L.wbCommissionContract} onClick={() => setPane('contract')} />
             </div>
           </div>
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 24px', background: 'var(--proto-card)' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '14px 18px 24px', background: 'var(--proto-card)' }}>
             {text ? (
               <MarkdownView content={text} resolveImage={resolveImage} />
             ) : (
@@ -290,7 +290,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
             )}
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '11px 16px 20px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '11px 16px 20px' }}>
             <div style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)', letterSpacing: 0.4 }}>
               {L.wbCommissionDecisions}
             </div>

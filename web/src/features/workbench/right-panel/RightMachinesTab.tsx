@@ -247,7 +247,7 @@ interface RightMachinesViewProps {
 export function RightMachinesView(props: RightMachinesViewProps) {
   const count = !props.loading && !props.error ? String(props.machines.length) : '—';
   return <div style={{ flex: 1, minHeight: 0, padding: '0 12px 12px', display: 'flex',
-    flexDirection: 'column', overflow: 'auto' }}>
+    flexDirection: 'column', overflow: 'auto', scrollbarGutter: 'stable' }}>
     <MachinesHeader count={count} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {props.machines.map((machine) => <MachineCard key={machine.name} machine={machine}

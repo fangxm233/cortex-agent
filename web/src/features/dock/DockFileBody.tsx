@@ -112,7 +112,7 @@ export function dockFileBackground(item: FileItem): string {
 
 // Text is the only body that does not manage its own scrolling; the rest fill and scroll internally.
 const CONTENT_STYLE = {
-  text: { flex: 1, minHeight: 0, overflow: 'auto' } as CSSProperties,
+  text: { flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable' } as CSSProperties,
   fill: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' } as CSSProperties,
   pdf: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' } as CSSProperties,
 };
