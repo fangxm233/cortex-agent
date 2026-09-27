@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
@@ -603,6 +603,15 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     if (typeof el.scrollTo === 'function') el.scrollTo({ top, behavior: 'smooth' });
     else el.scrollTop = top;
   }, []);
+
+  // The stream outlives a session switch (same pane, new rows), so without this a session would open
+  // at whatever offset the previous one was left at, with its released pin. Another session always
+  // opens at its latest message. Layout phase, so the old offset is never painted.
+  useLayoutEffect(() => {
+    stickRef.current = true;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [streamKey]);
 
   // After every content change, keep the view pinned to the bottom IF the user hasn't scrolled up.
   useEffect(() => {
