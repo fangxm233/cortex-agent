@@ -34,6 +34,8 @@ describe('buildMApprovalsVm', () => {
         apr({ id: 'd', status: 'rejected' }),
       ],
       now,
+      null,
+      'en',
     );
     expect(vm.pendingCount).toBe(2);
     expect(vm.cards.map((c) => c.id)).toEqual(['a', 'c']);
@@ -50,6 +52,7 @@ describe('buildMApprovalsVm', () => {
       ],
       now,
       'nimbus',
+      'en',
     );
     expect(vm.groups.map((g) => g.projectId)).toEqual(['nimbus', null, 'atlas', 'orchard']);
     expect(vm.groups[0].cards.map((c) => c.id)).toEqual(['n1', 'n2']);
@@ -61,6 +64,8 @@ describe('buildMApprovalsVm', () => {
     const vm = buildMApprovalsVm(
       [apr({ id: 'o1', projectId: 'orchard' }), apr({ id: 'g1', projectId: null })],
       now,
+      null,
+      'en',
     );
     expect(vm.groups.map((g) => g.projectId)).toEqual([null, 'orchard']);
     expect(vm.cards.find((c) => c.id === 'o1')?.projectId).toBe('orchard');

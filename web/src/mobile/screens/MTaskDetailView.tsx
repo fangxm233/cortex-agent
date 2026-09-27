@@ -9,7 +9,7 @@ import {
   MC,
   MONO,
 } from '@/mobile/ui/kit';
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime, type TimeLang } from '@/lib/time-format';
 import { formatTaskTime } from '@/features/tasks/task-time';
 import type {
   MTaskDetailVm,
@@ -19,6 +19,8 @@ import type {
 import type { TaskInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 
 export interface MTaskDetailCopy {
+  /** Language of this copy table; drives the relative times. */
+  lang: TimeLang;
   doneWhen: string;
   doneWhenGap: string;
   blockerLabel: string;
@@ -43,6 +45,7 @@ export interface MTaskDetailCopy {
 }
 
 export const ZH_COPY: MTaskDetailCopy = {
+  lang: 'zh',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'done-when 未记录',
   blockerLabel: '阻塞原因',
@@ -67,6 +70,7 @@ export const ZH_COPY: MTaskDetailCopy = {
 };
 
 export const EN_COPY: MTaskDetailCopy = {
+  lang: 'en',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'no done-when recorded',
   blockerLabel: 'Blocked',
@@ -332,7 +336,7 @@ export function MTaskDetailView({
 }
 
 function HistoryRow({ h, copy }: { h: MTaskHistoryRowVm; copy: MTaskDetailCopy }) {
-  const time = relTimeZh(h.startedAt);
+  const time = relTime(h.startedAt, Date.now(), copy.lang);
   const event = `${copy.dispatchType[h.type]} · ${copy.dispatchStatus[h.status]}`;
   return (
     <div style={{ display: 'flex', gap: 8 }}>

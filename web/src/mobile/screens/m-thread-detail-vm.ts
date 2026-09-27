@@ -16,7 +16,7 @@ import {
   type ThreadDetailFacts,
   type ThreadDetailStepFacts,
 } from '@/features/thread/thread-detail-facts';
-import { relTimeZh } from '@/mobile/ui/format';
+import { formatSpanPrecise, relTime, type TimeLang } from '@/lib/time-format';
 import { formatUsd } from '@/lib/format';
 
 /** An ancestor breadcrumb entry carried through the drill-down trail (React Router location.state). */
@@ -99,26 +99,17 @@ function fmtClock(totalSeconds: number): string {
   return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
 }
 
-/** Compact duration `2m` / `45s` / `1m 5s` (compact step duration format). */
-function fmtDuration(durationS: number): string {
-  const total = Math.round(durationS);
-  if (total < 60) return `${total}s`;
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return s === 0 ? `${m}m` : `${m}m ${s}s`;
-}
-
 function basename(path: string): string {
   const parts = path.split('/').filter(Boolean);
   return parts[parts.length - 1] ?? path;
 }
 
-function mobileStepTime(item: ThreadDetailStepFacts): string {
+function mobileStepTime(item: ThreadDetailStepFacts, lang: TimeLang): string {
   if (item.kind === 'running') {
     return item.elapsedSeconds == null ? '' : fmtClock(item.elapsedSeconds);
   }
   const duration = item.durationSeconds;
-  return item.kind === 'done' && duration != null ? fmtDuration(duration) : '';
+  return item.kind === 'done' && duration != null ? formatSpanPrecise(Math.round(duration) * 1000, lang) : '';
 }
 
 function mobileStepAgent(
@@ -141,22 +132,23 @@ function mobileStep(
   index: number,
   lastIndex: number,
   facts: ThreadDetailFacts,
+  lang: TimeLang,
 ): MThreadStepVm {
   const step = item.step;
   return {
     kind: item.kind, name: step.stage ?? `#${step.stepIndex + 1}`,
     note: item.kind === 'done' ? (step.outputSummary ?? '') : '',
-    time: mobileStepTime(item), hasConnector: index < lastIndex,
+    time: mobileStepTime(item, lang), hasConnector: index < lastIndex,
     agent: mobileStepAgent(item, facts), sessionId: step.sessionId ?? null,
   };
 }
 
-function mobileArtifacts(detail: ThreadDetail, now: number): MThreadArtifactVm[] {
+function mobileArtifacts(detail: ThreadDetail, now: number, lang: TimeLang): MThreadArtifactVm[] {
   const path = detail.artifacts.artifactPath;
   if (!path) return [];
   const filename = basename(path);
   return [{
-    filename, meta: relTimeZh(detail.updatedAt, now),
+    filename, meta: relTime(detail.updatedAt, now, lang),
     wsRelPath: `workspace/threads/${detail.id}/${filename}`,
   }];
 }
@@ -171,9 +163,10 @@ export function buildMThreadDetailVm(
   detail: ThreadDetail,
   trail: MThreadTrailCrumb[],
   now: number,
+  lang: TimeLang,
 ): MThreadDetailVm {
   const facts = buildThreadDetailFacts(detail, now);
-  const artifacts = mobileArtifacts(detail, now);
+  const artifacts = mobileArtifacts(detail, now, lang);
   return {
     name: detail.templateName, tid: detail.id, status: detail.status, live: facts.live,
     crumbs: trail.map((item) => ({ name: item.name, accent: true })),
@@ -181,7 +174,7 @@ export function buildMThreadDetailVm(
     depthText: `${facts.depth.level}/${facts.depth.limit}`,
     metaParts: mobileMetaParts(detail),
     elapsed: fmtClock(facts.elapsedSeconds), cost: formatUsd(detail.totalCostUsd),
-    steps: facts.steps.map((item, index) => mobileStep(item, index, facts.steps.length - 1, facts)),
+    steps: facts.steps.map((item, index) => mobileStep(item, index, facts.steps.length - 1, facts, lang)),
     artifacts, artifactCount: artifacts.length,
   };
 }

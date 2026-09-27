@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useMachinesResource, type MachineDetailResource } from '@/features/machines/useMachinesResource';
 import {
   formatSince,
@@ -116,9 +116,10 @@ function RunRow({ run }: { run: MachineRunRow }) {
 /** Static facts from machines.list — rendered even when the machine is offline or the probe fails. */
 function MetaFooter({ machine, uptime }: { machine: MachineInfo; uptime: string }) {
   const L = useVocab();
+  const lang = useLang();
   const parts: string[] = [];
-  if (machine.connectedAt) parts.push(`${L.mConnectedFor} ${formatSince(machine.connectedAt)}`);
-  if (machine.lastHeartbeat) parts.push(`${L.mHeartbeat} ${formatSince(machine.lastHeartbeat)}`);
+  if (machine.connectedAt) parts.push(`${L.mConnectedFor} ${formatSince(machine.connectedAt, lang)}`);
+  if (machine.lastHeartbeat) parts.push(`${L.mHeartbeat} ${formatSince(machine.lastHeartbeat, lang)}`);
   if (uptime) parts.push(`${L.mUptime} ${uptime}`);
   if (machine.sshConfigured) parts.push(`${L.mSsh} ✓`);
   if (machine.capabilities.length > 0) parts.push(machine.capabilities.join(','));

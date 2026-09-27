@@ -1,4 +1,6 @@
+import { useLang } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';
+import type { TimeLang } from '@/lib/time-format';
 import { runOrdinals, scheduleSubline, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';
@@ -44,7 +46,8 @@ function PausedSubline({ sub, copy }: { sub: SublineValue; copy: MScheduleSheetC
 }
 
 function Subline({ row, copy, now }: { row: ScheduleRow; copy: MScheduleSheetCopy; now: number }) {
-  const sub = scheduleSubline(row, now);
+  const lang = useLang();
+  const sub = scheduleSubline(row, now, lang);
   return (
     <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 2 }}>
       <RunSubline sub={sub} />
@@ -134,20 +137,21 @@ export function ListLevel({ rows, copy, now, onRow }: {
     <ScheduleRows rows={rows} copy={copy} now={now} onRow={onRow} /></>;
 }
 
-function runsSubline(row: ScheduleRow, copy: MScheduleSheetCopy, now: number): string | null {
+function runsSubline(row: ScheduleRow, copy: MScheduleSheetCopy, now: number, lang: TimeLang): string | null {
   const schedule = row.schedule;
   if (!schedule) return null;
-  const delta = nextRunDelta(schedule.nextRun, now);
+  const delta = nextRunDelta(schedule.nextRun, now, lang);
   const suffix = schedule.paused
     ? ` · ${copy.paused}`
     : delta ? ` · ${copy.nextIn.replace('{d}', delta)}` : '';
-  return cadenceLabel(schedule) + suffix;
+  return cadenceLabel(schedule, lang) + suffix;
 }
 
 function RunsHeader({ row, copy, now, onBack }: {
   row: ScheduleRow; copy: MScheduleSheetCopy; now: number; onBack: () => void;
 }) {
-  const subline = runsSubline(row, copy, now);
+  const lang = useLang();
+  const subline = runsSubline(row, copy, now, lang);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 2px 10px' }}>
       <span data-action="sheet-back" onClick={onBack}

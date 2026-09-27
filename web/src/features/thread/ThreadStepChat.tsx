@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { ChatRows } from '@/features/session/transcript/MessageStream';
 import { useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
 import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
@@ -18,6 +18,7 @@ const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; live: boolean }): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
 
   const transcriptQuery = useTranscriptQuery(sessionId ?? '');
 
@@ -32,9 +33,9 @@ export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; 
       buildTranscriptRows(transcript, live ? liveTail : [], {
         streaming: live && streaming,
         running: live && running,
-        formatDivider: formatDividerFromVocab(L),
+        formatDivider: formatDividerFromVocab(L, lang),
       }),
-    [transcript, liveTail, streaming, running, live, L],
+    [transcript, liveTail, streaming, running, live, L, lang],
   );
 
   const muted: React.CSSProperties = { fontSize: 11.5, color: 'var(--proto-muted)', padding: '2px 0' };

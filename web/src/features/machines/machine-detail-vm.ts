@@ -1,4 +1,5 @@
 import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';
+import { formatSpan, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
 export interface MachineMeter {
   key: 'cpu' | 'mem' | 'disk';
@@ -63,25 +64,23 @@ export function shortenGpuName(name: string): string {
     .trim();
 }
 
-function coarseDuration(totalSec: number): string {
+/** `45s / 12m / 3h 5m / 2d 3h` · `45秒 / 12分钟 / 3小时5分 / 2天3小时`. */
+// Uptime reads coarse: whole minutes under an hour's worth of detail, then day + hour.
+function coarseDuration(totalSec: number, lang: TimeLang): string {
   if (totalSec < 0) return '';
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  if (days > 0) return `${days}d ${hours}h`;
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (totalSec < 3600) return formatSpan(totalSec * 1000, lang);
+  return formatSpanPrecise(Math.floor(totalSec / 60) * 60_000, lang);
 }
 
-export function formatUptime(sec: number | null): string {
-  return sec === null ? '' : coarseDuration(sec);
+export function formatUptime(sec: number | null, lang: TimeLang): string {
+  return sec === null ? '' : coarseDuration(sec, lang);
 }
 
-export function formatSince(iso: string | null, now: number = Date.now()): string {
+export function formatSince(iso: string | null, lang: TimeLang, now: number = Date.now()): string {
   if (!iso) return '';
   const started = Date.parse(iso);
   if (Number.isNaN(started)) return '';
-  return coarseDuration(Math.floor((now - started) / 1000));
+  return coarseDuration(Math.floor((now - started) / 1000), lang);
 }
 
 function buildMeters(vitals: MachineVitals | null): MachineMeter[] {
@@ -125,7 +124,7 @@ function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
 }
 
 /** Map the machines.detail DTO into render slots. No fabrication: absent probe fields drop their row. */
-export function buildMachineDetailVm(detail: MachineDetail, now: number = Date.now()): MachineDetailVm {
+export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang, now: number = Date.now()): MachineDetailVm {
   return {
     meters: buildMeters(detail.vitals),
     gpus: detail.gpus.map((gpu) => buildGpuRow(gpu)),
@@ -133,7 +132,7 @@ export function buildMachineDetailVm(detail: MachineDetail, now: number = Date.n
       key: run.executionId,
       label: runLabel(run),
       taskId: run.taskId,
-      duration: formatSince(run.startedAt, now),
+      duration: formatSince(run.startedAt, lang, now),
     })),
     probeError: detail.probeError,
   };

@@ -6,6 +6,7 @@ import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
 import { BUILD_STAMP } from '@/lib/build-info';
+import { dateTime } from '@/lib/time-format';
 
 // Daemon status modal — 1:1 from scheme.dc.html #17a (L2376–2441).
 // Opened by clicking the daemon badge in the LeftRail header.
@@ -333,8 +334,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                 padding: '0 2px',
               }}
             >
-              {L.dmLastRestart} {new Date(lastRestart.at).toLocaleDateString()}{' '}
-              {new Date(lastRestart.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {L.dmLastRestart} {dateTime(lastRestart.at) ?? '—'}
               {lastRestart.reason
                 ? ` · ${L.dmReason}: ${lastRestart.reason}`
                 : ''}

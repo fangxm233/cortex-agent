@@ -16,7 +16,8 @@ import {
   type LiveSessionMessage,
   type PendingUserMessage,
 } from '@/features/session/transcript/transcript-vm';
-import { zhDivider } from '@/mobile/shared/mobile-session-vm';
+import { mobileDivider } from '@/mobile/shared/mobile-session-vm';
+import type { TimeLang } from '@/lib/time-format';
 import type { SessionRunStatus } from '@/features/session/list/session-run-status';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';
@@ -34,6 +35,8 @@ export interface MobileChatRowOpts {
   pendingUser?: PendingUserMessage[];
   /** Scheduled run (8d): strip the `[Scheduled Task]` prefix off the opening prompt bubble. */
   stripScheduledPrefix?: boolean;
+  /** UI language of the day dividers. */
+  lang?: TimeLang;
   /** Injected clock for deterministic day-relative dividers. */
   now?: Date;
 }
@@ -61,7 +64,7 @@ export function buildMobileChatRows(
     streamingText: opts.streamingText,
     pendingUser: opts.pendingUser,
     stripScheduledPrefix: opts.stripScheduledPrefix,
-    formatDivider: zhDivider,
+    formatDivider: mobileDivider(opts.lang ?? 'en'),
     ...(opts.now ? { now: opts.now } : {}),
   });
 }

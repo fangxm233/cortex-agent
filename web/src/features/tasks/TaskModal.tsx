@@ -3,7 +3,7 @@ import '@/design/content-surfaces.css';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { buildTaskModalVm } from './task-modal-vm';
 import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verification-vm';
 
@@ -113,6 +113,7 @@ export interface TaskModalProps {
 
 export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnblock }: TaskModalProps) {
   const L = useVocab();
+  const lang = useLang();
   const trpc = useTRPC();
   // The modal mounts only when a task is opened, so this per-task query fires on open only.
   const verifyQuery = useQuery(
@@ -121,7 +122,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
   const verification = verifyQuery.data ?? null;
   const tm = buildTaskModalVm(task, allTasks, verification);
   const vv: TaskVerificationVm | null = verification
-    ? buildTaskVerificationVm(verification)
+    ? buildTaskVerificationVm(verification, lang)
     : null;
 
   return (

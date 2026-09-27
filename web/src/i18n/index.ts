@@ -1,5 +1,5 @@
 export {
-  LangProvider, useLang, useSetLang, useVocab, useVocabOptional, useLangSource,
+  LangProvider, useLang, useSetLang, useVocab, useVocabOptional, useLangOptional, useLangSource,
   type LangSource,
 } from './LangProvider';
 export { LangServerSync } from './LangServerSync';

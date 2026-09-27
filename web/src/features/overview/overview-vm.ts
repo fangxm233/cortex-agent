@@ -4,6 +4,7 @@ import type {
   CostSummary,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
+import { formatSpanPrecise, timeAgo, timeUntil, type TimeLang } from '@/lib/time-format';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
 // task df67). No JSX, no hex outside the verbatim-prototype status-pill map. Precedent:
@@ -114,25 +115,6 @@ export function whereItGoesRows(
   }));
 }
 
-function hhmm(iso: string): string {
-  const d = new Date(iso);
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
-}
-
-/**
- * Small right-aligned interval label. `daily`/`weekly` carry the clock time derived from nextRun.
- * GAP: ScheduleInfo has no interval-period value, so `interval` cannot render "every 15m" — the
- * relative next-run (nextRunLabel) carries the actionable info instead. Flagged.
- */
-export function scheduleIntervalLabel(s: ScheduleInfo): string {
-  if ((s.type === 'daily' || s.type === 'weekly') && s.nextRun) {
-    return `${s.type} ${hhmm(s.nextRun)}`;
-  }
-  return s.type;
-}
-
 /**
  * The agent profile a schedule runs under, from the real `ScheduleInfo.profile` (schedule config
  * source). Empty string when the schedule has no recorded profile — the caller omits the chip
@@ -142,28 +124,19 @@ export function scheduleProfileLabel(s: ScheduleInfo): string {
   return s.profile ?? '';
 }
 
-function humanizeShort(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 1) return '<1m';
-  if (m < 60) return `${m}m`;
-  const h = Math.round(ms / 3600000);
-  if (h < 24) return `${h}h`;
-  return `${Math.round(ms / 86400000)}d`;
-}
-
-/** `next in 19h` / `next in 10m` / `due` / `—`. */
-export function nextRunLabel(nextRun: string | null, now: number): string {
+/** `next in 19h` / `due` / `—` · `19小时后` / `到期` / `—`. */
+export function nextRunLabel(nextRun: string | null, now: number, lang: TimeLang): string {
   if (!nextRun) return '—';
-  const diff = Date.parse(nextRun) - now;
-  if (diff <= 0) return 'due';
-  return `next in ${humanizeShort(diff)}`;
+  if (Date.parse(nextRun) - now <= 0) return lang === 'zh' ? '到期' : 'due';
+  const until = timeUntil(nextRun, now, lang);
+  return lang === 'zh' ? until : `next ${until}`;
 }
 
-/** `last 2h ago` / `never run`. Outcome text ("✓ 3 papers") is not exposed — flagged. */
-export function lastRunLabel(lastRun: string | null, now: number): string {
-  if (!lastRun) return 'never run';
-  const diff = now - Date.parse(lastRun);
-  return `last ${humanizeShort(Math.max(0, diff))} ago`;
+/** `last 2h ago` / `never run` · `上次 2小时前` / `从未运行`. Outcome text ("✓ 3 papers") is not exposed — flagged. */
+export function lastRunLabel(lastRun: string | null, now: number, lang: TimeLang): string {
+  const ago = timeAgo(lastRun, now, lang);
+  if (!ago) return lang === 'zh' ? '从未运行' : 'never run';
+  return lang === 'zh' ? `上次 ${ago}` : `last ${ago}`;
 }
 
 /** Real elapsed: durationMs when finished, else (now − startedAt) for a live run. */
@@ -173,16 +146,9 @@ export function execDurationMs(e: ExecutionInfo, now: number): number | null {
   return null;
 }
 
-/** `5h 51m` / `2m` / `45s` / `—`. */
-export function formatDuration(ms: number | null): string {
-  if (ms == null) return '—';
-  if (ms >= 3600000) {
-    const h = Math.floor(ms / 3600000);
-    const m = Math.round((ms % 3600000) / 60000);
-    return `${h}h ${m}m`;
-  }
-  if (ms >= 60000) return `${Math.round(ms / 60000)}m`;
-  return `${Math.round(ms / 1000)}s`;
+/** `5h 51m` / `2m 10s` / `45s` / `—` · `5小时51分` / `2分10秒` / `45秒`. */
+export function formatDuration(ms: number | null, lang: TimeLang): string {
+  return ms == null ? '—' : formatSpanPrecise(ms, lang);
 }
 
 export function execMachine(e: ExecutionInfo): string {

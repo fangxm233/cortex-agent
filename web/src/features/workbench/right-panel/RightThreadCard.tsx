@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useTaskModal } from '@/features/tasks/useTaskModal';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
@@ -171,6 +171,7 @@ function StepHeader({ label, meta, active }: { label: string; meta: string; acti
 
 export function StepRow({ step, isLast, detail, onOpenTask }: StepRowProps) {
   const L = useVocab();
+  const lang = useLang();
   const kind = stepDotKind(step);
   const active = kind === 'running';
   const subtasks = active ? (detail.subtasks ?? []) : [];
@@ -180,7 +181,7 @@ export function StepRow({ step, isLast, detail, onOpenTask }: StepRowProps) {
     <>
       <StepDot kind={kind} hasTail={!isLast} />
       <div style={{ minWidth: 0, paddingBottom: isLast ? 4 : 9 }}>
-        <StepHeader label={label} meta={stepMeta(step)} active={active} />
+        <StepHeader label={label} meta={stepMeta(step, lang)} active={active} />
         {hasActivities && <ThreadActivityRows subtasks={subtasks} onOpenTask={onOpenTask} />}
       </div>
     </>
@@ -236,6 +237,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   // Running threads default-open (matches the proto-shot's expanded experiment-pipeline); others
   // collapse to header-only and lazy-fetch threads.get on open.
   const L = useVocab();
+  const lang = useLang();
   const running = thread.status === 'running';
   const [open, setOpen] = useState(running);
   const [hover, setHover] = useState(false);
@@ -299,7 +301,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
           <span style={{ font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-            {threadMetaLine(thread, now)}
+            {threadMetaLine(thread, now, lang)}
           </span>
           {hasDots && dots && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>

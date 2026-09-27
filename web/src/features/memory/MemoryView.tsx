@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { deriveActiveProjectId } from '@/features/projects/current-project';
 import { deriveMemoryTreeFacts } from './memory-tree';
@@ -143,6 +143,7 @@ export function MemoryView(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const L = useVocab();
+  const lang = useLang();
   const now = Date.now();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [diffOn, setDiffOn] = useState(true);
@@ -251,7 +252,7 @@ export function MemoryView(): JSX.Element {
             }}
           >
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
-            <span style={{ fontSize: 11, color: 'var(--proto-accent-strong)' }}>{relTimeAgo(file?.modifiedAt, now)}</span>
+            <span style={{ fontSize: 11, color: 'var(--proto-accent-strong)' }}>{relTimeAgo(file?.modifiedAt, now, lang)}</span>
             {/* Line-level +/− is REAL (git numstat vs HEAD). When the backend can't resolve it
                 (no git / not a repo / binary) lineDiff is null → honest placeholder, never fabricated.
                 Task ref + commit hash still have no backend scope → not shown (not fabricated). */}

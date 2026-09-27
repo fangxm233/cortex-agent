@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { buildThreadDetailVm, type DetailStepSub, type ThreadDetailVm } from './thread-detail-vm';
 import { ThreadPipeline } from './ThreadPipeline';
 import { ThreadArtifactPanel } from './ThreadArtifactPanel';
@@ -103,7 +103,8 @@ function DetailContent({ vm, onOpenThread, renderStepChat }: {
 }
 
 export function ThreadDetailView(props: ThreadDetailViewProps): JSX.Element {
-  const vm = buildThreadDetailVm(props.detail, props.now);
+  const lang = useLang();
+  const vm = buildThreadDetailVm(props.detail, props.now, lang);
   return (
     <div className="content-surface" data-thread-detail={vm.tid} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <DetailHeader vm={vm} onClose={props.onClose} onCancel={props.onCancel} cancelPending={!!props.cancelPending} />

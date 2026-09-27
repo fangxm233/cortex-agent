@@ -89,10 +89,11 @@ function useAddMachine(resource: MachinesResource) {
 
 export function MMachinesScreen() {
   const navigate = useNavigate();
-  const copy = pickCopy(useLang(), COPY);
+  const lang = useLang();
+  const copy = pickCopy(lang, COPY);
   const [expanded, setExpanded] = useState<string | null>(null);
   const resource = useMachinesResource(expanded ? [expanded] : []);
-  const vm = useMemo(() => buildMMachinesVm(resource.machines, Date.now()), [resource.machines]);
+  const vm = useMemo(() => buildMMachinesVm(resource.machines, lang, Date.now()), [resource.machines, lang]);
   const panel = detailPanel(expanded ? resource.detailFor(expanded) : undefined);
   const requestAdd = useAddMachine(resource);
   // retry-connect / view-logs remain inert: no browser-safe daemon operation exists.

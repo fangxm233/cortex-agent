@@ -8,7 +8,8 @@ import type {
   ThreadStepDetail,
   ThreadChildNode,
 } from '@cortex-agent/ui-contract';
-import { formatDurationShort, formatUsd } from '@/lib/format';
+import { formatUsd } from '@/lib/format';
+import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 import { threadPill, type Pill } from '@/features/workbench/right-panel/right-panel-vm';
 
 export interface ThreadCardNested {
@@ -66,9 +67,9 @@ function childLevel(depth: number): string {
 }
 
 /** collapsed step meta: "3m · $0.04" from real duration/cost (both optional). */
-function stepMeta(step: ThreadStepDetail): string {
+function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
   const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatDurationShort(step.durationS));
+  if (step.durationS != null) parts.push(formatSpanPrecise(Math.round(step.durationS) * 1000, lang));
   if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
   return parts.join(' · ');
 }
@@ -111,7 +112,7 @@ function mapSub(node: ThreadChildNode): ThreadCardSub {
  * running (active) step expands its children (subthreads). Completed rows collapse to one line with
  * a chevron; pending rows show the empty ring node.
  */
-export function buildThreadCard(detail: ThreadDetail): ThreadCardVm {
+export function buildThreadCard(detail: ThreadDetail, lang: TimeLang): ThreadCardVm {
   const steps = detail.steps;
   const rows: ThreadCardRow[] = steps.map((step, i) => {
     const node: ThreadCardRow['node'] =
@@ -129,7 +130,7 @@ export function buildThreadCard(detail: ThreadDetail): ThreadCardVm {
       color: running ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)',
       sub: running ? (detail.activeStage ?? '') : (step.outputSummary ?? ''),
       subColor: running ? 'var(--proto-muted-3)' : 'var(--proto-faint)',
-      meta: running ? stepMeta(step) || 'running' : done ? stepMeta(step) : 'gated',
+      meta: running ? stepMeta(step, lang) || 'running' : done ? stepMeta(step, lang) : 'gated',
       metaColor: running ? 'var(--proto-accent)' : done ? 'var(--proto-faint)' : 'var(--proto-disabled)',
       chev: done,
       expanded: running,

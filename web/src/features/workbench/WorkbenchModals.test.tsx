@@ -31,6 +31,7 @@ vi.mock('@/features/projects/useCreateProject', () => ({
 }));
 
 vi.mock('@/i18n', () => ({
+  useLang: () => 'en',
   useVocab: () => ({
     newProject: 'New project', npProjectName: 'Project name', npHint: 'Pick a name',
     cancel: 'Cancel', npCreate: 'Create', wbCortexId: 'Cortex ID',

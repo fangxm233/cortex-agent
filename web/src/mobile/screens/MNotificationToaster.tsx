@@ -1,17 +1,19 @@
-import { relTimeZh } from '@/mobile/ui/format';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { relTime, type TimeLang } from '@/lib/time-format';
+import { useLang } from '@/i18n';
+import { MC } from '@/mobile/ui/kit';
 import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';
 
 export interface MNotificationToasterProps {
   items: ToastItem[];
   now?: number;
+  lang: TimeLang;
   onDismiss: (id: string) => void;
 }
 
 /** Mobile rendering of the app's shared bubble queue: the scheme 1q top banner. Same items as the
  *  desktop `ToastViewport` (chat replies, system notices AND action feedback) — mobile no longer
  *  inherits the desktop bottom-right stack over its Tab bar. */
-export function MNotificationToaster({ items, now = Date.now(), onDismiss }: MNotificationToasterProps) {
+export function MNotificationToaster({ items, now = Date.now(), lang, onDismiss }: MNotificationToasterProps) {
   if (items.length === 0) return null;
   const { visible } = splitVisible(items);
   return (
@@ -29,13 +31,13 @@ export function MNotificationToaster({ items, now = Date.now(), onDismiss }: MNo
       }}
     >
       {visible.map((item) => (
-        <MBanner key={item.id} item={item} now={now} onDismiss={onDismiss} />
+        <MBanner key={item.id} item={item} now={now} lang={lang} onDismiss={onDismiss} />
       ))}
     </div>
   );
 }
 
-function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDismiss: (id: string) => void }) {
+function MBanner({ item, now, lang, onDismiss }: { item: ToastItem; now: number; lang: TimeLang; onDismiss: (id: string) => void }) {
   const { onMouseEnter, onMouseLeave } = useAutoDismiss(item.id, item.duration, onDismiss);
   const activate = item.onActivate;
   return (
@@ -111,8 +113,8 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
           </div>
         ) : null}
       </div>
-      <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none', alignSelf: 'flex-start' }}>
-        {relTimeZh(item.ts, now) || '现在'}
+      <span style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums', color: MC.faint, flex: 'none', alignSelf: 'flex-start' }}>
+        {relTime(item.ts, now, lang) || relTime(now, now, lang)}
       </span>
       <button
         type="button"
@@ -133,5 +135,6 @@ function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDis
 export function MNotificationBanners({ now }: { now?: number }) {
   const { dismiss } = useToast();
   const items = useToastItems();
-  return <MNotificationToaster items={items} now={now} onDismiss={dismiss} />;
+  const lang = useLang();
+  return <MNotificationToaster items={items} now={now} lang={lang} onDismiss={dismiss} />;
 }

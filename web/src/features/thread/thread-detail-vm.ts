@@ -18,7 +18,8 @@ import {
   type ThreadDetailFacts,
   type ThreadDetailStepFacts,
 } from './thread-detail-facts';
-import { formatDurationShort, formatUsd } from '@/lib/format';
+import { formatUsd } from '@/lib/format';
+import { formatSpanPrecise, timeAgo, type TimeLang } from '@/lib/time-format';
 
 export interface DetailPill {
   bg: string;
@@ -59,9 +60,9 @@ function fmtHM(iso: string): string {
 }
 
 /** Collapsed step meta "39m · $2.10" (duration then cost); the stage is in the title. */
-function stepMeta(item: ThreadDetailStepFacts): string {
+function stepMeta(item: ThreadDetailStepFacts, lang: TimeLang): string {
   const parts: string[] = [];
-  if (item.durationSeconds != null) parts.push(formatDurationShort(item.durationSeconds));
+  if (item.durationSeconds != null) parts.push(formatSpanPrecise(Math.round(item.durationSeconds) * 1000, lang));
   if (item.step.costUsd != null) parts.push(formatUsd(item.step.costUsd));
   return parts.join(' · ');
 }
@@ -147,17 +148,6 @@ export interface ThreadDetailVm {
   artifact: DetailArtifact;
 }
 
-function relativeAge(iso: string | null, now: number): string {
-  if (!iso) return '';
-  const diffS = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (diffS < 60) return 'just now';
-  const m = Math.floor(diffS / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 function stepTitle(step: ThreadStepDetail): string {
   return `${step.stepIndex + 1} · ${step.stage ?? 'step'}`;
 }
@@ -203,13 +193,14 @@ function mapStep(
   item: ThreadDetailStepFacts,
   index: number,
   facts: ThreadDetailFacts,
+  lang: TimeLang,
 ): DetailStep {
   const step = item.step;
   const running = item.kind === 'running';
   const subs = running ? detail.children.map(mapSub) : [];
   return {
     kind: item.kind, title: stepTitle(step), note: step.outputSummary ?? '',
-    meta: running ? stepMeta(item) || 'running' : item.kind === 'done' ? stepMeta(item) : 'gated',
+    meta: running ? stepMeta(item, lang) || 'running' : item.kind === 'done' ? stepMeta(item, lang) : 'gated',
     hasConnector: index > 0, agent: running ? buildRunningAgent(item, facts) : undefined,
     subs, subCount: subs.length, stepIndex: step.stepIndex,
     sessionId: step.sessionId, sessionName: step.sessionName,
@@ -217,16 +208,16 @@ function mapStep(
   };
 }
 
-function buildArtifact(detail: ThreadDetail, live: boolean, now: number): DetailArtifact {
+function buildArtifact(detail: ThreadDetail, live: boolean, now: number, lang: TimeLang): DetailArtifact {
   return {
-    path: detail.artifacts.artifactPath, live, updated: relativeAge(detail.updatedAt, now),
+    path: detail.artifacts.artifactPath, live, updated: timeAgo(detail.updatedAt, now, lang),
     taskId: detail.artifacts.taskId, taskProject: detail.artifacts.taskProject,
     workspacePath: detail.artifacts.workspacePath, writtenBy: buildWrittenBy(detail.steps),
     content: detail.artifacts.content ?? null,
   };
 }
 
-export function buildThreadDetailVm(detail: ThreadDetail, now: number): ThreadDetailVm {
+export function buildThreadDetailVm(detail: ThreadDetail, now: number, lang: TimeLang): ThreadDetailVm {
   const facts = buildThreadDetailFacts(detail, now);
   const depthDots = Array.from(
     { length: facts.depth.limit }, (_, index) => ({ filled: index < facts.depth.level }),
@@ -237,7 +228,7 @@ export function buildThreadDetailVm(detail: ThreadDetail, now: number): ThreadDe
     elapsed: fmtClock(facts.elapsedSeconds), cost: `Σ ${formatUsd(detail.totalCostUsd)}`,
     task: detail.artifacts.taskId ?? '—', depthDots,
     depthText: `${facts.depth.level}/${facts.depth.limit}`, live: facts.live,
-    steps: facts.steps.map((item, index) => mapStep(detail, item, index, facts)),
-    artifact: buildArtifact(detail, facts.live, now),
+    steps: facts.steps.map((item, index) => mapStep(detail, item, index, facts, lang)),
+    artifact: buildArtifact(detail, facts.live, now, lang),
   };
 }

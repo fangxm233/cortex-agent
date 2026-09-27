@@ -75,7 +75,7 @@ function Observation({ provider, copy }: { provider: ProviderUsageView; copy: MU
   const timestamp = isoTime(provider.observedAt);
   return (
     <span style={META}>
-      {copy.observed}{' '}<time dateTime={timestamp} title={timestamp}>{provider.observedAgo} {copy.ago}</time>
+      {copy.observed}{' '}<time dateTime={timestamp} title={timestamp}>{copy.ago.replace('{d}', provider.observedAgo)}</time>
     </span>
   );
 }

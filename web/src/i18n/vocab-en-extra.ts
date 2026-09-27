@@ -97,7 +97,7 @@ export const enExtra = {
   usageQuotaUnsupported: 'Quota is unsupported for this provider. Spend remains available below.',
   usageNeverObserved: "No quota data yet; some providers update after the next call.",
   usageObserved: 'Observed',
-  usageAgo: 'ago',
+  usageAgo: '{d} ago',
   usageResetsIn: 'Resets in',
   usageResetElapsed: 'Reset elapsed',
   usageToday: 'today',

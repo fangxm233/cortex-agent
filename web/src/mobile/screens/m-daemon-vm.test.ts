@@ -24,7 +24,7 @@ function exec(p: Partial<ExecutionInfo> = {}): ExecutionInfo {
 describe('buildDaemonVm', () => {
   describe('without a daemonStatus payload (honest fallback)', () => {
     it('returns zeroed vm for empty input, with the two named processes running when ok', () => {
-      const vm = buildDaemonVm({ threads: [], schedules: [], executions: [], ok: true, now: NOW });
+      const vm = buildDaemonVm({ threads: [], schedules: [], executions: [], ok: true, now: NOW, lang: 'en' });
       expect(vm.threadCount).toBe(0);
       expect(vm.scheduleCount).toBe(0);
       expect(vm.events).toEqual([]);
@@ -37,7 +37,7 @@ describe('buildDaemonVm', () => {
     });
 
     it('marks both processes status=unknown when the daemon is unreachable (queries failed)', () => {
-      const vm = buildDaemonVm({ threads: [], schedules: [], executions: [], ok: false, now: NOW });
+      const vm = buildDaemonVm({ threads: [], schedules: [], executions: [], ok: false, now: NOW, lang: 'en' });
       expect(vm.ok).toBe(false);
       expect(vm.processes.every((p) => p.status === 'unknown')).toBe(true);
     });
@@ -46,7 +46,7 @@ describe('buildDaemonVm', () => {
   describe('recent executions activity (unchanged)', () => {
     it('caps the activity list at 5 events', () => {
       const executions = Array.from({ length: 9 }, (_, i) => exec({ id: `e${i}` }));
-      const vm = buildDaemonVm({ threads: [], schedules: [], executions, ok: true, now: NOW });
+      const vm = buildDaemonVm({ threads: [], schedules: [], executions, ok: true, now: NOW, lang: 'en' });
       expect(vm.events).toHaveLength(5);
     });
   });

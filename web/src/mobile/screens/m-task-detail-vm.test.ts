@@ -54,27 +54,26 @@ function verification(over: Partial<TaskVerificationInfo>): TaskVerificationInfo
   };
 }
 
-const NOW = Date.parse('2026-07-15T12:00:00Z');
 
 describe('buildTaskDetailVm', () => {
   it('returns not-found when the id is absent from the list', () => {
-    const vm = buildTaskDetailVm('zzzz', [task({})], null, NOW);
+    const vm = buildTaskDetailVm('zzzz', [task({})], null, 'en');
     expect(vm.found).toBe(false);
   });
 
   it('derives blocked / done / approval / actionable / waiting status kinds in precedence', () => {
-    expect(buildTaskDetailVm('001', [task({ status: 'done', claimedBy: 'x' })], null, NOW).statusKind).toBe('done');
-    expect(buildTaskDetailVm('001', [task({ blockedBy: 'gate' })], null, NOW).statusKind).toBe('blocked');
-    expect(buildTaskDetailVm('001', [task({ approvalNeeded: true, actionable: true })], null, NOW).statusKind).toBe('approval-needed');
-    expect(buildTaskDetailVm('001', [task({ actionable: true })], null, NOW).statusKind).toBe('actionable');
-    expect(buildTaskDetailVm('001', [task({ actionable: false })], null, NOW).statusKind).toBe('waiting');
+    expect(buildTaskDetailVm('001', [task({ status: 'done', claimedBy: 'x' })], null, 'en').statusKind).toBe('done');
+    expect(buildTaskDetailVm('001', [task({ blockedBy: 'gate' })], null, 'en').statusKind).toBe('blocked');
+    expect(buildTaskDetailVm('001', [task({ approvalNeeded: true, actionable: true })], null, 'en').statusKind).toBe('approval-needed');
+    expect(buildTaskDetailVm('001', [task({ actionable: true })], null, 'en').statusKind).toBe('actionable');
+    expect(buildTaskDetailVm('001', [task({ actionable: false })], null, 'en').statusKind).toBe('waiting');
   });
 
   it('uses verification completion time before the list and falls back to list data', () => {
     const listAt = '2026-08-03T20:22:33.000Z';
     const evidenceAt = '2026-08-04T20:22:33.000Z';
     const done = task({ status: 'done', completedAt: listAt });
-    expect(buildTaskDetailVm('001', [done], null, NOW).completedAt).toBe(listAt);
+    expect(buildTaskDetailVm('001', [done], null, 'en').completedAt).toBe(listAt);
 
     const evidence = verification({
       evidence: {
@@ -86,13 +85,13 @@ describe('buildTaskDetailVm', () => {
         completingOutput: null,
       },
     });
-    expect(buildTaskDetailVm('001', [done], evidence, NOW).completedAt).toBe(evidenceAt);
-    expect(buildTaskDetailVm('001', [task({})], null, NOW).completedAt).toBeNull();
+    expect(buildTaskDetailVm('001', [done], evidence, 'en').completedAt).toBe(evidenceAt);
+    expect(buildTaskDetailVm('001', [task({})], null, 'en').completedAt).toBeNull();
   });
 
   it('prefers the tasks.list owning thread over dispatch-history and persisted owner ids', () => {
     const claimed = task({ claimedBy: 'task-dispatcher', claimThreadId: 'thr_owner' });
-    const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
+    const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), 'en');
     expect(vm.claim).not.toBeNull();
     expect(vm.claim!.template).toBe('experiment-pipeline');
     expect(vm.claim!.threadId).toBe('thr_owner');
@@ -100,17 +99,17 @@ describe('buildTaskDetailVm', () => {
   });
 
   it('uses a safe direct claim id but never an arbitrary history thread as the current owner', () => {
-    const direct = buildTaskDetailVm('001', [task({ claimedBy: 'agent-a' })], null, NOW);
+    const direct = buildTaskDetailVm('001', [task({ claimedBy: 'agent-a' })], null, 'en');
     expect(direct.claim).toMatchObject({ threadId: null, claimedBy: 'agent-a' });
 
     const claimed = task({ claimedBy: 'task-dispatcher' });
-    const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
+    const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), 'en');
     expect(vm.claim!.threadId).toBeNull();
     expect(vm.claim!.claimedBy).toBeNull();
   });
 
   it('omits the claim card when unclaimed', () => {
-    const vm = buildTaskDetailVm('001', [task({ claimedBy: null })], verification({ dispatches: [dispatch({})] }), NOW);
+    const vm = buildTaskDetailVm('001', [task({ claimedBy: null })], verification({ dispatches: [dispatch({})] }), 'en');
     expect(vm.claim).toBeNull();
   });
 
@@ -119,8 +118,7 @@ describe('buildTaskDetailVm', () => {
     const vm = buildTaskDetailVm(
       '001',
       [claimed],
-      verification({ dispatches: [dispatch({ threadId: null, durationMs: null, cost: null })] }),
-      NOW,
+      verification({ dispatches: [dispatch({ threadId: null, durationMs: null, cost: null })] }), 'en',
     );
     expect(vm.claim!.threadId).toBeNull();
     expect(vm.claim!.claimedBy).toBeNull();
@@ -129,7 +127,7 @@ describe('buildTaskDetailVm', () => {
 
   it('joins dependsOn against the list with each dep own status kind + known flag', () => {
     const dep = task({ id: '038', text: 'upstream', blockedBy: 'gate' });
-    const vm = buildTaskDetailVm('001', [task({ dependsOn: ['038', 'ffff'] }), dep], null, NOW);
+    const vm = buildTaskDetailVm('001', [task({ dependsOn: ['038', 'ffff'] }), dep], null, 'en');
     expect(vm.deps).toHaveLength(2);
     expect(vm.deps[0]).toMatchObject({ displayId: 'T-038', statusKind: 'blocked', known: true });
     expect(vm.deps[1]).toMatchObject({ displayId: 'T-ffff', known: false });
@@ -144,7 +142,7 @@ describe('buildTaskDetailVm', () => {
         dispatch({ executionId: 'exec_2', status: 'completed', startedAt: '2026-07-15T11:50:00Z' }),
       ],
     });
-    const vm = buildTaskDetailVm('001', [claimed], v, NOW);
+    const vm = buildTaskDetailVm('001', [claimed], v, 'en');
     expect(vm.history).toHaveLength(2);
     expect(vm.history[0]).toMatchObject({ status: 'completed', type: 'dispatch', isCompleting: true });
     expect(vm.history[1]).toMatchObject({ status: 'running', isCompleting: false });

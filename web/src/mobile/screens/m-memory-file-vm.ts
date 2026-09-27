@@ -1,5 +1,5 @@
 // Only real path/size/modified fields are surfaced; desktop-only diff/blame data stays omitted.
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime, type TimeLang } from '@/lib/time-format';
 import { formatBytes as formatSharedBytes } from '@/lib/format';
 
 /** Last path segment (the filename), e.g. `experiments/EXP-001.md` → `EXP-001.md`. */
@@ -17,10 +17,11 @@ export function formatBytes(n: number | null | undefined): string {
 /** Header metaline: `path · rel-time · size`, empty segments dropped (honest — never fabricated). */
 export function fileMetaLine(
   file: { path: string; modifiedAt?: string | null; sizeBytes?: number | null } | null | undefined,
-  now: number = Date.now(),
+  now: number,
+  lang: TimeLang,
 ): string {
   if (!file) return '';
-  const time = relTimeZh(file.modifiedAt, now);
+  const time = relTime(file.modifiedAt, now, lang);
   const size = formatBytes(file.sizeBytes);
   return [file.path, time, size].filter((s) => s && s.length > 0).join(' · ');
 }

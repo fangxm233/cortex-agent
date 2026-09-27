@@ -1,4 +1,5 @@
 import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
+import { formatSpan, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';
@@ -275,25 +276,16 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-export function humanizeDelta(ms: number): string {
-  const totalMin = Math.max(0, Math.round(ms / 60_000));
-  if (totalMin < 60) return `${totalMin}m`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h < 24) return m === 0 ? `${h}h` : `${h}h ${m}m`;
-  const d = Math.floor(h / 24);
-  return `${d}d`;
+/** Schedule delta rounded to the minute: `30m / 3h 5m / 2d` · `30分钟 / 3小时5分 / 2天`. */
+export function humanizeDelta(ms: number, lang: TimeLang): string {
+  const span = Math.max(0, Math.round(ms / 60_000)) * 60_000;
+  return span < 86_400_000 ? formatSpanPrecise(span, lang) : formatSpan(span, lang);
 }
 
-export function nextRunParts(form: ScheduleForm, now: Date): { clock: string; delta: string } {
+export function nextRunParts(form: ScheduleForm, now: Date, lang: TimeLang): { clock: string; delta: string } {
   const next = computeNextRun(form, now);
   return {
     clock: `${pad2(next.getHours())}:${pad2(next.getMinutes())}`,
-    delta: humanizeDelta(next.getTime() - now.getTime()),
+    delta: humanizeDelta(next.getTime() - now.getTime(), lang),
   };
-}
-
-export function nextRunLabel(form: ScheduleForm, now: Date): string {
-  const { clock, delta } = nextRunParts(form, now);
-  return `next run ${clock} · in ${delta}`;
 }

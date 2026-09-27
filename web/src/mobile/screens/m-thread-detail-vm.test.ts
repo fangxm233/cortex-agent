@@ -91,21 +91,21 @@ describe('buildMThreadDetailVm', () => {
     const vm = buildMThreadDetailVm(detail(), [
       { id: 'thr_root', name: 'experiment-pipeline' },
       { id: 'thr_mid', name: 'verify-metrics' },
-    ], NOW);
+    ], NOW, 'en');
     expect(vm.crumbs.map((c) => c.name)).toEqual(['experiment-pipeline', 'verify-metrics']);
     expect(vm.selfLevel).toBe(3); // trail.length + 1
     expect(vm.depthText).toBe('1/5'); // no children → subtree depth 1, MAX 5
   });
 
   it('omits self level when no ancestry trail is carried (honest — just name + depth)', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
+    const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     expect(vm.crumbs).toEqual([]);
     expect(vm.selfLevel).toBeNull();
     expect(vm.depthText).toBe('1/5');
   });
 
   it('maps a completed step to a collapsed row with a connector', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
+    const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     const done = vm.steps[0];
     expect(done.kind).toBe('done');
     expect(done.name).toBe('collect');
@@ -114,7 +114,7 @@ describe('buildMThreadDetailVm', () => {
   });
 
   it('expands the running step with its live agent-flow lines', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
+    const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     const active = vm.steps[1];
     expect(active.kind).toBe('running');
     expect(active.agent).toBeDefined();
@@ -127,7 +127,7 @@ describe('buildMThreadDetailVm', () => {
   });
 
   it('maps a pending step to a faint row with no agent box and no connector (last)', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
+    const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     const pending = vm.steps[2];
     expect(pending.kind).toBe('pending');
     expect(pending.name).toBe('report');
@@ -136,7 +136,7 @@ describe('buildMThreadDetailVm', () => {
   });
 
   it('lists real artifacts by basename', () => {
-    const vm = buildMThreadDetailVm(detail(), [], NOW);
+    const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     expect(vm.artifactCount).toBe(1);
     expect(vm.artifacts[0].filename).toBe('audit-report.md');
   });
@@ -146,6 +146,7 @@ describe('buildMThreadDetailVm', () => {
       detail({ artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null } }),
       [],
       NOW,
+      'en',
     );
     expect(vm.artifactCount).toBe(0);
     expect(vm.artifacts).toEqual([]);
@@ -156,6 +157,7 @@ describe('buildMThreadDetailVm', () => {
       detail({ status: 'completed', endedAt: new Date(T0 + 60_000).toISOString() }),
       [],
       NOW,
+      'en',
     );
     expect(vm.live).toBe(false);
     expect(vm.elapsed).toBe('01:00'); // clamped to endedAt, not now

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { MENU_SURFACE } from '@/design/MenuChrome';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
 import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
@@ -162,6 +162,7 @@ export interface RailTreeProps {
 
 export function RailTree(props: RailTreeProps): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
   const [menuOpen, setMenuOpen] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -372,7 +373,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
 
   const renderScheduleRow = (row: ScheduleRow) => {
     const key = 'sched:' + row.scheduleId;
-    const sub = scheduleSubline(row, props.now);
+    const sub = scheduleSubline(row, props.now, lang);
     const meta =
       sub.kind === 'run'
         ? sub.stamp + (sub.cost ? ' · ' + sub.cost : '')

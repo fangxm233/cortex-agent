@@ -10,7 +10,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     loadError: 'Failed to load usage', refreshError: 'Refresh failed', empty: 'No usage data',
     quota: 'Quota', neverObserved: 'Never observed',
     unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
-    observed: 'Observed', ago: 'ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
+    observed: 'Observed', ago: '{d} ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
     policy: {
       title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
       save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',
@@ -25,7 +25,7 @@ const COPY: { en: MUsageCopy; zh: MUsageCopy } = {
     loadError: '加载用量失败', refreshError: '刷新失败', empty: '暂无用量数据',
     quota: '配额', neverObserved: '尚未观测',
     unavailable: '不可用', gatewaySpend: '网关消费额', today: '今日', month: '本月',
-    observed: '观测于', ago: '前', resetsIn: '重置还需', resetElapsed: '重置时间已过',
+    observed: '观测于', ago: '{d}前', resetsIn: '重置还需', resetElapsed: '重置时间已过',
     policy: {
       title: '限流阈值', enabled: '启用', disabled: '关闭', threshold: '阈值',
       save: '保存', saving: '保存中…', resetDefault: '恢复默认',

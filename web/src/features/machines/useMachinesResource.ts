@@ -5,6 +5,8 @@ import type {
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useLang } from '@/i18n';
+import type { TimeLang } from '@/lib/time-format';
 import { buildMachineDetailVm, formatUptime, type MachineDetailVm } from './machine-detail-vm';
 
 const ROSTER_REFRESH_MS = 10_000;
@@ -54,6 +56,7 @@ function offlineDetails(machines: MachineInfo[], expanded: readonly string[]): M
 function queriedDetail(
   machine: MachineInfo,
   query: { data?: MachineDetail; error: unknown; isError: boolean },
+  lang: TimeLang,
 ): MachineDetailResource {
   if (query.isError) {
     return { machine, status: 'error', detail: null, facts: null, uptime: '', error: asError(query.error) };
@@ -63,13 +66,14 @@ function queriedDetail(
   }
   return {
     machine, status: 'ready', detail: query.data,
-    facts: buildMachineDetailVm(query.data),
-    uptime: formatUptime(query.data.vitals?.uptimeSec ?? null), error: null,
+    facts: buildMachineDetailVm(query.data, lang),
+    uptime: formatUptime(query.data.vitals?.uptimeSec ?? null, lang), error: null,
   };
 }
 
 export function useMachinesResource(expanded: readonly string[] = []): MachinesResource {
   const trpc = useTRPC();
+  const lang = useLang();
   const queryClient = useQueryClient();
   const roster = useQuery({
     ...trpc.machines.list.queryOptions({}),
@@ -82,7 +86,7 @@ export function useMachinesResource(expanded: readonly string[] = []): MachinesR
     refetchInterval: PROBE_REFRESH_MS,
   })) });
   const details = offlineDetails(machines, expanded);
-  online.forEach((machine, index) => details.set(machine.name, queriedDetail(machine, probes[index])));
+  online.forEach((machine, index) => details.set(machine.name, queriedDetail(machine, probes[index], lang)));
   const add = useMutation(trpc.approvals.request.mutationOptions({
     onSuccess: () => queryClient.invalidateQueries(trpc.approvals.list.queryFilter()),
   }));

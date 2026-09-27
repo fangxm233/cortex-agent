@@ -79,7 +79,7 @@ describe('buildThreadCard', () => {
         step({ stepIndex: 2, stage: 'Commit', status: 'pending' }),
       ],
     });
-    const card = buildThreadCard(d);
+    const card = buildThreadCard(d, 'en');
     expect(card.id).toBe('thr_8f2c');
     expect(card.rows).toHaveLength(3);
 
@@ -111,7 +111,7 @@ describe('buildThreadCard', () => {
         }),
       ],
     });
-    const card = buildThreadCard(d);
+    const card = buildThreadCard(d, 'en');
     const active = card.rows[0];
     expect(active.node).toBe('running');
     expect(active.subs).toHaveLength(1);
@@ -131,7 +131,7 @@ describe('buildThreadCard', () => {
       totalSteps: 2,
       children: [child({ id: 'x', templateName: 'sub', depth: 0 })],
     });
-    const card = buildThreadCard(d);
+    const card = buildThreadCard(d, 'en');
     expect(card.rows.every((r) => !r.expanded)).toBe(true);
     expect(card.rows.every((r) => r.subs.length === 0)).toBe(true);
   });

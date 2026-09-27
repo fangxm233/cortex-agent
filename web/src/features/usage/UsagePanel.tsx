@@ -55,7 +55,7 @@ function Observation({ provider }: { provider: ProviderUsageView }) {
   return (
     <span>
       {L.usageObserved}{' '}
-      <time dateTime={timestamp} title={timestamp}>{provider.observedAgo} {L.usageAgo}</time>
+      <time dateTime={timestamp} title={timestamp}>{L.usageAgo.replace('{d}', provider.observedAgo)}</time>
     </span>
   );
 }

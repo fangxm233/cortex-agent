@@ -36,7 +36,7 @@ describe('waitRailViewModel', () => {
   });
 
   it('speaks Chinese', () => {
-    expect(waitRailViewModel([wp()], T0, 'zh')?.headline).toBe('等 1 个信号 · train-arm2 · 3 小时后过期');
+    expect(waitRailViewModel([wp()], T0, 'zh')?.headline).toBe('等 1 个信号 · train-arm2 · 3小时后过期');
   });
 
   // ── progress: the quorum rules that are easy to render as a lie ──────────────

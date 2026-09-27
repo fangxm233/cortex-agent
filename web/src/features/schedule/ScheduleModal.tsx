@@ -1,6 +1,6 @@
 import { useEffect, type CSSProperties } from 'react';
 import { CONTROL_HEIGHT, Select } from '@/design';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import {
   visibleFields,
   nextRunParts,
@@ -77,6 +77,7 @@ export interface ScheduleModalProps {
 
 export function ScheduleModal({ form, mode = 'create', editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
+  const lang = useLang();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) onCancel();
@@ -107,7 +108,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
   const canCreate = valid && !pending;
   const editing = mode === 'edit';
   const onceTimingUnavailable = editing && form.type === 'once';
-  const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date());
+  const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date(), lang);
 
   // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). PROFILE always on the right;
   // weekly inserts a DAY cell between them (grid widens to 130/130/1fr — daily stays 130/1fr, 1:1).

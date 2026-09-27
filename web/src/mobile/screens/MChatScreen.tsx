@@ -8,9 +8,9 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import {
   resolveTurns,
   currentTurnElapsedMs,
-  formatElapsed,
   rewindStats,
 } from '@/features/session/transcript/transcript-vm';
+import { formatSpanPrecise } from '@/lib/time-format';
 import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
@@ -267,12 +267,15 @@ export function MChatScreen(): JSX.Element {
   const rows = useMemo(
     () => buildMobileChatRows(transcript, liveTail, {
       streaming, running, streamingText, pendingUser: optimistic.pendingUser,
-      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
+      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun, lang,
     }),
-    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun],
+    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun, lang],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
-  const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
+  const elapsed = useMemo(() => {
+    const ms = currentTurnElapsedMs(transcriptQuery.data);
+    return ms == null ? '—' : formatSpanPrecise(ms, lang);
+  }, [transcriptQuery.data, lang]);
 
   // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
   // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
@@ -747,8 +750,8 @@ export function MChatScreen(): JSX.Element {
       scope: vocab.wbSessionScope, turnsUnit: vocab.wbTurnsUnit, runsUnit: vocab.wbRunsUnit,
       runsLabel: vocab.wbStatRuns, turnsLabel: vocab.wbStatTurns, activeLabel: vocab.wbStatActive,
       spanLabel: vocab.wbStatSpan, costLabel: vocab.wbStatCost, subagentLabel: vocab.wbStatSubagent,
-    }),
-    [active?.totals, active?.createdAt, active?.lastUsedAt, vocab],
+    }, lang),
+    [active?.totals, active?.createdAt, active?.lastUsedAt, vocab, lang],
   );
   const hasRun = !isDraft && turns != null;
   const runStatus = deriveSessionRunStatus({

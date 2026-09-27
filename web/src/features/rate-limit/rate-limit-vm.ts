@@ -1,5 +1,6 @@
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
+import { formatSpanPrecise } from '@/lib/time-format';
 
 export interface RateLimitWindowView {
   type: string;
@@ -33,14 +34,9 @@ function formatWindowType(type: string): string {
   return type.replaceAll('_', ' ');
 }
 
-export function formatRateLimitCountdown(seconds: number): string {
-  const totalMinutes = Math.max(1, Math.ceil(seconds / 60));
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
-  if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-  return `${minutes}m`;
+/** Rounded up to the minute: `5m / 2h 5m / 3d 4h` · `5分钟 / 2小时5分 / 3天4小时`. */
+export function formatRateLimitCountdown(seconds: number, lang: Lang): string {
+  return formatSpanPrecise(Math.max(1, Math.ceil(seconds / 60)) * 60_000, lang);
 }
 
 function waitingLabel(sessions: number, threads: number, lang: Lang): string {
@@ -52,13 +48,13 @@ function waitingLabel(sessions: number, threads: number, lang: Lang): string {
 
 type RawRateLimitWindow = SystemRateLimitStatus['providers'][number]['windows'][number];
 
-function buildWindow(window: RawRateLimitWindow, nowSec: number): RateLimitWindowView {
+function buildWindow(window: RawRateLimitWindow, nowSec: number, lang: Lang): RateLimitWindowView {
   return {
     type: window.type,
     typeLabel: window.label ?? formatWindowType(window.type),
     utilization: window.utilization,
     resetsAt: window.resetsAt,
-    countdown: formatRateLimitCountdown(window.resetsAt - nowSec),
+    countdown: formatRateLimitCountdown(window.resetsAt - nowSec, lang),
   };
 }
 
@@ -72,14 +68,14 @@ function buildProvider(
     .sort((a, b) => a.resetsAt - b.resetsAt
       || a.type.localeCompare(b.type)
       || (a.label ?? '').localeCompare(b.label ?? ''))
-    .map((window) => buildWindow(window, nowSec));
+    .map((window) => buildWindow(window, nowSec, lang));
   if (windows.length === 0) return null;
   const recoveryAt = Math.max(...windows.map((window) => window.resetsAt));
   const waitingSessions = raw.waitingSessions ?? 0;
   const waitingThreads = raw.waitingThreads ?? 0;
   return {
     provider: raw.provider, displayName: raw.displayName, recoveryAt,
-    recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec),
+    recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec, lang),
     waitingSessions, waitingThreads,
     waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang), windows,
   };
@@ -105,7 +101,7 @@ export function buildRateLimitView(
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.provider.localeCompare(b.provider));
   if (providers.length === 0) return null;
   const firstRecoveryAt = Math.min(...providers.map((provider) => provider.recoveryAt));
-  const firstCountdown = formatRateLimitCountdown(firstRecoveryAt - nowSec);
+  const firstCountdown = formatRateLimitCountdown(firstRecoveryAt - nowSec, lang);
   return {
     lang,
     firstRecoveryAt,

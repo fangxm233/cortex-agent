@@ -5,7 +5,8 @@ import type {
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
-import { formatDurationShort, formatUsd } from '@/lib/format';
+import { formatUsd } from '@/lib/format';
+import { formatSpanPrecise, relTime, type TimeLang } from '@/lib/time-format';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
@@ -69,9 +70,9 @@ export function rightPanelBudget(
 }
 
 /** Collapsed step meta "39m · $2.10" (duration then cost); omits null parts. */
-export function stepMeta(step: ThreadStepDetail): string {
+export function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
   const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatDurationShort(step.durationS));
+  if (step.durationS != null) parts.push(formatSpanPrecise(Math.round(step.durationS) * 1000, lang));
   if (step.costUsd != null) parts.push(formatCost(step.costUsd));
   return parts.join(' · ');
 }
@@ -87,24 +88,17 @@ export function subtaskActivity(task: ThreadSubtaskInfo): ActivityState {
   return { label: 'Waiting', tone: 'idle' };
 }
 
-/** Relative age of an ISO timestamp: "just now" / "42m" / "3h" / "2d". */
-export function formatAge(iso: string, now: number): string {
-  const diffS = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (diffS < 60) return 'just now';
-  const m = Math.floor(diffS / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  return `${d}d`;
+/** Relative age of an ISO timestamp: "now" / "42m" / "3h" / "2d" · "刚刚" / "42分钟前". */
+export function formatAge(iso: string, now: number, lang: TimeLang): string {
+  return relTime(iso, now, lang);
 }
 
 /** Thread card meta line "thr_8f2c · task a293 · step 3/4 · 42m". */
-export function threadMetaLine(info: ThreadInfo, now: number): string {
+export function threadMetaLine(info: ThreadInfo, now: number, lang: TimeLang): string {
   const parts: string[] = [info.id];
   if (info.taskId) parts.push(`task ${info.taskId}`);
   if (info.currentStep) parts.push(`step ${info.currentStep.index + 1}/${info.totalSteps}`);
-  parts.push(formatAge(info.createdAt, now));
+  parts.push(formatAge(info.createdAt, now, lang));
   return parts.join(' · ');
 }
 

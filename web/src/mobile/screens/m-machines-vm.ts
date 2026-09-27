@@ -3,10 +3,11 @@
 //   • per-GPU util / VRAM bars and the running-run NAME live in the machines.detail probe, which the
 //     container fetches only for the expanded card — they are NOT part of this collapsed-card vm.
 //   • client version (scheme `client v0.4.2`) → NO DTO source → omitted.
-//   • heartbeat → fmtConnectedZh(lastHeartbeat); '—' when offline (DTO gives null timestamps offline).
+//   • heartbeat → fmtConnected(lastHeartbeat) in the UI language; '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { machineCardVm, fmtConnectedZh } from '@/mobile/shared/mobile-machines-vm';
+import { machineCardVm, fmtConnected } from '@/mobile/shared/mobile-machines-vm';
 import { formatSince } from '@/features/machines/machine-detail-vm';
+import type { TimeLang } from '@/lib/time-format';
 
 export interface MMachineCard {
   name: string;
@@ -35,7 +36,7 @@ export interface MMachinesVm {
 }
 
 /** Map the real `machines.list` DTO array into the 1k screen view-model. */
-export function buildMMachinesVm(machines: MachineInfo[], now: number = Date.now()): MMachinesVm {
+export function buildMMachinesVm(machines: MachineInfo[], lang: TimeLang, now: number = Date.now()): MMachinesVm {
   const cards: MMachineCard[] = machines.map((m) => {
     const base = machineCardVm(m);
     return {
@@ -44,8 +45,8 @@ export function buildMMachinesVm(machines: MachineInfo[], now: number = Date.now
       os: base.os,
       gpuCount: base.gpuCount,
       liveRuns: base.liveRuns,
-      heartbeat: fmtConnectedZh(m.lastHeartbeat, now),
-      connectedFor: formatSince(m.connectedAt, now),
+      heartbeat: fmtConnected(m.lastHeartbeat, now, lang),
+      connectedFor: formatSince(m.connectedAt, lang, now),
       capabilities: m.capabilities,
       cortexPath: m.cortexPath,
       sshConfigured: m.sshConfigured,

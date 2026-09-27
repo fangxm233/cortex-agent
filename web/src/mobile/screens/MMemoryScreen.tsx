@@ -47,7 +47,7 @@ export function MMemoryScreen() {
     enabled: !!currentProjectId,
   });
   const treeFacts = useMemo(() => deriveMemoryTreeFacts(treeQuery.data), [treeQuery.data]);
-  const vm = useMemo(() => buildMMemoryVm(treeFacts, now), [treeFacts, now]);
+  const vm = useMemo(() => buildMMemoryVm(treeFacts, now, lang), [treeFacts, now, lang]);
 
   const [openDirs, setOpenDirs] = useState<Set<string>>(() => new Set());
   const toggleDir = useCallback((name: string) => {

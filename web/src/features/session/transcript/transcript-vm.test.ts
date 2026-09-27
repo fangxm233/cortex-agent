@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { en, zh } from '@/i18n';
 import {
   buildTranscriptRows,
+  formatDividerFromVocab,
+  formatElapsed,
   liveToMessage,
   currentTurnElapsedMs,
   resolveRunning,
@@ -1575,5 +1578,16 @@ describe('buildTranscriptRows — native subagent grouping', () => {
       subagentSpawns,
     };
     expect(liveToMessage(live).subagentSpawns).toEqual(subagentSpawns);
+  });
+});
+
+describe('localized time labels', () => {
+  it('formats elapsed time and day dividers in the UI language', () => {
+    expect([formatElapsed(200_000, 'en'), formatElapsed(200_000, 'zh'), formatElapsed(null, 'zh')]).toEqual(['3m 20s', '3分20秒', '—']);
+    const now = new Date(2026, 8, 26, 12, 0);
+    const old = new Date(2026, 8, 24, 9, 5).toISOString();
+    expect(formatDividerFromVocab(en, 'en')(old, now)).toBe('SEP 24 09:05');
+    expect(formatDividerFromVocab(zh, 'zh')(old, now)).toBe('9月24日 09:05');
+    expect(formatDividerFromVocab(zh, 'zh')(new Date(2026, 8, 25, 9, 5).toISOString(), now)).toBe('昨天 09:05');
   });
 });

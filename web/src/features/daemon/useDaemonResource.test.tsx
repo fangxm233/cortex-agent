@@ -6,6 +6,7 @@ import type {
   SystemRestartReturn,
 } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LangProvider } from '@/i18n';
 import { useDaemonResource, type DaemonResource } from './useDaemonResource';
 
 const adapter = vi.hoisted(() => ({
@@ -74,7 +75,7 @@ async function mount(enabled = true) {
   let renderer: ReactTestRenderer;
   await act(async () => {
     renderer = create(<QueryClientProvider client={queryClient}>
-      <Probe enabled={enabled} />
+      <LangProvider><Probe enabled={enabled} /></LangProvider>
     </QueryClientProvider>);
   });
   await flush();

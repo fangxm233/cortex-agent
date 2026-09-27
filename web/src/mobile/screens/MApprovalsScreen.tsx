@@ -68,12 +68,13 @@ function useRouteExpansion(cards: ReturnType<typeof buildMApprovalsVm>['cards'])
 
 export function MApprovalsScreen() {
   const navigate = useNavigate();
-  const copy = pickCopy(useLang(), COPY);
+  const lang = useLang();
+  const copy = pickCopy(lang, COPY);
   const queue = useApprovalQueue();
   const { currentProjectId } = useCurrentProject();
   const vm = useMemo(
-    () => buildMApprovalsVm(queue.entries, Date.now(), currentProjectId),
-    [queue.entries, currentProjectId],
+    () => buildMApprovalsVm(queue.entries, Date.now(), currentProjectId, lang),
+    [queue.entries, currentProjectId, lang],
   );
   const selection = useRouteExpansion(vm.cards);
   return <MApprovalsView

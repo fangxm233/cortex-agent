@@ -35,17 +35,19 @@ function MThreadRunningCard({
   info,
   now,
   copy,
+  lang,
   onOpen,
 }: {
   info: ThreadInfo;
   now: number;
   copy: MThreadsCopy;
+  lang: 'en' | 'zh';
   onOpen: () => void;
 }) {
   const trpc = useTRPC();
   useThreadGetLiveSync(info.id);
   const detailQuery = useQuery(trpc.threads.get.queryOptions({ threadId: info.id }));
-  return <MThreadRow info={info} detail={detailQuery.data} now={now} copy={copy} onOpen={onOpen} />;
+  return <MThreadRow info={info} detail={detailQuery.data} now={now} copy={copy} lang={lang} onOpen={onOpen} />;
 }
 
 export function MThreadsScreen() {
@@ -83,9 +85,9 @@ export function MThreadsScreen() {
           renderThread={(thread) => {
             const onOpen = () => navigate(`/m/thread/${thread.id}`);
             return isLiveThread(thread.status) ? (
-              <MThreadRunningCard key={thread.id} info={thread} now={now} copy={copy} onOpen={onOpen} />
+              <MThreadRunningCard key={thread.id} info={thread} now={now} copy={copy} lang={lang} onOpen={onOpen} />
             ) : (
-              <MThreadRow key={thread.id} info={thread} detail={undefined} now={now} copy={copy} onOpen={onOpen} />
+              <MThreadRow key={thread.id} info={thread} detail={undefined} now={now} copy={copy} lang={lang} onOpen={onOpen} />
             );
           }}
         />

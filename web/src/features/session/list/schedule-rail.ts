@@ -2,6 +2,7 @@ import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
+import type { TimeLang } from '@/lib/time-format';
 
 // Design 30a/8b: the SCHEDULED section shows ONE row per schedule (not per run). Rows union two
 // sources: live schedule records (schedules.list) and orphan run groups — sessions whose scheduleId
@@ -116,8 +117,8 @@ export function scheduleRowAction(row: ScheduleRow): ScheduleRowAction {
 
 /** Second line under the row title — real data only: last fired stamp + that run's cost; a
  *  never-fired schedule shows its cadence + next-run delta; paused wins over both. */
-export function scheduleSubline(row: ScheduleRow, now: number): ScheduleSubline {
-  if (row.schedule?.paused) return { kind: 'paused', cadence: cadenceLabel(row.schedule) };
+export function scheduleSubline(row: ScheduleRow, now: number, lang: TimeLang): ScheduleSubline {
+  if (row.schedule?.paused) return { kind: 'paused', cadence: cadenceLabel(row.schedule, lang) };
   if (row.latest) {
     return {
       kind: 'run',
@@ -128,8 +129,8 @@ export function scheduleSubline(row: ScheduleRow, now: number): ScheduleSubline 
   const sched = row.schedule;
   return {
     kind: 'pending',
-    cadence: sched ? cadenceLabel(sched) : '',
-    nextDelta: sched ? nextRunDelta(sched.nextRun, now) : null,
+    cadence: sched ? cadenceLabel(sched, lang) : '',
+    nextDelta: sched ? nextRunDelta(sched.nextRun, now, lang) : null,
   };
 }
 

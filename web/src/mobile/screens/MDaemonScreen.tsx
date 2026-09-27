@@ -80,6 +80,7 @@ function useMobileDaemonVm() {
   const schedules = useQuery(trpc.schedules.list.queryOptions({}));
   const executions = useQuery(trpc.executions.list.queryOptions({ limit: 5 }));
   const daemon = useDaemonResource();
+  const lang = useLang();
   const ok = !threads.isError && !schedules.isError;
   const vm = useMemo(() => buildDaemonVm({
     threads: threads.data ?? [],
@@ -87,7 +88,8 @@ function useMobileDaemonVm() {
     executions: executions.data ?? [],
     daemon: daemon.daemon,
     ok,
-  }), [threads.data, schedules.data, executions.data, daemon.daemon, ok]);
+    lang,
+  }), [threads.data, schedules.data, executions.data, daemon.daemon, ok, lang]);
   return { daemon, vm };
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLangOptional } from '@/i18n';
 import { useToastItems, useToastOptional } from './Toast';
 import { relativeAge, splitVisible, type ToastItem, type ToastLevel } from './toast-store';
 
@@ -47,10 +48,11 @@ export function useAutoDismiss(id: string, duration: number, onDismiss: (id: str
 }
 
 function ToastHeading({ item, onDismiss }: BubbleProps) {
+  const lang = useLangOptional();
   return (
     <div className="flex items-baseline gap-[8px]">
       <span className="truncate text-[12.5px] font-semibold text-proto-ink">{item.title}</span>
-      <span className="ml-auto flex-none font-mono text-[10px] text-proto-faint">{relativeAge(item.ts)}</span>
+      <span className="ml-auto flex-none font-mono text-[10px] text-proto-faint">{relativeAge(item.ts, lang)}</span>
       <button type="button" aria-label="Dismiss"
         onClick={(e) => { e.stopPropagation(); onDismiss(item.id); }}
         className="flex-none text-[12px] leading-none text-proto-faint transition-colors hover:text-proto-muted">

@@ -9,18 +9,14 @@ import {
   type TaskVerificationFacts,
 } from '@/features/tasks/task-detail-facts';
 import { fmtMoney } from '@/mobile/ui/format';
+import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
 export type MTaskStatusKind = TaskDetailStatusKind;
 
-/** Elapsed label from a real durationMs (language-neutral s/m/h units); null when no source. */
-export function formatElapsed(ms: number | null): string | null {
+/** Elapsed label from a real durationMs, in the UI language; null when no source. */
+function formatElapsed(ms: number | null, lang: TimeLang): string | null {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return null;
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
+  return formatSpanPrecise(ms, lang);
 }
 
 export interface MTaskDepVm {
@@ -106,11 +102,12 @@ function buildClaim(
   task: TaskInfo,
   claim: TaskClaimFacts,
   verification: TaskVerificationFacts | null,
+  lang: TimeLang,
 ): MTaskClaimVm | null {
   if (!claim.claimed) return null;
   const newest = verification?.newestDispatch?.dispatch ?? null;
   const parts: string[] = [];
-  const elapsed = formatElapsed(newest?.durationMs ?? null);
+  const elapsed = formatElapsed(newest?.durationMs ?? null, lang);
   if (elapsed) parts.push(elapsed);
   if (newest?.cost != null) parts.push(fmtMoney(newest.cost));
   return {
@@ -138,7 +135,7 @@ export function buildTaskDetailVm(
   taskId: string,
   tasks: TaskInfo[],
   verification: TaskVerificationInfo | null,
-  _now: number = Date.now(),
+  lang: TimeLang,
 ): MTaskDetailVm {
   const task = tasks.find((item) => item.id === taskId);
   if (!task) return NOT_FOUND;
@@ -156,7 +153,7 @@ export function buildTaskDetailVm(
     completedAt: facts.completedAt,
     doneWhen: task.doneWhen,
     blockedBy: task.blockedBy ?? null,
-    claim: buildClaim(task, facts.claim, facts.verification),
+    claim: buildClaim(task, facts.claim, facts.verification, lang),
     deps: buildDependencies(facts.upstream),
     history: buildHistory(facts.verification),
   };

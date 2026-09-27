@@ -1,5 +1,5 @@
 import { Modal } from '@/design/Modal';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { runOrdinals, unreadRunIds, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-chat';
 import { sessionStamp } from '@/features/session/list/session-groups';
@@ -38,13 +38,14 @@ export function RunListModal({
   onClose: () => void;
 }): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
   const now = Date.now();
   const ordinals = runOrdinals(row.runs);
   const unreadIds = unreadRunIds(row);
   const sched = row.schedule;
-  const delta = sched ? nextRunDelta(sched.nextRun, now) : null;
+  const delta = sched ? nextRunDelta(sched.nextRun, now, lang) : null;
   const sub = sched
-    ? cadenceLabel(sched) +
+    ? cadenceLabel(sched, lang) +
       (sched.paused ? ` · ${L.wbSchedPausedPill}` : delta ? ` · ${L.wbSchedNextRun.replace('{d}', delta)}` : '')
     : null;
 

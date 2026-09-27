@@ -36,7 +36,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
     countUnit: '{n} 个',
     once: '单次',
     paused: '已暂停',
-    nextIn: '{d} 后运行',
+    nextIn: '{d}后运行',
     allRuns: '全部 {n} runs',
     runListHint: '点击任意 run → 打开该次会话',
     edit: '编辑调度',

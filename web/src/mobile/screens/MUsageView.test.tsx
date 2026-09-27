@@ -58,7 +58,7 @@ const copy: MUsageCopy = {
   refreshError: 'Refresh failed', empty: 'No usage data', quota: 'Quota',
   neverObserved: 'Never observed',
   unavailable: 'Unavailable', gatewaySpend: 'Gateway spend', today: 'Today', month: 'Month',
-  observed: 'Observed', ago: 'ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
+  observed: 'Observed', ago: '{d} ago', resetsIn: 'Resets in', resetElapsed: 'Reset elapsed',
   policy: {
     title: 'Rate-limit threshold', enabled: 'Enabled', disabled: 'Disabled', threshold: 'Threshold',
     save: 'Save', saving: 'Saving…', resetDefault: 'Reset to default',

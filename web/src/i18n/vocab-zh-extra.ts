@@ -97,7 +97,7 @@ export const zhExtra = {
   usageQuotaUnsupported: '该 provider 不支持配额状态；下方仍显示支出。',
   usageNeverObserved: "暂无配额数据；部分服务会在下次调用后更新。",
   usageObserved: '观测于',
-  usageAgo: '前',
+  usageAgo: '{d}前',
   usageResetsIn: '重置倒计时',
   usageResetElapsed: '重置时间已过',
   usageToday: '今日',

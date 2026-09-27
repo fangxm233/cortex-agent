@@ -271,7 +271,7 @@ export const zhBase = {
   wbSchedManage: 'manage ↗',
   wbSchedUnread: '{n} 未读',
   wbSchedOnce: '单次',
-  wbSchedNextRun: '{d} 后运行',
+  wbSchedNextRun: '{d}后运行',
   wbSchedPausedPill: '已暂停',
   wbSchedRunListHint: "选择一次运行以打开会话。",
   wbSchedMarkAllRead: '{n} 条标记已读',

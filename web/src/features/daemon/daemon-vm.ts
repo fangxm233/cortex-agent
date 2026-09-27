@@ -8,6 +8,7 @@ import type {
   SystemDaemonStatus,
 } from '@cortex-agent/ui-contract';
 import type { Tone } from '@/design/tone';
+import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
 export interface DaemonExtraVm {
   key: string;
@@ -77,34 +78,32 @@ export function rebuildStatusTone(status: DaemonRebuildStatus): Tone {
 
 /** Compact duration: sub-minute work reads in seconds (one decimal while it is short), longer
  *  work in minutes. A rebuild is a ten-second-to-two-minute affair, so this is the whole range. */
-function formatSpan(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return '0s';
-  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+function formatSpan(ms: number, lang: TimeLang): string {
+  const safe = Number.isFinite(ms) && ms > 0 ? ms : 0;
+  if (safe < 10_000) return `${(safe / 1000).toFixed(1)}${lang === 'zh' ? '秒' : 's'}`;
+  return formatSpanPrecise(Math.round(safe / 1000) * 1000, lang);
 }
 
-function spanBetween(from: string | null, to: string | null, now: number): string | null {
+function spanBetween(from: string | null, to: string | null, now: number, lang: TimeLang): string | null {
   if (!from) return null;
   const start = Date.parse(from);
   if (Number.isNaN(start)) return null;
   const end = to ? Date.parse(to) : now;
-  return formatSpan((Number.isNaN(end) ? now : end) - start);
+  return formatSpan((Number.isNaN(end) ? now : end) - start, lang);
 }
 
-function stepVm(step: DaemonRebuildStep, now: number): DaemonRebuildStepVm {
+function stepVm(step: DaemonRebuildStep, now: number, lang: TimeLang): DaemonRebuildStepVm {
   return {
     name: step.name,
     status: step.status,
     tone: rebuildStepTone(step.status),
     detail: step.detail,
-    duration: spanBetween(step.startedAt, step.endedAt, now),
+    duration: spanBetween(step.startedAt, step.endedAt, now, lang),
   };
 }
 
-function rebuildVm(progress: DaemonRebuildProgress, now: number): DaemonRebuildVm {
-  const steps = progress.steps.map((step) => stepVm(step, now));
+function rebuildVm(progress: DaemonRebuildProgress, now: number, lang: TimeLang): DaemonRebuildVm {
+  const steps = progress.steps.map((step) => stepVm(step, now, lang));
   return {
     status: progress.status,
     running: progress.status === 'running',
@@ -113,7 +112,7 @@ function rebuildVm(progress: DaemonRebuildProgress, now: number): DaemonRebuildV
     steps,
     completed: steps.filter((step) => step.status === 'done').length,
     total: steps.length,
-    elapsed: spanBetween(progress.startedAt, progress.endedAt, now) ?? '0s',
+    elapsed: spanBetween(progress.startedAt, progress.endedAt, now, lang) ?? formatSpan(0, lang),
     startedAt: progress.startedAt,
     endedAt: progress.endedAt,
     detail: progress.detail,
@@ -124,13 +123,14 @@ function rebuildVm(progress: DaemonRebuildProgress, now: number): DaemonRebuildV
  *  that refreshes the status is what advances it, and tests can pin it. */
 export function buildDaemonVm(
   status: SystemDaemonStatus | null | undefined,
+  lang: TimeLang,
   now: number = Date.now(),
 ): DaemonVm {
   if (!status) return { processes: [], lastRestart: null, rebuild: null };
   return {
     processes: status.processes.map(processVm),
     lastRestart: status.lastRestart,
-    rebuild: status.rebuild ? rebuildVm(status.rebuild, now) : null,
+    rebuild: status.rebuild ? rebuildVm(status.rebuild, now, lang) : null,
   };
 }
 

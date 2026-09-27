@@ -9,11 +9,11 @@
 //     structured DTO field — it lives inside this free text; we render it verbatim, never invent `$`).
 //   • command → the real Command/Action for an optional mono block (null → omit).
 //   • provenance → the verbatim `来自` origin (null → omit; never fabricated).
-//   • queuedAt → the real relative time (relTimeZh; '' when absent — no fabricated clock).
+//   • queuedAt → the real relative time (relTime in the UI language; '' when absent — no fabricated clock).
 // The scheme's `APR-0007` id and `ttl` are MOCKS: we render the real `id` and never render a ttl (no
 // source field). Framework-free so the DTO→value mapping is unit-tested in isolation.
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime, type TimeLang } from '@/lib/time-format';
 
 export interface MApprovalCard {
   /** Real stable id (a sha1-derived hash — the scheme's `APR-0007` is a mock). */
@@ -51,8 +51,9 @@ export interface MApprovalsVm {
 
 export function buildMApprovalsVm(
   entries: ApprovalInfo[],
-  now: number = Date.now(),
-  currentProjectId: string | null = null,
+  now: number,
+  currentProjectId: string | null,
+  lang: TimeLang,
 ): MApprovalsVm {
   const pending = entries.filter((e) => e.status === 'pending');
   const toCard = (e: ApprovalInfo): MApprovalCard => ({
@@ -60,7 +61,7 @@ export function buildMApprovalsVm(
     projectId: e.projectId,
     operation: e.operation,
     title: e.title,
-    time: relTimeZh(e.queuedAt, now),
+    time: relTime(e.queuedAt, now, lang),
     reason: e.reason,
     impact: e.impact,
     command: e.command,

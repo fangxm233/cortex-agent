@@ -10,6 +10,7 @@ import type {
   TranscriptSubagentSummary,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
+import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
@@ -500,14 +501,8 @@ export function resolveTurns(liveTurns: number | null, snapshotTurns: number | n
 }
 
 /** Compact human-readable duration for the composer status line; `—` for null (never fabricated). */
-export function formatElapsed(ms: number | null): string {
-  if (ms == null) return '—';
-  const totalS = Math.floor(ms / 1000);
-  if (totalS < 60) return `${totalS}s`;
-  const totalM = Math.floor(totalS / 60);
-  if (totalM < 60) return `${totalM}m ${totalS % 60}s`;
-  const h = Math.floor(totalM / 60);
-  return `${h}h ${totalM % 60}m`;
+export function formatElapsed(ms: number | null, lang: TimeLang): string {
+  return ms == null ? '—' : formatSpanPrecise(ms, lang);
 }
 
 /**
@@ -628,19 +623,20 @@ function dividerLabel(ts: string, now: Date): string {
   return `${mon} ${d.getDate()} ${time}`;
 }
 
-/** Returns a formatDivider callback that uses the given vocab for TODAY / YESTERDAY labels. */
-export function formatDividerFromVocab(L: Vocab): (ts: string, now: Date) => string {
+/**
+ * Returns a formatDivider callback that uses the given vocab for TODAY / YESTERDAY labels. Older
+ * days follow the UI language: `SEP 24` (upper-cased to match the English vocab) · `9月24日`.
+ */
+export function formatDividerFromVocab(L: Vocab, lang: TimeLang): (ts: string, now: Date) => string {
   return (ts: string, now: Date) => {
     const d = new Date(ts);
     const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const dayDelta = Math.round((startOf(now) - startOf(d)) / 86400000);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    const time = `${hh}:${mm}`;
+    const time = clockTime(d);
     if (dayDelta <= 0) return `${L.wbSessionToday} ${time}`;
     if (dayDelta === 1) return `${L.wbSessionYesterday} ${time}`;
-    const mon = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-    return `${mon} ${d.getDate()} ${time}`;
+    const day = dayLabel(ts, now, lang);
+    return `${lang === 'en' ? day.toUpperCase() : day} ${time}`;
   };
 }
 

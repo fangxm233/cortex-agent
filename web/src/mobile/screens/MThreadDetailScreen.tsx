@@ -84,7 +84,7 @@ export function MThreadDetailScreen() {
   }
 
   if (!controller.detail) return null;
-  const vm = buildMThreadDetailVm(controller.detail, trail, controller.now);
+  const vm = buildMThreadDetailVm(controller.detail, trail, controller.now, lang);
   return (
     <MThreadDetailView
       vm={vm}

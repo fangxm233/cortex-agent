@@ -1,4 +1,5 @@
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
+import { formatSpan } from '@/lib/time-format';
 
 export type WaitRailLanguage = 'en' | 'zh';
 
@@ -94,17 +95,6 @@ const COPY: Record<WaitRailLanguage, WaitRailCopy> = {
 /** Under ten minutes left is treated as urgent — long enough to still do something about it. */
 const URGENT_MS = 10 * 60 * 1000;
 
-/** Coarse on purpose: a waitpoint that expires in a week does not need minutes. */
-function formatDuration(ms: number, lang: WaitRailLanguage): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return lang === 'zh' ? `${s} 秒` : `${s}s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return lang === 'zh' ? `${m} 分钟` : `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return lang === 'zh' ? `${h} 小时` : `${h}h`;
-  return lang === 'zh' ? `${Math.floor(h / 24)} 天` : `${Math.floor(h / 24)}d`;
-}
-
 function formatClock(at: number): string {
   const d = new Date(at);
   const pad = (n: number): string => String(n).padStart(2, '0');
@@ -142,7 +132,8 @@ function toRow(wp: WaitpointInfo, now: number, lang: WaitRailLanguage): WaitRail
     intent: wp.intent,
     // A fraction only means something when more than one report is required.
     progress: wp.quorum.need > 1 ? L.reported(wp.quorum.got, wp.quorum.need) : null,
-    ttl: left <= 0 ? L.overdue : L.expiresIn(formatDuration(left, lang)),
+    // Coarse on purpose (largest unit only): a waitpoint that expires in a week does not need minutes.
+    ttl: left <= 0 ? L.overdue : L.expiresIn(formatSpan(left, lang)),
     urgent: left <= URGENT_MS,
     device: wp.emitFrom.kind === 'device' ? wp.emitFrom.device : null,
     failFast: wp.failFast && wp.quorum.need > 1,

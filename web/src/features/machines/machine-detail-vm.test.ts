@@ -25,17 +25,17 @@ function detail(over: Partial<MachineDetail> = {}): MachineDetail {
 
 describe('meters', () => {
   it('derives CPU load as a percentage of core count', () => {
-    const cpu = buildMachineDetailVm(detail()).meters.find((m) => m.key === 'cpu');
+    const cpu = buildMachineDetailVm(detail(), 'en').meters.find((m) => m.key === 'cpu');
     expect(cpu?.percent).toBe(25);
   });
 
   it('clamps CPU percent at 100 when load exceeds core count', () => {
-    const vm = buildMachineDetailVm(detail({ vitals: { ...detail().vitals!, loadAvg1: 128 } }));
+    const vm = buildMachineDetailVm(detail({ vitals: { ...detail().vitals!, loadAvg1: 128 } }), 'en');
     expect(vm.meters.find((m) => m.key === 'cpu')!.percent).toBe(100);
   });
 
   it('derives memory and disk used-share percentages', () => {
-    const vm = buildMachineDetailVm(detail());
+    const vm = buildMachineDetailVm(detail(), 'en');
     expect(vm.meters.find((m) => m.key === 'mem')?.percent).toBe(23);
     expect(vm.meters.find((m) => m.key === 'disk')?.percent).toBe(50);
   });
@@ -43,12 +43,13 @@ describe('meters', () => {
   it('omits a meter whose inputs the host did not report', () => {
     const vm = buildMachineDetailVm(
       detail({ vitals: { ...detail().vitals!, cpuCores: null, diskTotalGb: null, diskFreeGb: null } }),
+      'en',
     );
     expect(vm.meters.map((m) => m.key)).toEqual(['mem']);
   });
 
   it('yields no meters at all when the probe produced no vitals', () => {
-    expect(buildMachineDetailVm(detail({ vitals: null })).meters).toEqual([]);
+    expect(buildMachineDetailVm(detail({ vitals: null }), 'en').meters).toEqual([]);
   });
 });
 
@@ -66,7 +67,7 @@ const gpus = [
 
 describe('gpu rows', () => {
   it('maps utilisation and memory percentages for each card', () => {
-    expect(buildMachineDetailVm(detail({ gpus })).gpus[0]).toMatchObject({
+    expect(buildMachineDetailVm(detail({ gpus }), 'en').gpus[0]).toMatchObject({
       index: 0,
       utilPercent: 62,
       memPercent: 50,
@@ -80,7 +81,7 @@ describe('gpu processes', () => {
     const many = Array.from({ length: 9 }, (_, i) => ({
       pid: String(100 + i), name: `p${i}`, memoryMb: (i + 1) * 1024,
     }));
-    const vm = buildMachineDetailVm(detail({ gpus: [{ ...gpus[0], processes: many }] }));
+    const vm = buildMachineDetailVm(detail({ gpus: [{ ...gpus[0], processes: many }] }), 'en');
 
     expect(vm.gpus[0].processes.map((p) => p.pid)).toEqual(['108', '107', '106', '105', '104']);
     expect(vm.gpus[0].hiddenProcessCount).toBe(4);

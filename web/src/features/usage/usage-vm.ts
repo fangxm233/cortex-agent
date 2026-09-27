@@ -196,8 +196,9 @@ function durationParts(seconds: number): [number, number, number] {
 export function formatUsageDuration(seconds: number, lang: Lang): string {
   const [days, hours, minutes] = durationParts(seconds);
   const units = lang === 'zh' ? ['天', '小时', '分钟'] : ['d', 'h', 'm'];
-  if (days > 0) return hours > 0 ? `${days}${units[0]} ${hours}${units[1]}` : `${days}${units[0]}`;
-  if (hours > 0) return minutes > 0 ? `${hours}${units[1]} ${minutes}${units[2]}` : `${hours}${units[1]}`;
+  const gap = lang === 'zh' ? '' : ' ';
+  if (days > 0) return hours > 0 ? `${days}${units[0]}${gap}${hours}${units[1]}` : `${days}${units[0]}`;
+  if (hours > 0) return minutes > 0 ? `${hours}${units[1]}${gap}${minutes}${units[2]}` : `${hours}${units[1]}`;
   return `${minutes}${units[2]}`;
 }
 

@@ -1,6 +1,7 @@
 import type { SessionTotals } from '@cortex-agent/ui-contract';
 import { formatElapsed } from '@/features/session/transcript/transcript-vm';
 import { formatUsd } from '@/lib/format';
+import type { TimeLang } from '@/lib/time-format';
 
 // The composer status line has always answered "what is happening right now": the CURRENT turn's
 // elapsed time, and the LAST run's turns and cost. That is the wrong number for "what has this
@@ -59,16 +60,17 @@ export function sessionStatsView(
   totals: SessionTotals | null | undefined,
   spanMs: number | null,
   copy: SessionStatsCopy,
+  lang: TimeLang,
 ): SessionStatsView | null {
   if (!totals) return null;
-  const activeText = formatElapsed(totals.activeMs);
+  const activeText = formatElapsed(totals.activeMs, lang);
   const turnsText = `${totals.turns} ${copy.turnsUnit}`;
   const costText = totals.costUsd == null ? DASH : formatUsd(totals.costUsd);
   const rows: SessionStatsRow[] = [
     { key: 'runs', label: copy.runsLabel, value: `${totals.runs} ${copy.runsUnit}` },
     { key: 'turns', label: copy.turnsLabel, value: turnsText },
     { key: 'active', label: copy.activeLabel, value: activeText },
-    { key: 'span', label: copy.spanLabel, value: spanMs == null ? DASH : formatElapsed(spanMs) },
+    { key: 'span', label: copy.spanLabel, value: spanMs == null ? DASH : formatElapsed(spanMs, lang) },
     { key: 'cost', label: copy.costLabel, value: costText },
   ];
   // The subagent row appears only when children actually ran: on a session that never delegated it

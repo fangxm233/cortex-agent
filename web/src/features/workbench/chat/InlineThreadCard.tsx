@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useLang } from '@/i18n';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { buildThreadCard, type ThreadCardVm, type ThreadCardRow, type ThreadCardSub } from './inline-thread-card-vm';
@@ -194,6 +195,7 @@ function InlineCardView({ card, onOpen }: { card: ThreadCardVm; onOpen: () => vo
 
 export function InlineThreadCard({ sessionId }: { sessionId: string }): JSX.Element | null {
   const { openThread } = useThreadDetailModal();
+  const lang = useLang();
   const trpc = useTRPC();
   const list = useQuery({
     ...trpc.threads.list.queryOptions({ status: ['running', 'waiting'], sessionId }),
@@ -207,5 +209,5 @@ export function InlineThreadCard({ sessionId }: { sessionId: string }): JSX.Elem
     enabled: !!threadId,
   });
   if (!threadId || !detail.data || detail.isError) return null;
-  return <InlineCardView card={buildThreadCard(detail.data)} onOpen={() => openThread(threadId)} />;
+  return <InlineCardView card={buildThreadCard(detail.data, lang)} onOpen={() => openThread(threadId)} />;
 }

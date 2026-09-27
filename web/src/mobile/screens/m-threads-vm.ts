@@ -1,6 +1,6 @@
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
-import { formatAge } from '@/features/workbench/right-panel/right-panel-vm';
+import { relTime, type TimeLang } from '@/lib/time-format';
 import { formatUsd } from '@/lib/format';
 
 // ── 今日 budget band (scheme L188–192) ────────────────────────────────────────
@@ -71,10 +71,11 @@ export function runningMeta(
   detail: ThreadDetail | undefined,
   now: number,
   subthreadWord: string,
+  lang: TimeLang,
 ): string {
   const parts: string[] = [info.id];
   if (info.taskId) parts.push(`task ${info.taskId}`);
-  parts.push(formatAge(info.createdAt, now));
+  parts.push(relTime(info.createdAt, now, lang));
   if (detail) {
     parts.push(formatUsd(detail.totalCostUsd));
     const n = detail.children.length;

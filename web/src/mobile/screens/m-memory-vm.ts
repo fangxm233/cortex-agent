@@ -1,5 +1,5 @@
 import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime, type TimeLang } from '@/lib/time-format';
 
 export interface MMemoryFileRow {
   /** Real filename (e.g. AGENTS.md). */
@@ -31,12 +31,13 @@ export interface MMemoryVm {
 
 export function buildMMemoryVm(
   facts: MemoryTreeFacts | null | undefined,
-  now: number = Date.now(),
+  now: number,
+  lang: TimeLang,
 ): MMemoryVm {
   const core: MMemoryFileRow[] = (facts?.topLevelFiles ?? []).map((file) => ({
     name: file.name,
     path: file.path,
-    time: relTimeZh(file.modifiedAt, now),
+    time: relTime(file.modifiedAt, now, lang),
   }));
   const dirCards: MMemoryDirCard[] = (facts?.dirs ?? []).map((dir) => ({
     name: dir.name,
@@ -44,7 +45,7 @@ export function buildMMemoryVm(
     entries: dir.entries.map((file) => ({
       name: file.name,
       path: file.path,
-      time: relTimeZh(file.modifiedAt, now),
+      time: relTime(file.modifiedAt, now, lang),
     })),
   }));
   return {

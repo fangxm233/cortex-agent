@@ -1,22 +1,13 @@
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-
-function hhmm(d: Date): string {
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
+import { clockTime, dayLabel, formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
 /**
- * ZH day-divider label for the mobile chat stream (scheme L2946 "今天 07:42"). 今天 / 昨天 for the
- * current & previous calendar day, else `${M}月${D}日`, all suffixed with the local HH:MM.
+ * Day-divider label for the mobile chat stream (scheme L2946 "今天 07:42"): Today / Yesterday for
+ * the current & previous calendar day, else the date — in the UI language, suffixed with local HH:MM.
  */
-export function zhDivider(ts: string, now: Date): string {
-  const d = new Date(ts);
-  const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const dayDelta = Math.round((startOf(now) - startOf(d)) / 86400000);
-  const time = hhmm(d);
-  if (dayDelta <= 0) return `今天 ${time}`;
-  if (dayDelta === 1) return `昨天 ${time}`;
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${time}`;
+export function mobileDivider(lang: TimeLang): (ts: string, now: Date) => string {
+  return (ts, now) => `${dayLabel(ts, now, lang)} ${clockTime(ts)}`;
 }
 
 export type StepperState = 'done' | 'running' | 'pending';
@@ -43,20 +34,12 @@ function stepState(status: ThreadDetail['steps'][number]['status']): StepperStat
   return status === 'completed' ? 'done' : status === 'running' ? 'running' : 'pending';
 }
 
-function formatElapsed(ms: number): string {
-  const totalMin = Math.max(0, Math.round(ms / 60000));
-  if (totalMin < 60) return `${totalMin}m`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-}
-
 /**
  * Build the horizontal stepper card model from a live ThreadDetail (scheme L2954-2973). Nodes come
  * from the real `steps` (data-driven — not the scheme's fixed 计划/执行/评审/提交); elapsed derives
  * from createdAt→updatedAt, cost from totalCostUsd, sub-thread count from children.length.
  */
-export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
+export function buildMobileStepper(detail: ThreadDetail, lang: TimeLang): MobileStepper {
   const nodes: StepperNode[] = detail.steps.map((s) => ({
     label: s.stage ?? `Step ${s.stepIndex + 1}`,
     state: stepState(s.status),
@@ -74,7 +57,7 @@ export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
     pillText,
     nodes,
     footer: {
-      elapsed: formatElapsed(elapsedMs),
+      elapsed: formatSpanPrecise(Math.floor(Math.max(0, elapsedMs) / 60000) * 60000, lang),
       cost: formatUsd(detail.totalCostUsd),
       subCount: detail.children.length,
     },

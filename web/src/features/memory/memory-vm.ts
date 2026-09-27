@@ -1,5 +1,6 @@
 import type { MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import type { MemoryTreeFacts } from './memory-tree';
+import { timeAgo, type TimeLang } from '@/lib/time-format';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
 // no fabricated data. Project selection is owned separately by features/projects.
@@ -61,18 +62,11 @@ export function pickDefaultPath(facts: MemoryTreeFacts): string | null {
   return facts.firstFile?.path ?? null;
 }
 
-/** `updated 2m ago` from an ISO timestamp; `updated —` when missing/unparseable. */
-export function relTimeAgo(iso: string | null | undefined, now: number): string {
-  if (!iso) return 'updated —';
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return 'updated —';
-  const ms = Math.max(0, now - t);
-  const m = Math.round(ms / 60000);
-  if (m < 1) return 'updated <1m ago';
-  if (m < 60) return `updated ${m}m ago`;
-  const h = Math.round(ms / 3600000);
-  if (h < 24) return `updated ${h}h ago`;
-  return `updated ${Math.round(ms / 86400000)}d ago`;
+/** `updated 2m ago` · `2分钟前更新` from an ISO timestamp; `updated —` · `更新时间 —` when missing/unparseable. */
+export function relTimeAgo(iso: string | null | undefined, now: number, lang: TimeLang): string {
+  const ago = timeAgo(iso, now, lang);
+  if (!ago) return lang === 'zh' ? '更新时间 —' : 'updated —';
+  return lang === 'zh' ? `${ago}更新` : `updated ${ago}`;
 }
 
 export interface DiffToggleStyle {

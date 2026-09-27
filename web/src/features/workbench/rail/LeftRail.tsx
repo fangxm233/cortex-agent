@@ -28,7 +28,7 @@ import { useCommissionBoard } from '@/features/commission/useCommissionBoard';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import type { ConnectionDot } from '@/features/connection/connection-status';
@@ -174,6 +174,7 @@ export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const L = useVocab();
+  const lang = useLang();
   const { railCollapsed: collapsed, setRailCollapsed: setCollapsed } = usePaneState();
   // New project is opened from the menu bar too, so its modal is a shell modal-registry key
   // (shell/useShellModals) rather than state in this component.
@@ -297,12 +298,13 @@ export function LeftRail(): JSX.Element {
         manualOrder,
         dragged,
         now,
+        lang,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
       threadsQuery.data, selectedSessionId, currentProjectId, expanded, schedExpanded,
-      commExpanded, openCommissions, showAll, filter, sort, manualOrder, dragged,
+      commExpanded, openCommissions, showAll, filter, sort, manualOrder, dragged, lang,
     ],
   );
 

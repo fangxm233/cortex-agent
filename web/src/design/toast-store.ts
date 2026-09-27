@@ -1,3 +1,4 @@
+import { relTime, type TimeLang } from '@/lib/time-format';
 import type { Tone } from './tone';
 
 // Pure queue logic for the ONE on-screen bubble stack (design §5 + scheme 18a). Framework-agnostic
@@ -82,15 +83,8 @@ export function splitVisible(
   return { visible: list.slice(list.length - max), overflow: list.length - max };
 }
 
-/** Compact relative age ("now" / "2m" / "1h") for the mono time slot (scheme 18a). */
-export function relativeAge(ts: string, now: number = Date.now()): string {
-  const then = Date.parse(ts);
-  if (Number.isNaN(then)) return 'now';
-  const s = Math.max(0, Math.floor((now - then) / 1000));
-  if (s < 45) return 'now';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+/** Compact relative age (`now / 2m / 1h` · `刚刚 / 2分钟前`) for the mono time slot (scheme 18a). */
+export function relativeAge(ts: string, lang: TimeLang, now: number = Date.now()): string {
+  // An unparseable stamp reads as "now" rather than blank — the toast did just arrive.
+  return relTime(Number.isNaN(Date.parse(ts)) ? now : ts, now, lang);
 }

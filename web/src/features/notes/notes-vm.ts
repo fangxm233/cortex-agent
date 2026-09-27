@@ -22,7 +22,7 @@ interface ShortcutLike {
 
 function relativeDayLabel(days: number, lang: 'en' | 'zh'): string {
   if (days === 1) return lang === 'zh' ? '昨天' : 'yesterday';
-  return lang === 'zh' ? `${Math.max(2, days)} 天前` : `${Math.max(2, days)}d`;
+  return lang === 'zh' ? `${Math.max(2, days)}天前` : `${Math.max(2, days)}d`;
 }
 
 function isSameLocalDay(left: Date, right: Date): boolean {

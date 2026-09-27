@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { LocalNotificationsCard } from './LocalNotificationsCard';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { Select, relativeAge } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { useLang, useVocab, type Vocab } from '@/i18n';
 import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import {
@@ -182,6 +182,7 @@ const NOTICE_BODY_STYLE: CSSProperties = {
 };
 
 function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
+  const lang = useLang();
   return (
     <div style={{ ...ROW_STYLE, gap: 10, alignItems: 'flex-start' }}>
       <span style={{ display: 'flex', paddingTop: 5 }}>
@@ -194,7 +195,7 @@ function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
         <div style={{ ...NOTICE_BODY_STYLE, marginTop: entry.title ? 3 : 0 }}>{entry.text}</div>
       </div>
       <span style={{ ...MONO_VALUE_STYLE, color: 'var(--proto-muted-2)', paddingTop: 2 }}>
-        {relativeAge(entry.ts)}
+        {relativeAge(entry.ts, lang)}
       </span>
     </div>
   );

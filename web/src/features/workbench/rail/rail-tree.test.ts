@@ -106,6 +106,7 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   manualOrder: [],
   dragged: false,
   now: NOW,
+  lang: 'en',
   ...over,
 });
 
@@ -242,6 +243,8 @@ describe('buildRailTree badges and hotkeys', () => {
     const byId = Object.fromEntries(tree.projects.map((p) => [p.id, p.idleAge]));
     expect(byId.quiet).toBe('3d');
     expect(byId.busy).toBeNull();
+    const zh = buildRailTree(input({ projects: [project('quiet')], directSessions: [session('quiet', { lastUsedAt: ago(3 * DAY) })], lang: 'zh' }));
+    expect(zh.projects[0].idleAge).toBe('3天前');
   });
 });
 

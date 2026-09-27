@@ -67,7 +67,7 @@ function runningRebuild(): DaemonRebuildProgress {
 
 describe('buildDaemonVm', () => {
   it('keeps real process metrics and flattens extras without presentation tokens', () => {
-    const vm = buildDaemonVm(status());
+    const vm = buildDaemonVm(status(), 'en');
     expect(vm.processes[0]).toMatchObject({
       name: 'cortex-running', status: 'running', tone: 'done', pid: 41, uptime: '2h 4m',
     });
@@ -79,18 +79,18 @@ describe('buildDaemonVm', () => {
   });
 
   it('preserves the real restart record and has an honest empty fallback', () => {
-    expect(buildDaemonVm(status()).lastRestart).toEqual({
+    expect(buildDaemonVm(status(), 'en').lastRestart).toEqual({
       at: '2026-08-27T20:00:00.000Z', reason: 'manual',
     });
-    expect(buildDaemonVm(null)).toEqual({ processes: [], lastRestart: null, rebuild: null });
+    expect(buildDaemonVm(null, 'en')).toEqual({ processes: [], lastRestart: null, rebuild: null });
   });
 
   it('has no rebuild facts when the supervisor published none', () => {
-    expect(buildDaemonVm(status()).rebuild).toBeNull();
+    expect(buildDaemonVm(status(), 'en').rebuild).toBeNull();
   });
 
   it('times a running rebuild against the caller\'s clock, not a hidden one', () => {
-    const vm = buildDaemonVm(status(runningRebuild()), T0 + 12_000);
+    const vm = buildDaemonVm(status(runningRebuild()), 'en', T0 + 12_000);
     const rebuild = vm.rebuild!;
     expect(rebuild).toMatchObject({
       status: 'running', running: true, current: 'web', completed: 2, total: 5,
@@ -104,6 +104,8 @@ describe('buildDaemonVm', () => {
       ['install', 'pending', 'waiting', null],
       ['restart', 'pending', 'waiting', null],
     ]);
+    const zh = buildDaemonVm(status(runningRebuild()), 'zh', T0 + 12_000).rebuild!;
+    expect([zh.elapsed, zh.steps[0].duration]).toEqual(['12秒', '4.0秒']);
   });
 
   it('reports an aborted pipeline with the failed step and the supervisor\'s detail', () => {
@@ -121,7 +123,7 @@ describe('buildDaemonVm', () => {
       endedAt: new Date(T0 + 4_800).toISOString(),
       detail: 'Rebuild aborted at step "ui-contract" (exit 2)',
     };
-    const rebuild = buildDaemonVm(status(aborted), T0 + 60_000).rebuild!;
+    const rebuild = buildDaemonVm(status(aborted), 'en', T0 + 60_000).rebuild!;
     expect(rebuild).toMatchObject({
       status: 'aborted', running: false, completed: 1, total: 5,
       detail: 'Rebuild aborted at step "ui-contract" (exit 2)',
@@ -147,7 +149,7 @@ describe('buildDaemonVm', () => {
       endedAt: new Date(T0 + 9_000).toISOString(),
       detail: 'Build finished; install and restart wait for app.ts to go idle.',
     };
-    const rebuild = buildDaemonVm(status(deferred), T0 + 60_000).rebuild!;
+    const rebuild = buildDaemonVm(status(deferred), 'en', T0 + 60_000).rebuild!;
     expect(rebuild).toMatchObject({ status: 'deferred', running: false, completed: 3, total: 5 });
     expect(rebuildStatusTone(rebuild.status)).toBe('waiting');
   });

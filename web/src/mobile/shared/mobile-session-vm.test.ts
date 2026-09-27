@@ -83,12 +83,12 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
 
 describe('buildMobileStepper', () => {
   it('maps each step to a node with its state and real label', () => {
-    const s = buildMobileStepper(detail());
+    const s = buildMobileStepper(detail(), 'en');
     expect(s.nodes.map((n) => n.label)).toEqual(['plan', 'execute', 'review', 'commit']);
     expect(s.nodes.map((n) => n.state)).toEqual(['done', 'done', 'running', 'pending']);
   });
   it('empty steps → no nodes, no crash', () => {
-    const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }));
+    const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }), 'en');
     expect(s.nodes).toEqual([]);
   });
 });

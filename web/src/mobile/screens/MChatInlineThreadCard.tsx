@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTRPC } from '@/lib/trpc';
+import { useLang } from '@/i18n';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { threadPill } from '@/features/workbench/right-panel/right-panel-vm';
 import { buildMobileStepper } from '@/mobile/shared/mobile-session-vm';
@@ -13,6 +14,7 @@ export function MChatInlineThreadCard({ sessionId, subthreadsLabel, openLabel }:
 }): JSX.Element | null {
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const lang = useLang();
   const listQuery = useQuery({ ...trpc.threads.list.queryOptions({ status: ['running', 'waiting'], sessionId }), enabled: !!sessionId });
   const threads = listQuery.data ?? [];
   const target = threads.find((thread) => thread.status === 'running') ?? threads[0] ?? null;
@@ -20,5 +22,5 @@ export function MChatInlineThreadCard({ sessionId, subthreadsLabel, openLabel }:
   useThreadGetLiveSync(threadId);
   const getQuery = useQuery({ ...trpc.threads.get.queryOptions({ threadId }), enabled: !!threadId });
   if (!threadId || getQuery.isPending || getQuery.isError || !getQuery.data) return null;
-  return <MobileThreadStepper card={buildMobileStepper(getQuery.data)} pill={threadPill(getQuery.data.status)} running={getQuery.data.status === 'running'} subthreadsLabel={subthreadsLabel} openLabel={openLabel} onOpen={() => navigate(`/m/thread/${threadId}`)} />;
+  return <MobileThreadStepper card={buildMobileStepper(getQuery.data, lang)} pill={threadPill(getQuery.data.status)} running={getQuery.data.status === 'running'} subthreadsLabel={subthreadsLabel} openLabel={openLabel} onOpen={() => navigate(`/m/thread/${threadId}`)} />;
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { MTabHeader, MGroup, MGroupLabel, MPill, statusPillTone, MC, M_NUM } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
+import type { TimeLang } from '@/lib/time-format';
 import type { ThreadGroup } from '@/features/session/composer/scope';
 import {
   pipelineSteps,
@@ -172,12 +173,14 @@ export function MThreadRow({
   detail,
   now,
   copy,
+  lang,
   onOpen,
 }: {
   info: ThreadInfo;
   detail?: ThreadDetail;
   now: number;
   copy: MThreadsCopy;
+  lang: TimeLang;
   onOpen: () => void;
 }) {
   const steps = pipelineSteps(info, detail);
@@ -195,7 +198,7 @@ export function MThreadRow({
         </div>
         {steps.length > 0 && <Pipeline steps={steps} />}
         <div style={{ fontSize: 12, color: MC.muted, marginTop: steps.length > 0 ? 2 : 3, ...M_NUM }}>
-          {runningMeta(info, detail, now, copy.subthread)}
+          {runningMeta(info, detail, now, copy.subthread, lang)}
         </div>
       </div>
     </div>

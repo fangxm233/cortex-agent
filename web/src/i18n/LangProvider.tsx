@@ -105,3 +105,9 @@ export function useVocabOptional(): Vocab {
   const ctx = useContext(LangContext);
   return ctx?.vocab ?? pickVocab(readStoredLang());
 }
+
+// Provider-optional language accessor, the `useVocabOptional` counterpart for design primitives
+// (e.g. ToastViewport) that tests render without a LangProvider.
+export function useLangOptional(): Lang {
+  return useContext(LangContext)?.lang ?? readStoredLang();
+}

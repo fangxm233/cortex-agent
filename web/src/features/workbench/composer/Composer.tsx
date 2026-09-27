@@ -340,8 +340,8 @@ export function Composer({
       scope: L.wbSessionScope, turnsUnit: L.wbTurnsUnit, runsUnit: L.wbRunsUnit,
       runsLabel: L.wbStatRuns, turnsLabel: L.wbStatTurns, activeLabel: L.wbStatActive,
       spanLabel: L.wbStatSpan, costLabel: L.wbStatCost, subagentLabel: L.wbStatSubagent,
-    }),
-    [totals, spanMs, L],
+    }, lang),
+    [totals, spanMs, L, lang],
   );
   const statusBrowserDevice = sessionBrowser?.device ?? browserDevice;
   const browserStarting = browserStartupPending({

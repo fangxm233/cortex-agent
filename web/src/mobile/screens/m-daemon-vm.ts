@@ -6,7 +6,7 @@ import {
   type DaemonRebuildVm,
   type DaemonVm,
 } from '@/features/daemon/daemon-vm';
-import { relTimeZh } from '@/mobile/ui/format';
+import { relTime, type TimeLang } from '@/lib/time-format';
 
 export type MDaemonProcess = DaemonProcessVm;
 
@@ -61,35 +61,35 @@ function fallbackProcesses(facts: DaemonVm, ok: boolean): MDaemonProcess[] {
   return [process('cortex-server'), process('cortex-daemon')];
 }
 
-function mapEvents(executions: ExecutionInfo[], now: number): MDaemonEvent[] {
+function mapEvents(executions: ExecutionInfo[], now: number, lang: TimeLang): MDaemonEvent[] {
   return executions.slice(0, MAX_EVENTS).map((execution) => ({
     id: execution.id,
-    time: relTimeZh(execution.startedAt, now),
+    time: relTime(execution.startedAt, now, lang),
     ref: execution.taskId ? `${execution.type} · ${execution.taskId}` : execution.type,
     status: execution.status,
     tone: FAIL_STATUS.has(execution.status) ? 'fail' : 'default',
   }));
 }
 
-function restartEvent(facts: DaemonVm, now: number): MDaemonRestart | null {
+function restartEvent(facts: DaemonVm, now: number, lang: TimeLang): MDaemonRestart | null {
   const at = facts.lastRestart?.at;
   if (!at) return null;
-  return { time: relTimeZh(at, now), reason: facts.lastRestart?.reason ?? null };
+  return { time: relTime(at, now, lang), reason: facts.lastRestart?.reason ?? null };
 }
 
 export function buildDaemonVm(input: {
   threads: ThreadInfo[]; schedules: ScheduleInfo[]; executions: ExecutionInfo[];
-  ok: boolean; daemon?: SystemDaemonStatus | null; now?: number;
+  ok: boolean; daemon?: SystemDaemonStatus | null; now?: number; lang: TimeLang;
 }): MDaemonVm {
   const now = input.now ?? Date.now();
-  const facts = buildSharedDaemonVm(input.daemon, now);
+  const facts = buildSharedDaemonVm(input.daemon, input.lang, now);
   return {
     ok: input.ok,
     threadCount: input.threads.length,
     scheduleCount: input.schedules.length,
     processes: fallbackProcesses(facts, input.ok),
-    lastRestart: restartEvent(facts, now),
-    events: mapEvents(input.executions, now),
+    lastRestart: restartEvent(facts, now, input.lang),
+    events: mapEvents(input.executions, now, input.lang),
     rebuild: facts.rebuild,
   };
 }

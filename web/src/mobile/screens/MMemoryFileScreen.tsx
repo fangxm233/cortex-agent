@@ -42,7 +42,7 @@ export function MMemoryFileScreen() {
   const file = fileQuery.data;
 
   const basename = fileBasename(path);
-  const metaLine = useMemo(() => fileMetaLine(file, now), [file, now]);
+  const metaLine = useMemo(() => fileMetaLine(file, now, lang), [file, now, lang]);
 
   const status: MMemoryFileStatus = !path || fileQuery.isError
     ? 'error'

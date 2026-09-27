@@ -5,6 +5,8 @@ import {
   budgetPercent,
   dailySeriesBars,
   whereItGoesRows,
+  nextRunLabel,
+  lastRunLabel,
 } from './overview-vm';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
@@ -106,5 +108,17 @@ describe('whereItGoesRows', () => {
     expect(rows.length).toBeLessThanOrEqual(5);
     // highest first
     expect(rows[0].label).toBe('t7');
+  });
+});
+
+describe('schedule run labels', () => {
+  const now = Date.parse('2026-09-26T12:00:00Z');
+  it('follows the UI language', () => {
+    const next = '2026-09-27T07:00:00Z';
+    const last = '2026-09-26T10:00:00Z';
+    expect([nextRunLabel(next, now, 'en'), lastRunLabel(last, now, 'en')]).toEqual(['next in 19h', 'last 2h ago']);
+    expect([nextRunLabel(next, now, 'zh'), lastRunLabel(last, now, 'zh')]).toEqual(['19小时后', '上次 2小时前']);
+    expect([nextRunLabel(last, now, 'zh'), nextRunLabel(null, now, 'zh'), lastRunLabel(null, now, 'zh')]).toEqual(['到期', '—', '从未运行']);
+    expect([nextRunLabel(last, now, 'en'), lastRunLabel(null, now, 'en')]).toEqual(['due', 'never run']);
   });
 });

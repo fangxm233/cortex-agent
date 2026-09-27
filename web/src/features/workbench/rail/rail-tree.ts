@@ -13,6 +13,7 @@ import {
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
 import { resolveRailOrder, type RailSortMode } from './rail-order';
+import type { TimeLang } from '@/lib/time-format';
 
 // The rail is ONE flat list of project folders — every project is present, none is folded away
 // behind an "other projects" group. Projects with nothing in them sink to the bottom by activity
@@ -27,7 +28,7 @@ export interface RailSessionRow {
   sessionId: string;
   projectId: string;
   title: string;
-  /** Compact relative age ('now' / '5m' / '3h' / '2d'); the exact stamp goes in the row tooltip. */
+  /** Compact relative age in the UI language ('now' / '5m' · '刚刚' / '5分钟前'); the exact stamp goes in the row tooltip. */
   age: string;
   /** Full local timestamp for the row's title attribute. */
   stamp: string;
@@ -112,6 +113,7 @@ export interface RailTreeInput {
   /** True while an in-session drag overrides the activity order. */
   dragged: boolean;
   now: number;
+  lang: TimeLang;
   cap?: number;
 }
 
@@ -184,13 +186,13 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     projects, directSessions, scheduledSessions, schedules, commissions, threads,
     selectedSessionId, fallbackProjectId, expanded, schedulesExpanded,
     commissionsExpanded, expandedCommissions, showAll,
-    sort, manualOrder, dragged, now,
+    sort, manualOrder, dragged, now, lang,
   } = input;
   const toSessionRow = (s: SessionInfo): RailSessionRow => ({
     sessionId: s.sessionId,
     projectId: s.projectId,
     title: sessionTitle(s),
-    age: relativeAge(effectiveMs(s), now),
+    age: relativeAge(effectiveMs(s), now, lang),
     stamp: sessionTooltipStamp(s),
     running: !!s.running,
     awaitingInput: !!s.awaitingInput,
@@ -309,7 +311,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       attentionTone: badge.tone,
       hotkey,
       idleAge:
-        !hasSignal && typeof activityMs === 'number' ? relativeAge(activityMs, now) : null,
+        !hasSignal && typeof activityMs === 'number' ? relativeAge(activityMs, now, lang) : null,
       sessions: visible.map(toSessionRow),
       hiddenSessions: Math.max(0, rows.length - visible.length),
       // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is

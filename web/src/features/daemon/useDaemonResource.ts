@@ -5,6 +5,7 @@ import type {
   SystemRestartArgs,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useLang } from '@/i18n';
 import { buildDaemonVm, type DaemonVm } from './daemon-vm';
 
 const STATUS_REFRESH_MS = 5_000;
@@ -44,6 +45,7 @@ function asError(value: unknown): Error | null {
 
 export function useDaemonResource(options: UseDaemonResourceOptions = {}): DaemonResource {
   const trpc = useTRPC();
+  const lang = useLang();
   const queryClient = useQueryClient();
   const enabled = options.enabled ?? true;
   const statusOptions = trpc.system.daemonStatus.queryOptions({});
@@ -67,7 +69,7 @@ export function useDaemonResource(options: UseDaemonResourceOptions = {}): Daemo
   }));
   return {
     daemon: status.data ?? null,
-    facts: buildDaemonVm(status.data),
+    facts: buildDaemonVm(status.data, lang),
     loading: status.isLoading,
     error: asError(status.error),
     restart: (kind) => restart.mutate({ kind }),

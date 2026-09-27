@@ -2,6 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ApprovalsRequestReturn, MachineDetail, MachineInfo } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { LangProvider } from '@/i18n';
 import { useMachinesResource, type MachinesResource } from './useMachinesResource';
 
 const adapter = vi.hoisted(() => ({
@@ -60,7 +61,7 @@ async function mount(expanded: string[] = []) {
   } });
   let renderer: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<QueryClientProvider client={queryClient}><Probe expanded={expanded} /></QueryClientProvider>);
+    renderer = create(<QueryClientProvider client={queryClient}><LangProvider><Probe expanded={expanded} /></LangProvider></QueryClientProvider>);
   });
   await flush();
   await flush();

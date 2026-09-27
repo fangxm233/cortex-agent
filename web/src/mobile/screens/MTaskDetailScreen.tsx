@@ -37,8 +37,8 @@ export function MTaskDetailScreen() {
 
   const tasks = tasksQuery.data ?? [];
   const vm = useMemo(
-    () => buildTaskDetailVm(taskId ?? '', tasks, verifyQuery.data ?? null),
-    [taskId, tasks, verifyQuery.data],
+    () => buildTaskDetailVm(taskId ?? '', tasks, verifyQuery.data ?? null, lang),
+    [taskId, tasks, verifyQuery.data, lang],
   );
 
   if (tasksQuery.isLoading) {

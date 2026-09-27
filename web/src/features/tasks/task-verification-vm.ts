@@ -8,6 +8,7 @@
 
 import type { TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
+import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 import { buildTaskVerificationFacts } from './task-detail-facts';
 
 // dispatch/execution status → dot color (mirrors the modal's palette in task-modal-vm.ts).
@@ -26,13 +27,11 @@ function statusColor(status: TaskDispatchRecord['status']): string {
   }
 }
 
-export function formatDuration(ms: number | null): string {
+/** `12.3s` / `3m 20s` · `12.3秒` / `3分20秒`; `—` when unknown. */
+export function formatDuration(ms: number | null, lang: TimeLang): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
-  const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  const m = Math.floor(s / 60);
-  const rem = Math.round(s % 60);
-  return `${m}m ${rem}s`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}${lang === 'zh' ? '秒' : 's'}`;
+  return formatSpanPrecise(Math.round(ms / 1000) * 1000, lang);
 }
 
 export function formatCost(cost: number | null): string {
@@ -76,7 +75,7 @@ export interface TaskVerificationVm {
   hasDispatches: boolean;
 }
 
-export function buildTaskVerificationVm(info: TaskVerificationInfo): TaskVerificationVm {
+export function buildTaskVerificationVm(info: TaskVerificationInfo, lang: TimeLang): TaskVerificationVm {
   const facts = buildTaskVerificationFacts(info);
   const e = facts.evidence;
   const dispatches: DispatchRowVm[] = facts.dispatches.map(({ dispatch: d, isCompleting }) => ({
@@ -87,7 +86,7 @@ export function buildTaskVerificationVm(info: TaskVerificationInfo): TaskVerific
     machine: d.machine ?? '—',
     threadId: d.threadId,
     when: formatWhen(d.startedAt),
-    duration: formatDuration(d.durationMs),
+    duration: formatDuration(d.durationMs, lang),
     cost: formatCost(d.cost),
     isCompleting,
   }));

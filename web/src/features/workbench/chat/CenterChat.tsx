@@ -198,10 +198,10 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, {
       streaming, running, streamingText, pendingUser: optimistic.pendingUser,
-      formatDivider: formatDividerFromVocab(L),
+      formatDivider: formatDividerFromVocab(L, lang),
       stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
     }),
-    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
+    [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, L, lang, active?.scheduleId, isScheduledRun],
   );
   // A New Session is only a draft until its first optimistic row is enqueued. Keep this derived from
   // rendered evidence so a rejected create-and-send naturally returns to the centered start state.
@@ -213,7 +213,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const agentTurns = resolveTurns(liveTurns, active?.numTurns ?? null);
   // Running-line elapsed = the CURRENT turn's runtime only (last turn's intra-turn span), not the
   // whole-session accumulated time — a fresh turn's clock starts from its own user message.
-  const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
+  const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data), lang), [transcriptQuery.data, lang]);
   // Whole-session wall-clock lifetime, which the totals DTO deliberately does not carry: it is a
   // property of the session record (createdAt → lastUsedAt), not of its runs.
   const sessionSpan = useMemo(

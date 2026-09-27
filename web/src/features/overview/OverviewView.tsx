@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { useExecutionDrawer } from '@/features/execution/useExecutionDrawer';
 import { useScheduleModal } from '@/features/schedule/useScheduleModal';
+import { cadenceLabel } from '@/features/session/list/scheduled-chat';
 import { useIssues } from '@/features/issues/useIssues';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NotesButton } from '@/features/notes/NotesButton';
@@ -14,7 +15,6 @@ import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
 import { useNotes } from '@/features/notes/NotesProvider';
 import {
   formatMoney,
-  scheduleIntervalLabel,
   scheduleProfileLabel,
   nextRunLabel,
   lastRunLabel,
@@ -75,6 +75,7 @@ function CardHeader({ title, right }: { title: string; right?: ReactNode }) {
 
 export function OverviewView(): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -493,14 +494,14 @@ export function OverviewView(): JSX.Element {
                     </span>
                   )}
                   <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-                    {scheduleIntervalLabel(s)}
+                    {cadenceLabel(s, lang)}
                   </span>
                 </div>
                 <div className="overview-schedule-meta" style={{ display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--proto-muted)', marginTop: 2, paddingLeft: 18 }}>
                   <span>
                     {s.paused
-                      ? `${lastRunLabel(s.lastRun, now)}`
-                      : `${nextRunLabel(s.nextRun, now)} · ${lastRunLabel(s.lastRun, now)}`}
+                      ? `${lastRunLabel(s.lastRun, now, lang)}`
+                      : `${nextRunLabel(s.nextRun, now, lang)} · ${lastRunLabel(s.lastRun, now, lang)}`}
                   </span>
                   {/* Real agent profile from ScheduleInfo.profile (schedule config source). Omitted
                       when the schedule has no recorded profile — honest placeholder, no fabrication. */}
@@ -609,7 +610,7 @@ export function OverviewView(): JSX.Element {
                   {execSummary(x)}
                 </span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execMachine(x)}</span>
-                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now))}</span>
+                <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{formatDuration(execDurationMs(x, now), lang)}</span>
                 <span style={{ font: "400 11px 'IBM Plex Mono',monospace" }}>{execCost(x.cost)}</span>
                 <span>
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '1.5px 7px', borderRadius: 'var(--r-pill)', background: pill.bg, color: pill.color }}>
