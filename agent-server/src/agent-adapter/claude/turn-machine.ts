@@ -448,6 +448,13 @@ export class ClaudeTurnMachine {
     };
   }
 
+  /** Start a fresh process's cost cursor at the total the CLI restored on `--resume` (0 for a new
+   *  session): `total_cost_usd` is cumulative across processes, so a zero cursor would bill the
+   *  first resumed turn the whole session history. */
+  resetCostBaseline(restoredUsd: number): void {
+    this.cumulativeCostUsd = restoredUsd;
+  }
+
   private turnCost(data: any): number {
     if (data.total_cost_usd == null) return 0;
     const cumulativeCost = data.total_cost_usd;

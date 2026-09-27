@@ -75,9 +75,9 @@ export class CostRepo {
    * added since the last one; re-parsing the whole file per query (getCostSummary calls readCosts
    * every time) allocated the entire file plus one object per line as a transient, and this process
    * never returns freed native memory to the OS. `size` always sits on a line boundary. A file that
-   * shrank or whose mtime moved without appending (startup prune, out-of-band rewrite) drops it.
+   * shrank or was replaced (startup prune, out-of-band rewrite: new inode) drops it.
    */
-  private _cache: { path: string; size: number; mtimeMs: number; entries: CostEntry[] } | null = null;
+  private _cache: { path: string; ino: number; size: number; mtimeMs: number; entries: CostEntry[] } | null = null;
   private _budgetRepo: JsonRepository<BudgetConfig> | null = null;
   private readonly _costsPath: string | null;
   private readonly _budgetPath: string | null;
@@ -196,10 +196,12 @@ export class CostRepo {
   async readCosts(): Promise<CostsData> {
     await this._ensureReady();
     const filePath = this.costFilePath;
+    let ino: number;
     let size: number;
     let mtimeMs: number;
     try {
       const stat = await fs.stat(filePath);
+      ino = stat.ino;
       size = stat.size;
       mtimeMs = stat.mtimeMs;
     } catch (err: any) {
@@ -208,19 +210,19 @@ export class CostRepo {
       return { entries: [] };
     }
 
-    const cached = this._cache?.path === filePath ? this._cache : null;
+    const cached = this._cache?.path === filePath && this._cache.ino === ino ? this._cache : null;
     if (cached && size === cached.size && mtimeMs === cached.mtimeMs) {
       return { entries: cached.entries.slice() };
     }
     if (cached && size > cached.size) {
       const { entries, consumedTo } = await this._readEntriesRange(filePath, cached.size, size);
       const merged = cached.entries.concat(entries);
-      this._cache = { path: filePath, size: consumedTo, mtimeMs, entries: merged };
+      this._cache = { path: filePath, ino, size: consumedTo, mtimeMs, entries: merged };
       return { entries: merged.slice() };
     }
-    // Cold, or the file shrank / was rewritten in place — reparse from the top.
+    // Cold, replaced, or shrank / was rewritten in place — reparse from the top.
     const { entries, consumedTo } = await this._readEntriesRange(filePath, 0, size);
-    this._cache = { path: filePath, size: consumedTo, mtimeMs, entries };
+    this._cache = { path: filePath, ino, size: consumedTo, mtimeMs, entries };
     return { entries: entries.slice() };
   }
 

@@ -23,7 +23,7 @@ import {
   buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
   ClaudeSpawnOptions, CortexAgentContext,
 } from './spawn-args.js';
-import { computeTranscriptPath, resolveResumeAgainstTranscript } from './transcript-path.js';
+import { computeTranscriptPath, readRestoredSessionCost, resolveResumeAgainstTranscript } from './transcript-path.js';
 import { TmuxControl, type TmuxExec } from './tmux-control.js';
 import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
@@ -466,7 +466,10 @@ class ClaudeSession implements TurnHost {
   private spawnProcess(): void {
     this.validateSupplementalMcpConfig();
     const { args, env } = this.buildProcessLaunch();
-    log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
+    const restoredCost = this.needsResume
+      ? readRestoredSessionCost(computeTranscriptPath(this.cwd, this.sessionId), this.sessionId) : 0;
+    this.turns.resetCostBaseline(restoredCost);
+    log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? `(resume, restored cost $${restoredCost.toFixed(2)})` : '(new)'}`);
     const spawned = spawnClaudeProcess(
       this.processSpawner, args, { cwd: this.cwd, env }, this.cliPath,
     );

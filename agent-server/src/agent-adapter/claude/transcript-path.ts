@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs';
 import * as path from 'path';
 import { TUI_JSONL_BASE } from './defaults.js';
 
@@ -39,4 +39,69 @@ export function resolveResumeAgainstTranscript(
   exists: (p: string) => boolean = existsSync,
 ): boolean {
   return requestedResume && exists(transcriptPath);
+}
+
+const COST_STATE_NEEDLE = Buffer.from('"cost-state"');
+const TAIL_CHUNK_BYTES = 1 << 20;
+
+function costStateValue(line: string, sessionId: string): number | null {
+  let entry: { type?: unknown; sessionId?: unknown; totalCostUSD?: unknown };
+  try { entry = JSON.parse(line); } catch { return null; }
+  const value = entry.totalCostUSD;
+  if (entry.type !== 'cost-state' || entry.sessionId !== sessionId) return null;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/** The last matching cost-state among the complete lines of `buf`, scanning from the end. */
+function lastCostStateIn(buf: Buffer, sessionId: string): number | null {
+  let hit = buf.lastIndexOf(COST_STATE_NEEDLE);
+  while (hit !== -1) {
+    const lineStart = buf.lastIndexOf(0x0a, hit) + 1;
+    const newline = buf.indexOf(0x0a, hit);
+    const value = costStateValue(buf.toString('utf8', lineStart, newline === -1 ? buf.length : newline), sessionId);
+    if (value !== null) return value;
+    if (lineStart === 0) return null;
+    hit = buf.lastIndexOf(COST_STATE_NEEDLE, lineStart - 1);
+  }
+  return null;
+}
+
+/**
+ * The running cost Claude will restore when it resumes `sessionId`.
+ *
+ * The CLI appends a `cost-state` entry (lifetime `totalCostUSD` of the session) to the transcript
+ * when a process exits, and `--resume` restores the last one, so a resumed process's first
+ * `total_cost_usd` already includes every earlier process's spend. Returns 0 when the transcript
+ * holds no such entry (new session, or a CLI that does not persist cost). Reads from the end in
+ * chunks: the entry sits right after the previous process's last turn.
+ */
+export function readRestoredSessionCost(
+  transcriptPath: string,
+  sessionId: string,
+  chunkBytes: number = TAIL_CHUNK_BYTES,
+): number {
+  let fd: number;
+  try { fd = openSync(transcriptPath, 'r'); } catch { return 0; }
+  try {
+    let end = fstatSync(fd).size;
+    // The leading partial line of the chunk read last, completed by the chunk before it.
+    let carry = Buffer.alloc(0);
+    while (end > 0) {
+      const start = Math.max(0, end - chunkBytes);
+      const chunk = Buffer.alloc(end - start);
+      readSync(fd, chunk, 0, chunk.length, start);
+      const buf = carry.length ? Buffer.concat([chunk, carry]) : chunk;
+      const firstNewline = start === 0 ? -1 : buf.indexOf(0x0a);
+      if (start > 0 && firstNewline === -1) { carry = buf; end = start; continue; }
+      const value = lastCostStateIn(buf.subarray(firstNewline + 1), sessionId);
+      if (value !== null) return value;
+      carry = buf.subarray(0, Math.max(firstNewline, 0));
+      end = start;
+    }
+    return 0;
+  } catch {
+    return 0;
+  } finally {
+    closeSync(fd);
+  }
 }

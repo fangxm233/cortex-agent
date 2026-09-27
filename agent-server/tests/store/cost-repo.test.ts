@@ -239,3 +239,18 @@ test('CostRepo - on-disk schema is JSONL (one CostEntry per line)', async () => 
   assert.equal(parsed.backend, 'claude');
   assert.equal(parsed.source, 'estimate');
 });
+
+test('CostRepo - a file replaced out of band is reparsed even when it grew', async () => {
+  const { repo, costsPath } = createRepo();
+  await repo.recordEntry(makeEntry({ trigger: 'a', cost_usd: 100 }));
+  await repo.flush();
+  assert.equal((await repo.readCosts()).entries[0].cost_usd, 100);
+
+  // A correction rewrites the file (new inode) and it is already longer than the cached view.
+  const replaced = [makeEntry({ trigger: 'a', cost_usd: 1 }), makeEntry({ trigger: 'b', cost_usd: 2 })];
+  await fs.writeFile(`${costsPath}.tmp`, replaced.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  await fs.rename(`${costsPath}.tmp`, costsPath);
+
+  const { entries } = await repo.readCosts();
+  assert.deepEqual(entries.map((e) => [e.trigger, e.cost_usd]), [['a', 1], ['b', 2]]);
+});
