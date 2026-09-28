@@ -5,7 +5,8 @@ import {
   formatDividerFromVocab,
   formatElapsed,
   liveToMessage,
-  currentTurnElapsedMs,
+  currentTurnClock,
+  turnClockElapsedMs,
   resolveRunning,
   resolveBackgroundRunning,
   resolveTurns,
@@ -309,12 +310,17 @@ describe('buildTranscriptRows', () => {
   });
 });
 
-describe('currentTurnElapsedMs', () => {
+describe('current turn clock', () => {
   const mk = (ts: string, elapsedMs: number | null): SessionTranscript['turns'][number]['messages'][number] => ({
     type: 'assistant', text: 'x', toolName: null, toolInput: null, ts, elapsedMs,
   });
+  const live = (role: LiveSessionMessage['role'], ts: string, extra: Partial<LiveSessionMessage> = {}): LiveSessionMessage => ({
+    sessionId: 's', role, text: 'x', ts, ...extra,
+  });
 
   const at = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+  const base = Date.parse(T);
+  const settled = (t: SessionTranscript | undefined) => turnClockElapsedMs(currentTurnClock(t), null);
 
   it('spans the LAST turn from its opening message to its final row', () => {
     const t = tx([
@@ -322,31 +328,50 @@ describe('currentTurnElapsedMs', () => {
       // Last turn opens 7500ms later (the cross-turn idle gap) and then runs for 1500ms.
       { turnIndex: 1, messages: [mk(at(10_000), 7500), mk(at(11_000), 1000), mk(at(11_500), 500)] },
     ]);
-    expect(currentTurnElapsedMs(t)).toBe(1500);
-  });
-
-  it('does not carry earlier turns into the current-turn clock', () => {
-    const t = tx([
-      { turnIndex: 0, messages: [mk(T, null), mk(at(9999), 9999)] },
-      { turnIndex: 1, messages: [mk(at(13_000), 3000), mk(at(13_400), 400)] },
-    ]);
-    expect(currentTurnElapsedMs(t)).toBe(400);
+    expect(settled(t)).toBe(1500);
   });
 
   it('keeps the time folded subagent rows took — a span, never a sum of surviving deltas', () => {
-    // The real bug: the compact projection drops a folded subagent row AND its delta, so the surviving
-    // rows here only account for 20s of a turn that actually ran 5 minutes.
+    // The compact projection drops a folded subagent row AND its delta, so the surviving rows here
+    // only account for 20s of a turn that actually ran 5 minutes.
     const t = tx([
       { turnIndex: 0, messages: [mk(T, null), mk(at(10_000), 10_000), mk(at(300_000), 10_000)] },
     ]);
-    expect(currentTurnElapsedMs(t)).toBe(300_000);
+    expect(settled(t)).toBe(300_000);
   });
 
-  it('returns null when the last turn yields no span (single message / empty / unparsable ts)', () => {
-    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, null)] }]))).toBeNull();
-    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk('not-a-date', 5000), mk(T, 1000)] }]))).toBeNull();
-    expect(currentTurnElapsedMs(tx([]))).toBeNull();
-    expect(currentTurnElapsedMs(undefined)).toBeNull();
+  it('returns null for a settled turn with no span (single message / empty / unparsable ts)', () => {
+    expect(settled(tx([{ turnIndex: 0, messages: [mk(T, null)] }]))).toBeNull();
+    expect(settled(tx([{ turnIndex: 0, messages: [mk('not-a-date', 5000), mk(T, 1000)] }]))).toBeNull();
+    expect(settled(tx([]))).toBeNull();
+    expect(settled(undefined)).toBeNull();
+  });
+
+  it('keeps counting to now while the turn runs, even with only its opening message', () => {
+    const clock = currentTurnClock(tx([{ turnIndex: 0, messages: [mk(T, null)] }]));
+    expect(turnClockElapsedMs(clock, base + 42_000)).toBe(42_000);
+  });
+
+  it('never runs backwards when the local clock trails the newest message', () => {
+    const clock = currentTurnClock(tx([{ turnIndex: 0, messages: [mk(T, null), mk(at(9000), 9000)] }]));
+    expect(turnClockElapsedMs(clock, base + 5000)).toBe(9000);
+  });
+
+  it('starts a just-opened turn from the live tail before the transcript refetch lands', () => {
+    const t = tx([{ turnIndex: 0, messages: [mk(T, null), mk(at(2000), 2000)] }]);
+    const clock = currentTurnClock(t, [live('assistant', at(2000)), live('user', at(3_600_000))]);
+    expect(clock).toEqual({ startMs: base + 3_600_000, lastMs: base + 3_600_000 });
+    expect(turnClockElapsedMs(clock, base + 3_605_000)).toBe(5000);
+  });
+
+  it('ignores live rows of earlier turns and subagent rows when locating the start', () => {
+    const t = tx([{ turnIndex: 1, messages: [mk(at(10_000), null), mk(at(12_000), 2000)] }]);
+    const clock = currentTurnClock(t, [
+      live('user', at(1000)),
+      live('user', at(20_000), { subagentId: 'sub1' }),
+      live('tool', at(15_000)),
+    ]);
+    expect(clock).toEqual({ startMs: base + 10_000, lastMs: base + 15_000 });
   });
 });
 

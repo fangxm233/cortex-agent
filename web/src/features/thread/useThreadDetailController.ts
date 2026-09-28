@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useNowTick } from '@/lib/useNowTick';
 import { threadIsLive } from './thread-detail-facts';
 import { useThreadGetLiveSync } from './useThreadGetLiveSync';
 
@@ -18,16 +18,6 @@ export interface ThreadDetailController {
   now: number;
   cancel: () => void;
   cancelPending: boolean;
-}
-
-function useNowTick(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const timer = globalThis.setInterval(() => setNow(Date.now()), 1000);
-    return () => globalThis.clearInterval(timer);
-  }, [active]);
-  return now;
 }
 
 function threadGetInput(threadId: string, includeArtifactContent: boolean) {

@@ -82,6 +82,9 @@ export interface ChatHeaderStatus {
    *   • ask   → `等待你的回答 k/n · Agent 已暂停`
    */
   text: string;
+  /** Present while the turn clock runs: the status line re-renders itself every second from it, so
+   *  the ticking stays inside that leaf instead of re-rendering the chat. */
+  liveText?: (now: number) => string;
   /** Header dot: running = blue · waiting = amber (pending interaction) · idle = grey. */
   tone: 'running' | 'idle' | 'waiting';
 }

@@ -14,7 +14,7 @@ import { useSessionWaitpoints } from '@/features/session/live/useSessionWaitpoin
 import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
 import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
 import { useMarkSessionRead } from '@/features/session/live/useMarkSessionRead';
-import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
+import { buildTranscriptRows, turnCount, resolveTurns, currentTurnClock, formatDividerFromVocab } from '@/features/session/transcript/transcript-vm';
 import { sessionSpanMs } from '@/features/session/list/session-stats';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -212,9 +212,12 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // works), NOT the number of user-message rounds (`turns`). Snapshot + delta: the live `session.turn`
   // event wins, else the `SessionInfo.numTurns` snapshot from sessions.list (restored on mount/reload).
   const agentTurns = resolveTurns(liveTurns, active?.numTurns ?? null);
-  // Running-line elapsed = the CURRENT turn's runtime only (last turn's intra-turn span), not the
-  // whole-session accumulated time — a fresh turn's clock starts from its own user message.
-  const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data), lang), [transcriptQuery.data, lang]);
+  // Running-line elapsed = the CURRENT turn's runtime only, not the whole-session accumulated time —
+  // a fresh turn's clock starts from its own user message. The composer ticks it while running.
+  const turnClock = useMemo(
+    () => currentTurnClock(transcriptQuery.data, liveTail),
+    [transcriptQuery.data, liveTail],
+  );
   // Whole-session wall-clock lifetime, which the totals DTO deliberately does not carry: it is a
   // property of the session record (createdAt → lastUsedAt), not of its runs.
   const sessionSpan = useMemo(
@@ -320,7 +323,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           waitingOn={active?.waitingOn ?? 0}
           turns={agentTurns}
           cost={active?.costUsd ?? null}
-          elapsed={elapsed}
+          turnClock={turnClock}
           totals={active?.totals ?? null}
           sessionSpanMs={sessionSpan}
           isDraft={isDraft}

@@ -7,10 +7,11 @@ import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import {
   resolveTurns,
-  currentTurnElapsedMs,
+  currentTurnClock,
+  turnClockElapsedMs,
+  formatElapsed,
   rewindStats,
 } from '@/features/session/transcript/transcript-vm';
-import { formatSpanPrecise } from '@/lib/time-format';
 import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
@@ -272,10 +273,11 @@ export function MChatScreen(): JSX.Element {
     [transcript, liveTail, streaming, running, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun, lang],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
-  const elapsed = useMemo(() => {
-    const ms = currentTurnElapsedMs(transcriptQuery.data);
-    return ms == null ? '—' : formatSpanPrecise(ms, lang);
-  }, [transcriptQuery.data, lang]);
+  // Current turn's clock; the header line ticks it itself while the turn runs.
+  const turnClock = useMemo(
+    () => currentTurnClock(transcriptQuery.data, liveTail),
+    [transcriptQuery.data, liveTail],
+  );
 
   // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
   // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
@@ -763,6 +765,12 @@ export function MChatScreen(): JSX.Element {
     running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
     turnProgressStarted: liveTurns !== null || streaming,
   });
+  // `now` is passed only while the turn runs; the header line then ticks the clock itself.
+  const runStatusAt = (now: number | null) => chatHeaderStatus(
+    runStatus, turns, formatElapsed(turnClockElapsedMs(turnClock, now), lang), cost, statusCopy,
+    active?.waitingOn ?? 0,
+  );
+  const clockLive = running && runStatus.showMetrics && turnClock != null;
   const status = pendingInteraction
     ? interactionHeaderStatus(
         pendingInteraction.detail.kind,
@@ -772,7 +780,7 @@ export function MChatScreen(): JSX.Element {
       )
     : browserStarting && statusBrowserDevice
       ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
-      : chatHeaderStatus(runStatus, turns, elapsed, cost, statusCopy, active?.waitingOn ?? 0);
+      : { ...runStatusAt(null), ...(clockLive ? { liveText: (now: number) => runStatusAt(now).text } : {}) };
 
   // ── interaction props for the view ──
   const intCopy = pickCopy(lang, M_INT_COPY);

@@ -21,6 +21,7 @@ import {
 import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
+import { useNowTick } from '@/lib/useNowTick';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
@@ -104,9 +105,11 @@ const HEADER_CONTEXT_KEY: CSSProperties = {
 
 /** Flat muted ink: the waiting tone the line used to carry in amber now rides the title-row dot. */
 function MChatStatusLine({ status, project }: MChatHeaderProps): JSX.Element {
+  const now = useNowTick(!!status.liveText);
+  const text = status.liveText ? status.liveText(now) : status.text;
   return (
     <div data-chat-status-line="true" style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      {project ? `${project} · ${status.text}` : status.text}
+      {project ? `${project} · ${text}` : text}
     </div>
   );
 }

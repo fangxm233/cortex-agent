@@ -404,4 +404,27 @@ describe('MChatView header status line', () => {
     );
     expect(line(html)).toBe('idle');
   });
+
+  it('ticks a running turn clock every second', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    try {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = create(
+          <MChatView {...baseProps} rows={[]} status={{
+            running: true, tone: 'running', text: 'settled',
+            liveText: (now) => `running ${(now - 1_000_000) / 1000}s`,
+          }} />,
+        );
+      });
+      const text = () => renderer.root.findByProps({ 'data-chat-status-line': 'true' }).children.join('');
+      expect(text()).toBe('running 0s');
+      act(() => { vi.advanceTimersByTime(3000); });
+      expect(text()).toBe('running 3s');
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

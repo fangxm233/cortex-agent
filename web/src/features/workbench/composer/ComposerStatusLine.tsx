@@ -1,10 +1,14 @@
 import { MENU_FOCUS } from '@/design/MenuChrome';
+import { useNowTick } from '@/lib/useNowTick';
 
 const MONO = "'IBM Plex Mono',monospace";
 
 export interface ComposerStatusLineProps {
   running: boolean;
   text: string;
+  /** Present while the turn clock runs: the line re-renders itself every second from it, so the
+   *  ticking stays inside this leaf instead of re-rendering the whole composer. */
+  liveText?: (now: number) => string;
   /** Whole-session totals, already formatted (`会话 3h 12m · 512 轮 · $48.20`). Absent on a session
    *  that has never finished a run — the line then looks exactly as it did before totals existed. */
   sessionText?: string;
@@ -17,8 +21,10 @@ export interface ComposerStatusLineProps {
 // `会话`/`session` prefix — deliberately NOT by dimming the second one, which only made the number
 // hard to read. Only the divider glyph itself is a structural colour.
 export function ComposerStatusLine({
-  running, text, sessionText, onOpenSessionStats,
+  running, text, liveText, sessionText, onOpenSessionStats,
 }: ComposerStatusLineProps): JSX.Element {
+  const now = useNowTick(!!liveText);
+  const shownText = liveText ? liveText(now) : text;
   const clickable = !!sessionText && !!onOpenSessionStats;
   return (
     <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: 'var(--proto-muted)', padding: '9px 4px 0', height: 16, minWidth: 0 }}>
@@ -26,7 +32,7 @@ export function ComposerStatusLine({
           truncated total, so the totals segment is the one allowed to shrink. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 'none' }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', transform: 'translateY(0.5px)', flex: 'none' }} />
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shownText}</span>
       </span>
       {sessionText && (
         <>

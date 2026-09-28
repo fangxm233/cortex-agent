@@ -435,27 +435,63 @@ export function turnCount(transcript: SessionTranscript | undefined | null): num
   return transcript?.turns.length ?? 0;
 }
 
+/** Wall-clock bounds of the CURRENT turn: its opening message → its newest message. */
+export interface TurnClock {
+  startMs: number;
+  lastMs: number;
+}
+
 /**
- * Real CURRENT-turn elapsed = wall-clock SPAN of the last turn: its opening user message → its last
- * assistant/tool message, measured from those two timestamps. The cross-turn idle gap is excluded for
- * free, because the clock starts at this turn's own first message.
+ * The current turn's clock, from the last transcript turn merged with the live tail.
  *
- * Deliberately a span and NOT a sum of per-message `elapsedMs`: the backend's compact projection folds
- * every subagent row into a summary and drops that row's delta with it, so a sum silently loses all the
- * wall-clock the agent spent waiting on its children — a real 74m 37s turn reported as `1h 11m`. A span
- * cannot lose time.
+ * The tail matters because the transcript refetch lags the event stream: a turn that has just opened
+ * exists only in the tail for a moment, and a running clock read from the transcript alone would
+ * count from the PREVIOUS turn's start until the refetch lands. Every main-agent user message opens a
+ * turn — the same rule the server cuts turns by — so the newest one in the tail wins over an older
+ * transcript start. Subagent rows never open a turn.
  *
- * Returns null when the last turn yields no span (empty / single message / unparsable ts) so the caller
- * renders an honest `—`.
+ * Measured as a span and NOT a sum of per-message `elapsedMs`: the backend's compact projection folds
+ * every subagent row into a summary and drops that row's delta with it, so a sum silently loses all
+ * the wall-clock the agent spent waiting on its children. A span cannot lose time.
  */
-export function currentTurnElapsedMs(transcript: SessionTranscript | undefined | null): number | null {
-  if (!transcript || transcript.turns.length === 0) return null;
-  const messages = transcript.turns[transcript.turns.length - 1].messages;
-  if (messages.length < 2) return null;
-  const startMs = Date.parse(messages[0].ts);
-  const endMs = Date.parse(messages[messages.length - 1].ts);
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
-  return Math.max(0, endMs - startMs);
+export function currentTurnClock(
+  transcript: SessionTranscript | undefined | null,
+  liveTail: readonly LiveSessionMessage[] = [],
+): TurnClock | null {
+  let startMs: number | null = null;
+  let lastMs: number | null = null;
+  const messages = transcript?.turns.at(-1)?.messages ?? [];
+  if (messages.length > 0) {
+    const first = Date.parse(messages[0].ts);
+    const last = Date.parse(messages[messages.length - 1].ts);
+    if (Number.isFinite(first) && Number.isFinite(last)) {
+      startMs = first;
+      lastMs = Math.max(first, last);
+    }
+  }
+  for (const m of liveTail) {
+    if (m.subagentId) continue;
+    const t = Date.parse(m.ts);
+    if (!Number.isFinite(t)) continue;
+    if (m.role === 'user' && (startMs == null || t > startMs)) {
+      startMs = t;
+      lastMs = Math.max(lastMs ?? t, t);
+    } else if (startMs != null && lastMs != null && t > lastMs) {
+      lastMs = t;
+    }
+  }
+  return startMs == null || lastMs == null ? null : { startMs, lastMs };
+}
+
+/**
+ * Elapsed of the current turn. Pass `now` only while the turn runs: the clock then keeps counting
+ * between messages instead of freezing at the newest one. A settled turn is its message span, and one
+ * with no span (a lone opening message) is null so the caller renders an honest `—`.
+ */
+export function turnClockElapsedMs(clock: TurnClock | null, now: number | null): number | null {
+  if (!clock) return null;
+  if (now == null) return clock.lastMs > clock.startMs ? clock.lastMs - clock.startMs : null;
+  return Math.max(clock.lastMs, now) - clock.startMs;
 }
 
 /**

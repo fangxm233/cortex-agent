@@ -41,6 +41,7 @@ import type { ContextCompactAction } from '@/features/session/composer/ContextUs
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from '@/features/session/transcript/optimistic-message';
 import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
+import { formatElapsed, turnClockElapsedMs, type TurnClock } from '@/features/session/transcript/transcript-vm';
 import { DraftProjectSelector } from './DraftProjectSelector';
 import { useFileDropTarget } from './useFileDropTarget';
 import { ChatDropOverlay } from './ChatDropOverlay';
@@ -66,7 +67,7 @@ export function Composer({
   waitingOn = 0,
   turns,
   cost,
-  elapsed,
+  turnClock,
   totals = null,
   sessionSpanMs: spanMs = null,
   isDraft = false,
@@ -106,7 +107,8 @@ export function Composer({
   turns: number | null;
   /** Last run's total cost in USD (SessionInfo.costUsd snapshot); null while running / never-ran → —. */
   cost: number | null;
-  elapsed: string;
+  /** Current turn's clock; ticks live while `running`, else renders the settled span. */
+  turnClock: TurnClock | null;
   /** WHOLE-SESSION totals (SessionInfo.totals). The three fields above describe the current/last
    *  run only; this is the cumulative counterpart rendered as the status line's second segment.
    *  Null on a session that has never finished a run — the segment is then absent entirely. */
@@ -328,11 +330,16 @@ export function Composer({
   // "idle" and "idle but waiting for a signal" are different states and must not read the same.
   // Appended rather than substituted: the run status itself stays true.
   const waitingText = waitingOn > 0 ? L.wbWaitingOn.replace('{n}', String(waitingOn)) : null;
-  const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
-  const runStatusText = [
-    ...(runStatus.showMetrics ? [statusMetrics.join(' · ')] : [runStatusLabel]),
-    ...(waitingText ? [waitingText] : []),
-  ].join(' · ');
+  // `now` is passed only while the turn runs; the status line then ticks the clock itself.
+  const runStatusTextAt = (now: number | null): string => {
+    const elapsed = formatElapsed(turnClockElapsedMs(turnClock, now), lang);
+    const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
+    return [
+      ...(runStatus.showMetrics ? [statusMetrics.join(' · ')] : [runStatusLabel]),
+      ...(waitingText ? [waitingText] : []),
+    ].join(' · ');
+  };
+  const clockLive = running && runStatus.showMetrics && turnClock != null;
   // Second segment: the same three quantities for the WHOLE session. Independent of runStatus —
   // totals are finalized numbers, so they stay on screen (and stay still) while a turn runs.
   const sessionStats = useMemo(
@@ -350,6 +357,9 @@ export function Composer({
     device: statusBrowserDevice,
     turnProgressStarted,
   });
+  const browserHint = browserStarting && statusBrowserDevice
+    ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
+    : null;
 
   const slashProfiles = engineSelection.profileOptions.map((option) => ({
     name: option.name, detail: option.sub, disabled: option.disabled,
@@ -756,9 +766,8 @@ export function Composer({
           {showStatus && (
             <ComposerStatusLine
               running={runStatus.active}
-              text={browserStarting && statusBrowserDevice
-                ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
-                : runStatusText}
+              text={browserHint ?? runStatusTextAt(null)}
+              liveText={!browserHint && clockLive ? runStatusTextAt : undefined}
               sessionText={sessionStats?.summary}
               onOpenSessionStats={sessionStats ? () => setStatsOpen(true) : undefined}
             />

@@ -122,7 +122,7 @@ function mountComposer(
         running
         turns={1}
         cost={null}
-        elapsed="1s"
+        turnClock={null}
         currentProfile="plan"
         currentOverride={null}
         draftSelection={{ profileName: null, override: null }}
