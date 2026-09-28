@@ -190,7 +190,7 @@ or Feishu-originated session never sees these tools.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `send_file` | `file_path`, `file_name?`, `caption?`, `device?` | Send a file into the chat as a downloadable card (images and video preview inline); with `device`, the file is read on that remote device |
+| `send_file` | `file_path` or `files[]` (`{file_path, file_name?}`), `file_name?`, `caption?`, `device?` | Send one file, or several as one grouped message with a single caption, into the chat as downloadable cards (images and video preview inline); with `device`, the files are read on that remote device |
 | `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?` | Render an HTML view inline in the chat as a live, interactive card |
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
 

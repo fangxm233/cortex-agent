@@ -26,7 +26,7 @@ import { openThreadRunDetached } from '../thread-run/index.js';
 import { settleThread } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
-import { sendAgentFile } from '../agent-file-send.js';
+import { sendAgentFiles } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
 import type { Destination } from '@platform/index.js';
@@ -283,16 +283,18 @@ function createWebhookHandler(_options: {
     if (req.method === 'POST' && req.url === '/webhook/ui-file') {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
-        const { sessionId, filePath, fileName, caption, device } = data || {};
-        if (!sessionId || !filePath) {
+        const { sessionId, filePath, fileName, files, caption, device } = data || {};
+        // `files` carries a group (one row, many cards); the bare filePath form answers a single meta.
+        const group = Array.isArray(files) ? files : null;
+        if (!sessionId || !(group?.length || filePath)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'sessionId and filePath required' }));
+          res.end(JSON.stringify({ success: false, error: 'sessionId and filePath (or files) required' }));
           return;
         }
         try {
-          const meta = await sendAgentFile({ sessionId, filePath, fileName, caption, device });
+          const metas = await sendAgentFiles({ sessionId, files: group ?? [{ filePath, fileName }], caption, device });
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, data: meta }));
+          res.end(JSON.stringify({ success: true, data: group ? metas : metas[0] }));
         } catch (e) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: (e as Error).message }));

@@ -46,6 +46,15 @@ export interface SendAgentFileArgs {
   device?: string;
 }
 
+export interface SendAgentFilesArgs {
+  sessionId: string;
+  files: Array<{ filePath: string; fileName?: string }>;
+  /** One caption for the whole group. */
+  caption?: string;
+  /** Applies to every file in the group. */
+  device?: string;
+}
+
 export interface SendAgentFileDeps {
   copyIntoOutputs?: (a: { sessionId: string; filePath: string; fileName?: string }) => Promise<StoredOutput>;
   /** Injectable twin of `copyIntoOutputs` for the remote path. */
@@ -76,31 +85,49 @@ async function defaultFetchIntoOutputs(
 }
 
 /**
- * Deliver a file into a web chat session as an agent-sent attachment (20a). Copies the file into the
- * session's outputs area, records an assistant message carrying the attachment (persisted, so it is
+ * Deliver files into a web chat session as agent-sent attachments (20a). Copies each file into the
+ * session's outputs area, records ONE assistant message carrying all of them (persisted, so it is
  * replayed by sessions.transcript on reload), and publishes a `session.message` event sharing the
  * SAME `ts` as the history entry so the web UI's content de-dup (transcript vs live-tail) keys them
- * identically. Returns the AttachmentMeta describing the delivered file.
+ * identically. A file that fails to land fails the whole call before anything is recorded.
  */
-export async function sendAgentFile(args: SendAgentFileArgs, deps: SendAgentFileDeps = {}): Promise<AttachmentMeta> {
-  const copy = deps.copyIntoOutputs ?? copyFileIntoOutputs;
-  const fetchIn = deps.fetchIntoOutputs ?? defaultFetchIntoOutputs;
+export async function sendAgentFiles(args: SendAgentFilesArgs, deps: SendAgentFileDeps = {}): Promise<AttachmentMeta[]> {
+  if (args.files.length === 0) throw new Error('send_file needs at least one file');
   const append = deps.appendAssistant ?? ((sid, o) => conversationHistory.appendAssistant(sid, o));
   const publish = deps.publish ?? publishSessionMessage;
   const now = deps.now ?? (() => new Date().toISOString());
 
-  // Only the source of the bytes differs. Once the file is in the outputs area, a device's file is
-  // an ordinary attachment — same card, same download endpoint, same transcript row.
-  const { relPath, name, size } = args.device
-    ? await fetchIn({ sessionId: args.sessionId, device: args.device, filePath: args.filePath, fileName: args.fileName })
-    : await copy({ sessionId: args.sessionId, filePath: args.filePath, fileName: args.fileName });
-  const mimeType = extToMime(name);
-  const meta: AttachmentMeta = { name, path: relPath, size, mimeType, type: classifyAttachment(mimeType) };
-  const ts = now();
-  const channel = `web:${args.sessionId}`;
-  const caption = args.caption ?? '';
+  // Sequential on purpose: device files share one reverse channel, and the order is the card order.
+  const metas: AttachmentMeta[] = [];
+  for (const file of args.files) metas.push(await landFile(args, file, deps));
 
-  await append(args.sessionId, { text: caption, ts, attachments: [meta] });
-  publish({ sessionId: args.sessionId, channel, role: 'assistant', text: caption, attachments: [meta], ts });
+  const ts = now();
+  const caption = args.caption ?? '';
+  await append(args.sessionId, { text: caption, ts, attachments: metas });
+  publish({ sessionId: args.sessionId, channel: `web:${args.sessionId}`, role: 'assistant', text: caption, attachments: metas, ts });
+  return metas;
+}
+
+/** Single-file form of `sendAgentFiles`. */
+export async function sendAgentFile(args: SendAgentFileArgs, deps: SendAgentFileDeps = {}): Promise<AttachmentMeta> {
+  const { filePath, fileName, ...rest } = args;
+  const [meta] = await sendAgentFiles({ ...rest, files: [{ filePath, fileName }] }, deps);
   return meta;
+}
+
+/** Only the source of the bytes differs. Once the file is in the outputs area, a device's file is
+ *  an ordinary attachment — same card, same download endpoint, same transcript row. */
+async function landFile(
+  args: { sessionId: string; device?: string },
+  file: { filePath: string; fileName?: string },
+  deps: SendAgentFileDeps,
+): Promise<AttachmentMeta> {
+  const copy = deps.copyIntoOutputs ?? copyFileIntoOutputs;
+  const fetchIn = deps.fetchIntoOutputs ?? defaultFetchIntoOutputs;
+  const target = { sessionId: args.sessionId, filePath: file.filePath, fileName: file.fileName };
+  const { relPath, name, size } = args.device
+    ? await fetchIn({ ...target, device: args.device })
+    : await copy(target);
+  const mimeType = extToMime(name);
+  return { name, path: relPath, size, mimeType, type: classifyAttachment(mimeType) };
 }

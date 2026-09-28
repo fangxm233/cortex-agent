@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import {
   sendAgentFile,
+  sendAgentFiles,
   copyFileIntoOutputs,
   type SessionMessagePayload,
 } from '../../src/orchestration/agent-file-send.js';
@@ -39,6 +40,58 @@ test('sendAgentFile dual-writes: appends assistant attachment + publishes sessio
   assert.equal(published[0].text, 'here it is');
   assert.equal(published[0].ts, '2026-07-14T00:00:00.000Z', 'history + bus share one ts for de-dup');
   assert.deepEqual(published[0].attachments, [meta]);
+});
+
+test('sendAgentFiles lands every file and records them as ONE assistant row with one caption', async () => {
+  const appended: any[] = [];
+  const published: SessionMessagePayload[] = [];
+  const metas = await sendAgentFiles(
+    {
+      sessionId: 'sess-m',
+      files: [{ filePath: '/tmp/a/loss.png' }, { filePath: '/tmp/a/report.pdf', fileName: 'final.pdf' }],
+      caption: 'two results',
+    },
+    {
+      copyIntoOutputs: async ({ sessionId, filePath, fileName }) => {
+        const name = fileName ?? path.basename(filePath);
+        return { relPath: `workspace/outputs/${sessionId}/${name}`, name, size: 10 };
+      },
+      appendAssistant: async (sid, o) => { appended.push({ sid, ...o }); },
+      publish: (p) => { published.push(p); },
+      now: () => 'ts-m',
+    },
+  );
+
+  assert.deepEqual(metas.map(m => [m.name, m.type]), [['loss.png', 'image'], ['final.pdf', 'file']]);
+  assert.equal(appended.length, 1, 'one transcript row, not one per file');
+  assert.equal(appended[0].text, 'two results');
+  assert.deepEqual(appended[0].attachments, metas);
+  assert.equal(published.length, 1);
+  assert.deepEqual(published[0].attachments, metas);
+  assert.equal(published[0].ts, 'ts-m');
+});
+
+test('sendAgentFiles records nothing when any file fails to land', async () => {
+  const appended: any[] = [];
+  await assert.rejects(
+    () => sendAgentFiles(
+      { sessionId: 's', files: [{ filePath: '/ok.txt' }, { filePath: '/bad.txt' }] },
+      {
+        copyIntoOutputs: async ({ filePath }) => {
+          if (filePath === '/bad.txt') throw new Error('File not found: /bad.txt');
+          return { relPath: 'workspace/outputs/s/ok.txt', name: 'ok.txt', size: 1 };
+        },
+        appendAssistant: async (_sid, o) => { appended.push(o); },
+        publish: () => { appended.push('published'); },
+      },
+    ),
+    /bad\.txt/,
+  );
+  assert.deepEqual(appended, []);
+});
+
+test('sendAgentFiles rejects an empty file list', async () => {
+  await assert.rejects(() => sendAgentFiles({ sessionId: 's', files: [] }), /at least one file/);
 });
 
 test('copyFileIntoOutputs preserves Unicode display names while collision-renaming only storage', async () => {

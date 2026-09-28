@@ -484,6 +484,7 @@ back over the reverse channel, then delivered as an ordinary attachment:
 
 ```js
 send_file({ device: "trainer", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+send_file({ device: "trainer", files: [{ file_path: "/home/x/runs/loss.png" }, { file_path: "/home/x/runs/eval.csv" }] })
 ```
 
 The server refuses before transferring anything if the device is offline, the

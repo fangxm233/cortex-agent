@@ -297,6 +297,13 @@ export function toolDeviceForHistory(name: string, input: any): string | undefin
   return typeof device === 'string' && device.trim() ? device.trim() : undefined;
 }
 
+/** A multi-file `send_file` reads as its file names rather than a JSON fragment. */
+function filesSummary(input: any): string | undefined {
+  if (!Array.isArray(input.files)) return undefined;
+  const names = input.files.map((f: any) => String(f?.file_path ?? '').split(/[\\/]/).pop()).filter(Boolean);
+  return names.length ? names.join(', ') : undefined;
+}
+
 export function summarizeToolInputForHistory(input: any): string {
   if (input == null || typeof input !== 'object') return '';
   // A task list has no string field worth picking below, so it used to fall through to
@@ -307,7 +314,7 @@ export function summarizeToolInputForHistory(input: any): string {
     if (snapshot) return renderTodoProgress(snapshot) || 'todos cleared';
   }
   const pick = (k: string) => (typeof input[k] === 'string' ? input[k] : undefined);
-  const primary = pick('command') ?? pick('file_path') ?? pick('path') ?? pick('pattern') ?? pick('url') ?? pick('prompt') ?? pick('description') ?? pick('query');
+  const primary = pick('command') ?? pick('file_path') ?? filesSummary(input) ?? pick('path') ?? pick('pattern') ?? pick('url') ?? pick('prompt') ?? pick('description') ?? pick('query');
   let s = primary ?? '';
   if (!s) {
     try { s = JSON.stringify(input); } catch { s = ''; }

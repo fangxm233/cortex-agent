@@ -140,7 +140,7 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `we
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `send_file` | `file_path`、`file_name?`、`caption?`、`device?` | 把文件发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
+| `send_file` | `file_path` 或 `files[]`（`{file_path, file_name?}`）、`file_name?`、`caption?`、`device?` | 把一个文件、或多个文件作为共用一条说明的同一条消息发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
 | `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
 | `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
 

@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { STORE_DIR } from '../../src/core/paths.js';
 import { readHistoryAccumulator } from '../../src/store/conversation-history-reader.js';
-import { ConversationHistoryRepo, toolDeviceForHistory } from '../../src/store/conversation-history-repo.js';
+import { ConversationHistoryRepo, summarizeToolInputForHistory, toolDeviceForHistory } from '../../src/store/conversation-history-repo.js';
 
 const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
 
@@ -979,4 +979,9 @@ test('a row larger than the read buffer is joined once, not re-joined on every c
   // Re-joining the pending tail onto every chunk copies the row once per chunk — quadratic in the
   // row, and 3.6 minutes for that 43MB one. Joining when the newline lands copies it once.
   assert.ok(copied <= 2 * HUGE, `Buffer.concat copied ${copied} bytes to fold a ${HUGE}-byte row`);
+});
+
+test('summarizeToolInputForHistory names the files of a multi-file send_file', () => {
+  const input = { files: [{ file_path: '/runs/loss.png' }, { file_path: 'D:\\out\\report.pdf' }], caption: 'x' };
+  assert.equal(summarizeToolInputForHistory(input), 'loss.png, report.pdf');
 });

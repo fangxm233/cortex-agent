@@ -342,6 +342,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 
 ```js
 send_file({ device: "trainer", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+send_file({ device: "trainer", files: [{ file_path: "/home/x/runs/loss.png" }, { file_path: "/home/x/runs/eval.csv" }] })
 ```
 
 设备不在线、路径不是可读文件、或超过 200 MB 上限时，服务器在传输任何字节之前就拒绝；传输提前结束也会被判为失败，而不是交付一个被截断的文件。客户端版本过旧的设备不会上报 `file-stream` 能力，会收到明确的拒绝消息，并在下一次[客户端更新](#client-updates)后获得该能力。
