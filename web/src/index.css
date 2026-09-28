@@ -59,8 +59,9 @@ textarea::placeholder {
      Leave forced-colors scrollbars native. Standard non-auto scrollbar colors
      override WebKit thumb styling in Chromium, so use them only as a fallback.
      The bar takes layout width, so scrollers whose content changes while in view set
-     `scrollbar-gutter: stable` and keep that lane reserved instead of re-flowing. */
-  @media (forced-colors: none) {
+     `scrollbar-gutter: stable` and keep that lane reserved instead of re-flowing.
+     Touch screens keep the system overlay bar, which takes no width at all. */
+  @media (forced-colors: none) and (any-pointer: fine) {
     @supports selector(::-webkit-scrollbar) {
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track,
@@ -91,8 +92,8 @@ textarea::placeholder {
     }
   }
 
-  /* Mobile scrollers scroll by touch: no gutter (Android WebView otherwise reserves the styled 8px
-     bar and the list stops short of the header and Tab bar edges). */
+  /* Mobile list screens scroll by touch and show no bar, so a mouse-driven narrow window does not
+     reserve the styled 8px lane either (the list would stop short of the header and Tab bar edges). */
   [data-m-scroller] {
     scrollbar-width: none;
   }
