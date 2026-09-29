@@ -50,7 +50,7 @@ const policies: ProviderRateLimits = {
 };
 
 describe('buildUsageView', () => {
-  it('attaches per-window policy views, exact defaults, and a legacy fallback notice to rendered rows', () => {
+  it('attaches per-window policy views, exact defaults, and a legacy fallback notice, dropping unknown and unlabeled buckets', () => {
     const vm = buildUsageView(status, policies, NOW, 'en');
     const anthropic = vm.providers[0] as any;
     const codex = vm.providers[1] as any;
@@ -79,14 +79,6 @@ describe('buildUsageView', () => {
     ]);
     expect(codex.legacyFallback).toBeNull();
     expect(codex.windows.map((window: any) => window.policy?.thresholdPercent)).toEqual([91, 90]);
-  });
-
-  it('renders known windows plus labeled model rows while dropping unknown and unlabeled buckets', () => {
-    const vm = buildUsageView(status, policies, NOW, 'en');
-
-    expect(vm.providers[0].windows.map(window => window.type)).toEqual([
-      'five_hour', 'seven_day', 'seven_day_overage_included', 'model_scoped', 'model_scoped',
-    ]);
   });
 
   it('marks elapsed reset timestamps instead of describing them as future', () => {
