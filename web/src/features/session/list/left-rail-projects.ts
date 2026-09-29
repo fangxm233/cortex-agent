@@ -1,4 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { emptyCounts } from './project-menu';
 
 // The rail's ordering contract: projects sort by MOST RECENT ACTIVITY — the project whose newest
 // session activity is latest comes first (see sortProjectsByActivity). Activity derives from the
@@ -9,7 +10,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 /** Max effective timestamp (lastUsedAt, else createdAt) per project, from an UNSCOPED
  *  sessions.list. Unparseable timestamps are skipped — never fabricate an age. */
 export function lastActivityByProject(sessions: SessionInfo[]): Record<string, number> {
-  const map: Record<string, number> = {};
+  const map = emptyCounts();
   for (const s of sessions) {
     const t = Date.parse(s.lastUsedAt || s.createdAt);
     if (Number.isNaN(t)) continue;

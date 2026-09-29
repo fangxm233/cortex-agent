@@ -12,6 +12,7 @@ import { projectInitials } from '@/features/session/list/session-groups';
 import { sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import {
   ACTIVE_THREAD_STATUSES,
+  emptyCounts,
   projectAttentionBadge,
   runningCountByProject,
   type ProjectAttentionBadgeTone,
@@ -54,7 +55,7 @@ export interface PendingApprovalCounts {
 export function pendingApprovalCounts(
   entries: readonly { status: string; projectId: string | null }[],
 ): PendingApprovalCounts {
-  const counts: PendingApprovalCounts = { byProject: {}, global: 0 };
+  const counts: PendingApprovalCounts = { byProject: emptyCounts(), global: 0 };
   for (const e of entries) {
     if (e.status !== 'pending') continue;
     if (e.projectId == null) counts.global++;

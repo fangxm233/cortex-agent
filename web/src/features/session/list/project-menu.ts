@@ -2,8 +2,14 @@ import type { SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 
 export const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 
+/** An empty per-project tally with no prototype, so project ids such as `constructor` or
+ *  `__proto__` behave as ordinary keys instead of reaching `Object.prototype` members. */
+export function emptyCounts(): Record<string, number> {
+  return Object.create(null) as Record<string, number>;
+}
+
 export function runningCountByProject(threads: ThreadInfo[]): Record<string, number> {
-  const counts: Record<string, number> = {};
+  const counts = emptyCounts();
   for (const t of threads) {
     if (ACTIVE_THREAD_STATUSES.has(t.status)) {
       counts[t.projectId] = (counts[t.projectId] ?? 0) + 1;
@@ -15,7 +21,7 @@ export function runningCountByProject(threads: ThreadInfo[]): Record<string, num
 /** Unread session count per project — from an UNSCOPED sessions.list (origin='direct'), so the
  *  switcher can badge projects whose sessions got replies the user hasn't viewed. */
 export function unreadCountByProject(sessions: SessionInfo[]): Record<string, number> {
-  const counts: Record<string, number> = {};
+  const counts = emptyCounts();
   for (const s of sessions) {
     if (s.unread) counts[s.projectId] = (counts[s.projectId] ?? 0) + 1;
   }
@@ -24,7 +30,7 @@ export function unreadCountByProject(sessions: SessionInfo[]): Record<string, nu
 
 /** Sessions needing user action per project — pending ask-user questions or plan approvals. */
 export function awaitingInputCountByProject(sessions: SessionInfo[]): Record<string, number> {
-  const counts: Record<string, number> = {};
+  const counts = emptyCounts();
   for (const s of sessions) {
     if (s.awaitingInput) counts[s.projectId] = (counts[s.projectId] ?? 0) + 1;
   }

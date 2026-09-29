@@ -65,6 +65,14 @@ describe('pendingApprovalCounts', () => {
   });
 });
 
+describe('pendingApprovalCounts — prototype-named ids', () => {
+  it('counts a project id that names an Object.prototype member like any other', () => {
+    const counts = pendingApprovalCounts([{ status: 'pending' as const, projectId: 'constructor' }]);
+    expect(counts.byProject['constructor']).toBe(1);
+    expect(counts.byProject['toString']).toBeUndefined();
+  });
+});
+
 describe('buildProjectSwitchRows', () => {
   const projects = [project('nimbus'), project('atlas'), project('orchard')];
   const threads = [thread({ projectId: 'atlas', status: 'running' })];

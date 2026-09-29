@@ -32,6 +32,20 @@ describe('runningCountByProject', () => {
   });
 });
 
+describe('per-project tallies — prototype-named ids', () => {
+  it('treat constructor / __proto__ / toString as ordinary project ids', () => {
+    const t = (projectId: string): ThreadInfo => thread(projectId, 'running');
+    const running = runningCountByProject([t('constructor'), t('__proto__')]);
+    expect(running['constructor']).toBe(1);
+    expect(running['__proto__']).toBe(1);
+    expect(running['toString']).toBeUndefined();
+    const s = (projectId: string) => ({ projectId, unread: true, awaitingInput: true }) as never;
+    expect(unreadCountByProject([s('constructor')])['constructor']).toBe(1);
+    expect(awaitingInputCountByProject([s('__proto__')])['__proto__']).toBe(1);
+    expect(unreadCountByProject([])['toString']).toBeUndefined();
+  });
+});
+
 describe('project attention counts', () => {
   const s = (projectId: string, unread: boolean, awaitingInput = false) =>
     ({ projectId, unread, awaitingInput }) as never;

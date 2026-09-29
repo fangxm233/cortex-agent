@@ -38,6 +38,14 @@ describe('lastActivityByProject', () => {
   });
 });
 
+describe('lastActivityByProject — prototype-named ids', () => {
+  it('records activity for a project id that names an Object.prototype member', () => {
+    const map = lastActivityByProject([session('constructor', '2026-07-14T08:00:00')]);
+    expect(map['constructor']).toBe(Date.parse('2026-07-14T08:00:00'));
+    expect(lastActivityByProject([])['toString']).toBeUndefined();
+  });
+});
+
 describe('sortProjectsByActivity', () => {
   const projects = [project('a'), project('b'), project('c'), project('d')];
 
