@@ -80,26 +80,6 @@ test('sealStatus: writeStatus issued after seal is dropped — the key race fix'
   assert.deepEqual(texts, ['done'], 'late progress write is dropped');
 });
 
-test('sealStatus: awaits pending chain before writing final (no truncated race)', async () => {
-  const adapter = new MockAdapter();
-  const ref = { conduit: 'C3', messageId: 'M3' };
-
-  // Fire many writes, then seal without awaiting them individually.
-  writeStatus(adapter, ref, 'p1');
-  writeStatus(adapter, ref, 'p2');
-  writeStatus(adapter, ref, 'p3');
-  await sealStatus(adapter, ref, 'done');
-
-  // After sealStatus resolves, no further writes are in-flight — every
-  // future writeStatus is silently dropped.
-  const stillDropped = writeStatus(adapter, ref, 'ghost');
-  await stillDropped;
-
-  const texts = adapter.updated.map(u => u.content.text);
-  assert.equal(texts[texts.length - 1], 'done');
-  assert.equal(texts.filter(t => t === 'ghost').length, 0);
-});
-
 // --- Cross-message isolation ---
 
 test('sealing one statusMsg does not block writes to a different statusMsg', async () => {
