@@ -320,22 +320,22 @@ export class SlackAdapter implements PlatformAdapter {
   }
 
   async postMessage(destination: Destination, content: MessageContent, opts?: PostMessageOpts): Promise<MessageRef> {
-    const resolved = await this.resolveDestination(destination);
-    if (!resolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return { conduit: '', messageId: '' };
     }
     const blocks = content.richBlocks ? this.richBlocksToSlack(content.richBlocks) : undefined;
     const payload: any = {
-      channel: resolved.channel,
+      channel,
       text: content.text,
       ...(blocks && { blocks }),
       ...(opts?.threadId && { thread_ts: opts.threadId }),
     };
-    const result = await this.rateLimitedCall('chat.postMessage', resolved.channel, () =>
+    const result = await this.rateLimitedCall('chat.postMessage', channel, () =>
       this.client.chat.postMessage(payload)
     );
     return {
-      conduit: this._wrap(resolved.channel),
+      conduit: this._wrap(channel),
       messageId: result.ts!,
       threadId: opts?.threadId,
     };
@@ -459,8 +459,8 @@ export class SlackAdapter implements PlatformAdapter {
   // --- Interactive messages ---
 
   async postInteractive(destination: Destination, content: MessageContent & { actions: ActionElement[] }, opts?: PostMessageOpts): Promise<MessageRef> {
-    const resolved = await this.resolveDestination(destination);
-    if (!resolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return { conduit: '', messageId: '' };
     }
     const blocks = [
@@ -470,16 +470,16 @@ export class SlackAdapter implements PlatformAdapter {
         elements: content.actions.map(a => this.actionElementToSlack(a)),
       },
     ];
-    const result = await this.rateLimitedCall('chat.postMessage', resolved.channel, () =>
+    const result = await this.rateLimitedCall('chat.postMessage', channel, () =>
       this.client.chat.postMessage({
-        channel: resolved.channel,
+        channel,
         text: content.text,
         blocks,
         ...(opts?.threadId && { thread_ts: opts.threadId }),
       })
     );
     return {
-      conduit: this._wrap(resolved.channel),
+      conduit: this._wrap(channel),
       messageId: result.ts!,
       threadId: opts?.threadId,
     };
@@ -540,15 +540,15 @@ export class SlackAdapter implements PlatformAdapter {
   // --- Files ---
 
   async uploadFile(destination: Destination, filePath: string, opts?: FileUploadOpts): Promise<void> {
-    const resolved = await this.resolveDestination(destination);
-    if (!resolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return;
     }
     const { resolved: fileResolved, size } = this.resolveFilePath(filePath);
     const body = fs.readFileSync(fileResolved);
     const uploadName = opts?.filename || path.basename(fileResolved);
 
-    const uploadInit = await this.rateLimitedCall('files.getUploadURLExternal', resolved.channel, () =>
+    const uploadInit = await this.rateLimitedCall('files.getUploadURLExternal', channel, () =>
       this.client.files.getUploadURLExternal({
         filename: uploadName,
         length: size,
@@ -567,10 +567,10 @@ export class SlackAdapter implements PlatformAdapter {
       throw new Error(`Slack file upload failed (${uploadRes.status})`);
     }
 
-    await this.rateLimitedCall('files.completeUploadExternal', resolved.channel, () =>
+    await this.rateLimitedCall('files.completeUploadExternal', channel, () =>
       this.client.files.completeUploadExternal({
         files: [{ id: uploadInit.file_id, title: uploadName }],
-        channel_id: resolved.channel,
+        channel_id: channel,
       })
     );
   }
@@ -682,40 +682,40 @@ export class SlackAdapter implements PlatformAdapter {
   }
 
   /**
-   * Resolve a Destination to a concrete Slack channel + kind label.
-   * Returns channel=null for destinations that should be silently dropped
+   * Resolve a Destination to a concrete Slack channel.
+   * Returns null for destinations that should be silently dropped
    * (unregistered project, unconfigured admin channel).
    */
-  private async resolveDestination(dest: Destination): Promise<{ channel: string | null; kind: string }> {
+  private async resolveDestination(dest: Destination): Promise<string | null> {
     switch (dest.type) {
       case 'interactive-reply':
-        return { channel: this._unwrap(dest.conduit), kind: 'interactive-reply' };
+        return this._unwrap(dest.conduit);
       case 'project-report': {
         // Read bare ids directly from the store (getProjectConduits wraps for
         // external callers; the SDK needs the bare channel).
         const channel = await this._getConduitsStore().get(dest.projectId);
         if (channel) {
-          return { channel, kind: 'project-report' };
+          return channel;
         }
         // Unbound project: fall back to this platform's admin DM so the report
         // still surfaces here instead of being silently dropped. Each platform
         // falls back independently (a project bound on another platform but not
         // this one still reaches this platform's DM).
         if (this.config.adminChannel) {
-          return { channel: this.config.adminChannel, kind: 'project-report-dm' };
+          return this.config.adminChannel;
         }
         log.warn(`No conduit or admin channel for project "${dest.projectId}"; dropping project-report`);
-        return { channel: null, kind: 'project-report-noop' };
+        return null;
       }
       case 'system-notice':
         if (!this.config.adminChannel) {
           log.warn('No admin channel configured; dropping system-notice');
-          return { channel: null, kind: 'system-notice-noop' };
+          return null;
         }
-        return { channel: this.config.adminChannel, kind: 'system-notice' };
+        return this.config.adminChannel;
       default:
         // Pre-existing: callers passing raw strings (strict:false compat)
-        return { channel: null, kind: 'unknown' };
+        return null;
     }
   }
 
