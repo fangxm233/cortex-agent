@@ -243,10 +243,6 @@ function getValidTemplateNames(): Set<string> {
   return cachedTemplateNames;
 }
 
-function _resetTemplateNameCacheForTests(): void {
-  cachedTemplateNames = null;
-}
-
 function validateTemplateName(name: string): string | null {
   if (FORBIDDEN_TEMPLATES.has(name)) {
     return `Template '${name}' is forbidden. The 'default' and 'scheduler' templates are single-agent templates with no review pipeline and are not allowed for task dispatch. Use a multi-agent review template instead (e.g. stage-gate, coder-review, execute-review).`;
@@ -280,10 +276,6 @@ function writeTasks(project: string, tasks: Task[]): void {
     lock = parsed.lock;
   }
   atomicWriteSync(tasksPath, serializeTasksFileWithLock({ tasks, lock }));
-}
-
-function findTaskById(tasks: Task[], taskId: string): Task | undefined {
-  return tasks.find((t) => t.id === taskId);
 }
 
 function findTask(tasks: Task[], taskText: string | null, taskId: string | null): { task: Task; index: number } | { error: string } {
@@ -415,15 +407,12 @@ const editTask = (project: string, options: any = {}): TaskLineTransformResult =
 // barrel for this folder on purpose — task-store.ts and the CLI import each sub-module directly.
 export {
   VALID_PRIORITIES,
-  _resetTemplateNameCacheForTests,
   atomicWriteSync,
   clearDependsOnAll,
   editTask,
   findTask,
-  findTaskById,
   getTasksPath,
   readTasks,
-  sweepTaskOrphans,
   taskFileProjects,
   validateTemplateName,
   withTaskFileMutationLock,

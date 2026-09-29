@@ -1092,7 +1092,7 @@ function main() {
   process.exit(result.exitCode);
 }
 
-export { getCliHelp, main, parseArgs, runCli, splitCommand, collectMultiValues };
+export { runCli };
 
 if (isMainModule(import.meta.url)) {
   main();
