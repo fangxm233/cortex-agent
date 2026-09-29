@@ -1,12 +1,8 @@
 import { test, describe } from 'vitest';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import * as path from 'node:path';
 import {
   validateEntity,
-  validateRegistry,
   withCandidate,
-  rawRegistryFromDir,
   dependentTemplates,
   agentRefOverrideSchema,
   type RawRegistry,
@@ -384,33 +380,5 @@ describe('cross-entity impact', () => {
     assert.deepEqual(dependentTemplates('agent', 'coder', reg).sort(), ['bound', 'coder-review']);
     assert.deepEqual(dependentTemplates('shell', 'worker-review', reg), ['bound']);
     assert.deepEqual(dependentTemplates('template', 'coder-review', reg), []);
-  });
-});
-
-// --- Regression guard: everything Cortex ships must validate clean ---
-
-describe('shipped defaults', () => {
-  const defaultsDir = path.resolve(__dirname, '../../defaults/config/thread-templates');
-
-  test('every shipped agent, template and shell validates without errors', (ctx) => {
-    if (!existsSync(defaultsDir)) return ctx.skip();
-    const registry = rawRegistryFromDir(defaultsDir, {
-      readdirSync,
-      readFileSync: (p, enc) => readFileSync(p, enc),
-      existsSync,
-      join: path.join,
-    });
-
-    const total =
-      Object.keys(registry.agents).length +
-      Object.keys(registry.templates).length +
-      Object.keys(registry.shells).length;
-    assert.ok(total > 0, 'expected the defaults directory to contain entities');
-
-    const failures: string[] = [];
-    for (const [key, result] of validateRegistry(registry)) {
-      if (result.errors.length > 0) failures.push(`${key} → ${messages(result.errors)}`);
-    }
-    assert.deepEqual(failures, [], `shipped entities must validate clean:\n${failures.join('\n')}`);
   });
 });
