@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { DATA_DIR } from './paths.js';
 
 export interface AgentsMDEntry {
   path: string;
@@ -50,18 +51,11 @@ export function scanAgentsMDChain(targetFilePath: string): AgentsMDEntry[] {
     dir = parent;
   }
 
-  try {
-    const cortexHome = process.env.CORTEX_HOME
-      ? path.resolve(process.env.CORTEX_HOME)
-      : path.join(os.homedir(), '.cortex');
-    const homeAgents = path.join(cortexHome, 'AGENTS.md');
-    if (!seen.has(homeAgents)) {
-      seen.add(homeAgents);
-      const entry = tryReadEntry(homeAgents);
-      if (entry) entries.push(entry);
-    }
-  } catch {
-    // homedir unavailable — skip
+  const homeAgents = path.join(DATA_DIR, 'AGENTS.md');
+  if (!seen.has(homeAgents)) {
+    seen.add(homeAgents);
+    const entry = tryReadEntry(homeAgents);
+    if (entry) entries.push(entry);
   }
 
   return entries;
