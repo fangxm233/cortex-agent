@@ -164,7 +164,6 @@ describe('useDaemonResource restart lifecycle', () => {
     });
     await flush();
     expect(resource?.restartState).toBe('error');
-    expect(resource?.restartError?.message).toBe('restart denied');
     expect(invalidate).not.toHaveBeenCalled();
     renderer.unmount();
   });

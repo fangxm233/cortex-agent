@@ -4,6 +4,7 @@ import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody, MSettingsSurfaceCard as MCard } from './MSettingsControls';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
 import { rebuildStatusTone, type DaemonRebuildVm } from '@/features/daemon/daemon-vm';
+import type { DaemonRestartState } from '@/features/daemon/useDaemonResource';
 import type { Tone } from '@/design/tone';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import { connectionLabelKey, type ConnectionStatus } from '@/features/connection/connection-status';
@@ -47,8 +48,6 @@ export interface MDaemonCopy {
   /** Sub-line under the disconnect button explaining what it does. */
   disconnectNote: string;
 }
-
-export type RestartState = 'idle' | 'pending' | 'success' | 'error';
 
 // Dot color stays mobile-specific while status semantics come from the canonical daemon tone.
 function dotColor(tone: Tone): string {
@@ -269,7 +268,7 @@ export function MDaemonView({
   vm: MDaemonVm;
   copy: MDaemonCopy;
   connStatus: ConnectionStatus;
-  restartState: RestartState;
+  restartState: DaemonRestartState;
   /** Show the disconnect action — only in a native shell that has saved creds to clear. */
   showDisconnect: boolean;
   onBack: () => void;

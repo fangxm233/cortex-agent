@@ -26,14 +26,6 @@ export interface DaemonResource {
   error: Error | null;
   restart: (kind: SystemRestartArgs['kind']) => void;
   restartState: DaemonRestartState;
-  restartError: Error | null;
-}
-
-function restartState(status: string): DaemonRestartState {
-  if (status === 'pending') return 'pending';
-  if (status === 'success') return 'success';
-  if (status === 'error') return 'error';
-  return 'idle';
 }
 
 function asError(value: unknown): Error | null {
@@ -73,7 +65,6 @@ export function useDaemonResource(options: UseDaemonResourceOptions = {}): Daemo
     loading: status.isLoading,
     error: asError(status.error),
     restart: (kind) => restart.mutate({ kind }),
-    restartState: restartState(restart.status),
-    restartError: asError(restart.error),
+    restartState: restart.status,
   };
 }

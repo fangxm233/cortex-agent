@@ -9,7 +9,7 @@ import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
-import { MDaemonView, type MDaemonCopy, type RestartState } from './MDaemonView';
+import { MDaemonView, type MDaemonCopy } from './MDaemonView';
 import { buildDaemonVm } from './m-daemon-vm';
 
 const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
@@ -100,12 +100,11 @@ export function MDaemonScreen() {
   const copy = pickCopy(useLang(), COPY);
   const connStatus = useConnectionStatus();
   const { daemon, vm } = useMobileDaemonVm();
-  const restartState: RestartState = daemon.restartState;
   return <MDaemonView
     vm={vm}
     copy={copy}
     connStatus={connStatus}
-    restartState={restartState}
+    restartState={daemon.restartState}
     showDisconnect={isNativeShell()}
     onBack={() => navigate('/m/settings')}
     onSoftRestart={() => daemon.restart('soft')}
