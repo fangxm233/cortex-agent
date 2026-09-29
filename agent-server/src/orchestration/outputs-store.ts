@@ -45,7 +45,7 @@ export function sanitizeStorageFilename(displayName: string): string {
 }
 
 /** Find an available filename in `dir`: on collision try `name_1`, `name_2`, … */
-async function resolveAvailablePath(dir: string, base: string): Promise<{ destPath: string; finalName: string }> {
+export async function resolveAvailablePath(dir: string, base: string): Promise<{ destPath: string; finalName: string }> {
   const extIdx = base.lastIndexOf('.');
   const stem = extIdx > 0 ? base.slice(0, extIdx) : base;
   const ext = extIdx > 0 ? base.slice(extIdx) : '';

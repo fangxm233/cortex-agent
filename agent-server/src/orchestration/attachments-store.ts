@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import { WORKSPACE_DIR } from '@core/paths.js';
 import { imageMimeExtension, sniffImageMime } from '@core/media-types.js';
 import { createLogger } from '@core/log.js';
-import { sanitizeDisplayFilename, sanitizeStorageFilename } from './outputs-store.js';
+import { resolveAvailablePath, sanitizeDisplayFilename, sanitizeStorageFilename } from './outputs-store.js';
 import { classifyAttachment, extToMime } from './agent-file-send.js';
 import type { DownloadedFile } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
@@ -45,25 +45,6 @@ export function workspaceRelPath(absPath: string): string | null {
   const resolved = path.resolve(absPath);
   if (!resolved.startsWith(root + path.sep)) return null;
   return `workspace/${path.relative(root, resolved).split(path.sep).join('/')}`;
-}
-
-/** Find an available filename in `dir`: on collision try `name_1`, `name_2`, … */
-async function availablePath(dir: string, base: string): Promise<string> {
-  const extIdx = base.lastIndexOf('.');
-  const stem = extIdx > 0 ? base.slice(0, extIdx) : base;
-  const ext = extIdx > 0 ? base.slice(extIdx) : '';
-  let candidate = base;
-  let counter = 0;
-  for (;;) {
-    const p = path.join(dir, candidate);
-    try {
-      await fs.access(p);
-      counter++;
-      candidate = `${stem}_${counter}${ext}`;
-    } catch {
-      return p;
-    }
-  }
 }
 
 /** The storage name for a download: the user's filename, ASCII-folded, re-extensioned when the
@@ -110,7 +91,7 @@ export async function finalizeInboundFile(file: DownloadedFile, ownedDir: string
   const owned = path.resolve(path.dirname(file.localPath)) === path.resolve(ownedDir);
   if (!owned) return { localPath: file.localPath, mimetype, name: displayName };
 
-  const target = await availablePath(ownedDir, storageName(displayName, sniffed));
+  const target = (await resolveAvailablePath(ownedDir, storageName(displayName, sniffed))).destPath;
   if (path.resolve(target) !== path.resolve(file.localPath)) {
     try {
       await fs.rename(file.localPath, target);
