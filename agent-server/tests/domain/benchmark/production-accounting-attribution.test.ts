@@ -26,10 +26,10 @@ import {
 } from '../../../src/domain/benchmark/production-attempt-identity.js';
 import { startAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig, RunAttemptConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
-  attemptFromFixture, runRequestFixture, type RunRequestFixtureInput,
+  attemptFromFixture, attemptOf, runRequestFixture, type RunRequestFixtureInput,
 } from '../../run-request-fixture.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
@@ -84,14 +84,6 @@ function profile(backend: Backend): ResolvedProfileConfig {
     mode: 'trial',
     provider: backend === 'claude' ? 'anthropic' : 'deepseek',
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null, fallback: [],
-  };
-}
-
-function attemptOverride(resolved: ResolvedProfileConfig): Partial<RunAttemptConfig> {
-  return {
-    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
-    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
   };
 }
 
@@ -173,7 +165,7 @@ async function runAttempt(
   event: Extract<RunEvent, { type: 'cost_record' }>,
 ): Promise<void> {
   const resolved = profile(backend);
-  const override = attemptOverride(resolved);
+  const override = attemptOf(resolved);
   const isRoot = suffix === 'zero';
   const partial: RunRequestFixtureInput = {
     sessionKey: `session-${suffix}`,

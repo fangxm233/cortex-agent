@@ -35,7 +35,7 @@ import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
 } from '../../agent-adapter/pi-fake-runtime.js';
-import { runRequestFixture } from '../../run-request-fixture.js';
+import { attemptOf, runRequestFixture } from '../../run-request-fixture.js';
 
 /** The Anthropic route one attempt resolved; only the host of it is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
@@ -123,16 +123,6 @@ function profile(backend: Backend): ResolvedProfileConfig {
     provider: backend === 'claude' ? 'anthropic' : 'deepseek',
     extraEnv: {}, extraOption: {}, claudeBackend: 'print',
     thinking: backend === 'claude' ? 'high' : 'off', fallback: [],
-  };
-}
-
-/** The engine selection a resolved profile implies. The run layer keeps the two separate so the
- *  identity boundary can compare them; the fixture states both from one profile. */
-function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
-  return {
-    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
-    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
   };
 }
 

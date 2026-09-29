@@ -25,10 +25,10 @@ import { computeRoleToolSurfaceHash } from '../../../src/domain/benchmark/identi
 import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.js';
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig, RunAttemptConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
-  attemptFromFixture, runRequestFixture, type RunRequestFixtureInput,
+  attemptFromFixture, attemptOf, runRequestFixture, type RunRequestFixtureInput,
 } from '../../run-request-fixture.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
@@ -100,14 +100,6 @@ function profile(backend: Backend): ResolvedProfileConfig {
   };
 }
 
-function attemptOverride(resolved: ResolvedProfileConfig): Partial<RunAttemptConfig> {
-  return {
-    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
-    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
-  };
-}
-
 /**
  * A fake CLI child: each write to stdin consumes the next script and replays it on stdout. The
  * evidence suites only need one settled turn, so every attempt gets a single success result.
@@ -169,7 +161,7 @@ function runAttempt(
   input: AttemptOptions,
 ): RunAttempt {
   const resolved = profile(backend);
-  const override = attemptOverride(resolved);
+  const override = attemptOf(resolved);
   const partial: RunRequestFixtureInput = {
     sessionKey: input.executionId,
     trackSessionId: null,

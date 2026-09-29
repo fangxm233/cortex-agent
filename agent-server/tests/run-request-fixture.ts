@@ -59,6 +59,16 @@ export function attemptFixture(partial: Partial<RunAttemptConfig> = {}): RunAtte
   };
 }
 
+/** The engine selection a resolved profile implies. The run layer keeps the two separate so the
+ *  identity boundary can compare them; a fixture states both from one profile. */
+export function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
+  return {
+    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
+    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
+    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
+  };
+}
+
 /** The engine selection a flat literal implies, with an explicit attempt layered on top. */
 export function attemptFromFixture(
   partial: RunRequestFixtureInput = {},

@@ -46,14 +46,12 @@ import {
 } from '../../../src/domain/benchmark/production-attempt-journal.js';
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
-import type {
-  ResolvedProfileConfig, RunAttemptConfig,
-} from '../../../src/domain/agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
 } from '../../agent-adapter/pi-fake-runtime.js';
-import { runRequestFixture } from '../../run-request-fixture.js';
+import { attemptOf, runRequestFixture } from '../../run-request-fixture.js';
 
 const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
 const SHA = 'a'.repeat(64);
@@ -129,14 +127,6 @@ function profile(backend: Backend): ResolvedProfileConfig {
     name: `benchmark-${backend}`, model: `${backend}-model`, backend, mode: 'trial',
     provider: backend === 'claude' ? 'anthropic' : 'deepseek', fallback: [],
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-  };
-}
-
-function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
-  return {
-    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
-    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
   };
 }
 
