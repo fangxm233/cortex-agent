@@ -15,18 +15,7 @@ vi.mock('@/design', async (importOriginal) => {
   };
 });
 
-const noticeHistory = vi.hoisted(() => ({
-  entries: [] as Array<{ id: string; ts: string; level: 'info' | 'warning' | 'error'; title?: string; text: string }>,
-  cap: 50,
-  loading: false,
-  error: false,
-}));
-
-// The panel's notice card reads the server ring through tRPC; these are pure render assertions, so
-// the resource hook is stubbed rather than standing up a TRPCProvider.
-vi.mock('@/features/notifications/useNoticeHistory', () => ({
-  useNoticeHistory: () => noticeHistory,
-}));
+vi.mock('@/features/notifications/useNoticeHistory', () => ({ useNoticeHistory: vi.fn() }));
 
 import {
   AdvancedPanelView,
