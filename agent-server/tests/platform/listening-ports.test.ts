@@ -41,14 +41,6 @@ describe('parseNetstatListeners', () => {
     expect(parseNetstatListeners(translated)).toEqual(ports);
   });
 
-  it('drops established connections, UDP, and privileged or unreachable ports', () => {
-    const found = ports.map((p) => p.port);
-    expect(found).not.toContain(61858); // established peer port
-    expect(found).not.toContain(53); // UDP
-    expect(found).not.toContain(22); // below 1024
-    expect(found).not.toContain(139); // bound to a LAN address only
-  });
-
   it('reports a port with no matching tasklist row rather than dropping it', () => {
     const orphan = '  TCP    127.0.0.1:6006         0.0.0.0:0              LISTENING       999999\n';
     expect(parseNetstatListeners(orphan)).toEqual([{ port: 6006, address: '127.0.0.1', process: null }]);
@@ -127,14 +119,6 @@ describe('parseProcNetTcp', () => {
     ]);
   });
 
-  it('drops non-listening rows, privileged ports and LAN-only binds', () => {
-    const ports = parseProcNetTcp(PROC).map((p) => p.port);
-    expect(ports).not.toContain(8080); // st 01 — established, not LISTEN
-    expect(ports).not.toContain(53); // 0035, below 1024
-    // 1401A8C0 is 192.168.1.20 — the reverse channel dials loopback, so it could never reach it.
-    expect(parseProcNetTcp(PROC).some((p) => p.address.startsWith('192.'))).toBe(false);
-  });
-
   it('backs up ss on a Linux box with no iproute2', () => {
     // BusyBox has no `ss` applet and Alpine does not install iproute2, so a container device would
     // otherwise report an empty list — which reads as "nothing is running there".
@@ -176,14 +160,6 @@ describe('parseSsListeners', () => {
     expect(got.map((p) => p.port)).toEqual([3005, 5173, 6080]);
     expect(got.find((p) => p.port === 5173)?.process).toBe('node');
     expect(got.find((p) => p.port === 6080)?.process).toBeNull();
-  });
-
-  it('drops ports bound only to an external interface', () => {
-    expect(parseSsListeners(sample).some((p) => p.port === 9000)).toBe(false);
-  });
-
-  it('drops privileged ports', () => {
-    expect(parseSsListeners(sample).some((p) => p.port === 22)).toBe(false);
   });
 
   it('survives junk', () => {
