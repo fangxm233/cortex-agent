@@ -3,7 +3,7 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
 // Thin glue for turn-scoped DM notifications. Listens on the SHARED live stream
 // (`features/live/LiveEventsProvider`) for `session.message` + `session.status`, unscoped (all sessions):
 //   · assistant `session.message` events (non-empty) → `onMessage` (the caller buffers the turn's
-//     latest per session — see turn-buffer.ts);
+//     latest per session — see useNotificationFeed.ts);
 //   · `session.status` running:false → `onTurnEnd` (the turn boundary; the caller flushes ONE toast).
 // This decoupling is why an agent that emits several assistant messages in a turn produces a single
 // toast instead of a burst. All shaping/gating lives outside (NotificationMount). The live chat

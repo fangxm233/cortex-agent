@@ -4,7 +4,6 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useLangOptional, type Lang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
-import { recordTurnMessage, takeTurnMessage, type BufferedTurnMessage } from './turn-buffer';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
 import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
 
@@ -16,6 +15,12 @@ interface DirectEntry {
 interface DirectLookup {
   map: Map<string, DirectEntry>;
   refresh: () => Promise<Map<string, DirectEntry> | null>;
+}
+
+/** The latest assistant message of a session's turn (newest wins); flushed as ONE toast at turn end. */
+interface BufferedTurnMessage {
+  text: string;
+  ts: string;
 }
 
 type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId'>;
@@ -91,12 +96,13 @@ function consumeDmTurn(
 ): DmConsumption {
   if (!buffer.has(sessionId)) return { consumed: true, item: null };
   if (isSessionOpen(sessionId)) {
-    takeTurnMessage(buffer, sessionId);
+    buffer.delete(sessionId);
     return { consumed: true, item: null };
   }
   const entry = directMap.get(sessionId);
   if (!entry) return { consumed: false, item: null };
-  const message = takeTurnMessage(buffer, sessionId)!;
+  const message = buffer.get(sessionId)!;
+  buffer.delete(sessionId);
   return { consumed: true, item: buildNotification({
     id: nextId('dmn'), sessionId, sessionName: entry.name,
     projectId: entry.projectId, text: message.text, ts: message.ts, lang,
@@ -116,7 +122,7 @@ function useDmFeed(lookup: DirectLookup, isSessionOpen: (sessionId: string) => b
     return true;
   }, [deliver, isSessionOpen, lang, lookup.map, nextId]);
   const onMessage = useCallback((message: DmAssistantMessage) => {
-    recordTurnMessage(buffer.current, message.sessionId, {
+    buffer.current.set(message.sessionId, {
       text: message.text, ts: message.ts ?? new Date().toISOString(),
     });
   }, []);
@@ -125,7 +131,7 @@ function useDmFeed(lookup: DirectLookup, isSessionOpen: (sessionId: string) => b
     pendingEnds.current.add(sessionId);
     void lookup.refresh().then((map) => {
       if (!map || flush(sessionId, map)) return;
-      takeTurnMessage(buffer.current, sessionId);
+      buffer.current.delete(sessionId);
       pendingEnds.current.delete(sessionId);
     }).catch(() => undefined);
   }, [flush, lookup]);
