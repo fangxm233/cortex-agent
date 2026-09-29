@@ -44,10 +44,6 @@ function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
-function targetKey(target: UsagePolicyTarget): string {
-  return usagePolicyTargetKey(target);
-}
-
 function Observation({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
   if (provider.observedAt === null || provider.observedAgo === null) return null;
@@ -99,7 +95,7 @@ function ThresholdField(props: {
   return (
     <div style={{ position: 'relative', width: 84, flex: 'none' }}>
       <input
-        data-usage-threshold-input={targetKey(props.target)}
+        data-usage-threshold-input={usagePolicyTargetKey(props.target)}
         aria-label={L.usagePolicyThreshold}
         type="number"
         min={1}
@@ -169,7 +165,7 @@ function resetThreshold(props: PolicyThresholdButtonsProps): void {
 
 function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
   const L = useVocab();
-  const key = targetKey(props.policy.target);
+  const key = usagePolicyTargetKey(props.policy.target);
   return (
     <>
       <SButton tone="neutral" data-usage-threshold-save={key}
@@ -188,7 +184,7 @@ function PolicyThresholdButtons(props: PolicyThresholdButtonsProps) {
 
 function PolicyError({ target, message }: { target: UsagePolicyTarget; message: string }) {
   return (
-    <div data-usage-policy-error={targetKey(target)} style={{ ...POLICY_TEXT, color: 'var(--proto-danger)', marginTop: 8 }}>
+    <div data-usage-policy-error={usagePolicyTargetKey(target)} style={{ ...POLICY_TEXT, color: 'var(--proto-danger)', marginTop: 8 }}>
       {message}
     </div>
   );
@@ -200,7 +196,7 @@ function PolicySummary(props: { policy: UsageWindowPolicyView; open: boolean; on
   const { policy } = props;
   return (
     <button
-      type="button" data-usage-policy-expand={targetKey(policy.target)} aria-expanded={props.open}
+      type="button" data-usage-policy-expand={usagePolicyTargetKey(policy.target)} aria-expanded={props.open}
       title={L.usagePolicyTitle} onClick={props.onToggle}
       style={{
         ...META_TEXT, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -217,7 +213,7 @@ function PolicySummary(props: { policy: UsageWindowPolicyView; open: boolean; on
 function PolicyEditor(props: PolicyEditorProps) {
   const L = useVocab();
   const lang = useLang();
-  const key = targetKey(props.policy.target);
+  const key = usagePolicyTargetKey(props.policy.target);
   const toggleLabel = lang === 'zh' ? `限流开关 ${key}` : `Usage throttle ${key}`;
   const pending = props.isPolicySaving(props.policy.target);
   const { draft, parsedThreshold, setDraft } = usePolicyThresholdDraft(props.policy);
@@ -252,7 +248,7 @@ function WindowFootnote(props: { window: UsageWindowView; usage: ReturnType<type
   if (!policy) return reset;
   return (
     <div
-      data-usage-policy-row={targetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
+      data-usage-policy-row={usagePolicyTargetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
       data-usage-policy-window-type={policy.target.windowType ?? ''} data-usage-policy-window-label={policy.target.windowLabel ?? ''}
     >
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>

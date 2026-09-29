@@ -68,10 +68,6 @@ function isoTime(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toISOString();
 }
 
-function targetKey(target: UsagePolicyTarget): string {
-  return usagePolicyTargetKey(target);
-}
-
 function Observation({ provider, copy }: { provider: ProviderUsageView; copy: MUsageCopy }) {
   if (provider.observedAt === null || provider.observedAgo === null) return null;
   const timestamp = isoTime(provider.observedAt);
@@ -90,7 +86,7 @@ function PolicyToggle(props: {
   onClick: () => void;
 }) {
   return (
-    <MSettingsToggle label={props.label.replace('{key}', targetKey(props.target))}
+    <MSettingsToggle label={props.label.replace('{key}', usagePolicyTargetKey(props.target))}
       value={props.enabled} disabled={props.disabled} onChange={props.onClick} />
   );
 }
@@ -106,7 +102,7 @@ function PolicyThresholdInput(props: {
   return (
     <div style={{ position: 'relative', width: 84 }}>
       <input
-        data-usage-threshold-input={targetKey(props.target)}
+        data-usage-threshold-input={usagePolicyTargetKey(props.target)}
         aria-label={props.label}
         type="number"
         min={1}
@@ -143,7 +139,7 @@ function saveThreshold(props: PolicyThresholdButtonsProps): void {
 function PolicySaveButton(props: PolicyThresholdButtonsProps) {
   return (
     <button
-      type="button" data-usage-threshold-save={targetKey(props.policy.target)} disabled={props.saveDisabled}
+      type="button" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)} disabled={props.saveDisabled}
       onClick={() => saveThreshold(props)}
       style={{
         border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg,
@@ -177,7 +173,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 function PolicyResetButton(props: PolicyThresholdButtonsProps) {
   return (
     <button
-      type="button" data-usage-threshold-reset={targetKey(props.policy.target)}
+      type="button" data-usage-threshold-reset={usagePolicyTargetKey(props.policy.target)}
       aria-label={props.copy.policy.resetDefault} title={props.copy.policy.resetDefault}
       disabled={props.resetDisabled}
       onClick={() => props.onSavePolicy(props.policy.target, { enabled: true, thresholdPercent: null })}
@@ -212,7 +208,7 @@ function PolicyEditor(props: PolicyEditorProps) {
     onSavePolicy: props.onSavePolicy,
   };
   return (
-    <div data-usage-policy-controls={targetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
+    <div data-usage-policy-controls={usagePolicyTargetKey(props.policy.target)} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <PolicyToggle
         target={props.policy.target} label={props.copy.policy.toggleLabel} enabled={props.policy.enabled} disabled={state.disabled}
         onClick={() => props.onSavePolicy(props.policy.target, {
@@ -233,7 +229,7 @@ function PolicySummary(props: { policy: UsageWindowPolicyView; copy: MUsageCopy;
   const { policy, copy } = props;
   return (
     <button
-      type="button" data-usage-policy-expand={targetKey(policy.target)} aria-expanded={props.open}
+      type="button" data-usage-policy-expand={usagePolicyTargetKey(policy.target)} aria-expanded={props.open}
       aria-label={copy.policy.title} onClick={props.onToggle}
       style={{
         ...META, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -254,7 +250,7 @@ function WindowPolicy(props: PolicyEditorProps & { reset: string | null }) {
   const open = expanded || error !== null;
   return (
     <div
-      data-usage-policy-row={targetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
+      data-usage-policy-row={usagePolicyTargetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
       data-usage-policy-window-type={policy.target.windowType ?? ''} data-usage-policy-window-label={policy.target.windowLabel ?? ''}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
@@ -262,7 +258,7 @@ function WindowPolicy(props: PolicyEditorProps & { reset: string | null }) {
         <PolicySummary policy={policy} copy={props.copy} open={open} onToggle={() => setExpanded(!open)} />
       </div>
       {open ? <PolicyEditor {...props} /> : null}
-      {error ? <div data-usage-policy-error={targetKey(policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
+      {error ? <div data-usage-policy-error={usagePolicyTargetKey(policy.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
     </div>
   );
 }
@@ -333,7 +329,7 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
       >
         {pending ? props.copy.policy.saving : props.copy.policy.clearLegacy}
       </button>
-      {error ? <div data-usage-policy-error={targetKey(props.fallback.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
+      {error ? <div data-usage-policy-error={usagePolicyTargetKey(props.fallback.target)} style={{ ...META, color: MC.fail, marginTop: 6 }}>{error.message}</div> : null}
     </div>
   );
 }

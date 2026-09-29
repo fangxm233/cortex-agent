@@ -88,16 +88,12 @@ function readViewPolicyConfig(
   return controlsState === 'ready' ? providerRateLimits : null;
 }
 
-function pendingKey(target: UsagePolicyTarget): string {
-  return usagePolicyTargetKey(target);
-}
-
 function nextPendingByTarget(
   current: Record<string, number>,
   target: UsagePolicyTarget,
   delta: 1 | -1,
 ): Record<string, number> {
-  const key = pendingKey(target);
+  const key = usagePolicyTargetKey(target);
   const nextCount = Math.max(0, (current[key] ?? 0) + delta);
   if (nextCount > 0) return { ...current, [key]: nextCount };
   return Object.fromEntries(Object.entries(current).filter(([item]) => item !== key));
@@ -108,7 +104,7 @@ function setTargetError(
   target: UsagePolicyTarget,
   message: string | null,
 ): void {
-  setPolicyErrors((current) => ({ ...current, [pendingKey(target)]: message }));
+  setPolicyErrors((current) => ({ ...current, [usagePolicyTargetKey(target)]: message }));
 }
 
 function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): ProviderRateLimitWindowPolicyOverride {
@@ -238,8 +234,8 @@ function usePolicySave(
   };
 
   return {
-    isPolicySaving: (target) => (policyPending[pendingKey(target)] ?? 0) > 0,
-    getPolicyError: (target) => policyErrors[pendingKey(target)] ? { message: policyErrors[pendingKey(target)] ?? '' } : null,
+    isPolicySaving: (target) => (policyPending[usagePolicyTargetKey(target)] ?? 0) > 0,
+    getPolicyError: (target) => policyErrors[usagePolicyTargetKey(target)] ? { message: policyErrors[usagePolicyTargetKey(target)] ?? '' } : null,
     savePolicy,
   };
 }
