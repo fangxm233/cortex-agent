@@ -86,7 +86,6 @@ export function createSubscription(
 ): AsyncIterable<UiEvent> & { close(): void } {
   const eventTypes = filter.events;
   const projectId = filter.projectId ?? null;
-  const executionId = filter.executionId ?? null;
   const sessionId = filter.sessionId ?? null;
   let droppedCount = 0;
 
@@ -117,11 +116,6 @@ export function createSubscription(
         return;
       }
       if (projectId && event.payload?.projectId && event.payload.projectId !== projectId) {
-        return;
-      }
-
-      // Post-filter by executionId — scopes execution.log to a single execution (B2-C).
-      if (executionId && event.executionId && event.executionId !== executionId) {
         return;
       }
 

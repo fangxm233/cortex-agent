@@ -231,8 +231,6 @@ export type MutateOp =
 export interface SubscribeFilter {
   events: string[];
   projectId?: string | null;
-  /** Scope execution-carrying events (agent.*) to a single execution. */
-  executionId?: string | null;
   /** Scope `session.message` events to a single session (S4 chat live stream). REQUIRED for
    *  `session.message.delta`: token-level previews are delivered to session-scoped subscriptions
    *  only, so an app-wide stream is never flooded with another session's deltas. */
