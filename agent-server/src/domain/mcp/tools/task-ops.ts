@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import { pathToFileURL } from 'url';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { agentsMDContentBlocks, type AgentsMDEntry } from './agents-md.js';
+import { agentsMDContentBlocks } from './agents-md.js';
 import { isAbsoluteFilePath } from './remote-file.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 

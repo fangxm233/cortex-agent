@@ -1,7 +1,5 @@
 import { getDefaultAgentsInjector, type AgentsMDEntry } from '../../memory/agents-md-injector.js';
 
-export { type AgentsMDEntry };
-
 /** Build text content blocks for the AGENTS.md chain returned by cortex-client.
  *  Dedup by (device:path) mtime via AgentsMDInjector — each AGENTS.md is injected
  *  at most once per MCP process, and the cache is disk-backed so restarts
