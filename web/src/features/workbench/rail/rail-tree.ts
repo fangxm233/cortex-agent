@@ -114,15 +114,12 @@ export interface RailTreeInput {
   dragged: boolean;
   now: number;
   lang: TimeLang;
-  cap?: number;
 }
 
 export interface RailTree {
   projects: RailProjectNode[];
   /** Project owning the selected session — what the rest of the workbench scopes to. */
   currentProjectId: string | null;
-  /** Total sessions matching the filter across every project; null when no filter is active. */
-  totalMatches: number | null;
 }
 
 function pad2(n: number): string {
@@ -194,7 +191,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     unread: !!s.unread,
     selected: s.sessionId === selectedSessionId,
   });
-  const cap = input.cap ?? FOLDER_SESSION_CAP;
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
 
@@ -222,7 +218,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     projectOfSession(selectedSessionId, directSessions, scheduledSessions) ?? fallbackProjectId;
 
   let hotkeyIndex = 0;
-  let totalMatches = 0;
   const nodes: RailProjectNode[] = orderedProjects.map((project) => {
     const allOwn = sessionsByProject.get(project.id) ?? [];
     // A commission owns its sessions outright: they hang under the commission folder and are gone
@@ -270,13 +265,12 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         totalSessions: row.sessions.length,
       });
     }
-    if (filtering) totalMatches += matching.length + commissionMatches;
 
     // A filter expands every folder that has a hit and shows all of them — capping a search result
     // would hide the very row the user is looking for.
     const rows = orderSessions(matching);
     const uncapped = showAll.has(project.id);
-    const visible = filtering || uncapped ? rows : rows.slice(0, cap);
+    const visible = filtering || uncapped ? rows : rows.slice(0, FOLDER_SESSION_CAP);
 
     const activityMs = lastActivity[project.id];
     const hasSignal = running > 0 || attention > 0;
@@ -299,7 +293,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       hiddenSessions: Math.max(0, rows.length - visible.length),
       // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is
       // the way back from that one.
-      showingAll: uncapped && !filtering && rows.length > cap,
+      showingAll: uncapped && !filtering && rows.length > FOLDER_SESSION_CAP,
       totalSessions: own.length,
       schedules: scheduleRows,
       schedulesExpanded: schedulesExpanded.has(project.id),
@@ -316,6 +310,5 @@ export function buildRailTree(input: RailTreeInput): RailTree {
   return {
     projects: filtering ? nodes.filter((n) => (n.matchCount ?? 0) > 0) : nodes,
     currentProjectId,
-    totalMatches: filtering ? totalMatches : null,
   };
 }

@@ -271,7 +271,6 @@ describe('buildRailTree session rows', () => {
           session('nimbus', { lastUsedAt: ago((i + 1) * MIN) }),
         ),
         expanded: new Set(['nimbus']),
-        cap: 8,
       }),
     );
     expect(tree.projects[0].sessions).toHaveLength(8);
@@ -288,7 +287,6 @@ describe('buildRailTree session rows', () => {
         directSessions: [...many('nimbus'), ...many('orchard')],
         expanded: new Set(['nimbus', 'orchard']),
         showAll: new Set(['nimbus']),
-        cap: 8,
       }),
     );
     const byId = Object.fromEntries(tree.projects.map((p) => [p.id, p]));
@@ -307,7 +305,6 @@ describe('buildRailTree session rows', () => {
         directSessions: [session('nimbus'), session('nimbus')],
         expanded: new Set(['nimbus']),
         showAll: new Set(['nimbus']),
-        cap: 8,
       }),
     );
     expect(tree.projects[0].showingAll).toBe(false);
@@ -322,7 +319,6 @@ describe('buildRailTree session rows', () => {
           session('nimbus', { label: 'run ' + i, lastUsedAt: ago((i + 1) * MIN) }),
         ),
         filter: 'run',
-        cap: 8,
       }),
     );
     expect(tree.projects[0].sessions).toHaveLength(12);
@@ -378,7 +374,6 @@ describe('buildRailTree filtering', () => {
     const tree = filtered('figure');
     expect(tree.projects.map((p) => p.id)).toEqual(['nimbus', 'orchard']);
     expect(tree.projects.map((p) => p.matchCount)).toEqual([1, 1]);
-    expect(tree.totalMatches).toBe(2);
   });
 
   it('expands every matching folder and shows all of its hits', () => {
@@ -390,7 +385,6 @@ describe('buildRailTree filtering', () => {
   it('reports no matches without collapsing to an empty-project list', () => {
     const tree = filtered('zzz');
     expect(tree.projects).toEqual([]);
-    expect(tree.totalMatches).toBe(0);
   });
 
   it('leaves matchCount null when no filter is active', () => {
@@ -398,7 +392,6 @@ describe('buildRailTree filtering', () => {
       input({ projects: [project('nimbus')], directSessions: [session('nimbus')] }),
     );
     expect(tree.projects[0].matchCount).toBeNull();
-    expect(tree.totalMatches).toBeNull();
   });
 
   it('matches case-insensitively on the session title', () => {
@@ -620,7 +613,6 @@ describe('buildRailTree commission grouping', () => {
     expect(node.commissionsExpanded).toBe(true);
     expect(node.commissions[0].sessions.map((s) => s.sessionId)).toEqual([hit.sessionId]);
     expect(node.matchCount).toBe(1);
-    expect(tree.totalMatches).toBe(1);
   });
 
   it('a filter drops commission folders with no hit but keeps the project for a flat-list hit', () => {
