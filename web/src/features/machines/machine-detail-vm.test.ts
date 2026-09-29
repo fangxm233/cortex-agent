@@ -66,11 +66,10 @@ const gpus = [
 ];
 
 describe('gpu rows', () => {
-  it('maps utilisation and memory percentages for each card', () => {
+  it('maps the index and utilisation percentage for each card', () => {
     expect(buildMachineDetailVm(detail({ gpus }), 'en').gpus[0]).toMatchObject({
       index: 0,
       utilPercent: 62,
-      memPercent: 50,
     });
   });
 });

@@ -20,7 +20,6 @@ export interface MachineGpuRow {
   name: string;
   utilPercent: number;
   utilText: string;
-  memPercent: number;
   memText: string;
   tempText: string;
   powerText: string;
@@ -32,7 +31,6 @@ export interface MachineGpuRow {
 export interface MachineRunRow {
   key: string;
   label: string;
-  taskId: string | null;
   duration: string;
 }
 
@@ -110,7 +108,6 @@ function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
     name: shortenGpuName(gpu.name),
     utilPercent: Math.min(100, Math.max(0, gpu.utilPercent)),
     utilText: `${gpu.utilPercent}%`,
-    memPercent: pct(gpu.memUsedMb, gpu.memTotalMb),
     memText: `${gb(gpu.memUsedMb)} / ${gb(gpu.memTotalMb)} GB`,
     tempText: `${gpu.tempC}°C`,
     powerText: `${gpu.powerW}W`,
@@ -131,7 +128,6 @@ export function buildMachineDetailVm(detail: MachineDetail, lang: TimeLang, now:
     liveRuns: detail.liveRuns.map((run) => ({
       key: run.executionId,
       label: runLabel(run),
-      taskId: run.taskId,
       duration: formatSince(run.startedAt, lang, now),
     })),
     probeError: detail.probeError,

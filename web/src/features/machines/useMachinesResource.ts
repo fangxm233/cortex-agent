@@ -17,10 +17,8 @@ export type MachineDetailStatus = 'offline' | 'probing' | 'error' | 'ready';
 export interface MachineDetailResource {
   machine: MachineInfo;
   status: MachineDetailStatus;
-  detail: MachineDetail | null;
   facts: MachineDetailVm | null;
   uptime: string;
-  error: Error | null;
 }
 
 export interface MachinesResource {
@@ -30,7 +28,6 @@ export interface MachinesResource {
   detailFor: (machineName: string) => MachineDetailResource | undefined;
   requestAddMachine: (machineName: string) => Promise<ApprovalsRequestReturn>;
   addPending: boolean;
-  addError: Error | null;
 }
 
 function asError(value: unknown): Error | null {
@@ -49,25 +46,25 @@ function offlineDetails(machines: MachineInfo[], expanded: readonly string[]): M
   const wanted = new Set(expanded);
   return new Map(machines.filter((machine) => !machine.online && wanted.has(machine.name)).map((machine) => [
     machine.name,
-    { machine, status: 'offline', detail: null, facts: null, uptime: '', error: null },
+    { machine, status: 'offline', facts: null, uptime: '' },
   ]));
 }
 
 function queriedDetail(
   machine: MachineInfo,
-  query: { data?: MachineDetail; error: unknown; isError: boolean },
+  query: { data?: MachineDetail; isError: boolean },
   lang: TimeLang,
 ): MachineDetailResource {
   if (query.isError) {
-    return { machine, status: 'error', detail: null, facts: null, uptime: '', error: asError(query.error) };
+    return { machine, status: 'error', facts: null, uptime: '' };
   }
   if (!query.data) {
-    return { machine, status: 'probing', detail: null, facts: null, uptime: '', error: null };
+    return { machine, status: 'probing', facts: null, uptime: '' };
   }
   return {
-    machine, status: 'ready', detail: query.data,
+    machine, status: 'ready',
     facts: buildMachineDetailVm(query.data, lang),
-    uptime: formatUptime(query.data.vitals?.uptimeSec ?? null, lang), error: null,
+    uptime: formatUptime(query.data.vitals?.uptimeSec ?? null, lang),
   };
 }
 
@@ -96,6 +93,6 @@ export function useMachinesResource(expanded: readonly string[] = []): MachinesR
     requestAddMachine: (machineName) => add.mutateAsync({
       kind: 'add-machine', machineName: machineName.trim(),
     }),
-    addPending: add.isPending, addError: asError(add.error),
+    addPending: add.isPending,
   };
 }
