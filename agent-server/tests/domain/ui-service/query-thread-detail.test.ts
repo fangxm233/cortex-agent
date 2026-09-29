@@ -145,7 +145,7 @@ test('threads.get builds a nested child tree capped at 5 levels', async () => {
 test('threads.get child tree terminates on a self-referential cycle', async () => {
   const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_cycle' });
   // must not infinite-loop; cycle child is dropped once seen
-  assert.ok(Array.isArray(d.children));
+  assert.deepEqual(d.children, []);
 });
 
 test('threads.get reads artifact content only when explicitly requested', async () => {
