@@ -424,12 +424,6 @@ FAILURE_INJECTORS: dict[str, FailureInjector] = {
 }
 
 
-def _inject_failure(
-    failure: str, monkeypatch: pytest.MonkeyPatch,
-) -> dict[str, object]:
-    return FAILURE_INJECTORS[failure](monkeypatch)
-
-
 @pytest.mark.parametrize(
     ("failure", "gradable"),
     [
@@ -446,7 +440,7 @@ def test_real_docker_vendor_failure_matrix_arms_at_most_once_and_revokes_once(
     _install_scan_environment(monkeypatch)
     _install_first_cli_observer(monkeypatch)
     counts = _track_routes(monkeypatch)
-    options = _inject_failure(failure, monkeypatch)
+    options = FAILURE_INJECTORS[failure](monkeypatch)
     with SyntheticDeepSeekUpstream() as upstream:
         document = _campaign_document(tmp_path, upstream.base_url, **options)
         result = _run_document(tmp_path, document)
