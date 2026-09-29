@@ -246,8 +246,6 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
 });
 
 test('Bug 2: edit on conversation with PI channel profile routes through PI restore branch', async () => {
-  if (!hasPiProfile()) return;
-
   const channel = freshChannel();
   const sessionId = `019de999-0000-7000-8000-${Date.now().toString(16).padStart(12, '0')}`;
   // Conversation was initialized when global backend was 'claude' (bug scenario).
