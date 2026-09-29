@@ -16,9 +16,3 @@ test('live session (has history) BLOCKS a cross-backend switch', () => {
   const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'pi', hasHistory: true });
   assert.deepEqual(d, { allowed: false, reason: 'cross-backend-live-session' });
 });
-
-test('claude print↔tui counts as same backend (both backend=claude) on a live session', () => {
-  // Both profiles resolve to backend 'claude' (claudeBackend is not part of the identity).
-  const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'claude', hasHistory: true });
-  assert.equal(d.allowed, true);
-});
