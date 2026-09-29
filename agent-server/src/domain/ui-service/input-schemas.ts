@@ -398,83 +398,24 @@ export const taskBlockInput = z.object({
 const FORBIDDEN_PROVIDER_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const MAX_PROVIDER_KEY_LENGTH = 120;
 
-const providerRateLimitWindowOverrideInput = z.object({
-  type: z.string().trim().min(1),
-  label: z.string().trim().min(1).optional(),
-  enabled: z.boolean(),
-  threshold: z.number().finite().gt(0).lte(1).optional(),
-}).strict();
-
-const providerRateLimitOverrideInput = z.object({
-  enabled: z.boolean().optional(),
-  threshold: z.number().finite().gt(0).lte(1).optional(),
-  windows: z.array(providerRateLimitWindowOverrideInput).optional(),
-}).strict().superRefine((value, ctx) => {
-  if (value.threshold !== undefined && value.enabled === undefined) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['enabled'], message: 'enabled is required when threshold is set' });
-  }
-  if (value.enabled === undefined && !value.windows) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'provider policy must declare enabled or windows' });
-  }
-  const seen = new Set<string>();
-  for (const [index, window] of (value.windows ?? []).entries()) {
-    const key = `${window.type}\u0000${window.label ?? ''}`;
-    if (seen.has(key)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['windows', index], message: 'duplicate window identity' });
-    }
-    seen.add(key);
-  }
-});
-
-const providerRateLimitsSettingInput = z.record(z.string(), providerRateLimitOverrideInput)
-  .superRefine((value, ctx) => {
-    for (const provider of Object.keys(value)) {
-      if (provider.trim().length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [provider],
-          message: 'provider keys must not be empty',
-        });
-      }
-      if (provider !== provider.trim()) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [provider],
-          message: 'provider keys must not have leading or trailing whitespace',
-        });
-      }
-      if (provider.length > MAX_PROVIDER_KEY_LENGTH) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [provider],
-          message: `provider keys must be at most ${MAX_PROVIDER_KEY_LENGTH} characters`,
-        });
-      }
-      if (FORBIDDEN_PROVIDER_KEYS.has(provider)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [provider],
-          message: `provider key "${provider}" is reserved`,
-        });
-      }
-    }
-  });
-
 const settingTypeSchemas = {
   boolean: z.boolean(),
   number: z.number().finite(),
   'number|null': z.number().finite().nullable(),
   'string[]': z.array(z.string()),
   'string|null': z.string().nullable(),
-  'provider-rate-limits': providerRateLimitsSettingInput,
 } as const;
 
+// providerRateLimits is not writable through config.set; it has its own mutation.
+type WritableSettingKey = Exclude<keyof typeof SETTINGS_SPEC, 'providerRateLimits'>;
+type WritableSettingSpec = (typeof SETTINGS_SPEC)[WritableSettingKey];
+
 type SettingsShape = {
-  [K in keyof typeof SETTINGS_SPEC]:
+  [K in WritableSettingKey]:
     (typeof settingTypeSchemas)[(typeof SETTINGS_SPEC)[K]['type']];
 };
 
-function settingSchema(spec: (typeof SETTINGS_SPEC)[keyof typeof SETTINGS_SPEC]): z.ZodTypeAny {
+function settingSchema(spec: WritableSettingSpec): z.ZodTypeAny {
   const base = settingTypeSchemas[spec.type];
   if (!('validate' in spec) || typeof spec.validate !== 'function') return base;
   return base.superRefine((value, ctx) => {
@@ -485,12 +426,10 @@ function settingSchema(spec: (typeof SETTINGS_SPEC)[keyof typeof SETTINGS_SPEC])
 }
 
 const settingsShape = Object.fromEntries(
-  Object.entries(SETTINGS_SPEC).map(([key, spec]) => [key, settingSchema(spec)]),
-) as unknown as SettingsShape;
-
-const writableSettingsShape = Object.fromEntries(
-  Object.entries(settingsShape).filter(([key]) => key !== 'providerRateLimits'),
-);
+  (Object.entries(SETTINGS_SPEC) as [keyof typeof SETTINGS_SPEC, WritableSettingSpec][])
+    .filter(([key]) => key !== 'providerRateLimits')
+    .map(([key, spec]) => [key, settingSchema(spec)]),
+) as unknown as Record<string, SettingsShape[WritableSettingKey]>;
 
 function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
   for (const [key, setting] of Object.entries(value)) {
@@ -503,7 +442,7 @@ function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.Refineme
   }
 }
 
-const settingsValueInput = z.object(writableSettingsShape).partial().strict()
+const settingsValueInput = z.object(settingsShape).partial().strict()
   .superRefine(rejectUndefinedSettings);
 
 // config.set: a discriminated union of the safely-writable sections. `budget` numbers must be
