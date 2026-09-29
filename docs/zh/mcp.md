@@ -43,7 +43,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 | `agent` | 单任务（`description`、`prompt`、`subagent_type`）**或** `parallel[]` **或** `chain[]`，另有 `model?`、`backend?`、`run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
 | `agent_stop` | `agent_id` | 停止运行中的子智能体，并丢弃其已产出的内容 |
 
-服务器实现在 `agent-server/src/domain/mcp/core-server.ts`；`agent` 与 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；`agent` 与 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
 
 `agent` 取代了 Claude Code 内置的 `Agent` 工具——后者已被 Cortex 从每次 spawn 中剥离。替代品跑在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对守护进程可见：因此一次委派会出现在父会话的 transcript 里、计入父会话的账，并且可以从界面上停止。详见 [backends.md](./backends.md#subagents)。
 
@@ -59,7 +59,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 | `task_result` | `task_id`、`project?` | 读取任务的结果（done/blocked、done_when、完成备注、阻塞原因） |
 | `task_list` | `project?`、`status?`、`parent?`、`limit?` | 列出任务（可按 status 或 parent 过滤） |
 
-服务器实现在 `agent-server/src/domain/mcp/tasks-server.ts`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/task-monitor.ts`。
 
 ### cortex-manager-qa
 
@@ -69,7 +69,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 |---|---|---|
 | `answer_subtask` | `question_id`、`answer` | 回答子任务提出的澄清问题 |
 
-服务器实现在 `agent-server/src/domain/mcp/manager-qa-server.ts`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/manager-qa.ts`。
 
 ### cortex-thread
 
@@ -82,7 +82,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 | `thread_wait` | `on_tasks?`、`on_threads?` | 挂起你自己的线程直到被等待的子项完成；与 `cortex-task spawn` 配合使用 |
 | `ask_manager` | `question` | 向规划本任务的 manager 提出阻塞式澄清问题 |
 
-服务器实现在 `agent-server/src/domain/mcp/thread-server.ts`。工具注册器仍在 `agent-server/src/domain/mcp/tools/`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具注册器在 `agent-server/src/domain/mcp/tools/`。
 
 ### cortex-ext
 
@@ -105,7 +105,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 `wait_create` 是 session 等待 Cortex 之外的事情——训练、构建、评测——而不轮询它的方式。外部程序用 `cortex-signal` CLI、回环 `POST /webhook/signal`，或往 spool 目录落一个文件来回报，session 随即被带着结果唤醒。见 [waitpoints.md](./waitpoints.md)。
 
-服务器实现在 `agent-server/src/domain/mcp/server.ts`。各个工具在 `agent-server/src/domain/mcp/tools/`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。各个工具在 `agent-server/src/domain/mcp/tools/`。
 
 ### cortex-slack
 
@@ -115,7 +115,7 @@ Slack 平台特定的 MCP 服务器。仅当会话源自 Slack 时加载，提�
 |---|---|---|
 | `slack_send_file` | `file_path`、`file_name?`、`title?`、`comment?`、`device?` | 上传文件到 Slack；带 `device` 时读取该远程设备上的文件 |
 
-服务器实现在 `agent-server/src/domain/mcp/slack-server.ts`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/slack.ts`。
 
 ### cortex-feishu
 
@@ -131,7 +131,7 @@ block 级精修（此前的 `feishu_docx_*` MCP 工具会把表格降级成纯�
 安装/鉴权 preflight 以及如何委托给 CLI 自带的 `lark-doc` / `lark-sheets` / `lark-base`
 skill 指南，见 `feishu-doc` skill。
 
-服务器实现在 `agent-server/src/domain/mcp/feishu-server.ts`。工具在 `agent-server/src/domain/mcp/feishu/file.ts`。
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在 `agent-server/src/domain/mcp/feishu/file.ts`。
 
 ### cortex-web
 
@@ -164,7 +164,7 @@ assistant 消息，并发布实时事件。跨线的只有路径——大文档�
 在该决策的动作日志上，也作为普通用户消息发给 agent。决策及其动作日志持久化在
 会话历史里，刷新或换设备后卡片状态不丢。
 
-服务器实现在 `agent-server/src/domain/mcp/web-server.ts`。工具在
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具在
 `agent-server/src/domain/mcp/tools/ui-file.ts`、
 `agent-server/src/domain/mcp/tools/ui-view.ts` 与
 `agent-server/src/domain/mcp/tools/ui-decision.ts`。

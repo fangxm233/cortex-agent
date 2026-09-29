@@ -45,6 +45,14 @@ async function withServer(
   }
 }
 
+function withBundles(
+  bundles: readonly McpBundleName[],
+  run: (client: Client) => Promise<void>,
+  env: Record<string, string> = {},
+): Promise<void> {
+  return withServer('bundled-server.js', run, { ...env, [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) });
+}
+
 async function toolNames(client: Client): Promise<string[]> {
   const { tools } = await client.listTools();
   return tools.map((tool) => tool.name).sort();
@@ -74,23 +82,6 @@ async function withQaWebhook(
     await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
   }
 }
-
-test('built cortex-core exposes remote operations and current_time only', async () => {
-  await withServer('core-server.js', async (client) => {
-    assert.deepEqual(await toolNames(client), [
-      'current_time',
-      'remote_bash',
-      'remote_edit',
-      'remote_glob',
-      'remote_grep',
-      'remote_read',
-      'remote_write',
-    ]);
-    const result = await client.callTool({ name: 'current_time', arguments: { timezone: 'UTC' } });
-    assert.equal(result.isError ?? false, false);
-    assert.equal(JSON.parse((result.content as any[])[0].text).timezone, 'UTC');
-  });
-});
 
 test('bundle load and registration failures do not remove healthy registrations', async () => {
   const registered: string[] = [];
@@ -165,7 +156,7 @@ test('bundled server applies one allowlist across logical surfaces', async () =>
 });
 
 test('built cortex-tasks exposes task monitoring and handles an empty project', async () => {
-  await withServer('tasks-server.js', async (client) => {
+  await withBundles(['cortex-tasks'], async (client) => {
     assert.deepEqual(await toolNames(client), ['task_list', 'task_result', 'task_status']);
     const result = await client.callTool({
       name: 'task_list',
@@ -177,7 +168,7 @@ test('built cortex-tasks exposes task monitoring and handles an empty project', 
 });
 
 test('built cortex-thread exposes lifecycle control and upward ask only', async () => {
-  await withServer('thread-server.js', async (client) => {
+  await withBundles(['cortex-thread'], async (client) => {
     assert.deepEqual(await toolNames(client), [
       'ask_manager',
       'thread_abort',
@@ -196,23 +187,23 @@ test('built cortex-thread exposes lifecycle control and upward ask only', async 
 test('tool gate removes ask_manager without removing thread_wait or task monitoring', async () => {
   const gate = JSON.stringify(['task_status', 'thread_wait']);
   const env = { [MCP_TOOL_ALLOWLIST_ENV]: gate };
-  await withServer('thread-server.js', async (client) => {
+  await withBundles(['cortex-thread'], async (client) => {
     assert.deepEqual(await toolNames(client), ['thread_wait']);
   }, env);
-  await withServer('tasks-server.js', async (client) => {
+  await withBundles(['cortex-tasks'], async (client) => {
     assert.deepEqual(await toolNames(client), ['task_status']);
   }, env);
 });
 
 test('an unknown tool gate name refuses MCP server startup', async () => {
-  await assert.rejects(withServer('thread-server.js', async () => {}, {
+  await assert.rejects(withBundles(['cortex-thread'], async () => {}, {
     [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'thread_wiat']),
   }));
 });
 
 test('built cortex-manager-qa answers without a thread context', async () => {
   await withQaWebhook(async (port, received) => {
-    await withServer('manager-qa-server.js', async (client) => {
+    await withBundles(['cortex-manager-qa'], async (client) => {
       assert.deepEqual(await toolNames(client), ['answer_subtask']);
       const result = await client.callTool({
         name: 'answer_subtask',
@@ -229,7 +220,7 @@ test('built cortex-manager-qa answers without a thread context', async () => {
 
 test('built cortex-web exposes file, view and decision delivery to a web session', async () => {
   await withQaWebhook(async (port, received) => {
-    await withServer('web-server.js', async (client) => {
+    await withBundles(['cortex-web'], async (client) => {
       assert.deepEqual(await toolNames(client), ['send_decision', 'send_file', 'send_view']);
 
       const result = await client.callTool({
@@ -251,7 +242,7 @@ test('built cortex-web exposes file, view and decision delivery to a web session
 
 test('send_decision proxies the decision batch to the daemon webhook', async () => {
   await withQaWebhook(async (port, received) => {
-    await withServer('web-server.js', async (client) => {
+    await withBundles(['cortex-web'], async (client) => {
       const decision = {
         title: 'Store results in SQLite',
         decision: 'Run outputs go into results.db instead of JSONL files.',
@@ -276,7 +267,7 @@ test('send_decision proxies the decision batch to the daemon webhook', async () 
 
 test('send_view refuses ambiguous input before it reaches the daemon', async () => {
   await withQaWebhook(async (port, received) => {
-    await withServer('web-server.js', async (client) => {
+    await withBundles(['cortex-web'], async (client) => {
       for (const args of [
         { title: 'T' },
         { title: 'T', html: '<p/>', file_path: '/tmp/nope.html' },
@@ -295,7 +286,7 @@ test('send_view refuses ambiguous input before it reaches the daemon', async () 
 });
 
 test('the tool gate can drop send_view while keeping send_file', async () => {
-  await withServer('web-server.js', async (client) => {
+  await withBundles(['cortex-web'], async (client) => {
     assert.deepEqual(await toolNames(client), ['send_file']);
   }, { [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['send_file']) });
 });

@@ -63,7 +63,7 @@ canonical `mcp__cortex-core__remote_*` names used by existing clients and skills
 | `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]`, plus `model?`, `backend?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
 | `agent_stop` | `agent_id` | Stop a running subagent and discard whatever it had produced |
 
-The server implementation is at `agent-server/src/domain/mcp/core-server.ts`;
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`;
 `agent` and `agent_stop` are registered by
 `agent-server/src/domain/mcp/tools/subagent.ts`.
 
@@ -89,7 +89,8 @@ cortex-core.
 | `task_result` | `task_id`, `project?` | Read a task's outcome (done/blocked, done_when, completion note, block reason) |
 | `task_list` | `project?`, `status?`, `parent?`, `limit?` | List tasks (optionally by status or parent) |
 
-The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in
+`agent-server/src/domain/mcp/tools/task-monitor.ts`.
 
 ### cortex-manager-qa
 
@@ -102,8 +103,8 @@ bundle because they do not own task-tree questions.
 |---|---|---|
 | `answer_subtask` | `question_id`, `answer` | Answer a clarification question from a child task |
 
-The server implementation is at
-`agent-server/src/domain/mcp/manager-qa-server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tool is in
+`agent-server/src/domain/mcp/tools/manager-qa.ts`.
 
 ### cortex-thread
 
@@ -118,8 +119,8 @@ sessions never receive these tools.
 | `thread_wait` | `on_tasks?`, `on_threads?` | Suspend YOUR OWN thread until awaited children finish; pair with `cortex-task spawn` |
 | `ask_manager` | `question` | Ask the planning manager a blocking clarification question |
 
-The server implementation is at `agent-server/src/domain/mcp/thread-server.ts`.
-Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
+Tool registrars are in `agent-server/src/domain/mcp/tools/`.
 
 ### cortex-ext
 
@@ -148,7 +149,7 @@ with the `cortex-signal` CLI, a loopback `POST /webhook/signal`, or a file
 dropped in a spool directory, and the session is woken with the result. See
 [waitpoints.md](./waitpoints.md).
 
-The server implementation is at `agent-server/src/domain/mcp/server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 Individual tools are in `agent-server/src/domain/mcp/tools/`.
 
 ### cortex-slack
@@ -160,7 +161,8 @@ from Slack, providing platform-specific file upload and messaging capabilities.
 |---|---|---|
 | `slack_send_file` | `file_path`, `file_name?`, `title?`, `comment?`, `device?` | Upload a file to Slack; with `device`, the file is read on that remote device |
 
-The server implementation is at `agent-server/src/domain/mcp/slack-server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tool is in
+`agent-server/src/domain/mcp/tools/slack.ts`.
 
 ### cortex-feishu
 
@@ -179,7 +181,7 @@ blocks and were removed). See the `feishu-doc` skill for the install/auth
 preflight and how to delegate to the CLI's embedded `lark-doc` / `lark-sheets`
 / `lark-base` skill guides.
 
-The server implementation is at `agent-server/src/domain/mcp/feishu-server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
 
 ### cortex-web
@@ -223,7 +225,7 @@ templated message that is both recorded on the decision and delivered to the
 agent as an ordinary user message. Decisions and their action log persist in the
 conversation history, so cards keep their state across reloads and devices.
 
-The server implementation is at `agent-server/src/domain/mcp/web-server.ts`.
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
 The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
 `agent-server/src/domain/mcp/tools/ui-view.ts`, and
 `agent-server/src/domain/mcp/tools/ui-decision.ts`.
