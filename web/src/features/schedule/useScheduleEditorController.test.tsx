@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   useScheduleEditorController,
   type ScheduleEditorController,
+  type ScheduleEditorRequest,
 } from './useScheduleEditorController';
 
 const adapter = vi.hoisted(() => ({
@@ -64,16 +65,16 @@ function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
 let controller: ScheduleEditorController | null = null;
 const renderers: ReactTestRenderer[] = [];
 
-function Probe() {
+function Probe({ initial }: { initial?: ScheduleEditorRequest }) {
   controller = useScheduleEditorController({
     onCreated: adapter.created,
     onUpdated: adapter.updated,
     onError: adapter.error,
-  });
+  }, initial);
   return null;
 }
 
-async function mount() {
+async function mount(initial?: ScheduleEditorRequest) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
   });
@@ -84,7 +85,7 @@ async function mount() {
   await act(async () => {
     renderers.push(create(
       <QueryClientProvider client={queryClient}>
-        <Probe />
+        <Probe initial={initial} />
       </QueryClientProvider>,
     ));
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -114,12 +115,10 @@ beforeEach(() => {
 describe('useScheduleEditorController', () => {
   it('owns profile options, create initialization, add payload, and list invalidation', async () => {
     adapter.add.mockResolvedValue(schedule({ id: 'daily-1', type: 'daily' }));
-    const { queryClient } = await mount();
+    const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
 
-    expect(controller?.profileOptions).toEqual(['default', 'review']);
-    act(() => controller?.openCreate({ projectId: 'nimbus' }));
     act(() => controller?.onChange({ message: '  scan arXiv  ', profile: 'review' }));
-
+    expect(controller?.profileOptions).toEqual(['default', 'review']);
     expect(controller?.mode).toBe('create');
     expect(controller?.form?.projectId).toBe('nimbus');
     expect(controller?.editableFields.type).toBe(true);
@@ -138,8 +137,7 @@ describe('useScheduleEditorController', () => {
   it('does not let an old success notify or close a newly opened editor', async () => {
     const gate = deferred<ScheduleInfo>();
     adapter.add.mockReturnValue(gate.promise);
-    const { queryClient } = await mount();
-    act(() => controller?.openCreate({ projectId: 'nimbus' }));
+    const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
     act(() => controller?.onChange({ message: 'old request' }));
     let saving!: Promise<boolean>;
     act(() => { saving = controller!.submit(); });
@@ -163,8 +161,7 @@ describe('useScheduleEditorController', () => {
     // one is already up; the first controller is gone before its save resolves and must not toast.
     const gate = deferred<ScheduleInfo>();
     adapter.add.mockReturnValue(gate.promise);
-    const { queryClient } = await mount();
-    act(() => controller?.openCreate({ projectId: 'nimbus' }));
+    const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
     act(() => controller?.onChange({ message: 'orphaned request' }));
     let saving!: Promise<boolean>;
     act(() => { saving = controller!.submit(); });
@@ -184,8 +181,7 @@ describe('useScheduleEditorController', () => {
   it('does not let an old error pollute an editor opened after close', async () => {
     const gate = deferred<ScheduleInfo>();
     adapter.add.mockReturnValue(gate.promise);
-    await mount();
-    act(() => controller?.openCreate());
+    await mount({ mode: 'create', projectId: null });
     act(() => controller?.onChange({ message: 'old request' }));
     let saving!: Promise<boolean>;
     act(() => { saving = controller!.submit(); });

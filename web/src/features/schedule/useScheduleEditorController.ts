@@ -43,7 +43,6 @@ export interface ScheduleEditorController {
   valid: boolean;
   pending: boolean;
   error: string | null;
-  openCreate: (options?: { projectId?: string | null }) => void;
   openEdit: (schedule: ScheduleInfo) => void;
   close: () => void;
   onChange: (patch: Partial<ScheduleForm>) => void;
@@ -121,11 +120,6 @@ function useEditorState(initial?: ScheduleEditorRequest) {
   const closeGeneration = useCallback((value: number) => {
     if (generation.current === value) close();
   }, [close]);
-  const openCreate = useCallback((options?: { projectId?: string | null }) => {
-    setError(null);
-    setState({ mode: 'create', form: defaultScheduleForm(options?.projectId ?? null),
-      schedule: null, generation: nextGeneration() });
-  }, [nextGeneration]);
   const openEdit = useCallback((schedule: ScheduleInfo) => {
     setError(null);
     setState({ mode: 'edit', form: formFromSchedule(schedule), schedule,
@@ -137,7 +131,7 @@ function useEditorState(initial?: ScheduleEditorRequest) {
     } : current);
   }, []);
   return { state, error, setError, close, closeGeneration, isCurrent,
-    openCreate, openEdit, onChange };
+    openEdit, onChange };
 }
 
 function useScheduleResources(form: ScheduleForm | null) {
@@ -218,7 +212,7 @@ export function useScheduleEditorController(
   return {
     ...view, profileOptions: resources.profiles,
     pending: resources.pending, error: editor.error,
-    openCreate: editor.openCreate, openEdit: editor.openEdit,
+    openEdit: editor.openEdit,
     close: editor.close, onChange: editor.onChange, submit,
   };
 }

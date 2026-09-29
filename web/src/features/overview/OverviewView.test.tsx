@@ -63,7 +63,7 @@ vi.mock('@/features/execution/useExecutionDrawer', () => ({
 }));
 
 vi.mock('@/features/schedule/useScheduleModal', () => ({
-  useScheduleModal: () => ({ open: vi.fn(), openEdit: adapter.openEdit, close: vi.fn() }),
+  useScheduleModal: () => ({ open: vi.fn(), openEdit: adapter.openEdit }),
 }));
 
 vi.mock('@/features/issues/useIssues', () => ({

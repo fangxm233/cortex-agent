@@ -61,7 +61,6 @@ function editorFor(formSchedule: ScheduleInfo): ScheduleEditorController {
     valid: true,
     pending: false,
     error: null,
-    openCreate: vi.fn(),
     openEdit: vi.fn(),
     close: vi.fn(),
     onChange: vi.fn(),

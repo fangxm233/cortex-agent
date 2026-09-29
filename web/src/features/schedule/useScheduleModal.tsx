@@ -17,7 +17,6 @@ interface OpenOptions {
 interface ScheduleModalContextValue {
   open: (opts?: OpenOptions) => void;
   openEdit: (schedule: ScheduleInfo) => void;
-  close: () => void;
 }
 
 // The editor's form state is only meaningful while the modal is up, so it lives in the surface
@@ -31,12 +30,11 @@ const scheduleModal = defineModal<ScheduleModalRequest>('schedule-editor');
 let nextSeq = 0;
 
 export function useScheduleModal(): ScheduleModalContextValue {
-  const { open, close } = scheduleModal.useModalActions();
+  const { open } = scheduleModal.useModalActions();
   return useMemo(() => ({
     open: (opts?: OpenOptions) => open({ seq: ++nextSeq, mode: 'create', projectId: opts?.projectId ?? null }),
     openEdit: (schedule: ScheduleInfo) => open({ seq: ++nextSeq, mode: 'edit', schedule }),
-    close,
-  }), [open, close]);
+  }), [open]);
 }
 
 function useEditorOutcomes(): ScheduleEditorControllerOptions {
