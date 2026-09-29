@@ -35,8 +35,6 @@ export interface CustomProviderStores {
   gatewayPath: string;
   /** Gateway base URL every custom provider is routed through. */
   gatewayUrl: string;
-  /** Provider ids PI already owns, so a definition cannot shadow a built-in. */
-  reservedNames?: string[];
   /** Called after a successful change so provider discovery and account status can refresh. */
   onChanged?: () => void;
 }
@@ -146,7 +144,7 @@ export function upsertCustomProvider(
   input: CustomProviderInput,
 ): CustomProviderResult {
   const provider = normalizeCustomProvider(input);
-  const issues = validateCustomProvider(provider, { reservedNames: stores.reservedNames });
+  const issues = validateCustomProvider(provider);
   if (issues.length > 0) return { ok: false, errors: issues };
 
   const { name } = provider;

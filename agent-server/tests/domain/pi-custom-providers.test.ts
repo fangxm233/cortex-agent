@@ -66,12 +66,6 @@ test('validateCustomProvider: rejects an empty or non-conforming name', () => {
   assert.deepEqual(validateCustomProvider({ ...VALID, name: 'my/vllm' }), ['name-charset']);
 });
 
-test('validateCustomProvider: rejects a name already used by a built-in provider', () => {
-  const issues = validateCustomProvider({ ...VALID, name: 'anthropic' }, { reservedNames: ['anthropic', 'deepseek'] });
-  assert.deepEqual(issues, ['name-reserved']);
-  assert.deepEqual(validateCustomProvider(VALID, { reservedNames: ['anthropic'] }), []);
-});
-
 test('validateCustomProvider: rejects an unknown api and a non-http upstream', () => {
   assert.deepEqual(validateCustomProvider({ ...VALID, api: 'ollama-native' as never }), ['api-invalid']);
   assert.deepEqual(validateCustomProvider({ ...VALID, upstreamUrl: 'ftp://box/api' }), ['upstream-scheme']);

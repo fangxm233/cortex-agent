@@ -129,9 +129,9 @@ export const authLogoutInput = z.object({
 });
 
 // ── auth.upsertCustomProvider / auth.removeCustomProvider ─────────
-// Shape gate only. The SEMANTIC rules — reserved provider names, upstream scheme, duplicate model
-// ids — stay with validateCustomProvider(), which every surface (Web, chat, CLI) runs, so the rule
-// set has one home and one message table.
+// Shape gate only. The SEMANTIC rules — upstream scheme, duplicate model ids — stay with
+// validateCustomProvider(), which every surface (Web, chat, CLI) runs, so the rule set has one home
+// and one message table.
 const customProviderName = z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE);
 
 export const authUpsertCustomProviderInput = z.object({

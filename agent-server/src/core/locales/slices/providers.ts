@@ -37,7 +37,6 @@ export const providersEn = {
   // --- validation issues, shared by every surface ---
   'provider.issue.name-required': 'A provider name is required.',
   'provider.issue.name-charset': 'A provider name may use letters, digits, dash and underscore only.',
-  'provider.issue.name-reserved': 'That name belongs to a built-in PI provider — pick another.',
   'provider.issue.api-invalid': 'Unknown request protocol.',
   'provider.issue.upstream-required': 'An upstream URL is required.',
   'provider.issue.upstream-scheme': 'The upstream URL must start with http:// or https://.',
@@ -84,7 +83,6 @@ export const providersZh: Record<keyof typeof providersEn, string> = {
 
   'provider.issue.name-required': '必须填写 provider 名称。',
   'provider.issue.name-charset': 'provider 名称只能使用字母、数字、连字符和下划线。',
-  'provider.issue.name-reserved': '这个名字属于 PI 内置 provider，请换一个。',
   'provider.issue.api-invalid': '未知的请求协议。',
   'provider.issue.upstream-required': '必须填写上游地址。',
   'provider.issue.upstream-scheme': '上游地址必须以 http:// 或 https:// 开头。',

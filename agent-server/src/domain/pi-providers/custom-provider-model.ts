@@ -33,7 +33,6 @@ export interface CustomProviderInput {
 export type CustomProviderIssue =
   | 'name-required'
   | 'name-charset'
-  | 'name-reserved'
   | 'api-invalid'
   | 'upstream-required'
   | 'upstream-scheme'
@@ -83,21 +82,12 @@ export function customProviderBaseUrl(
   return `${gatewayUrl.replace(/\/+$/, '')}/m/${name}/${gatewayEndpoint(api, name)}`;
 }
 
-export interface ValidateCustomProviderOpts {
-  /** Provider ids PI already owns — a custom definition may not shadow one. */
-  reservedNames?: string[];
-}
-
-export function validateCustomProvider(
-  input: CustomProviderInput,
-  opts: ValidateCustomProviderOpts = {},
-): CustomProviderIssue[] {
+export function validateCustomProvider(input: CustomProviderInput): CustomProviderIssue[] {
   const issues: CustomProviderIssue[] = [];
 
   const name = input.name?.trim() ?? '';
   if (!name) issues.push('name-required');
   else if (!CUSTOM_PROVIDER_NAME_RE.test(name)) issues.push('name-charset');
-  else if (opts.reservedNames?.includes(name)) issues.push('name-reserved');
 
   if (!CUSTOM_PROVIDER_APIS.includes(input.api)) issues.push('api-invalid');
 
