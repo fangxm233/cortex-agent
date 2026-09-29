@@ -59,7 +59,7 @@ export function useAppUpdate(): AppUpdateState {
   const [hiddenVersion, setHiddenVersion] = useState<string | null>(null);
   const candidate = pending?.version === hiddenVersion ? null : pending;
   const update = useUpdateGating(candidate);
-  const installState = useAppInstall(pending?.version ?? update?.version ?? null, setHiddenVersion);
+  const installState = useAppInstall(pending?.version ?? null, setHiddenVersion);
   useAppUpdateBridge();
   // A manual check republishes whatever the shell channel found, dismissal and all.
   useEffect(() => subscribeManualCheckResult<unknown, AppUpdateInfo>(({ shell }) => {
@@ -70,7 +70,7 @@ export function useAppUpdate(): AppUpdateState {
 
   const skip = useCallback(() => { void skipAppUpdate(); }, []);
   const dismiss = useCallback(() => {
-    setHiddenVersion(pending?.version ?? update?.version ?? null);
-  }, [pending, update]);
+    setHiddenVersion(pending?.version ?? null);
+  }, [pending]);
   return { pending, update, ...installState, skip, dismiss };
 }
