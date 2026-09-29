@@ -52,11 +52,6 @@ export class EventQueue {
     this.closed = true;
     for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true });
   }
-
-  /** True once close() has run — `push` is a silent no-op from then on. */
-  get isClosed(): boolean {
-    return this.closed;
-  }
 }
 
 export interface PendingPiInjection {
@@ -87,11 +82,6 @@ export class PISteeringQueue {
     const entry = { id: `pi-inject-${++this.sequence}`, text, rejected: false };
     this.pending.push(entry);
     return entry;
-  }
-
-  rollback(entry: PendingPiInjection): void {
-    const index = this.pending.indexOf(entry);
-    if (index !== -1) this.pending.splice(index, 1);
   }
 
   /** Mark an injection PI refused; rejected duplicates seal only after earlier entries. */

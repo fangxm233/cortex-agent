@@ -33,8 +33,6 @@ type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
 export interface PISessionOptions {
   request: PiSessionRequest;
   runtimeFactory: PiRuntimeFactory;
-  /** Exact request identity this session was created from; the pool's reuse test. */
-  identity: string;
   /** sessionId → transcript path, shared with the adapter's resume lookup. */
   registry: Map<string, string>;
   /** Passed the closing session itself so the pool only evicts the entry it still owns. */
@@ -127,7 +125,6 @@ export class PISession {
   private readonly onProviderQuota: PISessionOptions['onProviderQuota'];
   private readonly subagent: PISessionOptions['subagent'];
   private readonly openBundledMcpServer: PISessionOptions['openBundledMcpServer'];
-  private readonly identity: string;
   private alive = true;
   /** Buffer for assistant_text deltas; flushed on message_end / turn_complete / non-text events. */
   private textBuffer = '';
@@ -150,7 +147,6 @@ export class PISession {
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.request.sessionKey;
     this.request = opts.request;
-    this.identity = opts.identity;
     this.registry = opts.registry;
     this.onClose = opts.onClose;
     this.onProviderQuota = opts.onProviderQuota;
@@ -308,12 +304,6 @@ export class PISession {
 
   isAlive(): boolean {
     return this.alive;
-  }
-
-  /** True when this live session was created from exactly the configuration a new spawn
-   *  resolved to, and may therefore serve it. */
-  matchesSpawn(identity: string): boolean {
-    return this.identity === identity;
   }
 
   /**
@@ -584,26 +574,21 @@ export class PISession {
   /**
    * Send a user message, switching to targetSessionId first when the runtime is currently serving
    * a different transcript. The prompt is dispatched in every branch: a refused switch leaves the
-   * prompt on the current session, best-effort, and the caller can inspect `switched`.
+   * prompt on the current session, best-effort.
    */
   async sendTurn(
     targetSessionId: string | null,
     targetPath: string | null,
     message: UserMessage,
-  ): Promise<{ switched: boolean; cancelled: boolean }> {
+  ): Promise<void> {
     const handle = await this.liveHandle();
     const promptText = buildPromptText(message);
-    let switched = false;
-    let cancelled = false;
     if (targetSessionId !== null && this.currentSessionId !== targetSessionId && targetPath !== null) {
       const result = await this.sendSwitchSession(targetPath);
       if (result.ok) this.currentSessionId = targetSessionId;
-      switched = result.ok;
-      cancelled = result.cancelled;
     }
     if (!this.alive || !this.handle) throw new Error('PI session closed before its prompt was sent');
     this.dispatchPrompt(handle, promptText);
-    return { switched, cancelled };
   }
 
   /**

@@ -322,11 +322,9 @@ export class PIAdapter implements EngineAdapter {
    */
   open(spec: EngineSpec, hooks: PIEngineOpenHooks = {}): PIEngineSession {
     const request = this.prepareRequest(spec);
-    const identity = sessionIdentity(request);
     const session = new PISession({
       request,
       runtimeFactory: this.runtimeFactory,
-      identity,
       registry: this.sessionPathRegistry,
       onClose: hooks.onSelfClose,
       onProviderQuota: this.quotaReporter(spec),
