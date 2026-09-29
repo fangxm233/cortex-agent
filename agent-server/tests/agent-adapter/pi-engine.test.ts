@@ -8,16 +8,10 @@ import { toRunEvent, type RunEvent } from '../../src/agent-adapter/run-events.js
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
-import { makeFakeRuntimeFactory } from './pi-fake-runtime.js';
+import { collectEvents, makeFakeRuntimeFactory } from './pi-fake-runtime.js';
 
 function spec(sessionKey: string): EngineSpec {
   return engineSpecFixture({ sessionId: null, sessionKey, resume: false, piProvider: 'fake' });
-}
-
-async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-  const out: T[] = [];
-  for await (const event of iterable) out.push(event);
-  return out;
 }
 
 /** The trailing phase the engine appends once a PI turn's stream has ended. */
@@ -44,7 +38,7 @@ test('open().run() yields the phased events, in order, for a scripted PI turn', 
   runtime.emitSimpleTurn('hello', { usage: { cost: { total: 0.02 } } });
   const result = await run.result;
   const settled = await run.settled;
-  const events = await collect(run.events);
+  const events = await collectEvents(run.events);
 
   // Literal PI protocol facts (legacy spawn() parity expectations folded in): one turn, in order,
   // including the terminal marker the engine drops.
@@ -115,7 +109,7 @@ test('open().run() rejects a failed PI turn with the provider error', async (t) 
   assert.equal((engineError as Error & { reason?: string }).reason, 'provider_error');
 
   // A rejected turn ends the run stream with its terminal phase and no foreground result.
-  const events = await collect(run.events);
+  const events = await collectEvents(run.events);
   assert.deepEqual(events.map((event) => event.type), ['engine_started', 'cost_record', 'phase']);
   assert.deepEqual(events.at(-1), DONE);
 });
@@ -142,7 +136,7 @@ test('open().run() surfaces steer refusals and deliveries on the run stream', as
   runtime.emitAgentEnd({ usage: { cost: { total: 0.01 } } });
 
   await run.result;
-  const events = await collect(run.events);
+  const events = await collectEvents(run.events);
   const injections = events.filter(
     (event) => event.type === 'injection_delivered' || event.type === 'injection_rejected',
   );
@@ -166,7 +160,7 @@ test('cancel() ends the run stream without closing the session; a later run stil
   runtime.emitAgentStart();
 
   first.cancel();
-  const firstEvents = await collect(first.events);
+  const firstEvents = await collectEvents(first.events);
   assert.deepEqual(firstEvents.at(-1), DONE);
   assert.equal(runtime.disposed, false, 'cancel must not dispose the session');
 
@@ -176,7 +170,7 @@ test('cancel() ends the run stream without closing the session; a later run stil
   runtime.emitAssistantText('second reply');
   runtime.emitAgentEnd({ usage: { cost: { total: 0.03 } } });
   const result = await second.result;
-  const secondEvents = await collect(second.events);
+  const secondEvents = await collectEvents(second.events);
 
   assert.deepEqual(secondEvents.at(-1), DONE);
   assert.equal(result.total_cost_usd, 0.03);
