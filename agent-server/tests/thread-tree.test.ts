@@ -4,7 +4,6 @@ import { threadStore } from '../src/store/thread-repo.js';
 import {
   getRootThreadId,
   getTreeThreads,
-  summarizeTree,
   checkSpawnGuards,
   buildThreadTree,
   registerChildSpawn,
@@ -78,7 +77,7 @@ function makeChain(costs: [number, number, number] = [0, 0, 0]): { root: ThreadR
 
 // --- getRootThreadId ---
 
-// --- getTreeThreads / summarizeTree ---
+// --- getTreeThreads ---
 
 test('getTreeThreads returns root and all descendants, excluding unrelated threads', () => {
   const { root, child, grandchild } = makeChain();
@@ -88,16 +87,6 @@ test('getTreeThreads returns root and all descendants, excluding unrelated threa
   assert.ok(ids.has(root.id) && ids.has(child.id) && ids.has(grandchild.id));
   assert.equal(ids.has(unrelated.id), false);
   assert.equal(tree.length, 3);
-});
-
-test('summarizeTree aggregates node count, cost, and status histogram', async () => {
-  const { root, child } = makeChain([1, 0.5, 0.25]);
-  await threadStore.mutate(child.id, (t) => { t.status = 'completed'; });
-  const s = summarizeTree(root.id);
-  assert.equal(s.nodeCount, 3);
-  assert.ok(Math.abs(s.totalCostUsd - 1.75) < 1e-9);
-  assert.equal(s.byStatus['completed'], 1);
-  assert.equal(s.byStatus['running'], 2);
 });
 
 // --- checkSpawnGuards ---

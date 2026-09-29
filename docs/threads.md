@@ -479,7 +479,7 @@ Cortex uses two types of thread records internally:
 | **Template thread** | Actual template name | Yes | `!thread <template>`, task dispatch |
 | **Auto thread** | `null` | No (initially) | `!thread add` chaining from single-agent runs |
 
-Plain chat no longer creates a thread record. Older stores may still contain legacy `templateName: "default"` records, which `!thread add` chaining ignores (`domain/threads/utils.ts` `isDefaultThread`, `thread-executor.ts` `validateThreadAddTarget`).
+Plain chat no longer creates a thread record. Older stores may still contain legacy `templateName: "default"` records, which `!thread add` chaining ignores (`thread-executor.ts` `validateThreadAddTarget`).
 
 ## Thread Record
 

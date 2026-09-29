@@ -480,7 +480,7 @@ Cortex 内部使用两种类型的线程记录：
 | **模板线程** | 实际模板名称 | 是 | `!thread <template>`、任务调度 |
 | **自动线程** | `null` | 否（初始） | 从单智能体运行链接的 `!thread add` |
 
-普通聊天不再创建线程记录。旧的存储中可能仍残留 `templateName: "default"` 的遗留记录，`!thread add` 链接会忽略它们（`domain/threads/utils.ts` 的 `isDefaultThread`、`thread-executor.ts` 的 `validateThreadAddTarget`）。
+普通聊天不再创建线程记录。旧的存储中可能仍残留 `templateName: "default"` 的遗留记录，`!thread add` 链接会忽略它们（`thread-executor.ts` 的 `validateThreadAddTarget`）。
 
 ## 线程记录 {#thread-record}
 

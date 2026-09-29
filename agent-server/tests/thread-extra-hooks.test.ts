@@ -27,7 +27,6 @@ import { CONFIG_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { initHookBus } from '../src/core/hook-bus.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
-  cleanupWorkspace,
   createThread,
   getTemplate,
   loadConfig,
@@ -130,7 +129,7 @@ afterEach(async () => {
   for (const id of createdThreadIds) {
     const thread = threadStore.get(id);
     if (thread?.workspacePath) {
-      try { cleanupWorkspace(id); } catch {}
+      fs.rmSync(thread.workspacePath, { recursive: true, force: true });
     }
     await threadStore.delete(id);
   }

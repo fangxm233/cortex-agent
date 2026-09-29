@@ -10,7 +10,6 @@ import { readTaskSpec } from '../src/domain/tasks/system/task-file-input.js';
 import { runCli } from '../src/domain/tasks/system/task-cli.js';
 import {
   buildStepPrompt,
-  cleanupWorkspace,
   createThread,
   loadConfig,
   mergeThreadTemplates,
@@ -145,7 +144,8 @@ test('task-file literals survive persistence, dispatch, and the first executor p
     );
   } finally {
     if (threadId) {
-      cleanupWorkspace(threadId);
+      const workspacePath = threadStore.get(threadId)?.workspacePath;
+      if (workspacePath) fs.rmSync(workspacePath, { recursive: true, force: true });
       await threadStore.delete(threadId);
     }
     repo.cleanup();

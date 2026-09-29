@@ -8,7 +8,6 @@ import {
   abortThread,
   buildStepPrompt,
   cancelThread,
-  cleanupWorkspace,
   createThread,
   peekPendingControl,
   clearPendingControl,
@@ -33,7 +32,8 @@ beforeAll(() => {
 
 afterAll(async () => {
   for (const id of createdThreadIds) {
-    try { cleanupWorkspace(id); } catch {}
+    const workspacePath = threadStore.get(id)?.workspacePath;
+    if (workspacePath) fs.rmSync(workspacePath, { recursive: true, force: true });
     await threadStore.delete(id);
   }
   await threadStore.flush();

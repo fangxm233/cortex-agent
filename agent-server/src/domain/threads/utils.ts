@@ -3,13 +3,6 @@
 import { threadStore } from '@store/thread-repo.js';
 import type { AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep } from '@core/types/thread-types.js';
 
-/** Check if a thread is using the default single-agent template */
-export function isDefaultThread(threadId: string): boolean {
-  const thread = threadStore.get(threadId);
-  if (!thread) return false;
-  return thread.templateName === 'default';
-}
-
 /** Check if a thread is ad-hoc (no template) */
 export function isAdHocThread(threadId: string): boolean {
   const thread = threadStore.get(threadId);

@@ -7,13 +7,11 @@ import { DATA_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   buildStepPrompt,
-  cleanupWorkspace,
   createThread,
   evaluateTransitions,
   getModifiedFilesFromSession,
   getSessionKey,
   isAdHocThread,
-  isDefaultThread,
   listAgents,
   loadConfig,
   resolveAgentSlotConfig,
@@ -180,7 +178,8 @@ beforeAll(() => {
 
 afterAll(async () => {
   for (const id of createdThreadIds) {
-    try { cleanupWorkspace(id); } catch {}
+    const workspacePath = threadStore.get(id)?.workspacePath;
+    if (workspacePath) fs.rmSync(workspacePath, { recursive: true, force: true });
     await threadStore.delete(id);
   }
   await threadStore.flush();
@@ -211,7 +210,6 @@ test('createThread ad-hoc with valid agent populates slot, workspace, and isAdHo
   assert.ok(fs.existsSync(thread.workspacePath), 'workspace directory should exist');
   assert.ok(fs.existsSync(thread.artifactPath), 'artifact file should be initialised');
   assert.equal(isAdHocThread(thread.id), true);
-  assert.equal(isDefaultThread(thread.id), false);
 });
 
 test('createThread throws for unknown agent name', () => {

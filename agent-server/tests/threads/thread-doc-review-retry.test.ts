@@ -39,7 +39,6 @@ import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../../src/core/paths.js';
 import { initHookBus } from '../../src/core/hook-bus.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import {
-  cleanupWorkspace,
   createThread,
   getTemplate,
   loadConfig,
@@ -73,7 +72,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   if (!thread) return;
-  cleanupWorkspace(thread.id);
+  fs.rmSync(thread.workspacePath, { recursive: true, force: true });
   await threadStore.delete(thread.id);
   await threadStore.flush();
 });

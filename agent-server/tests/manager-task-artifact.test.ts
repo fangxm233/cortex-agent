@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR, WORKSPACE_DIR, DEFAULTS_DIR, CONFIG_DIR } from '../src/core/paths.js';
 import { taskArtifactPath, ensureTaskArtifact } from '../src/core/task-node.js';
-import { createThread, cleanupWorkspace, loadConfig, mergeThreadTemplates } from '../src/domain/threads/index.js';
+import { createThread, loadConfig, mergeThreadTemplates } from '../src/domain/threads/index.js';
 import { threadStore } from '../src/store/thread-repo.js';
 
 const createdThreadIds = new Set<string>();
@@ -70,14 +70,4 @@ test('non-manager templates keep the workspace artifact', () => {
 test('manager template WITHOUT task metadata keeps the workspace artifact (ad-hoc thread_start path)', () => {
   const t = makeThread({ templateName: 'manager' });
   assert.equal(t.artifactPath, path.join(t.workspacePath, 'artifact.md'));
-});
-
-test('cleanupWorkspace removes the tmp workspace but spares the task-keyed artifact', () => {
-  trackProject('_mta_pd');
-  const t = makeThread({ templateName: 'manager', taskId: 'ab78', taskProject: '_mta_pd' });
-  fs.writeFileSync(t.artifactPath, 'durable checkpoint');
-  cleanupWorkspace(t.id);
-  assert.ok(!fs.existsSync(t.workspacePath), 'tmp workspace removed');
-  assert.ok(fs.existsSync(t.artifactPath), 'task artifact survives cleanup');
-  assert.equal(fs.readFileSync(t.artifactPath, 'utf8'), 'durable checkpoint');
 });

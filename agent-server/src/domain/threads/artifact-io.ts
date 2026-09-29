@@ -1,10 +1,7 @@
-import { readFileSync, rmSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
-import { createLogger } from '@core/log.js';
 import { threadStore } from '@store/thread-repo.js';
-
-const log = createLogger('artifact-io');
 
 interface MutationRecord {
   event: 'edit_file' | 'write_file';
@@ -51,17 +48,5 @@ export function readArtifact(threadId: string): string | null {
     return readFileSync(thread.artifactPath, 'utf8');
   } catch {
     return null;
-  }
-}
-
-/** Remove the workspace directory for a thread. */
-export function cleanupWorkspace(threadId: string): void {
-  const thread = threadStore.get(threadId);
-  if (!thread?.workspacePath) return;
-  try {
-    rmSync(thread.workspacePath, { recursive: true, force: true });
-    log.info(`Cleaned up workspace for ${threadId}`);
-  } catch (e: any) {
-    log.error(`Failed to cleanup workspace for ${threadId}: ${e.message}`);
   }
 }

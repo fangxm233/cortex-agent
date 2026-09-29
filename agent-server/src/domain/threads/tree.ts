@@ -64,17 +64,6 @@ export interface TreeSummary {
   byStatus: Record<string, number>;
 }
 
-export function summarizeTree(rootId: string): TreeSummary {
-  const threads = getTreeThreads(rootId);
-  const byStatus: Record<string, number> = {};
-  let totalCostUsd = 0;
-  for (const t of threads) {
-    totalCostUsd += t.totalCostUsd || 0;
-    byStatus[t.status] = (byStatus[t.status] || 0) + 1;
-  }
-  return { nodeCount: threads.length, totalCostUsd, byStatus };
-}
-
 /** Sum of totalCostUsd over `ancestor` and all its transitive descendants within the tree. */
 function subtreeCost(ancestor: ThreadRecord, treeThreads: ThreadRecord[]): number {
   const byParent = new Map<string, ThreadRecord[]>();

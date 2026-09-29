@@ -25,7 +25,7 @@ import { CONFIG_DIR, STORE_DIR } from '../../src/core/paths.js';
 import { profileRepo, PROFILES_FILE } from '../../src/store/profile-repo.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import { initHookBus } from '../../src/core/hook-bus.js';
-import { buildStepPrompt, cleanupWorkspace, createThread, loadConfig, resolveAgentSlotConfig } from '../../src/domain/threads/index.js';
+import { buildStepPrompt, createThread, loadConfig, resolveAgentSlotConfig } from '../../src/domain/threads/index.js';
 import { continueThread, resumeRateLimitedThread, runThread } from '../../src/domain/threads/runner.js';
 import * as throttle from '../../src/domain/costs/rate-limit-throttle.js';
 import * as resumeRegistry from '../../src/domain/costs/resume-registry.js';
@@ -103,7 +103,7 @@ afterEach(async () => {
   vi.useRealTimers();
   for (const id of createdThreadIds) {
     const thread = threadStore.get(id);
-    if (thread?.workspacePath) cleanupWorkspace(id);
+    if (thread?.workspacePath) fs.rmSync(thread.workspacePath, { recursive: true, force: true });
     await threadStore.delete(id);
   }
   createdThreadIds.clear();
