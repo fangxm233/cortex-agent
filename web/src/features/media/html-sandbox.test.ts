@@ -33,22 +33,16 @@ describe('sandbox token set', () => {
 
 describe('buildViewCsp', () => {
   it('denies everything by default and blocks form posts and base rewriting', () => {
-    const csp = buildViewCsp(true);
+    const csp = buildViewCsp();
     expect(csp).toMatch("default-src 'none'");
     expect(csp).toMatch("form-action 'none'");
     expect(csp).toMatch("base-uri 'none'");
   });
 
-  it('allows https sources when the network is permitted', () => {
-    const csp = buildViewCsp(true);
+  it('allows https sources', () => {
+    const csp = buildViewCsp();
     expect(csp).toMatch(/script-src [^;]*https:/);
     expect(csp).toMatch(/connect-src[^;]*https:/);
-  });
-
-  it('produces a fully offline policy when the network is denied', () => {
-    const csp = buildViewCsp(false);
-    expect(csp).not.toMatch('https:');
-    expect(csp).toMatch("connect-src 'none'");
   });
 });
 

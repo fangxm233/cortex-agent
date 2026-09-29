@@ -29,8 +29,6 @@ export const VIEW_HEIGHT_MAX = 900;
 export const VIEW_HEIGHT_DEFAULT = 360;
 
 export interface WrapViewOptions {
-  /** Let the document load libraries/data over https. Off produces a fully offline document. */
-  allowNetwork?: boolean;
   /** Seeds `color-scheme` so form controls, scrollbars and the default canvas match the app. */
   theme?: 'light' | 'dark';
   /**
@@ -48,16 +46,15 @@ export interface WrapViewOptions {
  * script/style are permitted because that is how a self-contained view is written (and how the
  * height bootstrap below runs); the isolation that matters comes from the opaque origin, not here.
  */
-export function buildViewCsp(allowNetwork: boolean): string {
-  const net = allowNetwork ? ' https:' : '';
+export function buildViewCsp(): string {
   return [
     "default-src 'none'",
-    `script-src 'unsafe-inline' 'unsafe-eval'${net}`,
-    `style-src 'unsafe-inline'${net}`,
-    `img-src data: blob:${net}`,
-    `font-src data:${net}`,
-    `media-src data: blob:${net}`,
-    `connect-src${net || " 'none'"}`,
+    "script-src 'unsafe-inline' 'unsafe-eval' https:",
+    "style-src 'unsafe-inline' https:",
+    'img-src data: blob: https:',
+    'font-src data: https:',
+    'media-src data: blob: https:',
+    'connect-src https:',
     "form-action 'none'",
     "base-uri 'none'",
   ].join('; ');
@@ -156,12 +153,11 @@ const HAS_CSP_META = /<meta[^>]+http-equiv\s*=\s*["']?content-security-policy/i;
  */
 export function wrapViewDocument(html: string, opts: WrapViewOptions = {}): string {
   const theme = opts.theme ?? 'light';
-  const allowNetwork = opts.allowNetwork ?? true;
   const source = typeof html === 'string' ? html : '';
 
   const csp = HAS_CSP_META.test(source)
     ? ''
-    : `<meta http-equiv="Content-Security-Policy" content="${buildViewCsp(allowNetwork)}">`;
+    : `<meta http-equiv="Content-Security-Policy" content="${buildViewCsp()}">`;
   const injected =
     '<meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
