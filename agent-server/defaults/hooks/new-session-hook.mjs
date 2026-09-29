@@ -1,13 +1,11 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.15-2
+// @cortex-hook-version 2026.9.25
 
 import { execSync } from 'child_process';
 
 async function main() {
-  let raw = '';
-  for await (const chunk of process.stdin) raw += chunk;
-  let ctx = {};
-  try { ctx = JSON.parse(raw || '{}'); } catch {}
+  // Drain stdin; the hook payload is not needed.
+  for await (const _chunk of process.stdin) { /* discard */ }
 
   let hasChanges = false;
   try {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.15-2
+// @cortex-hook-version 2026.9.25
 
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
 import { join, resolve, dirname } from 'path';
@@ -192,11 +192,8 @@ function main() {
   );
   const context = blocks.join('\n\n');
 
-  // Output served to both backends:
-  //   .matched              → PI hook-bridge reads this for content mutation
-  //   .hookSpecificOutput   → Claude Code reads this for additionalContext
+  // Both backends read hookSpecificOutput.additionalContext.
   process.stdout.write(JSON.stringify({
-    matched: newMatched,
     hookSpecificOutput: {
       hookEventName: 'PostToolUse',
       additionalContext: context,

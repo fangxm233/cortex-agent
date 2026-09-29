@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.15  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
+// @cortex-hook-version 2026.9.25  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
 
 import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync,
@@ -358,7 +358,6 @@ export function runHook(payload, env = process.env) {
       hookSpecificOutput: {
         hookEventName,
         additionalContext,
-        matched: includedPaths,
       },
     };
   } finally {
