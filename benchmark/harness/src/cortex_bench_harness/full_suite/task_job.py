@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
+from ..launcher.trial_admission_io import atomic_write_json
 from .config import HostInputs, SuiteSpec
 
 CHILD_ENV_ALLOWLIST = (
@@ -29,14 +27,14 @@ def write_pi_config(
             "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
         }],
     }
-    _write_json(root / "auth.json", auth, 0o600)
-    _write_json(root / "models.json", {"providers": {"deepseek": provider}}, 0o600)
+    atomic_write_json(root / "auth.json", auth)
+    atomic_write_json(root / "models.json", {"providers": {"deepseek": provider}})
 
 
 def build_task_job(
     spec: SuiteSpec, inputs: HostInputs, *, task_id: str, task_path: Path,
     task_root: Path, pi_config: Path, proxy_host: str, network_name: str,
-    container_ipv4: str, cpuset: str | None = None,
+    container_ipv4: str, cpuset: str,
 ) -> dict[str, object]:
     return {
         "job_name": f"{spec.suite}-{task_id}",
@@ -54,7 +52,7 @@ def build_task_job(
 
 def write_job(path: Path, document: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    _write_json(path, document, 0o600)
+    atomic_write_json(path, document)
 
 
 def build_child_environment(
@@ -74,15 +72,14 @@ def harbor_command(harbor: Path, job_path: Path) -> list[str]:
 
 def _environment(
     inputs: HostInputs, pi_config: Path, proxy_host: str,
-    network_name: str, container_ipv4: str, cpuset: str | None,
+    network_name: str, container_ipv4: str, cpuset: str,
 ) -> dict[str, object]:
     kwargs: dict[str, object] = {
         "external_network_name": network_name,
         "proxy_host": proxy_host,
         "container_ipv4": container_ipv4,
+        "cpuset": cpuset,
     }
-    if cpuset is not None:
-        kwargs["cpuset"] = cpuset
     return {
         "import_path": (
             "cortex_bench_harness.launcher.trial_admission_io:"
@@ -117,18 +114,3 @@ def _agent(spec: SuiteSpec, proxy_host: str) -> dict[str, object]:
         },
         "extra_allowed_hosts": [proxy_host],
     }
-
-
-def _write_json(path: Path, document: object, mode: int) -> None:
-    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(document, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise

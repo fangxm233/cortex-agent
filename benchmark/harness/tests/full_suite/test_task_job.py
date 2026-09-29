@@ -30,7 +30,7 @@ def test_job_contains_exactly_one_task_and_no_retry(tmp_path: Path) -> None:
     job = build_task_job(
         spec, inputs, task_id="one", task_path=task_path, task_root=inputs.run_dir / "tasks/one",
         pi_config=pi_config, proxy_host="one.proxy.invalid", network_name="run-slot-0",
-        container_ipv4="172.30.240.2",
+        container_ipv4="172.30.240.2", cpuset="0-3",
     )
     assert job["tasks"] == [{"path": str(task_path)}]
     assert "datasets" not in job
@@ -40,6 +40,7 @@ def test_job_contains_exactly_one_task_and_no_retry(tmp_path: Path) -> None:
         "external_network_name": "run-slot-0",
         "proxy_host": "one.proxy.invalid",
         "container_ipv4": "172.30.240.2",
+        "cpuset": "0-3",
     }
     assert all(mount["read_only"] is True for mount in job["environment"]["mounts"])
 

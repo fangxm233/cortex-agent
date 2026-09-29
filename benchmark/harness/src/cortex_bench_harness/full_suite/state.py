@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
+
+from ..launcher.trial_admission_io import atomic_write_json
 
 STATE_SCHEMA = "cortex-bench-full-suite-state/1"
 TRANSITIONS = {
@@ -19,12 +18,11 @@ TRANSITIONS = {
 
 
 class RunStateError(RuntimeError):
-    """A paid run identity would be created twice or resumed ambiguously."""
+    """A paid run identity would be created twice or its recorded task state is inconsistent."""
 
 
 class RunLedger:
     def __init__(self, run_dir: Path, document: dict[str, object]) -> None:
-        self.run_dir = run_dir
         self.path = run_dir / "suite-state.json"
         self._document = document
         self._lock = threading.Lock()
@@ -47,17 +45,6 @@ class RunLedger:
         ledger._persist()
         return ledger
 
-    @classmethod
-    def load(cls, run_dir: Path) -> "RunLedger":
-        path = run_dir / "suite-state.json"
-        try:
-            document = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise RunStateError(f"cannot load run state {path}: {error}") from error
-        if document.get("schema_version") != STATE_SCHEMA:
-            raise RunStateError(f"unsupported run state schema in {path}")
-        return cls(run_dir, document)
-
     def transition(self, task_id: str, target: str) -> None:
         with self._lock:
             record = self._task_record(task_id)
@@ -77,15 +64,6 @@ class RunLedger:
             tasks = self._tasks()
             return [task_id for task_id, record in tasks.items() if record["state"] == "planned"]
 
-    def assert_resumable(self) -> None:
-        with self._lock:
-            incomplete = [
-                task_id for task_id, record in self._tasks().items()
-                if record["state"] in {"arming", "armed"}
-            ]
-        if incomplete:
-            raise RunStateError(f"incomplete paid task requires manual review: {incomplete[0]}")
-
     def _tasks(self) -> dict[str, dict[str, object]]:
         tasks = self._document.get("tasks")
         if not isinstance(tasks, dict):
@@ -99,21 +77,7 @@ class RunLedger:
         return record
 
     def _persist(self) -> None:
-        _atomic_json(self.path, self._document)
-
-
-def _atomic_json(path: Path, document: dict[str, object]) -> None:
-    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(document, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
+        atomic_write_json(self.path, self._document)
 
 
 def _utc_now() -> str:
