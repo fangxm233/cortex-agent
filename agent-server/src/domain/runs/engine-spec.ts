@@ -61,14 +61,6 @@ export function filterScopedPlugins(
   });
 }
 
-/** @deprecated Kept for callers that only gate on the channel; prefer {@link filterScopedPlugins}. */
-export function filterChannelScopedPlugins(
-  dirs: string[] | undefined,
-  channel: string | undefined,
-): string[] | undefined {
-  return filterScopedPlugins(dirs, { channel, commissionMode: false });
-}
-
 // --- PI gateway routing ---
 
 /**

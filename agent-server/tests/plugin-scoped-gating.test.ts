@@ -1,10 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import {
-  filterChannelScopedPlugins,
-  filterScopedPlugins,
-} from '../src/domain/runs/engine-spec.js';
+import { filterScopedPlugins } from '../src/domain/runs/engine-spec.js';
 
 const BASE = '/home/u/.cortex/plugins';
 const FEISHU = `${BASE}/cortex-feishu`;
@@ -13,25 +10,27 @@ const COMMON = `${BASE}/cortex-common`;
 const COMMISSION = `${BASE}/cortex-commission`;
 
 test('feishu channel keeps the cortex-feishu plugin', () => {
-  const out = filterChannelScopedPlugins([COMMON, SYSTEM, FEISHU], 'feishu:oc_abc123');
+  const out = filterScopedPlugins([COMMON, SYSTEM, FEISHU], { channel: 'feishu:oc_abc123', commissionMode: false });
   assert.deepEqual(out, [COMMON, SYSTEM, FEISHU]);
 });
 
 test('non-feishu channels strip cortex-feishu but keep the rest', () => {
   for (const channel of ['slack:C123', 'cli:local', '', undefined]) {
-    const out = filterChannelScopedPlugins([COMMON, SYSTEM, FEISHU], channel as string | undefined);
+    const out = filterScopedPlugins([COMMON, SYSTEM, FEISHU], {
+      channel: channel as string | undefined, commissionMode: false,
+    });
     assert.deepEqual(out, [COMMON, SYSTEM], `channel=${JSON.stringify(channel)}`);
   }
 });
 
 test('basename match is exact — cortex-feishu-x is not stripped', () => {
   const FEISHU_X = `${BASE}/cortex-feishu-x`;
-  const out = filterChannelScopedPlugins([SYSTEM, FEISHU_X], 'slack:C1');
+  const out = filterScopedPlugins([SYSTEM, FEISHU_X], { channel: 'slack:C1', commissionMode: false });
   assert.deepEqual(out, [SYSTEM, FEISHU_X]);
 });
 
 test('trailing-slash plugin dir is still matched by basename', () => {
-  const out = filterChannelScopedPlugins([`${FEISHU}/`], 'slack:C1');
+  const out = filterScopedPlugins([`${FEISHU}/`], { channel: 'slack:C1', commissionMode: false });
   assert.deepEqual(out, []);
 });
 
