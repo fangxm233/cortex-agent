@@ -13,12 +13,11 @@ import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
+import { DOCS_URL } from '../AboutModal';
 import { usePaneState } from '../PaneStateProvider';
 import { useShellModals } from '../useShellModals';
 import { useWindowActions, type WindowActions } from './useWindowActions';
 import type { MenuDef, MenuNode } from './menu-model';
-
-export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
 
 // Every menu item is declared exactly once, here. The HTML menu bar (Windows / Linux) and the
 // global shortcut handler both read this model, and the macOS native menu is built from the same

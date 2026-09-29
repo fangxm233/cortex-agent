@@ -6,7 +6,7 @@ import { openExternalUrl } from '@/lib/external-navigation';
 import { safeInvoke, type NativeInvokeResult } from '@/lib/native-bridge';
 import './about-modal.css';
 
-const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
+export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
 const PROJECT_URL = 'https://github.com/fangxm233/cortex-agent';
 
 function useShellVersion(): NativeInvokeResult<string> | null {
