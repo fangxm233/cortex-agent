@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const AGENT_SERVER_DIR = path.resolve(TESTS_DIR, '..');
@@ -16,8 +16,4 @@ async function importFresh(relativePath) {
   return import(/* @vite-ignore */ relativePath + q);
 }
 
-function toFileUrl(relativePath) {
-  return pathToFileURL(path.resolve(TESTS_DIR, relativePath)).href;
-}
-
-export { AGENT_SERVER_DIR, TESTS_DIR, importFresh, toFileUrl };
+export { AGENT_SERVER_DIR, importFresh };
