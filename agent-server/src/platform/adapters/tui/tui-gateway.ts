@@ -409,14 +409,14 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
 
   // ── Output stream ───────────────────────────────────────────────
 
-  openOutputStream(destination: Destination, opts?: OpenOutputStreamOpts): OutputStream {
+  openOutputStream(destination: Destination, _opts?: OpenOutputStreamOpts): OutputStream {
     const conns = this._resolveTargetConnections(destination);
     const conn = conns[0];
     if (!conn) {
       // Return a no-op output stream if no matching connection
       return this._createNoopOutputStream();
     }
-    return new TuiOutputStream(conn, destination, this, opts);
+    return new TuiOutputStream(conn, destination, this);
   }
 
   private _createNoopOutputStream(): OutputStream {
@@ -490,7 +490,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     const projectId = 'general';
     const conn = new TuiConnection(conduitId, ws, projectId);
     this._connections.set(conduitId, conn);
-    setConduitState(conduitId, { sessionId: null, projectId, backend: 'tui' });
+    setConduitState(conduitId, { sessionId: null, projectId });
 
     log.info(`New TUI connection: ${conduitId}`);
 
@@ -649,7 +649,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     // Resolve initial project
     const projectId = frame.project ?? 'general';
     conn.activeProjectId = projectId;
-    setConduitState(conn.conduitId, { sessionId: null, projectId, backend: 'tui' });
+    setConduitState(conn.conduitId, { sessionId: null, projectId });
 
     // Handle session resume or fresh — delegated to the injected session service
     if (!this._sessionService) {
@@ -682,7 +682,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     }
     conn.activeSessionId = res.sessionId;
     conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId, backend: 'tui' });
+    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
     conn.send({
       type: 'session.switched',
       id: '',
@@ -712,7 +712,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     });
     conn.activeSessionId = res.sessionId;
     conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId, backend: 'tui' });
+    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
     conn.send({
       type: 'session.switched',
       id: '',
@@ -741,7 +741,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     });
     conn.activeSessionId = res.sessionId;
     conn.activeProjectId = res.projectId;
-    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId, backend: 'tui' });
+    setConduitState(conn.conduitId, { sessionId: res.sessionId, projectId: res.projectId });
     conn.send({
       type: 'session.switched',
       id,
@@ -972,8 +972,6 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
       conn.activeSubscriptions.delete(frame.id);
     }
 
-    conn.uiSubscriptions.add(frame.id);
-
     const subscription = uiService.subscribe(frame.filter);
     conn.activeSubscriptions.set(frame.id, subscription);
 
@@ -1005,8 +1003,6 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
 
   private _handleUiUnsubscribe(conn: TuiConnection, frame: TuiFrame): void {
     if (!isUiUnsubscribe(frame)) return;
-    conn.uiSubscriptions.delete(frame.id);
-
     const sub = conn.activeSubscriptions.get(frame.id);
     if (sub) {
       sub.close();
@@ -1071,9 +1067,6 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
       sub.close();
     }
     conn.activeSubscriptions.clear();
-    conn.uiSubscriptions.clear();
-    conn.pendingActions.clear();
-    conn.pendingModalAcks.clear();
 
     // Drop from registry
     this._connections.delete(conduitId);

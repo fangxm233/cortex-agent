@@ -114,7 +114,7 @@ test('CompositeAdapter: project-report fan-out to primary and gateway', async ()
   const conn = new TuiConnection('tui-test-1', mockWs, 'test-project');
   gateway.connections.set('tui-test-1', conn);
   // Set conduit state so gateway.getProjectConduits() includes this project
-  setConduitState('tui-test-1', { sessionId: null, projectId: 'test-project', backend: 'tui' });
+  setConduitState('tui-test-1', { sessionId: null, projectId: 'test-project' });
 
   // Bind primary conduit
   await primary.bindProjectConduit('test-project', 'C12345');
@@ -152,7 +152,7 @@ test('CompositeAdapter: project-report fans out to gateway with cross-project TU
   } as unknown as WebSocket;
   const conn = new TuiConnection('tui-cross-1', mockWs, 'project-a');
   gateway.connections.set('tui-cross-1', conn);
-  setConduitState('tui-cross-1', { sessionId: null, projectId: 'project-a', backend: 'tui' });
+  setConduitState('tui-cross-1', { sessionId: null, projectId: 'project-a' });
 
   // Primary conduit in project-b
   await primary.bindProjectConduit('project-b', 'C12345');

@@ -10,13 +10,8 @@ export class TuiConnection {
   readonly ws: WebSocket;
   activeSessionId: string | null = null;
   activeProjectId: string;
-  uiSubscriptions = new Set<string>();
   /** Active UiService subscription handles — closed on cleanup */
   activeSubscriptions = new Map<string, { close(): void }>();
-  /** pending actions keyed by action id (triggerId suffix) */
-  pendingActions = new Map<string, { actionId: string; value: string }>();
-  /** pending modal acks keyed by modal submit id */
-  pendingModalAcks = new Map<string, { callbackId: string }>();
   private _closed = false;
 
   constructor(conduitId: string, ws: WebSocket, projectId: string) {

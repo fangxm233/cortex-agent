@@ -1,7 +1,6 @@
 export interface TuiConduitState {
   sessionId: string | null;
   projectId: string;
-  backend: string;
 }
 
 export const tuiConduitStates = new Map<string, TuiConduitState>();

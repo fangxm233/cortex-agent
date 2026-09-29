@@ -26,7 +26,6 @@ export class TuiOutputStream implements OutputStream {
     conn: TuiConnection,
     destination: Destination,
     adapter: { postMessage(dest: Destination, content: { text: string; richBlocks?: RichBlock[] }): Promise<MessageRef>; postInteractive(dest: Destination, content: { text: string; richBlocks?: RichBlock[]; actions: ActionElement[] }): Promise<MessageRef> },
-    opts?: { threadId?: string | null },
   ) {
     this.conn = conn;
     this.streamId = nextStreamId();
