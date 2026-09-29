@@ -31,6 +31,7 @@ import { writeFile } from 'fs/promises';
 import { updateSettings } from '@core/settings.js';
 import { IMAGE_MIMES } from '@core/media-types.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
+import { resolveReadableFilePath } from '../utils/readable-file.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('slack');
@@ -544,7 +545,7 @@ export class SlackAdapter implements PlatformAdapter {
     if (!channel) {
       return;
     }
-    const { resolved: fileResolved, size } = this.resolveFilePath(filePath);
+    const { resolved: fileResolved, size } = resolveReadableFilePath(filePath);
     const body = fs.readFileSync(fileResolved);
     const uploadName = opts?.filename || path.basename(fileResolved);
 
@@ -852,15 +853,5 @@ export class SlackAdapter implements PlatformAdapter {
       close: { type: 'plain_text', text: modal.closeLabel || 'Cancel' },
       blocks,
     };
-  }
-
-  private resolveFilePath(filePath: string): { resolved: string; size: number } {
-    const resolved = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(process.cwd(), filePath);
-    if (!fs.existsSync(resolved)) throw new Error(`File not found: ${resolved}`);
-    const stat = fs.statSync(resolved);
-    if (!stat.isFile()) throw new Error(`Not a file: ${resolved}`);
-    return { resolved, size: stat.size };
   }
 }

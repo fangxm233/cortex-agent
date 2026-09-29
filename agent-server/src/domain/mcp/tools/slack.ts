@@ -4,7 +4,8 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TokenBucketRateLimiter } from '../../../platform/utils/rate-limiter.js';
-import { resolveReadableFilePath, stripChannelPrefix, withStagedRemoteFile } from './remote-file.js';
+import { resolveReadableFilePath } from '../../../platform/utils/readable-file.js';
+import { stripChannelPrefix, withStagedRemoteFile } from './remote-file.js';
 import type { CortexToolContext } from './context.js';
 
 export interface SlackToolDeps {

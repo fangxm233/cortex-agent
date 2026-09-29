@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { guard, ok, unwrap, type FeishuToolDeps } from './types.js';
 import { uploadFeishuImage } from '@platform/adapters/feishu-image.js';
-import { resolveReadableFilePath, stripChannelPrefix, withStagedRemoteFile } from '../tools/remote-file.js';
+import { resolveReadableFilePath } from '@platform/utils/readable-file.js';
+import { stripChannelPrefix, withStagedRemoteFile } from '../tools/remote-file.js';
 import type { LarkClient } from './client.js';
 
 /** Infer Feishu file type from file extension (used by the OpenAPI file.create call).

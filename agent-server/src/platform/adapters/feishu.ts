@@ -31,6 +31,7 @@ import { configureFeishuHttp } from './feishu-http.js';
 import { ProjectConduitsStore } from './project-conduits.js';
 import { uploadFeishuImage } from './feishu-image.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
+import { resolveReadableFilePath } from '../utils/readable-file.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('feishu');
@@ -373,7 +374,7 @@ export class FeishuAdapter implements PlatformAdapter {
     if (!channel) {
       return;
     }
-    const { resolved: fileResolved, size } = this.resolveFilePath(filePath);
+    const { resolved: fileResolved, size } = resolveReadableFilePath(filePath);
     const fileName = opts?.filename || path.basename(fileResolved);
 
     // A picture the user can see beats a download card. Feishu shows an `image` message inline (and
@@ -1111,16 +1112,6 @@ export class FeishuAdapter implements PlatformAdapter {
   // =========================================================================
   // Internal: Utilities
   // =========================================================================
-
-  private resolveFilePath(filePath: string): { resolved: string; size: number } {
-    const resolved = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(process.cwd(), filePath);
-    if (!fs.existsSync(resolved)) throw new Error(`File not found: ${resolved}`);
-    const stat = fs.statSync(resolved);
-    if (!stat.isFile()) throw new Error(`Not a file: ${resolved}`);
-    return { resolved, size: stat.size };
-  }
 
   private inferFeishuFileType(fileName: string): 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt' | 'stream' {
     const ext = path.extname(fileName).toLowerCase();

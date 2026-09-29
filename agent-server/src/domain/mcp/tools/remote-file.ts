@@ -12,21 +12,6 @@ export function isAbsoluteFilePath(p: string): boolean {
   return false;
 }
 
-/** Resolve a local path against the cwd and check it names a readable regular file. */
-export function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
-  const resolved = path.isAbsolute(filePathInput)
-    ? filePathInput
-    : path.resolve(process.cwd(), filePathInput);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-  const stat = fs.statSync(resolved);
-  if (!stat.isFile()) {
-    throw new Error(`Not a file: ${resolved}`);
-  }
-  return { resolved, size: stat.size };
-}
-
 /** Strip a platform prefix ('slack:', 'feishu:') from a channel ID, tolerating already-bare values.
  *  Multi-platform conduits carry the prefix; the platform APIs expect bare channel IDs. This
  *  mirrors the adapters' _unwrap() behavior. */
