@@ -8,7 +8,6 @@ import { join as pathJoin } from 'node:path';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
-import type { PiRuntimeFactory } from '../src/agent-adapter/pi/runtime.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
@@ -16,14 +15,6 @@ import {
   withCustomEntries,
   writeProvidersConfig,
 } from '../src/agent-adapter/pi/providers-config.js';
-
-function makeStubSpawner(): { spawn: PiRuntimeFactory; calls: number } {
-  const fake = makeFakeRuntimeFactory();
-  return {
-    get calls() { return fake.requests.length; },
-    spawn: fake.factory,
-  };
-}
 
 const CUSTOM_ENTRY = {
   baseUrl: 'http://127.0.0.1:9880/m/my-vllm/my-vllm',
@@ -71,9 +62,9 @@ test('open: a custom provider from the user catalog reaches the opened PI catalo
       },
     }));
 
-    const stub = makeStubSpawner();
+    const stub = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(
-      stub.spawn,
+      stub.factory,
       pathJoin(dir, 'sessions'),
       { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath },
@@ -107,9 +98,9 @@ test('open: a discovered custom provider is completed even when another provider
     mkdirSync(agentDir, { recursive: true });
     writeFileSync(userModelsPath, JSON.stringify({ providers: { 'my-vllm': CUSTOM_ENTRY } }));
 
-    const stub = makeStubSpawner();
+    const stub = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(
-      stub.spawn,
+      stub.factory,
       pathJoin(dir, 'sessions'),
       { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath },
@@ -137,9 +128,9 @@ test('open: an absent user catalog leaves built-in routing untouched', () => {
   try {
     const agentDir = pathJoin(dir, 'agent');
     mkdirSync(agentDir, { recursive: true });
-    const stub = makeStubSpawner();
+    const stub = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(
-      stub.spawn,
+      stub.factory,
       pathJoin(dir, 'sessions'),
       { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
@@ -166,9 +157,9 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
   try {
     const agentDir = pathJoin(dir, 'agent');
     mkdirSync(agentDir, { recursive: true });
-    const stub = makeStubSpawner();
+    const stub = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(
-      stub.spawn,
+      stub.factory,
       pathJoin(dir, 'sessions'),
       { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir },
@@ -200,7 +191,7 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
     const deepseek = catalog.providers.deepseek;
     assert.equal(deepseek.compat.maxTokensField, 'max_completion_tokens');
     assert.equal(deepseek.modelOverrides['deepseek-v4-flash'].maxTokens, 65_536);
-    assert.equal(stub.calls, 2);
+    assert.equal(stub.requests.length, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
