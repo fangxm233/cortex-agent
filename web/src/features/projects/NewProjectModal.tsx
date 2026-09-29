@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { canCreateProject, NP_PLACEHOLDER } from './new-project';
@@ -21,7 +21,6 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
   const L = useVocab();
   const [name, setName] = useState('');
   const [cancelHover, setCancelHover] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const { createProject, clearError, error, isPending } = useCreateProject({ onCreated: onClose });
 
   const submit = () => {
@@ -107,7 +106,6 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             }}
           >
             <input
-              ref={inputRef}
               aria-label={L.npProjectName}
               aria-invalid={Boolean(error)}
               className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent"
