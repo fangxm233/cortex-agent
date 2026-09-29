@@ -5,11 +5,6 @@ import { copyFileIntoOutputs, receiveIntoOutputs, type StoredOutput } from './ou
 import { fetchRemoteFile, prepareRemoteFetch } from '@domain/remote/device-file.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
-export type { SessionMessagePayload };
-export { copyFileIntoOutputs };
-/** @deprecated name kept for existing callers/tests; `StoredOutput` is the current name. */
-export type CopiedFile = StoredOutput;
-
 /** Minimal extension → MIME map for the common file kinds an agent shares. Anything unknown falls
  *  back to application/octet-stream (still downloadable, just no inline preview). */
 const MIME_BY_EXT: Record<string, string> = {

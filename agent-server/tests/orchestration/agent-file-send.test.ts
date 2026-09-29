@@ -3,12 +3,9 @@ import assert from 'node:assert/strict';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
-import {
-  sendAgentFile,
-  sendAgentFiles,
-  copyFileIntoOutputs,
-  type SessionMessagePayload,
-} from '../../src/orchestration/agent-file-send.js';
+import { sendAgentFile, sendAgentFiles } from '../../src/orchestration/agent-file-send.js';
+import { copyFileIntoOutputs } from '../../src/orchestration/outputs-store.js';
+import type { SessionMessagePayload } from '../../src/orchestration/session-events.js';
 
 test('sendAgentFile dual-writes: appends assistant attachment + publishes session.message with a shared ts', async () => {
   const appended: any[] = [];
