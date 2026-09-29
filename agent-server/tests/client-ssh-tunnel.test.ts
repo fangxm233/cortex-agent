@@ -212,7 +212,7 @@ test('a Windows spec frees the remote port before spawning the tunnel', async ()
   await supervisor.stopAll();
 });
 
-test('a POSIX spec never runs a free-port command', async () => {
+test('a spec without freeRemotePortCommand runs no free-port command', async () => {
   const h = makeHarness();
   await h.supervisor.ensure(SPEC);
   assert.ok(h.execCalls.every((args) => args.includes('-S')));
