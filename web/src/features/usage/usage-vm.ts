@@ -66,7 +66,6 @@ export interface ProviderUsageView {
   spend: ProviderSpendView | null;
   observedAt: number | null;
   observedAgo: string | null;
-  freshness: UsageFreshness;
   quotaState: UsageQuotaState;
   legacyFallback: ProviderLegacyFallbackView | null;
   note?: string;
@@ -270,7 +269,6 @@ function buildProvider(
     spend: record.spend ? { today: formatUsd(record.spend.today), month: formatUsd(record.spend.month) } : null,
     observedAt: record.observedAt,
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),
-    freshness: record.freshness,
     quotaState: status,
     legacyFallback: showPolicy ? legacyFallbackView(record.provider, windows, providerRateLimits) : null,
     ...(record.note ? { note: record.note, noteTone: noteTone(record.note) } : {}),
