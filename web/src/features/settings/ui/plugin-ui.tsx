@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
-import { GROUP_STYLE, ROW_STYLE, SPill, SRow, SRowGroup, SSection } from './settings-ui';
+import { GROUP_STYLE, ROW_STYLE, SRow, SRowGroup, SSection } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -122,18 +122,5 @@ export function IssueList({ plugin }: { plugin: UiPluginCatalogEntry }) {
     <SRowGroup>
       {plugin.issues.map((_, index) => <IssueLine key={`${plugin.id}:${index}`} plugin={plugin} index={index} />)}
     </SRowGroup>
-  );
-}
-
-export function PluginBadges({ plugin }: { plugin: UiPluginCatalogEntry }) {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</span>
-      <SPill mono>{plugin.id}</SPill>
-      <SPill mono>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
-      <SPill>{pluginKindText(plugin.kind, L)}</SPill>
-      <SPill tone={plugin.valid ? 'success' : 'danger'}>{plugin.valid ? L.plValid : L.plInvalid}</SPill>
-    </div>
   );
 }

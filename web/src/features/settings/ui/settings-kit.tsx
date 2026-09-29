@@ -2,13 +2,6 @@ import { createContext, useContext, useState, type CSSProperties, type ReactNode
 import { createPortal } from 'react-dom';
 import './settings-style.css';
 
-/** Add surface to each settings root, including portaled dialogs and mobile routes. */
-export const SETTINGS_CLASSES = {
-  surface: 'settings-surface', card: 'settings-card', control: 'settings-control',
-  stack: 'settings-stack', actions: 'settings-actions', hint: 'settings-hint', mono: 'settings-mono',
-  editorColumns: 'settings-editor-columns', listPane: 'settings-list-pane', detailPane: 'settings-detail-pane',
-} as const;
-
 export function settingsClassName(base: string, extra: unknown): string {
   return typeof extra === 'string' ? `${base} ${extra}` : base;
 }
@@ -345,20 +338,6 @@ export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6, mark
         left: `calc(${Math.max(0, Math.min(100, marker))}% - 1px)`, background: 'var(--proto-muted-2)', opacity: 0.7,
       }} />
     </div>
-  );
-}
-
-// ── Key cap ─────────────────────────────────────────────────────────────────
-/** A keyboard key, rendered as a ringed mono cap. */
-export function SKeyCap({ children }: { children: ReactNode }) {
-  return (
-    <span style={{
-      font: `500 11px ${MONO}`, color: 'var(--proto-ink)', background: 'var(--material-control-bg)',
-      border: '1px solid var(--proto-line-3)', boxShadow: 'var(--material-control-shadow)', borderRadius: 'var(--r-chip)',
-      padding: '2px 8px', flex: 'none', whiteSpace: 'nowrap',
-    }}>
-      {children}
-    </span>
   );
 }
 

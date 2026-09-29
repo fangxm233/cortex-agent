@@ -9,8 +9,8 @@ export const CONTROL_ERROR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE, borderColor: 'var(--proto-danger)',
 };
 
-// Pair these styles with SETTINGS_CLASSES listPane/detailPane/editorColumns so
-// the surface's container query can stack editors when the content area is narrow.
+// Pair these styles with the settings-list-pane/settings-detail-pane/settings-editor-columns
+// classes so the surface's container query can stack editors when the content area is narrow.
 export function listPaneStyle(width: number): CSSProperties {
   return { ...GROUP_STYLE, width, maxWidth: '100%', flex: 'none', minHeight: 0 };
 }
