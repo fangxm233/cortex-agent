@@ -222,10 +222,6 @@ export function projectCompactHistory(
   };
 }
 
-export function estimateCompactHistoryBytes(history: CompactConversationHistory | null): number {
-  return history ? Buffer.byteLength(JSON.stringify(history), 'utf8') : 0;
-}
-
 export function projectSubagentHistory(
   history: SessionHistory | null,
   subagentId: string,

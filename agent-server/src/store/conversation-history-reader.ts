@@ -301,14 +301,6 @@ function finishHistory(sessionId: string, state: ParseState): SessionHistory | n
   };
 }
 
-async function consumeHistoryIterable(
-  accumulator: ConversationHistoryAccumulator,
-  lines: AsyncIterable<string> | Iterable<string>,
-): Promise<ConversationHistoryAccumulator> {
-  for await (const line of lines) accumulator.consumeLine(line);
-  return accumulator;
-}
-
 const NEWLINE = 0x0a;
 const CARRIAGE_RETURN = 0x0d;
 
@@ -411,14 +403,6 @@ export class ConversationHistoryAccumulator {
     if (ev) consumeParsedEvent(this.state, ev, line.length);
   }
 
-  consumeRawEvent(ev: RawEvent, serializedLine?: string): void {
-    const line = serializedLine === undefined
-      ? JSON.stringify(ev)
-      : serializedLine.endsWith('\n') ? serializedLine.slice(0, -1) : serializedLine;
-    if (noteLargeToolResult(this.state, line)) return;
-    consumeParsedEvent(this.state, ev, line.length);
-  }
-
   snapshot(): SessionHistory | null {
     return finishHistory(this.sessionId, this.state);
   }
@@ -427,16 +411,6 @@ export class ConversationHistoryAccumulator {
   eventRevisions(): readonly number[] {
     return this.state.revs;
   }
-}
-
-export async function parseHistoryText(
-  sessionId: string,
-  raw: string,
-  options: HistoryReadOptions = {},
-): Promise<SessionHistory | null> {
-  const accumulator = new ConversationHistoryAccumulator(sessionId, options);
-  await consumeHistoryIterable(accumulator, raw.split('\n'));
-  return accumulator.snapshot();
 }
 
 export async function readHistoryAccumulator(

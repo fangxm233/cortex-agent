@@ -309,7 +309,7 @@ test.each([
   const outage = state.providers[0]?.windows.find((window) => window.type === 'outage');
   assert.ok(outage);
   assert.equal(outage.resetsAt * 1000, Date.now() + minutes * 60_000);
-  const entries = resumeRegistry.takeAllResumes();
+  const entries = resumeRegistry.takeReadyResumes([]);
   assert.equal(entries.length, 1);
   assert.equal(entries[0].provider, 'provider-a');
 });
@@ -448,7 +448,7 @@ test('unresolvable active-step profile falls back to a null provider', async () 
   assert.equal(paused.thread.status, 'rate_limited');
   assert.equal(paused.thread.metadata?.rateLimitProvider, null);
   assert.equal(throttle.getThrottleState().providers[0].provider, 'unknown');
-  const entries = resumeRegistry.takeAllResumes();
+  const entries = resumeRegistry.takeReadyResumes([]);
   assert.equal(entries.length, 1);
   assert.equal(entries[0].provider, null);
 });

@@ -30,7 +30,7 @@ test('recordResume dedupes direct entries by channel (latest wins)', async (t) =
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'second', recordedAt: 2 });
 
   assert.equal(mod.getResumeCount(), 1);
-  const all = mod.takeAllResumes();
+  const all = mod.takeReadyResumes([]);
   assert.equal(all.length, 1);
   assert.equal((all[0] as any).userMessage, 'second');
 });
@@ -61,7 +61,7 @@ test('recordResume keeps multiple thread entries by threadId', async (t) => {
   mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 'a2', recordedAt: 3 });
 
   assert.equal(mod.getResumeCount(), 2);
-  const ids = mod.takeAllResumes().map((e: any) => e.threadId).sort();
+  const ids = mod.takeReadyResumes([]).map((e: any) => e.threadId).sort();
   assert.deepEqual(ids, ['thr_a', 'thr_b']);
 });
 
@@ -73,17 +73,17 @@ test('direct and thread on same channel coexist', async (t) => {
   mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 't', recordedAt: 2 });
 
   assert.equal(mod.getResumeCount(), 2);
-  const kinds = mod.takeAllResumes().map((e: any) => e.kind).sort();
+  const kinds = mod.takeReadyResumes([]).map((e: any) => e.kind).sort();
   assert.deepEqual(kinds, ['direct', 'thread']);
 });
 
-test('takeAllResumes drains the registry (second call is empty)', async (t) => {
+test('takeReadyResumes([]) drains the registry (second call is empty)', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   await mod.initResumeRegistry(makePersistenceStub() as any);
 
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
-  assert.equal(mod.takeAllResumes().length, 1);
-  assert.equal(mod.takeAllResumes().length, 0);
+  assert.equal(mod.takeReadyResumes([]).length, 1);
+  assert.equal(mod.takeReadyResumes([]).length, 0);
   assert.equal(mod.getResumeCount(), 0);
 });
 
@@ -99,13 +99,13 @@ test('recordResume persists the full entry list', async (t) => {
   assert.equal(saved.length, 2);
 });
 
-test('takeAllResumes persists the cleared (empty) list', async (t) => {
+test('takeReadyResumes([]) persists the cleared (empty) list', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
   await mod.initResumeRegistry(persistence as any);
 
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
-  mod.takeAllResumes();
+  mod.takeReadyResumes([]);
   assert.deepEqual(persistence.getSaved(), []);
 });
 
@@ -118,7 +118,7 @@ test('initResumeRegistry hydrates from persisted entries', async (t) => {
   await mod.initResumeRegistry(persistence as any);
 
   assert.equal(mod.getResumeCount(), 2);
-  const kinds = mod.takeAllResumes().map((e: any) => e.kind).sort();
+  const kinds = mod.takeReadyResumes([]).map((e: any) => e.kind).sort();
   assert.deepEqual(kinds, ['direct', 'thread']);
 });
 
@@ -176,7 +176,7 @@ test('removeDirectResume cancels one channel and leaves other entries queued', a
 
   assert.equal(mod.removeDirectResume('C1'), false, 'cancelling twice is a no-op');
   assert.deepEqual(
-    mod.takeAllResumes().map((e: any) => e.userMessage).sort(),
+    mod.takeReadyResumes([]).map((e: any) => e.userMessage).sort(),
     ['keep me', 't'],
   );
 });

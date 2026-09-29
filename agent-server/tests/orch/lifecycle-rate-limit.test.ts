@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAgentError } from '../../src/orchestration/turn/terminal.js';
 import { initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset } from '../../src/domain/costs/rate-limit-throttle.js';
-import { initResumeRegistry, getResumeCount, takeAllResumes, _testReset as resumeReset } from '../../src/domain/costs/resume-registry.js';
+import { initResumeRegistry, getResumeCount, takeReadyResumes, _testReset as resumeReset } from '../../src/domain/costs/resume-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
 const stub = { save: async () => {}, load: async () => null };
@@ -43,7 +43,7 @@ test('throttled + rate-limit error + userMessage → pause & record direct resum
   await handleAgentError(baseArgs(adapter) as any);
 
   assert.equal(getResumeCount(), 1, 'a direct resume entry was recorded');
-  const entries = takeAllResumes();
+  const entries = takeReadyResumes([]);
   assert.equal(entries[0].kind, 'direct');
   assert.equal((entries[0] as any).channel, 'C1');
   assert.equal((entries[0] as any).provider, 'provider-a');

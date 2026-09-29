@@ -6,7 +6,7 @@ import {
   initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset,
 } from '../../src/domain/costs/rate-limit-throttle.js';
 import {
-  initResumeRegistry, getResumeCount, takeAllResumes, _testReset as resumeReset,
+  initResumeRegistry, getResumeCount, takeReadyResumes, _testReset as resumeReset,
 } from '../../src/domain/costs/resume-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
@@ -32,7 +32,7 @@ test('recordDirectResume: a throttled provider is queued and reports that it que
   assert.equal(recordDirectResume({ provider: 'provider-a', ...direct }), true);
   assert.equal(getResumeCount(), 1);
 
-  const [entry] = takeAllResumes() as any[];
+  const [entry] = takeReadyResumes([]) as any[];
   assert.equal(entry.kind, 'direct');
   assert.equal(entry.provider, 'provider-a');
   assert.equal(entry.channel, 'C1');
@@ -57,7 +57,7 @@ test('recordDirectResume: a null/absent provider queues only while SOME provider
 
   assert.equal(recordDirectResume({ provider: null, ...direct }), true, 'legacy entry waits for every provider');
   assert.equal(recordDirectResume({ provider: undefined, ...direct }), true, 'undefined normalizes to null');
-  const [entry] = takeAllResumes() as any[];
+  const [entry] = takeReadyResumes([]) as any[];
   assert.equal(entry.provider, null, 'undefined is stored as null, never as a missing key');
 });
 
@@ -83,7 +83,7 @@ test('recordThreadResume: unconditional — a paused thread is never left unqueu
   recordThreadResume({ provider: 'provider-a', threadId: 'thr_a1b2c3d4', channel: 'C1', userMessage: 'go' });
   assert.equal(getResumeCount(), 1);
 
-  const [entry] = takeAllResumes() as any[];
+  const [entry] = takeReadyResumes([]) as any[];
   assert.equal(entry.kind, 'thread');
   assert.equal(entry.threadId, 'thr_a1b2c3d4');
   assert.equal(entry.provider, 'provider-a');

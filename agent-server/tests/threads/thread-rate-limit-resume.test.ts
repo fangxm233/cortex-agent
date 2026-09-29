@@ -86,7 +86,7 @@ test('recordStepOutcome: rate-limited while throttled pauses + records resume + 
   assert.equal(r.steps.length, 0, 'no bogus step recorded');
   assert.equal(ctx.rateLimited, true, 'ctx flagged so the loop breaks');
 
-  const entries = resumeRegistry.takeAllResumes();
+  const entries = resumeRegistry.takeReadyResumes([]);
   assert.equal(entries.length, 1);
   assert.equal(entries[0].kind, 'thread');
   assert.equal((entries[0] as any).threadId, 'thr_grace');

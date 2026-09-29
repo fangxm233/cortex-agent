@@ -125,19 +125,6 @@ function removeThreadResume(threadId: string): boolean {
   return true;
 }
 
-/** Drain the registry: return all pending entries and clear (persists the empty list).
- *  "take + clear" is atomic so each entry is dispatched at most once. */
-function takeAllResumes(): ResumeEntry[] {
-  const all = snapshot();
-  _direct.clear();
-  _threads.clear();
-  if (all.length > 0) {
-    persist();
-    fireChange();
-  }
-  return all;
-}
-
 function takeReadyResumes(activeProviders: string[]): ResumeEntry[] {
   const active = new Set(activeProviders);
   const ready = [...takeReadyFrom(_direct, active), ...takeReadyFrom(_threads, active)];
@@ -183,7 +170,6 @@ export {
   recordResume,
   removeDirectResume,
   removeThreadResume,
-  takeAllResumes,
   takeReadyResumes,
   getResumeCountsByProvider,
   getResumeCount,
