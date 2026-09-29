@@ -172,16 +172,9 @@ export async function syncManagedHookEntries(opts: HookSyncDirs = {}): Promise<s
   return updated;
 }
 
-function includesEntrySync(opts: HookSyncOptions): boolean {
-  const hasEntryOverride = opts.entrySrcDir !== undefined || opts.entryDstDir !== undefined;
-  const hasScriptOverride = opts.srcDir !== undefined || opts.dstDir !== undefined;
-  return hasEntryOverride || !hasScriptOverride;
-}
-
-/** Sync all managed hook assets at startup; script-only directory overrides remain supported. */
+/** Sync all managed hook assets at startup. */
 export async function syncManagedHooks(opts: HookSyncOptions = {}): Promise<string[]> {
   const scripts = await syncManagedHookScripts(opts);
-  if (!includesEntrySync(opts)) return scripts;
   const entries = await syncManagedHookEntries({
     srcDir: opts.entrySrcDir,
     dstDir: opts.entryDstDir,
