@@ -11,7 +11,7 @@ export function containsPath(root: string, target: string): boolean {
   return candidate === base || candidate.startsWith(base + path.sep);
 }
 
-function pathExists(filePath: string): boolean {
+export function pathExists(filePath: string): boolean {
   try {
     fs.lstatSync(filePath);
     return true;
@@ -36,7 +36,7 @@ function joinTail(base: string, tail: string[]): string {
   return tail.reduce((current, part) => path.join(current, part), base);
 }
 
-function realPath(filePath: string): string | null {
+export function realPath(filePath: string): string | null {
   try {
     return fs.realpathSync(filePath);
   } catch {
@@ -115,8 +115,4 @@ export function listImmediateChildNames(directory: string): string[] {
     .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
     .map((entry) => entry.name)
     .sort();
-}
-
-export function lstatExists(filePath: string): boolean {
-  return pathExists(filePath);
 }

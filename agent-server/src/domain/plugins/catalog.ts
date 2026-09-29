@@ -7,17 +7,19 @@ import {
   isPlainObject,
   isRegularFile,
   listImmediateChildNames,
-  lstatExists,
+  pathExists,
   resolveContainedAbsolutePath,
 } from './fs-helpers.js';
 import { loadPortableMcpCatalog } from './mcp.js';
 import { loadSkillFile, readSkillDescription } from './skill.js';
 import { buildProjectedSkillTree } from './skill-projection.js';
-import type {
-  PluginCatalogEntry,
-  PluginCatalogIssue,
-  PluginCatalogManifest,
-  PluginCatalogSkill,
+import {
+  formatPath,
+  makeIssue,
+  type PluginCatalogEntry,
+  type PluginCatalogIssue,
+  type PluginCatalogManifest,
+  type PluginCatalogSkill,
 } from './catalog-types.js';
 
 interface PortableManifestResult {
@@ -33,15 +35,6 @@ interface ManifestPathResult {
 }
 
 type SkillFormat = 'portable' | 'legacy';
-
-function makeIssue(
-  code: PluginCatalogIssue['code'],
-  scope: PluginCatalogIssue['scope'],
-  filePath: string | null,
-  message: string,
-): PluginCatalogIssue {
-  return { code, scope, path: filePath, message };
-}
 
 function publicRootDir(id: string): string {
   return path.join('plugins', id);
@@ -64,13 +57,6 @@ function trimText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function formatPath(parts: ReadonlyArray<PropertyKey>): string {
-  return parts.reduce<string>((text, part) => {
-    if (typeof part === 'number') return `${text}[${part}]`;
-    return text ? `${text}.${String(part)}` : String(part);
-  }, '');
 }
 
 function zodIssues(
@@ -184,7 +170,7 @@ function invalidFileIssue(relativePath: string): PluginCatalogIssue {
 
 function manifestPath(pluginRoot: string, relativePath: string): ManifestPathResult {
   const absolute = path.join(pluginRoot, relativePath);
-  if (!lstatExists(absolute)) return { state: 'missing', issues: [] };
+  if (!pathExists(absolute)) return { state: 'missing', issues: [] };
   const contained = resolveContainedAbsolutePath(pluginRoot, absolute);
   if (!contained || !isRegularFile(contained)) {
     return { state: 'invalid', issues: [invalidFileIssue(relativePath)] };
@@ -198,7 +184,7 @@ function skillRootIssue(message: string): PluginCatalogIssue {
 
 function skillRoot(pluginRoot: string): ManifestPathResult {
   const absolute = path.join(pluginRoot, 'skills');
-  if (!lstatExists(absolute)) return { state: 'missing', issues: [] };
+  if (!pathExists(absolute)) return { state: 'missing', issues: [] };
   const contained = resolveContainedAbsolutePath(pluginRoot, absolute);
   if (!contained) {
     return { state: 'invalid', issues: [skillRootIssue('skills must resolve to a directory inside the plugin root')] };
@@ -344,7 +330,7 @@ function pluginRootError(
   requestedRoot: string,
 ): PluginCatalogEntry {
   const entry = emptyEntry(id);
-  const exists = lstatExists(requestedRoot);
+  const exists = pathExists(requestedRoot);
   const code = exists ? 'plugin_root_outside_plugins_dir' : 'plugin_root_not_directory';
   const message = code === 'plugin_root_outside_plugins_dir'
     ? 'plugin root must resolve inside PLUGINS_DIR'
@@ -447,7 +433,7 @@ export function loadPluginCatalog(
 ): PluginCatalogEntry[] {
   const pluginsDir = path.resolve(options.pluginsDir ?? PLUGINS_DIR);
   const dataDir = path.resolve(options.dataDir ?? DATA_DIR);
-  if (!lstatExists(pluginsDir)) return [];
+  if (!pathExists(pluginsDir)) return [];
   const pluginsRoot = fs.realpathSync(pluginsDir);
   return listImmediateChildNames(pluginsRoot)
     .map((id) => safePluginEntry(id, pluginsRoot, dataDir));

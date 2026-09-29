@@ -1,9 +1,9 @@
-import fs from 'node:fs';
 import { getSettings } from '@core/settings.js';
 import path from 'node:path';
 import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/runs/engine-spec.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
+import { isDirectoryPath, realPath } from '@domain/plugins/fs-helpers.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
 import type { UiPluginCatalogEntry } from './types.js';
 
@@ -25,14 +25,6 @@ interface NormalizedPluginDirState extends NormalizedPluginDirs {
 type PluginDirResolution =
   | { kind: 'managed'; id: string }
   | { kind: 'unmanaged'; value: string };
-
-function realpathIfExists(filePath: string): string | null {
-  try {
-    return fs.realpathSync(filePath);
-  } catch {
-    return null;
-  }
-}
 
 function configPathForPluginDir(value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(DATA_DIR, value);
@@ -65,7 +57,7 @@ function resolvePluginDir(
   value: string,
   snapshot: PluginCatalogSnapshot,
 ): PluginDirResolution {
-  const real = realpathIfExists(configPathForPluginDir(value));
+  const real = realPath(configPathForPluginDir(value));
   const id = real ? snapshot.realpathToId.get(real) ?? null : null;
   return id ? { kind: 'managed', id } : { kind: 'unmanaged', value };
 }
@@ -100,7 +92,7 @@ function safeServerSummary(server: PluginCatalogEntry['mcp']['servers'][number])
 }
 
 function catalogRealpath(id: string): string | null {
-  return realpathIfExists(path.join(PLUGINS_DIR, id));
+  return realPath(path.join(PLUGINS_DIR, id));
 }
 
 export function readPluginCatalogSnapshot(): PluginCatalogSnapshot {
@@ -128,25 +120,17 @@ function shippedPluginDir(id: string): string {
   return path.join(DEFAULTS_DIR, 'plugins', id);
 }
 
-function isDirectory(filePath: string): boolean {
-  try {
-    return fs.statSync(filePath).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 /** Whether Cortex ships this plugin id. Shipped files are rewritten by plugin-sync on the next
  *  version bump (`copyPluginTree` walks the source tree), so an edit to one is temporary while an
  *  edit to a local plugin is permanent. That difference has to reach the operator before they type. */
 export function pluginOrigin(id: string): 'managed' | 'local' {
-  return isDirectory(shippedPluginDir(id)) ? 'managed' : 'local';
+  return isDirectoryPath(shippedPluginDir(id)) ? 'managed' : 'local';
 }
 
 /** A skill is managed when the shipped tree has a directory of the same name: plugin-sync copies
  *  per relative path, so that is exactly the set of skill directories it will overwrite. */
 export function isManagedSkill(pluginId: string, skillName: string): boolean {
-  return isDirectory(path.join(shippedPluginDir(pluginId), 'skills', skillName));
+  return isDirectoryPath(path.join(shippedPluginDir(pluginId), 'skills', skillName));
 }
 
 export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogEntry {

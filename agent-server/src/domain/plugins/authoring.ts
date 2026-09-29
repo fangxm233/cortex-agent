@@ -17,7 +17,7 @@ import {
   containsPath,
   isDirectoryPath,
   isRegularFile,
-  lstatExists,
+  pathExists,
   resolveContainedAbsolutePath,
 } from './fs-helpers.js';
 
@@ -137,7 +137,7 @@ export function createSkill(pluginId: string, skill: string, description: string
   if (description.trim().length === 0) throw fail('invalid-args', 'description must not be empty');
   const skillsRoot = containedTarget(path.join(pluginDirPath(pluginId), 'skills'));
   const dir = containedTarget(path.join(skillsRoot, skill));
-  if (lstatExists(dir)) throw fail('invalid-args', `Skill '${pluginId}/${skill}' already exists`);
+  if (pathExists(dir)) throw fail('invalid-args', `Skill '${pluginId}/${skill}' already exists`);
   fs.mkdirSync(dir, { recursive: true });
   atomicWriteSync(path.join(dir, 'SKILL.md'), skillTemplate(skill, description.trim()));
 }
@@ -158,7 +158,7 @@ export function moveSkill(
   const skillsRoot = containedTarget(path.join(pluginDirPath(to.pluginId), 'skills'));
   const target = containedTarget(path.join(skillsRoot, to.skill));
   if (target === source) throw fail('invalid-args', 'source and destination are the same skill');
-  if (lstatExists(target)) throw fail('invalid-args', `Skill '${to.pluginId}/${to.skill}' already exists`);
+  if (pathExists(target)) throw fail('invalid-args', `Skill '${to.pluginId}/${to.skill}' already exists`);
   if (from.skill !== to.skill) {
     atomicWriteSync(file, renameInFrontmatter(fs.readFileSync(file, 'utf8'), to.skill));
   }
@@ -183,7 +183,7 @@ export function portableManifestText(id: string, description: string): string {
 export function createPlugin(id: string, description: string): void {
   assertName('plugin id', id);
   const dir = containedTarget(path.join(PLUGINS_DIR, id));
-  if (lstatExists(dir)) throw fail('invalid-args', `Plugin '${id}' already exists`);
+  if (pathExists(dir)) throw fail('invalid-args', `Plugin '${id}' already exists`);
   fs.mkdirSync(path.join(dir, 'skills'), { recursive: true });
   atomicWriteSync(path.join(dir, 'plugin.json'), portableManifestText(id, description));
 }
@@ -197,9 +197,9 @@ export function removePlugin(id: string): void {
 export function convertToPortable(id: string): void {
   const dir = pluginDirPath(id);
   const root = path.join(dir, 'plugin.json');
-  if (lstatExists(root)) throw fail('invalid-args', `Plugin '${id}' already has a root plugin.json`);
+  if (pathExists(root)) throw fail('invalid-args', `Plugin '${id}' already has a root plugin.json`);
   const legacyPath = path.join(dir, '.claude-plugin', 'plugin.json');
-  const legacy = lstatExists(legacyPath) ? readJson(contained(legacyPath)) : null;
+  const legacy = pathExists(legacyPath) ? readJson(contained(legacyPath)) : null;
   const body: Record<string, unknown> = {
     $schema: AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
     name: id,
@@ -226,7 +226,7 @@ function mcpPath(pluginId: string): string {
  *  never be returned to a browser unfiltered (that is the whole point of PLUGIN_MCP_RUNTIME). */
 export function readMcpEnvelope(pluginId: string): Record<string, unknown> {
   const file = mcpPath(pluginId);
-  if (!lstatExists(file)) return {};
+  if (!pathExists(file)) return {};
   const parsed = readJson(contained(file));
   if (!parsed) throw fail('invalid-args', `'${pluginId}/mcp.json' is not valid JSON`);
   const servers = parsed.mcpServers;

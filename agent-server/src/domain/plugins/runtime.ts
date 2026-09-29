@@ -7,6 +7,7 @@ import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapt
 import { atomicWriteSync } from '../../core/atomic-write.js';
 import { loadPluginCatalog } from './catalog.js';
 import { pluginMcpRuntime, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
+import { realPath } from './fs-helpers.js';
 import { safeClaudeManifestName, safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
 import {
   buildProjectedSkillTree,
@@ -106,14 +107,6 @@ function definedArray(values: string[]): string[] | undefined {
   return values.length > 0 ? values : undefined;
 }
 
-function realpathIfExists(filePath: string): string | null {
-  try {
-    return fs.realpathSync(filePath);
-  } catch {
-    return null;
-  }
-}
-
 function selectedPath(dataDir: string, value: string): string {
   return path.isAbsolute(value) ? path.resolve(value) : path.resolve(dataDir, value);
 }
@@ -129,7 +122,7 @@ function catalogRoots(
   const roots = new Map<string, CatalogRootInfo>();
   for (const entry of entries) {
     const absolute = path.resolve(pluginsDir, entry.id);
-    roots.set(entry.id, { absolute, real: realpathIfExists(absolute) ?? absolute });
+    roots.set(entry.id, { absolute, real: realPath(absolute) ?? absolute });
   }
   return roots;
 }
@@ -190,7 +183,7 @@ function portableSkill(
 ): PortableSkillDetail | null {
   try {
     const source = path.join(selection.root.real, skill.dir);
-    const target = realpathIfExists(source) ?? source;
+    const target = realPath(source) ?? source;
     const tree = buildProjectedSkillTree(selection.root.real, target);
     return { name: skill.name, target, contentSha256: tree.sha256, tree };
   } catch (error) {
@@ -577,7 +570,7 @@ function classifySelections(
   const preserved = new Set<string>();
   for (const value of selectedPluginDirs) {
     const absolute = selectedPath(dataDir, value);
-    const real = realpathIfExists(absolute);
+    const real = realPath(absolute);
     const entry = lookup.byAbsolute.get(absolute) ?? (real ? lookup.byRealpath.get(real) : undefined);
     addClassifiedSelection(absolute, real, entry, roots, result, preserved);
   }

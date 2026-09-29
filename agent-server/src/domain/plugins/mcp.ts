@@ -9,12 +9,14 @@ import {
 } from './agent-plugins-v1.js';
 import {
   isRegularFile,
-  lstatExists,
+  pathExists,
   resolveContainedAbsolutePath,
   resolveContainedRelativePath,
 } from './fs-helpers.js';
 import {
   attachPluginMcpRuntime,
+  formatPath,
+  makeIssue,
   type PluginCatalogIssue,
   type PluginCatalogMcp,
   type PluginMcpServer,
@@ -22,22 +24,6 @@ import {
 
 interface PluginMcpLoadResult extends PluginCatalogMcp {
   issues: PluginCatalogIssue[];
-}
-
-function makeIssue(
-  code: PluginCatalogIssue['code'],
-  scope: PluginCatalogIssue['scope'],
-  filePath: string | null,
-  message: string,
-): PluginCatalogIssue {
-  return { code, scope, path: filePath, message };
-}
-
-function formatPath(parts: ReadonlyArray<PropertyKey>): string {
-  return parts.reduce<string>((text, part) => {
-    if (typeof part === 'number') return `${text}[${part}]`;
-    return text ? `${text}.${String(part)}` : String(part);
-  }, '');
 }
 
 function zodIssueText(
@@ -242,7 +228,7 @@ function normalizeServer(
 
 function readMcpText(pluginRoot: string): { text?: string; issue?: PluginCatalogIssue } {
   const mcpPath = path.join(pluginRoot, 'mcp.json');
-  if (!lstatExists(mcpPath)) return {};
+  if (!pathExists(mcpPath)) return {};
   const contained = resolveContainedAbsolutePath(pluginRoot, mcpPath);
   if (!contained || !isRegularFile(contained)) {
     return { issue: makeIssue('mcp_invalid', 'mcp', 'mcp.json', 'mcp.json must be a regular file inside the plugin root') };

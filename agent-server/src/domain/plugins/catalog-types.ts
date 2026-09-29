@@ -23,6 +23,23 @@ export interface PluginCatalogIssue {
   message: string;
 }
 
+export function makeIssue(
+  code: PluginCatalogIssue['code'],
+  scope: PluginCatalogIssue['scope'],
+  filePath: string | null,
+  message: string,
+): PluginCatalogIssue {
+  return { code, scope, path: filePath, message };
+}
+
+/** Render a zod issue path as `a.b[0]`. */
+export function formatPath(parts: ReadonlyArray<PropertyKey>): string {
+  return parts.reduce<string>((text, part) => {
+    if (typeof part === 'number') return `${text}[${part}]`;
+    return text ? `${text}.${String(part)}` : String(part);
+  }, '');
+}
+
 export interface PluginCatalogManifest {
   source: PluginCatalogManifestSource;
   name?: string;
