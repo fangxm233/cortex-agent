@@ -4,10 +4,9 @@ import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, IncomingAttachment, RichBlock, ActionElement, OutputStream } from '@platform/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { getOutboundQueue } from '@store/outbound-queue.js';
-import { durableUpdate } from './durable-helpers.js';
+import { durableUpdate, getOutboundQueue } from '@store/outbound-queue.js';
 // Pure formatters live in core/ so the domain layer can consume them without an orch dep.
-export { computeElapsed, formatMetricsSuffix, buildSessionTag, buildUserProcessingMessage, renderTurnStatus } from '@core/status-format.js';
+export { computeElapsed, formatMetricsSuffix, buildUserProcessingMessage, renderTurnStatus } from '@core/status-format.js';
 
 const log = createLogger('status-helpers');
 

@@ -15,7 +15,7 @@ const log = createLogger('background-hold');
 
 /** Owner key of the Claude background-continuation hold. One per session: a session has at most
  *  one turn whose continuation is being awaited. */
-export const HOLD_OWNER_BG_CONTINUATION = 'bg-continuation';
+const HOLD_OWNER_BG_CONTINUATION = 'bg-continuation';
 
 // ── the hold itself ───────────────────────────────────────────────────────────
 
@@ -284,8 +284,8 @@ interface ObserverWiring {
   settle: (kind: SealedVerdict, cont: AgentResult | null) => void;
 }
 
-/** Pure dispatch: background-phase events → verdicts and renderer calls. Exported for tests. */
-export function backgroundHoldObserver(w: ObserverWiring): RunObserver {
+/** Pure dispatch: background-phase events → verdicts and renderer calls. */
+function backgroundHoldObserver(w: ObserverWiring): RunObserver {
   const { renderer, hold } = w;
   return {
     onEvent(event: RunEvent): void {
@@ -366,10 +366,6 @@ export function shouldHoldForBg(
   if (!result || result.rateLimited) return null;
   return remainingBg(result) > 0 ? kind : null;
 }
-
-/** Feature gate (shared with the thread inline wait): re-exported from agent-adapter/bg-wait,
- *  the single source of truth for CORTEX_BG_CONTINUATION. */
-export { isBgContinuationEnabled };
 
 /** Scope gate: only interactive user conduits (Slack / Feishu), never thread/dispatch. */
 export function isInteractiveChannel(channel: string): boolean {

@@ -10,9 +10,9 @@ import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { sessionState } from '../../src/core/session-state.js';
 import { cancelBgHolds } from '../../src/orchestration/routing/commands/cancel.js';
 import {
-  holdBackgroundContinuation, holdSession, isBgContinuationEnabled,
-  shouldHoldForBg,
+  holdBackgroundContinuation, holdSession, shouldHoldForBg,
 } from '../../src/orchestration/turn/background-hold.js';
+import { isBgContinuationEnabled } from '../../src/agent-adapter/bg-wait.js';
 import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 

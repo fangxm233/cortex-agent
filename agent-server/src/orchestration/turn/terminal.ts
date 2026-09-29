@@ -16,8 +16,7 @@ import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
-import { getOutboundQueue } from '@store/outbound-queue.js';
-import { durablePost } from '../durable-helpers.js';
+import { durablePost, getOutboundQueue } from '@store/outbound-queue.js';
 
 const log = createLogger('lifecycle');
 

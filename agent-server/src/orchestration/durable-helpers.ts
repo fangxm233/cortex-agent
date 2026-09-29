@@ -1,8 +1,6 @@
 import type { Destination, DurableHooks, RichBlock } from '@platform/types.js';
 import type { OutboundQueue } from '@store/outbound-queue.js';
 
-export { durablePost, durableUpdate } from '@store/outbound-queue.js';
-
 export function buildDurableHooks(queue: OutboundQueue): DurableHooks {
   return {
     async beforePost(destination: Destination, text: string, opts?: { threadId?: string; richBlocks?: RichBlock[] }): Promise<string> {
