@@ -349,7 +349,7 @@ test('safeCopy does not overwrite existing file without force', () => {
     const dst = path.join(tmpDir, 'dst.txt');
     fs.writeFileSync(src, 'new content');
     fs.writeFileSync(dst, 'original content');
-    const copied = safeCopy(src, dst, false, 'test');
+    const copied = safeCopy(src, dst, false);
     assert.equal(copied, false);
     assert.equal(fs.readFileSync(dst, 'utf-8'), 'original content');
   } finally {
@@ -364,7 +364,7 @@ test('safeCopy overwrites existing file with force', () => {
     const dst = path.join(tmpDir, 'dst.txt');
     fs.writeFileSync(src, 'new content');
     fs.writeFileSync(dst, 'original content');
-    const copied = safeCopy(src, dst, true, 'test');
+    const copied = safeCopy(src, dst, true);
     assert.equal(copied, true);
     assert.equal(fs.readFileSync(dst, 'utf-8'), 'new content');
   } finally {
@@ -377,7 +377,7 @@ test('safeCopy returns false when source does not exist', () => {
   try {
     const src = path.join(tmpDir, 'nonexistent.txt');
     const dst = path.join(tmpDir, 'dst.txt');
-    const copied = safeCopy(src, dst, false, 'test');
+    const copied = safeCopy(src, dst, false);
     assert.equal(copied, false);
     assert.equal(fs.existsSync(dst), false);
   } finally {
@@ -391,7 +391,7 @@ test('safeCopy creates parent directories for destination', () => {
     const src = path.join(tmpDir, 'src.txt');
     const dst = path.join(tmpDir, 'nested', 'dir', 'dst.txt');
     fs.writeFileSync(src, 'content');
-    const copied = safeCopy(src, dst, false, 'test');
+    const copied = safeCopy(src, dst, false);
     assert.equal(copied, true);
     assert.equal(fs.readFileSync(dst, 'utf-8'), 'content');
   } finally {

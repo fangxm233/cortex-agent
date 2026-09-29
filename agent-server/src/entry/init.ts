@@ -3,7 +3,6 @@ import { randomBytes } from 'crypto';
 import { execSync } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import { fileURLToPath } from 'url';
 import { createInterface } from 'readline/promises';
 import { stdin as processStdin } from 'process';
 import { onboardInitAuth } from './init-auth.js';
@@ -33,10 +32,6 @@ import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
 // ─── Path computation (DATA_DIR resolved locally to support --home override) ──
 
 const log = createLogger('init');
-
-// MODULE_DIR kept for any consumers that still derive paths locally; the canonical roots
-// (INSTALL_ROOT, DEFAULTS_DIR) come from @core/paths via @core/utils.
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export interface InitPaths {
   DATA_DIR: string;
@@ -73,8 +68,6 @@ export function getResolvedPaths(homeDir?: string): InitPaths {
 export type InitBackend = 'claude' | 'pi';
 /** A single selectable interaction platform. */
 export type PlatformChoice = 'slack' | 'feishu';
-/** @deprecated single-platform alias kept for back-compat; use PlatformChoice[]. */
-export type InitPlatform = PlatformChoice | 'none';
 
 export interface SlackInitConfig {
   botToken: string;
@@ -1291,7 +1284,7 @@ function ensureGitRepo(dataDir: string): void {
 
 // ─── Safe copy helpers ──────────────────────────────────────────
 
-export function safeCopy(src: string, dst: string, force: boolean, _label: string): boolean {
+export function safeCopy(src: string, dst: string, force: boolean): boolean {
   if (!existsSync(src)) return false;
   if (existsSync(dst) && !force) return false;
   const dstDir = path.dirname(dst);
@@ -1325,20 +1318,20 @@ function safeCopyDir(srcDir: string, dstDir: string, force: boolean): void {
 
 function copyDefaults(paths: InitPaths, force: boolean): void {
   // Scaffold files — never overwrite (user-customized content)
-  safeCopy(path.join(DEFAULTS_DIR, 'AGENTS.md'), path.join(paths.DATA_DIR, 'AGENTS.md'), false, 'AGENTS.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'gitignore'), path.join(paths.DATA_DIR, '.gitignore'), false, '.gitignore');
-  safeCopy(path.join(DEFAULTS_DIR, '.claude', 'settings.json'), path.join(paths.DATA_DIR, '.claude', 'settings.json'), false, '.claude/settings.json');
+  safeCopy(path.join(DEFAULTS_DIR, 'AGENTS.md'), path.join(paths.DATA_DIR, 'AGENTS.md'), false);
+  safeCopy(path.join(DEFAULTS_DIR, 'gitignore'), path.join(paths.DATA_DIR, '.gitignore'), false);
+  safeCopy(path.join(DEFAULTS_DIR, '.claude', 'settings.json'), path.join(paths.DATA_DIR, '.claude', 'settings.json'), false);
 
   // Context scaffold files — never overwrite
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'AGENTS.md'), false, 'context/AGENTS.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'projects', 'AGENTS.md'), path.join(paths.PROJECTS_DIR, 'AGENTS.md'), false, 'context/projects/AGENTS.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'scans', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'scans', 'AGENTS.md'), false, 'context/scans/AGENTS.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'AGENTS.md'), false, 'context/ideas/AGENTS.md');
-  safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'user', 'AGENTS.md'), false, 'context/user/AGENTS.md');
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'AGENTS.md'), false);
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'projects', 'AGENTS.md'), path.join(paths.PROJECTS_DIR, 'AGENTS.md'), false);
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'scans', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'scans', 'AGENTS.md'), false);
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'AGENTS.md'), false);
+  safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'user', 'AGENTS.md'), false);
 
   // Config defaults — budget overwrites only with --force;
   // thread-templates are merged per-file (new agents/templates/shells added, existing preserved)
-  safeCopy(path.join(DEFAULTS_DIR, 'config', 'budget.json'), path.join(paths.CONFIG_DIR, 'budget.json'), force, 'budget.json');
+  safeCopy(path.join(DEFAULTS_DIR, 'config', 'budget.json'), path.join(paths.CONFIG_DIR, 'budget.json'), force);
   mergeThreadTemplates(
     path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
     path.join(paths.CONFIG_DIR, 'thread-templates'),
@@ -1368,7 +1361,7 @@ function deployHooks(paths: InitPaths, force: boolean): void {
     if (!file.endsWith('.mjs')) continue;
     const src = path.join(srcDir, file);
     const dst = path.join(hooksDir, file);
-    safeCopy(src, dst, force, `hooks/${file}`);
+    safeCopy(src, dst, force);
   }
 }
 
@@ -1424,7 +1417,7 @@ export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: b
  * auto-detected at runtime (first DM to the bot) rather than collected during init.
  * Stamps createdAt with the current timestamp. Never overwrites existing file.
  */
-function seedSchedules(paths: InitPaths, answers: InitAnswers, force: boolean): void {
+function seedSchedules(paths: InitPaths, force: boolean): void {
   const dstPath = path.join(paths.STORE_DIR, 'schedules.json');
   if (existsSync(dstPath) && !force) return;
 
@@ -1761,7 +1754,7 @@ async function runInitSteps(
   copyDefaults(paths, force);
   deployHooks(paths, force);
   generateConfigs(paths, answers, force);
-  seedSchedules(paths, answers, force);
+  seedSchedules(paths, force);
   emit({ step: 'config', state: 'ok' });
 
   // 5. Gateway usage — omitted scripted answers preserve the existing user choice.

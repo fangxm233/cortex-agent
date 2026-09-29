@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
-import { ensureAuthTokens, CLIENT_TOKEN_ENV } from '@core/auth.js';
+import { ensureAuthTokens } from '@core/auth.js';
 import { upsertEnvVar } from './feishu-login.js';
 import { isUiHttpEnabled } from './ui-http-gate.js';
 
@@ -114,7 +114,7 @@ export async function enableLocalUi(options: {
 
   return {
     url: `http://127.0.0.1:${port}`,
-    token: clientToken || readEnvValue(envPath, CLIENT_TOKEN_ENV) || '',
+    token: clientToken,
     port,
     changed,
   };
