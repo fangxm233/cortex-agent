@@ -724,14 +724,13 @@ export async function failThread(threadId: string, error: string): Promise<boole
 export async function markThreadRateLimited(
   threadId: string,
   provider?: string | null,
-  note?: string,
 ): Promise<boolean> {
   if (!threadStore.get(threadId)) return false;
   let marked = false;
   await threadStore.mutate(threadId, (t) => {
     if (t.status !== 'running' && t.status !== 'rate_limited') return;
     t.status = 'rate_limited';
-    t.error = note ?? 'Paused — interrupted by API rate limit';
+    t.error = 'Paused — interrupted by API rate limit';
     const metadata = t.metadata ??= {};
     metadata.interruptedByRateLimit = true;
     if (provider !== undefined) metadata.rateLimitProvider = provider;

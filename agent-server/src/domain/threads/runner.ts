@@ -136,7 +136,7 @@ interface StepContext {
    *  UI transcript key + CORTEX_SESSION_ID. Known BEFORE the agent spawns, so the web UI can
    *  query/stream the running step. */
   trackSessionId: string;
-  sessionKey: string | null;
+  sessionKey: string;
   sessionName: string;
   profileName: string;
   profileBackend: string;
@@ -469,7 +469,7 @@ export function buildThreadRunRequest(
     session: {
       sessionId: stepCtx.trackSessionId,
       backendSessionId: stepCtx.resumeSessionId,
-      engineKey: stepCtx.sessionKey ?? getSessionKey(threadId, stepCtx.agentSlotId),
+      engineKey: stepCtx.sessionKey,
       sessionName: stepCtx.sessionName,
     },
     profile,

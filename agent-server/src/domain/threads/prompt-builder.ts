@@ -159,7 +159,6 @@ interface PendingInputSnapshot {
 
 interface StepPromptOptions {
   interruptedResume?: boolean;
-  disableControlPlane?: boolean;
   pendingSnapshot?: PendingInputSnapshot;
 }
 
@@ -225,7 +224,7 @@ export function buildStepPrompt(
         modifiedFiles: getModifiedFilesFromSession(lastStep?.sessionId).map(f => `- ${f}`).join('\n'),
       },
       lead: carryPrevious ? `Previous agent output:\n\n${lastStep!.output}` : null,
-      preamble: thread.artifactPath && !opts.disableControlPlane ? THREAD_PROTOCOL_PREAMBLE : null,
+      preamble: thread.artifactPath ? THREAD_PROTOCOL_PREAMBLE : null,
       resumed,
       appendix: pendingAppendix(thread, opts.pendingSnapshot),
     },
