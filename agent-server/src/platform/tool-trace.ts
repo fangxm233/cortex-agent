@@ -317,5 +317,3 @@ export function createToolTrace(
   if (!stream) return null;
   return new ToolTrace(stream, opts);
 }
-
-export const _test = { summarizeToolInput, renderToolLine };
