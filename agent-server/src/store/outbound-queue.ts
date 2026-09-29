@@ -62,7 +62,6 @@ export class OutboundQueue {
   private ttlMs: number;
   private mutex = new AsyncMutex();
   private pending = new Map<string, EnqueueOp>();
-  private sentIds = new Set<string>();
   /**
    * IDs currently being processed by the inline send path (OutputStream /
    * durablePost). drain() skips these to prevent double-sends. Entries are
@@ -123,7 +122,6 @@ export class OutboundQueue {
       // pending and drain re-sends (acceptable crash-recovery duplicate),
       // but we avoid the far more common live-duplicate scenario.
       this.pending.delete(id);
-      this.sentIds.add(id);
       this.opCount++;
       try {
         await this._appendOp(op);
@@ -137,7 +135,6 @@ export class OutboundQueue {
     return this.mutex.run(async () => {
       const ops = await this._readWAL();
       this.pending.clear();
-      this.sentIds.clear();
       this.opCount = ops.length;
 
       for (const op of ops) {
@@ -145,7 +142,6 @@ export class OutboundQueue {
           this.pending.set(op.id, op);
         } else if (op.op === 'sent') {
           this.pending.delete(op.id);
-          this.sentIds.add(op.id);
         }
       }
       return this.pending.size;
@@ -210,7 +206,6 @@ export class OutboundQueue {
         ? pendingOps.map(op => JSON.stringify(op)).join('\n') + '\n'
         : '';
       await atomicWrite(this.walPath, content);
-      this.sentIds.clear();
       this.opCount = pendingOps.length;
     });
   }
@@ -301,10 +296,10 @@ export class OutboundQueue {
   }
 }
 
-export const outboundQueue: { instance: OutboundQueue | null } = { instance: null };
+const outboundQueue: { instance: OutboundQueue | null } = { instance: null };
 
-export function initOutboundQueue(adapter: MessageSender, opts?: { walPath?: string; ttlMs?: number }): OutboundQueue {
-  const queue = new OutboundQueue({ adapter, ...opts });
+export function initOutboundQueue(adapter: MessageSender): OutboundQueue {
+  const queue = new OutboundQueue({ adapter });
   outboundQueue.instance = queue;
   return queue;
 }
