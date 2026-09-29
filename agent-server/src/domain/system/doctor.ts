@@ -8,6 +8,7 @@ import { parse as parseDotenvLib } from 'dotenv';
 import { DATA_DIR, CONFIG_DIR, STORE_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
+import { isProcessAlive } from '@core/singleton-lock.js';
 import {
   getAuthStatus as readAuthStatus,
   type AuthAccountStatus,
@@ -555,7 +556,7 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     readText: (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } },
     parseDotenv: (t) => parseDotenvLib(t) as Record<string, string>,
     commandExists: commandExistsOnPath,
-    pidAlive: (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } },
+    pidAlive: isProcessAlive,
     probeGateway: probeGatewayHttp,
     resolvePiSdk: resolveBundledPiSdk,
     loadPiRuntime: () => loadInstalledPiRuntime(),

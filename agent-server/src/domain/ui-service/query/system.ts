@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { readRebuildProgress } from '@core/rebuild-progress.js';
+import { isProcessAlive } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
@@ -61,15 +62,6 @@ function getProcessUptime(pid: number): string | null {
   }
 }
 
-export function checkLiveness(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function readPidFile(filePath: string): number | null {
   try {
     if (!existsSync(filePath)) return null;
@@ -93,7 +85,7 @@ export async function handleSystemDaemonStatus(
 
   // ── cortex-daemon ──
   const daemonPid = readPidFile(pidFile);
-  const daemonAlive = daemonPid !== null && checkLiveness(daemonPid);
+  const daemonAlive = daemonPid !== null && isProcessAlive(daemonPid);
   const daemonUptime = daemonPid !== null ? getProcessUptime(daemonPid) : null;
 
   processes.push({
@@ -108,7 +100,7 @@ export async function handleSystemDaemonStatus(
 
   // ── cortex-server (app.js child) ──
   const childPid = readPidFile(childPidFile);
-  const childAlive = childPid !== null && checkLiveness(childPid);
+  const childAlive = childPid !== null && isProcessAlive(childPid);
   const childUptime = childPid !== null ? getProcessUptime(childPid) : null;
   const uiPort = process.env.CORTEX_UI_PORT ? parseInt(process.env.CORTEX_UI_PORT, 10) : null;
 

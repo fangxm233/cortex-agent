@@ -1,8 +1,8 @@
 import type { PlatformAdapter, RichBlock, ActionElement } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import { recordSystemNotice } from './notice-history.js';
+import { recordSystemNotice, type SystemNoticeLevel } from './notice-history.js';
 
-export type SystemNoticeLevel = 'info' | 'warning' | 'error';
+export type { SystemNoticeLevel };
 
 export interface SystemNoticeInput {
   /** The notice body (same text that goes to the admin channel). */

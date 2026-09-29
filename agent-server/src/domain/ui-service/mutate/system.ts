@@ -9,7 +9,8 @@ import {
   answerServerUpdatePrompt,
   getServerUpdateStatus,
 } from '@domain/system/update-ui-state.js';
-import { checkLiveness, readPidFile } from '../query/system.js';
+import { isProcessAlive } from '@core/singleton-lock.js';
+import { readPidFile } from '../query/system.js';
 import type {
   Result,
   SystemClearRateLimitArgs,
@@ -93,7 +94,7 @@ export async function handleSystemRestart(
     };
   }
 
-  if (!checkLiveness(childPid)) {
+  if (!isProcessAlive(childPid)) {
     return {
       ok: false,
       code: 'not-found',
