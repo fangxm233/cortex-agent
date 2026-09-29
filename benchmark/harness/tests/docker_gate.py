@@ -17,11 +17,6 @@ SKIP_REASON = (
 )
 
 
-def require_docker_opt_in() -> None:
-    if os.environ.get(DOCKER_OPT_IN) != "1":
-        pytest.skip(SKIP_REASON, allow_module_level=True)
-
-
 docker_opt_in = pytest.mark.skipif(
     os.environ.get(DOCKER_OPT_IN) != "1", reason=SKIP_REASON,
 )
