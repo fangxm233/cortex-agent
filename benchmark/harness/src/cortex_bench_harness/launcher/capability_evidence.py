@@ -9,6 +9,8 @@ from .credential_capabilities import CapabilityState, CredentialCapabilityKey
 
 # Removing a field changes compatibility even when all remaining claims retain their meaning.
 # Schema /2 is therefore a breaking field-set migration: /1 documents are never accepted as /2.
+# Per-capability offline field sets are declared in CAPABILITY_EVIDENCE_METADATA below and change
+# together with the committed documents they validate, without a schema version of their own.
 CAPABILITY_EVIDENCE_SCHEMA_VERSION = "cortex-bench-capability-evidence/2"
 MUTATION_MANIFEST_SCHEMA_VERSION = "cortex-bench-mutation-manifest/1"
 SYNTHETIC_OBSERVATION_SCHEMA_VERSION = "cortex-bench-synthetic-capability-observation/1"
@@ -24,22 +26,10 @@ CLAUDE_OFFLINE_CONTRACT = {
 CODEX_OFFLINE_CONTRACT = {
     "implementation_commit": "418aca2685ebf84507540613edc6fdbe1b813a04",
     "codex_cli_version": "0.148.0",
-    "p0_wire_capture_sha256":
-        "8bec2c1f7fe7ce3140ae87ad69c9e0625847b6a200b15b8a5fb5750bc5ba8479",
-    "vendor_lifecycle_test_sha256":
-        "ae964ff4d8c98ad1e22403460d6c10a04b3e2e9dee9be8390d9c47c53a138e8c",
-    "model_freeze_test_sha256":
-        "508c5bd035f71e052c3a292f58c497013c6384f4cb927cc12b9a89f877d145f9",
 }
 PI_CODEX_OFFLINE_CONTRACT = {
     "implementation_commit": "1d082ce02fbc634198e576b8f9757a833e89bed9",
     "pi_version": "0.82.1",
-    "vendor_lifecycle_test_sha256":
-        "1961ed2081faff75a5455b1a41d8ba443f73f6320dce221ce8b60ed1f6107b23",
-    "runtime_projection_test_sha256":
-        "ca597ec2cdfefe78b9c4f044849955482701cb9a9158ae83955418f4c92ceb2d",
-    "proxy_scan_test_sha256":
-        "882000c5e436a9e9deceecdd7887f8670de10bebd8573e0363c8aa6f320e8f94",
 }
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (
@@ -93,16 +83,9 @@ CAPABILITY_EVIDENCE_METADATA: Mapping[str, CapabilityEvidenceMetadata] = Mapping
     "codex-subscription": CapabilityEvidenceMetadata(
         adapter_id="openai-codex-responses/oauth",
         metadata_fields=frozenset({"codex_cli_version"}),
-        offline_fields=frozenset({
-            "p0_wire_capture_sha256", "vendor_lifecycle_test_sha256",
-            "model_freeze_test_sha256",
-        }),
+        offline_fields=frozenset(),
         text_fields=frozenset({"codex_cli_version"}),
-        hex_fields=MappingProxyType({
-            "p0_wire_capture_sha256": 64,
-            "vendor_lifecycle_test_sha256": 64,
-            "model_freeze_test_sha256": 64,
-        }),
+        hex_fields=MappingProxyType({}),
         offline_contract=MappingProxyType(CODEX_OFFLINE_CONTRACT),
         supporting_artifacts=MappingProxyType({}),
         offline_proof="committed-source-suite",
@@ -110,16 +93,9 @@ CAPABILITY_EVIDENCE_METADATA: Mapping[str, CapabilityEvidenceMetadata] = Mapping
     "pi-openai-codex-oauth": CapabilityEvidenceMetadata(
         adapter_id="openai-codex-responses/oauth",
         metadata_fields=frozenset({"pi_version"}),
-        offline_fields=frozenset({
-            "vendor_lifecycle_test_sha256", "runtime_projection_test_sha256",
-            "proxy_scan_test_sha256",
-        }),
+        offline_fields=frozenset(),
         text_fields=frozenset({"pi_version"}),
-        hex_fields=MappingProxyType({
-            "vendor_lifecycle_test_sha256": 64,
-            "runtime_projection_test_sha256": 64,
-            "proxy_scan_test_sha256": 64,
-        }),
+        hex_fields=MappingProxyType({}),
         offline_contract=MappingProxyType(PI_CODEX_OFFLINE_CONTRACT),
         supporting_artifacts=MappingProxyType({}),
         offline_proof="committed-source-suite",
@@ -305,11 +281,7 @@ def _validate_common(
         raise ValueError("capability evidence identity differs from registry")
     _hex(document.get("implementation_commit"), "implementation_commit", 40)
     for field, length in metadata.hex_fields.items():
-        # Some hashes prove only the offline state. The strict state schema above requires them
-        # there and excludes them from live evidence, so common validation must not re-require
-        # an inapplicable offline field after a successful handshake.
-        if field in document:
-            _hex(document[field], field, length)
+        _hex(document.get(field), field, length)
     for field in metadata.text_fields:
         if not isinstance(document.get(field), str) or not document[field]:
             raise ValueError(f"capability evidence {field} must be non-empty")

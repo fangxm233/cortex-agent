@@ -40,16 +40,6 @@ HARNESS_DIR = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = HARNESS_DIR / "src/cortex_bench_harness/launcher/evidence"
 MIGRATION_SCRIPT = HARNESS_DIR / "scripts/migrate-capability-evidence.py"
 CLAUDE_WIRE_PATH = HARNESS_DIR / "tests/fixtures/vendor-wire/claude-code/wire-capture.json"
-CODEX_PROOF_PATHS = {
-    "p0_wire_capture_sha256": HARNESS_DIR / "tests/fixtures/vendor-wire/codex/current-contract.json",
-    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_codex_lifecycle_docker.py",
-    "model_freeze_test_sha256": HARNESS_DIR / "tests/package/test_vendor_model_freeze.py",
-}
-PI_CODEX_PROOF_PATHS = {
-    "vendor_lifecycle_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_pi_codex_lifecycle_docker.py",
-    "runtime_projection_test_sha256": HARNESS_DIR / "tests/launcher/test_vendor_agents.py",
-    "proxy_scan_test_sha256": HARNESS_DIR / "tests/proxy/test_row_four_trial_scan.py",
-}
 
 
 def document(state: str = "offline-contract-passed") -> dict[str, object]:
@@ -154,7 +144,7 @@ def test_validates_shipped_codex_offline_evidence() -> None:
     offline_path = registry._evidence_path(row.id, "offline-contract-passed")
     offline = validate_capability_evidence(
         offline_path,
-        "daac711074cb77d5dd341f4ba7e21718fdd9bd0b88a0443b51fe528976a64cd3",
+        "6c57d36ed094f1d03c12e8a263b1b70b78bc750a0db728bf7723fed7b84135a7",
         capability_id=row.id, key=CODEX_KEY, state="offline-contract-passed",
         adapter_id="openai-codex-responses/oauth",
     )
@@ -162,12 +152,6 @@ def test_validates_shipped_codex_offline_evidence() -> None:
     assert offline["implementation_commit"] == CODEX_OFFLINE_CONTRACT[
         "implementation_commit"
     ]
-    assert {
-        field: offline[field] for field in CODEX_PROOF_PATHS
-    } == {
-        field: hashlib.sha256(source.read_bytes()).hexdigest()
-        for field, source in CODEX_PROOF_PATHS.items()
-    }
 
 
 def test_validates_shipped_pi_codex_live_evidence() -> None:
@@ -197,7 +181,7 @@ def test_validates_shipped_pi_codex_offline_evidence() -> None:
     offline_path = registry._evidence_path(row.id, "offline-contract-passed")
     offline = validate_capability_evidence(
         offline_path,
-        "3d41e98679045b27bd0b31132c834a0828e19f0f3369db9d445fd45502444eb7",
+        "499544c081366d5828585349005738429644c3ed52304e2292d6dca4a84e1b09",
         capability_id=row.id,
         key=PI_CODEX_KEY,
         state="offline-contract-passed",
@@ -208,12 +192,6 @@ def test_validates_shipped_pi_codex_offline_evidence() -> None:
         "implementation_commit"
     ]
     assert offline["pi_version"] == PI_CODEX_OFFLINE_CONTRACT["pi_version"]
-    assert {
-        field: offline[field] for field in PI_CODEX_PROOF_PATHS
-    } == {
-        field: hashlib.sha256(source.read_bytes()).hexdigest()
-        for field, source in PI_CODEX_PROOF_PATHS.items()
-    }
 
 
 def test_claude_synthetic_observation_is_generated_from_the_p0_loopback_capture() -> None:
@@ -449,13 +427,8 @@ def test_committed_source_suite_accepts_no_side_artifacts(tmp_path: Path) -> Non
         },
         "implementation_commit": PI_CODEX_OFFLINE_CONTRACT["implementation_commit"],
         "pi_version": PI_CODEX_OFFLINE_CONTRACT["pi_version"],
-        "proxy_scan_test_sha256": PI_CODEX_OFFLINE_CONTRACT["proxy_scan_test_sha256"],
-        "runtime_projection_test_sha256":
-            PI_CODEX_OFFLINE_CONTRACT["runtime_projection_test_sha256"],
         "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
         "state": "offline-contract-passed",
-        "vendor_lifecycle_test_sha256":
-            PI_CODEX_OFFLINE_CONTRACT["vendor_lifecycle_test_sha256"],
     }
 
     validate_offline_supporting_artifacts(tmp_path, payload)

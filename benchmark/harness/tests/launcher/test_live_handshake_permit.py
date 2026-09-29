@@ -232,7 +232,7 @@ def run_codex_handshake(
     rows = dict(CAPABILITY_REGISTRY)
     rows[key] = replace(
         rows[key], state="offline-contract-passed",
-        evidence_sha256="daac711074cb77d5dd341f4ba7e21718fdd9bd0b88a0443b51fe528976a64cd3",
+        evidence_sha256="6c57d36ed094f1d03c12e8a263b1b70b78bc750a0db728bf7723fed7b84135a7",
     )
     monkeypatch.setattr(capabilities, "CAPABILITY_REGISTRY", rows)
     spec = handshake_spec(access_expires_at_ms=CODEX_EXPIRY_SECONDS * 1000)
