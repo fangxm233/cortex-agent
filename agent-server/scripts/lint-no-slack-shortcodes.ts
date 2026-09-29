@@ -3,14 +3,13 @@
 // Exits non-zero if any are found in string literals. Meant to run as part of npm test.
 //
 // Scope: agent-server/src/{core,domain,orchestration,events}/**/*.ts
-// Excludes: comments, markdown links, adapter files (platform/adapters/)
+// Excludes: comments, markdown links
 //
 // Uses a known-emoji allowlist (derived from core/icons.ts) to avoid false-positives
 // on patterns like actionId: "cmd:status:refresh" which contain :status: and :refresh:.
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { globSync } from 'fs'; // node:fs has no globSync — use with care
 
 // Allowlist of known Slack emoji shortcodes (matches Icons keys' original shortcodes)
 const KNOWN_SHORTCODES = new Set([
@@ -64,11 +63,6 @@ interface Hit {
 
 function lintFile(filePath: string): Hit[] {
   const relative = path.relative(AGENT_DIR, filePath);
-  // Skip adapter files
-  if (relative.includes('/platform/adapters/') || relative.includes('\\platform\\adapters\\')) {
-    return [];
-  }
-
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split('\n');
   const hits: Hit[] = [];
