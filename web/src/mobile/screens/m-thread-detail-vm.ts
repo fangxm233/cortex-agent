@@ -27,7 +27,6 @@ export interface MThreadTrailCrumb {
 
 export interface MThreadCrumb {
   name: string;
-  accent: boolean;
 }
 
 export interface MThreadStepAgent {
@@ -35,8 +34,6 @@ export interface MThreadStepAgent {
   turnLabel: string;
   /** `$0.09` step cost, or '' when the DTO has none. */
   cost: string;
-  /** agent-flow lastOutput split into non-empty lines (mono feed box). */
-  lines: string[];
   /** Raw agent-flow lastOutput text for markdown rendering. */
   text: string;
   /** true while the backing thread is still running (drives the pulsing feed dot). */
@@ -72,7 +69,7 @@ export interface MThreadDetailVm {
   tid: string;
   status: ThreadInfo['status'];
   live: boolean;
-  /** Ancestor crumbs (accent), self is rendered separately from `name`. */
+  /** Ancestor crumbs; self is rendered separately from `name`. */
   crumbs: MThreadCrumb[];
   /** Self level L{n} = trail.length + 1; null when no ancestry is carried (honest). */
   selfLevel: number | null;
@@ -127,7 +124,6 @@ function mobileStepAgent(
   return {
     turnLabel: item.step.numTurns != null ? turnLabel(item.step.numTurns, profile, lang) : profile,
     cost: item.step.costUsd != null ? formatUsd(item.step.costUsd) : '',
-    lines: output.split('\n').map((line) => line.trim()).filter(Boolean),
     text: output, live: facts.live,
   };
 }
@@ -174,7 +170,7 @@ export function buildMThreadDetailVm(
   const artifacts = mobileArtifacts(detail, now, lang);
   return {
     name: detail.templateName, tid: detail.id, status: detail.status, live: facts.live,
-    crumbs: trail.map((item) => ({ name: item.name, accent: true })),
+    crumbs: trail.map((item) => ({ name: item.name })),
     selfLevel: trail.length > 0 ? trail.length + 1 : null,
     depthText: `${facts.depth.level}/${facts.depth.limit}`,
     metaParts: mobileMetaParts(detail),

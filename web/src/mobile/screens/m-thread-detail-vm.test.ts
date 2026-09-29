@@ -113,16 +113,12 @@ describe('buildMThreadDetailVm', () => {
     expect(done.hasConnector).toBe(true);
   });
 
-  it('expands the running step with its live agent-flow lines', () => {
+  it('expands the running step with its live agent-flow output', () => {
     const vm = buildMThreadDetailVm(detail(), [], NOW, 'en');
     const active = vm.steps[1];
     expect(active.kind).toBe('running');
     expect(active.agent).toBeDefined();
-    expect(active.agent!.lines).toEqual([
-      'read metrics/seed.json',
-      'bootstrap ci95 — 10k resamples',
-      'Δ success = +9.2pt',
-    ]);
+    expect(active.agent!.text).toBe(agentFlow.lastOutput);
     expect(active.agent!.live).toBe(true);
   });
 
