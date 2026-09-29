@@ -5,7 +5,6 @@ import {
   PI_PROVIDER_CACHE_TTL_MS,
   PI_PROVIDER_RETRY_MS,
   createPIProviderDiscovery,
-  discoverPIProviders,
 } from '../../src/agent-adapter/pi/discovery.js';
 import type { PiDiscoveredModel } from '../../src/core/gateway-generator.js';
 
@@ -28,20 +27,6 @@ function deferred<T>(): Deferred<T> {
 async function flushRefresh(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
-
-test('authenticated provider scan de-duplicates providers from the SDK model list', async () => {
-  const providers = await discoverPIProviders(async () => [
-    { provider: 'anthropic', model: 'claude-sonnet' },
-    { provider: 'anthropic', model: 'claude-opus' },
-    { provider: 'deepseek', model: 'deepseek-chat' },
-  ]);
-  assert.deepEqual(providers, ['anthropic', 'deepseek']);
-});
-
-test('authenticated provider scan rejects when the SDK scan fails', async () => {
-  const scanError = new Error('pi runtime unavailable');
-  await assert.rejects(discoverPIProviders(async () => { throw scanError; }), scanError);
-});
 
 test('cold reads return immediately and coalesce one provider refresh', async () => {
   const pending = deferred<PiDiscoveredModel[]>();

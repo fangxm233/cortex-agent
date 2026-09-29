@@ -2,10 +2,6 @@ import { CachedScan } from '@core/cached-scan.js';
 import { scanPiAvailableModels, type PiDiscoveredModel } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 
-// Filename lookup moved out so a trial adapter can resolve a transcript path without importing
-// this module's host-scanning provider singleton (design §13 A7/A8, T12).
-export { findPISessionFilePath } from './session-files.js';
-
 const log = createLogger('pi-adapter');
 
 export const PI_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
@@ -43,14 +39,6 @@ export interface PIProviderDiscoveryOptions {
   now?: () => number;
   cacheTtlMs?: number;
   retryMs?: number;
-}
-
-/** Discover authenticated PI providers from PI's own agent dir, never Cortex's private one. */
-export async function discoverPIProviders(
-  scanModels: () => Promise<Array<{ provider: string }>> = scanPiAvailableModels,
-): Promise<string[]> {
-  const models = await scanModels();
-  return Array.from(new Set(models.map((model) => model.provider)));
 }
 
 export function createPIProviderDiscovery(
