@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { upsertEnvVar } from './feishu-login.js';
+import { isUiHttpEnabled } from './ui-http-gate.js';
 
 /**
  * Origins the native shell serves itself from. The desktop/Android app runs the SPA over the
@@ -42,12 +43,6 @@ export function readEnvValue(envPath: string, key: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-/** Truthy spellings accepted by start-ui-http.ts `isEnabled`. */
-function uiHttpEnabled(value: string | undefined): boolean {
-  const v = (value || '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
 }
 
 /**
@@ -107,7 +102,7 @@ export async function enableLocalUi(options: {
   const { clientToken, generated } = ensureAuthTokens({ envPath, env });
   let changed = generated.length > 0;
 
-  if (!uiHttpEnabled(existing.CORTEX_UI_HTTP)) {
+  if (!isUiHttpEnabled(existing)) {
     await upsertEnvVar(envPath, 'CORTEX_UI_HTTP', '1');
     changed = true;
   }

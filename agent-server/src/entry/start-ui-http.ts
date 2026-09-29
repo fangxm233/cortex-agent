@@ -29,18 +29,13 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { WORKSPACE_DIR, STORE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
 import { projectStore } from '@domain/projects/project-store.js';
+import { isUiHttpEnabled } from './ui-http-gate.js';
 import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
 const log = createLogger('ui-http');
 
 /** Default TCP port for the Web UI tRPC endpoint (loopback-only; exposure is via a tunnel). */
 const DEFAULT_UI_PORT = 3004;
-
-/** Opt-in gate: the Web UI HTTP server starts only when CORTEX_UI_HTTP is truthy (skip cleanly otherwise). */
-function isEnabled(env: NodeJS.ProcessEnv): boolean {
-  const v = (env.CORTEX_UI_HTTP || '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
-}
 
 /** Where browser sessions survive a daemon restart. Written 0600 by the store. */
 const SESSIONS_FILE = path.join(STORE_DIR, 'ui-sessions.json');
@@ -369,7 +364,7 @@ async function handleCommissionAsset(req: IncomingMessage, res: ServerResponse):
  */
 export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null {
   const env = opts.env ?? process.env;
-  if (!isEnabled(env)) return null;
+  if (!isUiHttpEnabled(env)) return null;
 
   // parseInt(undefined/'')→NaN falls back; a valid 0 (ephemeral, for tests) is preserved.
   const parsedPort = parseInt(env.CORTEX_UI_PORT ?? '', 10);

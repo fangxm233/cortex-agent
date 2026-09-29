@@ -10,8 +10,8 @@ export interface UiHttpHandle {
   close: () => Promise<void>;
 }
 
-/** Opt-in gate: truthy CORTEX_UI_HTTP (1/true/on/yes). Mirrors start-ui-http's own re-check. */
-function isEnabled(env: NodeJS.ProcessEnv): boolean {
+/** Opt-in gate: truthy CORTEX_UI_HTTP (1/true/on/yes). start-ui-http re-checks it with this same parser. */
+export function isUiHttpEnabled(env: NodeJS.ProcessEnv): boolean {
   const v = (env.CORTEX_UI_HTTP || '').trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'on' || v === 'yes';
 }
@@ -22,8 +22,8 @@ function isEnabled(env: NodeJS.ProcessEnv): boolean {
  * only reached inside the enabled branch, so an unset flag keeps those deps out of the runtime graph.
  */
 export async function startUiHttpIfEnabled(uiService: UiService): Promise<UiHttpHandle | null> {
-  if (!isEnabled(process.env)) return null;
+  if (!isUiHttpEnabled(process.env)) return null;
   const { startUiHttpServer } = await import('./start-ui-http.js');
   // start-ui-http re-reads CORTEX_UI_HTTP and returns null when off — always truthy here.
-  return startUiHttpServer({ uiService }) ?? null;
+  return startUiHttpServer({ uiService });
 }
