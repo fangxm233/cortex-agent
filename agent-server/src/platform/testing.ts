@@ -90,13 +90,12 @@ export class MockOutputStream implements OutputStream {
 
   openMutable(text: string): MutableRegion {
     if (!text?.trim()) return { update: () => {} };
-    const generation = this._nextGen();
     this.segments.push({ kind: 'mutable-open', text });
     this.adapter.postMessage(this.destination, { text }).then(ref => {
       this.refs.push(ref);
       if (!this._parentRef) this._parentRef = ref;
     });
-    return { update: (t: string) => this._mutableUpdate(t, generation) };
+    return { update: (t: string) => this._mutableUpdate(t) };
   }
 
   postInteractive(text: string, opts?: {
@@ -128,13 +127,7 @@ export class MockOutputStream implements OutputStream {
     return this._parentRef;
   }
 
-  private _genCounter = 0;
-
-  private _nextGen(): number {
-    return ++this._genCounter;
-  }
-
-  private _mutableUpdate(text: string, _generation: number): void {
+  private _mutableUpdate(text: string): void {
     if (!text?.trim()) return;
     this.segments.push({ kind: 'mutable-update', text });
   }
@@ -366,15 +359,12 @@ export class MockAdapter implements PlatformAdapter {
   async simulateModalSubmit(callbackId: string, values: Record<string, Record<string, ModalFieldValue>>, opts?: { privateMetadata?: string; userId?: string }): Promise<void> {
     const handler = this.modalHandlers.get(callbackId);
     if (!handler) return;
-    let acked = false;
     await handler({
       callbackId,
       privateMetadata: opts?.privateMetadata || '',
       values,
       userId: opts?.userId || 'user-1',
-      async ack(response) {
-        acked = true;
-      },
+      async ack() {},
     });
   }
 

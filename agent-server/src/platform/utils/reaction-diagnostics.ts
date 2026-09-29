@@ -14,8 +14,8 @@ export function reactionFailureReason(error: unknown): string {
 }
 
 /** True the first time a given reaction-failure reason is seen in this process. */
-export function shouldWarnReactionFailure(reason: string, seen = reportedReasons): boolean {
-  if (seen.has(reason)) return false;
-  seen.add(reason);
+export function shouldWarnReactionFailure(reason: string): boolean {
+  if (reportedReasons.has(reason)) return false;
+  reportedReasons.add(reason);
   return true;
 }
