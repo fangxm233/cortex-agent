@@ -9,9 +9,6 @@ export interface InteractionToolDeps {
   channel: string | null;
   sessionId: string | null;
   threadId: string | null;
-  /** Cortex session name (CORTEX_SESSION_NAME). Optional because only commission-mode tools need
-   *  it — the draft directory is named after the session. */
-  sessionName?: string | null;
   webhookBaseUrl: string;
   httpPost: (url: string, body: any) => Promise<{ status: number; body: any }>;
 }
@@ -25,7 +22,6 @@ export function interactionDepsFor(ctx: CortexToolContext): InteractionToolDeps 
   return {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
-    sessionName: ctx.sessionName,
     threadId: ctx.threadId,
     webhookBaseUrl: ctx.webhookBaseUrl,
     httpPost: (url, body) => requestLoopbackJson('POST', url, body, webhookAuthHeaders(ctx)),

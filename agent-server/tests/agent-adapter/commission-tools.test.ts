@@ -92,7 +92,6 @@ describe('cortex_commission_start', () => {
     return {
       channel: 'web:x',
       sessionId: over.sessionId === undefined ? 's-1' : over.sessionId,
-      sessionName: 'cortex-a1b2',
       threadId: null,
       webhookBaseUrl: 'http://127.0.0.1:1',
       httpPost: async (url, body) => {

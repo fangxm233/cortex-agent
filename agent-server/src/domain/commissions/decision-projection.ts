@@ -17,9 +17,6 @@ export interface DecisionProjectionDeps {
   findCommission?: (id: string) => Promise<{ projectId: string; slug: string } | null>;
   resolveFile?: (projectId: string, slug: string) => string | null;
   appendLine?: (filePath: string, line: string) => Promise<void>;
-  /** SSE hint after a successful append (an open board refetches commissions.decisions).
-   *  Defaults to a `commission.updated` publish on the shared bus; no-op when the bus is absent. */
-  publishUpdated?: (commissionId: string, projectId: string) => void;
 }
 
 interface ProjectionTarget { filePath: string; commissionId: string; projectId: string }
@@ -42,9 +39,9 @@ async function appendProjection(sessionId: string, line: CommissionDecisionLine,
   if (!target) return false;
   const append = deps.appendLine ?? ((file: string, text: string) => fsp.appendFile(file, text, 'utf8'));
   await append(target.filePath, `${JSON.stringify(line)}\n`);
-  const publish = deps.publishUpdated
-    ?? ((commissionId: string, projectId: string) => { jobCtx.bus?.publish({ type: 'commission.updated', commissionId, projectId }); });
-  publish(target.commissionId, target.projectId);
+  // SSE hint after a successful append (an open board refetches commissions.decisions); no-op
+  // when the bus is absent.
+  jobCtx.bus?.publish({ type: 'commission.updated', commissionId: target.commissionId, projectId: target.projectId });
   return true;
 }
 
