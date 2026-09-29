@@ -24,7 +24,7 @@ import { TokenBucketRateLimiter } from '../utils/rate-limiter.js';
 import { createLogger } from '@core/log.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { SlackOutputStream } from './slack-output-stream.js';
-import { SlackProjectConduitsStore } from './slack-project-conduits.js';
+import { ProjectConduitsStore } from './project-conduits.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { writeFile } from 'fs/promises';
@@ -682,11 +682,11 @@ export class SlackAdapter implements PlatformAdapter {
     return null;
   }
 
-  private _conduitsStore: SlackProjectConduitsStore | null = null;
+  private _conduitsStore: ProjectConduitsStore | null = null;
 
-  private _getConduitsStore(): SlackProjectConduitsStore {
+  private _getConduitsStore(): ProjectConduitsStore {
     if (!this._conduitsStore) {
-      this._conduitsStore = new SlackProjectConduitsStore();
+      this._conduitsStore = new ProjectConduitsStore();
     }
     return this._conduitsStore;
   }
