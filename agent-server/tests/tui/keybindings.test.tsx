@@ -96,7 +96,25 @@ test('useKeybindings does NOT reconnect on R when allowReconnect is false', asyn
   instance.cleanup();
 });
 
-test('useKeybindings does NOT scroll when allowScroll is false', async (t) => {
+test('useKeybindings pages the transcript on PgUp/PgDn by default', async (t) => {
+  const events: string[] = [];
+
+  const app = React.createElement(TestApp, { onEvent: (name: string) => events.push(name) });
+  const instance = render(app);
+  await delay(200);
+
+  instance.stdin.write('\x1b[5~'); // PgUp
+  await delay(100);
+  instance.stdin.write('\x1b[6~'); // PgDn
+  await delay(200);
+
+  assert.deepEqual(events, ['pageUp', 'pageDown']);
+
+  instance.unmount();
+  instance.cleanup();
+});
+
+test('useKeybindings does NOT scroll or clear when allowScroll is false', async (t) => {
   const events: string[] = [];
 
   function TestAppNoScroll() {
@@ -104,7 +122,7 @@ test('useKeybindings does NOT scroll when allowScroll is false', async (t) => {
       onCancel: () => {},
       onScrollUp: () => events.push('scrollUp'),
       onScrollDown: () => events.push('scrollDown'),
-      onClearView: () => {},
+      onClearView: () => events.push('clearView'),
       onExit: () => {},
     }, true, { allowScroll: false });
     return React.createElement(Text, null, 'test');
@@ -113,11 +131,14 @@ test('useKeybindings does NOT scroll when allowScroll is false', async (t) => {
   const instance = render(React.createElement(TestAppNoScroll));
   await delay(200);
 
-  instance.stdin.write('\x1b[A'); // up arrow
-  instance.stdin.write('\x1b[B'); // down arrow
+  instance.stdin.write('\x1b[5~'); // PgUp
+  await delay(100);
+  instance.stdin.write('\x1b[6~'); // PgDn
+  await delay(100);
+  instance.stdin.write('\x0c'); // Ctrl+L
   await delay(200);
 
-  assert.equal(events.length, 0, `expected no scroll, got ${JSON.stringify(events)}`);
+  assert.equal(events.length, 0, `expected no scroll/clear, got ${JSON.stringify(events)}`);
 
   instance.unmount();
   instance.cleanup();
