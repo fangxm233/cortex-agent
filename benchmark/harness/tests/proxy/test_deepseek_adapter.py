@@ -69,7 +69,6 @@ def complete_stream(*, model: str = MODEL) -> bytes:
 
 def start_proxy(
     tmp_path: Path, upstream: SyntheticUpstream, *, request_limit: int | None = 64 * 1024,
-    response_limit: int | None = 1024 * 1024,
 ):
     return start_trial_proxy(
         trial_id="trial-deepseek", upstream_base_url=upstream.base_url,
@@ -77,7 +76,7 @@ def start_proxy(
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
         limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "deepseek.jsonl", lease_terms=LEASE_TERMS,
-        request_body_limit_bytes=request_limit, response_body_limit_bytes=response_limit,
+        request_body_limit_bytes=request_limit, response_body_limit_bytes=1024 * 1024,
     )
 
 

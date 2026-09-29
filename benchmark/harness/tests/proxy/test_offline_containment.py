@@ -22,14 +22,14 @@ BOUND_SOURCE = "127.0.0.9"
 
 def start_proxy(
     tmp_path: Path, upstream_base_url: str, *, bound_source_ip: str = "127.0.0.1",
-    deadline: datetime | None = None, max_requests: int = 8,
+    deadline: datetime | None = None,
 ):
     return start_trial_proxy(
         trial_id="trial-containment", upstream_base_url=upstream_base_url,
         adapter=row_one_adapter(upstream_base_url, REAL_CREDENTIAL, SYNTHETIC_MODEL),
         bound_source_ip=bound_source_ip,
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
-        limits=ProxyLimits(max_requests=max_requests),
+        limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "containment.jsonl",
         lease_terms=LEASE_TERMS,
     )

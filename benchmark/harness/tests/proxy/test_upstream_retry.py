@@ -21,20 +21,17 @@ from synthetic import (
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-RETRY-UNIQUE"
 
 
-def start_proxy(
-    tmp_path: Path, upstream: SyntheticUpstream, *, max_requests: int = 4,
-    max_attempts: int = 3,
-):
+def start_proxy(tmp_path: Path, upstream: SyntheticUpstream):
     return start_trial_proxy(
         trial_id="trial-retry",
         upstream_base_url=upstream.base_url,
         adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        limits=ProxyLimits(max_requests=max_requests),
+        limits=ProxyLimits(max_requests=4),
         log_path=tmp_path / "proxy.jsonl",
         lease_terms=LEASE_TERMS,
-        max_upstream_attempts=max_attempts,
+        max_upstream_attempts=3,
         upstream_retry_backoff_seconds=0,
     )
 
