@@ -15,7 +15,6 @@ export const statusEn = {
   'status.retry': 'Retry',
   'status.rateLimitedExhausted': 'Rate limited',
   'status.supersededSeeNewReply': 'see new reply',
-  'status.processingAskResponse': 'Processing AskUserQuestion response...',
   'status.errorBody': 'Error: ${message}',
   // --- Turn-completion notification ---
   'notify.turnComplete': 'Turn complete',
@@ -70,7 +69,6 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'status.retry': '重试',
   'status.rateLimitedExhausted': '触发限流',
   'status.supersededSeeNewReply': '查看新回复',
-  'status.processingAskResponse': '正在处理 AskUserQuestion 回复……',
   'status.errorBody': '错误：${message}',
   // --- Turn-completion notification ---
   'notify.turnComplete': '回合完成',
