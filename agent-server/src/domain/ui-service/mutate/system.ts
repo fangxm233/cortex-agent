@@ -1,5 +1,5 @@
 import { t } from '@core/i18n.js';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
@@ -9,6 +9,7 @@ import {
   answerServerUpdatePrompt,
   getServerUpdateStatus,
 } from '@domain/system/update-ui-state.js';
+import { checkLiveness, readPidFile } from '../query/system.js';
 import type {
   Result,
   SystemClearRateLimitArgs,
@@ -21,28 +22,6 @@ import type {
   SystemSkipUpdateArgs,
   SystemUpdateDecisionReturn,
 } from '../types.js';
-
-function readChildPid(): number | null {
-  const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
-  try {
-    if (!existsSync(childPidFile)) return null;
-    const raw = readFileSync(childPidFile, 'utf8').trim();
-    const pid = Number(raw);
-    if (!Number.isFinite(pid) || pid <= 0) return null;
-    return pid;
-  } catch {
-    return null;
-  }
-}
-
-function checkLiveness(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export async function handleSystemClearRateLimit(
   args: SystemClearRateLimitArgs,
@@ -105,7 +84,7 @@ export async function handleSystemRestart(
   // ── Hard / Force restart: signal child PID ──────────────────────
   const signal = kind === 'force' ? 'SIGKILL' : 'SIGTERM';
 
-  const childPid = readChildPid();
+  const childPid = readPidFile(path.join(STORE_DIR, 'daemon-child.pid'));
   if (childPid === null) {
     return {
       ok: false,

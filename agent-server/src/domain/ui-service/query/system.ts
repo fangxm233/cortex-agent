@@ -61,7 +61,7 @@ function getProcessUptime(pid: number): string | null {
   }
 }
 
-function checkLiveness(pid: number): boolean {
+export function checkLiveness(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -70,7 +70,7 @@ function checkLiveness(pid: number): boolean {
   }
 }
 
-function readPidFile(filePath: string): number | null {
+export function readPidFile(filePath: string): number | null {
   try {
     if (!existsSync(filePath)) return null;
     const raw = readFileSync(filePath, 'utf8').trim();
