@@ -30,7 +30,6 @@ import {
   saveGate,
   validateName,
   type TemplateKind,
-  type TemplateSelection,
 } from '@/features/settings/vm/templates-panel-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -346,7 +345,6 @@ function DetailFooter(props: TemplateDetailPaneProps & {
 // ── the pane ──────────────────────────────────────────────────────────────────────────────────
 
 export interface TemplateDetailPaneProps {
-  selection: TemplateSelection | null;
   detail: ThreadTemplateDetail | null;
   creating: { kind: TemplateKind } | null;
   draftName: string;

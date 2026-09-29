@@ -221,7 +221,6 @@ export function TemplatesPanelView(props: TemplatesPanelViewProps) {
           onStartCreate={props.onStartCreate}
         />
         <TemplateDetailPane
-          selection={props.selection}
           detail={props.detail}
           creating={props.creating}
           draftName={props.draftName}
