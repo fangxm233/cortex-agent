@@ -2,7 +2,7 @@ import type { PlatformAdapter } from '@platform/adapter.js';
 import type { Destination } from '@platform/types.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
-import { DAY_MAP, formatDuration, formatTimeUntil, parseDuration } from './scheduler.js';
+import { DAY_MAP, formatDuration, parseDuration } from './scheduler.js';
 import type { Scheduler, ScheduleTask } from './scheduler.js';
 import { channelToProjectId } from '@store/schedule-repo.js';
 import { listProfiles, resolveProfile, getDefaultProfileName } from '../agents/profile-manager.js';
@@ -30,44 +30,6 @@ function scheduleHelp(): string {
 
 const FMT_OPTS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
 const fmtTime = (ts: number): string => new Date(ts).toLocaleString('en-US', FMT_OPTS);
-
-async function handleList(parts: string[], channel: string, adapter: PlatformAdapter, scheduler: Scheduler): Promise<void> {
-  const tasks = await scheduler.list();
-  if (tasks.length === 0) {
-    await adapter.postMessage(toDest(channel), { text: t('schedule.list.empty') });
-    return;
-  }
-  const now = Date.now();
-  const lines = tasks.map((task) => formatTaskLine(task, now));
-  await adapter.postMessage(toDest(channel), { text: t('schedule.list.header', { count: tasks.length, lines: lines.join('\n') }) });
-}
-
-function formatTaskLine(t: ScheduleTask, now: number): string {
-  const id = `\`${t.id}\``;
-  const profile = ` | profile: *${t.profile || 'plan'}*`;
-  const paused = t.isPaused ? ` | status: *paused*${t.pausedBy === 'rate-limit' ? ' (rate-limit)' : ''}` : '';
-  if (t.type === 'interval') {
-    const nextAt = t.nextRun ? ` (${fmtTime(t.nextRun)})` : '';
-    const nextText = t.isPaused ? 'paused' : `${formatTimeUntil((t.nextRun || 0) - now)}${nextAt}`;
-    return `• ${id} every *${formatDuration(t.intervalMs!)}*${profile}${paused} | next: ${nextText} | "${t.message}"`;
-  }
-  if (t.type === 'daily') {
-    const nextAt = t.nextRun ? ` (${fmtTime(t.nextRun)})` : '';
-    const nextText = t.isPaused ? 'paused' : `${formatTimeUntil((t.nextRun || 0) - now)}${nextAt}`;
-    return `• ${id} daily *${t.time}*${profile}${paused} | next: ${nextText} | "${t.message}"`;
-  }
-  if (t.type === 'weekly') {
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const nextAt = t.nextRun ? ` (${fmtTime(t.nextRun)})` : '';
-    const nextText = t.isPaused ? 'paused' : `${formatTimeUntil((t.nextRun || 0) - now)}${nextAt}`;
-    return `• ${id} weekly *${dayNames[t.dayOfWeek!]} ${t.time}*${profile}${paused} | next: ${nextText} | "${t.message}"`;
-  }
-  if (t.type === 'once') {
-    const nextAt = t.runAt ? ` (${fmtTime(t.runAt)})` : '';
-    return `• ${id} once${profile} | runs: ${formatTimeUntil(t.runAt! - now)}${nextAt} | "${t.message}"`;
-  }
-  return `• ${id} ${t.type}${profile}${paused} | "${t.message}"`;
-}
 
 function normalizeTaskId(id: string | undefined): string | undefined {
   if (!id) return id;
@@ -276,7 +238,6 @@ async function handleAdd(parts: string[], channel: string, adapter: PlatformAdap
 }
 
 const SUB_HANDLERS: Record<string, SubHandler> = {
-  list: handleList,
   pause: handlePause,
   resume: handleResume,
   remove: handleRemove,

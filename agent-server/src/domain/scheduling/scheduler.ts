@@ -37,15 +37,6 @@ function formatDuration(ms: number): string {
   return Number.isInteger(d) ? `${d}d` : `${d.toFixed(1)}d`;
 }
 
-// Format ms until an event as "in 5m", "in 2.5h", "overdue"
-function formatTimeUntil(ms: number): string {
-  if (ms <= 0) return 'overdue';
-  if (ms < 60_000) return `in ${Math.round(ms / 1000)}s`;
-  if (ms < 3_600_000) return `in ${Math.round(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `in ${(ms / 3_600_000).toFixed(1)}h`;
-  return `in ${(ms / 86_400_000).toFixed(1)}d`;
-}
-
 // Returns ms until the next occurrence of HH:MM today or tomorrow
 function nextDailyMs(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -548,4 +539,4 @@ class Scheduler {
   }
 }
 
-export { Scheduler, parseDuration, DAY_MAP, formatDuration, formatTimeUntil, SCHEDULES_FILE };
+export { Scheduler, parseDuration, DAY_MAP, formatDuration };
