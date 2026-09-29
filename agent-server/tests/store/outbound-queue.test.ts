@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { OutboundQueue } from '../../src/store/outbound-queue.js';
-import type { PlatformAdapter } from '../../src/platform/adapter.js';
-import type { Destination, MessageRef, MessageContent, PlatformCapabilities, PostMessageOpts } from '../../src/platform/types.js';
+import { OutboundQueue, type OutboundQueueOpts } from '../../src/store/outbound-queue.js';
+import type { Destination, MessageRef, MessageContent, PostMessageOpts } from '../../src/platform/types.js';
 
 // ── Shared tmp directory ───────────────────────────────────────
 
@@ -30,40 +29,22 @@ function testDest(channel: string): Destination {
 function createMockAdapter(overrides: {
   postMessage?: (destination: Destination, content: MessageContent, opts?: PostMessageOpts) => Promise<MessageRef>;
   updateMessage?: (ref: MessageRef, content: MessageContent) => Promise<void>;
-} = {}): PlatformAdapter {
+} = {}): OutboundQueueOpts['adapter'] {
   let postCount = 0;
   return {
-    name: 'mock',
-    capabilities: { threads: true, messageEdit: true, maxMessageLength: 3000 } as PlatformCapabilities,
-    start: async () => {},
-    stop: async () => {},
-    onMessage: () => {},
-    onAction: () => {},
-    onModalSubmit: () => {},
-    onMessageEdit: () => {},
     postMessage: overrides.postMessage ?? (async (destination: Destination, _content: MessageContent, opts?: PostMessageOpts): Promise<MessageRef> => {
       postCount++;
       const channel = destination.type === 'interactive-reply' ? destination.conduit : 'unknown';
       return { conduit: channel, messageId: `mock-ts-${postCount}`, threadId: opts?.threadId };
     }),
     updateMessage: overrides.updateMessage ?? (async () => {}),
-    deleteMessage: async () => {},
-    postInteractive: async (destination: Destination) => {
-      const channel = destination.type === 'interactive-reply' ? destination.conduit : 'unknown';
-      return { conduit: channel, messageId: 'mock-interactive' };
-    },
-    openModal: async () => {},
-    markQueued: async () => {},
-    uploadFile: async () => {},
-    downloadFile: async () => ({ localPath: '', mimetype: '', name: '' }),
-    getPermalink: async () => null,
-  } as any;
+  };
 }
 
 // ── Helper: fresh queue per test ───────────────────────────────
 
 let _testIdx = 0;
-function createQueue(adapter?: PlatformAdapter, opts?: { ttlMs?: number }): { queue: OutboundQueue; walPath: string } {
+function createQueue(adapter?: OutboundQueueOpts['adapter'], opts?: { ttlMs?: number }): { queue: OutboundQueue; walPath: string } {
   const idx = _testIdx++;
   const walPath = path.join(tmpDir, `outbound-wal-${idx}.jsonl`);
   const queue = new OutboundQueue({
