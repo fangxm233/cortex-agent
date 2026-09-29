@@ -237,7 +237,7 @@ test('lifecycle — getExecutionByTaskId prefers non-terminal over terminal', as
 
   // Create and complete a dispatch
   const r1 = repo.registerDispatchExecution({ taskId: 't1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'v1' });
-  repo.completeExecutionByTaskId('t1', { costUsd: 0.5 });
+  repo.completeExecution(r1!.id, { costUsd: 0.5 });
   assert.equal(repo.getExecutionByTaskId('t1')?.status, 'completed');
 
   // Re-dispatch: creates new record
@@ -426,19 +426,6 @@ test('startup recovery — stales an in-process dispatch orphan', async () => {
   await repo.markMissingRunningExecutionsStale();
 
   assert.equal(repo.getExecution(inproc.id)!.status, 'stale', 'in-process orphan staled at startup');
-});
-
-// ── Group 9: Cancel by task ID ──
-
-test('cancelExecutionByTaskId — cancels the correct dispatch execution', async () => {
-  const repo = createRepo();
-
-  repo.registerDispatchExecution({ taskId: 'cancel-me', machine: 'testbox', channel: 'C1', project: 'proj', taskText: 'will cancel' });
-  const cancelled = repo.cancelExecutionByTaskId('cancel-me');
-
-  assert.equal(cancelled?.status, 'cancelled');
-  assert.ok(cancelled?.runtime.endedAt);
-  assert.equal(repo.getExecutionByTaskId('cancel-me')?.status, 'cancelled');
 });
 
 // ── Group 10: Persistence roundtrip ──

@@ -157,7 +157,7 @@ export function cancelExecution(id: string, metrics?: Parameters<typeof executio
   return r;
 }
 
-export function cancelExecutionByTaskId(taskId: string, metrics?: Parameters<typeof executionRepo.cancelExecutionByTaskId>[1]) {
+export function cancelExecutionByTaskId(taskId: string, metrics?: Parameters<typeof executionRepo.cancelExecution>[1]) {
   const record = executionRepo.getExecutionByTaskId(taskId);
   if (!record) return null;
   return cancelExecution(record.id, metrics);

@@ -328,30 +328,12 @@ class ExecutionRepo {
     return this.updateRecordInternal(id, (record) => finalizeExecution(record, 'completed', metrics));
   }
 
-  completeExecutionByTaskId(taskId: string, metrics?: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null }): ExecutionRecord | null {
-    const record = this.getExecutionByTaskId(taskId);
-    if (!record) return null;
-    return this.completeExecution(record.id, metrics);
-  }
-
   failExecution(id: string, metrics: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null } = {}): ExecutionRecord | null {
     return this.updateRecordInternal(id, (record) => finalizeExecution(record, 'failed', metrics));
   }
 
-  failExecutionByTaskId(taskId: string, metrics?: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null }): ExecutionRecord | null {
-    const record = this.getExecutionByTaskId(taskId);
-    if (!record) return null;
-    return this.failExecution(record.id, metrics);
-  }
-
   cancelExecution(id: string, metrics: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null } = {}): ExecutionRecord | null {
     return this.updateRecordInternal(id, (record) => finalizeExecution(record, 'cancelled', metrics));
-  }
-
-  cancelExecutionByTaskId(taskId: string, metrics?: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null }): ExecutionRecord | null {
-    const record = this.getExecutionByTaskId(taskId);
-    if (!record) return null;
-    return this.cancelExecution(record.id, metrics);
   }
 
   /** Insert or replace a record by ID (used by tests for backdating). */
