@@ -42,8 +42,6 @@ export interface ContextCompactAction {
 
 export interface ContextUsageControlProps {
   usage: SessionContextUsage | null;
-  supported: boolean;
-  variant: 'desktop';
   lang: ContextLanguage;
   compactAction?: ContextCompactAction;
 }
@@ -52,15 +50,14 @@ export function contextUsageTitle(lang: ContextLanguage): string {
   return COPY[lang].title;
 }
 
-export function ContextUsageControl({ usage, supported, variant, lang, compactAction }: ContextUsageControlProps): JSX.Element | null {
-  if (!supported && usage === null) return null;
+export function ContextUsageControl({ usage, lang, compactAction }: ContextUsageControlProps): JSX.Element {
   return (
     <Modal
       title={contextUsageTitle(lang)}
       trigger={(
         <ContextUsageRing
           usage={usage}
-          variant={variant}
+          variant="desktop"
           lang={lang}
           data-context-compact-enabled={compactAction ? 'true' : undefined}
         />

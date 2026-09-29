@@ -351,8 +351,6 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
             <ContextUsageControl
               usage={contextUsage}
-              supported={!!active?.contextCompactionSupported}
-              variant="desktop"
               lang={lang}
               compactAction={active?.contextCompactionSupported ? compactAction : undefined}
             />
