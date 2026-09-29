@@ -132,9 +132,9 @@ function MBanner({ item, now, lang, onDismiss }: { item: ToastItem; now: number;
 }
 
 /** Mounts the mobile stack from the shared queue. */
-export function MNotificationBanners({ now }: { now?: number }) {
+export function MNotificationBanners() {
   const { dismiss } = useToast();
   const items = useToastItems();
   const lang = useLang();
-  return <MNotificationToaster items={items} now={now} lang={lang} onDismiss={dismiss} />;
+  return <MNotificationToaster items={items} lang={lang} onDismiss={dismiss} />;
 }
