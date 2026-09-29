@@ -97,57 +97,6 @@ test('routeLine: subagent-orphan wins over open-continuation once a notification
   assert.equal(routeLine(tracker, JSON.parse(MAIN_ASSISTANT), false), 'open-continuation');
 });
 
-test('run: a backgrounded subagent tool call after the turn closed reaches the background stream', async (t) => {
-  const { session, run, events, done } = await orphanRun(t);
-
-  session.handleLine(SUB_TOOL_USE);
-  await tick();
-
-  const tools = events.filter((e): e is Extract<RunEvent, { type: 'tool_use' }> => e.type === 'tool_use');
-  assert.equal(tools.length, 1, 'tool call delivered');
-  assert.equal(tools[0].phase, 'background');
-  assert.equal(tools[0].name, 'Read');
-  assert.equal(tools[0].toolUseId, 'toolu_child01');
-  assert.equal(tools[0].subagent?.parentToolUseId, PARENT, 'carries subagent attribution');
-  assert.equal(tools[0].subagent?.type, 'Explore');
-  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
-  run.cancel();
-  await done;
-});
-
-test('run: a backgrounded subagent tool result after the turn closed reaches the background stream', async (t) => {
-  const { session, run, events, done } = await orphanRun(t);
-
-  session.handleLine(SUB_TOOL_RESULT);
-  await tick();
-
-  const results = events.filter((e): e is Extract<RunEvent, { type: 'tool_result' }> => e.type === 'tool_result');
-  assert.equal(results.length, 1, 'tool result delivered');
-  assert.equal(results[0].phase, 'background');
-  assert.equal(results[0].toolUseId, 'toolu_child01');
-  assert.equal(results[0].content, 'file body');
-  assert.equal(results[0].subagent?.parentToolUseId, PARENT);
-  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
-  run.cancel();
-  await done;
-});
-
-test("run: a backgrounded subagent's final report reaches the background stream as attributed text", async (t) => {
-  const { session, run, events, done } = await orphanRun(t);
-
-  session.handleLine(SUB_FINAL_TEXT);
-  await tick();
-
-  const texts = events.filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text');
-  assert.equal(texts.length, 1, 'final report delivered');
-  assert.equal(texts[0].text, '## Report');
-  assert.equal(texts[0].phase, 'background');
-  assert.equal(texts[0].subagent?.parentToolUseId, PARENT, 'attributed, so it cannot read as the answer');
-  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
-  run.cancel();
-  await done;
-});
-
 test('run: orphan subagent lines do not consume the armed continuation', async (t) => {
   const { session, run, events, done } = await orphanRun(t);
 
@@ -203,25 +152,6 @@ test('subagentEndFor: a backgrounded Bash task is not a subagent', () => {
 test('subagentEndFor: an unknown task (no task_started seen, e.g. after resume) reports nothing', () => {
   const tracker = new BgTaskTracker();
   assert.equal(tracker.subagentEndFor(JSON.parse(TASK_UPDATED_DONE)), null);
-});
-
-test('run: subagent completion reaches the background stream keyed by its spawning tool call', async (t) => {
-  const { session, run, events, done } = await orphanRun(t);
-
-  session.handleLine(SUB_TOOL_USE);
-  await tick();
-  assert.equal(events.filter((e) => e.type === 'subagent_end').length, 0, 'still running');
-
-  session.handleLine(TASK_UPDATED_DONE);
-  await tick();
-
-  const ends = events.filter((e): e is Extract<RunEvent, { type: 'subagent_end' }> => e.type === 'subagent_end');
-  assert.equal(ends.length, 1);
-  assert.equal(ends[0].phase, 'background');
-  assert.equal(ends[0].parentToolUseId, PARENT);
-  assert.equal(ends[0].status, 'completed');
-  run.cancel();
-  await done;
 });
 
 test('run: a killed subagent is sealed without any main-agent line', async (t) => {

@@ -304,37 +304,6 @@ test('handleProcessClose: crash mid-continuation (spontaneous turn open) → bac
   await done;
 });
 
-// 2026-09-06 investigation (cortex-self K-070): on `--resume` with background work orphaned by
-// the previous process, the CLI emits the orphan notifications, `init`, and a 0-turn
-// result{origin:task-notification} BEFORE reading the prompt on stdin. Treating that result as
-// the user turn's resolved it empty in ~2s; the minutes of real work that followed were dropped.
-test('handleLine: notification-turn result on resume does not settle the user turn', (t) => {
-  const s: any = _test.makeSessionForTest();
-  t.onTestFinished(() => s.close());
-
-  const cap: { value?: any } = {};
-  const texts: string[] = [];
-  const turn: any = fakeTurn(cap);
-  turn.onAssistantMessage = (text: string) => texts.push(text);
-  s.currentTurn = turn;
-
-  for (const id of ['bk8lu504b', 'bgacwz2nc', 'bzxqeqq9u']) {
-    s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: id, status: 'stopped', output_file: '', summary: 'Orphaned by a previous Claude Code process exit and reported in an aggregate summary.' }));
-  }
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'init', session_id: 'test-session' }));
-  s.handleLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 0, duration_ms: 59, result: '', total_cost_usd: 0, origin: { kind: 'task-notification' }, session_id: 'test-session' }));
-  assert.equal(cap.value, undefined, 'user turn still open after the notification-turn result');
-
-  s.handleLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: '转换完成，两棵树都提交了' }] } }));
-  s.handleLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 12, result: '转换完成，两棵树都提交了', total_cost_usd: 0.9, session_id: 'test-session' }));
-
-  assert.ok(cap.value, 'user turn resolved by its own result');
-  assert.equal(cap.value.finalOutput, '转换完成，两棵树都提交了');
-  assert.equal(cap.value.num_turns, 12);
-  assert.deepEqual(texts, ['转换完成，两棵树都提交了'], 'the real reply reached the turn callbacks');
-  assert.equal(cap.value.undeliveredBackgroundTasks, 0, 'orphan notices owe no continuation');
-});
-
 // Two background completions seconds apart: A's notification opens turn A; B's lands while the
 // model is producing turn A's final text, so the CLI queues turn B. At turn A's result both
 // notifications have been observed (counts 0) — the hold used to seal idle there, and turn B

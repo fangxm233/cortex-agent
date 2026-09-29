@@ -230,6 +230,7 @@ test('claude run (e): a resume notification-turn result does not close the user 
   assert.equal(foreground.num_turns, 12);
   assert.equal(foreground.total_cost_usd, 0.9);
   assert.equal(foreground.finalOutput, '转换完成，两棵树都提交了');
+  assert.equal(foreground.undeliveredBackgroundTasks, 0, 'orphan notices owe no continuation');
   // The 0-turn notification result produced nothing at all: only the real reply and the user
   // turn's own result are present.
   assert.equal(eventsOf(trace, 'foreground_result').length, 1);
