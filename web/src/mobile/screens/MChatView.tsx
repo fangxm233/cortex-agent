@@ -24,12 +24,8 @@ import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
-export { AttachMenu } from './MChatComposerPresentation';
-export { EditBar, MsgActionMenu } from './MChatMessageActions';
 export type {
-  BrowserSheetItem, CommissionSheetItem, MChatCopy, MChatEditCopy, MChatInteractions, MChatViewProps,
-  MEditMode, MMsgMenu, MRejectBar,
+  MChatCopy, MChatEditCopy, MChatInteractions, MEditMode, MMsgMenu, MRejectBar,
 } from './MChatView.types';
 
 // ── floating header — back chevron · title + status line · context ring · ⋯ ───
