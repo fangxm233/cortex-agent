@@ -127,7 +127,11 @@ const REPRESENTATIVE_FRAMES: TuiFrame[] = [
   {
     type: MODAL_SUBMIT, id: 'sub-req-1', callbackId: 'cb1',
     privateMetadata: '{"groupId":"grp-1"}',
-    values: { q_0: { selection: { selectedOption: { value: '0' } } } },
+    values: {
+      q_0: { selection: { selectedOption: { value: '0' } } },
+      b_text: { input: { value: 'some text' } },
+      b_multi: { picks: { selectedOptions: [{ value: 'a' }, { value: 'b' }] } },
+    },
     userId: 'cortex-tui',
   } satisfies ModalSubmit,
 
@@ -254,39 +258,7 @@ test('parseFrame rejects null on required nullable fields (treats null as absent
   assert.equal(parseFrame('{"type":"chat.post","ref":null,"content":{"text":"x"},"seq":0}'), null);
 });
 
-// ── Group 3: Modal submit values round-trip (matches ModalSubmitContext.values shape) ──
-
-test('modal.submit values round-trip matches ModalSubmitContext.values shape', () => {
-  const frame: ModalSubmit = {
-    type: MODAL_SUBMIT,
-    id: 'sub-1',
-    callbackId: 'ask_user_question_modal_submit',
-    values: {
-      q_0: { selection: { selectedOption: { value: '0' } } },
-      b_text: { input: { value: 'some text' } },
-      b_multi: { picks: { selectedOptions: [{ value: 'a' }, { value: 'b' }] } },
-    },
-    privateMetadata: JSON.stringify({ groupId: 'grp-1' }),
-    userId: 'cortex-tui',
-  };
-
-  const encoded = encodeFrame(frame);
-  const decoded = parseFrame(encoded);
-  assert.ok(decoded !== null, 'parseFrame returned null for modal.submit');
-  assert.equal(decoded.type, MODAL_SUBMIT);
-
-  const submit = decoded as ModalSubmit;
-  assert.equal(submit.id, 'sub-1');
-  assert.equal(submit.callbackId, 'ask_user_question_modal_submit');
-  assert.equal(submit.userId, 'cortex-tui');
-  assert.equal(submit.values.q_0.selection.selectedOption?.value, '0');
-  assert.equal(submit.values.b_text.input.value, 'some text');
-  assert.equal(submit.values.b_multi.picks.selectedOptions?.[0]?.value, 'a');
-  assert.equal(submit.values.b_multi.picks.selectedOptions?.[1]?.value, 'b');
-  assert.equal(submit.privateMetadata, JSON.stringify({ groupId: 'grp-1' }));
-});
-
-// ── Group 4: Guard discrimination ──
+// ── Group 3: Guard discrimination ──
 
 test('specific guard narrowing (type narrowing safety under --strict)', () => {
   const f: TuiFrame = {
