@@ -49,6 +49,19 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
+/** The agent name a template slot points at: a bare string or a `{ ref }` object. */
+export function refName(ref: unknown): string | null {
+  if (typeof ref === 'string' && ref.length > 0) return ref;
+  if (ref && typeof ref === 'object' && typeof (ref as { ref?: unknown }).ref === 'string') {
+    return (ref as { ref: string }).ref;
+  }
+  return null;
+}
+
+export function pluginDirsOf(value: unknown): unknown {
+  return value && typeof value === 'object' ? (value as { pluginDirs?: unknown }).pluginDirs : undefined;
+}
+
 function pluginDirValues(pluginDirs: unknown): string[] {
   return Array.isArray(pluginDirs) ? pluginDirs.filter(isNonEmptyString) : [];
 }

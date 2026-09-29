@@ -4,7 +4,9 @@ import { listEntityNames, readEntity, readRawRegistry } from '@domain/threads/te
 import type { RawRegistry } from '@domain/threads/template-validate.js';
 import {
   normalizePluginDirs,
+  pluginDirsOf,
   readPluginCatalogSnapshot,
+  refName,
   sanitizePluginEntry,
 } from '../plugins-shared.js';
 import type {
@@ -15,18 +17,6 @@ import type {
   PluginsListReturn,
   UiServiceDeps,
 } from '../types.js';
-
-function refName(ref: unknown): string | null {
-  if (typeof ref === 'string' && ref.length > 0) return ref;
-  if (ref && typeof ref === 'object' && typeof (ref as { ref?: unknown }).ref === 'string') {
-    return (ref as { ref: string }).ref;
-  }
-  return null;
-}
-
-function pluginDirsOf(value: unknown): unknown {
-  return value && typeof value === 'object' ? (value as { pluginDirs?: unknown }).pluginDirs : undefined;
-}
 
 function templateSlotState(
   registry: RawRegistry,

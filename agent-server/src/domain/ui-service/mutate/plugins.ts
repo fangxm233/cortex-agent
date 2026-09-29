@@ -12,9 +12,12 @@ import {
   canonicalManagedPluginDirs,
   normalizePluginDirs,
   normalizedDesiredPluginIds,
+  pluginDirsOf,
   readPluginCatalogSnapshot,
+  refName,
   samePluginIds,
 } from '../plugins-shared.js';
+import { fail, toErr } from './errors.js';
 import type {
   PluginsAssignArgs,
   PluginsAssignReturn,
@@ -22,7 +25,6 @@ import type {
   UiServiceDeps,
 } from '../types.js';
 
-type KnownCode = 'invalid-args' | 'not-found' | 'conflict';
 type SlotTarget = Extract<PluginsAssignArgs['target'], { kind: 'template-slot' }>;
 type PluginState = ReturnType<typeof normalizePluginDirs>;
 type TemplateEntity = ReturnType<typeof readEntity>;
@@ -32,19 +34,6 @@ type SlotView = {
   refs: unknown[];
   current: unknown;
 };
-
-function fail(code: KnownCode, message: string): Error {
-  return Object.assign(new Error(message), { code });
-}
-
-function toErr(error: unknown): Result<never> {
-  const code = (error as { code?: unknown }).code;
-  return {
-    ok: false,
-    code: code === 'invalid-args' || code === 'not-found' || code === 'conflict' ? String(code) : 'internal',
-    message: error instanceof Error ? error.message : String(error),
-  };
-}
 
 function requireDesiredPluginIds(
   currentIds: readonly string[],
@@ -125,18 +114,6 @@ function templateSlot(entity: TemplateEntity, target: SlotTarget): SlotView {
   return { body, refs, current: requireSlotIndex(refs, target) };
 }
 
-function rawRefName(value: unknown): string | null {
-  if (typeof value === 'string' && value.length > 0) return value;
-  if (value && typeof value === 'object' && typeof (value as { ref?: unknown }).ref === 'string') {
-    return (value as { ref: string }).ref;
-  }
-  return null;
-}
-
-function pluginDirsOf(value: unknown): unknown {
-  return value && typeof value === 'object' ? (value as { pluginDirs?: unknown }).pluginDirs : undefined;
-}
-
 function inheritedState(
   ref: string,
   snapshot: ReturnType<typeof readPluginCatalogSnapshot>,
@@ -185,7 +162,7 @@ function writeInheritedSlot(
 }
 
 function requireAssignableSlotRef(current: unknown, target: SlotTarget): string {
-  const ref = rawRefName(current);
+  const ref = refName(current);
   if (ref !== target.ref) throw fail('invalid-args', t('ui.plugin.slotRefChanged', { index: target.index, ref: target.ref }));
   if (ref === '__active__') throw fail('invalid-args', t('ui.plugin.slotReadOnly', { index: target.index }));
   if (!ref) throw fail('invalid-args', t('ui.plugin.slotNotAssignable', { index: target.index }));

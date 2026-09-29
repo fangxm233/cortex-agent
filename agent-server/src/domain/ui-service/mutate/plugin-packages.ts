@@ -13,6 +13,7 @@ import {
 import { readMcpDrafts } from '../query/plugin-source.js';
 import { pluginOrigin, readPluginCatalogSnapshot } from '../plugins-shared.js';
 import { handlePluginsList } from '../query/plugins.js';
+import { fail, toErr } from './errors.js';
 import type {
   PluginsConvertArgs,
   PluginsCreateArgs,
@@ -30,21 +31,6 @@ import type {
   Result,
   UiServiceDeps,
 } from '../types.js';
-
-type KnownCode = 'invalid-args' | 'not-found' | 'conflict';
-
-function fail(code: KnownCode, message: string): Error {
-  return Object.assign(new Error(message), { code });
-}
-
-function toErr(error: unknown): Result<never> {
-  const code = (error as { code?: unknown }).code;
-  return {
-    ok: false,
-    code: code === 'invalid-args' || code === 'not-found' || code === 'conflict' ? String(code) : 'internal',
-    message: error instanceof Error ? error.message : String(error),
-  };
-}
 
 async function guarded<T>(run: () => Promise<T> | T): Promise<Result<T>> {
   try {
