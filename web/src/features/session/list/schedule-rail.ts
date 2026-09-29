@@ -1,6 +1,6 @@
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
-import { sessionStamp } from './session-groups';
+import { effectiveMs, sessionStamp } from './session-groups';
 import { formatUsd } from '@/lib/format';
 import type { TimeLang } from '@/lib/time-format';
 
@@ -32,11 +32,6 @@ export type ScheduleSubline =
   | { kind: 'run'; stamp: string; cost: string | null }
   | { kind: 'pending'; cadence: string; nextDelta: string | null }
   | { kind: 'paused'; cadence: string };
-
-function effectiveMs(s: SessionInfo): number {
-  const t = Date.parse(s.lastUsedAt || s.createdAt);
-  return Number.isNaN(t) ? 0 : t;
-}
 
 /** Group un-adopted runs by scheduleId (adopted / legacy runs excluded). */
 function runsBySchedule(sessions: SessionInfo[]): Map<string, SessionInfo[]> {

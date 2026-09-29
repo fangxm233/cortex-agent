@@ -4,7 +4,7 @@ import type {
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { lastActivityByProject, relativeAge, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
-import { orderSessions } from '@/features/session/list/session-groups';
+import { effectiveMs, orderSessions } from '@/features/session/list/session-groups';
 import {
   awaitingInputCountByProject,
   projectAttentionBadge,
@@ -125,11 +125,6 @@ export interface RailTree {
   totalMatches: number | null;
 }
 
-function effectiveMs(s: SessionInfo): number {
-  const t = Date.parse(s.lastUsedAt || s.createdAt);
-  return Number.isNaN(t) ? 0 : t;
-}
-
 function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
 }
@@ -158,9 +153,9 @@ export function sessionMatchesFilter(s: SessionInfo, filter: string): boolean {
   return sessionTitle(s).toLowerCase().includes(filter.toLowerCase());
 }
 
-function groupByProject(sessions: SessionInfo[]): Map<string, SessionInfo[]> {
-  const map = new Map<string, SessionInfo[]>();
-  for (const s of sessions) {
+function groupByProject<T extends { projectId: string }>(items: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const s of items) {
     const list = map.get(s.projectId);
     if (list) list.push(s);
     else map.set(s.projectId, [s]);
@@ -213,18 +208,8 @@ export function buildRailTree(input: RailTreeInput): RailTree {
 
   const sessionsByProject = groupByProject(directSessions);
   const scheduledByProject = groupByProject(scheduledSessions);
-  const schedulesByProject = new Map<string, ScheduleInfo[]>();
-  for (const schedule of schedules) {
-    const list = schedulesByProject.get(schedule.projectId);
-    if (list) list.push(schedule);
-    else schedulesByProject.set(schedule.projectId, [schedule]);
-  }
-  const commissionsByProject = new Map<string, CommissionInfo[]>();
-  for (const commission of commissions) {
-    const list = commissionsByProject.get(commission.projectId);
-    if (list) list.push(commission);
-    else commissionsByProject.set(commission.projectId, [commission]);
-  }
+  const schedulesByProject = groupByProject(schedules);
+  const commissionsByProject = groupByProject(commissions);
 
   const activityOrder = sortProjectsByActivity(projects, lastActivity).map((p) => p.id);
   const order = resolveRailOrder(sort, activityOrder, manualOrder, dragged);

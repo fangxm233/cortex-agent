@@ -4,7 +4,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 // reasoning is local calendar day / wall-clock.
 
 // Effective timestamp: prefer lastUsedAt, fall back to createdAt.
-function effectiveMs(s: SessionInfo): number {
+export function effectiveMs(s: SessionInfo): number {
   const t = Date.parse(s.lastUsedAt || s.createdAt);
   return Number.isNaN(t) ? 0 : t;
 }

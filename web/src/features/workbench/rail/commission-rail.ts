@@ -1,4 +1,5 @@
 import type { CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import { effectiveMs } from '@/features/session/list/session-groups';
 
 // DR-0037: a commission groups the sessions of one long-horizon task. Unlike a schedule row (one
 // row per schedule, runs hidden behind a modal), a commission row EXPANDS in place — its sessions
@@ -22,11 +23,6 @@ export interface CommissionRow {
   /** Any member session blocked on the user — the row's amber gate marker. */
   awaitingInput: boolean;
   running: boolean;
-}
-
-function effectiveMs(s: SessionInfo): number {
-  const t = Date.parse(s.lastUsedAt || s.createdAt);
-  return Number.isNaN(t) ? 0 : t;
 }
 
 /** Row activity for ordering: latest member session, else the registry's own updatedAt (a
