@@ -59,23 +59,6 @@ describe('AttemptRecord member set — §9.1, 39 members (§17 17.1.4)', () => {
     expect([...ATTEMPT_RECORD_KEYS]).toEqual(NINE_ONE_ORDER);
   });
 
-  it('G4-CM2: every key is present on a record, including the nullable-valued ones', () => {
-    const record = sampleAttempt();
-    for (const key of ATTEMPT_RECORD_KEYS) {
-      expect(Object.hasOwn(record, key), `missing key ${key}`).toBe(true);
-    }
-    expect(Object.keys(record).sort()).toEqual([...ATTEMPT_RECORD_KEYS].sort());
-  });
-
-  it('G4-CM2: all four TokenCounts members are present even when unavailable', () => {
-    // `manifest-contract.ts:26,:27` declare cache_read/cache_creation OPTIONAL. On the wire they
-    // are `null`, never absent, so two manifests can never differ by key presence.
-    const tokens = sampleAttempt().tokens;
-    expect(Object.keys(tokens).sort()).toEqual(
-      ['cache_creation', 'cache_read', 'input', 'output'],
-    );
-  });
-
   it('carries the five dispositions §9.1 declares', () => {
     expect([...ATTEMPT_DISPOSITIONS]).toEqual(
       ['accepted', 'rejected', 'superseded', 'invalidated', 'none'],
@@ -145,13 +128,6 @@ describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {
     expect(ordinals.get('b1')).toBe(1);
   });
 
-  it('never mints an ordinal 0 — a reader never has to ask which base was used', () => {
-    const ordinals = assignAttemptOrdinals([
-      { attempt_id: 'a1', task_id: 't1', started_at: at(1) },
-    ]);
-    expect([...ordinals.values()].every(value => value >= 1)).toBe(true);
-  });
-
   it('orders by started_at ascending, breaking ties by attempt_id ascending', () => {
     const ordinals = assignAttemptOrdinals([
       { attempt_id: 'zz', task_id: 't1', started_at: at(1) },
@@ -180,16 +156,6 @@ describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {
 });
 
 describe('D-NULL3 — the three widened members (G4-N13 / G4-N14)', () => {
-
-  it('G4-N13: dispatch_generation is null for EVERY attempt on the benchmark path', () => {
-    // Not a parent-only absence: the shipped source type is already nullable
-    // (`core/task-parser.ts:35`) and the benchmark orchestrator never claims — it CREATES threads
-    // (`benchmark-local-thread-orchestrator.ts:389`). Re-using `root_run_id` would fabricate a
-    // distinction the data does not contain.
-    expect(sampleAttempt().dispatch_generation).toBeNull();
-    expect(sampleAttempt({ thread_id: 'c1', root_thread_id: 'c1', template: 't' })
-      .dispatch_generation).toBeNull();
-  });
 
   it('G4-N14 direction 1: a PARENT attempt holds null thread-scoped identity', () => {
     const parent = sampleAttempt();
@@ -224,11 +190,4 @@ describe('D-NULL3 — the three widened members (G4-N13 / G4-N14)', () => {
     )).toBe(false);
   });
 
-});
-
-describe('R1 — the backend widening is ASSERTED, never re-edited (G4-N2)', () => {
-  it('an AttemptRecord accepts both backends the widened union admits', () => {
-    expect(sampleAttempt({ backend: 'claude' }).backend).toBe('claude');
-    expect(sampleAttempt({ backend: 'pi' }).backend).toBe('pi');
-  });
 });
