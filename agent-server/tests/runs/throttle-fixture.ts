@@ -28,7 +28,6 @@ export function writeProfilesFixture(home: string): void {
 
 export interface ThrottleHome {
   rl: typeof import('../../src/domain/costs/rate-limit-throttle.js');
-  profileRepo: typeof import('../../src/store/profile-repo.js').profileRepo;
   /** Arm the throttle so every listed mode reads as rate-limited for provider `anthropic`. */
   initThrottle(modes: string[]): Promise<typeof import('../../src/domain/costs/rate-limit-throttle.js')>;
   dispose(): void;
@@ -60,7 +59,6 @@ export async function loadThrottleHome(prefix: string): Promise<ThrottleHome> {
       ]);
       return {
         rl,
-        profileRepo: profiles.profileRepo,
         // handleRateLimitEvent only adds a mode on the extension path (resetsAt > current), so
         // each mode gets a slightly later resetsAt.
         async initThrottle(modes: string[]) {

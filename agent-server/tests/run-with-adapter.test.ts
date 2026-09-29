@@ -29,7 +29,6 @@ import type { RunEvent } from '../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AwaitBackground } from '../src/agent-adapter/continuation-phase.js';
 import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
-import type { AgentResult } from '../src/core/types/agent-types.js';
 import { isRetryableResult } from '../src/domain/runs/fallback.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
@@ -58,7 +57,6 @@ vi.mock('../src/domain/runs/engines.js', async (importOriginal) => {
   const { mkdirSync } = await import('node:fs');
   const { PIAdapter } = await import('../src/agent-adapter/pi/adapter.js');
   const { ClaudeAdapter } = await import('../src/agent-adapter/claude/adapter.js');
-  const { makeFakeRuntimeFactory: makeFake } = await import('./agent-adapter/pi-fake-runtime.js');
   const sessionDir = join(dir(), `run-with-adapter-sessions-${process.pid}`);
   mkdirSync(sessionDir, { recursive: true });
   const delegating = (request: unknown, callbacks: unknown) =>

@@ -10,13 +10,10 @@ import { resetSettingsForTests, updateSettings } from '../src/core/settings.js';
 function makePersistenceStub(initial: any = null) {
   let savedState: any = initial;
   return {
-    saved: savedState,
     save(state: any) { savedState = state; return Promise.resolve(); },
     load() { return Promise.resolve(savedState); },
     /** Test helper: get raw saved state */
     getSaved() { return savedState; },
-    /** Test helper: set state for next load() call */
-    setSaved(state: any) { savedState = state; },
   };
 }
 
@@ -653,7 +650,7 @@ test('legacy persisted throttle recovers as an Anthropic provider record', async
   assert.equal(provider.windows[0].resetsAt, reset);
 });
 
-function assertOutageActivation(mod: any, persistence: any, adapter: MockAdapter): void {
+function assertOutageActivation(mod: any, persistence: any): void {
   const provider = mod.getThrottleState().providers[0];
   assert.equal(provider.provider, 'provider-a');
   assert.deepEqual(provider.modes, []);
@@ -679,7 +676,7 @@ test('synthetic outage is provider-wide, persisted, distinct, and expires on sch
   );
 
   await mod.activateOutageWindow('provider-a', 5 * 60_000);
-  assertOutageActivation(mod, persistence, adapter);
+  assertOutageActivation(mod, persistence);
   await vi.advanceTimersByTimeAsync(5 * 60_000);
 
   assert.deepEqual(cleared, [['provider-a']]);

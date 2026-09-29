@@ -8,7 +8,6 @@ function makePersistenceStub(initial: any = []) {
     save(state: any) { savedState = state; return Promise.resolve(); },
     load() { return Promise.resolve(savedState); },
     getSaved() { return savedState; },
-    setSaved(state: any) { savedState = state; },
   };
 }
 
