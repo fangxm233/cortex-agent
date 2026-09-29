@@ -152,7 +152,7 @@ test('isProjectLocked — returns locked state for active lock', () => {
       acquired_at: '2026-01-01T00:00:00.000Z',
       expires_at: '2099-01-01T00:00:00.000Z',
     });
-    const result = isProjectLocked(project, '2026-06-01T00:00:00.000Z');
+    const result = isProjectLocked(project);
     assert.equal(result.locked, true);
     assert.equal(result.owner, 'owner-A');
     assert.ok(result.expiresAt);
@@ -170,7 +170,7 @@ test('isProjectLocked — returns unlocked when lock expired', () => {
       acquired_at: '2020-01-01T00:00:00.000Z',
       expires_at: '2020-06-01T00:00:00.000Z',
     });
-    const result = isProjectLocked(project, '2026-01-01T00:00:00.000Z');
+    const result = isProjectLocked(project);
     assert.equal(result.locked, false);
   } finally {
     cleanupProject(project);

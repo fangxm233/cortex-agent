@@ -151,17 +151,13 @@ export function assertLockHeld(project: string, owner: string): string | null {
   return null;
 }
 
-export function isProjectLocked(
-  project: string,
-  now?: string,
-): { locked: boolean; owner?: string; expiresAt?: string } {
+export function isProjectLocked(project: string): { locked: boolean; owner?: string; expiresAt?: string } {
   const current = readLock(project);
   if (!current) {
     return { locked: false };
   }
-  const refTime = now ? new Date(now) : new Date();
   const expiresAt = new Date(current.expires_at);
-  if (expiresAt <= refTime) {
+  if (expiresAt <= new Date()) {
     return { locked: false };
   }
   return {
