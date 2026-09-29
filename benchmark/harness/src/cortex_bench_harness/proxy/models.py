@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Literal
 
 PROXY_SCHEMA_VERSION = "cortex-bench-trial-proxy/2"
@@ -110,10 +109,6 @@ class ProxyMetadata:
             "response_body_limit_bytes": self.response_body_limit_bytes,
             "log_filename": self.log_filename,
         }
-
-
-def decimal_text(value: Decimal) -> str:
-    return format(value.normalize(), "f")
 
 
 def utc_text(value: datetime) -> str:
