@@ -9,15 +9,11 @@ import {
   setPlatformAdminChannel,
 } from '../../src/platform/adapters/composite-adapter.js';
 import { TuiGatewayAdapter, TuiConnection } from '../../src/platform/adapters/tui/index.js';
-import { tuiConduitStates, setConduitState, deleteConduitState } from '../../src/platform/adapters/tui/tui-conduit-state.js';
+import { tuiConduitStates, setConduitState } from '../../src/platform/adapters/tui/tui-conduit-state.js';
 import type { OutputStream, MutableRegion } from '../../src/platform/output-stream.js';
 import type { MessageRef, RichBlock, ActionElement } from '../../src/platform/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
-
-function makeMockWs(): WebSocket {
-  return { send: () => {}, close: () => {}, on: () => {} } as unknown as WebSocket;
-}
 
 /** RecordingOutputStream: records all operations in a `segments` array for test assertions. */
 class RecordingOutputStream implements OutputStream {

@@ -646,10 +646,8 @@ test('ui.subscribe with UiService forwards events to connection', async (t) => {
     { type: 'thread.created', ts: '2024-01-01T00:00:00Z', payload: { threadId: 't1' } },
     { type: 'thread.completed', ts: '2024-01-01T01:00:00Z', payload: { threadId: 't1' } },
   ];
-  let subscriptionClosed = false;
-
   const mockSubscription = {
-    close: () => { subscriptionClosed = true; },
+    close: () => {},
     [Symbol.asyncIterator]: () => {
       let idx = 0;
       return {
