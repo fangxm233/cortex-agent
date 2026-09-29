@@ -22,12 +22,9 @@ import {
 
 const SESSION_LOG_DIR = path.join(DATA_DIR, 'logs', 'session-activity');
 const SESSION_ID_PREFIX = 'test-thread-manager-';
-const createdSessionIds = new Set<string>();
 
 function uniqueSessionId(): string {
-  const id = `${SESSION_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  createdSessionIds.add(id);
-  return id;
+  return `${SESSION_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function writeSessionLog(sessionId: string, content: string) {
@@ -39,23 +36,7 @@ function removeSessionLog(sessionId: string) {
   try {
     fs.unlinkSync(path.join(SESSION_LOG_DIR, `${sessionId}.jsonl`));
   } catch {}
-  createdSessionIds.delete(sessionId);
 }
-
-// Safety net: if a test is killed mid-run (Ctrl-C, SIGTERM), unlink any logs we created
-// and also sweep any orphaned logs from earlier aborted runs that share our prefix.
-process.on('exit', () => {
-  for (const id of createdSessionIds) {
-    try { fs.unlinkSync(path.join(SESSION_LOG_DIR, `${id}.jsonl`)); } catch {}
-  }
-  try {
-    for (const entry of fs.readdirSync(SESSION_LOG_DIR)) {
-      if (entry.startsWith(SESSION_ID_PREFIX)) {
-        try { fs.unlinkSync(path.join(SESSION_LOG_DIR, entry)); } catch {}
-      }
-    }
-  } catch {}
-});
 
 // --- resolveSystemVars ---
 
@@ -189,23 +170,11 @@ test('buildStepPrompt keeps the modified file list but drops obsolete inline cha
 
 // --- createThread / evaluateTransitions (P1 orchestration paths) ---
 //
-// These tests mutate threadStore (writing to DATA_DIR/threads.json). We back up the real
-// threads.json once and restore on teardown. Test threads are recorded and deleted to keep
-// the in-memory store clean too.
+// Test threads are recorded and deleted to keep the store clean.
 
-const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
-let threadsBackup: string | null = null;
-let threadsBackupExisted = false;
 const createdThreadIds = new Set<string>();
 
 beforeAll(() => {
-  try {
-    threadsBackup = fs.readFileSync(THREADS_FILE, 'utf8');
-    threadsBackupExisted = true;
-  } catch {
-    threadsBackup = null;
-    threadsBackupExisted = false;
-  }
   loadConfig();
 });
 
@@ -214,18 +183,7 @@ afterAll(async () => {
     try { cleanupWorkspace(id); } catch {}
     await threadStore.delete(id);
   }
-  if (threadsBackupExisted && threadsBackup != null) {
-    fs.writeFileSync(THREADS_FILE, threadsBackup);
-  } else {
-    try { fs.unlinkSync(THREADS_FILE); } catch {}
-  }
   await threadStore.flush();
-});
-
-process.on('exit', () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    try { fs.writeFileSync(THREADS_FILE, threadsBackup); } catch {}
-  }
 });
 
 function trackThreadId(id: string): string {

@@ -1,9 +1,8 @@
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { DATA_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   initThreadContext,
@@ -20,37 +19,11 @@ import { evictPendingUserInput, registerPendingUserInput, waitForPendingUserInpu
 import { MockAdapter } from '../src/platform/testing.js';
 import type { ThreadRecord, RunThreadOptions, AgentSlotConfig } from '../src/core/types/thread-types.js';
 
-// --- threads.json backup / restore so tests do not pollute production state ---
-
-const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
-let threadsBackup: string | null = null;
-let threadsBackupExisted = false;
 const testThreadIds = new Set<string>();
 
-beforeAll(() => {
-  try {
-    threadsBackup = fs.readFileSync(THREADS_FILE, 'utf8');
-    threadsBackupExisted = true;
-  } catch {
-    threadsBackup = null;
-    threadsBackupExisted = false;
-  }
-});
-
 afterAll(async () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    fs.writeFileSync(THREADS_FILE, threadsBackup);
-  } else {
-    try { fs.unlinkSync(THREADS_FILE); } catch {}
-  }
   for (const id of testThreadIds) await threadStore.delete(id);
   await threadStore.flush();
-});
-
-process.on('exit', () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    try { fs.writeFileSync(THREADS_FILE, threadsBackup); } catch {}
-  }
 });
 
 function makeThreadRecord(init: Partial<ThreadRecord> & { id: string; channel: string }): ThreadRecord {

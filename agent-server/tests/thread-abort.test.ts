@@ -2,7 +2,7 @@ import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_DIR, DATA_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   abortThread,
@@ -21,19 +21,9 @@ import {
 import { finalizeAbortedThread } from '../src/domain/threads/runner.js';
 import type { ThreadRecord } from '../src/core/types/thread-types.js';
 
-const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
-let threadsBackup: string | null = null;
-let threadsBackupExisted = false;
 const createdThreadIds = new Set<string>();
 
 beforeAll(() => {
-  try {
-    threadsBackup = fs.readFileSync(THREADS_FILE, 'utf8');
-    threadsBackupExisted = true;
-  } catch {
-    threadsBackup = null;
-    threadsBackupExisted = false;
-  }
   mergeThreadTemplates(
     path.resolve(process.cwd(), 'defaults/config/thread-templates'),
     path.join(CONFIG_DIR, 'thread-templates'),
@@ -46,18 +36,7 @@ afterAll(async () => {
     try { cleanupWorkspace(id); } catch {}
     await threadStore.delete(id);
   }
-  if (threadsBackupExisted && threadsBackup != null) {
-    fs.writeFileSync(THREADS_FILE, threadsBackup);
-  } else {
-    try { fs.unlinkSync(THREADS_FILE); } catch {}
-  }
   await threadStore.flush();
-});
-
-process.on('exit', () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    try { fs.writeFileSync(THREADS_FILE, threadsBackup); } catch {}
-  }
 });
 
 function trackThreadId(id: string): string {
