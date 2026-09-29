@@ -12,14 +12,7 @@ from current_vendor_cli import installed_cli, isolated_or_rerun
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures/vendor-wire/claude-code"
 PIN_PATH = FIXTURE_DIR / "pin.json"
 CAPTURE_PATH = FIXTURE_DIR / "wire-capture.json"
-DETERMINATION_PATH = FIXTURE_DIR / "determination.json"
 EXPECTED_VERSION = "2.1.232"
-EXPECTED_MODELS = {
-    "haiku": "claude-haiku-4-5-20251001",
-    "opus": "claude-opus-5",
-    "sonnet": "claude-sonnet-5",
-    "subagent-haiku": "claude-haiku-4-5-20251001",
-}
 
 
 def load(path: Path) -> dict[str, object]:
