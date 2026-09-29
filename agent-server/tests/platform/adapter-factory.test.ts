@@ -29,29 +29,11 @@ function withEnv(overrides: Record<string, string | undefined>, fn: () => void):
     for (const [k, v] of Object.entries(overrides)) {
       if (v === undefined) delete process.env[k]; else process.env[k] = v;
     }
+    resetSettingsForTests();
     fn();
   } finally {
     for (const k of ENV_KEYS) {
       if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
-    }
-  }
-}
-
-async function withFreshEnv(
-  overrides: Record<string, string | undefined>,
-  fn: (createPrimaries: typeof createPrimaryAdaptersFromEnv) => void,
-): Promise<void> {
-  const saved: Record<string, string | undefined> = {};
-  for (const key of ENV_KEYS) { saved[key] = process.env[key]; delete process.env[key]; }
-  try {
-    for (const [key, value] of Object.entries(overrides)) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-    resetSettingsForTests();
-    fn(createPrimaryAdaptersFromEnv);
-  } finally {
-    for (const key of ENV_KEYS) {
-      if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key];
     }
     resetSettingsForTests();
   }
@@ -111,16 +93,16 @@ test('createAdapterFromEnv: no platform and TUI disabled → throws', () => {
   });
 });
 
-test('admin channel env fallbacks preserve Slack, Feishu, and test priority chains', async () => {
-  await withFreshEnv({
+test('admin channel env fallbacks preserve Slack, Feishu, and test priority chains', () => {
+  withEnv({
     CORTEX_PLATFORM: 'slack,feishu,test',
     ...SLACK,
     ...FEISHU,
     SLACK_ADMIN_CHANNEL: 'C_slack',
     CORTEX_ADMIN_CHANNEL: 'C_cortex',
     FEISHU_ADMIN_CHANNEL: 'oc_feishu',
-  }, (createPrimaries) => {
-    const adapters = createPrimaries() as any[];
+  }, () => {
+    const adapters = createPrimaryAdaptersFromEnv() as any[];
     const slack = adapters.find((adapter) => adapter.name === 'slack');
     const feishu = adapters.find((adapter) => adapter.name === 'feishu');
     const mock = adapters.find((adapter) => adapter.name === 'mock');
@@ -130,14 +112,14 @@ test('admin channel env fallbacks preserve Slack, Feishu, and test priority chai
   });
 });
 
-test('admin channel env fallbacks reach legacy Slack alias independently', async () => {
-  await withFreshEnv({
+test('admin channel env fallbacks reach legacy Slack alias independently', () => {
+  withEnv({
     CORTEX_PLATFORM: 'slack,feishu,test',
     ...SLACK,
     ...FEISHU,
     CORTEX_ADMIN_CHANNEL: 'C_legacy',
-  }, (createPrimaries) => {
-    const adapters = createPrimaries() as any[];
+  }, () => {
+    const adapters = createPrimaryAdaptersFromEnv() as any[];
     const slack = adapters.find((adapter) => adapter.name === 'slack');
     const feishu = adapters.find((adapter) => adapter.name === 'feishu');
     const mock = adapters.find((adapter) => adapter.name === 'mock');
@@ -149,15 +131,15 @@ test('admin channel env fallbacks reach legacy Slack alias independently', async
 
 test('settings admin channels override every env fallback without crossing platforms', async () => {
   await updateSettings({ adminChannel: 'C_settings', feishuAdminChannel: 'oc_settings' });
-  await withFreshEnv({
+  withEnv({
     CORTEX_PLATFORM: 'slack,feishu,test',
     ...SLACK,
     ...FEISHU,
     SLACK_ADMIN_CHANNEL: 'C_slack',
     CORTEX_ADMIN_CHANNEL: 'C_cortex',
     FEISHU_ADMIN_CHANNEL: 'oc_env',
-  }, (createPrimaries) => {
-    const adapters = createPrimaries() as any[];
+  }, () => {
+    const adapters = createPrimaryAdaptersFromEnv() as any[];
     const slack = adapters.find((adapter) => adapter.name === 'slack');
     const feishu = adapters.find((adapter) => adapter.name === 'feishu');
     const mock = adapters.find((adapter) => adapter.name === 'mock');
