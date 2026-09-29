@@ -118,7 +118,6 @@ function initialize(backend: Backend): ProductionBenchmarkEvidenceContext {
     storePath: identityStorePath(),
     configurationRevision: () => ({ profiles: 1, threads: 1 }),
   });
-  initializeProductionAttemptJournals({ journalDir: journalDir(), storePath: journalStorePath() });
   return activeEvidence;
 }
 
@@ -606,7 +605,6 @@ test('reload fails closed when persisted journal bytes no longer match their dig
 });
 
 test('ordinary non-benchmark runs do not create production attempt evidence', async () => {
-  initializeProductionAttemptJournals({ journalDir: journalDir(), storePath: journalStorePath() });
   initializeProductionAttemptIdentity({ storePath: identityStorePath() });
   const resolved = profile('claude');
   resolved.name = 'ordinary';
