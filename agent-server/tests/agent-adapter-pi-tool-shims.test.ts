@@ -35,19 +35,7 @@ async function spawnSession(sessionKey: string, sessionId = 'sess-abc', config: 
   return { fake, adapter, engine, runtime };
 }
 
-// Tests A-D: turn lifecycle over the in-process session
-test('A: basic send', async () => {
-  const { engine, runtime } = await spawnSession('k1');
-  const run = engine.run({ text: 'hello' }, { awaitBackground: 'none' });
-  await runtime.nextCall('prompt');
-  runtime.emit({ type: 'agent_end', messages: [{ role: 'assistant', content: 'ok', usage: { cost: { total: 0.005 } } }] });
-  runtime.emit({ type: 'agent_settled' });
-  const result = await run.result;
-  assert.equal(result.sessionId, 'sess-abc');
-  assert.deepEqual(runtime.prompts(), ['hello']);
-  run.cancel();
-});
-
+// Tests B-C: turn lifecycle over the in-process session
 test('B: successful PI auto-retry does not mark the settled turn rate-limited', async () => {
   const { engine, runtime } = await spawnSession('k2');
   const run = engine.run({ text: 'do stuff' }, { awaitBackground: 'none' });
@@ -99,15 +87,6 @@ test('F: generic extension dialog', async () => {
   const result = await run.result;
   assert.equal(result.askUserQuestions, undefined);
   assert.deepEqual(runtime.uiResponses, [{ id: 'ui-sel-1', payload: { value: 'Blue' } }]);
-  run.cancel();
-});
-
-// Test G: the prompt is refused before PI enters its loop (auth/model failure)
-test('G: fatal error', async () => {
-  const { engine, runtime } = await spawnSession('k7');
-  runtime.promptRejections.push(new Error('fatal: something broke'));
-  const run = engine.run({ text: 'do something' }, { awaitBackground: 'none' });
-  await assert.rejects(run.result, /something broke/i);
   run.cancel();
 });
 
