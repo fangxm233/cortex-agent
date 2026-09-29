@@ -18,13 +18,4 @@ export function subagentRowRef(subagent: ToolUseSubagent): SubagentRowRef {
 }
 
 /** The same reference as the optional fields a `session.message` payload spreads. */
-export function subagentPayloadFields(ref?: SubagentRowRef):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
-  if (!ref) return {};
-  return {
-    subagentId: ref.id,
-    ...(ref.type ? { subagentType: ref.type } : {}),
-    ...(ref.description ? { subagentDescription: ref.description } : {}),
-    ...(ref.model ? { subagentModel: ref.model } : {}),
-  };
-}
+export { subagentRowFields as subagentPayloadFields } from '@store/conversation-history-repo.js';

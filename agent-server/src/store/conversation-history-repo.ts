@@ -11,6 +11,7 @@ import {
 } from './conversation-display-projection.js';
 import {
   ConversationHistoryAccumulator,
+  parseRawEvent,
   readHistoryAccumulator,
   readHistoryStream,
   resumeHistoryAccumulator,
@@ -270,7 +271,7 @@ export interface SubagentRowRef {
   model?: string | null;
 }
 
-function subagentRowFields(ref?: SubagentRowRef):
+export function subagentRowFields(ref?: SubagentRowRef):
   { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
   if (!ref) return {};
   return {
@@ -337,7 +338,7 @@ function truncateLines(
 ): { kept: string[]; removed: { text: string; ts: string; attachments?: RawEvent['attachments'] } | null } {
   let userCount = 0;
   for (let i = 0; i < lines.length; i++) {
-    const ev = parseRawLine(lines[i]);
+    const ev = parseRawEvent(lines[i]);
     if (ev?.type !== 'user') continue;
     if (userCount !== turnIndex) {
       userCount += 1;
@@ -354,11 +355,7 @@ function truncateLines(
 
 function markerAdjustedKeepEnd(lines: string[], cutAt: number): number {
   if (cutAt === 0) return 0;
-  return parseRawLine(lines[cutAt - 1])?.type === 'edit-marker' ? cutAt - 1 : cutAt;
-}
-
-function parseRawLine(line: string): RawEvent | null {
-  try { return JSON.parse(line) as RawEvent; } catch { return null; }
+  return parseRawEvent(lines[cutAt - 1])?.type === 'edit-marker' ? cutAt - 1 : cutAt;
 }
 
 export class ConversationHistoryRepo {

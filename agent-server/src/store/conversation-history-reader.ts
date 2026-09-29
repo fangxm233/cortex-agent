@@ -79,7 +79,7 @@ function debugResultToolRef(line: string): string | null {
   try { return JSON.parse(`"${encoded}"`) as string; } catch { return null; }
 }
 
-function parseRawEvent(line: string): RawEvent | null {
+export function parseRawEvent(line: string): RawEvent | null {
   try { return JSON.parse(line) as RawEvent; } catch { return null; }
 }
 
