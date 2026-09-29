@@ -100,7 +100,6 @@ describe('parseViewMessage', () => {
     expect(parseViewMessage({ __cortexView: 'height', value: 420 })).toEqual({ type: 'height', value: 420 });
     expect(parseViewMessage({ __cortexView: 'height', value: 1 })).toEqual({ type: 'height', value: VIEW_HEIGHT_MIN });
     expect(parseViewMessage({ __cortexView: 'height', value: 1e9 })).toEqual({ type: 'height', value: VIEW_HEIGHT_MAX });
-    expect(parseViewMessage({ __cortexView: 'height', value: 5000 }, 20000)).toEqual({ type: 'height', value: 5000 });
   });
 
   it('reserves submit so the protocol does not change when it ships', () => {

@@ -6,7 +6,7 @@ import type { DocItem } from './preview-item';
 import { useViewHeight } from './useViewHeight';
 import { useMediaCopy } from './media-copy';
 import {
-  VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, VIEW_HEIGHT_MAX, VIEW_HEIGHT_MAX_EXPANDED, wrapViewDocument,
+  VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, wrapViewDocument,
 } from './html-sandbox';
 
 // Renders `AttachmentMeta.type === 'view'` documents. The bytes are fetched HERE, by the parent,
@@ -28,11 +28,9 @@ export interface HtmlBodyProps {
    * `expanded` (modal / docked pane) fills its container and lets the document scroll itself.
    */
   mode?: 'inline' | 'expanded';
-  /** First-paint height for `inline` before the document reports its own. */
-  initialHeight?: number;
 }
 
-export function HtmlBody({ item, mode = 'expanded', initialHeight = VIEW_HEIGHT_DEFAULT }: HtmlBodyProps): JSX.Element {
+export function HtmlBody({ item, mode = 'expanded' }: HtmlBodyProps): JSX.Element {
   const theme = useTheme();
   const copy = useMediaCopy();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
@@ -76,15 +74,11 @@ export function HtmlBody({ item, mode = 'expanded', initialHeight = VIEW_HEIGHT_
   );
 
   const inline = mode === 'inline';
-  const reported = useViewHeight(frameRef, {
-    initial: initialHeight,
-    max: inline ? VIEW_HEIGHT_MAX : VIEW_HEIGHT_MAX_EXPANDED,
-    enabled: inline,
-  });
+  const reported = useViewHeight(frameRef, { enabled: inline });
 
   if (state !== 'ok' || srcDoc === null) {
     return (
-      <Placeholder height={inline ? initialHeight : undefined}>
+      <Placeholder height={inline ? VIEW_HEIGHT_DEFAULT : undefined}>
         {state === 'loading' && copy.viewLoading}
         {state === 'failed' && copy.loadFailed.replace('{name}', item.name)}
         {state === 'toolarge' && copy.viewTooLarge}

@@ -27,8 +27,6 @@ export const VIEW_SANDBOX = 'allow-scripts';
 export const VIEW_HEIGHT_MIN = 160;
 export const VIEW_HEIGHT_MAX = 900;
 export const VIEW_HEIGHT_DEFAULT = 360;
-/** Expanded surfaces (modal, docked pane) let a view grow past the inline card's ceiling. */
-export const VIEW_HEIGHT_MAX_EXPANDED = 20000;
 
 export interface WrapViewOptions {
   /** Let the document load libraries/data over https. Off produces a fully offline document. */
@@ -78,13 +76,13 @@ export type ViewMessage =
  * `event.origin`: a sandboxed frame without `allow-same-origin` reports its origin as the string
  * "null", so an origin allow-list would drop every message a view ever sends.
  */
-export function parseViewMessage(data: unknown, maxHeight = VIEW_HEIGHT_MAX): ViewMessage | null {
+export function parseViewMessage(data: unknown): ViewMessage | null {
   if (typeof data !== 'object' || data === null) return null;
   const d = data as Record<string, unknown>;
   if (d.__cortexView === 'height') {
     const n = Number(d.value);
     if (!Number.isFinite(n)) return null;
-    return { type: 'height', value: Math.min(maxHeight, Math.max(VIEW_HEIGHT_MIN, Math.round(n))) };
+    return { type: 'height', value: Math.min(VIEW_HEIGHT_MAX, Math.max(VIEW_HEIGHT_MIN, Math.round(n))) };
   }
   if (d.__cortexView === 'submit') return { type: 'submit', value: d.value };
   return null;

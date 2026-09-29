@@ -13,26 +13,24 @@ import { parseViewMessage, VIEW_HEIGHT_DEFAULT } from './html-sandbox';
  */
 export function useViewHeight(
   ref: RefObject<HTMLIFrameElement | null>,
-  opts: { initial?: number; max: number; enabled?: boolean } ,
+  opts: { enabled?: boolean },
 ): number {
-  const { initial = VIEW_HEIGHT_DEFAULT, max, enabled = true } = opts;
-  const [height, setHeight] = useState(initial);
-
-  useEffect(() => { setHeight(initial); }, [initial]);
+  const { enabled = true } = opts;
+  const [height, setHeight] = useState(VIEW_HEIGHT_DEFAULT);
 
   useEffect(() => {
     if (!enabled) return;
     const onMessage = (e: MessageEvent): void => {
       const frame = ref.current;
       if (!frame || e.source !== frame.contentWindow) return;
-      const msg = parseViewMessage(e.data, max);
+      const msg = parseViewMessage(e.data);
       // `submit` is parsed and deliberately dropped — the protocol is reserved, the behaviour is not
       // implemented. Ignoring it here keeps a future view from silently doing nothing surprising.
       if (msg?.type === 'height') setHeight(msg.value);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [ref, max, enabled]);
+  }, [ref, enabled]);
 
   return height;
 }
