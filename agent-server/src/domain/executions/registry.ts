@@ -176,13 +176,12 @@ export function cancelExecutionByTaskId(taskId: string, metrics?: Parameters<typ
  * Does NOT touch the busy-tracker — trackPendingTask(±1) is per-enqueue (a thread spans many
  * steps under one +1), so it stays managed by the caller.
  */
-export function teardownExecution({ executionId, status, result, error, durationS, costUsd }: {
+export function teardownExecution({ executionId, status, result, error, durationS }: {
   executionId: string | null;
   status: 'completed' | 'failed' | 'cancelled';
   result?: AgentResult | null;
   error?: { message?: string } | null;
   durationS: number;
-  costUsd?: number;
 }) {
   if (!executionId) return null;
   let rec;
@@ -190,7 +189,7 @@ export function teardownExecution({ executionId, status, result, error, duration
     rec = completeExecution(executionId, {
       costUsd: result?.total_cost_usd, numTurns: result?.num_turns, durationS, finalOutput: result?.finalOutput || null,
     });
-    runRegistry.complete(executionId, costUsd ?? result?.total_cost_usd ?? 0);
+    runRegistry.complete(executionId, result?.total_cost_usd ?? 0);
   } else if (status === 'cancelled') {
     rec = cancelExecution(executionId, { durationS });
     // The kill already happened on the cancel path; supersede() publishes agent.superseded
