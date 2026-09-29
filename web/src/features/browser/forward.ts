@@ -46,17 +46,6 @@ export async function startForward(port: number): Promise<ForwardInfo> {
   return nativeValue(result, new ForwardError('unavailable'));
 }
 
-export async function stopForward(port: number): Promise<void> {
-  const result = await safeInvoke('forward_stop', { port });
-  if (!result.ok && result.reason === 'failed') throw result.error;
-}
-
-export async function listForwards(): Promise<ForwardInfo[]> {
-  const result = await safeInvoke('forward_list');
-  if (!result.ok && result.reason === 'unavailable') return [];
-  return nativeValue(result, new ForwardError('unavailable'));
-}
-
 /**
  * Ports currently listening on the SERVER's loopback. Authenticated like every other non-tRPC
  * route; an empty list is a normal answer (no `ss`, nothing listening), not an error.
