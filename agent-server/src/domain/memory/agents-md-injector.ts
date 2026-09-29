@@ -101,7 +101,6 @@ function cacheKey(device: string, entry: AgentsMDEntry): string {
 export interface AgentsMDInjectorOptions {
   sessionId?: string;
   cacheDir?: string;
-  cacheFile?: string | null;
 }
 
 interface CacheResult<T> {
@@ -115,9 +114,7 @@ export class AgentsMDInjector {
 
   constructor(options: AgentsMDInjectorOptions = {}) {
     const cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
-    this.cacheFile = options.cacheFile !== undefined
-      ? options.cacheFile
-      : resolveCacheFile(cacheDir, options.sessionId ?? process.env.CORTEX_SESSION_ID);
+    this.cacheFile = resolveCacheFile(cacheDir, options.sessionId ?? process.env.CORTEX_SESSION_ID);
     maintainCacheDir(cacheDir);
   }
 
