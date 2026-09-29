@@ -80,14 +80,6 @@ function getDisplaySkillGroups() {
   return groups;
 }
 
-function getDisplaySkillNames() {
-  const names = new Set();
-  for (const group of getDisplaySkillGroups()) {
-    for (const skill of group.skills) names.add(skill);
-  }
-  return names;
-}
-
 function getKnownSkillNames() {
   const now = Date.now();
   if (now - cachedKnownNamesAt < SKILL_SCAN_CACHE_MS) return cachedKnownNames;
@@ -124,4 +116,4 @@ function clearSkillScanCache(): void {
   cachedKnownNamesAt = 0;
 }
 
-export { getKnownSkillNames, getDisplaySkillNames, getDisplaySkillGroups, normalizeSkillCommandPrefix, clearSkillScanCache };
+export { getKnownSkillNames, getDisplaySkillGroups, normalizeSkillCommandPrefix, clearSkillScanCache };

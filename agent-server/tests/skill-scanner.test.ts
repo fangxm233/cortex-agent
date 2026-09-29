@@ -5,7 +5,6 @@ import * as path from 'node:path';
 import { DATA_DIR, PLUGINS_DIR } from '../src/core/paths.js';
 import {
   clearSkillScanCache,
-  getDisplaySkillNames,
   getDisplaySkillGroups,
   getKnownSkillNames,
   normalizeSkillCommandPrefix,
@@ -35,19 +34,6 @@ beforeEach((t) => {
   writeSkill(path.join(PLUGINS_DIR, 'cortex-common', 'skills'), 'solution-design');
   writeSkill(path.join(PLUGINS_DIR, 'superpowers', 'skills'), 'brainstorming');
   writeSkill(path.join(PLUGINS_DIR, 'superpowers', 'skills'), 'using-superpowers');
-});
-
-test('getDisplaySkillNames surfaces plugin skills and excludes namespaced-only aliases', () => {
-  const skills = [...getDisplaySkillNames()];
-
-  assert.ok(skills.includes('code-standards'), 'expected cortex-coder:code-standards to be discovered');
-  assert.ok(skills.includes('solution-design'), 'expected cortex-common:solution-design to be discovered');
-  assert.ok(skills.includes('personal-review'));
-  assert.ok(skills.includes('brainstorming'));
-  assert.ok(skills.includes('using-superpowers'));
-  assert.ok(!skills.includes('cortex-coder:code-standards'));
-  assert.ok(!skills.includes('superpowers:brainstorming'));
-  assert.ok(!skills.includes('superpowers:using-superpowers'));
 });
 
 test('getDisplaySkillGroups returns plugin-grouped skill catalog', () => {
