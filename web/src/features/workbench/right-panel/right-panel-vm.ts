@@ -39,14 +39,11 @@ export function threadPill(status: ThreadInfo['status'], lang: TimeLang): Pill {
   }
 }
 
-export type StepDotKind = 'done' | 'running' | 'pending';
-
 /** ThreadStepDetail.status → the prototype's three step-dot kinds (L1137–1139). */
-export function stepDotKind(step: ThreadStepDetail): StepDotKind {
-  if (step.status === 'completed') return 'done';
-  if (step.status === 'running') return 'running';
-  return 'pending';
-}
+export {
+  threadStepKind as stepDotKind,
+  type ThreadStepKind as StepDotKind,
+} from '@/features/thread/thread-detail-facts';
 
 export interface RightPanelBudget {
   todayLabel: string;
