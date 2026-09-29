@@ -20,16 +20,9 @@ import type { AttachmentMeta as Attachment } from '@/features/attachments/types'
 // It also says WHICH row is still being written (`preview` on the assistant row) — the one row whose
 // text is still arriving, and therefore the only one the render paces.
 
-export interface SubagentSpawnView {
-  id: string;
-  type?: string;
-  description?: string;
-  prompt: string;
-  requestedModel?: string;
-}
+export type SubagentSpawnView = NonNullable<TranscriptMessage['subagentSpawns']>[number];
 
 type TranscriptMessageWithSpawns = TranscriptMessage & {
-  subagentSpawns?: SubagentSpawnView[];
   liveTail?: true;
 };
 
@@ -48,7 +41,7 @@ export interface LiveSessionMessage {
   authAction?: AuthNoticeAction;
   ts: string;
   /** Optional file attachments on user messages (15a). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  attachments?: Attachment[];
   /** Agent-announced decisions (`send_decision`) carried by an assistant message. */
   decisions?: DecisionItem[];
   /** Native-subagent grouping key — see ChatRow's `subagent` variant. */
@@ -879,7 +872,7 @@ export function buildTranscriptRows(
     const sink = block ? block.sink : top;
     if (m.type === 'tool') {
       if (block && !block.summary) block.row.toolCount += 1;
-      const debug = (m as TranscriptMessage & { debug?: DebugToolDetail }).debug;
+      const debug = m.debug;
       sink.toolBuf.push({
         kind: toolCallLabel(m.toolName ?? '', m.toolDevice),
         input: m.toolInput ?? '',
