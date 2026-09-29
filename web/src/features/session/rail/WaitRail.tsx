@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import {
   WAIT_RAIL_COPY,
@@ -8,33 +7,11 @@ import {
   type WaitRailLanguage,
   type WaitRailRow,
 } from './wait-rail-vm';
-import { railSurface } from './rail-surface';
+import { collapseOnKeyDown, railSurface, useExpanded } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
 const EXPANDED_MAX_HEIGHT = '40vh';
-
-function storageKey(sessionId: string): string {
-  return `cortex.waitRailOpen.${sessionId}`;
-}
-
-/** Per session and persisted, like TodoRail. Collapsed by default: the rail exists to be glanceable,
- *  and a session waiting on something is not, by itself, a reason to steal composer space. */
-function useExpanded(sessionId: string): [boolean, () => void] {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    try { setOpen(window.localStorage.getItem(storageKey(sessionId)) === '1'); }
-    catch { setOpen(false); }
-  }, [sessionId]);
-  const toggle = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      try { window.localStorage.setItem(storageKey(sessionId), next ? '1' : '0'); } catch { /* private mode */ }
-      return next;
-    });
-  }, [sessionId]);
-  return [open, toggle];
-}
 
 /**
  * The marker for "something is pending, but not on you". A hollow ring, never the amber filled dot:
@@ -178,7 +155,7 @@ export interface WaitRailProps {
  * transcript, so keeping it here too would tell the same story twice.
  */
 export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false, floating = false }: WaitRailProps): JSX.Element | null {
-  const [open, toggle] = useExpanded(sessionId);
+  const [open, toggle] = useExpanded(`cortex.waitRailOpen.${sessionId}`);
   const vm = waitRailViewModel(waitpoints, Date.now(), lang);
   if (!vm) return null;
   const copy = WAIT_RAIL_COPY[lang];
@@ -187,11 +164,6 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
     if (cancelling) return;
     if (!globalThis.confirm(copy.confirm(row.label))) return;
     onCancel(row.id);
-  };
-  const collapseOnKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    toggle();
   };
 
   return (
@@ -230,7 +202,7 @@ export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = f
           aria-expanded
           aria-label={copy.title}
           onClick={toggle}
-          onKeyDown={collapseOnKeyDown}
+          onKeyDown={collapseOnKeyDown(toggle)}
           style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', scrollbarGutter: 'stable', padding: '9px 12px 10px', cursor: 'pointer' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4 }}>

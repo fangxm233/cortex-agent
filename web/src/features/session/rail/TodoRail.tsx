@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import type { TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 import { todoRailViewModel, type TodoRowViewModel } from './todo-vm';
-import { railSurface } from './rail-surface';
+import { collapseOnKeyDown, railSurface, useExpanded } from './rail-surface';
 
 const MONO = "'IBM Plex Mono',monospace";
 /** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
@@ -13,29 +12,6 @@ const COPY = {
 } as const;
 
 export type TodoRailLanguage = keyof typeof COPY;
-
-function storageKey(sessionId: string): string {
-  return `cortex.todoRailOpen.${sessionId}`;
-}
-
-/** Expanded state is per session and persisted, matching the left rail's SCHEDULED zone. Collapsed
- *  is the default: the rail exists to be glanceable, and auto-expanding would move the composer
- *  under the user's cursor mid-turn. */
-function useExpanded(sessionId: string): [boolean, () => void] {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    try { setOpen(window.localStorage.getItem(storageKey(sessionId)) === '1'); }
-    catch { setOpen(false); }
-  }, [sessionId]);
-  const toggle = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      try { window.localStorage.setItem(storageKey(sessionId), next ? '1' : '0'); } catch { /* private mode */ }
-      return next;
-    });
-  }, [sessionId]);
-  return [open, toggle];
-}
 
 function StatusDot({ status, allDone }: { status: TodoStatus; allDone: boolean }): JSX.Element {
   const base = { width: 14, height: 14, borderRadius: '50%', flex: 'none' as const, boxSizing: 'border-box' as const };
@@ -112,22 +88,17 @@ export interface TodoRailProps {
  * use.
  */
 export function TodoRail({ sessionId, todos, lang, floating = false }: TodoRailProps): JSX.Element | null {
-  const [open, toggle] = useExpanded(sessionId);
+  const [open, toggle] = useExpanded(`cortex.todoRailOpen.${sessionId}`);
   const vm = todoRailViewModel(todos);
   if (!vm) return null;
   const L = COPY[lang];
   const accent = vm.allDone ? 'var(--proto-success)' : 'var(--proto-accent)';
-  const collapseOnKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    toggle();
-  };
 
   return (
     <div
       data-todo-rail={open ? 'expanded' : 'collapsed'}
       onClick={open ? toggle : undefined}
-      onKeyDown={open ? collapseOnKeyDown : undefined}
+      onKeyDown={open ? collapseOnKeyDown(toggle) : undefined}
       role={open ? 'button' : undefined}
       tabIndex={open ? 0 : undefined}
       aria-expanded={open ? true : undefined}
