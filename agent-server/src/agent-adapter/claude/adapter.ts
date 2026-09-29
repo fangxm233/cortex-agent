@@ -15,7 +15,6 @@ import type {
 import { ClaudeEngineSession, type ClaudeEngineOpenHooks } from './engine.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import {
-  CancelledError,
   IDLE_SESSION_TIMEOUT,
   TURN_IDLE_TIMEOUT,
 } from './defaults.js';
@@ -29,7 +28,6 @@ import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
   buildPrompt,
   clearActivePlanFile,
-  getCurrentPlanFilePath,
   mergeSubstantialOutput,
   createStreamDeltaState,
 } from './event-parser.js';
@@ -935,7 +933,3 @@ export const _test = {
   computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,
 };
-
-// Re-exported for webhook consumer (parity with pre-refactor claude-bridge.ts:286 export)
-export { getCurrentPlanFilePath };
-export { CancelledError };
