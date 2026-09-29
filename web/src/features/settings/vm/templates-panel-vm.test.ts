@@ -93,17 +93,15 @@ describe('selection', () => {
 });
 
 describe('starter skeletons', () => {
-  test('every kind produces a parseable object carrying the new name', () => {
+  test('every kind produces a parseable object', () => {
     for (const kind of ['agent', 'template', 'shell'] as const) {
-      const body = starterBody(kind, 'fresh');
+      const body = starterBody(kind);
       const parsed = parseEditor(formatBody(body));
       expect(parsed.parseError).toBeNull();
       expect(parsed.body).toEqual(body);
     }
-    expect(starterBody('agent', 'fresh').name).toBe('fresh');
-    expect(starterBody('template', 'fresh').name).toBe('fresh');
     // Shells have no `name` field — the filename is their whole identity.
-    expect(starterBody('shell', 'fresh')).not.toHaveProperty('name');
+    expect(starterBody('shell')).not.toHaveProperty('name');
   });
 });
 

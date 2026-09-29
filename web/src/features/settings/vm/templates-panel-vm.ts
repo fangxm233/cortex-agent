@@ -64,10 +64,10 @@ export function resolveSelection(
  * A new entity opens on something that already validates, so the first save is a rename away from
  * working rather than a wall of errors. Agent and template mirror the shipped shapes.
  */
-export function starterBody(kind: TemplateKind, name: string): Record<string, unknown> {
+export function starterBody(kind: TemplateKind): Record<string, unknown> {
   if (kind === 'agent') {
     return {
-      name,
+      name: '',
       description: '',
       profile: '__active__',
       persistSession: false,
@@ -85,7 +85,7 @@ export function starterBody(kind: TemplateKind, name: string): Record<string, un
     };
   }
   return {
-    name,
+    name: '',
     description: '',
     agents: ['__active__'],
     transitions: [],

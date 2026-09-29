@@ -306,7 +306,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   const startCreate = (kind: TemplateKind) => {
     setCreating({ kind });
     setDraftName('');
-    setCreateText(formatBody(starterBody(kind, '')));
+    setCreateText(formatBody(starterBody(kind)));
     setTab('body');
     setLiveIssues(null);
   };
