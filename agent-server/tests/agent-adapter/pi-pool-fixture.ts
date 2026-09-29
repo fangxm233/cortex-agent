@@ -4,7 +4,6 @@ import type { PIEngineSession } from '../../src/agent-adapter/pi/engine.js';
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 
 export interface PIPool {
-  engines: SessionEngines;
   /** The pooled PI engine session for a spec. This is the only surface a test should drive —
    *  `run()` is one turn, `steer()` is an injection, `close()` ends the pool entry. */
   open(spec: EngineSpec): PIEngineSession;
@@ -28,7 +27,6 @@ export function piPool(adapter: PIAdapter): PIPool {
   if (existing) return existing;
   const engines = new SessionEngines({ pi: adapter });
   const pool: PIPool = {
-    engines,
     // The pool dispatches on `spec.backend.kind`; this fixture is PI-only and the shared
     // `engineSpecFixture` defaults to Claude, so pin the discriminant before acquiring.
     open: (spec) => engines.acquire({ ...spec, backend: { kind: 'pi' } }) as PIEngineSession,

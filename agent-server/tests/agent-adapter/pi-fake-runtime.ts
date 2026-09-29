@@ -18,14 +18,10 @@ export type FakeSessionCall =
 
 export interface FakeRuntimeOptions {
   sessionId?: string;
-  /** Transcript path reported by the fake session; null mirrors an in-memory PI session. */
-  sessionFile?: string | null;
   /** Session stats returned by getSessionStats(); defaults to a small, context-less reading. */
   stats?: Partial<SessionStats>;
   /** Result of compact(); an Error makes compact() reject with it. */
   compact?: CompactionResult | Error;
-  /** Answer of switchSession(); an Error makes it reject. */
-  switchResult?: { cancelled: boolean } | Error;
   /** Keep every prompt() pending in `heldPrompts` until the test settles it (mirrors PI, whose
    *  prompt() resolves only when the run is over). */
   holdPrompts?: boolean;
@@ -55,17 +51,16 @@ const DEFAULT_STATS: SessionStats = {
  * `prompt` and `steer` resolve immediately unless the test queued a rejection.
  */
 export class FakeRuntime implements PiRuntimeHandle {
-  readonly request: PiSessionRequest;
   readonly callbacks: PiRuntimeCallbacks;
   readonly calls: FakeSessionCall[] = [];
   readonly uiResponses: { id: string; payload: Record<string, unknown> }[] = [];
   readonly session: PiAgentSessionLike;
   sessionId: string;
-  sessionFile: string | null;
+  sessionFile: string;
   isStreaming = false;
   stats: SessionStats;
   compactResult: CompactionResult | Error;
-  switchResult: { cancelled: boolean } | Error;
+  switchResult: { cancelled: boolean };
   disposed = false;
   /** Errors handed to the next prompt()/steer() calls, in order. */
   readonly promptRejections: Error[] = [];
@@ -75,25 +70,20 @@ export class FakeRuntime implements PiRuntimeHandle {
   /** When set, switchSession() waits for it before answering (a switch still in flight). */
   switchGate: Promise<void> | null = null;
   private readonly holdPrompts: boolean;
-  /** Ids a respondToUi() call should refuse (simulating a dialog that is no longer waiting). */
-  readonly unknownUiIds = new Set<string>();
   private readonly callWaiters: { kind: FakeSessionCall['kind']; resolve: (call: FakeSessionCall) => void }[] = [];
 
   constructor(request: PiSessionRequest, callbacks: PiRuntimeCallbacks, options: FakeRuntimeOptions = {}) {
-    this.request = request;
     this.callbacks = callbacks;
     this.sessionId = options.sessionId ?? `fake-${request.sessionKey}`;
-    this.sessionFile = options.sessionFile === undefined
-      ? `${request.sessionDir}/${this.sessionId}.jsonl`
-      : options.sessionFile;
+    this.sessionFile = `${request.sessionDir}/${this.sessionId}.jsonl`;
     this.stats = { ...DEFAULT_STATS, sessionId: this.sessionId, ...options.stats };
     this.compactResult = options.compact ?? { summary: 'compacted', firstKeptEntryId: 'e1', tokensBefore: 0 };
-    this.switchResult = options.switchResult ?? { cancelled: false };
+    this.switchResult = { cancelled: false };
     this.holdPrompts = options.holdPrompts ?? false;
     const self = this;
     this.session = {
       get sessionId() { return self.sessionId; },
-      get sessionFile() { return self.sessionFile ?? undefined; },
+      get sessionFile() { return self.sessionFile; },
       get isStreaming() { return self.isStreaming; },
       prompt: (text, options) => {
         self.record({ kind: 'prompt', text, options });
@@ -113,7 +103,7 @@ export class FakeRuntime implements PiRuntimeHandle {
         if (self.compactResult instanceof Error) throw self.compactResult;
         return self.compactResult;
       },
-      getSessionStats: () => ({ ...self.stats, sessionFile: self.sessionFile ?? undefined, sessionId: self.sessionId }),
+      getSessionStats: () => ({ ...self.stats, sessionFile: self.sessionFile, sessionId: self.sessionId }),
     };
   }
 
@@ -137,7 +127,6 @@ export class FakeRuntime implements PiRuntimeHandle {
   }
 
   respondToUi(id: string, payload: Record<string, unknown>): boolean {
-    if (this.unknownUiIds.has(id)) return false;
     this.uiResponses.push({ id, payload });
     return true;
   }
@@ -145,7 +134,6 @@ export class FakeRuntime implements PiRuntimeHandle {
   async switchSession(sessionPath: string): Promise<{ cancelled: boolean }> {
     this.record({ kind: 'switch', path: sessionPath });
     if (this.switchGate) await this.switchGate;
-    if (this.switchResult instanceof Error) throw this.switchResult;
     return this.switchResult;
   }
 
@@ -186,30 +174,17 @@ export class FakeRuntime implements PiRuntimeHandle {
     this.emit({ type: 'message_start', message: { role: 'user', content: [] } });
   }
 
-  /** One assistant text message, as PI streams it (optionally as several deltas). */
-  emitAssistantText(text: string, opts: { responseId?: string; deltas?: string[] } = {}): void {
-    const responseId = opts.responseId ?? 'msg-1';
+  /** One assistant text message, as PI streams it. */
+  emitAssistantText(text: string): void {
+    const responseId = 'msg-1';
     const message = { role: 'assistant', responseId, content: [{ type: 'text', text }] };
     this.emit({ type: 'message_start', message: { role: 'assistant', responseId, content: [] } });
-    for (const delta of opts.deltas ?? [text]) {
-      this.emit({
-        type: 'message_update',
-        message,
-        assistantMessageEvent: { type: 'text_delta', delta, contentIndex: 0 },
-      });
-    }
-    this.emit({ type: 'message_end', message });
-  }
-
-  emitToolCall(toolCallId: string, toolName: string, args: Record<string, unknown>, result: string, isError = false): void {
-    this.emit({ type: 'tool_execution_start', toolCallId, toolName, args });
     this.emit({
-      type: 'tool_execution_end',
-      toolCallId,
-      toolName,
-      result: { content: [{ type: 'text', text: result }] },
-      isError,
+      type: 'message_update',
+      message,
+      assistantMessageEvent: { type: 'text_delta', delta: text, contentIndex: 0 },
     });
+    this.emit({ type: 'message_end', message });
   }
 
   /** PI's run ended; `agent_settled` is what closes the Cortex turn. */
@@ -250,8 +225,6 @@ export interface FakeRuntimeFactoryOptions extends FakeRuntimeOptions {
   sessionIds?: string[];
   /** Hold creation until the returned promise resolves (tests that act before `ready`). */
   gate?: Promise<void>;
-  /** Observe or customise each runtime as it is created. */
-  onCreate?: (runtime: FakeRuntime) => void;
 }
 
 export interface FakeRuntimeFactory {
@@ -280,7 +253,6 @@ export function makeFakeRuntimeFactory(options: FakeRuntimeFactoryOptions = {}):
       ...options,
       sessionId: options.sessionIds?.[index] ?? options.sessionId,
     });
-    options.onCreate?.(runtime);
     runtimes.push(runtime);
     for (const waiter of waiters.splice(0)) {
       if (waiter.index < runtimes.length) waiter.resolve(runtimes[waiter.index]);
