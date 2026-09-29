@@ -10,8 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { Capability, CAPABILITIES_BY_BACKEND } from '../agent-adapter/capabilities.js';
-import type { Backend, UserMessage } from '../agent-adapter/types.js';
+import type { UserMessage } from '../agent-adapter/types.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
@@ -66,11 +65,6 @@ export function isInjectableMessage(opts: { text: string; senderId: string }): b
   if (text.startsWith('!')) return false;
   if (opts.senderId === SYNTHETIC_CALLBACK_SENDER) return false;
   return true;
-}
-
-/** True when the backend declares `Capability.MidTurnInject`. */
-export function backendSupportsInject(backend: string): boolean {
-  return !!CAPABILITIES_BY_BACKEND[backend as Backend]?.has(Capability.MidTurnInject);
 }
 
 /**

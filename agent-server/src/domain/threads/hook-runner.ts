@@ -283,22 +283,3 @@ export async function executeLifecycleHooks(
     }
   }
 }
-
-/** Backward-compatible single scoped-hook entry point. */
-export async function executeLifecycleHook(
-  threadId: string,
-  phase: 'start' | 'transition' | 'end',
-  hookConfig: ThreadHookConfig | undefined,
-  opts: RunThreadOptions,
-  previousAgent?: string,
-  logSuffix?: string,
-): Promise<void> {
-  await executeLifecycleHooks(
-    threadId,
-    phase,
-    { template: hookConfig },
-    opts,
-    previousAgent,
-    logSuffix,
-  );
-}

@@ -9,7 +9,7 @@ import type { RunRequest } from '../src/domain/runs/request.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { executeLifecycleHook } from '../src/domain/threads/hook-runner.js';
+import { executeLifecycleHooks } from '../src/domain/threads/hook-runner.js';
 import {
   isOnMessageEndHookConfigured,
   isOnNewHookConfigured,
@@ -68,7 +68,7 @@ async function runThreadHook(config: ThreadHookConfig) {
   threadIds.push(id);
   threadStore.set(makeThreadRecord(id));
   try {
-    await executeLifecycleHook(id, 'end', config, makeThreadOptions(adapter));
+    await executeLifecycleHooks(id, 'end', { template: config }, makeThreadOptions(adapter));
   } finally {
     errorSpy.mockRestore();
   }
