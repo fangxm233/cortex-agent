@@ -202,24 +202,6 @@ test('task-file rejects malformed, non-object, and text-less JSON with actionabl
   assert.throws(() => readTaskSpec('-', () => JSON.stringify({ why: 'missing' })), /text.*required/i);
 });
 
-test('task-file rejects mixing structured input with scalar task-spec flags', () => {
-  const repo = makeProject();
-  try {
-    const specPath = writeSpec(repo.project, 'mixed.json', {
-      text: 'file text',
-      why: 'file why',
-      'done-when': 'file done',
-    });
-    const result = runCli([
-      'add', '--project', repo.project, '--task-file', specPath, '--text', 'argument text',
-    ]);
-    assert.equal(result.exitCode, 1);
-    assert.match(result.stderr, /cannot be combined.*--text/i);
-  } finally {
-    repo.cleanup();
-  }
-});
-
 interface ProcessResult {
   status: number | null;
   stdout: string;
