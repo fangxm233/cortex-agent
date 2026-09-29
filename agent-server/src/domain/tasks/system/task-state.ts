@@ -326,9 +326,7 @@ const requestApprovalTaskAsync = lockTaskMutationAsync(requestApprovalTaskUnlock
 const approveTaskAsync = lockTaskMutationAsync(approveTaskUnlocked);
 const clearApprovalTaskAsync = lockTaskMutationAsync(clearApprovalTaskUnlocked);
 const blockTaskAsync = lockTaskMutationAsync(blockTaskUnlocked);
-const pendingTaskAsync = lockTaskMutationAsync(pendingTaskUnlocked);
 const unblockTaskAsync = lockTaskMutationAsync(unblockTaskUnlocked);
-const reopenTaskAsync = lockTaskMutationAsync(reopenTaskUnlocked);
 
 export {
   approveTask,
@@ -342,9 +340,7 @@ export {
   pauseTask,
   pauseTaskAsync,
   pendingTask,
-  pendingTaskAsync,
   reopenTask,
-  reopenTaskAsync,
   requestApprovalTask,
   requestApprovalTaskAsync,
   resumeTask,

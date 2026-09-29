@@ -12,14 +12,6 @@ import { AsyncMutex } from '@core/async-mutex.js';
 
 const log = createLogger('task-store');
 
-// --- Git mutex (shared across TaskRepo) ---
-
-const gitMutex = new AsyncMutex();
-
-export function withGitLock<T>(fn: () => T | Promise<T>): Promise<T> {
-  return gitMutex.run(fn);
-}
-
 // --- TaskRepo (Pattern B-lite: sync read + sync atomic write; no _pendingPersist chain) ---
 // NOTE: This repo differs from ExecutionRepo (Pattern B proper):
 //   - writes are SYNC (atomicWriteSync via task-lifecycle-edit → writeTasksFile), not

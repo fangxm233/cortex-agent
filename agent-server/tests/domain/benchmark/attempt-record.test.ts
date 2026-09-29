@@ -3,14 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   ATTEMPT_DISPOSITIONS,
   ATTEMPT_EDGE_KINDS,
-  ATTEMPT_EDGE_PRODUCTION_SUPPORT,
   ATTEMPT_RECORD_KEYS,
   DURABLE_ATTEMPT_EDGE_KINDS,
   EDGE_ENDPOINT_LEGALITY,
   ENDPOINT_REF_KINDS,
-  OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS,
   assignAttemptOrdinals,
-  mintAttemptId,
   threadScopedIdentityHolds,
   type AttemptRecord,
 } from '../../../src/domain/benchmark/attempt-record.js';
@@ -97,22 +94,11 @@ describe('AttemptEdge — the CLOSED union (§17 17.1.5)', () => {
     ]);
   });
 
-  it('classifies all 13 historical kinds against production durability at this pin', () => {
-    expect(Object.keys(ATTEMPT_EDGE_PRODUCTION_SUPPORT)).toEqual([...ATTEMPT_EDGE_KINDS]);
+  it('lists the production-durable edge kinds', () => {
     expect([...DURABLE_ATTEMPT_EDGE_KINDS]).toEqual([
       'spawn', 'decompose', 'depends_on', 'dispatch', 'delivery', 'verdict', 'rework',
       'question', 'answer',
     ]);
-    expect([...OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS]).toEqual([
-      'proposal', 'seal', 'supersede', 'rotation',
-    ]);
-    expect(ATTEMPT_EDGE_PRODUCTION_SUPPORT.question).toEqual({
-      production: true, source: 'production_topology_ledger',
-    });
-    expect(ATTEMPT_EDGE_PRODUCTION_SUPPORT.answer).toEqual({
-      production: true, source: 'production_topology_ledger',
-    });
-    expect(new Set(ATTEMPT_EDGE_KINDS).size).toBe(13);
   });
 
   it('EndpointRef is the closed production four-member tagged union', () => {
@@ -141,32 +127,6 @@ describe('AttemptEdge — the CLOSED union (§17 17.1.5)', () => {
       expect(legality.to, `${kind}.to`).not.toContain('direct-parent');
     }
   });
-});
-
-describe('attempt_id minting — G4-AI2 / G4-AI3 / G4-AI6', () => {
-  it('mints the bare stem: run-<rootRunId> for a null thread, thread-<threadId> otherwise', () => {
-    expect(mintAttemptId('root-1', null)).toBe('run-root-1');
-    expect(mintAttemptId('root-1', 'thread-9')).toBe('thread-thread-9');
-  });
-
-  it('G4-AI2: there is NO #<step> suffix in any mode — the struck Branch A clause', () => {
-    // The ruling is Branch B: an attempt is a FRAGMENT. An implementer emitting a suffixed id is
-    // emitting a value this contract does not define.
-    expect(mintAttemptId('root-1', null)).not.toContain('#');
-    expect(mintAttemptId('root-1', 'thread-9')).not.toContain('#');
-  });
-
-  it('G4-AI6: minting is DERIVED and encoder-independent, never random', () => {
-    // Two encoders reading the same trajectory root must produce the same id, which is what F8's
-    // publish-then-re-read-and-re-hash check needs (G4-CM5).
-    expect(mintAttemptId('root-1', null)).toBe(mintAttemptId('root-1', null));
-  });
-
-  it('refuses an id outside the shipped lifecycle grammar (manifest.ts:254)', () => {
-    expect(() => mintAttemptId('bad/../id', null)).toThrow();
-    expect(() => mintAttemptId('root-1', 'bad id')).toThrow();
-  });
-
 });
 
 describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {

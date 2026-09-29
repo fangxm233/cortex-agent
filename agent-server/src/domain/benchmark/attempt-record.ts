@@ -48,26 +48,6 @@ export const DURABLE_ATTEMPT_EDGE_KINDS = [
   'question', 'answer',
 ] as const satisfies readonly AttemptEdgeKind[];
 
-export const OUT_OF_CONTRACT_ATTEMPT_EDGE_KINDS = [
-  'proposal', 'seal', 'supersede', 'rotation',
-] as const satisfies readonly AttemptEdgeKind[];
-
-export const ATTEMPT_EDGE_PRODUCTION_SUPPORT = Object.freeze({
-  spawn: { production: true, source: 'production_topology_ledger' },
-  decompose: { production: true, source: 'production_topology_ledger' },
-  depends_on: { production: true, source: 'production_topology_ledger' },
-  dispatch: { production: true, source: 'production_topology_ledger' },
-  proposal: { production: false, producer_stage: 'out_of_contract' },
-  seal: { production: false, producer_stage: 'out_of_contract' },
-  delivery: { production: true, source: 'production_topology_ledger' },
-  verdict: { production: true, source: 'production_topology_ledger' },
-  rework: { production: true, source: 'production_topology_ledger' },
-  supersede: { production: false, producer_stage: 'out_of_contract' },
-  rotation: { production: false, producer_stage: 'out_of_contract' },
-  question: { production: true, source: 'production_topology_ledger' },
-  answer: { production: true, source: 'production_topology_ledger' },
-} satisfies Record<AttemptEdgeKind, { production: boolean; source?: string; producer_stage?: string }>);
-
 const DURABLE_ATTEMPT_EDGE_KIND_SET = new Set<AttemptEdgeKind>(DURABLE_ATTEMPT_EDGE_KINDS);
 
 export function isDurableAttemptEdgeKind(kind: AttemptEdgeKind): boolean {
@@ -262,42 +242,6 @@ type MissingAttemptRecordKeys = Exclude<keyof AttemptRecord, typeof ATTEMPT_RECO
 export type AttemptRecordKeysAreExhaustive = MissingAttemptRecordKeys extends never ? true : never;
 const _attemptRecordKeysAreExhaustive: AttemptRecordKeysAreExhaustive = true;
 void _attemptRecordKeysAreExhaustive;
-
-/** The shipped lifecycle identifier grammar (`manifest.ts:254`), which `assertPathIdentifier`
- * (`:256`) applies before a stem is built. Restated here rather than imported because
- * `lifecycleStem` is not exported and §10's Gate-4 grant does not cover exporting it; the equality
- * with the shipped writer's output is asserted by test instead. */
-const LIFECYCLE_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
-
-export class AttemptIdentityError extends Error {
-  constructor(detail: string) {
-    super(`attempt identity invalid: ${detail}`);
-    this.name = 'AttemptIdentityError';
-  }
-}
-
-/**
- * G4-AI2 — the id is DERIVED from shipped identifiers, never randomly minted, and the BARE STEM is
- * the whole rule: there is no `#<step>` suffix in any mode (the Branch A clause is struck by the
- * (17.3.1) ruling).
- *
- * G4-AI6 — why derived and not `randomUUID()`: `dispatch_generation` is a randomUUID because its
- * job is to be a FENCE. `attempt_id` has the opposite job — it is a KEY and must be
- * encoder-independent, so that two encoders reading the same trajectory root produce the same id.
- * That is exactly what F8's publish-then-re-read-and-re-hash check needs (G4-CM5); a randomly
- * minted key would make the re-read hash depend on which process wrote it.
- *
- * G4-AI3 — uniqueness scope is the TRIAL, by construction: a `rootRunId` is unique per agent-run
- * process and a `threadId` per thread, so no two attempts of one trial derive the same string. The
- * validator still asserts it, because a construction argument that is never checked is a comment.
- */
-export function mintAttemptId(rootRunId: string, threadId: string | null): string {
-  const id = threadId ?? rootRunId;
-  if (!LIFECYCLE_ID_PATTERN.test(id)) {
-    throw new AttemptIdentityError('id must match the lifecycle identifier grammar');
-  }
-  return `${threadId === null ? 'run' : 'thread'}-${id}`;
-}
 
 /**
  * G4-N14 / D-NULL3 — the thread-scoped identity fields. Each is derivable exactly when the attempt

@@ -1,5 +1,4 @@
 import * as fs from 'node:fs';
-import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { PROJECTS_DIR } from '@core/utils.js';
@@ -51,18 +50,6 @@ export function readLock(project: string): LockState | null {
     return lock;
   } catch (err) {
     log.warn('Failed to read lock for %s: %s', project, err);
-    return null;
-  }
-}
-
-/** Async twin of `readLock` for callers that must not block the event loop. */
-export async function readLockAsync(project: string): Promise<LockState | null> {
-  try {
-    const content = await fsp.readFile(tasksYamlPath(project), 'utf8');
-    const { lock } = parseTasksFileWithLock(content, project);
-    return lock;
-  } catch (err: any) {
-    if (err?.code !== 'ENOENT') log.warn('Failed to read lock for %s: %s', project, err);
     return null;
   }
 }
@@ -138,11 +125,6 @@ function releaseLockUnlocked(
 
 export function writeLock(project: string, lock: LockState | null): void {
   withTaskFileMutationLock(project, () => writeLockUnlocked(project, lock));
-}
-
-/** Async twin of `writeLock`. */
-export async function writeLockAsync(project: string, lock: LockState | null): Promise<void> {
-  await withTaskFileMutationLockAsync(project, async () => writeLockUnlocked(project, lock));
 }
 
 export function acquireLock(

@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { execSync } from 'node:child_process';
 import { PROJECTS_DIR } from '../../src/core/paths.js';
-import { TaskRepo, withGitLock } from '../../src/store/task-repo.js';
+import { TaskRepo } from '../../src/store/task-repo.js';
 import { TaskMutator } from '../../src/domain/tasks/mutator.js';
 import { writeLock, getOwnerIdentity } from '../../src/domain/tasks/system/task-lock.js';
 
@@ -119,31 +119,6 @@ test('flush() resolves after all enqueued mutations complete', async () => {
 
   assert.equal(resolutionOrder[N], 'flush',
     `flush must resolve last; got ${resolutionOrder.join(', ')}`);
-});
-
-// ── Test 4: withGitLock serializes across callers ────────────────
-
-test('withGitLock serializes operations from different callers', async () => {
-  const order: string[] = [];
-
-  const a = withGitLock(() => {
-    order.push('a-start');
-    return new Promise(resolve => setTimeout(() => {
-      order.push('a-end');
-      resolve(1);
-    }, 30));
-  });
-
-  const b = withGitLock(() => {
-    order.push('b-start');
-    order.push('b-end');
-    return 2;
-  });
-
-  const [ra, rb] = await Promise.all([a, b]);
-  assert.equal(ra, 1);
-  assert.equal(rb, 2);
-  assert.deepEqual(order, ['a-start', 'a-end', 'b-start', 'b-end']);
 });
 
 // ── End-to-end round-trip — add → load → getById → claim → complete ─────────

@@ -437,7 +437,6 @@ const bulkAddTasks = lockProjectMutation(bulkAddTasksUnlocked);
 const decomposeTask = lockProjectMutation(decomposeTaskOwnedUnlocked);
 
 const addTaskAsync = lockProjectMutationAsync(addTaskUnlocked);
-const bulkAddTasksAsync = lockProjectMutationAsync(bulkAddTasksUnlocked);
 const decomposeTaskAsync = lockProjectMutationAsync(decomposeTaskOwnedUnlocked);
 
 /** Async twin of `batchEdit`: issues the per-task edits through the async lock. */
@@ -456,4 +455,4 @@ async function batchEditAsync(project: string, taskIds: string[], options: any =
   return { success: failed.length === 0, message, results };
 }
 
-export { addTask, addTaskAsync, batchEdit, batchEditAsync, bulkAddTasks, bulkAddTasksAsync, decomposeTask, decomposeTaskAsync };
+export { addTask, addTaskAsync, batchEdit, batchEditAsync, bulkAddTasks, decomposeTask, decomposeTaskAsync };
