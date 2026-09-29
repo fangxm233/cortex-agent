@@ -104,7 +104,7 @@ function isTerminalReason(value: unknown): value is TerminalReason {
   return Object.values(TERMINAL_REASONS).some(reasons => reasons.includes(value as TerminalReason));
 }
 
-function validReasonPair(state: unknown, reason: unknown): boolean {
+export function validReasonPair(state: unknown, reason: unknown): boolean {
   if (!isTerminalState(state) || !isTerminalReason(reason)) return false;
   return TERMINAL_REASONS[state].includes(reason);
 }

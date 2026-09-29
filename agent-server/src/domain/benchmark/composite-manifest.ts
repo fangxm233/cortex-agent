@@ -4,6 +4,7 @@ import {
   type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
+import { validReasonPair } from './manifest-contract.js';
 
 export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/2';
 
@@ -396,21 +397,6 @@ function validIdentityMap(value: unknown): boolean {
   return entries.length > 0 && entries.every(([role, hash]) => role.length > 0 && isSha256(hash));
 }
 
-function validTerminalOutcome(node: AttemptRecord): boolean {
-  const legal = {
-    completed: ['ok'],
-    failed: [
-      'child_failure', 'trajectory_write_failed', 'containment_failure', 'rate_limited',
-      'protocol_violation', 'step_limit_exceeded', 'cost_limit_exceeded', 'provider_error',
-    ],
-    cancelled: ['cancelled'],
-    timeout: ['deadline', 'deadline_exceeded'],
-    aborted: ['aborted'],
-  } as const;
-  return (legal[node.terminal_state] as readonly string[] | undefined)
-    ?.includes(node.terminal_reason) === true;
-}
-
 function validAttemptEvidence(node: AttemptRecord): boolean {
   const keys = Object.keys(node);
   if (keys.length !== ATTEMPT_RECORD_KEYS.length
@@ -426,7 +412,7 @@ function validAttemptEvidence(node: AttemptRecord): boolean {
     && Number.isInteger(node.event_count) && node.event_count >= 0 && validAttemptTokens(node.tokens)
     && (node.provider_requests === null
       || (Number.isInteger(node.provider_requests) && node.provider_requests > 0))
-    && validTerminalOutcome(node);
+    && validReasonPair(node.terminal_state, node.terminal_reason);
 }
 
 export function validateCompositeManifest(
