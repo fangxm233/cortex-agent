@@ -3,19 +3,15 @@ import type { Vocab } from '@/i18n';
 
 // Pure mapping from the three real tRPC query results (sessions.list / threads.list /
 // tasks.list) into the prototype's ⌘K flat-row item model (prototype.dc.html L1304–1311 +
-// the `allCmdk` demo shape L2489–2499). Each row = glyph badge + label + sub + right-aligned
-// kbd tag; page rows navigate via React Router and modal rows open in place. §8.3: the row
+// the `allCmdk` demo shape L2489–2499). Each row = label + sub + right-aligned kbd tag; page rows navigate via React Router and modal rows open in place. §8.3: the row
 // structure is 1:1 with the prototype, real entities are the only variable. Thread rows open the
 // global detail modal; sessions/tasks target their section route and carry the id in `focusId`.
 
-export type CmdkKind = 'session' | 'thread' | 'task';
 export type PaletteModal = 'settings' | 'thread';
 
 export interface CmdkItem {
   /** Unique cmdk `value` (stable, collision-free across kinds). */
   id: string;
-  /** 2-letter mono badge — SE / TH / TK. */
-  glyph: string;
   label: string;
   sub: string;
   /** Right-aligned mono type tag — session / thread / task. */
@@ -34,7 +30,6 @@ export interface CmdkSources {
 
 export interface CmdkCommand {
   id: string;
-  glyph: string;
   label: string;
   sub: string;
   kbd: string;
@@ -52,7 +47,6 @@ export interface CmdkCommand {
 // `labelKey`/`subKey` are present (nav rows) the render site shows the localized string.
 export interface PaletteRow {
   id: string;
-  glyph: string;
   label: string;
   sub: string;
   kbd: string;
@@ -80,7 +74,7 @@ function sessionItem(s: SessionInfo): CmdkItem {
   return {
     // Same title the rail shows (rail-tree sessionTitle): the user-set `label` wins over the
     // generated `name`, so a session found here is not called something else in the tree.
-    id: `session:${s.sessionId}`, glyph: 'SE', label: s.label || s.name || s.sessionId,
+    id: `session:${s.sessionId}`, label: s.label || s.name || s.sessionId,
     sub: s.projectId, kbd: 'session', route: '/workbench', focusId: s.sessionId,
     keywords: tokens(s.sessionId, s.name, s.label, s.projectId, s.backend, s.kind),
   };
@@ -88,7 +82,7 @@ function sessionItem(s: SessionInfo): CmdkItem {
 
 function threadItem(t: ThreadInfo): CmdkItem {
   return {
-    id: `thread:${t.id}`, glyph: 'TH', label: t.templateName, sub: t.id,
+    id: `thread:${t.id}`, label: t.templateName, sub: t.id,
     kbd: 'thread', modal: 'thread', focusId: t.id,
     keywords: tokens(t.id, t.templateName, t.status, t.projectId),
   };
@@ -96,7 +90,7 @@ function threadItem(t: ThreadInfo): CmdkItem {
 
 function taskItem(t: TaskInfo): CmdkItem {
   return {
-    id: `task:${t.id}`, glyph: 'TK', label: t.text, sub: `${t.id} · ${t.project}`,
+    id: `task:${t.id}`, label: t.text, sub: `${t.id} · ${t.project}`,
     kbd: 'task', route: '/tasks', focusId: t.id,
     keywords: tokens(t.id, t.text, t.project, t.status, t.priority),
   };
@@ -112,7 +106,6 @@ export function buildCmdkItems({ sessions, threads, tasks }: CmdkSources): CmdkI
 export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   {
     id: 'nav:overview',
-    glyph: 'OV',
     label: 'Overview',
     labelKey: 'overview',
     sub: 'project dashboard',
@@ -123,7 +116,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   },
   {
     id: 'nav:workbench',
-    glyph: 'WB',
     label: 'Workbench',
     labelKey: 'workbench',
     sub: 'session chat',
@@ -134,7 +126,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   },
   {
     id: 'nav:tasks',
-    glyph: 'TK',
     label: 'Tasks',
     labelKey: 'tasks',
     sub: 'task queue',
@@ -145,7 +136,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   },
   {
     id: 'nav:threads',
-    glyph: 'TH',
     label: 'Threads',
     labelKey: 'threads',
     sub: 'thread runs',
@@ -156,7 +146,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   },
   {
     id: 'nav:settings',
-    glyph: 'ST',
     label: 'Settings',
     labelKey: 'settings',
     sub: 'platform · profiles · budget · machines…',
@@ -166,21 +155,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     keywords: ['config'],
   },
 ];
-
-function commandToRow(c: CmdkCommand): PaletteRow {
-  return {
-    id: c.id,
-    glyph: c.glyph,
-    label: c.label,
-    sub: c.sub,
-    kbd: c.kbd,
-    ...(c.route ? { route: c.route } : {}),
-    ...(c.modal ? { modal: c.modal } : {}),
-    keywords: c.keywords,
-    labelKey: c.labelKey,
-    subKey: c.subKey,
-  };
-}
 
 // Prototype substring filter (prototype.dc.html L2498: `(label+' '+sub).indexOf(q)`), extended to
 // keywords so an id/status also matches. We do the filtering ourselves (cmdk `shouldFilter={false}`)
@@ -194,13 +168,13 @@ export function selectPaletteRows(
 ): PaletteRow[] {
   const restPerKind = opts.restPerKind ?? 5;
   const matchCap = opts.matchCap ?? 50;
-  const nav = NAV_COMMAND_ITEMS.map(commandToRow);
+  const nav: PaletteRow[] = NAV_COMMAND_ITEMS;
   const entities = buildCmdkItems(sources);
   const q = query.trim().toLowerCase();
 
   if (!q) {
-    const byKind = (glyph: string) => entities.filter((e) => e.glyph === glyph).slice(0, restPerKind);
-    return [...nav, ...byKind('SE'), ...byKind('TH'), ...byKind('TK')];
+    const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd).slice(0, restPerKind);
+    return [...nav, ...byKind('session'), ...byKind('thread'), ...byKind('task')];
   }
 
   const matches = (r: PaletteRow) =>

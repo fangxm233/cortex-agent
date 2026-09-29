@@ -109,13 +109,13 @@ describe('selectPaletteRows', () => {
 
   it('empty query → nav commands + capped entities per kind', () => {
     const rows = selectPaletteRows('', sources, { restPerKind: 5 });
-    // 5 nav + 5 SE + 5 TH + 5 TK
+    // 5 nav + 5 sessions + 5 threads + 5 tasks
     expect(rows.length).toBe(NAV_COMMAND_ITEMS.length + 15);
     expect(rows.slice(0, NAV_COMMAND_ITEMS.length).map((r) => r.id)).toEqual(
       NAV_COMMAND_ITEMS.map((c) => c.id),
     );
-    expect(rows.filter((r) => r.glyph === 'SE').length).toBe(5);
-    expect(rows.filter((r) => r.glyph === 'TH' && r.id.startsWith('thread:')).length).toBe(5);
+    expect(rows.filter((r) => r.kbd === 'session').length).toBe(5);
+    expect(rows.filter((r) => r.kbd === 'thread' && r.id.startsWith('thread:')).length).toBe(5);
   });
 
   it('query filters by substring across label/sub/keywords and caps the total', () => {
