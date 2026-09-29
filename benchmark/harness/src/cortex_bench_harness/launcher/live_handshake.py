@@ -18,6 +18,7 @@ from ..proxy.models import ProxyLimits
 from ..proxy.server import host_now_ms, start_trial_proxy
 from ..scan import scan_trial_artifacts
 from ..scan.models import ArtifactInventory, ScanPolicy
+from ..scan.scanner import policy_literals
 from . import credential_capabilities as capabilities
 from .capability_evidence import (
     CAPABILITY_EVIDENCE_METADATA,
@@ -557,13 +558,7 @@ def _provider_identifier_body_key(key: object) -> bool:
 
 def _redact_bytes(payload: bytes, policy: ScanPolicy) -> bytes:
     redacted = payload
-    literals = (
-        *policy.secrets.values(), *policy.forbidden_environment.values(),
-        *policy.forbidden_argv.values(), policy.repository_checkout,
-        policy.hostname, *policy.host_identities.values(),
-        *((policy.home_path,) if policy.home_path else ()),
-    )
-    for literal in sorted(literals, key=len, reverse=True):
+    for literal in sorted(policy_literals(policy), key=len, reverse=True):
         redacted = redacted.replace(literal.encode(), b"")
     return _HOME_PATH.sub(b"", redacted)
 

@@ -45,7 +45,7 @@ Rule = tuple[str, str, bytes]
 
 
 def contains_sensitive_literal(value: str, policy: ScanPolicy) -> bool:
-    return any(literal in value for literal in _policy_literals(policy))
+    return any(literal in value for literal in policy_literals(policy))
 
 
 def scan_trial_artifacts(
@@ -130,17 +130,19 @@ def _normalized_path(path: Path) -> Path:
 
 def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     names = set(inventory.sources) | inventory.expected_sources
-    literals = _policy_literals(policy)
+    literals = policy_literals(policy)
     if any(_contains_sensitive(name, literals, policy) for name in names):
         raise ValueError("artifact source names must not contain sensitive literals")
 
 
-def _policy_literals(policy: ScanPolicy) -> tuple[str, ...]:
+def policy_literals(policy: ScanPolicy) -> tuple[str, ...]:
+    # Redaction sorts these by length, and the sort is stable: equal-length literals are removed
+    # in this order, so it stays fixed.
     return (
         *policy.secrets.values(), *policy.forbidden_environment.values(),
         *policy.forbidden_argv.values(), policy.repository_checkout,
-        *(tuple([policy.home_path]) if policy.home_path else ()),
         policy.hostname, *policy.host_identities.values(),
+        *((policy.home_path,) if policy.home_path else ()),
     )
 
 
@@ -271,7 +273,7 @@ def _unclassified_files(
         _normalized_path(path) for source, path in inventory.sources.items()
         if source in inventory.expected_sources and scanned.is_present(path)
     }
-    redactions = _policy_literals(policy)
+    redactions = policy_literals(policy)
     discovered: set[Path] = set()
     unclassified: list[UnclassifiedFile] = []
     for root_index, root in enumerate(inventory.trial_roots):
