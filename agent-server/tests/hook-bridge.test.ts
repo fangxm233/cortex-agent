@@ -2,21 +2,15 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';
+import * as hb from '../src/orchestration/routing/hook-bridge.js';
 
-// Fresh module state per test — re-import via dynamic import to avoid shared module singletons
-async function freshHookBridge() {
-  // Node.js ESM module cache: re-use the same module instance across tests in a single run.
-  // hook-bridge.ts uses module-level state (_bus, pendingRequests).  We reset between tests by
-  // calling initHookBridge with a new bus rather than reimporting.
-  const mod = await import('../src/orchestration/routing/hook-bridge.js');
-  return mod;
-}
+// hook-bridge.ts keeps module-level state (_bus, pendingRequests); each test resets it by calling
+// initHookBridge with a new bus.
 
 // ── (1) registerAskQuestion publishes ask-user.requested ───────────────────────
 
 test('registerAskQuestion publishes ask-user.requested event to bus with correct fields', async () => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
 
   const received: CortexEvent[] = [];
@@ -42,7 +36,6 @@ test('registerAskQuestion publishes ask-user.requested event to bus with correct
 
 test('registerAskQuestion publishes ask-user.requested with the severity level', async () => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
 
   const received: CortexEvent[] = [];
@@ -62,7 +55,6 @@ test('registerAskQuestion publishes ask-user.requested with the severity level',
 
 test('resolveRequest resolves the Promise returned by registerAskQuestion', async () => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
 
   // No subscriber needed — we only verify the Promise lifecycle
@@ -84,7 +76,6 @@ test('resolveRequest resolves the Promise returned by registerAskQuestion', asyn
 
 test('cleanupStale resolves timed-out requests and fires the onStale callback', async (t) => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
   t.onTestFinished(() => hb.setOnStale(null));
 
@@ -111,7 +102,6 @@ test('cleanupStale resolves timed-out requests and fires the onStale callback', 
 
 test('registerAskQuestion with blocking=false resolves immediately and marks the event non-blocking', async () => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
 
   const received: CortexEvent[] = [];
@@ -130,7 +120,6 @@ test('registerAskQuestion with blocking=false resolves immediately and marks the
 
 test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (t) => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
   t.onTestFinished(() => hb.setOnStale(null));
 
@@ -144,7 +133,6 @@ test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (
 
 test('an answered non-blocking ask is removed from the pending set before the TTL fires', async (t) => {
   const bus = new EventBus();
-  const hb = await freshHookBridge();
   hb.initHookBridge(bus);
   t.onTestFinished(() => hb.setOnStale(null));
 
