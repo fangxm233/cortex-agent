@@ -194,9 +194,6 @@ class DockerNetworkPool:
             container_ip=str(network.network_address + 2),
         )
 
-    def as_document(self) -> dict[str, object]:
-        return {"subnet_pool": self.subnet_pool, "subnet_prefix": self.subnet_prefix}
-
 
 @dataclass(frozen=True)
 class CampaignTask:
