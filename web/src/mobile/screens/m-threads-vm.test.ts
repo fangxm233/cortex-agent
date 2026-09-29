@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import {
   threadsBudgetBand,
-  isLiveThread,
   pipelineSteps,
 } from './m-threads-vm';
 
@@ -77,19 +76,6 @@ describe('threadsBudgetBand', () => {
   });
   it('clamps overrun to 100%', () => {
     expect(threadsBudgetBand(30, 10).pct).toBe(100);
-  });
-});
-
-describe('isLiveThread', () => {
-  it('running and waiting (suspended-on-children) are both live → drill-in + threads.get', () => {
-    expect(isLiveThread('running')).toBe(true);
-    expect(isLiveThread('waiting')).toBe(true);
-  });
-  it('terminal statuses are not live', () => {
-    expect(isLiveThread('completed')).toBe(false);
-    expect(isLiveThread('failed')).toBe(false);
-    expect(isLiveThread('cancelled')).toBe(false);
-    expect(isLiveThread('aborted')).toBe(false);
   });
 });
 

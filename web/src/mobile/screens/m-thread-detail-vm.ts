@@ -16,6 +16,7 @@ import {
   type ThreadDetailFacts,
   type ThreadDetailStepFacts,
 } from '@/features/thread/thread-detail-facts';
+import { fmtClock } from '@/features/thread/thread-detail-vm';
 import { formatSpanPrecise, relTime, type TimeLang } from '@/lib/time-format';
 import { formatUsd } from '@/lib/format';
 
@@ -84,16 +85,6 @@ export interface MThreadDetailVm {
   steps: MThreadStepVm[];
   artifacts: MThreadArtifactVm[];
   artifactCount: number;
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-/** MM:SS clock; minutes are NOT rolled into hours (matches thread-detail-vm fmtClock). */
-function fmtClock(totalSeconds: number): string {
-  const total = Math.max(0, Math.floor(totalSeconds));
-  return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
 }
 
 function basename(path: string): string {

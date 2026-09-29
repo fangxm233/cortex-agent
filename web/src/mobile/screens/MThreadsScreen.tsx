@@ -13,7 +13,8 @@ import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { MScreen, MScrollBody, MEmpty, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { MThreadSections, MThreadsHeader, MThreadRow, type MThreadsCopy } from './MThreadsView';
-import { threadsBudgetBand, isLiveThread } from './m-threads-vm';
+import { threadIsLive } from '@/features/thread/thread-detail-facts';
+import { threadsBudgetBand } from './m-threads-vm';
 
 const COPY: { en: MThreadsCopy; zh: MThreadsCopy } = {
   en: {
@@ -84,7 +85,7 @@ export function MThreadsScreen() {
           copy={copy}
           renderThread={(thread) => {
             const onOpen = () => navigate(`/m/thread/${thread.id}`);
-            return isLiveThread(thread.status) ? (
+            return threadIsLive(thread.status) ? (
               <MThreadRunningCard key={thread.id} info={thread} now={now} copy={copy} lang={lang} onOpen={onOpen} />
             ) : (
               <MThreadRow key={thread.id} info={thread} detail={undefined} now={now} copy={copy} lang={lang} onOpen={onOpen} />

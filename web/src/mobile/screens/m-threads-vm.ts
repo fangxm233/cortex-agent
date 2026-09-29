@@ -27,13 +27,6 @@ export function threadsBudgetBand(
   };
 }
 
-// ── Live (non-terminal) thread test ───────────────────────────────────────────
-// `running` and `waiting` are both active threads that drill into detail and warrant a per-card
-// `threads.get`. Waiting is a generic UI pause state, distinct from the approval queue.
-export function isLiveThread(status: ThreadInfo['status']): boolean {
-  return status === 'running' || status === 'waiting';
-}
-
 // ── Horizontal 4-step pipeline (scheme L201–209) ──────────────────────────────
 export type MStepState = 'done' | 'active' | 'pending';
 export interface MPipelineStep {

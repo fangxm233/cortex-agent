@@ -37,8 +37,8 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
 
 describe('thread detail facts', () => {
   it('classifies live thread states and every step kind without presentation copy', () => {
-    const statuses: ThreadDetail['status'][] = ['running', 'waiting', 'completed'];
-    expect(statuses.map(threadIsLive)).toEqual([true, true, false]);
+    const statuses: ThreadDetail['status'][] = ['running', 'waiting', 'completed', 'failed', 'cancelled', 'aborted'];
+    expect(statuses.map(threadIsLive)).toEqual([true, true, false, false, false, false]);
     expect([
       step({ status: 'completed' }), step({ status: 'running' }), step({ status: 'pending' }),
     ].map(threadStepKind)).toEqual(['done', 'running', 'pending']);
