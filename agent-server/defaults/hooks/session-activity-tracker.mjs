@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.28
+// @cortex-hook-version 2026.9.25
 
 import { readFileSync, mkdirSync, appendFileSync } from 'fs';
 import { join, resolve } from 'path';
