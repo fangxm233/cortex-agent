@@ -62,13 +62,6 @@ function writeLedger(ledger: AcceptanceLedger): void {
 
 interface DeliveryTopologyContext {
   parentThreadId: string;
-  childThreadId?: string;
-  childDispatchGeneration?: string;
-}
-
-interface VerdictTopologyContext {
-  managerThreadId?: string;
-  childThreadId?: string;
 }
 
 function latestRejectedVerdict(
@@ -89,9 +82,8 @@ function recordDeliveryTopology(
 ): void {
   if (!context) return;
   const dispatch = latestDispatchFact(project, childTaskId);
-  const childThreadId = context.childThreadId ?? dispatch?.thread_id;
-  const generation = context.childDispatchGeneration
-    ?? (dispatch && dispatch.thread_id === childThreadId ? dispatch.dispatch_generation : null);
+  const childThreadId = dispatch?.thread_id;
+  const generation = dispatch?.dispatch_generation;
   if (!childThreadId || !generation) return;
   if (existing?.verdict === 'rejected') {
     const rejected = latestRejectedVerdict(project, parentTaskId, childTaskId);
@@ -142,13 +134,12 @@ export async function recordDelivered(
 
 function recordVerdictTopology(
   project: string, taskId: string, childId: string, verdict: 'accepted' | 'rejected',
-  reworkRound: number, topology: VerdictTopologyContext,
+  reworkRound: number,
 ): void {
   try {
-    const managerThreadId = topology.managerThreadId
-      ?? (process.env.CORTEX_THREAD_ID?.trim() || null);
+    const managerThreadId = process.env.CORTEX_THREAD_ID?.trim() || null;
     const delivery = latestDeliveryFact(project, taskId, childId);
-    const childThreadId = topology.childThreadId ?? delivery?.child_thread_id ?? null;
+    const childThreadId = delivery?.child_thread_id ?? null;
     const generation = delivery?.child_dispatch_generation ?? null;
     if (!managerThreadId || !childThreadId || !generation) return;
     recordProductionTopologyFact({
@@ -164,7 +155,7 @@ function recordVerdictTopology(
 /** Record a manager verdict and advance the acceptance rework round. */
 export function recordVerdict(
   project: string, taskId: string, childId: string, verdict: 'accepted' | 'rejected',
-  note?: string | null, topology: VerdictTopologyContext = {},
+  note?: string | null,
 ): void {
   const ledger = readLedger(project, taskId);
   const entry = ledger.children[childId] ?? {
@@ -183,7 +174,7 @@ export function recordVerdict(
   if (verdict === 'rejected') entry.rework_round += 1;
   ledger.children[childId] = entry;
   writeLedger(ledger);
-  recordVerdictTopology(project, taskId, childId, verdict, entry.rework_round, topology);
+  recordVerdictTopology(project, taskId, childId, verdict, entry.rework_round);
 }
 
 /** Entries delivered but not yet accepted/rejected — the rehydration prompt's

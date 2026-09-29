@@ -80,6 +80,7 @@ test('accepted verdict blocks re-delivery; rejected re-opens with a rework_round
   const reopened = readLedger('_tn_pe', 'aa33').children['cc55'];
   assert.equal(reopened.verdict, 'pending', 're-delivery re-opens the verdict');
   assert.equal(reopened.rework_round, 1, 'rework count survives re-delivery');
+  assert.equal(reopened.verdict_note, 'tests fail');
 });
 
 test('pendingDeliveries lists only pending entries', async () => {

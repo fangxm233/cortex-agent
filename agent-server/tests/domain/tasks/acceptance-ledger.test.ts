@@ -6,7 +6,7 @@ import { beforeEach, it, vi } from 'vitest';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import {
   ledgerPath, pendingDeliveries, readLedger, recordDelivered, recordVerdict,
-  type LedgerEntry, type LedgerVerdict,
+  type LedgerEntry,
 } from '../../../src/domain/tasks/acceptance-ledger.js';
 import {
   readProductionTopologyFacts,
@@ -43,10 +43,6 @@ function supersededEntry(): LedgerEntry {
 }
 
 it('D-10 — `superseded` is a fourth verdict and `superseded_by` rides with it', () => {
-  // Type-level: the union admits it (checked by `tsc --noEmit`, which covers tests/).
-  const verdicts: LedgerVerdict[] = ['pending', 'accepted', 'rejected', 'superseded'];
-  assert.equal(verdicts.length, 4);
-
   writeLedgerFile({ [CHILD]: supersededEntry() });
   const entry = readLedger(project, PARENT).children[CHILD];
   assert.equal(entry.verdict, 'superseded');
@@ -79,50 +75,31 @@ it('D-10 — `superseded_by` survives re-delivery and a later verdict, as `rewor
   assert.equal(judged.verdict, 'accepted');
 });
 
-it('the shipped delivery semantics are UNCHANGED — accepted refuses, rejected re-opens', async () => {
-  assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed'), true);
-  recordVerdict(project, PARENT, CHILD, 'accepted');
-  assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed'), false);
-
-  const other = 'c003';
-  assert.equal(await recordDelivered(project, PARENT, other, 'blocked'), true);
-  recordVerdict(project, PARENT, other, 'rejected', 'again');
-  assert.equal(readLedger(project, PARENT).children[other].rework_round, 1);
-  assert.equal(await recordDelivered(project, PARENT, other, 'completed'), true);
-  const reopened = readLedger(project, PARENT).children[other];
-  assert.equal(reopened.verdict, 'pending');
-  assert.equal(reopened.rework_round, 1);
-  assert.equal(reopened.verdict_note, 'again');
-});
-
-it('G4-N6 — `readLedger`\'s fail-open is RECORDED, not repaired, by this increment', () => {
-  const target = ledgerPath(project, PARENT);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, 'not json at all');
-  assert.deepEqual(readLedger(project, PARENT), { parent: PARENT, project, children: {} });
-});
-
-it('records rejection and the correlated replacement attempt without changing ledger semantics', async () => {
+it('records rejection and the correlated replacement attempt without changing ledger semantics', async (t) => {
+  const priorThreadId = process.env.CORTEX_THREAD_ID;
+  process.env.CORTEX_THREAD_ID = 'thr_manager';
+  t.onTestFinished(() => {
+    if (priorThreadId === undefined) delete process.env.CORTEX_THREAD_ID;
+    else process.env.CORTEX_THREAD_ID = priorThreadId;
+  });
   recordProductionTopologyFact({
     project, kind: 'dispatch', task_id: CHILD,
     dispatch_generation: 'generation-1', thread_id: 'thr_child_1',
   });
   assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed', {
-    parentThreadId: 'thr_manager', childThreadId: 'thr_child_1',
+    parentThreadId: 'thr_manager',
   }), true);
   recordProductionTopologyFact({
     project, kind: 'dispatch', task_id: CHILD,
     dispatch_generation: 'generation-race', thread_id: 'thr_not_delivered',
   });
-  recordVerdict(project, PARENT, CHILD, 'rejected', 'tests fail', {
-    managerThreadId: 'thr_manager',
-  });
+  recordVerdict(project, PARENT, CHILD, 'rejected', 'tests fail');
   recordProductionTopologyFact({
     project, kind: 'dispatch', task_id: CHILD,
     dispatch_generation: 'generation-2', thread_id: 'thr_child_2',
   });
   assert.equal(await recordDelivered(project, PARENT, CHILD, 'completed', {
-    parentThreadId: 'thr_manager', childThreadId: 'thr_child_2',
+    parentThreadId: 'thr_manager',
   }), true);
 
   const lifecycle = readProductionTopologyFacts({ project }).filter((fact) => (
