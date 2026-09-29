@@ -16,8 +16,6 @@ export interface WsClientOpts {
   clientVersion: string;
   /** Optional project for initial handshake */
   project?: string | null;
-  /** Called on successful connection after handshake.ack */
-  onConnected?: (ack: HandshakeAck) => void;
   /** Called for every parsed frame received */
   onFrame?: (frame: TuiFrame) => void;
   /** Called when connection closes or fails */
@@ -44,8 +42,6 @@ export class WsClient {
   /** Latest handshake ack data */
   private _ack: HandshakeAck | null = null;
 
-  get state(): WsState { return this._state; }
-  get lastSessionId(): string | null { return this._lastSessionId; }
   get ack(): HandshakeAck | null { return this._ack; }
 
   // ── Connection ──

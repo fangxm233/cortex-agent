@@ -94,7 +94,6 @@ test('ws protocol contract — full lifecycle', async (t) => {
 
   // Verify client state
   assert.equal(client.ack?.conduitId, 'tui:test');
-  assert.equal(client.lastSessionId, 'sess-001');
 
   // Verify received frames on server
   const helloFrame = receivedFrames.find(f => f.type === 'handshake.hello');
