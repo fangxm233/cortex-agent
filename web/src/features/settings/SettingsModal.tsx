@@ -6,7 +6,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
-import { getSettingsNavGroups, getSectionMeta, type SettingsSectionKey } from './settings-nav';
+import { getSettingsNavGroups, getSectionTitle, type SettingsSectionKey } from './settings-nav';
 import { McpPanel } from '@/features/settings/panels/SettingsPanels';
 import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
 import { MachinesPanel } from '@/features/settings/panels/MachinesPanel';
@@ -262,11 +262,11 @@ function SettingsPanelHeader(props: {
   actionsRef: (node: HTMLDivElement | null) => void;
 }) {
   const L = useVocab();
-  const meta = getSectionMeta(L, props.section);
+  const title = getSectionTitle(L, props.section);
   return (
     <div className="settings-panel-header" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--proto-line-2)' }}>
       <div className="settings-panel-heading">
-        <span className="settings-panel-title">{meta.title}</span>
+        <span className="settings-panel-title">{title}</span>
       </div>
       <div ref={props.actionsRef} data-settings-header-actions
         style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }} />

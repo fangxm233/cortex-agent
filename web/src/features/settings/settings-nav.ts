@@ -30,12 +30,7 @@ export interface SettingsNavGroup {
   entries: SettingsNavEntry[];
 }
 
-export interface SettingsSectionMeta {
-  /** Content-area title. */
-  title: string;
-}
-
-// Vocab key for each nav label (also used as section meta title).
+// Vocab key for each nav label (also used as the section title).
 const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   appearance: 'stNavAppearance',
   platform: 'stNavPlatform',
@@ -113,8 +108,6 @@ export function getSettingsNav(L: Vocab): SettingsNavEntry[] {
 }
 
 /** Returns the section title resolved from the given vocab. */
-export function getSectionMeta(L: Vocab, key: SettingsSectionKey): SettingsSectionMeta {
-  return {
-    title: L[NAV_LABEL_KEYS[key]],
-  };
+export function getSectionTitle(L: Vocab, key: SettingsSectionKey): string {
+  return L[NAV_LABEL_KEYS[key]];
 }
