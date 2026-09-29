@@ -1,9 +1,8 @@
 import threading
 import time
-from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPException, HTTPSConnection, HTTPResponse
 from pathlib import Path
-from typing import Callable, Mapping, Protocol
+from typing import Mapping, Protocol
 from urllib.parse import SplitResult, urlsplit
 
 from .adapters.base import ProviderAdapter
@@ -30,15 +29,6 @@ class ResponseSink(Protocol):
     ) -> None: ...
 
     def relay(self, chunk: bytes) -> None: ...
-
-
-@dataclass(frozen=True)
-class UpstreamResult:
-    status: int
-    reason: str
-    headers: tuple[tuple[str, str], ...]
-    body: bytes
-    usage: ProxyUsage
 
 
 class UpstreamAttemptError(OSError):
@@ -73,7 +63,6 @@ class FixedUpstream:
         trace_progress_seconds: float = 10,
         max_attempts: int = DEFAULT_MAX_UPSTREAM_ATTEMPTS,
         retry_backoff_seconds: float = DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS,
-        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._target = validate_upstream(base_url)
         self._adapter = adapter
@@ -85,7 +74,6 @@ class FixedUpstream:
         self._revoked = False
         self._max_attempts = max(1, max_attempts)
         self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
-        self._sleep = sleep
 
     @property
     def network_trace_complete(self) -> bool:
@@ -102,7 +90,7 @@ class FixedUpstream:
         self, path: str, headers: Mapping[str, str], body: bytes,
         timeout_seconds: float, route_id: str, sink: "ResponseSink | None" = None,
         trace: RequestTrace | None = None,
-    ) -> UpstreamResult:
+    ) -> ProxyUsage:
         """One admitted request, retried a bounded number of times when the failure is safe.
 
         The whole call is one reservation: a retry costs wall clock, never budget. Auth is
@@ -121,13 +109,13 @@ class FixedUpstream:
                 _trace_event(
                     trace, "upstream_attempt_retried", durable=True,
                     outcome=error.reason, attempt=attempt, status=error.status)
-                self._sleep(backoff)
+                time.sleep(backoff)
         raise AssertionError("unreachable: the loop returns or raises on its last attempt")
 
     def _attempt(
         self, path: str, headers: Mapping[str, str], body: bytes, expires_at: float,
         route_id: str, sink: "ResponseSink | None", trace: RequestTrace | None,
-    ) -> UpstreamResult:
+    ) -> ProxyUsage:
         outbound = self._headers(headers, body, route_id)
         connection = self._connection(max(expires_at - time.monotonic(), 0.001))
         self._activate(connection)
@@ -168,7 +156,7 @@ class FixedUpstream:
         self, connection: HTTPConnection, path: str, headers: Mapping[str, str],
         body: bytes, expires_at: float, sink: "ResponseSink | None",
         trace: RequestTrace | None,
-    ) -> UpstreamResult:
+    ) -> ProxyUsage:
         _trace_event(trace, "upstream_connect_started", durable=True)
         self._connect(connection)
         _trace_event(trace, "upstream_connect_returned")
@@ -262,7 +250,7 @@ def read_response(
     response: HTTPResponse, expires_at: float, adapter: ProviderAdapter,
     response_body_limit_bytes: int | None = None,
     sink: ResponseSink | None = None, trace: RequestTrace | None = None,
-) -> UpstreamResult:
+) -> ProxyUsage:
     headers = tuple(response.getheaders())
     content_type = response.getheader("content-type", "")
     # An error status is refused before anything is relayed. Relaying it first was how a single
@@ -282,8 +270,7 @@ def read_response(
     _trace_event(trace, "response_stream_wait_started", durable=True)
     body = _read_until_deadline(
         response, expires_at, response_body_limit_bytes, sink, trace)
-    usage = adapter.extract_usage(body, content_type)
-    return UpstreamResult(response.status, response.reason, headers, body, usage)
+    return adapter.extract_usage(body, content_type)
 
 
 def _read_until_deadline(

@@ -22,7 +22,6 @@ from .upstream import (
     HOP_HEADERS,
     FixedUpstream,
     UpstreamAttemptError,
-    UpstreamResult,
     validate_upstream,
 )
 
@@ -451,7 +450,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         trace = server.upstream.start_request_trace()
         sink = RelaySink(self, trace)
         try:
-            response = server.upstream.request(
+            usage = server.upstream.request(
                 self.path, dict(self.headers.items()), body,
                 server.state.remaining_seconds(), route_id, sink, trace,
             )
@@ -465,7 +464,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             self._handle_upstream_failure(
                 server.state, UpstreamAttemptError(False), sink)
             return
-        self._finish_response(server, response, sink)
+        self._finish_response(server, usage, sink)
 
     def _handle_auth_failure(self, state: ProxyState, sink: RelaySink) -> None:
         audit_error = state.record_attempt("auth_injection_unavailable", False)
@@ -504,10 +503,10 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             retryable=failure.status is not None or not failure.may_have_reached_upstream)
 
     def _finish_response(
-        self, server: TrialHttpServer, response: UpstreamResult, sink: RelaySink,
+        self, server: TrialHttpServer, usage: ProxyUsage, sink: RelaySink,
     ) -> None:
         state = server.state
-        accounting_error = state.record(response.usage)
+        accounting_error = state.record(usage)
         if accounting_error is not None:
             if sink.trace is not None:
                 sink.trace.terminal(accounting_error)
