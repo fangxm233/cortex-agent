@@ -8,31 +8,14 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import { getActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 
-import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
+import { fireAndForgetPreCloseHook, resolveOnNewThreadAnchor } from '@domain/sessions/session-hooks.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { conversationLedger } from '@store/conversation-ledger-repo.js';
 
 import { attachExistingSession, resetChannelSession } from '@domain/sessions/session-lifecycle.js';
 import { planApprovals } from '../../interactions/plan-approvals.js';
 import { interactionRecords } from '../../interactions/interaction-records.js';
 
 const log = createLogger('session');
-
-/** Resolve the Slack thread timestamp for the session:
- *  1. Command-level threadAnchorId (user typed !new in-thread)
- *  2. Conversation ledger's last status message ts (session's thread parent)
- *  3. null (no thread context available) */
-async function resolveSessionThreadTs(channel: string, threadAnchorId?: string | null): Promise<string | null> {
-  if (threadAnchorId) return threadAnchorId;
-  const conv = await conversationLedger.getConversation(channel);
-  if (conv?.turns.length) {
-    // Walk backwards to find the last turn with a statusMessageTs
-    for (let i = conv.turns.length - 1; i >= 0; i--) {
-      if (conv.turns[i].statusMessageTs) return conv.turns[i].statusMessageTs;
-    }
-  }
-  return null;
-}
 
 export async function handleNewCmd(
   channel: string,
@@ -42,7 +25,7 @@ export async function handleNewCmd(
 ): Promise<void> {
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   if (!opts.skipHook) {
-    const resolvedThreadTs = await resolveSessionThreadTs(channel, threadAnchorId);
+    const resolvedThreadTs = await resolveOnNewThreadAnchor(channel, threadAnchorId);
     void fireAndForgetPreCloseHook(channel, adapter, resolvedThreadTs);
   }
 

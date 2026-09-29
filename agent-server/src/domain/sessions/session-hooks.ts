@@ -313,7 +313,7 @@ const ONMESSAGEEND_FORMAT: SessionHookFormat = {
  *    1. Caller-supplied threadAnchorId (e.g. user typed !new in-thread).
  *    2. Last turn's statusMessageTs from the conversation ledger.
  *    3. null → vm starts a top-level message and self-anchors. */
-async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?: string | null): Promise<string | null> {
+export async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?: string | null): Promise<string | null> {
   if (threadAnchorId) return threadAnchorId;
   const conv = await conversationLedger.getConversation(channel);
   if (conv?.turns.length) {

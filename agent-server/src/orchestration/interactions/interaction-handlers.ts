@@ -14,9 +14,10 @@ import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { getActiveProfile, setActiveProfile } from '@domain/agents/index.js';
+import { getActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
+import { attachExistingSession } from '@domain/sessions/session-lifecycle.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
@@ -277,9 +278,7 @@ async function handleStatusResume(ctx: ActionContext): Promise<void> {
   const sessionName = ctx.value;
   const record = await sessionStore.lookupSession(sessionName);
   if (!record) return;
-  if (record.profileName) setActiveProfile(record.profileName, ctx.channelId);
-  await setSessionAsync(ctx.channelId, record.sessionId);
-  await conversationLedger.switchSession(ctx.channelId, {
+  await attachExistingSession(ctx.channelId, {
     sessionId: record.sessionId, sessionName, backend: record.backend, profileName: record.profileName,
   });
   const profileNote = record.profileName ? t('interaction.sessionProfileNote', { profileName: record.profileName }) : '';
