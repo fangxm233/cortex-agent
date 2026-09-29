@@ -1,10 +1,9 @@
 import { fork } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
-import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFileSync, unlinkSync } from 'fs';
-import { INSTALL_ROOT, DATA_DIR, STORE_DIR, PROJECTS_DIR, WORKSPACE_DIR, isMainModule } from '@core/utils.js';
+import { INSTALL_ROOT, DATA_DIR, STORE_DIR, isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,
@@ -30,8 +29,6 @@ import {
 import { runUiCli } from './ui-cli.js';
 import { LoginCliError } from './auth-login-cli.js';
 import { t } from '@core/i18n.js';
-
-export { getAuthHelp, getCliHelp, getInitHelp, getSetupGatewayHelp, getTuiHelp, getUiHelp } from './cli-help.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
