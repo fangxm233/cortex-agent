@@ -261,7 +261,6 @@ export interface ComposerFullscreenProps {
   onPlus?: () => void;
   commandMenu?: ReactNode;
   onCommandPick?: () => void;
-  onSlash?: () => void;
   lineUnit?: string;
   charUnit?: string;
 }
@@ -337,7 +336,7 @@ function useFullscreenFocus(ref: React.RefObject<HTMLTextAreaElement>): void {
 export function ComposerFullscreen(props: ComposerFullscreenProps): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useFullscreenFocus(textareaRef);
-  const insertSlash = props.onSlash ?? (() => props.onChange?.(props.value ? `${props.value}/` : '/'));
+  const insertSlash = () => props.onChange?.(props.value ? `${props.value}/` : '/');
   return (
     <div style={fullscreenShellStyle}>
       <div style={fullscreenCardStyle}>

@@ -6,19 +6,11 @@ import { statusTone, type Tone } from '@/design/tone';
 import { MC, M_GUTTER } from '@/design/mobile-tokens';
 import { useVocabOptional } from '@/i18n';
 
-export { MC, MONO, M_FLOAT_TOP, M_TABBAR_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
+export { MC, MONO, M_TABBAR_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@/design/mobile-tokens';
 // MBottomSheet lives in design/ (both chromes use it); the mobile screens keep importing it from
 // the kit they compose everything else from.
-export { MBottomSheet, shouldFlingClose } from '@/design';
-export {
-  ComposerFullscreen,
-  MComposer,
-  composerCharCount,
-  composerCountLabel,
-  composerLineCount,
-  type ComposerFullscreenProps,
-  type MComposerProps,
-} from './composer';
+export { MBottomSheet } from '@/design';
+export { MComposer } from './composer';
 
 // ── Palette (scheme-mobile.dc.html system tokens, L57-73) ─────────────────────
 // Each value resolves to a CSS variable (defined in src/index.css `:root` / `[data-theme='dark']`)
