@@ -14,9 +14,6 @@ export interface MSessionRow {
   title: string;
   /** Relative time label (real, from lastUsedAt||createdAt). */
   time: string;
-  running: boolean;
-  /** Real agent-turn count; null when unknown. */
-  numTurns: number | null;
   unread: boolean;
   status: MSessionStatus;
 }
@@ -68,8 +65,6 @@ function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
     id: s.sessionId,
     title: s.label || s.name || s.sessionId,
     time: relTime(s.lastUsedAt || s.createdAt, now, lang),
-    running: s.running,
-    numTurns: s.numTurns,
     unread: s.unread,
     status: sessionStatusLine(s, lang),
   };

@@ -61,7 +61,6 @@ describe('pendingApprovalCounts', () => {
     expect(pendingApprovalCounts(entries)).toEqual({
       byProject: { atlas: 2 },
       global: 1,
-      total: 3,
     });
   });
 });
@@ -86,8 +85,8 @@ describe('buildProjectSwitchRows', () => {
 
   it('carries the per-project unread count and defaults to 0 when absent', () => {
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 3 });
-    expect(rows.find((r) => r.id === 'orchard')?.unread).toBe(3);
-    expect(rows.find((r) => r.id === 'atlas')?.unread).toBe(0);
+    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ badgeCount: 3, badgeTone: 'unread' });
+    expect(rows.find((r) => r.id === 'atlas')).toMatchObject({ badgeCount: 0, badgeTone: null });
   });
 
   it('adds unread + action counts and lets action win the badge tone', () => {
@@ -101,14 +100,10 @@ describe('buildProjectSwitchRows', () => {
       { orchard: 1 },
     );
     expect(rows.find((r) => r.id === 'orchard')).toMatchObject({
-      unread: 2,
-      actionRequired: 1,
       badgeCount: 3,
       badgeTone: 'action',
     });
     expect(rows.find((r) => r.id === 'atlas')).toMatchObject({
-      unread: 1,
-      actionRequired: 0,
       badgeCount: 1,
       badgeTone: 'unread',
     });
@@ -129,7 +124,7 @@ describe('buildProjectSwitchRows', () => {
     const activity = { atlas: Date.parse('2026-07-16T00:00:00') };
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 2 }, activity);
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
-    expect(rows.find((r) => r.id === 'orchard')?.unread).toBe(2);
+    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ badgeCount: 2, badgeTone: 'unread' });
   });
 
   it('preserves projects.list order when no activity is known (back-compat)', () => {
@@ -150,7 +145,6 @@ describe('buildProjectSwitchRows', () => {
       { orchard: 2 },
     );
     expect(rows.find((r) => r.id === 'orchard')).toMatchObject({
-      actionRequired: 2,
       badgeCount: 2,
       badgeTone: 'action',
     });

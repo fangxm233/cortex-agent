@@ -10,7 +10,7 @@ const noop = () => {};
 const taskCopy = { title: 'Tasks', done: 'Done' } as MTasksCopy;
 const sessionCopy: MSessionListCopy = { title: 'Sessions', empty: 'Empty' };
 const sessionRow = (id: string, title: string): MSessionRow => ({
-  id, title, time: '3h', running: false, numTurns: null, unread: false, status: { kind: 'idle', text: '' },
+  id, title, time: '3h', unread: false, status: { kind: 'idle', text: '' },
 });
 
 describe('mobile presentation', () => {

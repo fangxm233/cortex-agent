@@ -44,7 +44,6 @@ export interface PendingApprovalCounts {
   byProject: Record<string, number>;
   /** Pending entries with NO project attribution (legacy / system-level) — rendered as 全局. */
   global: number;
-  total: number;
 }
 
 /**
@@ -54,10 +53,9 @@ export interface PendingApprovalCounts {
 export function pendingApprovalCounts(
   entries: readonly { status: string; projectId: string | null }[],
 ): PendingApprovalCounts {
-  const counts: PendingApprovalCounts = { byProject: {}, global: 0, total: 0 };
+  const counts: PendingApprovalCounts = { byProject: {}, global: 0 };
   for (const e of entries) {
     if (e.status !== 'pending') continue;
-    counts.total++;
     if (e.projectId == null) counts.global++;
     else counts.byProject[e.projectId] = (counts.byProject[e.projectId] ?? 0) + 1;
   }
@@ -74,11 +72,8 @@ export interface MProjectSwitchRow {
   /** Real today $ from the global cost summary's byProject bucket; null when the project has no
    *  bucket (honest — never a fabricated $0). */
   todayCost: number | null;
-  /** Unread direct-session count for this project. */
-  unread: number;
-  /** Action items: sessions blocked on ask-user/plan input + this project's pending approvals. */
-  actionRequired: number;
-  /** Combined unread + action count shown in the single switch-row badge. */
+  /** Unread direct-session count plus action items (sessions blocked on ask-user/plan input + this
+   *  project's pending approvals), shown in the single switch-row badge. */
   badgeCount: number;
   /** Action takes the amber tone; unread-only stays run blue. */
   badgeTone: ProjectAttentionBadgeTone;
@@ -120,8 +115,6 @@ export function buildProjectSwitchRows(
       initials: projectInitials(p.id),
       running,
       todayCost: bucket ? bucket.today : null,
-      unread,
-      actionRequired,
       badgeCount: badge.count,
       badgeTone: badge.tone,
     };
