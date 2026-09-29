@@ -37,10 +37,6 @@ function makeFakeDeps(overrides?: Partial<TuiSessionDeps>): TuiSessionDeps & { _
       switchSession: async (channel: string, opts: { sessionId: string; sessionName: string; backend: string }) => {
         calls.push(`switchSession(${channel},${opts.sessionId})`);
       },
-      getConversation: async (channel: string) => {
-        calls.push(`getConversation(${channel})`);
-        return null;
-      },
     },
     conversationHistory: {
       getHistory: async (sessionId: string) => {
@@ -59,37 +55,7 @@ function makeFakeDeps(overrides?: Partial<TuiSessionDeps>): TuiSessionDeps & { _
   } as TuiSessionDeps & { _calls: string[] };
 }
 
-/** Seed a session into the fake store and return its sessionId. */
-function seedSession(deps: TuiSessionDeps & { _calls: string[] }, overrides?: { name?: string; channel?: string; projectId?: string }): string {
-  const sid = 'seed-' + Math.random().toString(36).slice(2, 10);
-  const name = overrides?.name ?? 'cortex-seed';
-  const channel = overrides?.channel ?? 'tui-conduit';
-  const projectId = overrides?.projectId ?? 'general';
-  // Directly inject into the fake store's internal state
-  (deps.sessionStore as any)._seed?.(sid, name, channel, projectId);
-  return sid;
-}
-
 // ── Tests ────────────────────────────────────────────────────────
-
-test('resolveHandshake: fresh (no resumeSessionId)', async () => {
-  const deps = makeFakeDeps();
-  const svc: TuiSessionService = createTuiSessionService(deps);
-
-  const result = await svc.resolveHandshake({ conduitId: 'tui-conduit', projectId: 'general' });
-
-  assert.equal(result.isFresh, true, 'isFresh must be true');
-  assert.equal(result.emitNotFoundError, false, 'emitNotFoundError must be false');
-  assert.equal(result.transcript, null, 'transcript must be null');
-  assert.ok(result.sessionId, 'sessionId must be set');
-  assert.equal(result.sessionName, 'cortex-abc123');
-  assert.equal(result.projectId, 'general');
-
-  // Verify store calls and ordering
-  assert.ok(deps._calls[0].startsWith('generateSessionName'), 'first call: generateSessionName');
-  assert.ok(deps._calls[1].startsWith('registerSession'), 'second call: registerSession');
-  assert.ok(deps._calls[2].startsWith('initConversation'), 'third call: initConversation');
-});
 
 test('resolveHandshake: resume-found', async () => {
   const deps = makeFakeDeps();
@@ -134,6 +100,12 @@ test('resolveHandshake: resume-not-found', async () => {
   assert.equal(result.projectId, 'general');
   assert.ok(result.sessionId, 'sessionId must be set (fresh)');
   assert.equal(result.transcript, null, 'transcript null for fresh');
+
+  // Fresh fallback: store calls and ordering
+  assert.ok(deps._calls[0].startsWith('lookupBySessionId'), 'first call: lookupBySessionId');
+  assert.ok(deps._calls[1].startsWith('generateSessionName'), 'second call: generateSessionName');
+  assert.ok(deps._calls[2].startsWith('registerSession'), 'third call: registerSession');
+  assert.ok(deps._calls[3].startsWith('initConversation'), 'fourth call: initConversation');
 });
 
 test('switchSession: found', async () => {

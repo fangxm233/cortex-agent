@@ -25,7 +25,7 @@ export interface TuiSessionService {
   resolveHandshake(opts: {
     conduitId: string;
     projectId: string;
-    resumeSessionId?: string | null;
+    resumeSessionId: string;
   }): Promise<HandshakeResolution>;
 
   switchSession(opts: {
@@ -64,16 +64,6 @@ export interface TuiSessionDeps {
       channel: string,
       opts: { sessionId: string; sessionName: string; backend: string },
     ): Promise<unknown>;
-    getConversation(
-      channel: string,
-    ): Promise<{
-      turns: Array<{
-        userMessageTs: string;
-        userMessageText: string;
-        responseMessageTimestamps: string[];
-        status: 'processing' | 'completed' | 'superseded';
-      }>;
-    } | null>;
   };
   /** Cortex's backend-independent conversation history, keyed by sessionId — the TUI
    *  transcript-replay source (full user / assistant / tool event stream). */

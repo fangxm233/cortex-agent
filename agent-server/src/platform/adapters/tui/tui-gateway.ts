@@ -78,7 +78,7 @@ interface TuiSwitchResult {
   transcript: TranscriptData | null;
 }
 interface TuiSessionServiceHandle {
-  resolveHandshake(opts: { conduitId: string; projectId: string; resumeSessionId?: string | null }): Promise<TuiHandshakeResult>;
+  resolveHandshake(opts: { conduitId: string; projectId: string; resumeSessionId: string }): Promise<TuiHandshakeResult>;
   switchSession(opts: { conduitId: string; projectId: string; sessionId?: string | null }): Promise<TuiSwitchResult>;
 }
 

@@ -49,30 +49,24 @@ async function assembleTranscript(
 export function createTuiSessionService(deps: TuiSessionDeps): TuiSessionService {
   return {
     async resolveHandshake({ conduitId, projectId, resumeSessionId }): Promise<HandshakeResolution> {
-      if (resumeSessionId) {
-        const sessionName = await deps.sessionStore.lookupBySessionId(resumeSessionId);
-        if (sessionName) {
-          // Session found — attach with replay
-          const session = await deps.sessionStore.getById(resumeSessionId);
-          const activeProjectId = session?.projectId ?? projectId;
-          const transcript = await assembleTranscript(deps, resumeSessionId);
-          return {
-            sessionId: resumeSessionId,
-            sessionName,
-            projectId: activeProjectId,
-            isFresh: false,
-            emitNotFoundError: false,
-            transcript,
-          };
-        } else {
-          // Session not found — fresh fallback with error
-          const fresh = await createFresh(deps, conduitId, projectId);
-          return { ...fresh, emitNotFoundError: true };
-        }
+      const sessionName = await deps.sessionStore.lookupBySessionId(resumeSessionId);
+      if (sessionName) {
+        // Session found — attach with replay
+        const session = await deps.sessionStore.getById(resumeSessionId);
+        const activeProjectId = session?.projectId ?? projectId;
+        const transcript = await assembleTranscript(deps, resumeSessionId);
+        return {
+          sessionId: resumeSessionId,
+          sessionName,
+          projectId: activeProjectId,
+          isFresh: false,
+          emitNotFoundError: false,
+          transcript,
+        };
       }
-      // Fresh session
+      // Session not found — fresh fallback with error
       const fresh = await createFresh(deps, conduitId, projectId);
-      return { ...fresh, emitNotFoundError: false };
+      return { ...fresh, emitNotFoundError: true };
     },
 
     async switchSession({ conduitId, projectId, sessionId }): Promise<SwitchResolution> {
