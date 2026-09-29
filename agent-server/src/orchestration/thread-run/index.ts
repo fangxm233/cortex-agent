@@ -1,14 +1,7 @@
 export {
-  ThreadRun, openThreadRun, openThreadRunDetached,
-  type ThreadRunInput, type ThreadRunMode, type ThreadRunOutcome, type ThreadRunRender,
-  type ThreadRunSurfaceInput,
+  openThreadRun, openThreadRunDetached,
+  type ThreadRunInput, type ThreadRunOutcome, type ThreadRunSurfaceInput,
   type ThreadVerdict,
 } from './thread-run.js';
-export {
-  makeTaskProgressRenderer, openTaskStatus, renderTaskOutcome, taskStartText,
-  type TaskRender, type TaskRenderTarget, type TaskVerdict,
-} from './render-task.js';
-export {
-  openSummaryStatus, renderSummaryOutcome, renderSummaryProgress, sealSummaryText,
-  sealThreadSummary, summaryResultFromThread,
-} from './render-summary.js';
+export { type TaskRender, type TaskVerdict } from './render-task.js';
+export { renderSummaryOutcome, sealThreadSummary } from './render-summary.js';

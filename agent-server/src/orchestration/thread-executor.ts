@@ -12,8 +12,6 @@ import { createLogger } from '@core/log.js';
 import { downloadMessageFiles, type AttachmentFailure } from './routing/file-handler.js';
 import { t } from '@core/i18n.js';
 
-export type { ThreadExecCtx };
-
 const log = createLogger('thread-executor');
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;

@@ -20,7 +20,6 @@ import { classifyThreadVerdict, type ThreadVerdict } from './verdict.js';
 const log = createLogger('thread-run');
 
 export type { ThreadVerdict };
-export type { TaskRender, TaskVerdict };
 
 /** How this run draws itself. `summary` is the `!thread` / MCP / resume surface (render-summary);
  *  `task` is the dispatch / scheduled surface (render-task), which additionally needs `decide`. */
@@ -75,7 +74,6 @@ export interface ThreadRunInput {
   interactive: boolean;
   files?: DownloadedFile[];
   onAbort?: RunThreadOptions['onAbort'];
-  extraHooks?: RunThreadOptions['extraHooks'];
   startTime?: number;
   /** Wake whoever is waiting on this thread. `thread-callback.settleThread` for the MCP and resume
    *  paths; null for the interactive path (the user is already looking at the status message). */
@@ -112,7 +110,7 @@ export async function openThreadRun(input: ThreadRunInput): Promise<ThreadRunOut
   return new ThreadRun(input).run();
 }
 
-export class ThreadRun {
+class ThreadRun {
   private readonly input: ThreadRunInput;
   private readonly startTime: number;
 
@@ -151,7 +149,6 @@ export class ThreadRun {
         channel: this.input.channel, startTime: this.startTime, stream, surface,
         ...(this.input.files ? { files: this.input.files } : {}),
         ...(this.input.onAbort ? { onAbort: this.input.onAbort } : {}),
-        ...(this.input.extraHooks ? { extraHooks: this.input.extraHooks } : {}),
       });
     } catch (e) {
       error = e as Error;

@@ -38,7 +38,7 @@ function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
 // (it was a RunThreadOptions field before T1.1, then a closure inside the surface), so these
 // tests assert it directly.
 
-test('resumeThreadRunInput restores the persisted statusMsg without rebuilding dispatch hooks', () => {
+test('resumeThreadRunInput restores the persisted statusMsg', () => {
   const adapter = new MockAdapter();
   setOrchestrationRuntime({ adapter });
   const t = makeThread({
@@ -53,7 +53,6 @@ test('resumeThreadRunInput restores the persisted statusMsg without rebuilding d
   assert.ok(input, 'expected an input to be built');
   assert.deepEqual(input!.statusMessage, { conduit: 'C-rs-test', messageId: 'msg-42' });
   assert.deepEqual(input!.mode, { kind: 'resume-rate-limited' });
-  assert.equal(input!.extraHooks, undefined);
   // project-report: the thread was dispatched, not started from a conversation.
   assert.equal(input!.destination.type, 'project-report');
   // No buttons and no interactive capture — nobody is watching this message any more.
