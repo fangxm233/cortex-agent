@@ -6,7 +6,7 @@ import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 
 import { handleOrientCmd } from './orient.js';
-import { handleThreadCmd } from './thread.js';
+import { handleThreadCmd } from './thread-handlers.js';
 import { createScheduleHandler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
 import { createTasksHandler } from './task.js';
