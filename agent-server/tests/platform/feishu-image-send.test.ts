@@ -154,9 +154,11 @@ test('the feishu_send_file tool still sends a document as a file', async () => {
   const { client, calls } = fakeClient();
   const file = await write('notes.txt', Buffer.from('plain text'));
 
-  await uploadFileToFeishu(client, { channel: 'oc_123abc', filePath: file, fileName: 'renamed.txt' });
+  const result = await uploadFileToFeishu(client, { channel: 'feishu:oc_123abc', filePath: file, fileName: 'renamed.txt' });
 
+  expect(result.size).toBe(10);
   expect(calls.map((c) => c.method)).toEqual(['file.create', 'message.create']);
   expect(calls[0].args.data.file_name).toBe('renamed.txt');
+  expect(calls[1].args.data.receive_id).toBe('oc_123abc');
   expect(calls[1].args.data.msg_type).toBe('file');
 });
