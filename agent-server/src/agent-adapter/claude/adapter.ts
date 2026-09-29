@@ -28,7 +28,6 @@ import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
   buildPrompt,
   clearActivePlanFile,
-  mergeSubstantialOutput,
   createStreamDeltaState,
 } from './event-parser.js';
 import { BgTaskTracker } from './bg-task-tracker.js';
@@ -918,7 +917,6 @@ function makeSessionForTest(
 }
 
 export const _test = {
-  mergeSubstantialOutput,
   computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,
 };

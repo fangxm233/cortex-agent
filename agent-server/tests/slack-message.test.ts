@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
-const { mergeSubstantialOutput } = claudeTest;
+import { mergeSubstantialOutput } from '../src/agent-adapter/claude/event-parser.js';
 
 // --- mergeSubstantialOutput ---
 
