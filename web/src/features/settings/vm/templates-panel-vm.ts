@@ -14,15 +14,6 @@ export interface TemplateSelection {
   name: string;
 }
 
-export function sameSelection(a: TemplateSelection | null, b: TemplateSelection | null): boolean {
-  if (a === null || b === null) return a === b;
-  return a.kind === b.kind && a.name === b.name;
-}
-
-export function selectionKey(selection: TemplateSelection): string {
-  return `${selection.kind}:${selection.name}`;
-}
-
 // --- Filtering ---
 
 export function filterEntries(
