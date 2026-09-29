@@ -168,11 +168,6 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
   const effectiveProfile = profileName;
   const destination = dispatchDestination(selectedTask.project || channel);
 
-  if (!selected.template) {
-    log.error(`Task [${selectedTask.project}] ${selectedTask.text.substring(0, 60)} missing required [template:] tag — skipping`);
-    await taskMutator.unclaim(selectedTask.id, { ownership });
-    return { success: false, skipped: true, note: 'Task missing required [template:] tag' };
-  }
   const parentThread = selectedTask.parent
     ? resolveTaskParentThread(selectedTask.project, selectedTask.parent)
     : null;
