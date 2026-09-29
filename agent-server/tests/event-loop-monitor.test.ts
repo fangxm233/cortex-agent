@@ -2,7 +2,6 @@ import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
-  getEventLoopLagReading,
   sampleEventLoopLagOnce,
   startEventLoopMonitor,
   stopEventLoopMonitor,
@@ -29,29 +28,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test('an interval tick records p50/p99/max in ms and resets the window', () => {
+test('an interval tick samples p50/p99/max in ms and resets the window', () => {
   vi.useFakeTimers();
   const histogram = fakeHistogram();
   startEventLoopMonitor({ intervalMs: 1000, createHistogram: () => histogram });
 
   assert.equal(histogram.enabled, true);
-  assert.equal(getEventLoopLagReading(), null);
+  assert.equal(histogram.resets, 0);
 
   vi.advanceTimersByTime(1000);
-
-  const reading = getEventLoopLagReading();
-  assert.ok(reading, 'a tick must record a reading');
-  assert.equal(typeof reading.p50Ms, 'number');
-  assert.equal(typeof reading.p99Ms, 'number');
-  assert.equal(typeof reading.maxMs, 'number');
-  assert.equal(reading.p50Ms, 3);
-  assert.equal(reading.p99Ms, 12);
-  assert.equal(reading.maxMs, 40);
-  assert.equal(reading.windowMs, 1000);
   assert.equal(histogram.resets, 1, 'each window resets the histogram');
 
   vi.advanceTimersByTime(2000);
   assert.equal(histogram.resets, 3, 'sampling continues every interval');
+
+  const reading = sampleEventLoopLagOnce();
+  assert.ok(reading, 'a sample must return a reading');
+  assert.equal(reading.p50Ms, 3);
+  assert.equal(reading.p99Ms, 12);
+  assert.equal(reading.maxMs, 40);
+  assert.equal(reading.windowMs, 1000);
+  assert.equal(histogram.resets, 4);
 });
 
 test('stop disables sampling and further ticks record nothing', () => {
@@ -63,11 +60,9 @@ test('stop disables sampling and further ticks record nothing', () => {
   stopEventLoopMonitor();
 
   assert.equal(histogram.enabled, false, 'stop disables the histogram');
-  assert.equal(getEventLoopLagReading(), null);
   assert.equal(sampleEventLoopLagOnce(), null);
   vi.advanceTimersByTime(5000);
   assert.equal(histogram.resets, 1, 'the interval no longer fires after stop');
-  assert.equal(getEventLoopLagReading(), null);
 });
 
 test('the real perf_hooks histogram yields numeric percentiles', () => {
@@ -75,12 +70,11 @@ test('the real perf_hooks histogram yields numeric percentiles', () => {
 
   const reading = sampleEventLoopLagOnce();
 
-  assert.ok(reading, 'a manual tick must record a reading');
+  assert.ok(reading, 'a manual tick must return a reading');
   for (const value of [reading.p50Ms, reading.p99Ms, reading.maxMs]) {
     assert.equal(Number.isFinite(value), true);
     assert.ok(value >= 0);
   }
-  assert.deepEqual(getEventLoopLagReading(), reading);
 });
 
 test('a second start is ignored while one monitor is running', () => {

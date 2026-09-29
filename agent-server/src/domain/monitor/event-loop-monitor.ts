@@ -18,8 +18,6 @@ export interface EventLoopDelayHistogram {
 
 /** One closed sampling window, in milliseconds. */
 export interface EventLoopLagReading {
-  /** Wall clock at which the window closed. */
-  at: number;
   /** Length of the window that produced these percentiles. */
   windowMs: number;
   p50Ms: number;
@@ -36,7 +34,6 @@ export interface EventLoopMonitorOptions {
 let _histogram: EventLoopDelayHistogram | null = null;
 let _timer: ReturnType<typeof setInterval> | null = null;
 let _intervalMs = DEFAULT_SAMPLE_INTERVAL_MS;
-let _last: EventLoopLagReading | null = null;
 
 /** Histogram values are nanoseconds; an empty window can report a non-finite sentinel. */
 function toMs(nanoseconds: number): number {
@@ -45,27 +42,20 @@ function toMs(nanoseconds: number): number {
 }
 
 /**
- * Close the current window: read the percentiles, record them, and reset the histogram.
+ * Close the current window: read the percentiles, log them, and reset the histogram.
  * Exported as the manual tick used by the interval and by tests. Returns null when stopped.
  */
 export function sampleEventLoopLagOnce(): EventLoopLagReading | null {
   if (!_histogram) return null;
   const reading: EventLoopLagReading = {
-    at: Date.now(),
     windowMs: _intervalMs,
     p50Ms: toMs(_histogram.percentile(50)),
     p99Ms: toMs(_histogram.percentile(99)),
     maxMs: toMs(_histogram.max),
   };
   _histogram.reset();
-  _last = reading;
   log.info(`lag p50=${reading.p50Ms}ms p99=${reading.p99Ms}ms max=${reading.maxMs}ms window=${Math.round(reading.windowMs / 1000)}s`);
   return reading;
-}
-
-/** Last closed window, or null before the first sample and after stop. */
-export function getEventLoopLagReading(): EventLoopLagReading | null {
-  return _last;
 }
 
 /**
@@ -95,5 +85,4 @@ export function stopEventLoopMonitor(): void {
   _histogram?.disable();
   _histogram = null;
   _intervalMs = DEFAULT_SAMPLE_INTERVAL_MS;
-  _last = null;
 }
