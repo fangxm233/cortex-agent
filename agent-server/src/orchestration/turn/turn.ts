@@ -776,14 +776,13 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
 
 // --- Small shared helpers --------------------------------------------------------------------------
 
-/** Compose two optional onToolUse callbacks so both fire on each tool_use event. */
+/** Compose an optional onToolUse callback with a required one so both fire on each tool_use event. */
 function composeToolUse(
   a: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
-  b: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
-): ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null {
-  if (!a && !b) return null;
+  b: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void,
+): (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void {
+  // `a` is null when the platform tool trace is off.
   if (!a) return b;
-  if (!b) return a;
   return (name, input, toolUseId, subagent) => {
     a(name, input, toolUseId, subagent);
     b(name, input, toolUseId, subagent);

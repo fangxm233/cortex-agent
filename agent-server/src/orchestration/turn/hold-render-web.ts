@@ -22,9 +22,9 @@ export interface WebHoldDeps {
   /** Persist and publish an exact continuation context snapshot. */
   publishContextUsage?: (usage: ContextUsage) => void;
   /** Append + publish a continuation NOTICE row (level + optional action), the fields the plain
-   *  assistant path drops. Without it a rate-limited continuation renders as a bare "API Error:"
-   *  line with no resume affordance. */
-  publishNotice?: (text: string, level: ChatNoticeLevel, action?: NoticeAction) => void;
+   *  assistant path drops, so a held API error renders as an error card and a resumable rate limit
+   *  carries its resume affordance. */
+  publishNotice: (text: string, level: ChatNoticeLevel, action?: NoticeAction) => void;
 }
 
 /**
@@ -42,8 +42,7 @@ export function webHoldRenderer(deps: WebHoldDeps): HoldRenderer {
     const held = heldApiError;
     heldApiError = null;
     if (!held) return;
-    if (deps.publishNotice) deps.publishNotice(held, 'error');
-    else deps.publishAssistant(held);
+    deps.publishNotice(held, 'error');
   };
 
   return {
@@ -90,7 +89,7 @@ export function webHoldRenderer(deps: WebHoldDeps): HoldRenderer {
       if (kind === 'rate-limited' && totals.resumable) {
         // Paused, not failed — the held card would misreport the outcome.
         heldApiError = null;
-        deps.publishNotice?.(t('notify.rateLimitAutoResume'), 'warning', { kind: 'cancel-resume' });
+        deps.publishNotice(t('notify.rateLimitAutoResume'), 'warning', { kind: 'cancel-resume' });
       }
       flushHeldApiError();
     },
