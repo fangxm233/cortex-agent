@@ -2,7 +2,8 @@ import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
-import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
+import { ensurePIAgentRoles } from './agent-dir.js';
+import { PI_AGENT_DIR } from './defaults.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
   claudeModelOptions, decodeSubagentModels, piModelOptions, roleOptionsFrom, type SubagentCatalog,

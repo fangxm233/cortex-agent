@@ -5,13 +5,12 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 
 import {
-  writeProvidersConfig,
   ensureAuthVisible,
   ensurePIAgentRoles,
   ensureQuotaVisibleTransport,
   ensureCompactionReserve,
-  buildProviderOverrides,
 } from '../src/agent-adapter/pi/agent-dir.js';
+import { buildProviderOverrides, writeProvidersConfig } from '../src/agent-adapter/pi/providers-config.js';
 
 // ─── writeProvidersConfig: multi-provider override ──────────────
 

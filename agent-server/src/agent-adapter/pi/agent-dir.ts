@@ -18,14 +18,6 @@ import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 const log = createLogger('pi-agent-dir');
 
-// The host-path constants and the pure provider-catalog writer moved out so a trial adapter can
-// reach the writer without importing this module's ambient auth mirroring (design §13 A5/A6, T12).
-export { PI_AGENT_DIR, PI_SESSIONS_DIR, PI_MODELS_PATH } from './defaults.js';
-export {
-  buildProviderOverrides, writeProvidersConfig,
-  type ProviderOverride, type WriteProvidersOpts,
-} from './providers-config.js';
-
 /** Default location of the user's PI OAuth/API-key credentials. */
 const USER_PI_AUTH_PATH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
 

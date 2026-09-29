@@ -5,7 +5,6 @@ import { DATA_DIR } from '@core/utils.js';
  *  a trial derives its own agent dir from the trial root (design §13 A1). */
 export const PI_AGENT_DIR = path.join(DATA_DIR, 'data', 'pi');
 export const PI_SESSIONS_DIR = path.join(DATA_DIR, 'logs', 'sessions-pi');
-export const PI_MODELS_PATH = path.join(PI_AGENT_DIR, 'models.json');
 
 export const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
 

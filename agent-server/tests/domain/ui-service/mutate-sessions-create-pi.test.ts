@@ -7,7 +7,7 @@ import { test } from 'vitest';
 
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
-import { PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/agent-dir.js';
+import { PI_AGENT_DIR, PI_SESSIONS_DIR, piModelsPath } from '../../../src/agent-adapter/pi/defaults.js';
 import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
 import type { PiDiscoveredModel } from '../../../src/core/gateway-generator.js';
 import type { PiRuntimeFactory } from '../../../src/agent-adapter/pi/runtime.js';
@@ -90,7 +90,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     assert.equal(scans, 1);
     assert.equal(discoverySettled, false, 'response and visibility do not await discovery');
 
-    const models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+    const models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
     assert.deepEqual(Object.keys(models.providers), ['anthropic']);
     assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
 

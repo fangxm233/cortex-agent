@@ -23,7 +23,7 @@ import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types
 import type { EngineRun, EngineSession } from '../src/agent-adapter/types.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
-import { PI_MODELS_PATH } from '../src/agent-adapter/pi/defaults.js';
+import { PI_AGENT_DIR, piModelsPath } from '../src/agent-adapter/pi/defaults.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import type { PiDiscoveredModel } from '../src/core/gateway-generator.js';
 import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
@@ -464,7 +464,7 @@ test('gateway sessions start while one slow discovery warms provider overrides',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/default/anthropic',
   })));
-  let models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  let models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
 
   engines.push(piPool(adapter).open(engineSpecFixture({
@@ -476,7 +476,7 @@ test('gateway sessions start while one slow discovery warms provider overrides',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/default/deepseek',
   })));
-  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
   assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/default/deepseek');
@@ -487,7 +487,7 @@ test('gateway sessions start while one slow discovery warms provider overrides',
     resume: false,
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
   })));
-  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
   assert.equal(fake.requests.length, 3, 'all PI sessions start before discovery settles');
 
@@ -509,7 +509,7 @@ test('gateway sessions start while one slow discovery warms provider overrides',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/pro/deepseek',
   })));
-  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek', 'openai-codex']);
   assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/pro/deepseek');
   assert.equal(scans, 1, 'fresh cache avoids another list-models call');
@@ -539,7 +539,7 @@ test('failed gateway discovery preserves current-provider fallback without delay
   }));
 
   assert.equal(fake.requests.length, 1, 'the session is not gated on discovery failure');
-  const models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  const models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
   assert.deepEqual(Object.keys(models.providers), ['anthropic']);
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/gateway/anthropic');
   await Promise.resolve();
