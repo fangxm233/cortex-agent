@@ -12,6 +12,7 @@ import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { activeTurns } from '../turn/active-turns.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
+import { resolvePISessionFile } from '../session-rewind.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('edit-handler');
@@ -120,12 +121,7 @@ async function restorePIEdit(
   backupPath: string | null,
   turnIndex: number,
 ): Promise<PIEditRestore> {
-  const recordedFile = backupPath
-    ? sessionBackup.sessionFileFromBackupPath(backupPath, turnIndex)
-    : null;
-  const sessionFile = backupPath || !backendSessionId
-    ? recordedFile
-    : await sessionBackup.findPISessionFile(backendSessionId);
+  const sessionFile = await resolvePISessionFile(sessionBackup, backendSessionId, backupPath, turnIndex);
   const restored = backupPath
     ? await sessionBackup.restoreSessionBackup(backupPath, turnIndex)
     : sessionFile ? await sessionBackup.restoreSessionFile(sessionFile, turnIndex) : false;
@@ -153,9 +149,9 @@ async function restoreFirstEditedTurn(
 ): Promise<EditRestoreState> {
   let piSessionFile: string | null = null;
   if (input.backend === 'pi') {
-    piSessionFile = input.targetBackupPath
-      ? sessionBackup.sessionFileFromBackupPath(input.targetBackupPath, input.turnIndex)
-      : state.backendSessionId ? await sessionBackup.findPISessionFile(state.backendSessionId) : null;
+    piSessionFile = await resolvePISessionFile(
+      sessionBackup, state.backendSessionId, input.targetBackupPath, input.turnIndex,
+    );
   }
   await deleteSessionAsync(input.channel);
   return { ...state, useSessionId: null, sessionName: null, piSessionFile };

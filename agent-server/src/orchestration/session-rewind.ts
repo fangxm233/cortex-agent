@@ -102,6 +102,18 @@ interface SnapshotRestore {
   piSessionFile: string | null;
 }
 
+/** The PI session file a rewind or edit acts on: the one recorded beside the turn's backup, else
+ *  the file found for the backend session. Takes the backup primitives so callers keep their fakes. */
+export async function resolvePISessionFile(
+  backup: Pick<typeof sessionBackup, 'sessionFileFromBackupPath' | 'findPISessionFile'>,
+  backendSessionId: string | null,
+  backupPath: string | null,
+  turnIndex: number,
+): Promise<string | null> {
+  if (backupPath) return backup.sessionFileFromBackupPath(backupPath, turnIndex);
+  return backendSessionId ? backup.findPISessionFile(backendSessionId) : null;
+}
+
 async function restoreSnapshot(
   backend: string,
   backendSessionId: string | null,
@@ -115,12 +127,7 @@ async function restoreSnapshot(
       : false;
     return { restored, piSessionFile: null };
   }
-  const recordedFile = backupPath
-    ? backup.sessionFileFromBackupPath(backupPath, turnIndex)
-    : null;
-  const piSessionFile = backupPath || !backendSessionId
-    ? recordedFile
-    : await backup.findPISessionFile(backendSessionId);
+  const piSessionFile = await resolvePISessionFile(backup, backendSessionId, backupPath, turnIndex);
   if (turnIndex === 0 || !backendSessionId) return { restored: false, piSessionFile };
   const restored = backupPath
     ? await backup.restoreSessionBackup(backupPath, turnIndex)
