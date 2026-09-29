@@ -217,7 +217,7 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
 
 test('cancelChannelRuns keeps the channel bound to the stable track id', async () => {
   const backend = resolveRunBackend({ channel: 'slack:C-keep' });
-  await setSessionAsync('slack:C-keep', 'TRACK-3', backend);
+  await setSessionAsync('slack:C-keep', 'TRACK-3');
   runRegistry.register({
     threadId: null,
     channel: 'slack:C-keep',
@@ -232,7 +232,7 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
 
   const n = await cancelChannelRuns('slack:C-keep');
   assert.equal(n, 1);
-  assert.equal(await getSessionAsync('slack:C-keep', backend), 'TRACK-3');
+  assert.equal(await getSessionAsync('slack:C-keep'), 'TRACK-3');
 });
 
 test('a turn registers both track and backend ids on the live execution handle', async () => {

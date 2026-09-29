@@ -27,10 +27,6 @@ export interface RegisterNamedSessionOpts {
   channel: string;
   backend: string;
   projectId: string;
-  kind?: 'local' | 'scheduled';
-  /** How the session was initiated. Defaults to 'direct' — the only caller path here
-   *  (inbound direct message + TUI fresh session) is user-initiated. */
-  origin?: SessionOrigin;
   label?: string | null;
   profileName?: string | null;
   /** The agent template the session runs as; null/absent means it follows the channel's selection
@@ -38,9 +34,6 @@ export interface RegisterNamedSessionOpts {
   agentName?: string | null;
   /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
-  /** Commission membership, fixed at creation (DR-0037 v2). */
-  commissionId?: string | null;
-  commissionDraft?: string | null;
   /** Resolve commission fields from the freshly generated session name. Needed because a new
    *  commission's draft directory is named after the session, which is not known until here. */
   commissionFor?: (sessionName: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
@@ -58,15 +51,16 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     sessionId: opts.sessionId,
     channel: opts.channel,
     backend: opts.backend,
-    kind: opts.kind ?? 'local',
-    origin: opts.origin ?? 'direct',
+    kind: 'local',
+    // The only caller paths (inbound direct message, TUI and web fresh sessions) are user-initiated.
+    origin: 'direct',
     projectId: opts.projectId,
     label: opts.label ?? null,
     profileName: opts.profileName ?? null,
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
-    commissionId: commission?.commissionId ?? opts.commissionId ?? null,
-    commissionDraft: commission?.commissionDraft ?? opts.commissionDraft ?? null,
+    commissionId: commission?.commissionId ?? null,
+    commissionDraft: commission?.commissionDraft ?? null,
   });
   return name;
 }
@@ -74,7 +68,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
 export interface CreateDirectSessionDeps {
   sessionStore: SessionRegistryWriter;
   /** Bind the channel to the new session in the registry (so a later send resumes it). */
-  setChannelSession(channel: string, sessionId: string, backend: string): Promise<void>;
+  setChannelSession(channel: string, sessionId: string): Promise<void>;
   /** Initialize the conversation ledger for the new channel/session. */
   initConversation(channel: string, opts: { sessionId: string; sessionName: string; backend: string }): Promise<void>;
   /** Resolve the backend the send path will use for the channel (agent-runner reads the same). */
@@ -157,7 +151,6 @@ export async function createDirectSession(
     channel,
     backend,
     projectId: opts.projectId,
-    origin: 'direct',
     profileName: opts.profileName ?? null,
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
@@ -165,7 +158,7 @@ export async function createDirectSession(
       ? (name) => resolveCommissionCreate(opts.projectId, name, opts.commission!)
       : undefined,
   });
-  await deps.setChannelSession(channel, sessionId, backend);
+  await deps.setChannelSession(channel, sessionId);
   await deps.initConversation(channel, { sessionId, sessionName, backend });
   return { sessionId, sessionName, channel };
 }

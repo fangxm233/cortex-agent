@@ -28,7 +28,7 @@ test('a failed turn records the backend id as the resume target, not as an ident
   await sessionStore.registerSession('cortex-err1', {
     sessionId: 'TRACK-E1', channel, backend, kind: 'local',
   });
-  await setSessionAsync(channel, 'TRACK-E1', backend);
+  await setSessionAsync(channel, 'TRACK-E1');
 
   await handleAgentError(errorArgs(adapter, channel, {
     sessionName: 'cortex-err1',
@@ -36,7 +36,7 @@ test('a failed turn records the backend id as the resume target, not as an ident
     effectiveSessionId: 'B-ERR-1',  // backend id — only a resume target
   }));
 
-  assert.equal(await getSessionAsync(channel, backend), 'TRACK-E1', 'channel stays on the track id');
+  assert.equal(await getSessionAsync(channel), 'TRACK-E1', 'channel stays on the track id');
   const rec = await sessionStore.getById('TRACK-E1');
   assert.equal(rec?.backendSessionId, 'B-ERR-1', 'the resume target is stored on the track record');
   assert.equal(await sessionStore.getById('B-ERR-1'), null, 'no ghost record keyed by the backend id');
@@ -63,7 +63,6 @@ test('the error body is addressed by the track id (the TUI routes replies with i
 test('a turn that never reached a backend still registers its session under the track id', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const channel = 'C-err-3';
-  const backend = resolveBackendForChannel(channel);
 
   await handleAgentError(errorArgs(adapter, channel, {
     sessionName: 'cortex-err3',
@@ -74,19 +73,18 @@ test('a turn that never reached a backend still registers its session under the 
   const rec = await sessionStore.getById('TRACK-E3');
   assert.equal(rec?.name, 'cortex-err3', 'the missing record is backfilled');
   assert.equal(rec?.backendSessionId, null);
-  assert.equal(await getSessionAsync(channel, backend), 'TRACK-E3');
+  assert.equal(await getSessionAsync(channel), 'TRACK-E3');
 });
 
 test('a caller with no track id binds nothing (it cannot name the session)', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const channel = 'C-err-4';
-  const backend = resolveBackendForChannel(channel);
-  await setSessionAsync(channel, 'TRACK-E4', backend);
+  await setSessionAsync(channel, 'TRACK-E4');
 
   await handleAgentError(errorArgs(adapter, channel, {
     sessionName: null, sessionId: null, effectiveSessionId: 'B-ERR-4',
   }));
 
-  assert.equal(await getSessionAsync(channel, backend), 'TRACK-E4', 'binding untouched by the backend id');
+  assert.equal(await getSessionAsync(channel), 'TRACK-E4', 'binding untouched by the backend id');
   assert.equal(await sessionStore.lookupBySessionId('B-ERR-4'), null);
 });

@@ -9,14 +9,11 @@ import { MockAdapter } from '../../src/platform/testing.js';
 
 // ── handleNewCmd test ─────────────────────────────────────────────────────────
 
-test('handleNewCmd clears sessions for all backends and the ledger', async () => {
+test('handleNewCmd clears the channel session and the ledger', async () => {
   const channel = 'c0-newcmd';
-  const ALL_BACKENDS = ['claude', 'pi'];
 
-  // Seed sessions for all backends
-  for (const b of ALL_BACKENDS) {
-    await setSessionAsync(channel, crypto.randomUUID(), b);
-  }
+  // Seed the channel binding
+  await setSessionAsync(channel, crypto.randomUUID());
 
   // Seed a ledger conversation
   await conversationLedger.initConversation(channel, {
@@ -29,11 +26,8 @@ test('handleNewCmd clears sessions for all backends and the ledger', async () =>
 
   await handleNewCmd(channel, adapter, { skipHook: true });
 
-  // Assert: all backend sessions cleared
-  for (const b of ALL_BACKENDS) {
-    const s = await getSessionAsync(channel, b);
-    assert.equal(s, undefined);
-  }
+  // Assert: channel binding cleared
+  assert.equal(await getSessionAsync(channel), undefined);
 
   // Assert: ledger conversation cleared
   const conv = await conversationLedger.getConversation(channel);
@@ -59,7 +53,7 @@ test('createResumeHandler (arg path) attaches to an existing session', async () 
   await createResumeHandler()(channel, adapter, '!resume cortex-resume-c4');
 
   // Assert: sessions.json points at the resumed session
-  const stored = await getSessionAsync(channel, 'claude');
+  const stored = await getSessionAsync(channel);
   assert.equal(stored, sid);
 
   // Assert: conversation ledger switched to the resumed session

@@ -27,7 +27,7 @@ describe('createDirectSession', () => {
     const result = await createDirectSession(
       {
         sessionStore: fakeStore,
-        setChannelSession: async (channel, sessionId, backend) => { bound = { channel, sessionId, backend }; },
+        setChannelSession: async (channel, sessionId) => { bound = { channel, sessionId }; },
         initConversation: async (channel, opts) => { ledger = { channel, ...opts }; },
         resolveBackend: (channel) => { resolveCalls.push(channel); return 'claude'; },
       },
@@ -47,7 +47,7 @@ describe('createDirectSession', () => {
     assert.strictEqual(registered.origin, 'direct', 'origin is direct');
     assert.strictEqual(registered.projectId, 'proj-web');
 
-    assert.deepStrictEqual(bound, { channel: expectedChannel, sessionId: result.sessionId, backend: 'claude' },
+    assert.deepStrictEqual(bound, { channel: expectedChannel, sessionId: result.sessionId },
       'channel session bound so a later send resumes it');
     assert.strictEqual(ledger.channel, expectedChannel);
     assert.strictEqual(ledger.sessionId, result.sessionId);
@@ -114,7 +114,7 @@ describe('attachExistingSession', () => {
 
     await attachExistingSession(channel, opts);
 
-    const storedId = await getSessionAsync(channel, 'claude');
+    const storedId = await getSessionAsync(channel);
     assert.strictEqual(storedId, 'sid-attach', 'sessions.json points at the session');
 
     const conv = await conversationLedger.getConversation(channel);
@@ -165,7 +165,7 @@ describe('adoptScheduledSession', () => {
     const result = await adoptScheduledSession(store, 'sid-sched-1');
 
     assert.deepStrictEqual(result, { channel: 'web:sid-sched-1' });
-    const storedId = await getSessionAsync('web:sid-sched-1', 'claude');
+    const storedId = await getSessionAsync('web:sid-sched-1');
     assert.strictEqual(storedId, 'sid-sched-1', 'sessions.json binds the new channel to the track id');
     const conv = await conversationLedger.getConversation('web:sid-sched-1');
     assert.ok(conv, 'conversation ledger switched to the session');
@@ -180,7 +180,7 @@ describe('adoptScheduledSession', () => {
     const result = await adoptScheduledSession(store, 'sid-ghost');
     assert.strictEqual(result, null);
     assert.strictEqual(converted.length, 0);
-    const storedId = await getSessionAsync('web:sid-ghost', 'claude');
+    const storedId = await getSessionAsync('web:sid-ghost');
     assert.strictEqual(storedId, undefined, 'no channel binding created');
   });
 
