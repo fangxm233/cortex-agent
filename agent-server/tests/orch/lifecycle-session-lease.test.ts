@@ -16,7 +16,6 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    getClaudeMode: () => 'api',
     getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',
   };

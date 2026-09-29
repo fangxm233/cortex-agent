@@ -27,7 +27,6 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
     ...orig,
     getDefaultAgent: () => 'main',
     getActiveProfile: () => 'default',
-    getClaudeMode: () => 'api',
     resolveBackendForChannel: () => 'claude',
   };
 });
