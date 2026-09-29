@@ -7,11 +7,7 @@ import { createLogger } from '@core/log.js';
 
 // The catalog file format is the PI adapter's to know: it is the same file the adapter mirrors into
 // the per-spawn catalog, so both sides must agree on what counts as a user-defined provider.
-export {
-  isCustomProviderEntry,
-  readCustomProviderEntries,
-  readProvidersBlock,
-} from '../../agent-adapter/pi/custom-catalog.js';
+export { readCustomProviderEntries } from '../../agent-adapter/pi/custom-catalog.js';
 export { USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
 
 const log = createLogger('pi-custom-providers');
