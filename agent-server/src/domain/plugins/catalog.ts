@@ -1,11 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
-import {
-  AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL,
-  PORTABLE_MANIFEST_FIELDS,
-  portableManifestSchema,
-} from './agent-plugins-v1.js';
+import { PORTABLE_MANIFEST_FIELDS, portableManifestSchema } from './agent-plugins-v1.js';
 import {
   isDirectoryPath,
   isPlainObject,
@@ -456,5 +452,3 @@ export function loadPluginCatalog(
   return listImmediateChildNames(pluginsRoot)
     .map((id) => safePluginEntry(id, pluginsRoot, dataDir));
 }
-
-export const AGENT_PLUGIN_V1_DRAFT_SCHEMA = AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL;

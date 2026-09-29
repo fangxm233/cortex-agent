@@ -97,7 +97,4 @@ export const portableMcpSchema = z.object({
   mcpServers: z.record(z.string(), portableMcpServerSchema),
 }).strict();
 
-export type PortableManifest = z.infer<typeof portableManifestSchema>;
-export type PortableMcp = z.infer<typeof portableMcpSchema>;
-export type PortableMcpEnvelope = z.infer<typeof portableMcpEnvelopeSchema>;
 export type PortableMcpServer = z.infer<typeof portableMcpServerSchema>;
