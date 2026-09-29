@@ -209,11 +209,9 @@ class CortexBenchAgent(BaseInstalledAgent):
         if environment_hash is not None and self._host_scan_policy is None:
             raise HarborTrialAdmissionError("sealed trials require a host scan policy")
         self._revoked = False
-        self._grader_admitted = False
         self._outer_publication: HostFinalizationResult | None = None
         self._post_stop_revocation: TrialRevocation | None = None
         self._post_stop_finalization_pending = False
-        self._requires_admitted_proxy = environment_hash is not None
 
     @staticmethod
     def _validate_admission_environment(
@@ -258,10 +256,6 @@ class CortexBenchAgent(BaseInstalledAgent):
     def captured_inventory(self) -> ArtifactInventory | None:
         """The artifact-dir inventory captured at proxy revocation."""
         return self._captured_inventory
-
-    @property
-    def grader_admitted(self) -> bool:
-        return self._grader_admitted
 
     @property
     def production_server_stopped(self) -> bool:
@@ -651,7 +645,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             return
         if self._npm_artifact is None or self._installed_server is None:
             raise RuntimeError("CortexBenchAgent.install() must complete before finalization")
-        publication = finalize_host_trial(
+        self._outer_publication = finalize_host_trial(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
             artifact_dir=self._artifact_dir,
             root_run_id=self._trial_seed.root_run_id, trial_id=self._trial_seed.trial_id,
@@ -660,5 +654,3 @@ class CortexBenchAgent(BaseInstalledAgent):
             revocation=revocation, scan_policy=self._host_scan_policy,
             container_logs_dir=EnvironmentPaths().agent_dir,
         )
-        self._outer_publication = publication
-        self._grader_admitted = publication.admitted

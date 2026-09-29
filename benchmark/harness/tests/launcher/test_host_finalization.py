@@ -513,7 +513,6 @@ def test_a_run_records_every_collected_file_and_publishes_one_envelope(
     assert envelope["identity"] == {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
     }
-    assert agent.grader_admitted
     assert agent.outer_envelope_sha256 == hashlib.sha256(payload).hexdigest()
     # What the campaign driver reads back out of a published envelope.
     assert envelope["grader_admission"] == {"admitted": True, "reason": "recorded"}

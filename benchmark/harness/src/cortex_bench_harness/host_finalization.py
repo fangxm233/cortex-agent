@@ -76,9 +76,6 @@ class CollectedFile:
 class HostFinalizationResult:
     path: Path
     sha256: str
-    #: A published envelope is a record of a trial that ran, so it is offered for grading. What the
-    #: run made of the task is the verifier's judgement and the reward beside it, not this host's.
-    admitted: bool
 
 
 def parse_host_scan_policy(
@@ -613,7 +610,7 @@ def _publish_outer(
     except HostFinalizationError:
         _cleanup_publication(None, path, None)
         raise
-    return HostFinalizationResult(path, expected, True)
+    return HostFinalizationResult(path, expected)
 
 
 def _verify_publication(

@@ -163,7 +163,6 @@ class VendorLifecycleMixin:
         self._vendor_execution_active = False
         self._vendor_process_token = secrets.token_hex(16)
         self._post_stop_finalization_pending = False
-        self._outer_publication: object | None = None
         self._host_credential = self._consume_credential(credential_handle)
         self._validate_lifecycle_inputs()
 
@@ -607,7 +606,7 @@ class VendorLifecycleMixin:
         assert self._artifact_dir is not None
         assert self._trial_seed is not None
         assert self._host_scan_policy is not None
-        self._outer_publication = finalize_host_trial(
+        finalize_host_trial(
             logs_dir=self.logs_dir, verifier_dir=self._verifier_dir,
             artifact_dir=self._artifact_dir, root_run_id=self._trial_seed.root_run_id,
             trial_id=self._trial_seed.trial_id, arm=self._trial_seed.arm,
