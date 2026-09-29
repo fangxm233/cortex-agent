@@ -17,7 +17,7 @@ function viewProps(current = false): ProfilesPanelViewProps {
       machines: [], mcp: null, threadTemplates: { agents: [], templates: [], shells: [] },
       hooks: [], env: [], settings: [],
     },
-    profileFacts: [{ profile, current, canEdit: true, canDelete: !current, canSetDefault: !current }],
+    profileFacts: [{ profile, current, canDelete: !current, canSetDefault: !current }],
     draft: null, duplicateSource: null, catalog: null, catalogPending: false, creating: false,
     armedDelete: null, editingName: null, errors: {}, dirty: false,
     savePending: false, removePendingName: null,

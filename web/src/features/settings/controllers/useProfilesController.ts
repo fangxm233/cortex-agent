@@ -32,7 +32,6 @@ export interface ProfileFact {
   profile: ConfigProfileEntry;
   current: boolean;
   canSetDefault: boolean;
-  canEdit: boolean;
   canDelete: boolean;
 }
 
@@ -44,9 +43,7 @@ export interface ProfilesController {
   catalogPending: boolean;
   loading: boolean;
   error: { message: string } | null;
-  profiles: ConfigProfileEntry[];
   profileFacts: ProfileFact[];
-  defaultProfile: string | null;
   draft: ProfileFormState | null;
   creating: boolean;
   editingName: string | null;
@@ -55,8 +52,6 @@ export interface ProfilesController {
   errors: ProfileFormErrors;
   dirty: boolean;
   confirmingDelete: string | null;
-  createPending: boolean;
-  updatePending: boolean;
   savePending: boolean;
   removePendingName: string | null;
   defaultPendingName: string | null;
@@ -80,7 +75,6 @@ function buildProfileFacts(profiles: ConfigProfileEntry[], current: string | nul
     profile,
     current: profile.name === current,
     canSetDefault: profile.name !== current,
-    canEdit: true,
     canDelete: profile.name !== current,
   }));
 }
@@ -247,11 +241,10 @@ export function useProfilesController(initialSnapshot?: ConfigSnapshot): Profile
   return {
     snapshot: config.data, loading: config.isLoading, error: config.error,
     catalog: models.catalog, catalogPending: models.pending,
-    profiles, profileFacts: facts, defaultProfile,
+    profileFacts: facts,
     draft: editor.draft, creating: editor.mode === 'create', editingName: editor.editingName,
     duplicateSource: editor.duplicateSource,
     errors, dirty, confirmingDelete,
-    createPending: writes.create.isPending, updatePending: writes.update.isPending,
     savePending: writes.create.isPending || writes.update.isPending,
     removePendingName: writes.remove.isPending ? writes.remove.variables?.name ?? null : null,
     defaultPendingName: writes.setDefault.isPending ? defaultProfileVariable(writes.setDefault.variables) : null,

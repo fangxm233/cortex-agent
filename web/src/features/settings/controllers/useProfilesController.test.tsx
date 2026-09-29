@@ -121,7 +121,6 @@ describe('useProfilesController', () => {
   it('loads config facts and owns create/edit drafts, backend transitions and validation', async () => {
     const mounted = await mount();
     expect(adapter.config).toHaveBeenCalledWith({});
-    expect(controller?.defaultProfile).toBe('plan');
     expect(controller?.profileFacts.map(fact => ({
       name: fact.profile.name, current: fact.current, canDefault: fact.canSetDefault, canDelete: fact.canDelete,
     }))).toEqual([

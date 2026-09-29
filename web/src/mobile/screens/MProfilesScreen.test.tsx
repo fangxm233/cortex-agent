@@ -15,10 +15,10 @@ const profile: ConfigProfileEntry = {
 function controller(current = false): ProfilesController {
   return {
     snapshot: undefined, catalog: null, catalogPending: false, loading: false, error: null,
-    profiles: [profile], profileFacts: [{ profile, current, canEdit: true, canSetDefault: !current, canDelete: !current }],
-    defaultProfile: current ? profile.name : null, draft: null, creating: false,
+    profileFacts: [{ profile, current, canSetDefault: !current, canDelete: !current }],
+    draft: null, creating: false,
     editingName: null, duplicateSource: null, errors: {}, dirty: false, confirmingDelete: null,
-    createPending: false, updatePending: false, savePending: false,
+    savePending: false,
     removePendingName: null, defaultPendingName: null,
     openCreate: vi.fn(), openDuplicate: vi.fn(), openEdit: vi.fn(), changeDraft: vi.fn(),
     changeBackend: vi.fn(), changeProvider: vi.fn(), closeDraft: vi.fn(), revertDraft: vi.fn(),
