@@ -13,7 +13,6 @@ function delay(ms: number): Promise<void> {
 
 function TestApp({ onEvent }: { onEvent: (name: string) => void }) {
   useKeybindings({
-    onSubmit: () => onEvent('submit'),
     onCancel: () => onEvent('cancel'),
     onScrollUp: (page?: boolean) => onEvent(page ? 'pageUp' : 'scrollUp'),
     onScrollDown: (page?: boolean) => onEvent(page ? 'pageDown' : 'scrollDown'),
@@ -48,7 +47,6 @@ test('useKeybindings calls onReconnect on R when allowReconnect is set', async (
 
   function TestAppReconnect() {
     useKeybindings({
-      onSubmit: () => {},
       onCancel: () => {},
       onScrollUp: () => {},
       onScrollDown: () => {},
@@ -76,7 +74,6 @@ test('useKeybindings does NOT reconnect on R when allowReconnect is false', asyn
 
   function TestAppNoReconnect() {
     useKeybindings({
-      onSubmit: () => {},
       onCancel: () => {},
       onScrollUp: () => {},
       onScrollDown: () => {},
@@ -104,7 +101,6 @@ test('useKeybindings does NOT scroll when allowScroll is false', async (t) => {
 
   function TestAppNoScroll() {
     useKeybindings({
-      onSubmit: () => {},
       onCancel: () => {},
       onScrollUp: () => events.push('scrollUp'),
       onScrollDown: () => events.push('scrollDown'),

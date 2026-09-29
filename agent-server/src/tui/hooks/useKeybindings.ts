@@ -2,7 +2,6 @@ import { useInput } from 'ink';
 import { useCallback, useRef } from 'react';
 
 export interface KeybindingHandlers {
-  onSubmit: (text: string) => void;
   onCancel: () => void;
   onScrollUp: (page?: boolean) => void;
   onScrollDown: (page?: boolean) => void;
@@ -50,11 +49,6 @@ export function useKeybindings(handlers: KeybindingHandlers, isActive = true, op
     // R: reconnect (only when disconnected/reconnecting)
     if ((input === 'r' || input === 'R') && !key.ctrl && o.allowReconnect && h.onReconnect) {
       h.onReconnect();
-      return;
-    }
-
-    // Enter: submit
-    if (key.return) {
       return;
     }
 

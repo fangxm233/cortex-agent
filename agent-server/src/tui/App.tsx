@@ -434,7 +434,6 @@ export function App({
   // Keyboard bindings — toggles/cancel always active outside modals; scroll only
   // when the chat input owns focus; reconnect only when not connected.
   useKeybindings({
-    onSubmit: handleSubmit,
     onCancel: handleCancel,
     onScrollUp: handleScrollUp,
     onScrollDown: handleScrollDown,
