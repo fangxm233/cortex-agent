@@ -14,7 +14,8 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
-import { buildIssuePrompt, defaultSelectedId, toIssueDetail } from '@/features/issues/issues-vm';
+import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
+import { buildIssuePrompt, toIssueDetail } from '@/features/issues/issues-vm';
 import { MIssuesView, type MIssuesCopy } from './MIssuesView';
 
 const COPY: { en: MIssuesCopy; zh: MIssuesCopy } = {

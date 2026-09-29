@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
-import { parseIssueBody, defaultSelectedId, buildIssuePrompt } from './issues-vm';
+import { parseIssueBody, buildIssuePrompt } from './issues-vm';
 
 const issue = (over: Partial<IssueInfo> = {}): IssueInfo => ({
   id: 'abc12345',
@@ -39,20 +39,6 @@ describe('parseIssueBody', () => {
 
   test('empty body → no fields, no desc', () => {
     expect(parseIssueBody('')).toEqual({ fields: [], desc: null });
-  });
-});
-
-describe('defaultSelectedId', () => {
-  const entries = [issue({ id: 'a1' }), issue({ id: 'b2' })];
-  test('keeps a still-valid selection', () => {
-    expect(defaultSelectedId(entries, 'b2')).toBe('b2');
-  });
-  test('falls back to first entry when selection is gone / null', () => {
-    expect(defaultSelectedId(entries, 'zz')).toBe('a1');
-    expect(defaultSelectedId(entries, null)).toBe('a1');
-  });
-  test('empty list → null', () => {
-    expect(defaultSelectedId([], 'a1')).toBeNull();
   });
 });
 

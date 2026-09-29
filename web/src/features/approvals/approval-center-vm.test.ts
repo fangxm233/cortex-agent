@@ -26,8 +26,9 @@ describe('defaultSelectedId', () => {
   it('keeps the current id when still present', () => {
     expect(defaultSelectedId(list, 'b')).toBe('b');
   });
-  it('falls back to the first entry when current is gone', () => {
+  it('falls back to the first entry when current is gone or null', () => {
     expect(defaultSelectedId(list, 'zzz')).toBe('a');
+    expect(defaultSelectedId(list, null)).toBe('a');
   });
   it('returns null for an empty list', () => {
     expect(defaultSelectedId([], 'a')).toBeNull();

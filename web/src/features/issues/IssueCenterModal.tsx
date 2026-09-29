@@ -10,7 +10,8 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
 import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
-import { defaultSelectedId, toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
+import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
+import { toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
 
 // Issues modal (design sec-24 24b), isomorphic to the approval center 7a overlay: backdrop +
 // centered shell, left queue + right detail. Differences BY DESIGN: no amber anywhere (issues never
@@ -49,7 +50,7 @@ function IssueCenterView(props: IssueCenterViewProps) {
   const count = entries.length;
   const hasItems = count > 0;
   // The displayed entry is the source of truth for the footer actions (approval-center precedent).
-  const selected = entries.find((e) => e.id === selectedId) ?? entries[0] ?? null;
+  const selected = entries.find((e) => e.id === selectedId) ?? null;
   const detail = selected ? toIssueDetail(selected) : null;
 
   return (

@@ -80,12 +80,6 @@ export function toIssueDetail(i: IssueInfo): IssueDetailVm {
   return { id: i.id, title: i.title, date: i.date, fields: body.fields, desc: body.desc };
 }
 
-/** Keep the current selection if it still exists, else default to the first entry (or null). */
-export function defaultSelectedId(entries: IssueInfo[], current: string | null): string | null {
-  if (current && entries.some((e) => e.id === current)) return current;
-  return entries[0]?.id ?? null;
-}
-
 /** Build the prompt text for a "处理 / Handle" draft session — mirrors the server's `buildIssuePrompt`
  *  in `mutate/issues.ts`, in the UI language (the user sends it as their own message). The entry's
  *  title + body are carried verbatim so the agent has full context. */

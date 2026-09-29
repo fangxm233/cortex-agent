@@ -57,9 +57,9 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
   const { entries, selectedId, armed, feedback, pending } = props;
   const count = entries.length;
   const hasItems = count > 0;
-  // The displayed entry is the source of truth for the footer actions: fall back to the first entry
-  // so Approve/Reject always act on what the user sees (never a stale/null container selection).
-  const selected = entries.find((e) => e.id === selectedId) ?? entries[0] ?? null;
+  // The displayed entry is the source of truth for the footer actions, so Approve/Reject always act
+  // on what the user sees. The container already defaulted the selection to the first entry.
+  const selected = entries.find((e) => e.id === selectedId) ?? null;
   const detail = selected ? toDetail(selected, lang) : null;
 
   return (
