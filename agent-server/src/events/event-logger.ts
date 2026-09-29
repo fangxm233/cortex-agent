@@ -48,7 +48,7 @@ interface LogEntry {
 export interface EventLoggerOptions {
   /** Override for testing; production default is 1024. */
   bufferSize?: number;
-  /** Override log directory; production default is <agent-server>/logs/events. */
+  /** Override log directory; production default is <DATA_DIR>/logs/events. */
   logDir?: string;
 }
 

@@ -62,7 +62,6 @@ L5  entry/         → 所有层（组合根）
 | 文件 | 用途 |
 |------|---------|
 | `json-repository.ts` | 通用 `JsonRepository<T>` 基类：`read()`、`write()`、`mutate(fn)`、`flush()`。首次 I/O 时惰性清理孤立的 `.tmp.*` 文件。损坏 JSON 备份机制 |
-| `in-memory-repository.ts` | `InMemoryRepository<T>` — 测试替身，接口相同，无磁盘 I/O |
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
 | `thread-repo.ts` | `ThreadRepo` — 内存 `Map<string, ThreadRecord>` + 异步持久化。查询：`findByChannel`、`findActive`、`findByPlatformThread`。启动恢复：`markRunningAsFailedOnStartup`。清理：7 天前的线程（auto-records 为 24 小时） |
@@ -85,7 +84,6 @@ L5  entry/         → 所有层（组合根）
 | `event-types.ts` | 22 个用户事件类型 + 2 个元事件，在 `CortexEvent` 可区分联合中。类别：message/interaction、agent lifecycle、thread lifecycle、task、system |
 | `event-bus.ts` | `EventBus` 类 — `subscribe(type, handler)` / `publish(event)`。同步扇出。异步处理器即发即忘。`event-bus.handler-failed` 的重入保护。SIGTERM 排放的关闭钩子 |
 | `event-logger.ts` | 订阅 `'*'`，1024 条环形缓冲区，100ms 刷新间隔，按日滚动 JSONL，14 天保留。由 [`config/settings.json`](./configuration.md#configsettingsjson) 中的 `eventLog` 设置控制（设为 `false` 即关闭；旧变量 `CORTEX_EVENT_LOG=off` 仍作为已弃用的回退可用） |
-| `event-replay.ts` | 调试 CLI：`node events/event-replay.ts --date YYYY-MM-DD [--type xxx]` |
 
 **事件类别：**
 
