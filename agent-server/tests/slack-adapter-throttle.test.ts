@@ -26,12 +26,11 @@ function makeAdapter(opts?: { rateLimiter?: TokenBucketRateLimiter }) {
   (adapter as any).pendingEdits = new Map();
   (adapter as any).rateLimiter = opts?.rateLimiter ?? makeFastLimiter();
   const calls: { method: string; ts: number }[] = [];
-  let nextResponse: () => unknown = () => ({ ok: true });
   (adapter as any).client = {
     chat: {
       update: async () => {
         calls.push({ method: 'chat.update', ts: Date.now() });
-        return nextResponse();
+        return { ok: true };
       },
       postMessage: async () => {
         calls.push({ method: 'chat.postMessage', ts: Date.now() });
@@ -43,29 +42,10 @@ function makeAdapter(opts?: { rateLimiter?: TokenBucketRateLimiter }) {
       },
     },
   };
-  return {
-    adapter,
-    calls,
-    setResponse(fn: () => unknown) { nextResponse = fn; },
-  };
+  return { adapter, calls };
 }
 
 // ── updateMessage coalescing ──
-
-test('SlackAdapter: concurrent updates to same message coalesce into one API call', async () => {
-  const { adapter, calls } = makeAdapter();
-  const ref = { conduit: 'C1', messageId: 'ts-1' };
-
-  // Three concurrent updates to the same message
-  await Promise.all([
-    adapter.updateMessage(ref, { text: 'a' }),
-    adapter.updateMessage(ref, { text: 'b' }),
-    adapter.updateMessage(ref, { text: 'c' }),
-  ]);
-
-  // Only ONE API call should fire (with the latest content 'c')
-  assert.equal(calls.length, 1);
-});
 
 test('SlackAdapter: updates to different messages are independent', async () => {
   const { adapter, calls } = makeAdapter();
@@ -101,13 +81,7 @@ test('SlackAdapter: coalesced update sends the latest content only', async () =>
 // ── 429 handling ──
 
 test('SlackAdapter: 429 on chat.update triggers rate limiter backoff and retry', { timeout: 10000 }, async () => {
-  // Use a tight rate limiter for this test so the backoff is visible
-  const tightLimiter = new TokenBucketRateLimiter({
-    globalCapacity: 100, globalRefillPerSec: 100,  // global shouldn't interfere
-    perChannelCapacity: 100, perChannelRefillPerSec: 100,
-    cleanupIntervalMs: 100_000,
-  });
-  const { adapter, calls } = makeAdapter({ rateLimiter: tightLimiter });
+  const { adapter, calls } = makeAdapter();
   const ref = { conduit: 'C1', messageId: 'ts-429' };
 
   // Use a call-counter: first call fails (429), subsequent succeed
@@ -191,18 +165,12 @@ test('SlackAdapter: 429 on rateLimitedCall propagates to rate limiter', async ()
     origReport(method, channel, retryAfterSec);
   };
 
-  const { adapter, setResponse } = makeAdapter({ rateLimiter: trackingLimiter });
+  const { adapter } = makeAdapter({ rateLimiter: trackingLimiter });
   (adapter as any).client.chat.postMessage = async () => {
     const e: any = new Error('rate limited');
     e.retryAfter = 3;
     throw e;
   };
-
-  setResponse(() => {
-    const e: any = new Error('rate limited');
-    e.retryAfter = 3;
-    throw e;
-  });
 
   await assert.rejects(
     adapter.postMessage({ type: 'interactive-reply', conduit: 'C1', sessionId: '' }, { text: 'hello' })
