@@ -1,4 +1,4 @@
-import { register, ctx, requireJobCtx } from '../job-registry.js';
+import { ctx, requireJobCtx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
@@ -209,9 +209,3 @@ async function decideScheduled(outcome: ThreadRunOutcome, c: {
   });
   return { kind: 'done' };
 }
-
-// Self-register
-register('scheduled-task', async (payload: unknown) => {
-  const p = payload as RunScheduledTaskInput;
-  runScheduledTask(p);
-});

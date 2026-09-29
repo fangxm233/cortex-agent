@@ -70,7 +70,7 @@ import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/edit-retry.js';
-import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, cancelDispatchedTask } from '@domain/scheduling/runner.js';
+import { initScheduledRunner, initAuthExpiryScan, createScheduler, setBus, cancelDispatchedTask } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
 import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTasks, startWaitingManagerSweep } from '../orchestration/thread-callback.js';
@@ -381,7 +381,6 @@ registerAuthWatch(bus, adapter, {
 initAuthExpiryScan(buildAuthRequiredLoginAction);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);
-setSchedulerRef(scheduler);
 // Rate-limit resume registry + throttle are initialized later, inside main(), as one ordered
 // awaited sequence (initRateLimitRecovery) — it must run AFTER threadStore.load() so it can
 // reconcile orphaned rate-limited threads back into the resume queue.

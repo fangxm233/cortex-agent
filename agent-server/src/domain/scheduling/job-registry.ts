@@ -1,13 +1,5 @@
 import type { EventBus } from '@events/index.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
-import type { Scheduler } from './scheduler.js';
-import { createLogger } from '@core/log.js';
-
-const log = createLogger('job-registry');
-
-export type JobRunner = (payload: unknown) => Promise<void>;
-
-const _registry = new Map<string, JobRunner>();
 
 /**
  * Run one thread on the platform surface `ThreadRun` owns, and report back what happened. This is
@@ -35,7 +27,6 @@ export const ctx: {
   /** Read only by auth-expiry-scan / sync-public; Phase 4 removes it. The two thread jobs no
    *  longer touch the adapter at all — they render through `runThreadOnSurface`. */
   adapter: PlatformAdapter | null;
-  schedulerRef: Scheduler | null;
   bus: EventBus | null;
   runThreadOnSurface: RunThreadOnSurface | null;
   notify: NotifyDestination | null;
@@ -45,7 +36,6 @@ export const ctx: {
   onThreadSuspended: ((threadId: string) => Promise<void>) | null;
 } = {
   adapter: null,
-  schedulerRef: null,
   bus: null,
   runThreadOnSurface: null,
   notify: null,
@@ -59,23 +49,4 @@ export function requireJobCtx<K extends 'runThreadOnSurface' | 'notify'>(name: K
   const value = ctx[name];
   if (!value) throw new Error(`job ctx: ${name} not injected`);
   return value as NonNullable<typeof ctx[K]>;
-}
-
-export function register(key: string, runner: JobRunner): void {
-  if (_registry.has(key)) {
-    log.warn(`Overwriting existing runner for key "${key}"`);
-  }
-  _registry.set(key, runner);
-}
-
-export function dispatch(key: string, payload: unknown): boolean {
-  const runner = _registry.get(key);
-  if (!runner) {
-    log.warn(`No runner registered for key "${key}"`);
-    return false;
-  }
-  runner(payload).catch((err) => {
-    log.error(`Runner "${key}" failed:`, err);
-  });
-  return true;
 }

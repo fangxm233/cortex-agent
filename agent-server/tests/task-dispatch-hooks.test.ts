@@ -178,7 +178,6 @@ beforeEach(() => {
   deps.block.mockResolvedValue({ success: true });
 
   ctx.adapter = null;
-  ctx.schedulerRef = null;
   ctx.bus = { publish: vi.fn() } as any;
   // T2.2: the dispatch job neither renders nor opens a stream any more — it hands a
   // ThreadRunInput to the injected runner. This double is the thinnest thing that still exercises
@@ -208,7 +207,6 @@ async function fakeRunThreadOnSurface(input: any): Promise<any> {
 afterEach(() => {
   delete process.env.CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE;
   ctx.adapter = null;
-  ctx.schedulerRef = null;
   ctx.bus = null;
   ctx.runThreadOnSurface = null;
   ctx.notify = null;

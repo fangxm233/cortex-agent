@@ -1,6 +1,6 @@
 import { runFile } from '@core/exec-async.js';
 import * as path from 'path';
-import { register, ctx } from '../job-registry.js';
+import { ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '@core/i18n.js';
 
@@ -10,9 +10,7 @@ export function resolveSyncPublicScript(agentServerDir = process.env.CORTEX_REPO
   return path.resolve(checkout, '..', 'scripts', 'sync-pull-from-public.sh');
 }
 
-// Self-register
-register('sync-public', async (payload: unknown) => {
-  const { channel } = payload as { channel: string; scheduleTaskId: string };
+export async function runSyncPublic({ channel }: { channel: string }): Promise<void> {
   const adapter = ctx.adapter!;
   try {
     const syncScript = resolveSyncPublicScript();
@@ -36,4 +34,4 @@ register('sync-public', async (payload: unknown) => {
     const msg = err?.stderr || err?.message || String(err);
     await adapter.postMessage({ type: 'interactive-reply', conduit: channel }, { text: `${Icons.warning} ${t('notice.ops.publicSyncError', { error: msg.slice(0, 500) })}` });
   }
-});
+}

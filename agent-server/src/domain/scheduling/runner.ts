@@ -1,28 +1,27 @@
-import { dispatch, ctx, register } from './job-registry.js';
-
-// Import job modules to trigger self-registration at module load
-import './jobs/scheduled-task.js';
-import { initAuthExpiryScan } from './jobs/auth-expiry-scan.js';
-import './jobs/sync-public.js';
+import { ctx } from './job-registry.js';
+import { runScheduledTask } from './jobs/scheduled-task.js';
+import { initAuthExpiryScan, runAuthExpiryScanJob } from './jobs/auth-expiry-scan.js';
+import { runSyncPublic } from './jobs/sync-public.js';
 
 import { Scheduler } from './scheduler.js';
+import { createLogger } from '@core/log.js';
 import type { EventBus } from '@events/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 
+const log = createLogger('scheduled-runner');
+
 export function initScheduledRunner(adapter: PlatformAdapter): void { ctx.adapter = adapter; }
-export function setSchedulerRef(s: Scheduler): void { ctx.schedulerRef = s; }
 export function setBus(bus: EventBus): void { ctx.bus = bus; }
 
+// Jobs run fire-and-forget: the scheduler's timer must not wait on them.
 export function createScheduler(): Scheduler {
-  const sched = new Scheduler(
-    async (params) => { dispatch('scheduled-task', params); },
+  return new Scheduler(
+    async (params) => { runScheduledTask(params); },
     {
-      'auth-expiry-scan': async (params) => { dispatch('auth-expiry-scan', params); },
-      'sync-public': async (params) => { dispatch('sync-public', params); },
+      'auth-expiry-scan': async () => { void runAuthExpiryScanJob().catch((err) => log.error('Runner "auth-expiry-scan" failed:', err)); },
+      'sync-public': async (params) => { void runSyncPublic(params).catch((err) => log.error('Runner "sync-public" failed:', err)); },
     },
   );
-  ctx.schedulerRef = sched;
-  return sched;
 }
 
 export { cancelDispatchedTask } from './jobs/task-dispatch.js';

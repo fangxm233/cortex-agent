@@ -13,7 +13,7 @@ import {
 } from '@domain/auth/auth-watch.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import type { ButtonElement, PlatformAdapter, RichBlock } from '@platform/index.js';
-import { ctx, register } from '../job-registry.js';
+import { ctx } from '../job-registry.js';
 
 const WARNING_STATES = new Set<AuthAccountState>(['expiring', 'expired', 'logged-out']);
 
@@ -119,7 +119,7 @@ export async function runAuthExpiryScan(
   }
 }
 
-register('auth-expiry-scan', async () => {
+export async function runAuthExpiryScanJob(): Promise<void> {
   const adapter = ctx.adapter;
   if (!adapter || !productionActionBuilder) {
     throw new Error('auth-expiry-scan dependencies are not initialized');
@@ -127,4 +127,4 @@ register('auth-expiry-scan', async () => {
   await runAuthExpiryScan(adapter, {
     buildPlatformAction: productionActionBuilder,
   });
-});
+}
