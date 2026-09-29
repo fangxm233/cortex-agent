@@ -253,13 +253,9 @@ function uncompleteTaskUnlocked(
   taskText: string | null, project: string, taskId: string | null = null,
   ownership?: TaskGenerationExpectation,
 ) {
-  const tasks = readTasks(project);
-  if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
-    return { success: false, message: `TASKS.yaml not found for project ${project}` };
-  }
-  const found = findTask(tasks, taskText, taskId);
-  if ('error' in found) return { success: false, message: found.error };
-  const task = found.task;
+  const loaded = loadCompletionTask(taskText, project, taskId);
+  if ('error' in loaded) return { success: false, message: loaded.error };
+  const { task, tasks } = loaded;
   if (ownership && task.dispatch_generation !== ownership.generation) {
     return { success: false, message: 'Stale task dispatch generation; mutation ignored', stale: true };
   }
