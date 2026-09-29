@@ -1,7 +1,5 @@
-import * as path from 'node:path';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
-import { HOOKS_DIR } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import type { PlatformAdapter, OutputStream } from '@platform/index.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
@@ -14,7 +12,7 @@ import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { filterHookEntries, loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
+import { filterHookEntries, loadHookRegistry } from '@store/hook-registry.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('session-hook');
@@ -24,32 +22,20 @@ const SESSION_EVENTS = {
   onMessageEnd: 'cortex:session.messageEnd',
 } as const;
 
-// ── Config types ──────────────────────────────────────────────────────────────
-
-export interface SessionHookConfig {
-  command: string;
-}
+// ── Config ────────────────────────────────────────────────────────────────────
 
 export type HookName = keyof typeof SESSION_EVENTS;
 
-function normalizeHookEntry(entry: HookEntry): SessionHookConfig {
-  const command = entry.run.script === undefined
-    ? entry.run.command
-    : `node ${path.join(HOOKS_DIR, entry.run.script)}`;
-  return { command };
-}
-
-export function loadHookConfig(name: HookName): SessionHookConfig | null {
-  const entries = filterHookEntries(loadHookRegistry(), { event: SESSION_EVENTS[name] });
-  return entries[0] ? normalizeHookEntry(entries[0]) : null;
+function hasSessionHook(name: HookName): boolean {
+  return filterHookEntries(loadHookRegistry(), { event: SESSION_EVENTS[name] }).length > 0;
 }
 
 export function isOnNewHookConfigured(): boolean {
-  return loadHookConfig('onNew') !== null;
+  return hasSessionHook('onNew');
 }
 
 export function isOnMessageEndHookConfigured(): boolean {
-  return loadHookConfig('onMessageEnd') !== null;
+  return hasSessionHook('onMessageEnd');
 }
 
 // ── Unified hook pipeline ─────────────────────────────────────────────────────
@@ -279,8 +265,7 @@ export async function runSessionHook(
   stream: OutputStream,
   deps: InjectDeps = defaultInjectDeps,
 ): Promise<void> {
-  const cfg = loadHookConfig(spec.name);
-  if (!cfg) return;
+  if (!hasSessionHook(spec.name)) return;
   stream.emitText(spec.format.statusLine());
   const results = await emitCortexEvent(
     SESSION_EVENTS[spec.name],
@@ -298,7 +283,7 @@ export async function runSessionHook(
     handled = true;
     await handleHookResult(result, spec, stream, deps, emitted.id);
   }
-  if (!handled) await flushHookStream(stream, cfg.command, 'no-result');
+  if (!handled) await flushHookStream(stream, spec.name, 'no-result');
 }
 
 // ── onNew (pre-close) entry points ────────────────────────────────────────────

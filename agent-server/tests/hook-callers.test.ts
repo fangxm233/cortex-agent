@@ -13,7 +13,6 @@ import { executeLifecycleHooks } from '../src/domain/threads/hook-runner.js';
 import {
   isOnMessageEndHookConfigured,
   isOnNewHookConfigured,
-  loadHookConfig,
   runSessionHook,
   type InjectDeps,
   type SessionHookSpec,
@@ -196,7 +195,7 @@ test('thread public path rejects JSON missing insertAgent and targetAgent', asyn
   assert.match(result.errors.join('\n'), /missing insertAgent or targetAgent/);
 });
 
-test('session config lookup normalizes registry scripts and commands', () => {
+test('session hook predicates follow registry subscriptions', () => {
   writeSessionHooks([{
     id: 'session-new-hook',
     event: 'cortex:session.new',
@@ -204,16 +203,12 @@ test('session config lookup normalizes registry scripts and commands', () => {
     result: 'stdout-as-prompt',
   }]);
 
-  assert.deepEqual(loadHookConfig('onNew'), {
-    command: `node ${path.join(HOOKS_DIR, 'new-hook.mjs')}`,
-  });
   assert.equal(isOnNewHookConfigured(), true);
   assert.equal(isOnMessageEndHookConfigured(), false);
 
   writeSessionHooks([messageEndEntry('printf command-is-verbatim')]);
-  assert.deepEqual(loadHookConfig('onMessageEnd'), {
-    command: 'printf command-is-verbatim',
-  });
+  assert.equal(isOnNewHookConfigured(), false);
+  assert.equal(isOnMessageEndHookConfigured(), true);
 });
 
 test('session public path requests the legacy timeout for omitted registry values', async (t) => {
