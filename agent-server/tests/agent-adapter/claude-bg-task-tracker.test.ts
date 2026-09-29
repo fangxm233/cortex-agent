@@ -129,30 +129,23 @@ test('BgTaskTracker: ignores non-system events and malformed payloads', () => {
   assert.equal(t.undeliveredCount, 0);
 });
 
-test('routeLine: any line during an active turn routes normally', () => {
-  const t = new BgTaskTracker();
-  t.observe(TASK_NOTIFICATION); // armed, but a turn is active
-  assert.equal(routeLine(t, { type: 'assistant' }, true), 'normal');
-  assert.equal(routeLine(t, RESULT_FIRST, true), 'normal');
-});
-
 test('routeLine: assistant with no active turn + armed → open-continuation', () => {
   const t = new BgTaskTracker();
   t.observe(TASK_STARTED);
   t.observe(TASK_NOTIFICATION);
-  assert.equal(routeLine(t, { type: 'assistant', message: {} }, false), 'open-continuation');
+  assert.equal(routeLine(t, { type: 'assistant', message: {} }), 'open-continuation');
 });
 
 test('routeLine: assistant with no active turn but NOT armed → ignore (preserve current drop behavior)', () => {
   const t = new BgTaskTracker();
-  assert.equal(routeLine(t, { type: 'assistant', message: {} }, false), 'ignore');
+  assert.equal(routeLine(t, { type: 'assistant', message: {} }), 'ignore');
 });
 
 test('routeLine: non-assistant lines with no active turn → ignore', () => {
   const t = new BgTaskTracker();
   t.observe(TASK_NOTIFICATION);
-  assert.equal(routeLine(t, { type: 'system', subtype: 'init' }, false), 'ignore');
-  assert.equal(routeLine(t, RESULT_CONTINUATION, false), 'ignore');
+  assert.equal(routeLine(t, { type: 'system', subtype: 'init' }), 'ignore');
+  assert.equal(routeLine(t, RESULT_CONTINUATION), 'ignore');
 });
 
 // CC ≥ 2026-08-24 emits task_started{is_backgrounded:false} + task_notification for every

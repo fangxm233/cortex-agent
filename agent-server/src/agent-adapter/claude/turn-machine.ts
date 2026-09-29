@@ -738,7 +738,7 @@ export class ClaudeTurnMachine {
       // streaming its lines. With no turn open the branches above skip them, so route them to the
       // background-turn sink here — otherwise the whole tail of a background agent's trajectory
       // (tool calls AND its final report) is received and then dropped.
-      if (!this.currentTurn && routeLine(this.bgTracker, data, false) === 'subagent-orphan') {
+      if (!this.currentTurn && routeLine(this.bgTracker, data) === 'subagent-orphan') {
         this.handleOrphanSubagentLine(data);
       }
       // No active turn, and the model just started speaking anyway: either a background task
@@ -747,7 +747,7 @@ export class ClaudeTurnMachine {
       // output is routed (to backgroundTurnSink) instead of being dropped.
       const canCaptureContinuation = this.backgroundTurnSink || this.host.preserveUnreportedAccounting;
       if (!this.currentTurn && canCaptureContinuation && data.type === 'assistant'
-          && (this.injectionContinuationArmed || routeLine(this.bgTracker, data, false) === 'open-continuation')) {
+          && (this.injectionContinuationArmed || routeLine(this.bgTracker, data) === 'open-continuation')) {
         const fromInjection = this.injectionContinuationArmed;
         this.injectionContinuationArmed = false;
         this.openContinuationTurn(fromInjection ? '[injected-message continuation]' : '[background-task continuation]');

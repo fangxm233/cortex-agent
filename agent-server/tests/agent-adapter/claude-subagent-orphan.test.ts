@@ -80,10 +80,8 @@ async function orphanRun(t: { onTestFinished: (fn: () => void) => void }) {
 test('routeLine: a subagent-linked line with no turn open routes to subagent-orphan', () => {
   const tracker = new BgTaskTracker();
   const line = JSON.parse(SUB_TOOL_USE);
-  assert.equal(routeLine(tracker, line, false), 'subagent-orphan');
-  assert.equal(routeLine(tracker, JSON.parse(SUB_TOOL_RESULT), false), 'subagent-orphan');
-  // An active turn still wins: the in-turn path owns attribution and bookkeeping.
-  assert.equal(routeLine(tracker, line, true), 'normal');
+  assert.equal(routeLine(tracker, line), 'subagent-orphan');
+  assert.equal(routeLine(tracker, JSON.parse(SUB_TOOL_RESULT)), 'subagent-orphan');
 });
 
 test('routeLine: subagent-orphan wins over open-continuation once a notification armed', () => {
@@ -92,9 +90,9 @@ test('routeLine: subagent-orphan wins over open-continuation once a notification
   tracker.observe(JSON.parse(TASK_NOTIFICATION));
   assert.ok(tracker.continuationArmed, 'notification armed a continuation');
   // The subagent's own line must not be mistaken for the main agent being re-invoked.
-  assert.equal(routeLine(tracker, JSON.parse(SUB_TOOL_USE), false), 'subagent-orphan');
+  assert.equal(routeLine(tracker, JSON.parse(SUB_TOOL_USE)), 'subagent-orphan');
   // The main agent's line still opens the continuation turn.
-  assert.equal(routeLine(tracker, JSON.parse(MAIN_ASSISTANT), false), 'open-continuation');
+  assert.equal(routeLine(tracker, JSON.parse(MAIN_ASSISTANT)), 'open-continuation');
 });
 
 test('run: orphan subagent lines do not consume the armed continuation', async (t) => {
