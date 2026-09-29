@@ -24,7 +24,6 @@ from current_vendor_cli import CliIdentity, inspect_binary, require_isolated_net
 
 DUMMY_CREDENTIAL = "dummy-claude-code-vendor-wire-bearer"
 HOST_BEARER = "host-held-dummy-subscription-oauth"
-ALIASES = ("sonnet", "opus", "haiku")
 UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I,
 )
