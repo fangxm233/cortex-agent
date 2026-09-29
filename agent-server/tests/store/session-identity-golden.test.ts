@@ -8,7 +8,7 @@ import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '..
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { seedTestProfiles } from '../_seed-profiles.js';
 import { registerThreadSession } from '../../src/domain/scheduling/jobs/register-thread-session.js';
-import { setSessionAsync, getSessionAsync } from '../../src/domain/sessions/session.js';
+import { setSessionAsync } from '../../src/domain/sessions/session.js';
 import {
   getActiveProfile,
   setActiveProfile,
@@ -62,25 +62,13 @@ afterAll(async () => {
 });
 
 // A fresh, fully-isolated store backed by its own temp journal. After B.T2 there is ONE store — the
-// session registry — that owns channel bindings, conversation headers and turns. `sessions` is a thin
-// adapter that re-exposes the old sessions.json surface (setSessionAsync/getSessionAsync/
-// deleteManyBySessionIds/registerConduitResolver) as registry calls, so the goldens keep compiling
-// while proving behaviour through the same read APIs. `ledger` is the façade over that same registry.
+// session registry — that owns channel bindings, conversation headers and turns. `ledger` is the
+// façade over that same registry.
 function freshStores() {
   const id = testId++;
   const registry = new SessionRegistryRepo(path.join(tmpDir, `reg-${id}.jsonl`));
-  const sessions = {
-    setSessionAsync: (channel: string, sessionId: string, _backend?: string) =>
-      registry.bindChannel(channel, sessionId),
-    getSessionAsync: async (channel: string, _backend?: string): Promise<string | undefined> =>
-      (await registry.getBoundSessionId(channel)) ?? undefined,
-    deleteManyBySessionIds: (sessionIds: Iterable<string>) => registry.unbindBySessionIds(sessionIds),
-    registerConduitResolver: (fn: (channel: string) => string | null | undefined) =>
-      registry.registerConduitResolver(fn),
-  };
   return {
     registry,
-    sessions,
     ledger: new ConversationLedgerRepo(registry),
   };
 }
@@ -429,13 +417,3 @@ test('golden 11: session-record profileName is isolated from ledger conversation
     c_neither: null,
   });
 });
-
-// ── 12. TUI conduit precedence: an in-memory resolver wins over the persisted bind; null falls through ──
-
-// ── 13. No legacy-key collapse: the registry keys on the whole channel string ──
-
-// ── 14. Retention: clearBySessionIds + deleteManyBySessionIds — snapshot what remains ──
-
-// ── 15. Registry update semantics: backendSessionId undefined vs null → effectiveBackendSessionId ──
-
-// ── 16. Journal replay: a new repo on the same path sees everything; likewise after compactNow ──

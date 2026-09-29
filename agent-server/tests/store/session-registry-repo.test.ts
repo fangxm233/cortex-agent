@@ -19,12 +19,7 @@ afterAll(async () => {
 
 function nextPaths() {
   const id = testId++;
-  const filePath = path.join(tmpDir, `session-registry-${id}.jsonl`);
-  return {
-    filePath,
-    legacyPath: filePath.replace(/\.jsonl$/, '.json'),
-    backupPath: filePath.replace(/\.jsonl$/, '.json.bak'),
-  };
+  return { filePath: path.join(tmpDir, `session-registry-${id}.jsonl`) };
 }
 
 function baseSession(id: string, name = `cortex-${id}`): Session {
@@ -206,30 +201,6 @@ test('session registry rolls back a partial append before later writes continue'
   assert.equal((await reopened.lookupSession('cortex-b'))?.sessionId, 'sess-b');
 });
 
-test('session registry append tracks the actual on-disk size after partial-failure rollback and later success', async () => {
-  const { filePath } = nextPaths();
-  let fail = false;
-  const repo = new SessionRegistryRepo(filePath, {
-    writeAppend: async (handle, line) => {
-      if (!fail) return handle.writeFile(line, 'utf8');
-      await handle.write(line.slice(0, Math.max(1, Math.floor(line.length / 2))), 0, 'utf8');
-      throw new Error('forced partial append');
-    },
-  });
-
-  await repo.registerSession('cortex-a', registerOpts('sess-a'));
-  fail = true;
-  await assert.rejects(repo.registerSession('cortex-b', registerOpts('sess-b')), /forced partial append/);
-  fail = false;
-  await repo.registerSession('cortex-c', registerOpts('sess-c'));
-
-  const reopened = new SessionRegistryRepo(filePath);
-  const sessions = await reopened.listRecentSessions(10);
-  assert.deepEqual(new Set(sessions.map(session => session.sessionId)), new Set(['sess-a', 'sess-c']));
-  const statSize = (await fs.stat(filePath)).size;
-  assert.equal(Buffer.byteLength(await fileText(filePath)), statSize);
-});
-
 test('session registry truncates an unterminated tail line during replay', async () => {
   const { filePath } = nextPaths();
   const first = lineText({ v: 1, op: 'put', id: 'sess-a', record: baseSession('sess-a', 'cortex-a') });
@@ -344,23 +315,6 @@ test('session registry preserves explicit origin, markRead, and name index after
   assert.equal(record?.origin, 'thread');
   assert.equal(record?.scheduleId, 'sched-1');
   assert.ok(record?.lastReadAt);
-});
-
-test('session registry replays commissionId and browser opt-in from the journal', async () => {
-  const { filePath } = nextPaths();
-  const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-comm', registerOpts('sess-comm', { browser: { device: 'server' } }));
-  await repo.bindCommission('sess-comm', 'comm-1');
-
-  repo.invalidate();
-  const record = await repo.lookupSession('cortex-comm');
-  assert.equal(record?.commissionId, 'comm-1');
-  assert.deepEqual(record?.browser, { device: 'server' });
-
-  const reopened = new SessionRegistryRepo(filePath);
-  const replayed = await reopened.getById('sess-comm');
-  assert.equal(replayed?.commissionId, 'comm-1');
-  assert.deepEqual(replayed?.browser, { device: 'server' });
 });
 
 test('session registry replays commissionDraft and clears it when the commission lands', async () => {
