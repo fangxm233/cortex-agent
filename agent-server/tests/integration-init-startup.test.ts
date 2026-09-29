@@ -111,7 +111,7 @@ type TempDir = ReturnType<typeof mkdtempSync>;
  *
  * `--gateway-config-dir` is also pinned to a tempDir sub-path so the test never touches
  * the production `~/.aistatus/gateway.yaml` (cortex init writes & backs up that file
- * by default — see writeGatewayYaml in src/core/gateway-generator.ts).
+ * by default — see writeMergedGatewayYaml in src/core/gateway-generator.ts).
  */
 async function cortexInit(homeDir: string, stdinAnswers: string): Promise<void> {
   const gatewayDir = path.join(homeDir, 'aistatus');

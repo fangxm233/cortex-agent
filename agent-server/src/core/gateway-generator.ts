@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as os from 'os';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 import { parse as parseDotenv } from 'dotenv';
-import { ANTHROPIC_MODELS } from './anthropic-models.js';
 import {
   anthropicModelDiscovery, anthropicModelIds, type DiscoveredAnthropicModel,
 } from './anthropic-model-discovery.js';
@@ -246,10 +245,8 @@ export async function discoverEndpoints(
   // does not consult it, so a model missing here still answers. Discovery therefore only widens
   // what gets watched, and `cortex init` on a host with no credential keeps the shipped table.
   const readAnthropicModels = options.anthropicModels ?? (() => anthropicModelDiscovery.ensure());
-  const anthropicModels = includeClaude
-    ? anthropicModelIds(await readAnthropicModels())
-    : [...ANTHROPIC_MODELS];
   if (includeClaude) {
+    const anthropicModels = anthropicModelIds(await readAnthropicModels());
     endpoints.push({
       mode: 'plan',
       endpoint: 'anthropic',
@@ -391,35 +388,6 @@ export function generateGatewayYaml(endpoints: DiscoveredEndpoint[], defaultMode
 
   lines.push('');
   return lines.join('\n');
-}
-
-/**
- * Write gateway.yaml to the specified path or ~/.aistatus/gateway.yaml.
- * If file already exists and outputDir is not specified, backs it up as gateway.yaml.bak before overwriting.
- * When outputDir is provided, writes to <outputDir>/gateway.yaml without backup.
- *
- * @deprecated Use writeMergedGatewayYaml — full overwrite drops hand-maintained custom modes.
- */
-export function writeGatewayYaml(yamlContent: string, outputDir?: string): string {
-  const configDir = outputDir || path.join(os.homedir(), '.aistatus');
-  const configPath = path.join(configDir, 'gateway.yaml');
-
-  // Backup existing file (only for default path)
-  if (!outputDir && existsSync(configPath)) {
-    const backupPath = configPath + '.bak';
-    try {
-      copyFileSync(configPath, backupPath);
-      log.info(`Backed up existing gateway.yaml to ${backupPath}`);
-    } catch (e) {
-      log.warn(`Failed to backup existing gateway.yaml: ${(e as Error).message}`);
-    }
-  }
-
-  mkdirSync(configDir, { recursive: true });
-  writeFileSync(configPath, yamlContent, 'utf-8');
-  log.info(`Written gateway.yaml to ${configPath}`);
-
-  return configPath;
 }
 
 // ─── Merge-aware generation (preserve hand-maintained modes) ──────────────────
