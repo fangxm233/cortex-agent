@@ -33,12 +33,10 @@ describe('buildDaemonVm', () => {
       expect(vm.processes.every((p) => p.status === 'running')).toBe(true);
       // No real metrics available in the fallback → honest nulls, never fabricated.
       expect(vm.processes.every((p) => p.pid === null && p.port === null && p.uptime === null)).toBe(true);
-      expect(vm.ok).toBe(true);
     });
 
     it('marks both processes status=unknown when the daemon is unreachable (queries failed)', () => {
       const vm = buildDaemonVm({ threads: [], schedules: [], executions: [], ok: false, now: NOW, lang: 'en' });
-      expect(vm.ok).toBe(false);
       expect(vm.processes.every((p) => p.status === 'unknown')).toBe(true);
     });
   });

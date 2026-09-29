@@ -38,7 +38,6 @@ describe('buildMHooksVm grouping', () => {
     expect(vm.groups).toEqual([]);
     expect(vm.total).toBe(0);
     expect(vm.enabledCount).toBe(0);
-    expect(vm.missingScriptCount).toBe(0);
   });
 
   it('groups by event namespace in canonical order and drops empty groups', () => {
@@ -84,7 +83,7 @@ describe('buildMHooksVm grouping', () => {
     expect(vm.total).toBe(1);
   });
 
-  it('counts totals, enabled entries and missing scripts across all groups', () => {
+  it('counts totals and enabled entries across all groups', () => {
     const vm = buildMHooksVm(
       overview([
         mk({ id: 'a', event: 'agent:pre-tool', enabled: true, scriptExists: true, order: 0 }),
@@ -94,7 +93,6 @@ describe('buildMHooksVm grouping', () => {
     );
     expect(vm.total).toBe(3);
     expect(vm.enabledCount).toBe(2);
-    expect(vm.missingScriptCount).toBe(1);
   });
 });
 

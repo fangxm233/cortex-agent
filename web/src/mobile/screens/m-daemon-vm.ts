@@ -29,8 +29,6 @@ export interface MDaemonEvent {
 }
 
 export interface MDaemonVm {
-  /** Daemon reachable — threads/schedules queries returned without error. Drives the header pill. */
-  ok: boolean;
   /** Real active-thread count (running + waiting), from `threads.list`. */
   threadCount: number;
   /** Real schedule count, from `schedules.list`. */
@@ -87,7 +85,6 @@ export function buildDaemonVm(input: {
   const now = input.now ?? Date.now();
   const facts = buildSharedDaemonVm(input.daemon, input.lang, now);
   return {
-    ok: input.ok,
     threadCount: input.threads.length,
     scheduleCount: input.schedules.length,
     processes: fallbackProcesses(facts, input.ok),

@@ -67,7 +67,6 @@ export interface MHooksVm {
   groups: MHookGroup[];
   total: number;
   enabledCount: number;
-  missingScriptCount: number;
 }
 
 function toMatcher(hook: HookDetail): MHookMatcher | null {
@@ -138,6 +137,5 @@ export function buildMHooksVm(overview: HooksOverview): MHooksVm {
     groups,
     total: overview.hooks.length,
     enabledCount: overview.hooks.filter((h) => h.enabled).length,
-    missingScriptCount: overview.hooks.filter((h) => h.scriptExists === false).length,
   };
 }
