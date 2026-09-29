@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { isProcessAlive, tryAcquireSingletonLock, releaseSingletonLock } from '../../src/core/singleton-lock.js';
+import { tryAcquireSingletonLock, releaseSingletonLock } from '../../src/core/singleton-lock.js';
 
 // A PID that is virtually guaranteed not to exist on this machine.
 const DEAD_PID = 2147483646;

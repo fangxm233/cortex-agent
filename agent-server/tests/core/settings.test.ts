@@ -323,7 +323,6 @@ describe.sequential('core settings', () => {
 
   test('sessionRetentionDays defaults to 30 and enforces safe integer day bounds', () => {
     const maxDays = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
-    const retention = SETTINGS_SPEC.sessionRetentionDays as SettingSpecEntry<number>;
     assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: 1 }));
     assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: maxDays }));
     for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER, maxDays + 1]) {
@@ -332,7 +331,6 @@ describe.sequential('core settings', () => {
   });
 
   test('piCompactReserveTokens defaults to PI\'s own 16384 and accepts only in-range whole tokens', () => {
-    const reserve = SETTINGS_SPEC.piCompactReserveTokens as SettingSpecEntry<number>;
     for (const value of [1_024, 16_384, 32_768, 131_072]) {
       assert.doesNotThrow(() => resolveSettingsSnapshot({ piCompactReserveTokens: value }));
     }
