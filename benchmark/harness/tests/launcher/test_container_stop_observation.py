@@ -217,15 +217,9 @@ def test_real_pull_disabled_container_stop_is_observed_from_host() -> None:
         subprocess.run(["docker", "rm", "--force", name], capture_output=True)
 
 
-def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+def _stop_partial_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, events: list[object], probe: object,
 ) -> None:
-    events: list[object] = []
-    observation = ContainerBoundaryObservation(
-        observed_at="2026-08-16T00:00:00.000Z", exit_code=0,
-        descendants_alive=0, process_namespace_alive=False,
-    )
-
     class Controller:
         post_stop_finalization_pending = True
 
@@ -234,15 +228,6 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
 
         def revoke_admitted_proxy(self) -> None:
             events.append("revoke")
-
-    class Probe:
-        async def capture(self, container_id: str) -> str:
-            events.append(("capture", container_id))
-            return "census"
-
-        async def observe_after_stop(self, census: str) -> ContainerBoundaryObservation:
-            events.append(("wait-observe", census))
-            return observation
 
     environment = object.__new__(AdmittedDockerEnvironment)
     # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
@@ -262,10 +247,31 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
     environment._run_docker_compose_command = compose
     environment._remove_verifier_uvx_alias = AsyncMock()
     environment._discard_trial_scratch = AsyncMock()
-    environment._container_boundary_probe = lambda: Probe()
+    environment._container_boundary_probe = lambda: probe
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
     asyncio.run(environment.stop(delete=False))
+
+
+def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    events: list[object] = []
+    observation = ContainerBoundaryObservation(
+        observed_at="2026-08-16T00:00:00.000Z", exit_code=0,
+        descendants_alive=0, process_namespace_alive=False,
+    )
+
+    class Probe:
+        async def capture(self, container_id: str) -> str:
+            events.append(("capture", container_id))
+            return "census"
+
+        async def observe_after_stop(self, census: str) -> ContainerBoundaryObservation:
+            events.append(("wait-observe", census))
+            return observation
+
+    _stop_partial_environment(monkeypatch, tmp_path, events, Probe())
 
     assert events.index(("stop",)) < events.index(("wait-observe", "census"))
     assert events.index(("wait-observe", "census")) < events.index(("finalize", observation))
@@ -277,15 +283,6 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
 ) -> None:
     events: list[object] = []
 
-    class Controller:
-        post_stop_finalization_pending = True
-
-        def finalize_after_container_stop(self, value: object) -> None:
-            events.append(("finalize", value))
-
-        def revoke_admitted_proxy(self) -> None:
-            events.append("revoke")
-
     class Probe:
         async def capture(self, _container_id: str) -> str:
             return "census"
@@ -293,28 +290,7 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
         async def observe_after_stop(self, _census: str) -> ContainerBoundaryObservation:
             raise ContainerBoundaryUnproven("namespace census unavailable")
 
-    environment = object.__new__(AdmittedDockerEnvironment)
-    # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
-    # none, which is the case this partial object stands for.
-    environment._evidence_path = tmp_path / "harbor-launch-admission.json"
-    environment._proxy_controller = Controller()
-
-    async def compose(command: list[str], **_kwargs: object) -> ExecResult:
-        events.append(tuple(command))
-        if command == ["ps", "--quiet", "main"]:
-            return ExecResult(stdout=f"{CONTAINER_ID}\n", return_code=0)
-        return ExecResult(return_code=0)
-
-    async def base_stop(_self: object, delete: bool) -> None:
-        events.append(("remove", delete))
-
-    environment._run_docker_compose_command = compose
-    environment._remove_verifier_uvx_alias = AsyncMock()
-    environment._discard_trial_scratch = AsyncMock()
-    environment._container_boundary_probe = lambda: Probe()
-    monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
-
-    asyncio.run(environment.stop(delete=False))
+    _stop_partial_environment(monkeypatch, tmp_path, events, Probe())
 
     assert events.index(("stop",)) < events.index(("finalize", None))
     assert events.index(("finalize", None)) < events.index(("remove", False))
@@ -325,40 +301,10 @@ def test_capture_failure_still_stops_before_recording_unavailable(
 ) -> None:
     events: list[object] = []
 
-    class Controller:
-        post_stop_finalization_pending = True
-
-        def finalize_after_container_stop(self, value: object) -> None:
-            events.append(("finalize", value))
-
-        def revoke_admitted_proxy(self) -> None:
-            events.append("revoke")
-
     class Probe:
         async def capture(self, _container_id: str) -> str:
             raise ContainerBoundaryUnproven("capture unavailable")
 
-    environment = object.__new__(AdmittedDockerEnvironment)
-    # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
-    # none, which is the case this partial object stands for.
-    environment._evidence_path = tmp_path / "harbor-launch-admission.json"
-    environment._proxy_controller = Controller()
-
-    async def compose(command: list[str], **_kwargs: object) -> ExecResult:
-        events.append(tuple(command))
-        if command == ["ps", "--quiet", "main"]:
-            return ExecResult(stdout=f"{CONTAINER_ID}\n", return_code=0)
-        return ExecResult(return_code=0)
-
-    async def base_stop(_self: object, delete: bool) -> None:
-        events.append(("remove", delete))
-
-    environment._run_docker_compose_command = compose
-    environment._remove_verifier_uvx_alias = AsyncMock()
-    environment._discard_trial_scratch = AsyncMock()
-    environment._container_boundary_probe = lambda: Probe()
-    monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
-
-    asyncio.run(environment.stop(delete=False))
+    _stop_partial_environment(monkeypatch, tmp_path, events, Probe())
 
     assert events.index(("stop",)) < events.index(("finalize", None))
