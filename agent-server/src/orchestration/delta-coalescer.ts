@@ -20,8 +20,6 @@ export interface DeltaCoalescerOptions {
   onFlush: (flush: DeltaFlush) => void;
   /** Window length; defaults to resolveFlushMs(process.env). */
   flushMs?: number;
-  /** Character cap that short-circuits the window; defaults to MAX_PENDING_CHARS. */
-  maxChars?: number;
 }
 
 export interface DeltaCoalescer {
@@ -55,7 +53,6 @@ interface BlockState {
 
 export function createDeltaCoalescer(opts: DeltaCoalescerOptions): DeltaCoalescer {
   const flushMs = opts.flushMs ?? resolveFlushMs(process.env);
-  const maxChars = opts.maxChars ?? MAX_PENDING_CHARS;
   const blocks = new Map<string, BlockState>();
   let disposed = false;
 
@@ -82,7 +79,7 @@ export function createDeltaCoalescer(opts: DeltaCoalescerOptions): DeltaCoalesce
         blocks.set(blockId, state);
       }
       state.pending += text;
-      if (state.pending.length >= maxChars) {
+      if (state.pending.length >= MAX_PENDING_CHARS) {
         emit(blockId, state);
         return;
       }
