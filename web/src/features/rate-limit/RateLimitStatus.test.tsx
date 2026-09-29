@@ -7,18 +7,15 @@ function status(): RateLimitView {
   return {
     lang: 'en',
     label: 'OpenAI Codex · outage · 5m',
-    firstRecoveryAt: 1_000,
     providers: [
       {
         provider: 'openai-codex',
         displayName: 'OpenAI Codex',
         recoveryAt: 1_000,
         recoveryCountdown: '5m',
-        waitingSessions: 0,
-        waitingThreads: 1,
         waitingLabel: '0 sessions · 1 thread waiting',
         windows: [
-          { type: 'outage', typeLabel: 'outage', utilization: null, resetsAt: 1_000, countdown: '5m' },
+          { type: 'outage', typeLabel: 'outage', resetsAt: 1_000, countdown: '5m' },
         ],
       },
     ],

@@ -32,7 +32,7 @@ describe('buildRateLimitView', () => {
       ],
     }, NOW, 'en');
 
-    expect(vm?.firstRecoveryAt).toBe(NOW + 42 * 60);
+    expect(vm?.label).toBe('2 providers limited · first 42m');
   });
 
   it('retains distinct reset times and deterministically orders providers and windows', () => {

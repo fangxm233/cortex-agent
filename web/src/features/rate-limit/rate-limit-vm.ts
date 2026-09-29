@@ -5,7 +5,6 @@ import { formatSpanPrecise } from '@/lib/time-format';
 export interface RateLimitWindowView {
   type: string;
   typeLabel: string;
-  utilization: number | null;
   resetsAt: number;
   countdown: string;
 }
@@ -15,8 +14,6 @@ export interface RateLimitProviderView {
   displayName: string;
   recoveryAt: number;
   recoveryCountdown: string;
-  waitingSessions: number;
-  waitingThreads: number;
   waitingLabel: string;
   windows: RateLimitWindowView[];
 }
@@ -24,7 +21,6 @@ export interface RateLimitProviderView {
 export interface RateLimitView {
   lang: Lang;
   label: string;
-  firstRecoveryAt: number;
   providers: RateLimitProviderView[];
 }
 
@@ -52,7 +48,6 @@ function buildWindow(window: RawRateLimitWindow, nowSec: number, lang: Lang): Ra
   return {
     type: window.type,
     typeLabel: window.label ?? formatWindowType(window.type),
-    utilization: window.utilization,
     resetsAt: window.resetsAt,
     countdown: formatRateLimitCountdown(window.resetsAt - nowSec, lang),
   };
@@ -76,7 +71,6 @@ function buildProvider(
   return {
     provider: raw.provider, displayName: raw.displayName, recoveryAt,
     recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec, lang),
-    waitingSessions, waitingThreads,
     waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang), windows,
   };
 }
@@ -104,7 +98,6 @@ export function buildRateLimitView(
   const firstCountdown = formatRateLimitCountdown(firstRecoveryAt - nowSec, lang);
   return {
     lang,
-    firstRecoveryAt,
     providers,
     label: providers.length === 1
       ? singleProviderLabel(providers[0])
