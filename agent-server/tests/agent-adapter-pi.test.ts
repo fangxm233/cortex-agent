@@ -80,13 +80,9 @@ function rawTap(): RawTap {
 /** Start one run and wait until its prompt has reached PI. */
 async function startTurn(
   engine: EngineSession, runtime: FakeRuntime, text: string,
-  onNormalizedEvent?: (event: NormalizedEvent) => void,
 ): Promise<EngineRun> {
   const expected = runtime.prompts().length + 1;
-  const run = engine.run(
-    { text },
-    { awaitBackground: 'none', ...(onNormalizedEvent ? { onNormalizedEvent } : {}) },
-  );
+  const run = engine.run({ text }, { awaitBackground: 'none' });
   await awaitPrompts(runtime, expected);
   return run;
 }
