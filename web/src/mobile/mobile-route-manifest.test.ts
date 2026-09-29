@@ -45,8 +45,7 @@ describe('mobile route manifest', () => {
   });
 
   it('derives concrete paths and tab attribution from the same metadata', () => {
-    expect(mobileRoutePath('plan', { sessionId: 's-1', requestId: 'p-2' }))
-      .toBe('/m/session/s-1/plan/p-2');
+    expect(mobileRoutePath('tasks')).toBe('/m/tasks');
     expect(MOBILE_ROUTE_REGISTRY.plan.tab).toBe('sessions');
     expect(MOBILE_ROUTE_REGISTRY.settingsHooks.tab).toBe('project');
   });

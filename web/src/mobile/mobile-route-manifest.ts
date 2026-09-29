@@ -75,11 +75,8 @@ export function matchMobileRoute(pathname: string): MobileRouteMatch | undefined
   return undefined;
 }
 
-export function mobileRoutePath(
-  id: MobileRouteId,
-  params: Readonly<Record<string, string | null>> = {},
-): string {
-  return generatePath(MOBILE_ROUTE_REGISTRY[id].path, params);
+export function mobileRoutePath(id: MobileRouteId): string {
+  return generatePath(MOBILE_ROUTE_REGISTRY[id].path);
 }
 
 export function mobileRouteParentPath(pathname: string): string | undefined {

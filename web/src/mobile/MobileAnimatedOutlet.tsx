@@ -11,14 +11,13 @@ export interface Frame {
 type NavType = 'PUSH' | 'POP' | 'REPLACE';
 export type SlideDir = 'forward' | 'back';
 
-export function planTransition(
+function planTransition(
   navType: NavType,
-  samePath: boolean,
   reduceMotion: boolean,
   betweenTabRoutes: boolean,
-  returningToRetained = false,
+  returningToRetained: boolean,
 ): { animate: false } | { animate: true; dir: SlideDir } {
-  if (samePath || reduceMotion || betweenTabRoutes) return { animate: false };
+  if (reduceMotion || betweenTabRoutes) return { animate: false };
   if (returningToRetained) return { animate: true, dir: 'back' };
   if (navType === 'REPLACE') return { animate: false };
   return { animate: true, dir: navType === 'POP' ? 'back' : 'forward' };
@@ -99,7 +98,6 @@ function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode
     const betweenTabs = isTabRootRoute(current.key) && isTabRootRoute(pathname);
     const plan = planTransition(
       navType,
-      false,
       prefersReducedMotion(),
       betweenTabs,
       change.returningToRetained,
