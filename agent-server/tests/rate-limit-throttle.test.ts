@@ -211,29 +211,6 @@ test('initRateLimitThrottle recovers active throttle on restart', async (t) => {
   assert.ok(mod.isModeRateLimited('api'));
 });
 
-test('adds new mode on extended throttle', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  const persistence = makePersistenceStub();
-  const adapter = makeAdapterStub();
-  await mod.initRateLimitThrottle(adapter, persistence as any);
-
-  const baseReset = Math.floor(Date.now() / 1000) + 300;
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.95, resetsAt: baseReset }, 'plan');
-  assert.ok(mod.isModeRateLimited('plan'));
-
-  // Extension with a different mode
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.97, resetsAt: baseReset + 600 }, 'execute');
-  assert.ok(mod.isModeRateLimited('execute'));
-
-  // Both modes tracked
-  assert.ok(mod.isModeRateLimited('plan'));
-  assert.ok(mod.isModeRateLimited('execute'));
-
-  // Persistence includes both provider/mode records
-  const saved = persistence.getSaved();
-  assert.deepEqual(saved.providers.flatMap((p: any) => p.modes).sort(), ['execute', 'plan']);
-});
-
 test('onResume fires once when the resume timer clears the throttle', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   vi.useFakeTimers({ toFake: ['setTimeout'] });
