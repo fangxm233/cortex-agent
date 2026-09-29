@@ -51,9 +51,9 @@ export interface Migration {
   format?: 'json' | 'text';
   /** Idempotent migration function. For 'json' migrations, receives the parsed JSON
    *  of the target file and optionally the parsed JSON of the corresponding defaults
-   *  file. For 'text' migrations, receives the raw file string and optionally the raw
-   *  defaults string. Must return the migrated data (object for json, string for text)
-   *  — the runner compares before/after to decide whether to write. */
+   *  file. For 'text' migrations, receives the raw file string. Must return the
+   *  migrated data (object for json, string for text) — the runner compares
+   *  before/after to decide whether to write. */
   migrate(data: unknown, defaults?: unknown): unknown;
 }
 
@@ -702,13 +702,13 @@ const DEFAULTS_MAP: Record<string, string> = {
   'config/thread-templates.json': 'config/thread-templates.json',
 };
 
-async function loadDefaultsForWith(filePath: string, defaultsDir: string, format: 'json' | 'text' = 'json'): Promise<unknown> {
+async function loadDefaultsForWith(filePath: string, defaultsDir: string): Promise<unknown> {
   const defaultsRel = DEFAULTS_MAP[filePath];
   if (!defaultsRel) return undefined;
   const defaultsPath = path.join(defaultsDir, defaultsRel);
   try {
     const raw = await fs.readFile(defaultsPath, 'utf8');
-    return format === 'text' ? raw : JSON.parse(raw);
+    return JSON.parse(raw);
   } catch (err: unknown) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === 'ENOENT') {
@@ -796,7 +796,7 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
     }
 
     // Load defaults once for this file (if any)
-    const defaultsData = await loadDefaultsForWith(filePath, defaultsDir, format);
+    const defaultsData = await loadDefaultsForWith(filePath, defaultsDir);
 
     // Apply all pending migrations in version order
     let changed = false;
@@ -1044,21 +1044,17 @@ export async function migrateAistatusConfigLocation(
   const srcPath = path.join(dataDir, 'config', 'config.yaml');
 
   // Check if source exists
-  let srcExists = false;
   try {
     await fs.access(srcPath);
-    srcExists = true;
   } catch {
     // Source does not exist — nothing to migrate
     return;
   }
 
   // Check if target already exists
-  let dstExists = false;
   let dstValid = false;
   try {
     await fs.access(dstPath);
-    dstExists = true;
     // Validate target is readable YAML (not corrupted)
     const raw = await fs.readFile(dstPath, 'utf8');
     // Simple YAML validation: must be parseable as key: value pairs
@@ -1070,7 +1066,7 @@ export async function migrateAistatusConfigLocation(
   }
 
   // If target exists and is valid, source is redundant — just remove it
-  if (dstExists && dstValid) {
+  if (dstValid) {
     try {
       await fs.unlink(srcPath);
       log.info(`Migrated aistatus config: removed redundant ${srcPath} (target ${dstPath} already exists)`);
