@@ -79,7 +79,7 @@ function withTempSchedules(testFn) {
       ],
     }, null, 2));
 
-    const scheduler = new Scheduler(async () => {}, null, {}, { schedulesFile, watchFile: false });
+    const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
     try {
       await testFn({ tempDir, schedulesFile, scheduler });
     } finally {
@@ -379,7 +379,7 @@ test('scheduler _hotReload picks up external removal from schedules.json', async
       { id: 'remove-me', type: 'interval', intervalMs: 60_000, message: 'removeme', projectId: 'project-one', profile: 'plan', createdAt: 1, nextRun: Date.now() + 60_000 },
     ],
   }, null, 2));
-  const scheduler = new Scheduler(async () => {}, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
   try {
     await scheduler.start();
     assert.equal(scheduler.timers.size, 2);
@@ -413,7 +413,7 @@ test('scheduler _hotReload picks up external additions from schedules.json', asy
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-hot-reload-'));
   const schedulesFile = path.join(tempDir, 'schedules.json');
   fs.writeFileSync(schedulesFile, JSON.stringify({ tasks: [] }, null, 2));
-  const scheduler = new Scheduler(async () => {}, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(async () => {}, {}, { schedulesFile, watchFile: false });
   try {
     await scheduler.start();
     assert.equal(scheduler.timers.size, 0);

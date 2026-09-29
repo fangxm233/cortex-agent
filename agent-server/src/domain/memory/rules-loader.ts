@@ -6,21 +6,6 @@ const RULES_DIR = path.join(DATA_DIR, 'rules');
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
 const PATH_LINE_RE = /^\s*-\s+["']?(.+?)["']?\s*$/;
 
-export interface RuleEntry {
-  /** Absolute path to the rule file. */
-  path: string;
-  /** File name without extension (e.g. "experiment-format"). */
-  name: string;
-  /** Full file content including frontmatter. */
-  content: string;
-  /** Body text after frontmatter. */
-  body: string;
-  /** Glob patterns from frontmatter `paths:` field. Empty array = global rule. */
-  paths: string[];
-  /** File mtime in ms epoch. */
-  mtimeMs: number;
-}
-
 function parseFrontmatter(content: string): { paths: string[]; body: string } {
   const m = content.match(FRONTMATTER_RE);
   if (!m) return { paths: [], body: content };
@@ -35,18 +20,17 @@ function parseFrontmatter(content: string): { paths: string[]; body: string } {
 }
 
 /**
- * Read all markdown files from ~/.cortex/rules/ and return them
- * partitioned into global (no `paths` frontmatter) and scoped (has `paths`).
+ * Read all markdown files from ~/.cortex/rules/ and return the bodies of the global rules
+ * (no `paths` frontmatter). Path-scoped rules are skipped; the rules-loader hook applies them.
  */
-export function loadCortexRules(): { global: RuleEntry[]; scoped: RuleEntry[] } {
-  const global: RuleEntry[] = [];
-  const scoped: RuleEntry[] = [];
+export function loadCortexRules(): string[] {
+  const bodies: string[] = [];
 
   let files: string[];
   try {
     files = fs.readdirSync(RULES_DIR);
   } catch {
-    return { global, scoped };
+    return bodies;
   }
 
   for (const f of files) {
@@ -57,53 +41,11 @@ export function loadCortexRules(): { global: RuleEntry[]; scoped: RuleEntry[] } 
       if (!stat || !stat.isFile()) continue;
       const content = fs.readFileSync(fp, 'utf8');
       const { paths: frontPaths, body } = parseFrontmatter(content);
-      const entry: RuleEntry = {
-        path: fp,
-        name: f.replace(/\.md$/, ''),
-        content,
-        body,
-        paths: frontPaths,
-        mtimeMs: stat.mtimeMs,
-      };
-      if (frontPaths.length > 0) {
-        scoped.push(entry);
-      } else {
-        global.push(entry);
-      }
+      if (frontPaths.length === 0) bodies.push(body);
     } catch {
       // skip unreadable files
     }
   }
 
-  return { global, scoped };
-}
-
-/**
- * Convert a glob pattern to a regex. Supports ** (multi-segment) and * (single segment).
- * Simple implementation — no external dependency.
- */
-function globToRegex(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '\x00GLOBSTAR\x00')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\x00GLOBSTAR\x00/g, '.*');
-  return new RegExp(escaped);
-}
-
-/**
- * Given a file path and a list of scoped rules, return the rules whose
- * `paths` patterns match the file path.
- */
-export function resolveScopedRules(filePath: string, scoped: RuleEntry[]): RuleEntry[] {
-  const matched: RuleEntry[] = [];
-  for (const rule of scoped) {
-    for (const pattern of rule.paths) {
-      if (globToRegex(pattern).test(filePath)) {
-        matched.push(rule);
-        break;
-      }
-    }
-  }
-  return matched;
+  return bodies;
 }

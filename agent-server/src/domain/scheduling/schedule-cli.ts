@@ -108,7 +108,7 @@ function getScheduleHelp(): string {
 
 function buildScheduler(options: CliOptions): Scheduler {
   if (options.scheduler) return options.scheduler;
-  return new Scheduler(async () => {}, null, {}, { watchFile: false, schedulesFile: options.schedulesFile });
+  return new Scheduler(async () => {}, {}, { watchFile: false, schedulesFile: options.schedulesFile });
 }
 
 async function runScheduleCli(args: string[], options: CliOptions = {}): Promise<CliResult> {

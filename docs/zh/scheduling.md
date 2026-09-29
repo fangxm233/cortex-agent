@@ -136,10 +136,6 @@
 
 每个任务的调度相关字段被哈希：`type`、类型特定键（intervalMs/time/dayOfWeek）、message、channel、profile、dispatchType、preCheck。如果文件中任务的哈希与内存哈希不同，定时器被重新武装。这意味着对任何调度字段的编辑都会触发自动重新安排。
 
-## 运行前守卫 {#before-run-guard}
-
-除了 `preCheck`（按任务），调度器支持由 `app.ts` 设置的全局 `beforeRunGuard` 回调。此守卫用于系统级关注点如速率限制节流。当守卫返回 `true` 时，触发被完全阻止。`_onGuardBlocked` 异步回调处理记录（如持久化节流状态）。
-
 ## 进行中保护 {#in-flight-protection}
 
 每个任务有一个 `_inFlight` 标志。如果任务的定时器触发时前一次调用仍在运行（因为任务 ID 在 `_inFlight` 中被检测到），新的调用被跳过。这防止了同一调度的重叠执行。

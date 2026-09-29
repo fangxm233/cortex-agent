@@ -82,7 +82,7 @@ test('preCheck exit 0 allows task to run', withPreCheckSchedules(async ({ schedu
     }],
   }, null, 2));
 
-  const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(runner, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
   await waitFor(() => runnerCalls.length >= 1);
@@ -111,7 +111,7 @@ test('preCheck exit 1 skips task and sets lastSkipped', withPreCheckSchedules(as
     }],
   }, null, 2));
 
-  const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(runner, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
   // The skip path's observable outcome is the lastSkipped write; poll for it.
@@ -143,7 +143,7 @@ test('task without preCheck runs normally', withPreCheckSchedules(async ({ sched
     }],
   }, null, 2));
 
-  const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(runner, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
   await waitFor(() => runnerCalls.length >= 1);
@@ -173,7 +173,7 @@ test('preCheck receives PRECHECK_LAST_RUN env var', withPreCheckSchedules(async 
     }],
   }, null, 2));
 
-  const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
+  const scheduler = new Scheduler(runner, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
   // preCheck (writes envFile) runs before the runner, so runner-called implies

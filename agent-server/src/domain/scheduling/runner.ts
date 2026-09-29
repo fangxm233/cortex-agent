@@ -16,7 +16,6 @@ export function setBus(bus: EventBus): void { ctx.bus = bus; }
 export function createScheduler(): Scheduler {
   const sched = new Scheduler(
     async (params) => { dispatch('scheduled-task', params); },
-    null,
     {
       'auth-expiry-scan': async (params) => { dispatch('auth-expiry-scan', params); },
       'sync-public': async (params) => { dispatch('sync-public', params); },

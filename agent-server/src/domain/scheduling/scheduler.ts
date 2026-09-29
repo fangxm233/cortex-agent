@@ -176,31 +176,21 @@ interface RunnerParams {
   fallback?: ScheduleTask['fallback'];
 }
 
-interface TaskDispatchParams {
-  channel: string;
-  scheduleTaskId: string;
-  profileName: string;
-}
-
 interface ProgrammaticHandlerParams {
   channel: string;
   scheduleTaskId: string;
 }
 
 type RunnerFn = (params: RunnerParams) => Promise<void>;
-type TaskDispatchRunnerFn = (params: TaskDispatchParams) => Promise<void>;
 type ProgrammaticHandler = (params: ProgrammaticHandlerParams) => Promise<void>;
 
 interface SchedulerOptions {
   schedulesFile?: string;
   watchFile?: boolean;
-  /** Override the default scheduleRepo (for tests with custom schedulesFile). */
-  repo?: ScheduleRepo;
 }
 
 class Scheduler {
   runner: RunnerFn;
-  taskDispatchRunner: TaskDispatchRunnerFn | null;
   programmaticHandlers: Record<string, ProgrammaticHandler>;
   schedulesFile: string;
   watchFile: boolean;
@@ -211,9 +201,6 @@ class Scheduler {
   _watcher: FSWatcher | null;
   _reloadTimer: ReturnType<typeof setTimeout> | null;
   _selfWriting: boolean;
-  _beforeRunGuard: ((task: ScheduleTask) => boolean) | null;
-  /** Async callback invoked after _beforeRunGuard blocks a task. Used for async bookkeeping (e.g. persisting pause). */
-  _onGuardBlocked: ((task: ScheduleTask) => Promise<void>) | null;
   /** Admin notification callback for hot-reload → Slack messages. Set by app.ts after adapter creation. */
   _adminNotifier: ((text: string) => void) | null;
 
@@ -229,26 +216,22 @@ class Scheduler {
 
   constructor(
     runner: RunnerFn,
-    taskDispatchRunner: TaskDispatchRunnerFn | null,
     programmaticHandlers: Record<string, ProgrammaticHandler> = {},
     options: SchedulerOptions = {},
   ) {
     this.runner = runner;
-    this.taskDispatchRunner = taskDispatchRunner || null;
     this.programmaticHandlers = programmaticHandlers;
     this.schedulesFile = options.schedulesFile || SCHEDULES_FILE;
     this.watchFile = options.watchFile !== false;
-    this._repo = options.repo || (this.schedulesFile !== SCHEDULES_FILE
+    this._repo = this.schedulesFile !== SCHEDULES_FILE
       ? new ScheduleRepo(this.schedulesFile)
-      : scheduleRepo);
+      : scheduleRepo;
     this.timers = new Map();
     this._inFlight = new Set();
     this._taskConfigs = new Map();
     this._watcher = null;
     this._reloadTimer = null;
     this._selfWriting = false;
-    this._beforeRunGuard = null;
-    this._onGuardBlocked = null;
     this._adminNotifier = null;
   }
 
@@ -425,14 +408,6 @@ class Scheduler {
     return updated;
   }
 
-  setBeforeRunGuard(fn: ((task: ScheduleTask) => boolean) | null): void {
-    this._beforeRunGuard = fn;
-  }
-
-  setOnGuardBlocked(fn: ((task: ScheduleTask) => Promise<void>) | null): void {
-    this._onGuardBlocked = fn;
-  }
-
   async setInterval(id: string, intervalMs: number): Promise<ScheduleTask | null> {
     const task = await this.get(id);
     if (!task) return null;
@@ -513,14 +488,6 @@ class Scheduler {
           }
         }
 
-        // Before-run guard
-        if (this._beforeRunGuard && this._beforeRunGuard(task)) {
-          if (this._onGuardBlocked) {
-            this._onGuardBlocked(task).catch(e => log.error(`Guard-blocked handler error for ${task.id}:`, e));
-          }
-          return;
-        }
-
         if (this._inFlight.has(task.id)) {
           log.info(`Task ${task.id} still in-flight, skipping this cycle`);
         } else {
@@ -555,13 +522,7 @@ class Scheduler {
       project: task.projectId,
     }).catch(() => {});
     try {
-      if (task.dispatchType === 'task-dispatch' && this.taskDispatchRunner) {
-        await this.taskDispatchRunner({
-          channel: resolvedChannel,
-          scheduleTaskId: task.id,
-          profileName,
-        });
-      } else if (task.dispatchType) {
+      if (task.dispatchType) {
         const handler = this.programmaticHandlers[task.dispatchType];
         if (!handler) {
           log.warn(`Skipping task ${task.id}: unregistered dispatch type "${task.dispatchType}"`);

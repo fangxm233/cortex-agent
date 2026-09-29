@@ -31,7 +31,7 @@ export function composeSystemPrompt(
 
 /** The ambient global rule bodies, or none when the run opts out (a frozen subagent role). */
 export function globalRuleBodies(load: boolean): string[] {
-  return load ? loadCortexRules().global.map((rule) => rule.body) : [];
+  return load ? loadCortexRules() : [];
 }
 
 // --- User prompt ---

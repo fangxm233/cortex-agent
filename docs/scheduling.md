@@ -137,10 +137,6 @@ The scheduler watches `schedules.json` for external changes via `fs.watch`. When
 
 Each task's scheduling-relevant fields are hashed: `type`, type-specific key (intervalMs/time/dayOfWeek), message, channel, profile, dispatchType, preCheck. If the hash of a task in the file differs from the in-memory hash, the timer is re-armed. This means edits to any scheduling field trigger an automatic re-schedule.
 
-## Before-Run Guard
-
-In addition to `preCheck` (which is per-task), the scheduler supports a global `beforeRunGuard` callback set by `app.ts`. This guard is used for system-wide concerns like rate-limit throttling. When the guard returns `true`, the fire is blocked entirely. The `_onGuardBlocked` async callback handles bookkeeping (e.g., persisting the throttle state).
-
 ## In-Flight Protection
 
 Each task has an `_inFlight` flag. If a task's timer fires while a previous invocation is still running (detected because the task ID is in `_inFlight`), the new invocation is skipped. This prevents overlapping executions of the same schedule.

@@ -93,7 +93,7 @@ function makeWriteOnlyScheduler(): Scheduler {
   // Mirrors schedule-cli's pattern: a throwaway Scheduler used purely for its add() timing
   // math + atomic write through the shared scheduleRepo singleton. The daemon's live
   // Scheduler picks the new task up via fs.watch within ~300ms.
-  return new Scheduler(async () => {}, null, {}, { watchFile: false });
+  return new Scheduler(async () => {}, {}, { watchFile: false });
 }
 
 // --- Tool implementation: cortex_schedule_add ---
