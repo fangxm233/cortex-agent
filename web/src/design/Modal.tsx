@@ -51,11 +51,11 @@ const BARE_LAYER: Record<ModalLayer, { overlay: number; content: number }> = {
   nested: { overlay: 80, content: 90 },
 };
 
-export function modalOverlayClass(layer: ModalLayer = 'default'): string {
+function modalOverlayClass(layer: ModalLayer = 'default'): string {
   return OVERLAY_BASE_CLASS + LAYER_CLASS[layer].overlay;
 }
 
-export function modalContentClass(size: ModalSize = 'default', layer: ModalLayer = 'default'): string {
+function modalContentClass(size: ModalSize = 'default', layer: ModalLayer = 'default'): string {
   return `${CONTENT_BASE_CLASS}${CONTENT_SIZE_CLASS[size]} ${LAYER_CLASS[layer].content}`;
 }
 

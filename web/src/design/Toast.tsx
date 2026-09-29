@@ -13,7 +13,7 @@ import type { Tone } from './tone';
 // overlapping in the same corner, which is what they used to do.
 
 /** Default lifetime of an action toast. Feed items pass their own (info 6s, warning/error resident). */
-export const DEFAULT_TOAST_MS = 5000;
+const DEFAULT_TOAST_MS = 5000;
 
 export interface ToastInput {
   title: string;

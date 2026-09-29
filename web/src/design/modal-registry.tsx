@@ -53,7 +53,7 @@ export interface ModalRegistry {
 // runner mounts triggers without hosts on purpose, so stay quiet there.
 const WARN_ORPHAN_OPEN = import.meta.env.DEV && import.meta.env.MODE !== 'test';
 
-export function createModalRegistry(): ModalRegistry {
+function createModalRegistry(): ModalRegistry {
   const slots = new Map<string, Slot>();
   const listeners = new Set<Listener>();
   const hosts = new Map<string, number>();

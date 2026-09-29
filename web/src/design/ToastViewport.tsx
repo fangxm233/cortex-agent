@@ -105,7 +105,7 @@ function ToastProgress({ duration, paused }: { duration: number; paused: boolean
     style={{ animationDuration: `${duration}ms`, animationPlayState: paused ? 'paused' : 'running' }} />;
 }
 
-export function ToastBubble({ item, onDismiss }: BubbleProps) {
+function ToastBubble({ item, onDismiss }: BubbleProps) {
   const { paused, onMouseEnter, onMouseLeave } = useAutoDismiss(item.id, item.duration, onDismiss);
   const activate = item.onActivate;
   return (
