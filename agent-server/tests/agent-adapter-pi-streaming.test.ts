@@ -4,7 +4,6 @@ import { engineSpecFixture } from './engine-spec-fixture.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
-import type { PIEngineSession } from '../src/agent-adapter/pi/engine.js';
 import type { EngineRun } from '../src/agent-adapter/types.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
@@ -60,7 +59,7 @@ function rawTap(): RawTap {
 }
 
 async function spawnStreaming(sessionKey: string): Promise<{
-  engine: PIEngineSession; run: EngineRun; tap: RawTap; runtime: FakeRuntime;
+  run: EngineRun; tap: RawTap; runtime: FakeRuntime;
 }> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
@@ -70,7 +69,7 @@ async function spawnStreaming(sessionKey: string): Promise<{
   // the old pooled `proc.events` exposed, and no prompt has to be answered to observe them.
   const run = engine.run({ text: 'opening' }, { awaitBackground: 'none', onNormalizedEvent: tap.push });
   const runtime = await fake.runtime();
-  return { engine, run, tap, runtime };
+  return { run, tap, runtime };
 }
 
 /**

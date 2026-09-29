@@ -12,7 +12,7 @@ import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 import {
-  makeFakeRuntimeFactory, type FakeRuntime, type FakeRuntimeFactory, type FakeSessionCall,
+  makeFakeRuntimeFactory, type FakeRuntime, type FakeSessionCall,
 } from './pi-fake-runtime.js';
 
 type ErrorEvent = Extract<RunEvent, { type: 'error' }>;
@@ -21,8 +21,6 @@ type InjectionEvent = Extract<RunEvent, { type: 'injection_delivered' | 'injecti
 type DonePhase = Extract<RunEvent, { type: 'phase' }>;
 
 interface Fixture {
-  adapter: PIAdapter;
-  fake: FakeRuntimeFactory;
   engine: PIEngineSession;
   runtime: FakeRuntime;
 }
@@ -37,7 +35,7 @@ async function openSession(sessionKey: string): Promise<Fixture> {
   const adapter = new PIAdapter(fake.factory);
   const engine = piPool(adapter).open(engineSpecFixture(phaseSpec(sessionKey)));
   const runtime = await fake.runtime(0);
-  return { adapter, fake, engine, runtime };
+  return { engine, runtime };
 }
 
 /**

@@ -11,14 +11,12 @@ import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { piPool } from './pi-pool-fixture.js';
 import type { PIEngineSession } from '../../src/agent-adapter/pi/engine.js';
 import type { EngineRun } from '../../src/agent-adapter/types.js';
-import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 import type { RunEvent } from '../../src/agent-adapter/run-events.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntime, type FakeRuntimeFactoryOptions, type FakeSessionCall,
 } from './pi-fake-runtime.js';
 
 interface Fixture {
-  adapter: PIAdapter;
   engine: PIEngineSession;
   fake: ReturnType<typeof makeFakeRuntimeFactory>;
 }
@@ -40,35 +38,29 @@ function openEngine(options: FakeRuntimeFactoryOptions = {}): Fixture {
   const engine = piPool(adapter).open(engineSpecFixture({
     sessionId: null, sessionKey: `pi-inject-${counter++}`, resume: false,
   }));
-  return { adapter, engine, fake };
+  return { engine, fake };
 }
 
 interface OpenTurn {
   run: EngineRun;
   runtime: FakeRuntime;
   events: RunEvent[];
-  raw: NormalizedEvent[];
   done: Promise<void>;
 }
 
 /**
  * Open a run before the runtime resolves (so `session_started` lands on this run's stream) and wait
  * until its prompt reached PI: injections before that are refused by design. `events` collects the
- * translated RunEvents and `raw` the `onNormalizedEvent` protocol tap, both in the background;
- * `done` resolves when the run stream closes.
+ * translated RunEvents in the background; `done` resolves when the run stream closes.
  */
 async function openTurn(fixture: Fixture, text = 'opening'): Promise<OpenTurn> {
-  const raw: NormalizedEvent[] = [];
-  const run = fixture.engine.run(
-    { text },
-    { awaitBackground: 'none', onNormalizedEvent: (event) => raw.push(event) },
-  );
+  const run = fixture.engine.run({ text }, { awaitBackground: 'none' });
   void run.result.catch(() => undefined);
   const events: RunEvent[] = [];
   const done = (async () => { for await (const event of run.events) events.push(event); })();
   const runtime = await fixture.fake.runtime(0);
   await runtime.nextCall('prompt');
-  return { run, runtime, events, raw, done };
+  return { run, runtime, events, done };
 }
 
 /** Every steering call after the opening prompt: prompt+steer forms and dedicated steers alike. */
