@@ -1,10 +1,12 @@
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test, afterAll } from 'vitest';
+import { test, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { threadStore } from '../src/store/thread-repo.js';
 import { rawToTask } from '../src/core/task-parser.js';
 import { recoverOrphanedClaims } from '../src/domain/tasks/claim-recovery.js';
-import * as pendingTaskTracker from '../src/domain/tasks/pending-tracker.js';
+import { STORE_DIR } from '../src/core/paths.js';
 import type { Task } from '../src/core/task-parser.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
@@ -102,11 +104,18 @@ test('a failed thread does NOT protect its task claim (the crash orphan case)', 
 
 test('pending tracker retains dispatch generation for recovery and stop fencing', async () => {
   const dispatchId = `dispatch-cr-${seq++}`;
+  const file = path.join(STORE_DIR, 'pending-tasks.json');
+  fs.mkdirSync(STORE_DIR, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({
+    [dispatchId]: {
+      channel: '', machine: 'test', launchedAt: Date.now(), scheduleTaskId: null,
+      taskText: null, taskHash: 'ab09', project: '_cr_proj', trackingTs: null,
+      sessionName: null, tmuxName: null, pid: null, dispatchGeneration: 'generation-a',
+    },
+  }));
+  vi.resetModules();
+  const pendingTaskTracker = await import('../src/domain/tasks/pending-tracker.js');
   try {
-    await pendingTaskTracker.onTaskLaunched({
-      taskId: dispatchId, machine: 'test', channel: '', taskHash: 'ab09',
-      project: '_cr_proj', dispatchGeneration: 'generation-a',
-    });
     assert.equal(pendingTaskTracker.getTask(dispatchId)?.dispatchGeneration, 'generation-a');
     assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-a'), true);
     assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-b'), false);

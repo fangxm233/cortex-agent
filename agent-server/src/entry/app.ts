@@ -20,7 +20,6 @@ import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-l
 import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
-import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { initHookBridge, resolveRequest as resolveHookRequest, setOnStale } from '@orch/routing/hook-bridge.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
@@ -729,7 +728,6 @@ process.on('SIGTERM', async () => {
   }
   oq.startDrainLoop();
 
-  pendingTaskTracker.init(adapter);
   taskStore.load();
 
   // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
