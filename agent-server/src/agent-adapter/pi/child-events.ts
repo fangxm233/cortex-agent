@@ -1,5 +1,5 @@
 import type {
-  ChildAccumulator, ChildEventForwarder, SubagentEndStatus,
+  ChildAccumulator, SubagentEndStatus,
 } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
@@ -127,5 +127,3 @@ function toolResultText(result: unknown): string {
     .map((b) => String((b as Record<string, unknown>).text ?? ''))
     .join('');
 }
-
-export type { ChildEventForwarder };

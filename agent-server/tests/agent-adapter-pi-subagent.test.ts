@@ -5,10 +5,10 @@ import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import {
   createSubagentTool,
-  MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
   type SubagentUsageReport,
 } from '../src/agent-adapter/pi/subagent.js';
+import { MAX_SUBAGENT_TASKS } from '../src/core/agents/subagent/schema.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {

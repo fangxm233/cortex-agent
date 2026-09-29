@@ -18,14 +18,8 @@ import type {
   StartBackgroundSubagent, StopBackgroundSubagent,
 } from './background-subagent.js';
 import { subagentChannel, subagentEndNotice } from './child-events.js';
-import { runPiChild, selectPiModel } from './child-runner.js';
+import { runPiChild } from './child-runner.js';
 import type { SubagentNotice } from './event-parser.js';
-
-export { MAX_SUBAGENT_TASKS, MAX_SUBAGENT_CONCURRENCY } from '@core/agents/subagent/schema.js';
-export {
-  MAX_SUBAGENT_MODEL_CHOICES, MAX_SUBAGENT_MODEL_LIST_CHARS,
-} from '@core/agents/subagent/catalog.js';
-export type { SubagentModelOption } from '@core/agents/subagent/catalog.js';
 
 /** The field descriptions track the live catalog, so the schema is built per tool instead of being
  *  frozen at import time. */
@@ -130,10 +124,6 @@ export interface SubagentToolDeps {
   /** Stops a backgrounded run by id. Absent: `agent_stop` is not registered at all. */
   stopBackgroundSubagent?: StopBackgroundSubagent;
 }
-
-export type {
-  SubagentResult, SubagentUsage, SubagentDetails,
-} from '@core/agents/subagent/types.js';
 
 /**
  * Hand a nested PI child's spend to the host, once, as the child ends.
@@ -310,6 +300,3 @@ export function createSubagentStopTool(
     },
   };
 }
-
-export { selectPiModel };
-export { subagentChannel } from './child-events.js';
