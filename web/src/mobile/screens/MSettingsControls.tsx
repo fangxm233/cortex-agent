@@ -20,7 +20,7 @@ export function MSettingsHeader(props: { onBack: () => void; trailing?: ReactNod
   </header>;
 }
 
-export function MSettingsBody({ children }: { children: ReactNode; gap?: number }) {
+export function MSettingsBody({ children }: { children: ReactNode }) {
   return <div className="mobile-settings-body">{children}</div>;
 }
 

@@ -300,7 +300,7 @@ export function MDaemonView({
           </span>
         </div>
       </MDrillHeader>}>
-      <MScrollBody gap={10}>
+      <MScrollBody>
         {/* Process card — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
           {vm.processes.map((proc, i) => (

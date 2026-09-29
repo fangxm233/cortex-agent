@@ -184,7 +184,7 @@ export function MAppearanceView({
         </MDrillHeader>
       }
     >
-      <MScrollBody gap={10}>
+      <MScrollBody>
         <Card>
           <ChoiceRow
             divider title={copy.language} ariaLabel={copy.language} value={lang}

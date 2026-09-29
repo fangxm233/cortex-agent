@@ -150,7 +150,7 @@ export function MSettingsView(props: MSettingsViewProps) {
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{props.copy.title}</div>
       </MDrillHeader>
     }>
-      <MScrollBody gap={10}>
+      <MScrollBody>
         <MCard padding={0}><DaemonRow copy={props.copy} connectionStatus={props.connectionStatus}
           onOpenDaemon={props.onOpenDaemon} /></MCard>
         <ProfileCard {...props} />

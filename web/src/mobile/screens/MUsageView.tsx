@@ -451,7 +451,7 @@ export function MUsageView(props: MUsageViewProps) {
   );
   return (
     <MScreen label="1l-u 用量" header={header}>
-      <MScrollBody gap={10}>
+      <MScrollBody>
         {isLoading && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{copy.loading}</div> : null}
         <ErrorFeedback label={copy.loadError} error={queryError} />
         <ErrorFeedback label={copy.refreshError} error={refreshError} />

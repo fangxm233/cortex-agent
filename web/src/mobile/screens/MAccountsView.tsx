@@ -246,7 +246,7 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
   );
   return (
     <MScreen label={L.accountsTitle} header={header}>
-      <MScrollBody gap={14}>
+      <MScrollBody>
         {vm.claude ? (
           <ClaudeCard
             account={vm.claude} actionsDisabled={actionsDisabled}

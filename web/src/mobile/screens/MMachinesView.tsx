@@ -306,7 +306,7 @@ export function MMachinesView({
     <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} copy={copy} />}>
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
       </MDrillHeader>}>
-      <MScrollBody gap={10}>
+      <MScrollBody>
         {vm.cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
         )}

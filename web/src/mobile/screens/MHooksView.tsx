@@ -261,7 +261,7 @@ export function MHooksView({
       >
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>{copy.title}</div>
       </MDrillHeader>}>
-      <MScrollBody gap={14}>
+      <MScrollBody>
         {vm.groups.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>
         )}
