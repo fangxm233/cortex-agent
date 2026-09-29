@@ -19,11 +19,9 @@ export const commandsEn = {
   'cmd.compact.noSession': 'No active session to compact.',
 
   // --- mode / backend / model / profile / skills / agent ---
-  'cmd.mode.switched': 'Switched to *${mode}* mode',
   'cmd.mode.fromProfile': 'This channel runs in *${mode}* mode, from profile *${profile}*. Mode is part of the profile — change it with `!profile <name>` or in profiles.json.',
   'cmd.mode.apiLabel': 'API',
   'cmd.mode.planLabel': 'Plan',
-  'cmd.backend.switched': 'Backend: *${backend}*',
   'cmd.backend.claudeLabel': 'Claude Code',
   'cmd.backend.piLabel': 'PI',
   'cmd.model.current': 'Model for this channel: *${model}* (profile *${profile}*)',
@@ -57,8 +55,6 @@ export const commandsEn = {
   'cmd.skills.localGroup': '.claude/skills',
   'cmd.agent.defaultSet': 'Default agent set to *${name}* (${detail})',
   'cmd.agent.disabled': 'Default agent disabled.',
-  'cmd.agent.current': 'Default agent: *${name}* (${detail})',
-  'cmd.agent.none': 'No default agent set.\nAvailable: ${agents}',
   'cmd.agent.unknown': 'Unknown agent: `${name}`\nAvailable: ${available}',
   'cmd.agent.channelSet': 'Agent for this conversation set to *${name}* (${detail}). Takes effect on the next message.',
   'cmd.agent.crossBackendBlocked': 'Can\'t switch to *${name}* — it pins a profile on the `${target}` backend but this conversation is on `${current}`. Backends can\'t be swapped mid-conversation. Start a new session (`!new`) to switch backend.',
@@ -417,11 +413,9 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.compact.noSession': '当前没有可压缩的活动会话。',
 
   // --- mode / backend / model / profile / skills / agent ---
-  'cmd.mode.switched': '已切换到 *${mode}* 模式',
   'cmd.mode.fromProfile': '本频道运行在 *${mode}* 模式，来自配置 *${profile}*。模式是配置的一部分 —— 用 `!profile <name>` 切换，或直接改 profiles.json。',
   'cmd.mode.apiLabel': 'API',
   'cmd.mode.planLabel': 'Plan',
-  'cmd.backend.switched': '后端：*${backend}*',
   'cmd.backend.claudeLabel': 'Claude Code',
   'cmd.backend.piLabel': 'PI',
   'cmd.model.current': '本频道模型：*${model}*（配置 *${profile}*）',
@@ -455,8 +449,6 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.skills.localGroup': '.claude/skills',
   'cmd.agent.defaultSet': '默认 agent 已设为 *${name}*（${detail}）',
   'cmd.agent.disabled': '默认 agent 已禁用。',
-  'cmd.agent.current': '默认 agent：*${name}*（${detail}）',
-  'cmd.agent.none': '未设置默认 agent。\n可用：${agents}',
   'cmd.agent.unknown': '未知 agent：`${name}`\n可用：${available}',
   'cmd.agent.channelSet': '本对话的 agent 已设为 *${name}*（${detail}），下一条消息生效。',
   'cmd.agent.crossBackendBlocked': '无法切换到 *${name}* —— 它钉死的配置使用 `${target}` backend，而当前对话在 `${current}` 上。对话进行中不能切换 backend。请开启新会话（`!new`）后再切换。',
