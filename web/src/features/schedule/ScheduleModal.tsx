@@ -342,10 +342,7 @@ export function ScheduleModal({ form, mode = 'create', editableFields, onChange,
                     aria-label={L.scDay}
                     value={form.dayOfWeek}
                     disabled={!editableFields.dayOfWeek}
-                    options={DAY_OPTIONS.map((day) => ({
-                      value: day.value,
-                      label: DAY_LABELS[day.value] ?? day.label,
-                    }))}
+                    options={DAY_OPTIONS.map((day) => ({ value: day, label: DAY_LABELS[day] }))}
                     onValueChange={(dayOfWeek) => onChange({ dayOfWeek })}
                     style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
                   />

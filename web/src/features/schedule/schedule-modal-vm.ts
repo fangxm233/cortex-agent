@@ -14,15 +14,7 @@ export const INTERVAL_UNITS: IntervalUnit[] = ['min', 'hr'];
 export const FALLBACK_OPTIONS: FallbackKind[] = ['fresh', 'skip', 'wait'];
 export const TARGET_OPTIONS: TargetChoice[] = ['current-channel', 'fresh', 'project'];
 
-export const DAY_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: 'Sun' },
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-];
+export const DAY_OPTIONS: number[] = [0, 1, 2, 3, 4, 5, 6];
 
 // PROFILE options are the real agent profiles, sourced from `config.get` (ConfigSnapshot.profiles —
 // read from ~/.cortex/config/profiles.json, redacted to names). `profile` is optional in

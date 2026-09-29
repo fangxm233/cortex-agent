@@ -167,9 +167,7 @@ function DayField({ copy, form, editableFields, onChange }: FieldsProps) {
       <span style={label}>{copy.scDay}</span>
       <select style={field} value={form.dayOfWeek} disabled={!editableFields.dayOfWeek}
         onChange={(event) => onChange({ dayOfWeek: Number(event.target.value) })}>
-        {DAY_OPTIONS.map((day) => <option key={day.value} value={day.value}>
-          {labels[day.value]}
-        </option>)}
+        {DAY_OPTIONS.map((day) => <option key={day} value={day}>{labels[day]}</option>)}
       </select>
     </label>
   );
