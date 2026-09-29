@@ -29,7 +29,6 @@ export interface MIntCopy {
   reject: string;
   viewFullPlan: string;
   viewOriginalPlan: string;
-  rewriteNote: string;
   /** `{n}` → line count; shown in place of the plan path when there is none. */
   lineCount: string;
 }
@@ -54,7 +53,6 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     reject: '驳回并反馈',
     viewFullPlan: '查看完整计划 ›',
     viewOriginalPlan: '查看原计划 ›',
-    rewriteNote: '',
     lineCount: '{n} 行',
   },
   en: {
@@ -76,7 +74,6 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     reject: 'Reject with note',
     viewFullPlan: 'View full plan ›',
     viewOriginalPlan: 'View original plan ›',
-    rewriteNote: '',
     lineCount: '{n} lines',
   },
 };
@@ -395,7 +392,6 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 11px ${MONO}`, color: MC.muted }}>
           {model.filePath && <span style={{ color: MC.run, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.filePath}</span>}
-          {rejected && <span>{copy.rewriteNote}</span>}
           <span role="button" onClick={onOpenRead} style={{ marginLeft: 'auto', color: MC.run, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
             {rejected ? copy.viewOriginalPlan : copy.viewFullPlan}
           </span>
