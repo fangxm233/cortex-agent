@@ -18,19 +18,8 @@ export const TUI_JSONL_BASE = path.join(os.homedir(), '.claude', 'projects');
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
 
 export const MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config.json');
-export const CORE_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-core.json');
-export const TASKS_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
-export const MANAGER_QA_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 export const EMPTY_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-empty.json');
-/** Explicit interaction-only config; normal sessions select it through bundle env. */
-export const INTERACTION_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-interaction.json');
-/** Explicit Slack-only config; normal sessions select it through bundle env. */
-export const SLACK_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-slack.json');
-/** Explicit Feishu-only config; normal sessions select it through bundle env. */
-export const FEISHU_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
-/** Explicit Web-only config; normal sessions select it through bundle env. */
-export const WEB_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-web.json');
 // User-customizable Claude settings live under DATA_DIR (init copies the seed from
 // defaults/.claude/settings.json on first run). The installed package's defaults/.claude/
 // is read-only and used only as the init source.
@@ -88,7 +77,6 @@ export function subagentBridgeTools(): string[] {
 }
 
 export { HOOKS_DIR };
-export const HOOK_TIMEOUT_S = 60 * 60;
 
 export class CancelledError extends Error {
   cancelled: boolean;
