@@ -1,8 +1,7 @@
-import { saveEntity, removeEntity } from '@domain/threads/template-writer.js';
+import { saveEntity, removeEntity, readRawRegistry } from '@domain/threads/template-writer.js';
 import {
   validateEntity,
   withCandidate,
-  rawRegistryFromDir,
   type RawRegistry,
 } from '@domain/threads/template-validate.js';
 import {
@@ -10,8 +9,6 @@ import {
   loaderRefResolver,
   loadConfig,
 } from '@domain/threads/template-loader.js';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import * as path from 'node:path';
 import type {
   UiServiceDeps,
   Result,
@@ -22,13 +19,6 @@ import type {
   ThreadTemplatesRemoveArgs,
   ThreadTemplatesRemoveReturn,
 } from '../types.js';
-
-const IO = {
-  readdirSync: (p: string) => readdirSync(p),
-  readFileSync: (p: string, enc: 'utf8') => readFileSync(p, enc),
-  existsSync,
-  join: path.join,
-};
 
 /** Writer errors carry `code`; anything else is a genuine internal failure. `conflict` reaches the
  *  UI intact so the editor can offer a reload instead of a generic failure toast. */
@@ -43,7 +33,7 @@ function toErr(error: unknown): Result<never> {
 }
 
 function currentRegistry(): RawRegistry {
-  return rawRegistryFromDir(CONFIG_TEMPLATES_DIR, IO);
+  return readRawRegistry(CONFIG_TEMPLATES_DIR);
 }
 
 export async function handleThreadTemplatesValidate(

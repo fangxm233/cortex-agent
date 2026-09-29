@@ -3,6 +3,7 @@ import path from 'node:path';
 import { CONFIG_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { validateRegistry, type RawRegistry } from '@domain/threads/template-validate.js';
 import { loaderRefResolver } from '@domain/threads/template-loader.js';
+import { entityPath } from '@domain/threads/template-writer.js';
 import type {
   UiServiceDeps,
   ThreadTemplatesGetParams,
@@ -19,12 +20,6 @@ async function readJson(file: string): Promise<Record<string, unknown> | null> {
     return null;
   }
 }
-
-const SUBDIR: Record<ThreadTemplateEntry['kind'], string> = {
-  template: 'templates',
-  agent: 'agents',
-  shell: 'shells',
-};
 
 interface RawEntry {
   kind: ThreadTemplateEntry['kind'];
@@ -59,13 +54,12 @@ async function readEntriesForKind(dir: string, kind: ThreadTemplateEntry['kind']
  * Relationship to the shipped default of the same name. `mergeThreadTemplates` is copy-if-missing
  * and never overwrites, so a user file that differs has forked from upstream permanently.
  */
-async function classifyOrigin(
-  defaultsRoot: string,
+export async function classifyOrigin(
   kind: ThreadTemplateEntry['kind'],
   name: string,
   content: string | null,
 ): Promise<ThreadTemplateOrigin> {
-  const shipped = path.join(defaultsRoot, 'config', 'thread-templates', SUBDIR[kind], `${name}.json`);
+  const shipped = entityPath(path.join(DEFAULTS_DIR, 'config', 'thread-templates'), kind, name);
   const stock = await fs.readFile(shipped, 'utf8').catch(() => null);
   if (stock === null) return 'custom';
   return stock === content ? 'stock' : 'modified';
@@ -73,15 +67,12 @@ async function classifyOrigin(
 
 /**
  * Read all thread-template entries from config/thread-templates/{templates,agents,shells}/*.json.
- * Pure over configDir + defaultsRoot (hermetically testable). Returns templates first, then agents,
+ * Pure over configDir (hermetically testable). Returns templates first, then agents,
  * then shells, each group sorted alphabetically by basename. body is null when the file cannot be
  * parsed. Each entry carries its validation verdict so the list can flag a broken entity without a
  * round trip per row.
  */
-export async function readThreadTemplates(
-  configDir: string,
-  defaultsRoot: string = DEFAULTS_DIR,
-): Promise<ThreadTemplateEntry[]> {
+export async function readThreadTemplates(configDir: string): Promise<ThreadTemplateEntry[]> {
   const tt = path.join(configDir, 'thread-templates');
   const [templates, agents, shells] = await Promise.all([
     readEntriesForKind(path.join(tt, 'templates'), 'template'),
@@ -105,7 +96,7 @@ export async function readThreadTemplates(
         ...entry,
         valid: errorCount === 0,
         errorCount,
-        origin: await classifyOrigin(defaultsRoot, entry.kind, entry.name, content),
+        origin: await classifyOrigin(entry.kind, entry.name, content),
       };
     }),
   );

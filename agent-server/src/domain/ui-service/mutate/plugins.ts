@@ -1,14 +1,11 @@
 import { t } from '@core/i18n.js';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 import {
   CONFIG_TEMPLATES_DIR,
   loadConfig,
   loaderRefResolver,
 } from '@domain/threads/template-loader.js';
 import { isShellBinding } from '@domain/threads/shell-templates.js';
-import { readEntity, saveEntity } from '@domain/threads/template-writer.js';
-import { rawRegistryFromDir } from '@domain/threads/template-validate.js';
+import { readEntity, readRawRegistry, saveEntity } from '@domain/threads/template-writer.js';
 import {
   addedInvalidPluginIds,
   addedMcpPluginIds,
@@ -24,13 +21,6 @@ import type {
   Result,
   UiServiceDeps,
 } from '../types.js';
-
-const IO = {
-  readdirSync: (value: string) => readdirSync(value),
-  readFileSync: (value: string, encoding: 'utf8') => readFileSync(value, encoding),
-  existsSync,
-  join: path.join,
-};
 
 type KnownCode = 'invalid-args' | 'not-found' | 'conflict';
 type SlotTarget = Extract<PluginsAssignArgs['target'], { kind: 'template-slot' }>;
@@ -151,7 +141,7 @@ function inheritedState(
   ref: string,
   snapshot: ReturnType<typeof readPluginCatalogSnapshot>,
 ): PluginState {
-  const registry = rawRegistryFromDir(CONFIG_TEMPLATES_DIR, IO);
+  const registry = readRawRegistry(CONFIG_TEMPLATES_DIR);
   return normalizePluginDirs(pluginDirsOf(registry.agents[ref]), snapshot);
 }
 

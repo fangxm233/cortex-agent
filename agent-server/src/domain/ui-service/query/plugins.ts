@@ -1,9 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 import { CONFIG_TEMPLATES_DIR } from '@domain/threads/template-loader.js';
 import { isShellBinding } from '@domain/threads/shell-templates.js';
-import { listEntityNames, readEntity } from '@domain/threads/template-writer.js';
-import { rawRegistryFromDir, type RawRegistry } from '@domain/threads/template-validate.js';
+import { listEntityNames, readEntity, readRawRegistry } from '@domain/threads/template-writer.js';
+import type { RawRegistry } from '@domain/threads/template-validate.js';
 import {
   normalizePluginDirs,
   readPluginCatalogSnapshot,
@@ -17,13 +15,6 @@ import type {
   PluginsListReturn,
   UiServiceDeps,
 } from '../types.js';
-
-const IO = {
-  readdirSync: (value: string) => readdirSync(value),
-  readFileSync: (value: string, encoding: 'utf8') => readFileSync(value, encoding),
-  existsSync,
-  join: path.join,
-};
 
 function refName(ref: unknown): string | null {
   if (typeof ref === 'string' && ref.length > 0) return ref;
@@ -169,7 +160,7 @@ export async function handlePluginsList(
   _params: PluginsListParams,
 ): Promise<PluginsListReturn> {
   const snapshot = readPluginCatalogSnapshot();
-  const registry = rawRegistryFromDir(CONFIG_TEMPLATES_DIR, IO);
+  const registry = readRawRegistry(CONFIG_TEMPLATES_DIR);
   return {
     plugins: snapshot.entries.map((entry) => sanitizePluginEntry(entry)),
     targets: [...readAgentTargets(snapshot), ...readTemplateTargets(registry, snapshot)],

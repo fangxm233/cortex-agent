@@ -10,6 +10,7 @@ import {
   dependentTemplates,
   type EntityKind,
   type Issue,
+  type RawRegistry,
   type RefResolver,
 } from './template-validate.js';
 
@@ -59,6 +60,11 @@ const io = {
   existsSync,
   join: path.join,
 };
+
+/** Read the raw registry under `dir` through the real filesystem. */
+export function readRawRegistry(dir: string): RawRegistry {
+  return rawRegistryFromDir(dir, io);
+}
 
 export interface EntityRead {
   kind: EntityKind;
@@ -132,7 +138,7 @@ export function saveEntity(dir: string, input: SaveInput, refs?: RefResolver): S
     throw writeError('conflict', t('ux.tpl.changedOnDisk', { kind, name }));
   }
 
-  const registry = withCandidate(rawRegistryFromDir(dir, io), kind, name, body);
+  const registry = withCandidate(readRawRegistry(dir), kind, name, body);
   const { errors, warnings } = validateEntity(kind, name, body, registry, refs);
   if (errors.length > 0) {
     throw writeError(
@@ -169,7 +175,7 @@ export function removeEntity(dir: string, kind: EntityKind, name: string): Remov
     throw writeError('not-found', t('ux.tpl.unknownEntity', { kind, name }));
   }
 
-  const dependents = dependentTemplates(kind, name, rawRegistryFromDir(dir, io));
+  const dependents = dependentTemplates(kind, name, readRawRegistry(dir));
   if (dependents.length > 0) {
     throw writeError(
       'invalid-args',
