@@ -3,9 +3,7 @@ import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, IncomingAttachment, RichBlock, ActionElement, OutputStream } from '@platform/index.js';
-import type { ExecutionRecord } from '@domain/executions/registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { projectStore } from '@domain/projects/index.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
 import { durableUpdate } from './durable-helpers.js';
 // Pure formatters live in core/ so the domain layer can consume them without an orch dep.
@@ -16,10 +14,6 @@ const log = createLogger('status-helpers');
 /** Feature gate: the "New (quiet)" status button (=!newq, skips the pre-close hook). */
 export function isStatusNewqButtonEnabled(): boolean {
   return getSettings().statusNewqButton;
-}
-
-export function resolveExecutionProject({ execution, fallbackMessage }: { execution: ExecutionRecord | null; fallbackMessage: string }): string {
-  return execution?.project || (projectStore.resolveFromMessage(fallbackMessage || '')?.id ?? 'general');
 }
 
 export function buildExecutionStatusReport(): string {
