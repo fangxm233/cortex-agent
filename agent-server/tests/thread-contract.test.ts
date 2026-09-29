@@ -1,7 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  buildContractPrompt,
   buildMissionChain,
   checkContractBudget,
 } from '../src/domain/threads/contract.js';
@@ -36,8 +35,6 @@ function fakeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
     ...over,
   };
 }
-
-// --- buildContractPrompt ---
 
 // --- buildMissionChain ---
 

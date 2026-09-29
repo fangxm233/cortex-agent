@@ -5,7 +5,6 @@ import * as path from 'node:path';
 import {
   loadConfig,
   migrateThreadTemplatesToDir,
-  mergeThreadTemplates,
 } from '../../src/domain/threads/template-loader.js';
 import { resolveAgentSlotConfig } from '../../src/domain/threads/prompt-builder.js';
 import { CONFIG_DIR } from '../../src/core/paths.js';
@@ -182,5 +181,3 @@ test('migrateThreadTemplatesToDir is a no-op when there is no single file', () =
   clean();
   assert.equal(migrateThreadTemplatesToDir(), false);
 });
-
-// --- mergeThreadTemplates: per-file copy-if-missing (defaults dir → user dir) ---
