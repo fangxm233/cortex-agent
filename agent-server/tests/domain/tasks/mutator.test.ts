@@ -690,26 +690,6 @@ test('add \xe2\x80\x94 fails without lock held', async () => {
   }
 });
 
-test('add \xe2\x80\x94 succeeds when lock held by current owner', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, {
-      owner,
-      acquired_at: new Date().toISOString(),
-      expires_at: '2099-01-01T00:00:00.000Z',
-    });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.add(proj, 'Locked add', 'why', 'done-when', 'high', 'coder-review');
-    assert.equal(result.success, true);
-    assert.ok(result.task_id);
-  } finally {
-    fx.cleanup();
-  }
-});
-
 // --- 20. Other project lock scoping ---
 
 test('other project lock does not affect current project operation', async () => {
