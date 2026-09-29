@@ -200,29 +200,29 @@ export class FeishuAdapter implements PlatformAdapter {
   // --- Outbound messaging ---
 
   async postMessage(destination: Destination, content: MessageContent, opts?: PostMessageOpts): Promise<MessageRef> {
-    const resolved = await this.resolveDestination(destination);
-    if (!resolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return { conduit: '', messageId: '' };
     }
     const threadId = opts?.threadId;
 
     // If replying in a thread, use the reply API
     if (threadId) {
-      return this.replyInThread(threadId, content, resolved.channel);
+      return this.replyInThread(threadId, content, channel);
     }
 
     const { msgType, msgContent } = this.buildMessagePayload(content);
     const res = await this.client.im.v1.message.create({
       params: { receive_id_type: 'chat_id' },
       data: {
-        receive_id: resolved.channel,
+        receive_id: channel,
         msg_type: msgType,
         content: msgContent,
       },
     });
 
     const messageId = (res as any)?.data?.message_id || '';
-    return { conduit: this._wrap(resolved.channel), messageId };
+    return { conduit: this._wrap(channel), messageId };
   }
 
   async updateMessage(ref: MessageRef, content: MessageContent): Promise<void> {
@@ -247,8 +247,8 @@ export class FeishuAdapter implements PlatformAdapter {
     content: MessageContent & { actions: ActionElement[] },
     opts?: PostMessageOpts,
   ): Promise<MessageRef> {
-    const resolved = await this.resolveDestination(destination);
-    if (!resolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return { conduit: '', messageId: '' };
     }
     const elements = content.richBlocks
@@ -296,20 +296,20 @@ export class FeishuAdapter implements PlatformAdapter {
         }
       }
       const messageId = (res as any)?.data?.message_id || '';
-      return { conduit: this._wrap(resolved.channel), messageId, threadId };
+      return { conduit: this._wrap(channel), messageId, threadId };
     }
 
     const res = await this.client.im.v1.message.create({
       params: { receive_id_type: 'chat_id' },
       data: {
-        receive_id: resolved.channel,
+        receive_id: channel,
         msg_type: 'interactive',
         content: JSON.stringify(cardJson),
       },
     });
 
     const messageId = (res as any)?.data?.message_id || '';
-    return { conduit: this._wrap(resolved.channel), messageId };
+    return { conduit: this._wrap(channel), messageId };
   }
 
   async openModal(triggerId: string, modal: ModalDefinition): Promise<void> {
@@ -386,8 +386,8 @@ export class FeishuAdapter implements PlatformAdapter {
   // --- Files ---
 
   async uploadFile(destination: Destination, filePath: string, opts?: FileUploadOpts): Promise<void> {
-    const destResolved = await this.resolveDestination(destination);
-    if (!destResolved.channel) {
+    const channel = await this.resolveDestination(destination);
+    if (!channel) {
       return;
     }
     const { resolved: fileResolved, size } = this.resolveFilePath(filePath);
@@ -412,7 +412,7 @@ export class FeishuAdapter implements PlatformAdapter {
       await this.client.im.v1.message.create({
         params: { receive_id_type: 'chat_id' },
         data: {
-          receive_id: destResolved.channel,
+          receive_id: channel,
           msg_type: msgType,
           content: msgContent,
         },
@@ -514,39 +514,39 @@ export class FeishuAdapter implements PlatformAdapter {
   }
 
   /**
-   * Resolve a Destination to a concrete Feishu chat_id + kind label.
-   * Returns channel=null for destinations that should be silently dropped
+   * Resolve a Destination to a concrete Feishu chat_id.
+   * Returns null for destinations that should be silently dropped
    * (unconfigured admin channel).
    */
-  private async resolveDestination(dest: Destination): Promise<{ channel: string | null; kind: string }> {
+  private async resolveDestination(dest: Destination): Promise<string | null> {
     switch (dest.type) {
       case 'interactive-reply':
-        return { channel: this._unwrap(dest.conduit), kind: 'interactive-reply' };
+        return this._unwrap(dest.conduit);
       case 'project-report': {
         // Read bare chat_ids directly from the store (getProjectConduits wraps
         // for external callers; the SDK needs the bare chat_id).
         const channel = await this._getConduitsStore().get(dest.projectId);
         if (channel) {
-          return { channel, kind: 'project-report' };
+          return channel;
         }
         // Unbound project: fall back to this platform's admin DM so the report
         // still surfaces here instead of being silently dropped. Each platform
         // falls back independently (a project bound on another platform but not
         // this one still reaches this platform's DM).
         if (this.config.adminChannel) {
-          return { channel: this.config.adminChannel, kind: 'project-report-dm' };
+          return this.config.adminChannel;
         }
         log.warn(`No conduit or admin channel for project "${dest.projectId}"; dropping project-report`);
-        return { channel: null, kind: 'project-report-noop' };
+        return null;
       }
       case 'system-notice':
         if (!this.config.adminChannel) {
           log.warn('No admin channel configured; dropping system-notice');
-          return { channel: null, kind: 'system-notice-noop' };
+          return null;
         }
-        return { channel: this.config.adminChannel, kind: 'system-notice' };
+        return this.config.adminChannel;
       default:
-        return { channel: null, kind: 'unknown' };
+        return null;
     }
   }
 

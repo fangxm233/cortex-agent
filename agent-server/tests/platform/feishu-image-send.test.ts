@@ -56,7 +56,7 @@ async function write(name: string, body: Buffer): Promise<string> {
 function makeAdapter(client: any): any {
   const a = new FeishuAdapter({ appId: 'cli_test', appSecret: 'secret' }) as any;
   a.client = client;
-  a.resolveDestination = async () => ({ channel: 'oc_1', kind: 'channel' });
+  a.resolveDestination = async () => 'oc_1';
   return a;
 }
 
