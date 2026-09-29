@@ -21,7 +21,6 @@ export const SHARED_POOL_FILES: string[] = [
   'tests/agent-adapter-pi-agent-dir.test.ts',
   'tests/agent-adapter-pi-mcp-bridge.test.ts',
   'tests/agent-adapter.test.ts',
-  'tests/auto-compound.test.ts',
   'tests/composite-adapter-noop-fallback.test.ts',
   'tests/core/auth.test.ts',
   'tests/core/config-generator.test.ts',

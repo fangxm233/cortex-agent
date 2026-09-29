@@ -112,7 +112,7 @@ L5  entry/         → 所有层（组合根）
 | `monitor/` | GPU 和磁盘资源监控 |
 | `system/` | 主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 `rebuild-hold.ts` —— 由监督器下推、供准入判断读取的"拒绝新 turn"状态 |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端部署，通过 npm update 的热重载 |
-| `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O、auto-thread 逻辑 |
+| `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O |
 | `mcp/` | MCP 服务器实现。16 个 Cortex MCP 工具，分布在 8 个工具模块中（参见 [mcp.md](./mcp.md)） |
 
 ### 第 4 层：`orchestration/` — 消息路由和执行 {#layer-4-orchestration-message-routing-and-execution}

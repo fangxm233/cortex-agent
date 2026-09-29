@@ -15,7 +15,7 @@ export const interactionsEn = {
   'interaction.sessionProfileNote': ' (profile: ${profileName})',
   'interaction.newConversation': '--- new conversation --- (profile: ${profileName})',
 
-  // --- update-prompt.ts / update-prompt-slack.ts ---
+  // --- update-prompt.ts ---
   'update.installing': 'Installing @cortex-agent/server@${version}... daemon will restart shortly.',
   'update.skipped': 'Skipped version ${version}.',
   'update.cancelled': 'Update cancelled. Will check again at next interval.',
@@ -75,7 +75,7 @@ export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
   'interaction.sessionProfileNote': '（配置：${profileName}）',
   'interaction.newConversation': '--- 新会话 ---（配置：${profileName}）',
 
-  // --- update-prompt.ts / update-prompt-slack.ts ---
+  // --- update-prompt.ts ---
   'update.installing': '正在安装 @cortex-agent/server@${version}……守护进程稍后将重启。',
   'update.skipped': '已跳过版本 ${version}。',
   'update.cancelled': '更新已取消。将在下次检查间隔再次检查。',

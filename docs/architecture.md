@@ -113,7 +113,7 @@ The thickest layer. Contains 23 subdirectories, each encapsulating a domain conc
 | `monitor/` | GPU and disk resource monitoring |
 | `system/` | Host-level concerns: doctor checks, update state and prompts, system notices and their history, and `rebuild-hold.ts` — the supervisor-pushed "no new turns" state consulted by admission |
 | `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |
-| `threads/` | Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O, auto-thread logic |
+| `threads/` | Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O |
 | `mcp/` | MCP server implementation. 16 Cortex MCP tools across 8 tool modules (see [mcp.md](./mcp.md)) |
 
 ### Layer 4: `orchestration/` — Message Routing and Execution
