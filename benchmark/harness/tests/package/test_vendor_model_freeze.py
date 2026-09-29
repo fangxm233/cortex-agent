@@ -186,7 +186,7 @@ def run_pi(binary: Path, root: Path, proxy_url: str, token: str, model: str):
     return subprocess.run(argv, cwd=root, env=env, capture_output=True, text=True, timeout=45)
 
 
-def claude_environment(root: Path, proxy_url: str, token: str, _model: str) -> dict[str, str]:
+def claude_environment(root: Path, proxy_url: str, token: str) -> dict[str, str]:
     return {
         **clean_environment(root), "CLAUDE_CONFIG_DIR": str(root / ".claude"),
         "ANTHROPIC_BASE_URL": proxy_url, "ANTHROPIC_AUTH_TOKEN": token,
@@ -197,8 +197,7 @@ def claude_environment(root: Path, proxy_url: str, token: str, _model: str) -> d
 
 
 def run_claude(
-    binary: Path, root: Path, proxy_url: str, token: str, model: str,
-    selection: str, *, subagent: bool,
+    binary: Path, root: Path, proxy_url: str, token: str, selection: str, *, subagent: bool,
 ):
     argv = [str(binary), "--print", "--verbose", "--output-format", "stream-json",
             "--include-partial-messages", "--no-session-persistence", "--tools",
@@ -209,7 +208,7 @@ def run_claude(
     if not subagent:
         argv.insert(1, "--bare")
     return subprocess.run(
-        argv, cwd=root, env=claude_environment(root, proxy_url, token, model),
+        argv, cwd=root, env=claude_environment(root, proxy_url, token),
         capture_output=True, text=True, timeout=60,
     )
 
@@ -240,14 +239,12 @@ def run_codex(binary: Path, root: Path, proxy_url: str, token: str, model: str):
 
 def run_vendor(
     vendor: str, binary: Path, root: Path, proxy_url: str, token: str,
-    declared: str, selected: str, *, subagent: bool,
+    selected: str, *, subagent: bool,
 ):
     if vendor == "pi":
         return run_pi(binary, root, proxy_url, token, selected)
     if vendor == "claude-code":
-        return run_claude(
-            binary, root, proxy_url, token, declared, selected, subagent=subagent,
-        )
+        return run_claude(binary, root, proxy_url, token, selected, subagent=subagent)
     return run_codex(binary, root, proxy_url, token, selected)
 
 
@@ -277,7 +274,7 @@ def exercise(
     try:
         result = run_vendor(
             vendor, real_cli(vendor), tmp_path, handle.base_url, handle.dummy_token,
-            declared, selected, subagent=subagent,
+            selected, subagent=subagent,
         )
     finally:
         handle.stop()
