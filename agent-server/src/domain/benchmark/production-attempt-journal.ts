@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { STORE_DIR, resolveSpawnCwd } from '../../core/paths.js';
+import { resolveSpawnCwd } from '../../core/paths.js';
 import type { EngineSpec } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { EventObserver } from '../../agent-adapter/normalize/event-types.js';
@@ -12,8 +12,6 @@ import { roleSurfaceFromSpec } from './role-surface.js';
 
 const RECORD_SCHEMA = 'cortex-production-attempt-journal/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
-const DEFAULT_JOURNAL_DIR = path.join(STORE_DIR, 'benchmark-attempt-journals');
-const DEFAULT_STORE_PATH = path.join(STORE_DIR, 'benchmark-attempt-journals.jsonl');
 const RECORD_KEYS = [
   'schema_version', 'attempt_id', 'execution_id', 'journal_path',
   'journal_sha256', 'event_count', 'closed_at',
@@ -30,8 +28,8 @@ export type ProductionAttemptJournalRecord = Readonly<{
 }>;
 
 export interface ProductionAttemptJournalInit {
-  journalDir?: string;
-  storePath?: string;
+  journalDir: string;
+  storePath: string;
 }
 
 export interface ProductionAttemptJournalInput {
@@ -47,7 +45,7 @@ interface JournalScan {
 }
 
 let activeRepo: ProductionAttemptJournalRepo | null = null;
-let activeJournalDir = DEFAULT_JOURNAL_DIR;
+let activeJournalDir: string | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -276,22 +274,22 @@ class ProductionAttemptJournalSink implements EventObserver {
   }
 }
 
-export function initializeProductionAttemptJournals(
-  init: ProductionAttemptJournalInit = {},
-): void {
-  activeJournalDir = path.resolve(init.journalDir ?? DEFAULT_JOURNAL_DIR);
-  activeRepo = new ProductionAttemptJournalRepo(init.storePath ?? DEFAULT_STORE_PATH);
+export function initializeProductionAttemptJournals(init: ProductionAttemptJournalInit): void {
+  activeJournalDir = path.resolve(init.journalDir);
+  activeRepo = new ProductionAttemptJournalRepo(init.storePath);
 }
 
 export function resetProductionAttemptJournals(): void {
   activeRepo = null;
-  activeJournalDir = DEFAULT_JOURNAL_DIR;
+  activeJournalDir = null;
 }
 
 export function createProductionAttemptJournalSink(
   input: ProductionAttemptJournalInput,
 ): EventObserver {
-  if (!activeRepo) throw new Error('Production attempt journal store is not initialized');
+  if (!activeRepo || !activeJournalDir) {
+    throw new Error('Production attempt journal store is not initialized');
+  }
   if (activeRepo.get(input.identity.execution_id)) {
     throw new Error(`Production attempt journal already exists for execution ${input.identity.execution_id}`);
   }
