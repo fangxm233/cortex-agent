@@ -6,7 +6,7 @@
 # ─────────────────
 #   1. Loads machine-specific toolchain paths + the release keystore (path/alias/passwords) from a
 #      config file OUTSIDE the repo (default: ~/.cortex/config/android-release.env) — no secrets here.
-#   2. Builds the web SPA and stages connect.html (the OTA seed embeds web/dist at Rust compile time).
+#   2. Builds the web SPA (the OTA seed embeds web/dist at Rust compile time).
 #   3. Runs `tauri android init` only when gen/android is absent (it is gitignored + regenerated on a
 #      fresh checkout; init WIPES any signing wiring, hence steps 4-5 re-apply it every run).
 #   4. Writes gen/android/app/keystore.properties from the loaded keystore vars.
@@ -63,9 +63,8 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmake/3.2
 cd "$DESKTOP_DIR"
 GEN_APP="src-tauri/gen/android/app"
 
-echo "=== 1/5  build web SPA + stage connect.html ==="
+echo "=== 1/5  build web SPA ==="
 pnpm --filter '@cortex-agent/web...' build
-npm run copy-connect
 
 if [ "$FORCE_INIT" = "1" ] || [ ! -d "src-tauri/gen/android" ]; then
   echo "=== 2/5  tauri android init (regenerates gen/) ==="

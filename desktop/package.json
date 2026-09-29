@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "copy-connect": "node -e \"const fs=require('fs');fs.mkdirSync('../web/dist',{recursive:true});for(const f of ['connect.html','setup.html','shell.css','shell.js','connect.js','setup-flow.js','setup.js'])fs.copyFileSync('ui/'+f,'../web/dist/'+f)\"",
+    "copy-connect": "node -e \"require('fs').mkdirSync('../web/dist',{recursive:true})\"",
     "dev": "npm run copy-connect && tauri dev",
     "build": "npm run copy-connect && tauri build",
     "tauri": "tauri",
