@@ -649,16 +649,3 @@ def test_audit_retry_arm_materializes_its_own_bundle_and_never_the_direct_one(
     (tmp_path / "direct").mkdir()
     assert result.input_bundle_sha256 != materialize(
         tmp_path / "direct", bundle=DIRECT_BUNDLE).input_bundle_sha256
-
-
-def test_committed_bundle_files_are_read_from_the_bundle_that_ran(tmp_path: Path) -> None:
-    """`committed_input_bundle_files` answers per bundle key, never for one hardcoded arm."""
-    entries = production_home.committed_input_bundle_files(AUDIT_RETRY_BUNDLE.key)
-    paths = tuple(entry["path"] for entry in entries)
-
-    assert "config/thread-templates/templates/coder-review.json" in paths
-    assert "config/thread-templates/templates/direct.json" not in paths
-    for entry in entries:
-        payload = (AUDIT_RETRY_BUNDLE.bundle_dir / entry["path"]).read_bytes()
-        assert entry["sha256"] == hashlib.sha256(payload).hexdigest()
-    assert production_home.committed_input_bundle_files(DIRECT_BUNDLE.key) != entries

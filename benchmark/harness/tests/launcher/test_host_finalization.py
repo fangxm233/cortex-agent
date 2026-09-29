@@ -7,7 +7,6 @@ import tarfile
 from collections.abc import Callable, Mapping
 from http.client import HTTPConnection
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import pytest
 from harbor.environments.base import ExecResult
@@ -373,17 +372,13 @@ def write_inner_outputs(logs_dir: Path, mutation: Callable[[Path], None] | None)
 
 
 class FinalizationEnvironment:
-    def __init__(self, logs_dir: Path, mutation: Callable[[Path], None] | None = None) -> None:
+    def __init__(self, logs_dir: Path) -> None:
         self.logs_dir = logs_dir
-        self.mutation = mutation
-        self.calls: list[str] = []
         self.run_return_code = 0
-        self.publish_terminal_on_failure = False
         self.workspace_return_code = 0
         self.workspace_payload = "clean collected workspace output\n"
 
     async def exec(self, command: str, **_kwargs: object) -> ExecResult:
-        self.calls.append(command)
         if command.endswith("pwd") or "realpath -- /app" in command:
             return ExecResult(stdout="/app\n", return_code=0)
         if "npm ls --global" in command:
@@ -447,12 +442,12 @@ def make_agent(
         trial_proxy=proxy_spec(), host_scan_policy=scan_policy_document(),
         admission_environment_digest=environment_digest({}),
     )
-    environment = FinalizationEnvironment(logs_dir, mutation)
+    environment = FinalizationEnvironment(logs_dir)
 
     async def run_production(
         _self: object, _instruction: str, _execute: object,
     ) -> ProductionThreadResult:
-        if environment.run_return_code != 0 and not environment.publish_terminal_on_failure:
+        if environment.run_return_code != 0:
             raise RuntimeError("production run failed")
         write_inner_outputs(logs_dir, mutation)
         _self._stopped_cleanly = True
@@ -1303,7 +1298,8 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
 ) -> None:
     """No arm branch survives: a production trial has no `arm-resolution.json` and its roles come
     from the home the launcher materialized, but it walks the same collector and publishes the same
-    envelope shape as a legacy trial — for whichever arm's bundle actually ran.
+    envelope shape as a legacy trial — for whichever arm's bundle actually ran. A recorded file
+    list that belongs to another arm would be a fabricated parameter.
     """
     envelope, materialized = finalize_production_trial(tmp_path, bundle)
 
@@ -1316,6 +1312,7 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
     assert recorded["file_count"] == materialized.input_bundle_file_count
     assert len(recorded["files"]) == materialized.input_bundle_file_count
     assert canonical_sha256(recorded["files"]) == materialized.input_bundle_sha256
+    assert recorded["files"] == list(committed_input_bundle_files(bundle.key))
 
 
 def test_failed_production_thread_projects_as_terminal_agent_failure(tmp_path: Path) -> None:
@@ -1545,20 +1542,6 @@ def test_collected_source_missing_before_scan_is_recorded_without_refusal(
 
     assert envelope["leak_scan"]["missing_sources"] != []
     assert envelope_path(tmp_path).exists()
-
-
-def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path) -> None:
-    """Hazard 4: a recorded file list that belongs to another arm is a fabricated parameter."""
-    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
-
-    envelope, materialized = finalize_production_trial(tmp_path, bundle)
-
-    recorded = envelope["launch"]["config_bundle"]["files"]
-    paths = [entry["path"] for entry in recorded]
-    assert "config/thread-templates/templates/coder-review.json" in paths
-    assert "config/thread-templates/templates/direct.json" not in paths
-    assert recorded == list(committed_input_bundle_files(bundle.key))
-    assert canonical_sha256(recorded) == materialized.input_bundle_sha256
 
 
 def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(

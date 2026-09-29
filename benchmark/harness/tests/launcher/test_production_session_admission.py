@@ -166,7 +166,6 @@ class ContainerDouble:
     def __init__(self, logs_dir: Path) -> None:
         self.logs_dir = logs_dir
         self.commands: list[str] = []
-        self.result_polls = 0
 
     async def __call__(
         self, command: str, *, service: str, cwd: str | None,
@@ -205,7 +204,6 @@ class ContainerDouble:
                 }],
             }})
         if "production-thread-result.json" in command:
-            self.result_polls += 1
             return json.dumps({
                 "success": True,
                 "data": {"threadId": "thr_sealed", "status": "completed",
