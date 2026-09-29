@@ -38,7 +38,7 @@ function profilesPath(configDir: string): string {
 }
 
 /** Read the file whole so every field we do not manage (defaultProfile, any future key) survives. */
-async function readProfilesFile(configDir: string): Promise<RawProfilesFile> {
+export async function readProfilesFile(configDir: string): Promise<RawProfilesFile> {
   let raw: any;
   try {
     raw = JSON.parse(await fs.readFile(profilesPath(configDir), 'utf8'));
@@ -52,7 +52,7 @@ async function readProfilesFile(configDir: string): Promise<RawProfilesFile> {
   return raw as RawProfilesFile;
 }
 
-async function writeProfilesFile(configDir: string, next: RawProfilesFile): Promise<void> {
+export async function writeProfilesFile(configDir: string, next: RawProfilesFile): Promise<void> {
   await atomicWrite(profilesPath(configDir), JSON.stringify(next, null, 2) + '\n');
 }
 

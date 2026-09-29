@@ -10,6 +10,7 @@ import {
   configSetInput,
   configSetProviderRateLimitPolicyInput,
 } from '../input-schemas.js';
+import { readProfilesFile, writeProfilesFile } from './profiles.js';
 import type {
   UiServiceDeps,
   Result,
@@ -79,23 +80,13 @@ export async function writeBudget(
  * handler maps it to BAD_REQUEST rather than an internal error.
  */
 export async function writeDefaultProfile(configDir: string, defaultProfile: string): Promise<void> {
-  const file = path.join(configDir, 'profiles.json');
-  let raw: any;
-  try {
-    raw = JSON.parse(await fs.readFile(file, 'utf8'));
-  } catch {
-    throw Object.assign(new Error(t('ui.profile.fileUnreadable')), { code: 'invalid-args' });
-  }
-  if (!raw || typeof raw !== 'object' || !raw.profiles || typeof raw.profiles !== 'object') {
-    throw Object.assign(new Error(t('ui.profile.noProfilesMap')), { code: 'invalid-args' });
-  }
+  const raw = await readProfilesFile(configDir);
   if (!Object.prototype.hasOwnProperty.call(raw.profiles, defaultProfile)) {
     throw Object.assign(new Error(t('ui.profile.notFound', { name: defaultProfile })), {
       code: 'invalid-args',
     });
   }
-  const next = { ...raw, defaultProfile };
-  await atomicWrite(file, JSON.stringify(next, null, 2) + '\n');
+  await writeProfilesFile(configDir, { ...raw, defaultProfile });
 }
 
 export async function handleConfigSet(
