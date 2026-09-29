@@ -73,11 +73,10 @@ HOST_ACCESS_TOKEN = codex_token(
 
 def row_four_adapter(
     upstream_base_url: str, credential: str | None = HOST_ACCESS_TOKEN,
-    frozen_model: str | None = CODEX_MODEL,
 ) -> OpenAICodexResponsesOAuthAdapter:
     adapter = select_adapter(
         ROW_FOUR_KEY, upstream_base_url=upstream_base_url,
-        credential=credential, frozen_model=frozen_model,
+        credential=credential, frozen_model=CODEX_MODEL,
         access_expires_at_ms=(
             extract_access_expiry_ms(credential) if credential is not None else None
         ),
@@ -88,15 +87,13 @@ def row_four_adapter(
 
 def start_proxy(
     tmp_path: Path, upstream_base_url: str, *, credential: str | None = HOST_ACCESS_TOKEN,
-    bound_source_ip: str = "127.0.0.1", deadline: datetime | None = None,
-    max_requests: int = 8, frozen_model: str | None = CODEX_MODEL,
 ):
     return start_trial_proxy(
         trial_id="trial-codex", upstream_base_url=upstream_base_url,
-        adapter=row_four_adapter(upstream_base_url, credential, frozen_model),
-        bound_source_ip=bound_source_ip,
-        absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
-        limits=ProxyLimits(max_requests=max_requests),
+        adapter=row_four_adapter(upstream_base_url, credential),
+        bound_source_ip="127.0.0.1",
+        absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
+        limits=ProxyLimits(max_requests=8),
         log_path=tmp_path / "codex.jsonl", lease_terms=LEASE_TERMS,
     )
 
@@ -512,7 +509,7 @@ def test_the_forwarded_request_keeps_the_headers_the_client_needs(
 # --- D4: usage extraction, keyed on the wire event name ---
 
 
-def test_usage_is_read_from_the_wire_terminal_event(tmp_path: Path) -> None:
+def test_usage_is_read_from_the_wire_terminal_event() -> None:
     adapter = OpenAICodexResponsesOAuthAdapter(
         "http://127.0.0.1:1", HOST_ACCESS_TOKEN, CODEX_MODEL)
     body = sse_stream([

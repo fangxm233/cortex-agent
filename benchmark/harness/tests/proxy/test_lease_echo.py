@@ -112,14 +112,13 @@ class TrialClocks:
         self.host.advance(delta_ms)
 
 
-def limits(max_cost: str = "500") -> ProxyLimits:
+def limits() -> ProxyLimits:
     return ProxyLimits(max_requests=8)
 
 
 def start_leased_proxy(
     tmp_path: Path, upstream: SyntheticUpstream, clocks: TrialClocks, *,
-    bound_ms: int | None = None, terms: LeaseTerms | None = None,
-    row: TrialRow = ROW_ONE,
+    bound_ms: int | None = None, row: TrialRow = ROW_ONE,
 ):
     """The launcher's own step: read H0, arm the provisional bound, then create the container."""
     row.prepare_upstream(upstream)
@@ -134,7 +133,7 @@ def start_leased_proxy(
         absolute_deadline=datetime.fromtimestamp(provisional / 1000, UTC),
         limits=limits(),
         log_path=tmp_path / "lease.jsonl",
-        lease_terms=terms or LeaseTerms(BUDGET_MS, TEARDOWN_GRACE_MS),
+        lease_terms=LeaseTerms(BUDGET_MS, TEARDOWN_GRACE_MS),
         now_ms=clocks.host.now_ms,
     )
 

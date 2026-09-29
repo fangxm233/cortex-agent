@@ -100,11 +100,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
 
 
 class ContainerEnvironment:
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
     async def exec(self, command: str, **_kwargs: object) -> ExecResult:
-        self.calls.append(command)
         if command.endswith("pwd") or "realpath -- /app" in command:
             return ExecResult(stdout="/app\n", return_code=0)
         if "npm ls --global" in command:

@@ -129,10 +129,10 @@ class Listener:
 
 def refreshing_adapter(
     model_base_url: str, token_endpoint_url: str | None, *,
-    access_expires_at_ms: int = 0, credential: str = HOST_ACCESS_TOKEN,
+    access_expires_at_ms: int = 0,
 ) -> OpenAICodexResponsesOAuthAdapter:
     return OpenAICodexResponsesOAuthAdapter(
-        model_base_url, credential, CODEX_MODEL,
+        model_base_url, HOST_ACCESS_TOKEN, CODEX_MODEL,
         token_endpoint_url=token_endpoint_url,
         refresh_token=REFRESH_TOKEN,
         client_id=CLIENT_ID,
