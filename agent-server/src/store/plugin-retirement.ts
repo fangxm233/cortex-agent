@@ -8,7 +8,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { DATA_DIR, PLUGINS_DIR, STORE_DIR } from '@core/paths.js';
+import { DATA_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { createLogger } from '@core/log.js';
@@ -83,10 +83,6 @@ async function listAgentFiles(agentsDir: string): Promise<string[]> {
 export interface RetirementOptions {
   /** Override DATA_DIR. Tests point this at a temp tree; production passes nothing. */
   dataDir?: string;
-  /** Override DATA_DIR/plugins. Defaults to `<dataDir>/plugins`. */
-  pluginsDir?: string;
-  /** Override the versions.json directory. Defaults to `<dataDir>/data`. */
-  storeDir?: string;
 }
 
 /**
@@ -102,8 +98,8 @@ export interface RetirementOptions {
  */
 export async function retireTemplatePluginRefs(opts: RetirementOptions = {}): Promise<string[]> {
   const dataDir = opts.dataDir ?? DATA_DIR;
-  const pluginsDir = opts.pluginsDir ?? (opts.dataDir ? path.join(opts.dataDir, 'plugins') : PLUGINS_DIR);
-  const storeDir = opts.storeDir ?? (opts.dataDir ? path.join(opts.dataDir, 'data') : STORE_DIR);
+  const pluginsDir = path.join(dataDir, 'plugins');
+  const storeDir = path.join(dataDir, 'data');
   const versionsFile = path.join(storeDir, 'versions.json');
 
   const versions = await loadVersionsFrom(versionsFile);
