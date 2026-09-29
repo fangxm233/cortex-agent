@@ -4,7 +4,6 @@ import { acquireLockAsync, releaseLockAsync, getOwnerIdentity } from '@domain/ta
 import type { UiServiceDeps, Result } from '../types.js';
 
 async function withTaskLock<T>(
-  deps: UiServiceDeps,
   projectId: string,
   fn: () => Promise<T>,
 ): Promise<Result<T>> {
@@ -23,10 +22,10 @@ async function withTaskLock<T>(
 }
 
 export async function handleClaimTask(
-  deps: UiServiceDeps,
+  _deps: UiServiceDeps,
   args: { projectId: string; taskId: string },
 ): Promise<Result<void>> {
-  return withTaskLock(deps, args.projectId, async () => {
+  return withTaskLock(args.projectId, async () => {
     const result = await taskMutator.claim(args.taskId, getOwnerIdentity());
     if (!result.success) {
       throw new Error(result.message || t('ui.task.claimFailed'));
@@ -35,10 +34,10 @@ export async function handleClaimTask(
 }
 
 export async function handleUnclaimTask(
-  deps: UiServiceDeps,
+  _deps: UiServiceDeps,
   args: { projectId: string; taskId: string },
 ): Promise<Result<void>> {
-  return withTaskLock(deps, args.projectId, async () => {
+  return withTaskLock(args.projectId, async () => {
     const result = await taskMutator.unclaim(args.taskId);
     if (!result.success) {
       throw new Error(result.message || t('ui.task.unclaimFailed'));
@@ -47,10 +46,10 @@ export async function handleUnclaimTask(
 }
 
 export async function handleCompleteTask(
-  deps: UiServiceDeps,
+  _deps: UiServiceDeps,
   args: { projectId: string; taskId: string; note?: string },
 ): Promise<Result<void>> {
-  return withTaskLock(deps, args.projectId, async () => {
+  return withTaskLock(args.projectId, async () => {
     const result = await taskMutator.complete(args.taskId, args.note);
     if (!result.success) {
       throw new Error(result.message || t('ui.task.completeFailed'));
@@ -59,10 +58,10 @@ export async function handleCompleteTask(
 }
 
 export async function handleBlockTask(
-  deps: UiServiceDeps,
+  _deps: UiServiceDeps,
   args: { projectId: string; taskId: string; reason: string },
 ): Promise<Result<void>> {
-  return withTaskLock(deps, args.projectId, async () => {
+  return withTaskLock(args.projectId, async () => {
     const result = await taskMutator.block(args.taskId, args.reason);
     if (!result.success) {
       throw new Error(result.message || t('ui.task.blockFailed'));
@@ -71,10 +70,10 @@ export async function handleBlockTask(
 }
 
 export async function handleUnblockTask(
-  deps: UiServiceDeps,
+  _deps: UiServiceDeps,
   args: { projectId: string; taskId: string },
 ): Promise<Result<void>> {
-  return withTaskLock(deps, args.projectId, async () => {
+  return withTaskLock(args.projectId, async () => {
     const result = await taskMutator.unblock(args.taskId);
     if (!result.success) {
       throw new Error(result.message || t('ui.task.unblockFailed'));
