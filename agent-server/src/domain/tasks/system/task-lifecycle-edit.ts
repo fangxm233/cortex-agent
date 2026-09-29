@@ -416,6 +416,7 @@ const editTask = (project: string, options: any = {}): TaskLineTransformResult =
 export {
   VALID_PRIORITIES,
   _resetTemplateNameCacheForTests,
+  atomicWriteSync,
   clearDependsOnAll,
   editTask,
   findTask,

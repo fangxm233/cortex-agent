@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
-import { rawToTask, parseTasksFile, serializeTasksFile } from '../src/core/task-parser.js';
+import { rawToTask, parseTasksFile, serializeTasksFileWithLock } from '../src/core/task-parser.js';
 import { decomposeTask } from '../src/domain/tasks/system/task-mutations.js';
 import { lintTasks } from '../src/domain/tasks/lint.js';
 import { processSplitOutcome } from '../src/domain/tasks/dispatch-utils.js';
@@ -38,7 +38,7 @@ const BASE_TASK = 'tasks:\n  - id: "p111"\n    text: Big parent task\n    why: w
 
 test('parent survives a serialize → parse round trip', () => {
   const t = rawToTask({ id: 'aaaa', text: 't', parent: 'bbbb' }, 'proj');
-  const reparsed = parseTasksFile(serializeTasksFile([t]), 'proj');
+  const reparsed = parseTasksFile(serializeTasksFileWithLock({ tasks: [t] }), 'proj');
   assert.equal(reparsed[0].parent, 'bbbb');
 });
 

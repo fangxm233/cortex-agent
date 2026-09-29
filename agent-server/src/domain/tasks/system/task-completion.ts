@@ -8,6 +8,7 @@ import {
   clearDependsOnAll, findTask, getTasksPath, readTasks, taskFileProjects,
   withTaskFileMutationLock, withTaskFileMutationLockAsync, withTaskFileMutationLocks, withTaskFileMutationLocksAsync, writeTasks,
 } from './task-lifecycle-edit.js';
+import { lockTaskMutation } from './task-state.js';
 
 const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
 
@@ -273,17 +274,11 @@ function uncompleteTaskUnlocked(
   return { success: true, message: 'Task marked as incomplete' };
 }
 
-function lockCompletionMutation<T extends (...args: any[]) => any>(mutation: T): T {
-  return ((...args: Parameters<T>) => withTaskFileMutationLock(
-    args[1], () => mutation(...args),
-  )) as T;
-}
-
 const completeTask = ((...args: Parameters<typeof completeTaskUnlocked>) =>
   withTaskFileMutationLocks(
     [...taskFileProjects(), args[1]], () => completeTaskUnlocked(...args),
   )) as typeof completeTaskUnlocked;
-const uncompleteTask = lockCompletionMutation(uncompleteTaskUnlocked);
+const uncompleteTask = lockTaskMutation(uncompleteTaskUnlocked);
 
 /** Async twin of `completeTask` for the server's completion path: the evidence probes
  *  (`git cat-file` / `git log`) run through runFile instead of execFileSync, so completing a task

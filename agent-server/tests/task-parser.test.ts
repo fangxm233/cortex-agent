@@ -378,14 +378,14 @@ test('serializeTasksFileWithLock: with lock outputs lock before tasks', () => {
   assert.equal(lock!.expires_at, 't2');
 });
 
-test('serializeTasksFileWithLock: without lock matches serializeTasksFile output', () => {
+test('serializeTasksFileWithLock: without lock or tasks writes an empty list', () => {
   const out = serializeTasksFileWithLock({ tasks: [] });
   assert.equal(out, 'tasks: []\n');
 });
 
 // ── Provenance / origin fields (session→task wake) ──
 
-import { serializeTasksFile, parseTasksFile } from '../src/core/task-parser.js';
+import { parseTasksFile } from '../src/core/task-parser.js';
 
 function baseTask(overrides: Record<string, any> = {}) {
   return {
@@ -425,7 +425,7 @@ test('origin_* fields round-trip through serialize/parse', () => {
     origin_channel: 'C12345',
     origin_thread_id: 'thr_xyz',
   })];
-  const yaml = serializeTasksFile(tasks as any);
+  const yaml = serializeTasksFileWithLock({ tasks: tasks as any });
   // kebab-case keys on disk
   assert.match(yaml, /origin-session-id: sess-abc/);
   assert.match(yaml, /origin-channel: C12345/);
@@ -438,7 +438,7 @@ test('origin_* fields round-trip through serialize/parse', () => {
 });
 
 test('origin_* null fields are omitted from serialized YAML', () => {
-  const yaml = serializeTasksFile([baseTask()] as any);
+  const yaml = serializeTasksFileWithLock({ tasks: [baseTask()] as any });
   assert.ok(!yaml.includes('origin-'), 'null origin fields must not be serialized');
   const parsed = parseTasksFile(yaml, 'p1');
   assert.equal(parsed[0].origin_session_id, null);

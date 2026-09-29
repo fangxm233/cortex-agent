@@ -332,6 +332,7 @@ export {
   claimTask,
   claimTaskAsync,
   clearApprovalTask,
+  lockTaskMutation,
   pauseTask,
   pauseTaskAsync,
   pendingTask,

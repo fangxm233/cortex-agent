@@ -158,15 +158,7 @@ function rawToTask(raw: any, project: string): Task {
 }
 
 function parseTasksFile(content: string, project: string): Task[] {
-  if (!content.trim()) return [];
-  let parsed: any;
-  try {
-    parsed = yamlParse(content);
-  } catch {
-    return [];
-  }
-  if (!parsed || !Array.isArray(parsed.tasks)) return [];
-  return parsed.tasks.map((raw: any) => rawToTask(raw, project));
+  return parseTasksFileWithLock(content, project).tasks;
 }
 
 function parseTasksFileWithLock(content: string, project: string): { tasks: Task[]; lock: LockState | null } {
@@ -223,12 +215,6 @@ function taskToYamlObj(task: Task): Record<string, any> {
     }
   }
   return obj;
-}
-
-function serializeTasksFile(tasks: Task[]): string {
-  if (tasks.length === 0) return 'tasks: []\n';
-  const objs = tasks.map(taskToYamlObj);
-  return yamlStringify({ tasks: objs }, { lineWidth: 0 });
 }
 
 function serializeTasksFileWithLock({ tasks, lock }: { tasks: Task[]; lock?: LockState | null }): string {
@@ -370,15 +356,6 @@ function taskStatuses(task: Task, completedHashes: Set<string> | null = null): S
   return statuses;
 }
 
-function taskTags(task: Task): Set<string> {
-  const tags = new Set<string>();
-  if (task.paused) tags.add('paused');
-  if (task.approval_needed) tags.add('approval-needed');
-  if (task.gpu) { tags.add('gpu'); tags.add(`gpu:${task.gpu}`); }
-  if (task.template) tags.add(`template:${task.template}`);
-  return tags;
-}
-
 function filterTasks(tasks: Task[], args: any, completedHashes: Set<string> | null = null): Task[] {
   let filtered = tasks;
   if (args.project) filtered = filtered.filter((t) => t.project === args.project);
@@ -389,7 +366,6 @@ function filterTasks(tasks: Task[], args: any, completedHashes: Set<string> | nu
     const needle = args.text.toLowerCase();
     filtered = filtered.filter((t) => t.text.toLowerCase().includes(needle));
   }
-  if (args.tag && args.tag.length > 0) filtered = filtered.filter((t) => args.tag.every((tag: string) => taskTags(t).has(tag)));
   if (args.hasDeps) filtered = filtered.filter((t) => t.depends_on.length > 0);
   if (args.noDeps) filtered = filtered.filter((t) => t.depends_on.length === 0);
   return filtered;
@@ -537,10 +513,8 @@ export {
   scanAllTasks,
   scanAvailableTasks,
   _tasksFileCacheStats,
-  serializeTasksFile,
   serializeTasksFileWithLock,
   showPayload,
   taskToYamlObj,
   taskStatuses,
-  taskTags,
 };

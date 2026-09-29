@@ -1,32 +1,13 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as os from 'node:os';
-import { PROJECTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { parseTasksFileWithLock, serializeTasksFileWithLock } from '@core/task-parser.js';
 import type { LockState } from '@core/task-parser.js';
-import { withTaskFileMutationLock, withTaskFileMutationLockAsync } from './task-lifecycle-edit.js';
+import {
+  atomicWriteSync, getTasksPath, withTaskFileMutationLock, withTaskFileMutationLockAsync,
+} from './task-lifecycle-edit.js';
 
 const log = createLogger('task-lock');
-
-// ── Atomic write ──
-
-function atomicWriteSync(filePath: string, data: string): void {
-  const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}`;
-  try {
-    fs.writeFileSync(tmp, data, 'utf8');
-    fs.renameSync(tmp, filePath);
-  } catch (err) {
-    try { fs.unlinkSync(tmp); } catch {}
-    throw err;
-  }
-}
-
-// ── Path helpers ──
-
-function tasksYamlPath(project: string): string {
-  return path.join(PROJECTS_DIR, project, 'TASKS.yaml');
-}
 
 // ── Exports ──
 
@@ -42,7 +23,7 @@ export function getOwnerIdentity(): string {
 }
 
 export function readLock(project: string): LockState | null {
-  const filePath = tasksYamlPath(project);
+  const filePath = getTasksPath(project);
   if (!fs.existsSync(filePath)) return null;
   try {
     const content = fs.readFileSync(filePath, 'utf8');
@@ -55,7 +36,7 @@ export function readLock(project: string): LockState | null {
 }
 
 function writeLockUnlocked(project: string, lock: LockState | null): void {
-  const filePath = tasksYamlPath(project);
+  const filePath = getTasksPath(project);
   let tasks;
   if (fs.existsSync(filePath)) {
     const content = fs.readFileSync(filePath, 'utf8');
