@@ -16,18 +16,12 @@ export interface ProviderOverride {
    * (e.g. deepseek's anthropic-compat endpoint: `/deepseek/anthropic`).
    */
   basePath?: string;
-  /**
-   * Per-spawn PI compat flags to write into this provider's models.json entry.
-   * Merged ON TOP of PROVIDER_COMPAT_OVERRIDES (explicit wins). Normally unset —
-   * the static table covers the known cases.
-   */
-  compat?: Record<string, unknown>;
   /** Exact built-in model metadata overrides for this spawn. */
   modelOverrides?: Record<string, { maxTokens: number }>;
   /**
    * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about
    * such a provider, so a `baseUrl`-only override would strip the protocol (`api`) and the model
-   * list and leave PI unable to call it. When set, `basePath`/`compat` are ignored — the definition
+   * list and leave PI unable to call it. When set, `basePath` is ignored — the definition
    * already carries its own gateway `baseUrl`.
    */
   entry?: Record<string, unknown>;
@@ -79,8 +73,7 @@ export function writeProvidersConfig(
       modelOverrides?: Record<string, { maxTokens: number }>;
     } = { baseUrl: `${gatewayUrl}${basePath}` };
     // Re-assert compat flags PI can no longer auto-detect now that baseUrl is the gateway.
-    // Static table first, then per-override compat (explicit wins).
-    const compat = { ...PROVIDER_COMPAT_OVERRIDES[p.name], ...p.compat };
+    const compat = { ...PROVIDER_COMPAT_OVERRIDES[p.name] };
     if (Object.keys(compat).length > 0) entry.compat = compat;
     if (p.modelOverrides) entry.modelOverrides = p.modelOverrides;
     providersBlock[p.name] = entry;
