@@ -408,7 +408,3 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
     </span>
   );
 }
-
-export function SessionSelector(props: SessionSelectorProps): JSX.Element {
-  return <SessionSelectorView selection={useSessionSelection(props)} />;
-}
