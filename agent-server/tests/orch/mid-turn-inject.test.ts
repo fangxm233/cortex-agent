@@ -38,7 +38,6 @@ interface FakeRun {
   backend: string;
   injectedTexts: string[];
   injectedMessages: any[];
-  capabilities: Set<string>;
   backgroundTranscriptOwned: boolean;
   steer(msg: any, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
   subscribe(observer: { onEvent(event: any): void | Promise<void> }): () => void;
@@ -52,13 +51,12 @@ interface FakeRun {
 }
 
 /** A run whose `steer()` records the message and whose event stream the test drives directly. */
-function fakeRun(opts: { accepts?: boolean; hasMethod?: boolean; backend?: string } = {}): FakeRun {
+function fakeRun(opts: { accepts?: boolean; backend?: string } = {}): FakeRun {
   const backend = opts.backend ?? 'claude';
   const injectedTexts: string[] = [];
   const injectedMessages: any[] = [];
   const observers = new Set<{ onEvent(event: any): void | Promise<void> }>();
   const pending: Array<{ id: string; text: string }> = [];
-  const supported = backend === 'claude' || backend === 'pi';
   const emit = async (event: any): Promise<void> => {
     for (const observer of [...observers]) await observer.onEvent(event);
   };
@@ -71,11 +69,8 @@ function fakeRun(opts: { accepts?: boolean; hasMethod?: boolean; backend?: strin
     backend,
     injectedTexts,
     injectedMessages,
-    capabilities: new Set(supported ? ['mid-turn-inject'] : []),
     backgroundTranscriptOwned: false,
     steer: async (msg, injectionId) => {
-      if (!supported) return 'refused';
-      if (opts.hasMethod === false) return 'refused';
       const id = injectionId ?? 'unknown';
       pending.push({ id, text: msg.text });
       injectedTexts.push(msg.text);
@@ -228,19 +223,6 @@ test('no live execution on the channel → not injected without preparing platfo
   assert.equal(preparations, 0, 'platform downloads stay lazy until an injectable target exists');
   assert.deepEqual(r.published, [], 'nothing surfaced when the message is going to be queued');
   assert.deepEqual(r.track, []);
-});
-
-test('live execution on a backend without MidTurnInject → not injected', async () => {
-  const run = fakeRun({ backend: 'unknown' });
-  const r = recorder({}, run);
-  assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
-  assert.deepEqual(run.injectedTexts, []);
-});
-
-test('live claude run that cannot inject (TUI mode) → not injected', async () => {
-  const run = fakeRun({ hasMethod: false });
-  const r = recorder({}, run);
-  assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
 });
 
 test('backend refuses the injection (turn already finished) → not injected, no surfacing', async () => {
