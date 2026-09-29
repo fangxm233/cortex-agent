@@ -1,4 +1,3 @@
-import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef } from '@platform/index.js';
@@ -7,7 +6,6 @@ import { enqueue } from './conduit-queue.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
-import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { getActiveProfile } from '@domain/agents/index.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { continuationRunRequest } from '@domain/runs/builders.js';
@@ -21,9 +19,7 @@ import {
 import { handleAgentError } from './turn/terminal.js';
 import { openTurn, type TurnSessionLease } from './turn/turn.js';
 
-const log = createLogger('edit-retry');
-
-export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; isRetry: boolean; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): void {
+export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): void {
   trackPendingTask(+1);
   enqueue(channel, async () => {
     try {
@@ -34,7 +30,7 @@ export function reprocessMessage(channel: string, text: string, adapter: Platfor
   });
 }
 
-async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; isRetry: boolean; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
+async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
   const startTime = Date.now();
   // sessionId here is the stable track id; resolve the backend resume target from its record.
   const sessionId = opts.sessionId ?? await getSessionAsync(channel);
@@ -63,11 +59,9 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
     finishTurnTracking(channel, turnTrackingToken);
     return;
   }
-  const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, userMessageTs, ref.messageId).catch((e) => log.error(e));
   await runRetryAgent({
     channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId,
-    sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted,
-    retryDest, turnTrackingToken,
+    sessionName, projectId, userMessageTs, retryPrefix, turnTrackingToken,
   });
 }
 
@@ -80,12 +74,10 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
  * turn was already opened by `executeRetry` — it has to be, because the supersession check has to
  * run before the status message exists — so its token is handed to the Turn rather than re-opened.
  *
- * `retryDest` and `onMessagePosted` are still accepted (the signature is pinned by
- * `tests/orch/lifecycle-session-lease.test.ts` and by `executeRetry`), but the Turn now derives
- * both: the destination from channel + session id, and the ledger response-ts recorder from
- * `userMessageTs`. They are byte-identical to what this function used to build.
+ * The Turn derives the reply destination from channel + session id, and the ledger response-ts
+ * recorder from `userMessageTs`.
  */
-export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted: _onMessagePosted, retryDest: _retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
+export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; turnTrackingToken: TurnTrackingToken }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
   let lease: TurnSessionLease | null = null;
   try {

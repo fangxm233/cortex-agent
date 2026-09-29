@@ -112,8 +112,7 @@ test('edit retry hands its session lease to the registered execution without a g
     channel: 'web:track-retry', text: 'edited', adapter: new MockAdapter() as any,
     statusMsg: { conduit: 'web:track-retry', messageId: 'status' }, startTime: Date.now(),
     sessionId: 'track-retry', backendSessionId: 'backend-track-retry', sessionName: 'cortex-track-retry',
-    projectId: 'proj', userMessageTs: 'M1', retryPrefix: '', onMessagePosted: () => {},
-    retryDest: { type: 'interactive-reply', conduit: 'web:track-retry', sessionId: 'track-retry' },
+    projectId: 'proj', userMessageTs: 'M1', retryPrefix: '',
     turnTrackingToken: 'token' as any,
   });
 

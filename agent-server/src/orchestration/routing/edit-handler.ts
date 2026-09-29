@@ -35,7 +35,6 @@ function createEditHandler(deps: {
   activeAgents: RunRegistry;
   reprocessMessage: (channel: string, text: string, adapter: PlatformAdapter, opts: {
     originalTs: string;
-    isRetry: boolean;
     sessionId: string | null;
     sessionName: string | null;
     supersededStatusTimestamps?: string[];
@@ -275,7 +274,7 @@ async function processEditLocked(args: ProcessEditArgs): Promise<void> {
   await conversationLedger.truncateTurns(channel, turnIndex);
   cleanupEditedSession(backend, turnIndex, state);
   deps.reprocessMessage(channel, newText, args.adapter, {
-    originalTs, isRetry: true, sessionId: state.useSessionId,
+    originalTs, sessionId: state.useSessionId,
     sessionName: state.sessionName,
     supersededStatusTimestamps: rollback.supersededStatusTimestamps,
   });
