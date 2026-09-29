@@ -1,5 +1,4 @@
 import { mkdirSync } from 'fs';
-import * as os from 'node:os';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
 import { stopBrowser } from '@platform/browser/managed-browser.js';
@@ -106,6 +105,7 @@ import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domai
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
+import { getProjectDir } from '@domain/sessions/session-backup.js';
 import {
   applyChannelSelection, clearChannelAgentSelection, getActiveProfile, getChannelOverride,
   getSelectionDefault, resolveBackendForChannel, switchChannelAgent, switchChannelProfile,
@@ -188,7 +188,7 @@ async function runRetentionSweep(retentionDays: number): Promise<void> {
       historyDir: path.join(STORE_DIR, 'conversation-history'),
       piSessionsDir: path.join(DATA_DIR, 'logs', 'sessions-pi'),
       claudeCaptureDir: path.join(DATA_DIR, 'logs', 'sessions'),
-      claudeProjectDir: path.join(os.homedir(), '.claude', 'projects', DATA_DIR.replace(/[\/.]/g, '-')),
+      claudeProjectDir: getProjectDir(),
     },
     syncClaudeUserCleanupPeriodDays,
   });

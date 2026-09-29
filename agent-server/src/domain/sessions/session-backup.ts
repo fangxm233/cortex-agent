@@ -9,16 +9,12 @@ import { selectPISessionFilename } from '@core/pi-session-filename.js';
 const log = createLogger('session-backup');
 
 /**
- * Derive the Claude Code project directory hash from DATA_DIR.
+ * The Claude Code project directory for DATA_DIR.
  * Claude Code encodes project directories by replacing '/' and '.' with '-'.
  * e.g. /home/user/.cortex → -home-user--cortex
  */
-function getProjectHash(): string {
-  return DATA_DIR.replace(/[\/.]/g, '-');
-}
-
 function getProjectDir(): string {
-  return path.join(os.homedir(), '.claude', 'projects', getProjectHash());
+  return path.join(os.homedir(), '.claude', 'projects', DATA_DIR.replace(/[\/.]/g, '-'));
 }
 
 /**
@@ -26,10 +22,6 @@ function getProjectDir(): string {
  */
 function getSessionFilePath(sessionId: string): string {
   return path.join(getProjectDir(), `${sessionId}.jsonl`);
-}
-
-function getBackupPath(sessionId: string, turnIndex: number): string {
-  return path.join(getProjectDir(), `${sessionId}.jsonl.turn-${turnIndex}.bak`);
 }
 
 // --- PI session file utilities ---
@@ -129,30 +121,11 @@ function cleanupAllBackupsForFile(filePath: string): void {
  * Returns the backup path, or null if the session file doesn't exist yet.
  */
 async function createBackup(sessionId: string, turnIndex: number): Promise<string | null> {
-  const sessionFile = getSessionFilePath(sessionId);
-  const backup = getBackupPath(sessionId, turnIndex);
-  try {
-    await copyFile(sessionFile, backup);
-    log.info(`Created backup: turn-${turnIndex} for ${sessionId.substring(0, 8)}`);
-    return backup;
-  } catch (e) {
-    if (!isNotFound(e)) log.error(`Failed to create backup:`, (e as Error).message);
-    return null;
-  }
+  return backupSessionFile(getSessionFilePath(sessionId), turnIndex);
 }
 
 async function restoreBackup(sessionId: string, turnIndex: number): Promise<boolean> {
-  const backup = getBackupPath(sessionId, turnIndex);
-  const sessionFile = getSessionFilePath(sessionId);
-  try {
-    await copyFile(backup, sessionFile);
-    log.info(`Restored from backup: turn-${turnIndex} for ${sessionId.substring(0, 8)}`);
-    return true;
-  } catch (e) {
-    if (isNotFound(e)) log.warn(`Backup not found: turn-${turnIndex} for ${sessionId.substring(0, 8)}`);
-    else log.error(`Failed to restore backup:`, (e as Error).message);
-    return false;
-  }
+  return restoreSessionFile(getSessionFilePath(sessionId), turnIndex);
 }
 
 /**
@@ -160,24 +133,7 @@ async function restoreBackup(sessionId: string, turnIndex: number): Promise<bool
  * Called on !new to clean up.
  */
 function cleanupAllBackups(sessionId: string): void {
-  const dir = getProjectDir();
-  const prefix = `${sessionId}.jsonl.turn-`;
-  const suffix = '.bak';
-  try {
-    const files = readdirSync(dir);
-    let count = 0;
-    for (const file of files) {
-      if (file.startsWith(prefix) && file.endsWith(suffix)) {
-        unlinkSync(path.join(dir, file));
-        count++;
-      }
-    }
-    if (count > 0) {
-      log.info(`Cleaned up ${count} backup(s) for ${sessionId.substring(0, 8)}`);
-    }
-  } catch (e) {
-    log.error(`Cleanup failed:`, (e as Error).message);
-  }
+  cleanupAllBackupsForFile(getSessionFilePath(sessionId));
 }
 
 /**
@@ -185,22 +141,7 @@ function cleanupAllBackups(sessionId: string): void {
  * Called after rollback to remove invalidated backups.
  */
 function cleanupBackupsAfter(sessionId: string, afterTurnIndex: number): void {
-  const dir = getProjectDir();
-  const prefix = `${sessionId}.jsonl.turn-`;
-  const suffix = '.bak';
-  try {
-    const files = readdirSync(dir);
-    for (const file of files) {
-      if (!file.startsWith(prefix) || !file.endsWith(suffix)) continue;
-      const turnStr = file.slice(prefix.length, -suffix.length);
-      const turnIdx = parseInt(turnStr, 10);
-      if (!isNaN(turnIdx) && turnIdx > afterTurnIndex) {
-        unlinkSync(path.join(dir, file));
-      }
-    }
-  } catch (e) {
-    log.error(`cleanupBackupsAfter failed:`, (e as Error).message);
-  }
+  cleanupBackupsForFile(getSessionFilePath(sessionId), afterTurnIndex);
 }
 
 export {
@@ -209,7 +150,7 @@ export {
   restoreBackup,
   cleanupAllBackups,
   cleanupBackupsAfter,
-  getProjectHash,
+  getProjectDir,
   // PI session file utilities
   findPISessionFile,
   backupSessionFile,
