@@ -55,8 +55,6 @@ if (process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
 // --- Config (read from cortex-client.json) ---
 
 interface ClientConfig {
-  serverHost: string;
-  serverPort: number;
   serverUrl: string;
   deviceName: string;
   clientToken: string;
@@ -73,8 +71,6 @@ function loadConfig(): ClientConfig {
       throw new Error('Missing serverHost (or provide serverUrl / CORTEX_SERVER_URL)');
     }
     return {
-      serverHost: cfg.serverHost,
-      serverPort: cfg.serverPort || 3002,
       // Full WS URL (tunnel route). env CORTEX_SERVER_URL > config serverUrl > ws://host:port.
       serverUrl: resolveServerUrl(cfg, process.env),
       deviceName: cfg.deviceName || os.hostname(),
