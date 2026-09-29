@@ -5,7 +5,6 @@ import re
 import threading
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from http.client import HTTPConnection, HTTPResponse, IncompleteRead
 from pathlib import Path
@@ -31,9 +30,11 @@ from .trial_proxy import (
     TrialProxySpec,
     TrialRevocation,
     _adapter_selection_record,
+    _epoch_datetime,
     _require_contained,
     _select_trial_adapter,
     _write_json,
+    capture_trial_inventory,
     revoke_trial_proxy,
 )
 
@@ -177,13 +178,13 @@ def run_live_handshake(
     except BaseException:
         session.proxy.handle.stop()
         raise
-    scan_clean = _scan_clean(revocation.inventory, scan_policy)
+    _scan_clean(revocation.inventory, scan_policy)
     if request_error is not None:
         raise request_error
     assert response is not None
     _require_successful_response(response, revocation.export_path)
     return _complete(
-        session, revocation, scan_clean, evidence_dir, implementation_commit,
+        session, revocation, evidence_dir, implementation_commit,
         grant.request.body, conservative_cost_usd,
     )
 
@@ -349,7 +350,7 @@ def _start_handshake_proxy(
     trial_id = f"live-handshake-{authority.capability_id}"
     handle = start_trial_proxy(
         trial_id=trial_id, upstream_base_url=upstream, adapter=adapter,
-        bound_source_ip=spec.bound_source_ip, absolute_deadline=_epoch(deadline_ms),
+        bound_source_ip=spec.bound_source_ip, absolute_deadline=_epoch_datetime(deadline_ms),
         limits=ProxyLimits(MAX_PROVIDER_REQUESTS),
         log_path=proxy_dir / "proxy-audit.jsonl",
         lease_terms=LeaseTerms(int(authority.limits["deadline_seconds"]) * 1000, 0),
@@ -361,7 +362,8 @@ def _start_handshake_proxy(
         # out of the bounded upstream retry a trial route uses to survive a provider outage.
         max_upstream_attempts=1,
     )
-    session = TrialProxySession(handle, upstream, _epoch(deadline_ms), deadline_ms, proxy_dir)
+    session = TrialProxySession(
+        handle, upstream, _epoch_datetime(deadline_ms), deadline_ms, proxy_dir)
     try:
         _write_json(session.adapter_selection_path, _adapter_selection_record(
             trial_id, adapter, authority.capability_id, authority.key))
@@ -378,7 +380,8 @@ def _request_and_revoke(
     _HandshakeResponse | None, TrialRevocation, LiveHandshakePermitRefused | None,
 ]:
     sources = _artifact_sources(artifact_dir)
-    inventory = _inventory(artifact_dir, sources, session.proxy)
+    inventory = capture_trial_inventory(
+        sources=sources, session=session.proxy, trial_roots=(artifact_dir,))
     response = None
     request_error = None
     try:
@@ -434,18 +437,10 @@ def _run_config(session: _HandshakeSession, spec: TrialProxySpec) -> dict[str, o
     }
 
 
-def _inventory(
-    root: Path, sources: Mapping[str, Path], proxy: TrialProxySession,
-) -> ArtifactInventory:
-    declared = {**sources, **proxy.artifact_sources}
-    return ArtifactInventory(declared, frozenset(declared), (root,))
-
-
-def _scan_clean(inventory: ArtifactInventory, policy: ScanPolicy) -> bool:
+def _scan_clean(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     scan = scan_trial_artifacts(inventory, policy)
     if not scan.clean:
         raise LiveHandshakePermitRefused("live handshake artifact scan was not clean")
-    return True
 
 
 def _perform_request(session: TrialProxySession, request: LiveHandshakeRequest,
@@ -599,12 +594,10 @@ def _proxy_failure_outcome(path: Path) -> str:
 
 
 def _complete(
-    session: _HandshakeSession, revocation: TrialRevocation, scan_clean: bool,
+    session: _HandshakeSession, revocation: TrialRevocation,
     evidence_dir: Path, implementation_commit: str, request_body: bytes,
     conservative_cost_usd: str,
 ) -> Path:
-    if not scan_clean:
-        raise LiveHandshakePermitRefused("live handshake artifact scan was not clean")
     if not _revocation_proven(revocation.revocation, session.proxy.handle.trial_id):
         raise LiveHandshakePermitRefused("live handshake proxy revocation was not proven")
     request_count, input_tokens, output_tokens = _accounting(
@@ -728,10 +721,6 @@ def _write_validated_evidence(
 def _upstream_identity(upstream_base_url: str) -> str:
     target = urlsplit(upstream_base_url)
     return f"{target.netloc}{target.path.rstrip('/')}"
-
-
-def _epoch(epoch_ms: int) -> datetime:
-    return datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=epoch_ms)
 
 
 def _sha256(payload: bytes) -> str:

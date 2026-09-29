@@ -543,7 +543,7 @@ def test_timeout_persists_an_empty_response_diagnostic(
 def test_omitting_response_diagnostic_from_inventory_fails_the_scan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original = live_handshake._inventory
+    original = live_handshake.capture_trial_inventory
 
     def omit_response(*args, **kwargs):
         inventory = original(*args, **kwargs)
@@ -554,7 +554,7 @@ def test_omitting_response_diagnostic_from_inventory_fails_the_scan(
             inventory.trial_roots, inventory.container_roots,
         )
 
-    monkeypatch.setattr(live_handshake, "_inventory", omit_response)
+    monkeypatch.setattr(live_handshake, "capture_trial_inventory", omit_response)
     with handshake_upstream() as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
         with pytest.raises(LiveHandshakePermitRefused, match="scan was not clean"):
