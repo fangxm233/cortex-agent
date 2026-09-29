@@ -21,7 +21,7 @@
   "scripts": {
     "prepare": "cp ../README.md . && npm run build && npm run bundle",
     "start": "node dist/client.mjs",
-    "build": "tsc && node scripts/copy-assets.js",
+    "build": "tsc",
     "bundle": "node scripts/bundle.js",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-force-exit --test-timeout=15000 tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/file-stream.test.ts tests/client/self-update.test.ts tests/client/gpu-detect.test.ts tests/client/agents-md-scanner.test.ts"
