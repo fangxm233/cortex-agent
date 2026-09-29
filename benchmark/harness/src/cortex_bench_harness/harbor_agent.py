@@ -496,9 +496,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         assert self._npm_artifact is not None
         assert self._cortex_cli_version is not None
         assert self._installed_server is not None
-        inputs = self._manifest_seed.with_cwd(
-            resolved_cwd, self._npm_artifact, self._cortex_cli_version,
-        )
+        inputs = self._manifest_seed.with_cwd(resolved_cwd, self._cortex_cli_version)
         manifest_path = write_harness_manifest(
             self._artifact_dir, build_harness_manifest(inputs),
         )

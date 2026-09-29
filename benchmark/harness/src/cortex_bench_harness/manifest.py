@@ -46,8 +46,7 @@ class HarnessManifestSeed:
     container: ContainerImage
 
     def with_cwd(
-        self, resolved_cwd: ResolvedCwd, npm_artifact_path: Path,
-        cortex_cli_version: str,
+        self, resolved_cwd: ResolvedCwd, cortex_cli_version: str,
     ) -> HarnessManifestInput:
         return HarnessManifestInput(
             root_run_id=self.root_run_id,
@@ -56,7 +55,7 @@ class HarnessManifestSeed:
             wheel_path=self.wheel_path,
             lockfile_path=self.lockfile_path,
             lockfile_manifest_path=self.lockfile_manifest_path,
-            npm_artifact_path=npm_artifact_path,
+            npm_artifact_path=self.npm_artifact_path,
             container=self.container,
             resolved_cwd=resolved_cwd,
             cortex_cli_version=cortex_cli_version,
