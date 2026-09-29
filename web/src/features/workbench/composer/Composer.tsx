@@ -58,8 +58,6 @@ const DASH = '—';
 // Auto-grow cap: ~15 lines at 13.5px × 1.5 line-height (≈20.25px/line), then internal scroll.
 const COMPOSER_MAX_HEIGHT = 305;
 
-export { ComposerSendFailure };
-
 export function Composer({
   sessionId,
   running,
