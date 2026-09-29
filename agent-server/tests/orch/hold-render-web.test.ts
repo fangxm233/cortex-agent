@@ -3,7 +3,6 @@
 // where the seam itself moved: `running:true/false` is now published by the hold (through the bus,
 // observed here exactly as the Web UI sees it) and Stop reaches the hold through `SessionHolds`
 // rather than a callback the renderer handed out.
-import '../_test-home.js'; // MUST be first — isolates store singletons
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

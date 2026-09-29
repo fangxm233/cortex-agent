@@ -1,5 +1,3 @@
-import '../_test-home.js';
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import path from 'node:path';

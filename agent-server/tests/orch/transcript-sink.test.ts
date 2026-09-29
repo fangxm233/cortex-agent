@@ -1,4 +1,3 @@
-import '../_test-home.js'; // first — keep the store singletons off the real data home
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

@@ -1,4 +1,3 @@
-import '../_test-home.js';
 import { beforeAll, test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';

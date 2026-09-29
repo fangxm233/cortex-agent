@@ -1,4 +1,3 @@
-import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';

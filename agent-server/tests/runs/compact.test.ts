@@ -1,5 +1,3 @@
-import '../_test-home.js'; // MUST be first — isolates paths before the run layer loads
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

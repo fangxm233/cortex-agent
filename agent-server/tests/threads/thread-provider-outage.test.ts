@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
 import { afterEach, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

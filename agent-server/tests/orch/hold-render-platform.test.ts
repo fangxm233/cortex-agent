@@ -2,7 +2,6 @@
 // hold moved out of `handleAgentSuccess` (T2.2): the five verdict assertions below are unchanged,
 // only the way they are driven is — `holdBackgroundContinuation` + `platformHoldRenderer` instead
 // of the terminal handler, which now only decides that the turn MAY be held.
-import '../_test-home.js'; // MUST be first — isolates store singletons
 import { beforeAll, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { holdBackgroundContinuation } from '../../src/orchestration/turn/background-hold.js';

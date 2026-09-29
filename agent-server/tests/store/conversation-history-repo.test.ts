@@ -1,5 +1,3 @@
-import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

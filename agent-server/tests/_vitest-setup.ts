@@ -1,4 +1,4 @@
-// vitest per-test-file isolation guard — the vitest analogue of _test-home.ts.
+// vitest per-test-file isolation guard.
 //
 // Runs as a vitest `setupFile`, i.e. before the test file's own imports, so it
 // rebinds CORTEX_HOME to a per-file temp dir BEFORE paths.ts resolves DATA_DIR

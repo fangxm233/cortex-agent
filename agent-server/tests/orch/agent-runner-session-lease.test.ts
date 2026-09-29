@@ -5,7 +5,6 @@
 // contract under test is unchanged: held until the execution is registered, released there, and
 // released by the turn's finally when the turn fails before it.
 
-import '../_test-home.js';
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import path from 'node:path';

@@ -7,7 +7,6 @@
 // The backends are scripted to settle without a cost record of their own, so each attempt produces
 // exactly the one row under test.
 
-import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

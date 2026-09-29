@@ -1,5 +1,3 @@
-import '../_test-home.js';
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

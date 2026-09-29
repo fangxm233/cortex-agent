@@ -3,7 +3,6 @@
 // runningExecutions, so the channel-keyed cancel path found zero executions, returned 0, and the
 // click resolved ok while nothing happened. cancelBgHolds is the branch that closes the gap.
 
-import './../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 

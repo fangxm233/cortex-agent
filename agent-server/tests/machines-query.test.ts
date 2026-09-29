@@ -1,4 +1,3 @@
-import './_test-home.js'; // MUST be first — isolates CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { MachineInfo } from '../src/domain/ui-service/types.js';

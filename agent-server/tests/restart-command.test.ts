@@ -1,4 +1,3 @@
-import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { triggerServerRestart } from '../src/orchestration/routing/commands/restart.js';

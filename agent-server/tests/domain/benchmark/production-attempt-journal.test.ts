@@ -16,7 +16,6 @@
 // layer stopped doing it, the index-row assertions below would fail. The failure-injection cases
 // drive a directly-constructed sink instead, so they can make `onEvent`/`onClose` throw on demand.
 
-import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';

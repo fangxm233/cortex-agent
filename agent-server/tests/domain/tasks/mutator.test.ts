@@ -1,4 +1,3 @@
-import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

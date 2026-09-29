@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 /**
  * ThreadRun unit tests (T2.1) — the six verdicts, the busy-gate bracket, and the one behaviour
  * the pre-refactor pipeline could not have: a progress write that arrives AFTER the seal is

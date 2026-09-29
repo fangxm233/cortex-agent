@@ -1,4 +1,3 @@
-import '../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSendSession } from '../../src/domain/ui-service/mutate/sessions.js';

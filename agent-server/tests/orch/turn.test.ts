@@ -1,4 +1,3 @@
-import '../_test-home.js';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

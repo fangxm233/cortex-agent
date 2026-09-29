@@ -1,4 +1,3 @@
-import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, describe, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
@@ -13,7 +12,7 @@ import { handleThreadTemplatesDetail } from '../../../src/domain/ui-service/quer
 import { readThreadTemplates } from '../../../src/domain/ui-service/query/thread-templates.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
-// The handlers bind CONFIG_DIR, which _test-home has already pointed at an isolated temp home.
+// The handlers bind CONFIG_DIR, which the vitest setup file has already pointed at an isolated temp home.
 const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
 
 function agentBody(name: string, stages: string[] = ['work']) {

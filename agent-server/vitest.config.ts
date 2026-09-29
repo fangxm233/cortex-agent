@@ -43,7 +43,7 @@ export default defineConfig({
     // patching process.*.write and assert on console.error output. Let console pass
     // straight through so those captures see it.
     disableConsoleIntercept: true,
-    // Per-file CORTEX_HOME isolation — replaces `--import ./tests/_test-home.ts`.
+    // Per-file CORTEX_HOME isolation.
     setupFiles: ['./tests/_vitest-setup.ts'],
     // Allocates the run-scoped temp-home root and removes it once every worker is done.
     // Required: fork workers are killed with SIGTERM/SIGKILL, so worker-side 'exit'

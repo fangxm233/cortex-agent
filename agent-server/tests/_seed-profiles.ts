@@ -1,7 +1,7 @@
 // The minimal profile set scripts/seed-test-config.sh writes into the shared home of a
 // run-tests.sh run. A scoped run (`vitest run <file>`) starts from an empty skeleton home, so a
 // file whose code path resolves a profile (resolveProfileConfig / resolveRunConfig /
-// registerThreadSession) seeds the same set itself — import this AFTER `_test-home.js`.
+// registerThreadSession) seeds the same set itself (the vitest setup file has already isolated CORTEX_HOME).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR } from '../src/core/utils.js';

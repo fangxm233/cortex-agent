@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 /**
  * render-task (T2.2) — every TASK-style status line, in both flavours, plus the two contracts
  * `ThreadRun` owes the dispatch / scheduled jobs:

@@ -9,7 +9,6 @@
 // exactly where the run layer used to — otherwise a second attempt on one execution id could never
 // hit the journal's reuse guard.
 
-import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

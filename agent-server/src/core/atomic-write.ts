@@ -5,8 +5,8 @@ import * as os from 'node:os';
 
 /** The operator's real data home. A test process must never write here — it would race the
  *  running daemon and leak fixtures into the live store (this happened: tests polluted
- *  ~/.cortex/data/threads.json). Tests isolate via tests/_test-home.ts, which repoints
- *  CORTEX_HOME at a temp dir, so legitimate test writes land elsewhere and pass this guard. */
+ *  ~/.cortex/data/threads.json). Tests isolate via the vitest setup file (tests/_vitest-setup.ts),
+ *  which repoints CORTEX_HOME at a per-file temp dir, so legitimate test writes land elsewhere and pass this guard. */
 const REAL_HOME_CORTEX = path.join(os.homedir(), '.cortex');
 
 /** True only inside `node --test` / `tsx --test` worker processes (env set by the runner). */
@@ -28,8 +28,8 @@ function assertNotRealHomeInTest(filePath: string): void {
   if (resolved === REAL_HOME_CORTEX || resolved.startsWith(REAL_HOME_CORTEX + path.sep)) {
     throw new Error(
       `atomicWrite blocked: test process attempted to write under the real ~/.cortex (${resolved}). `
-      + `Isolate state first: import './_test-home.js' as the FIRST line of the test, or run via `
-      + `\`npm test\` / \`npm run test:file <file>\` (both set an isolated CORTEX_HOME).`,
+      + `Isolate state first: run the test through vitest — \`npm test\` / \`npm run test:file <file>\` — `
+      + `whose setup file points CORTEX_HOME at an isolated temp home.`,
     );
   }
 }

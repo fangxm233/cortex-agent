@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first — isolates store singletons pulled in by status-helpers
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { sealThreadSummary } from '../../src/orchestration/thread-run/index.js';

@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {

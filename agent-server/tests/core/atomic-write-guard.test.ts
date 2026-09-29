@@ -34,7 +34,7 @@ test('blocks a test-process write under the real ~/.cortex (and writes nothing)'
 
   await assert.rejects(
     () => atomicWrite(target, '{"polluted":true}'),
-    /~\/\.cortex|production|_test-home|CORTEX_HOME/i,
+    /~\/\.cortex|production|CORTEX_HOME/i,
     'must throw a guidance error mentioning the remedy',
   );
   // Critical: the guard fires BEFORE any write, so the real store is untouched.
@@ -50,7 +50,7 @@ test('blocks a mutation before creating real-home lock state', async (t) => {
 
   await assert.rejects(
     () => mutateFileAtomically(target, contents => contents),
-    /~\/\.cortex|production|_test-home|CORTEX_HOME/i,
+    /~\/\.cortex|production|CORTEX_HOME/i,
   );
   assert.equal(mkdirSpy.mock.calls.length, 0);
 });

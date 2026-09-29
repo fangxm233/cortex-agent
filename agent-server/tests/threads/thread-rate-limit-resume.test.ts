@@ -1,4 +1,3 @@
-import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../../src/store/thread-repo.js';

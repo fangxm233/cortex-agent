@@ -6,7 +6,6 @@
 // fake runtime (`pi-fake-runtime.ts`). No engine is faked: the assertions still read the spec the
 // engine was actually opened from and the frozen record the spawn was allowed to happen after.
 
-import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';

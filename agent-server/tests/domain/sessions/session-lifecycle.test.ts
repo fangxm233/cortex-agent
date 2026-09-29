@@ -1,4 +1,3 @@
-import '../../_test-home.js';
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 

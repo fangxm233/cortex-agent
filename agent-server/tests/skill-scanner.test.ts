@@ -1,4 +1,3 @@
-import './_test-home.js';
 import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
@@ -28,7 +27,7 @@ function clearFixture(): void {
 }
 
 beforeEach((t) => {
-  // _test-home guarantees these roots are disposable, even with a seeded catalog.
+  // The vitest setup file's per-file home guarantees these roots are disposable, even with a seeded catalog.
   t.onTestFinished(clearFixture);
   clearFixture();
   writeSkill(USER_SKILLS, 'personal-review');

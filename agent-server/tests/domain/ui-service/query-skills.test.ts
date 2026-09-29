@@ -1,4 +1,3 @@
-import '../../_test-home.js'; // MUST be first — isolates CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,11 +7,11 @@ import { clearSkillScanCache } from '../../../src/domain/memory/skill-scanner.js
 import type { SkillGroup } from '../../../src/domain/ui-service/types.js';
 
 // skill-scanner reads DATA_DIR at import time, but SKILL_SCAN_CACHE_MS is 60s.
-// We must import DATA_DIR AFTER _test-home.js has set CORTEX_HOME so we get
+// We must read DATA_DIR AFTER the vitest setup file has set CORTEX_HOME so we get
 // the isolated directory path, not the live ~/.cortex.
 // We do a fresh dynamic import of DATA_DIR each time — paths.ts exports it
 // as a const evaluated at module-load, so the workaround is to read it from
-// the env variable directly (which _test-home.js sets before paths.ts loads).
+// the env variable directly (which the vitest setup file sets before paths.ts loads).
 const getDataDir = () => process.env['CORTEX_HOME'] ?? '';
 
 function makeSkillDir(root: string, skillName: string) {
