@@ -456,10 +456,6 @@ test('SlackOutputStream: failed update marks its WAL entry sent after the fallba
  * (last update per messageId wins) to the posted content.
  */
 function reconstructVisibleText(adapter: MockAdapter): string {
-  const lastByRef = new Map<string, string>();
-  for (const p of adapter.posted) {
-    lastByRef.set(`${postedConduit(p)}:${(p as any).messageId ?? ''}`, p.content.text || '');
-  }
   // Posted captures the initial text; updates overwrite. Track by index since
   // MockAdapter doesn't store messageId on PostedMessage — use posted order.
   const texts: string[] = adapter.posted.map(p => p.content.text || '');
