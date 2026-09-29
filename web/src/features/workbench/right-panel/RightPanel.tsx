@@ -151,7 +151,7 @@ function RightPanelRail({ active, labels, counts, budget, budgetLabel, navigatio
   const workTargets: Tab[] = ['threads', 'tasks', 'machines'];
   return (
     <nav aria-label={navigationLabel} style={{ width: PANEL_RAIL_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0' }}>
-      <PaneToggle side="right" expanded={expanded} label={toggleLabel} onClick={onToggle} />
+      <PaneToggle expanded={expanded} label={toggleLabel} onClick={onToggle} />
       <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0' }} />
       {workTargets.map((target) => <PanelRailButton key={target} target={target} label={labels[target]} active={active === target} count={counts[target]} onClick={() => onSelect(target)} />)}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

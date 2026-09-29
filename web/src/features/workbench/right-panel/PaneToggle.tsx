@@ -1,18 +1,15 @@
-export type PaneSide = 'left' | 'right';
-
-// The chevron points at the screen edge the pane collapses INTO, and back toward the centre once
-// collapsed — so the arrow always reads as the motion the click produces, mirrored per side.
+// The chevron points at the right edge the pane collapses INTO, and back toward the centre once
+// collapsed — so the arrow always reads as the motion the click produces.
 function chevronPath(pointsLeft: boolean): string {
   return pointsLeft ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6';
 }
 
-export function PaneToggle({ side, expanded, label, onClick }: {
-  side: PaneSide;
+export function PaneToggle({ expanded, label, onClick }: {
   expanded: boolean;
   label: string;
   onClick: () => void;
 }): JSX.Element {
-  const pointsLeft = expanded ? side === 'left' : side === 'right';
+  const pointsLeft = !expanded;
   return (
     <button
       type="button"

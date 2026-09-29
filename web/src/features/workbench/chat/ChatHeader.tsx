@@ -24,10 +24,9 @@ function iconButtonStyle(hover: boolean, active: boolean): CSSProperties {
   };
 }
 
-function HeaderIconButton({ active = false, title, ariaLabel, attr, onClick, children }: {
+function HeaderIconButton({ active = false, title, attr, onClick, children }: {
   active?: boolean;
   title: string;
-  ariaLabel?: string;
   /** Data attribute the rest of the app (and its tests) uses to find this control. */
   attr?: Record<string, string>;
   onClick: () => void;
@@ -40,7 +39,6 @@ function HeaderIconButton({ active = false, title, ariaLabel, attr, onClick, chi
       {...attr}
       className={MENU_FOCUS}
       aria-pressed={active}
-      aria-label={ariaLabel}
       title={title}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
