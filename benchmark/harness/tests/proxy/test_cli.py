@@ -57,14 +57,10 @@ def test_limits_model_rejects_a_count_that_buys_nothing() -> None:
         ProxyLimits(max_requests=0)
 
 
-def _python() -> str:
-    return sys.executable
-
-
 def _start_command(tmp_path: Path, upstream_url: str) -> list[str]:
     deadline = datetime.now(UTC) + timedelta(minutes=5)
     return [
-        _python(), "-m", "cortex_bench_harness.proxy",
+        sys.executable, "-m", "cortex_bench_harness.proxy",
         "--trial-id", "trial-cli", "--upstream-base-url", upstream_url,
         "--credential-file", "-", "--bound-source-ip", "127.0.0.1",
         "--capability-runner", "claude", "--capability-provider", "anthropic",

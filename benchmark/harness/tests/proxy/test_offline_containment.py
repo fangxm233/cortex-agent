@@ -84,7 +84,7 @@ def test_r7_upstream_host_set_is_one_frozen_member(tmp_path: Path) -> None:
 def test_r7_host_set_survives_a_container_request_and_an_upstream_document(
     tmp_path: Path,
 ) -> None:
-    with SyntheticUpstream() as upstream, _learned_listener() as learned:
+    with SyntheticUpstream() as upstream, _Listener() as learned:
         learned_authority = _authority(learned)
         upstream.server.response["discovery"] = {"api_host": learned_authority}
         handle = start_proxy(tmp_path, upstream.base_url)
@@ -105,7 +105,7 @@ def test_r7_host_set_survives_a_container_request_and_an_upstream_document(
 
 
 def test_r7_upstream_redirect_is_relayed_and_never_followed(tmp_path: Path) -> None:
-    with SyntheticUpstream() as upstream, _learned_listener() as learned:
+    with SyntheticUpstream() as upstream, _Listener() as learned:
         redirect_url = f"http://{_authority(learned)}{MESSAGES_TARGET}"
         upstream.server.status = 302
         upstream.server.extra_headers = {"location": redirect_url}
@@ -139,10 +139,6 @@ class _Listener:
 
     def __exit__(self, *_args: object) -> None:
         self.socket.close()
-
-
-def _learned_listener() -> _Listener:
-    return _Listener()
 
 
 def _authority(listener: _Listener) -> str:

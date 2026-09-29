@@ -456,16 +456,12 @@ def _wait_for_body_client(handle) -> None:
 
 
 def _wait_for_no_clients(handle) -> None:
-    _wait_for_client_count(handle, 0)
-
-
-def _wait_for_client_count(handle, expected: int) -> None:
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
-        if handle._server.active_client_count == expected:
+        if handle._server.active_client_count == 0:
             return
         time.sleep(0.01)
-    raise AssertionError(f"proxy client count did not reach {expected}")
+    raise AssertionError("proxy client count did not reach 0")
 
 
 def test_route_is_dead_after_trial_stop(tmp_path: Path) -> None:
