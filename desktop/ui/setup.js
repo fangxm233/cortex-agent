@@ -24,7 +24,6 @@
     INIT_NO_RESULT: ['Initialization finished without reporting a result. Check the activity log.', '初始化已结束，但没有返回结果，请查看运行日志。'],
     UI_ENABLE_FAILED: ['Could not enable the server’s Web UI endpoint.', '未能开启服务端的 Web UI 端点。'],
     DAEMON_START_FAILED: ['The server could not be started.', '服务端未能启动。'],
-    AUTOSTART_FAILED: ['Auto-start could not be enabled.', '未能开启自动启动。'],
     PROGRAM_FAILED: ['A required program could not be run.', '无法运行所需的程序。'],
     SETUP_TASK_FAILED: ['This step stopped unexpectedly. Try again.', '这一步意外中止，请重试。'],
   };
