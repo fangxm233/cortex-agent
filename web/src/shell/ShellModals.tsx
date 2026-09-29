@@ -10,7 +10,6 @@ import {
   AboutModalHost,
   DaemonStatusModalHost,
   NewProjectModalHost,
-  ShortcutsModalHost,
 } from './useShellModals';
 
 // The one mount point for the desktop shell's always-available overlays. Each host reads its own
@@ -35,7 +34,6 @@ export function ShellModalHost(): JSX.Element {
       <ExecutionDrawerHost />
       <NewProjectModalHost />
       <DaemonStatusModalHost />
-      <ShortcutsModalHost />
       <AboutModalHost />
     </>
   );

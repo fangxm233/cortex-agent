@@ -20,9 +20,9 @@ import type { MenuDef, MenuNode } from './menu-model';
 
 export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
 
-// Every menu item is declared exactly once, here. The HTML menu bar (Windows / Linux), the global
-// shortcut handler and the keyboard shortcuts sheet all read this model, and the macOS
-// native menu is built from the same list on the Rust side by id.
+// Every menu item is declared exactly once, here. The HTML menu bar (Windows / Linux) and the
+// global shortcut handler both read this model, and the macOS native menu is built from the same
+// list on the Rust side by id.
 //
 // Clipboard note: `execCommand` still drives cut/copy/select-all inside the webview, but paste is
 // blocked there, so it goes through `navigator.clipboard.readText` + an `insertText` command. If

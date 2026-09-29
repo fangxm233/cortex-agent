@@ -1,6 +1,6 @@
-// One declaration drives three consumers: the dropdown's right-hand hint, the global key handler,
-// and the Help → Keyboard shortcuts sheet. Before this, the app had four ad-hoc `keydown` listeners
-// and no registry at all, so a shortcut could not be discovered from the UI.
+// One declaration drives two consumers: the dropdown's right-hand hint and the global key handler.
+// Before this, the app had four ad-hoc `keydown` listeners and no registry at all, so a shortcut
+// could not be discovered from the UI.
 //
 // `mod` is Cmd on macOS and Ctrl everywhere else — the same rule the existing handlers already use
 // (`event.metaKey || event.ctrlKey`).
@@ -66,7 +66,7 @@ export type MenuNode =
       /** Show the accelerator, but do not bind it. Either the webview implements it natively
        *  (the clipboard block) or another owner already binds it (⌘K lives with the palette's own
        *  state). Binding it twice would double-fire, and for ⌘K the synthetic re-dispatch would
-       *  recurse. The shortcuts sheet still lists these — they are real, just not ours. */
+       *  recurse. */
       accelDisplayOnly?: boolean;
       /** Maps to a macOS `PredefinedMenuItem`. Those carry real AppKit behaviour (a working Edit
        *  menu, the standard fullscreen item), which is worth more than routing the click back
@@ -90,8 +90,8 @@ export type MenuItemNode = Extract<MenuNode, { kind: 'item' }>;
  *  matching it against `string` yields `never`. */
 export type AccelItemNode = MenuItemNode & { accel: string };
 
-/** Every actionable leaf, flattened — the shortcut handler and the shortcuts sheet both want the
- *  items regardless of nesting, and neither cares about separators. */
+/** Every actionable leaf, flattened — the shortcut handler wants the items regardless of nesting,
+ *  and does not care about separators. */
 export function flattenItems(menus: MenuDef[]): MenuItemNode[] {
   const out: MenuItemNode[] = [];
   const walk = (nodes: MenuNode[]) => {

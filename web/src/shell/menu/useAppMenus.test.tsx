@@ -19,7 +19,7 @@ vi.mock('@/features/dock/DockProvider', () => ({ useDock: () => ({ open: true, c
 vi.mock('@/theme/ThemeProvider', () => ({ useTheme: () => 'dark', useSetTheme: () => vi.fn() }));
 vi.mock('../PaneStateProvider', () => ({ usePaneState: () => ({ toggleRail: vi.fn(), togglePanel: vi.fn() }) }));
 vi.mock('../useShellModals', () => ({ useShellModals: () => ({
-  openNewProject: vi.fn(), openAbout: vi.fn(), openDaemonStatus: vi.fn(), openShortcuts: vi.fn(),
+  openNewProject: vi.fn(), openAbout: vi.fn(), openDaemonStatus: vi.fn(),
 }) }));
 vi.mock('./useWindowActions', () => ({ useWindowActions: () => ({
   close: vi.fn(), zoomIn: vi.fn(), zoomOut: vi.fn(), zoomReset: vi.fn(), toggleFullscreen: vi.fn(), toggleDevTools: vi.fn(),
