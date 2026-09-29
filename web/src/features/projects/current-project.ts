@@ -13,12 +13,3 @@ export function deriveActiveProjectId(
   }
   return projects[0]?.id ?? null;
 }
-
-/** An explicit or latched selection stays sticky ahead of the shared derived default. */
-export function resolveCurrentProjectId(
-  override: string | null,
-  sessions: SessionInfo[],
-  projects: ProjectConduitInfo[],
-): string | null {
-  return override ?? deriveActiveProjectId(sessions, projects);
-}

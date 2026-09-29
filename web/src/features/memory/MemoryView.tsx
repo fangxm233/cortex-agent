@@ -8,7 +8,6 @@ import { deriveActiveProjectId } from '@/features/projects/current-project';
 import { deriveMemoryTreeFacts } from './memory-tree';
 import {
   buildTreeRows,
-  pickDefaultPath,
   relTimeAgo,
   diffToggle,
   formatLineDiff,
@@ -163,7 +162,7 @@ export function MemoryView(): JSX.Element {
   const treeFacts = useMemo(() => deriveMemoryTreeFacts(tree), [tree]);
 
   // Effective selection: explicit pick, else the first top-level or nested file once the tree resolves.
-  const effectivePath = selectedPath ?? pickDefaultPath(treeFacts);
+  const effectivePath = selectedPath ?? treeFacts.firstFile?.path ?? null;
 
   const fileQuery = useQuery({
     ...trpc.memory.file.queryOptions({ projectId: activeProjectId ?? '', path: effectivePath ?? '' }),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
-import { deriveActiveProjectId, resolveCurrentProjectId } from './current-project';
+import { deriveActiveProjectId } from './current-project';
 
 const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   sessionId: `s-${projectId}-${lastUsedAt}`,
@@ -55,23 +55,5 @@ describe('deriveActiveProjectId', () => {
 
   it('returns null when there are neither sessions nor projects', () => {
     expect(deriveActiveProjectId([], [])).toBeNull();
-  });
-});
-
-describe('resolveCurrentProjectId', () => {
-  it('keeps an explicit selection ahead of the derived default', () => {
-    expect(resolveCurrentProjectId(
-      'gamma',
-      [session('beta', '2026-07-05T00:00:00Z')],
-      [project('beta'), project('gamma')],
-    )).toBe('gamma');
-  });
-
-  it('uses the shared derivation when no override is set', () => {
-    expect(resolveCurrentProjectId(
-      null,
-      [session('beta', '2026-07-05T00:00:00Z')],
-      [project('beta')],
-    )).toBe('beta');
   });
 });

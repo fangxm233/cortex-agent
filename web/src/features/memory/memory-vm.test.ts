@@ -3,7 +3,6 @@ import type { MemoryTree, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import { deriveMemoryTreeFacts } from './memory-tree';
 import {
   buildTreeRows,
-  pickDefaultPath,
   groupBlame,
 } from './memory-vm';
 
@@ -60,14 +59,6 @@ describe('buildTreeRows', () => {
     const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), 'experiments/EXP-002.md');
     expect(rows.find((r) => r.path === 'experiments/EXP-002.md')!.selected).toBe(true);
     expect(rows.find((r) => r.path === 'mission.md')!.selected).toBe(false);
-  });
-});
-
-describe('pickDefaultPath', () => {
-  it('returns the first top-level path, then the first nested path, else null', () => {
-    expect(pickDefaultPath(deriveMemoryTreeFacts(tree()))).toBe('mission.md');
-    expect(pickDefaultPath(deriveMemoryTreeFacts(tree({ files: [] })))).toBe('experiments/EXP-001.md');
-    expect(pickDefaultPath(deriveMemoryTreeFacts(tree({ files: [], dirs: [] })))).toBeNull();
   });
 });
 

@@ -57,11 +57,6 @@ export function buildTreeRows(facts: MemoryTreeFacts, selectedPath: string | nul
   return [...topLevelRows, ...dirRows];
 }
 
-/** Default selected file = first top-level file, otherwise the first nested entry. */
-export function pickDefaultPath(facts: MemoryTreeFacts): string | null {
-  return facts.firstFile?.path ?? null;
-}
-
 /** `updated 2m ago` · `2分钟前更新` from an ISO timestamp; `updated —` · `更新时间 —` when missing/unparseable. */
 export function relTimeAgo(iso: string | null | undefined, now: number, lang: TimeLang): string {
   const ago = timeAgo(iso, now, lang);

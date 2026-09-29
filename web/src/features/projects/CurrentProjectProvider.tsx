@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQuery } from '@tanstack/react-query';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { resolveCurrentProjectId } from './current-project';
+import { deriveActiveProjectId } from './current-project';
 import { useAllSessions } from './useProjectSessions';
 
 export interface CurrentProjectContextValue {
@@ -24,11 +24,8 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
   const [projectOrder, setProjectOrderState] = useState<string[]>([]);
 
   const projects = projectsQuery.data ?? [];
-  const currentProjectId = resolveCurrentProjectId(
-    override,
-    sessionsQuery.data ?? [],
-    projects,
-  );
+  // An explicit or latched selection stays sticky ahead of the shared derived default.
+  const currentProjectId = override ?? deriveActiveProjectId(sessionsQuery.data ?? [], projects);
   // The most-recent session only picks the starting project. Latch it once the session list is in,
   // so activity elsewhere (another device, a background turn) never moves the project under the user.
   const sessionsLoaded = sessionsQuery.isSuccess;
