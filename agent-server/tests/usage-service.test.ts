@@ -16,7 +16,6 @@ import {
 
 class MemoryUsageStore implements UsageServiceStore {
   private records: ProviderUsage[] = [];
-  listCalls = 0;
   commitCalls = 0;
 
   constructor(records: ProviderUsage[] = []) {
@@ -24,7 +23,6 @@ class MemoryUsageStore implements UsageServiceStore {
   }
 
   async list(): Promise<ProviderUsage[]> {
-    this.listCalls += 1;
     return structuredClone(this.records).sort(
       (a, b) => a.provider.localeCompare(b.provider) || usageRecordKey(a).localeCompare(usageRecordKey(b)),
     );
@@ -129,17 +127,14 @@ function serviceWith(options: {
   store?: MemoryUsageStore;
   anthropicModes?: string[];
   subscriptionModes?: string[];
-  claude?: UsageProbeAdapter;
   pi?: UsageProbeAdapter;
   fetch?: typeof globalThis.fetch;
 }) {
   const store = options.store ?? new MemoryUsageStore();
-  const claude = options.claude ?? fakeAdapter('claude', async () => []);
   const pi = options.pi ?? fakeAdapter('pi', async () => []);
-  const adapters: Record<Backend, UsageProbeAdapter> = { claude, pi };
   const service = new UsageService({
     store,
-    getAdapter: (backend) => adapters[backend],
+    getAdapter: () => pi,
     getSettings: () => ({
       anthropicSubscriptionModes: options.anthropicModes ?? ['plan'],
       subscriptionBillingModes: options.subscriptionModes ?? ['plan', 'openai-codex'],
@@ -157,10 +152,9 @@ describe('UsageService', () => {
       { type: 'model_scoped', label: 'Fable', utilization: 0.9, resetsAt: 1_800_000_000 },
     ] });
     const store = new MemoryUsageStore([persisted]);
-    const claude = fakeAdapter('claude', vi.fn(async () => []));
     const pi = fakeAdapter('pi', vi.fn(async () => []));
     const fetch = vi.fn();
-    const { service } = serviceWith({ store, claude, pi, fetch: fetch as typeof globalThis.fetch });
+    const { service } = serviceWith({ store, pi, fetch: fetch as typeof globalThis.fetch });
 
     assert.deepEqual(await service.getStatus(), [{
       ...persisted,
@@ -168,20 +162,16 @@ describe('UsageService', () => {
       freshness: 'stale',
     }]);
     assert.equal(store.commitCalls, 0);
-    assert.equal(claude.getUsage && vi.mocked(claude.getUsage).mock.calls.length, 0);
     assert.equal(pi.getUsage && vi.mocked(pi.getUsage).mock.calls.length, 0);
     assert.equal(fetch.mock.calls.length, 0);
   });
 
-  test('collect reads Anthropic quota from the gateway without resolving the Claude adapter', async () => {
+  test('collect reads Anthropic quota from the gateway', async () => {
     const store = new MemoryUsageStore();
     const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'never', {
       displayName: 'OpenAI Codex', modes: ['openai-codex'],
     })]);
-    const getAdapter = vi.fn((backend: Backend) => {
-      if (backend === 'claude') throw new Error('Claude usage collection must not be resolved');
-      return pi;
-    });
+    const getAdapter = vi.fn(() => pi);
     const fetch = vi.fn(async (input) => {
       const url = String(input);
       if (url.endsWith('/quota?provider=anthropic')) {
@@ -218,7 +208,7 @@ describe('UsageService', () => {
       freshness: 'stale',
       billing: 'subscription',
     });
-    assert.deepEqual(getAdapter.mock.calls.map(([backend]) => backend), ['pi']);
+    assert.equal(getAdapter.mock.calls.length, 1);
     assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 1);
   });
 
@@ -475,10 +465,9 @@ describe('UsageService', () => {
         update: (record) => store.update(record),
       } },
     );
-    const claude = fakeAdapter('claude', async () => []);
     const service = new UsageService({
       store,
-      getAdapter: (backend) => backend === 'pi' ? pi : claude,
+      getAdapter: () => pi,
       getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: ['plan'] }),
       fetch: gatewayFetch([], []),
       gatewayUrl: 'http://gateway.test',
@@ -506,11 +495,9 @@ describe('UsageService', () => {
   });
 
   test('every explicit refresh reads each enabled cache and gateway source once', async () => {
-    const claudeGetUsage = vi.fn(async () => [usage('anthropic', 'live')]);
     const piGetUsage = vi.fn(async () => [usage('openai-codex', 'never')]);
     const fetch = gatewayFetch([], []);
     const { service } = serviceWith({
-      claude: fakeAdapter('claude', claudeGetUsage),
       pi: fakeAdapter('pi', piGetUsage),
       fetch,
     });
@@ -518,14 +505,12 @@ describe('UsageService', () => {
     await service.refresh();
     await service.refresh();
 
-    assert.equal(claudeGetUsage.mock.calls.length, 0);
     assert.equal(piGetUsage.mock.calls.length, 2);
     assert.equal(vi.mocked(fetch).mock.calls.length, 6);
     assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 2);
   });
 
   test('empty Anthropic mode configuration disables gateway quota reads and clears attribution', async () => {
-    const claudeGetUsage = vi.fn(async () => [usage('anthropic', 'live')]);
     const piGetUsage = vi.fn(async () => [usage('openai-codex', 'never')]);
     const store = new MemoryUsageStore([usage('anthropic', 'live', {
       modes: ['plan'],
@@ -536,7 +521,6 @@ describe('UsageService', () => {
     const { service } = serviceWith({
       store,
       anthropicModes: [],
-      claude: fakeAdapter('claude', claudeGetUsage),
       pi: fakeAdapter('pi', piGetUsage),
       fetch,
     });
@@ -544,7 +528,6 @@ describe('UsageService', () => {
     const result = await service.collect();
     const anthropic = result.find((record) => record.provider === 'anthropic');
 
-    assert.equal(claudeGetUsage.mock.calls.length, 0);
     assert.equal(piGetUsage.mock.calls.length, 1);
     assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 0);
     assert.deepEqual(anthropic?.modes, ['plan']);

@@ -1,6 +1,6 @@
-import { getClaudeEngineAdapter, getPiEngineAdapter } from '../runs/adapters.js';
+import { getPiEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
-import type { AgentUsageScope, Backend } from '../../agent-adapter/types.js';
+import type { AgentUsageScope } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 import { GATEWAY_URL } from './gateway-manager.js';
@@ -31,12 +31,7 @@ type UsageAdapter = {
   readonly capabilities: Set<Capability>;
   getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 };
-type AdapterResolver = (backend: Backend) => UsageAdapter;
-
-/** Both backends keep their usage probe on their engine adapter. */
-function defaultUsageAdapter(backend: Backend): UsageAdapter {
-  return backend === 'pi' ? getPiEngineAdapter() : getClaudeEngineAdapter();
-}
+type AdapterResolver = () => UsageAdapter;
 type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes' | 'subscriptionBillingModes'>;
 
 export interface UsageServiceStore {
@@ -368,7 +363,7 @@ export class UsageService {
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
-    this.getAdapter = dependencies.getAdapter ?? defaultUsageAdapter;
+    this.getAdapter = dependencies.getAdapter ?? (() => getPiEngineAdapter());
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
@@ -525,7 +520,7 @@ export class UsageService {
   // ── Transport ────────────────────────────────────────────────
 
   private async readCodexQuota(): Promise<ProviderUsage | null> {
-    const adapter = this.getAdapter('pi');
+    const adapter = this.getAdapter();
     if (!adapter.capabilities.has(Capability.Usage) || !adapter.getUsage) return null;
     const records = await adapter.getUsage(CODEX_SCOPE);
     return records?.find((record) => record.provider === CODEX_PROVIDER) ?? null;
