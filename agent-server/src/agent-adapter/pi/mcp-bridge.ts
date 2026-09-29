@@ -19,8 +19,7 @@ import { createLogger } from '@core/log.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import {
-  MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
-  validateMcpToolAllowlist, withoutSubagentTools,
+  MCP_TOOL_ALLOWLIST_ENV, parseMcpToolAllowlist, withoutSubagentTools,
 } from '@core/mcp-tool-gate.js';
 import type { McpServerConfig } from '../types.js';
 import { createRedirectRejectingFetch } from '../mcp-remote-fetch.js';
@@ -146,28 +145,6 @@ function createState(name: string, source: McpServerSource): ServerState {
   };
 }
 
-function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
-  const seen = new Set<string>();
-  for (const state of states) {
-    if (seen.has(state.name)) throw new Error(`Duplicate MCP server state name: ${state.name}`);
-    seen.add(state.name);
-  }
-  return states;
-}
-
-function validateToolGatedStates(
-  env: NodeJS.ProcessEnv, states: ServerState[],
-): ServerState[] {
-  // `parseMcpToolAllowlist` already rejects a name that exists in no bundle at all — that is the
-  // typo check, and it is the only one worth making. A name that exists but belongs to a bundle
-  // this session does not compose (`send_file` outside a web session) is simply absent here: an
-  // allowlist is an upper bound on the surface, not a demand for it, and the gate drops what it
-  // cannot register. Validating against the COMPOSED bundles used to turn "this agent also
-  // delivers files on the web" into "this agent may not run on Slack".
-  parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
-  return states;
-}
-
 function optionalBundles(env: NodeJS.ProcessEnv): McpBundleName[] {
   const channel = env.SLACK_CHANNEL;
   const optional: Array<[boolean, McpBundleName]> = [
@@ -206,7 +183,14 @@ export function buildServerStates(
   reportIssue: (message: string) => void = () => undefined,
 ): ServerState[] {
   const composition = env[PI_MCP_COMPOSITION_ENV];
-  if (composition === 'none') return validateToolGatedStates(env, []);
+  if (composition === 'none') {
+    // `parseMcpToolAllowlist` rejects a name that exists in no bundle at all — that is the typo
+    // check, and it is the only one worth making (`toolGatedEnv` makes it on every other path). A
+    // name that exists but belongs to a bundle this session does not compose is simply absent: an
+    // allowlist is an upper bound on the surface, not a demand for it.
+    parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
+    return [];
+  }
   const bundles: McpBundleName[] = ['cortex-core'];
   if (env.CORTEX_PI_SUBAGENT !== '1') {
     bundles.push('cortex-tasks', 'cortex-manager-qa');
@@ -217,7 +201,7 @@ export function buildServerStates(
   }
   const states = [createState('core', { kind: 'bundled', bundles, env: toolGatedEnv(bundles, env) })];
   if (env.CORTEX_PI_SUBAGENT !== '1') states.push(...pluginStates(pluginServers, reportIssue));
-  return validateToolGatedStates(env, assertUniqueServerStateNames(states));
+  return states;
 }
 
 function serverFailure(name: string, action: string, cause: unknown): Error {
