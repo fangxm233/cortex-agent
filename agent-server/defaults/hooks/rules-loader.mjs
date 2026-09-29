@@ -108,7 +108,7 @@ function loadScopedRules() {
       const content = readFileSync(fp, 'utf8');
       const { paths, body } = parseFrontmatter(content);
       if (paths.length === 0) continue;
-      rules.push({ file: f, paths, body, mtimeMs: st.mtimeMs });
+      rules.push({ file: f, paths, body });
     } catch { /* skip unreadable */ }
   }
   return rules;
