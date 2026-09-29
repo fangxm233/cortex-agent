@@ -143,9 +143,8 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         key="direct-pi-openai-codex", profile_name="direct",
         root_template="direct", evidence_mode="direct",
         expected_roles=("direct",),
-        provider="openai-codex", model="gpt-5.6-sol",
-        credential_capability="pi-openai-codex-oauth", thinking="xhigh",
         orchestration={"mode": "direct", "ask_manager": False},
+        **CODEX_PROVIDER,
     ),
     _bundle(
         key="coder-review-audit-retry-pi-openai-codex",
