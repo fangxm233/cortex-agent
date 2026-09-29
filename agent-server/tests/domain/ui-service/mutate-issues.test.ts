@@ -35,7 +35,6 @@ function idOf(md: string, title: string): string {
 }
 
 interface SentMessage {
-  sessionId: string;
   channel: string;
   text: string;
 }
@@ -60,9 +59,13 @@ function makeDeps(
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: { getHistory: async () => null },
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
+    },
     sendSessionMessage: (args: any) => {
-      opts?.sent?.push({ sessionId: args.sessionId, channel: args.channel, text: args.text });
+      opts?.sent?.push({ channel: args.channel, text: args.text });
     },
     approvalsPath: '/nonexistent/PENDING_APPROVALS.md',
     runningExecutions: { getAll: () => [] } as any,
@@ -164,7 +167,6 @@ test('handleIssuesHandle creates a session, sends the issue prompt, removes the 
   // session created for the right project, prompt carries the full entry
   assert.deepEqual(created, ['demo']);
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].sessionId, 'sess_new');
   assert.equal(sent[0].channel, 'web:demo:1');
   assert.match(sent[0].text, /First issue title/);
   assert.match(sent[0].text, /first body line\./);

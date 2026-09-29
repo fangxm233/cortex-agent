@@ -175,7 +175,6 @@ export async function handleSendSession(
   }
   const acceptedAt = new Date().toISOString();
   deps.sendSessionMessage({
-    sessionId: args.sessionId,
     channel,
     text: args.text,
     attachments: args.attachments,
@@ -305,7 +304,6 @@ export async function handleCreateAndSend(
 
   const acceptedAt = new Date().toISOString();
   deps.sendSessionMessage({
-    sessionId,
     channel,
     text: args.text,
     attachments: attachments.length > 0 ? attachments : undefined,
@@ -591,7 +589,7 @@ export async function handleRespondDecision(
     ...(args.action !== 'approve' ? { message } : {}),
   }).catch(() => {});
   if (args.action !== 'approve') {
-    deps.sendSessionMessage({ sessionId: args.sessionId, channel: session.channel, text: message });
+    deps.sendSessionMessage({ channel: session.channel, text: message });
   }
   return { ok: true, data: { outcome: 'recorded' } };
 }

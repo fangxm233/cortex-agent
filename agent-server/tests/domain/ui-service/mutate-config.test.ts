@@ -24,7 +24,11 @@ function makeMinimalDeps(): UiServiceDeps {
   return {
     projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/tmp' }), createProject: () => ({} as any) },
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    conversationHistory: { getHistory: async () => null },
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
+    },
     sendSessionMessage: () => {},
     threadStore: { getAll: () => [], get: () => null },
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },

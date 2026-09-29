@@ -104,7 +104,6 @@ export async function handleIssuesHandle(
 
     const { sessionId, channel } = await deps.createDirectSession({ projectId: args.projectId });
     deps.sendSessionMessage({
-      sessionId,
       channel,
       text: buildIssuePrompt(args.projectId, entry),
     });

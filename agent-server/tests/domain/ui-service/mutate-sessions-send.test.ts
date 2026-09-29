@@ -4,12 +4,12 @@ import { handleSendSession } from '../../../src/domain/ui-service/mutate/session
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { Session } from '../../../src/store/session-registry-repo.js';
 
-interface SendCall { sessionId: string; channel: string; text: string; attachments?: unknown }
+interface SendCall { channel: string; text: string; attachments?: unknown }
 
 function makeDeps(session: Session | null, sink: SendCall[], extra: Partial<UiServiceDeps> = {}): UiServiceDeps {
   return {
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
-    sendSessionMessage: (opts) => { sink.push({ sessionId: opts.sessionId, channel: opts.channel, text: opts.text, attachments: opts.attachments }); },
+    sendSessionMessage: (opts) => { sink.push({ channel: opts.channel, text: opts.text, attachments: opts.attachments }); },
     ...extra,
   } as unknown as UiServiceDeps;
 }
@@ -57,7 +57,6 @@ test('sessions.send awaits admission touch before routing to the session channel
     assert.match(res.data.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
   }
   assert.equal(sink.length, 1);
-  assert.equal(sink[0].sessionId, 'sess-1');
   assert.equal(sink[0].channel, 'C123');
   assert.equal(sink[0].text, 'run it');
   assert.equal(sink[0].attachments, undefined);
@@ -76,7 +75,6 @@ test('sessions.send on a scheduled session adopts it first and routes to the ado
   assert.deepEqual(adopted, ['sess-2'], 'conversion runs before the send');
   assert.equal(sink.length, 1);
   assert.equal(sink[0].channel, 'web:sess-2', 'send goes to the adopted web channel, not the project channel');
-  assert.equal(sink[0].sessionId, 'sess-2');
 });
 
 test('sessions.send on a scheduled session is not-available when adoption is not wired', async () => {

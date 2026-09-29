@@ -2926,14 +2926,12 @@ export interface UiServiceDeps {
       sessionId: string,
       options?: { includeToolDebug?: boolean },
     ): Promise<SessionHistory | null>;
-    getCompactHistory?(sessionId: string): Promise<import('@store/conversation-history-repo.js').CompactConversationHistory | null>;
-    /** Compact history plus the cursor that makes the next read a delta. Optional: a store without
-     *  it simply never serves deltas. */
-    getCompactHistoryAt?(sessionId: string): Promise<{
+    /** Compact history plus the cursor that makes the next read a delta. */
+    getCompactHistoryAt(sessionId: string): Promise<{
       value: import('@store/conversation-history-repo.js').CompactConversationHistory | null;
       cursor: string;
     }>;
-    getSubagentHistory?(sessionId: string, subagentId: string): Promise<import('@store/conversation-history-repo.js').SubagentConversationHistory>;
+    getSubagentHistory(sessionId: string, subagentId: string): Promise<import('@store/conversation-history-repo.js').SubagentConversationHistory>;
     getToolDebugDetails?(
       sessionId: string,
       toolRef: string,
@@ -2961,7 +2959,7 @@ export interface UiServiceDeps {
    * Wired in the entry layer (app.ts) to the orchestration send path — kept as an injected
    * callback so the ui-service domain never imports orchestration (layer safety / depcruise).
    */
-  sendSessionMessage: (opts: { sessionId: string; channel: string; text: string; attachments?: AttachmentMeta[] }) => void;
+  sendSessionMessage: (opts: { channel: string; text: string; attachments?: AttachmentMeta[] }) => void;
   /**
    * Cancel every live execution running on a session's channel (S4 chat Stop). Wired in the entry
    * layer (app.ts) to the orchestration channel-cancel path (`cancelChannelRuns`), which kills the

@@ -32,7 +32,11 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: { getHistory: async () => null },
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
+    },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: {
@@ -598,6 +602,8 @@ test('sessions.list titles a label-less session from its first user message, kee
   const deps = makeDeps({
     conversationHistory: {
       getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
       getFirstUserText: async (id: string) => (id === 's2' ? 'help me set up the ablation sweep' : null),
     },
   });
@@ -619,6 +625,8 @@ test('sessions.transcript maps agent-sent file attachments onto assistant messag
           { type: 'assistant' as const, text: 'here it is', ts: '2026-05-01T00:00:01.000Z', turnIndex: 0, attachments },
         ],
       }),
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
     },
   });
   const result = await handleSessionsTranscript(deps, { sessionId: 's1' });
@@ -632,7 +640,11 @@ test('sessions.transcript maps agent-sent file attachments onto assistant messag
 test('sessions.transcript returns durable pending messages even before committed history exists', async () => {
   const attachments = [{ name: 'note.txt', path: 'workspace/attachments/s1/note.txt', size: 4, mimeType: 'text/plain', type: 'file' as const }];
   const deps = makeDeps({
-    conversationHistory: { getHistory: async () => null },
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
+    },
     pendingInjections: {
       listBySession: async (sessionId: string) => sessionId === 's1' ? [{
         id: 'pin-1', sessionId: 's1', channel: 'web:s1', messageId: 'web-1',

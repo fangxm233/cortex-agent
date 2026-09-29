@@ -57,7 +57,7 @@ test('explain records the action AND forwards the composed message as a chat sen
   });
   assert.deepEqual(res, { ok: true, data: { outcome: 'recorded' } });
   assert.equal(h.appended[0].message, '请解释决策「Use SQLite」：why?');
-  assert.deepEqual(h.sent, [{ sessionId: 'sess-1', channel: 'web:sess-1', text: '请解释决策「Use SQLite」：why?' }]);
+  assert.deepEqual(h.sent, [{ channel: 'web:sess-1', text: '请解释决策「Use SQLite」：why?' }]);
 });
 
 test('explain/revise without a message → invalid-args; nothing is recorded', async () => {

@@ -21,7 +21,7 @@ test('compact authority overlays snapshots without mutating cached history or in
     Object.freeze({ id: 'legacy', toolCount: 0, hasDetails: false, structurallyOpen: false }),
   ]);
   const deps = {
-    conversationHistory: { getCompactHistory: async () => ({ events: [], subagentSummaries: summaries }) },
+    conversationHistory: { getCompactHistoryAt: async () => ({ value: { events: [], subagentSummaries: summaries }, cursor: 'e1:0' }) },
     getSubagentChildStatuses: (sessionId: string) => sessionId === 'owner'
       ? new Map([['quiet', 'running'], ['ended', 'running'], ['unanchored', 'running']]) : new Map(),
   } as unknown as UiServiceDeps;
@@ -205,7 +205,7 @@ test('sessions.transcript stays full by default and compact opt-in always return
   const deps = {
     conversationHistory: {
       getHistory: async () => fullHistory,
-      getCompactHistory: async () => compactHistory,
+      getCompactHistoryAt: async () => ({ value: compactHistory, cursor: 'e1:0' }),
     },
     pendingInjections: { listBySession: async () => [] },
   } as unknown as UiServiceDeps;
@@ -221,7 +221,7 @@ test('sessions.transcript stays full by default and compact opt-in always return
   const emptyCompact = await handleSessionsTranscript({
     conversationHistory: {
       getHistory: async () => null,
-      getCompactHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: 'e1:0' }),
     },
     pendingInjections: { listBySession: async () => [] },
   } as unknown as UiServiceDeps, { sessionId: 'empty-compact', compactSubagents: true } as any);

@@ -34,7 +34,11 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
       getAll: () => [knownRecord],
       cancelExecution: () => null,
     },
-    conversationHistory: { getHistory: async () => null },
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
+      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
+    },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: { getAll: () => [] } as any,

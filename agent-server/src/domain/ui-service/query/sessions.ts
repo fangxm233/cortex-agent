@@ -23,7 +23,6 @@ import {
   type SessionTotalsAcc,
 } from '@store/session-totals.js';
 import type { HistoryEvent } from '@store/conversation-history-repo.js';
-import { projectCompactHistory, projectSubagentHistory } from '@store/conversation-display-projection.js';
 import { isDebugMode } from '@core/debug-mode.js';
 
 export async function handleSessionsList(
@@ -358,21 +357,6 @@ function pendingMessages(
   return snapshot.filter((message) => !committed.has(message.id));
 }
 
-async function compactHistory(deps: UiServiceDeps, sessionId: string) {
-  if (deps.conversationHistory.getCompactHistory) return deps.conversationHistory.getCompactHistory(sessionId);
-  const history = await deps.conversationHistory.getHistory(sessionId, { includeToolDebug: false });
-  return history ? projectCompactHistory(history) : null;
-}
-
-/** Compact history plus the cursor a client passes back as `since`. Stores that cannot produce a
- *  cursor simply do not get deltas — every response stays a full transcript. */
-async function compactHistoryAt(deps: UiServiceDeps, sessionId: string) {
-  if (deps.conversationHistory.getCompactHistoryAt) {
-    return deps.conversationHistory.getCompactHistoryAt(sessionId);
-  }
-  return { value: await compactHistory(deps, sessionId), cursor: undefined };
-}
-
 /** A row whose rendered form depends on wall-clock time or live server state rather than on the
  *  stored history, so its revision cannot say whether it changed. Always re-sent in a delta. */
 function isVolatileRow(event: EventWithElapsed): boolean {
@@ -417,22 +401,12 @@ function transcriptDelta(
   events: EventWithElapsed[],
   revs: readonly number[] | undefined,
   since: string | undefined,
-  cursor: string | undefined,
+  cursor: string,
 ): TranscriptDelta | null {
   const from = parseCursor(since);
   const now = parseCursor(cursor);
   if (!from || !now || !revs || from.epoch !== now.epoch || from.revision > now.revision) return null;
   return { changed: transcriptDeltaRows(deps, events, revs, from.revision), total: events.length };
-}
-
-async function subagentHistory(deps: UiServiceDeps, sessionId: string, subagentId: string) {
-  if (deps.conversationHistory.getSubagentHistory) {
-    return deps.conversationHistory.getSubagentHistory(sessionId, subagentId);
-  }
-  return projectSubagentHistory(
-    await deps.conversationHistory.getHistory(sessionId, { includeToolDebug: false }),
-    subagentId,
-  );
 }
 
 function sessionTranscript(
@@ -484,20 +458,18 @@ async function compactTranscript(
   params: SessionsTranscriptParams,
   pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
 ): Promise<SessionTranscript> {
-  const { value: history, cursor } = await compactHistoryAt(deps, params.sessionId);
+  const { value: history, cursor } = await deps.conversationHistory.getCompactHistoryAt(params.sessionId);
   const events = history?.events ?? [];
   const pendingUserMessages = pendingMessages(pendingSnapshot, history?.committedSourceIds);
   const subagentSummaries = authoritativeSubagentSummaries(deps, params.sessionId, history?.subagentSummaries ?? []);
   // Pending messages and subagent summaries are per-session, not per-row, and small: they ride
   // every response whole, so a delta only ever has to describe transcript ROWS.
-  const delta = cursor === undefined
-    ? null
-    : transcriptDelta(deps, events, history?.eventRevs, params.since, cursor);
+  const delta = transcriptDelta(deps, events, history?.eventRevs, params.since, cursor);
   // Built only when it is going to be sent — assembling every row's DTO is the server-side cost a
   // delta exists to avoid, so the whole-transcript path must not run underneath it.
   if (delta) return { sessionId: params.sessionId, turns: [], pendingUserMessages, subagentSummaries, cursor, delta };
   const base = sessionTranscript(deps, params.sessionId, events, pendingUserMessages, subagentSummaries);
-  return cursor === undefined ? base : { ...base, cursor };
+  return { ...base, cursor };
 }
 
 export async function handleSessionsTranscript(
@@ -514,7 +486,7 @@ export async function handleSessionsSubagentTranscript(
   deps: UiServiceDeps,
   params: SessionsSubagentTranscriptParams,
 ): Promise<SessionSubagentTranscript> {
-  const history = await subagentHistory(deps, params.sessionId, params.subagentId);
+  const history = await deps.conversationHistory.getSubagentHistory(params.sessionId, params.subagentId);
   return {
     sessionId: params.sessionId,
     subagentId: params.subagentId,
