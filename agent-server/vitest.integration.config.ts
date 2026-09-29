@@ -28,7 +28,6 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
     include: [
       'tests/**/integration-*.test.ts',
-      'tests/domain/benchmark/*-e2e.test.ts',
     ],
     exclude: ['node_modules/**'],
     testTimeout: 120000,

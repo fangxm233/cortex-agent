@@ -83,7 +83,6 @@ export default defineConfig({
       'tests/**/_combined*',
       'tests/**/_plan*',
       'tests/**/integration-*.test.ts',
-      'tests/domain/benchmark/*-e2e.test.ts',
       'node_modules/**',
       ...(SHARD === 'isolated' ? SHARED_POOL_FILES : []),
     ],
