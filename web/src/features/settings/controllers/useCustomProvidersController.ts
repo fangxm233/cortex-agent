@@ -16,8 +16,6 @@ import {
 
 export interface CustomProvidersController {
   providers: CustomProviderView[];
-  listLoading: boolean;
-  listError: { message: string } | null;
   draft: CustomProviderFormState | null;
   creating: boolean;
   errors: CustomProviderFormErrors;
@@ -80,8 +78,7 @@ export function useCustomProvidersController(): CustomProvidersController {
     if (!writes.remove.isPending) writes.remove.mutate({ name });
   };
   return {
-    providers, listLoading: list.isLoading, listError: list.error,
-    draft, creating, errors, confirmingDelete,
+    providers, draft, creating, errors, confirmingDelete,
     savePending: writes.save.isPending, removePending: writes.remove.isPending,
     openCreate, openEdit, changeDraft: setDraft, closeDraft: () => setDraft(null),
     save, requestDelete,

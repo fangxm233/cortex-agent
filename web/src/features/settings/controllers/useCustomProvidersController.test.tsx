@@ -72,7 +72,7 @@ async function mount() {
       </QueryClientProvider>,
     );
   });
-  await vi.waitFor(() => expect(controller?.listLoading).toBe(false));
+  await vi.waitFor(() => expect(controller?.providers).toEqual([PROVIDER]));
   return { queryClient, invalidate, renderer };
 }
 
