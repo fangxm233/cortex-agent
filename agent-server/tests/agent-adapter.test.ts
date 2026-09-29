@@ -2,7 +2,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
-import { toCanonical, fromCanonical, type NormalizedEvent } from '../src/agent-adapter/index.js';
+import { toCanonical, fromCanonical } from '@core/tool-names.js';
+import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { getPiEngineAdapter } from '../src/domain/runs/adapters.js';
 import { engines } from '../src/domain/runs/engines.js';
 

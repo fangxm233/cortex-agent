@@ -1,4 +1,4 @@
-import type { Backend } from '../../agent-adapter/index.js';
+import type { Backend } from '../../agent-adapter/types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { isProviderModeRateLimited } from '../costs/rate-limit-throttle.js';
 

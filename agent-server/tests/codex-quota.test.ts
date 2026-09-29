@@ -1,10 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import {
-  parseCodexQuotaHeaders,
-  encodeQuotaNotice,
-  decodeQuotaNotice,
-} from '@core/codex-quota.js';
+import { parseCodexQuotaHeaders } from '@core/codex-quota.js';
 
 /** Real capture from chatgpt.com/backend-api via the Cortex gateway (2026-08-04, pro plan). */
 const LIVE_HEADERS: Record<string, string> = {
@@ -94,27 +90,6 @@ test('returns null when every window is disabled so a dead bucket never throttle
   assert.equal(reading, null);
 });
 
-test('carries a reading across the notice codec unchanged', () => {
-  const reading = parseCodexQuotaHeaders(LIVE_HEADERS, { nowMs: 1785822470_000 })!;
-  assert.deepEqual(decodeQuotaNotice(encodeQuotaNotice(reading)), reading);
-});
-
-test('decodes only prefixed notices so ordinary notify text stays inert', () => {
-  assert.equal(decodeQuotaNotice('Build finished'), null);
-  assert.equal(decodeQuotaNotice(''), null);
-  assert.equal(decodeQuotaNotice(undefined), null);
-  assert.equal(decodeQuotaNotice(42), null);
-});
-
-test('rejects a prefixed notice whose payload is not a usable reading', () => {
-  const prefix = encodeQuotaNotice(
-    parseCodexQuotaHeaders(LIVE_HEADERS, { nowMs: 1785822470_000 })!,
-  ).split('{')[0];
-  assert.equal(decodeQuotaNotice(`${prefix}not json`), null);
-  assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex"}`), null);
-  assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex","windows":[]}`), null);
-});
-
 test('rejects used percentages outside the provider contract range', () => {
   for (const usedPercent of ['-1', '101']) {
     const reading = parseCodexQuotaHeaders(
@@ -122,16 +97,6 @@ test('rejects used percentages outside the provider contract range', () => {
       { nowMs: 1785822470_000 },
     );
     assert.equal(reading, null);
-  }
-});
-
-test('rejects notice windows whose utilization is outside zero to one', () => {
-  for (const utilization of [-0.01, 1.01]) {
-    assert.equal(decodeQuotaNotice(encodeQuotaNotice({
-      provider: 'openai-codex',
-      planType: 'pro',
-      windows: [{ type: 'codex_primary', utilization, resetsAt: 1786160107 }],
-    })), null);
   }
 });
 

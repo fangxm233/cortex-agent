@@ -3,7 +3,6 @@ import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type { EngineRunOptions } from '../types.js';
-import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
   AgentCompactResult, AgentProcessSupervision, Backend, BackgroundTurnSink,
