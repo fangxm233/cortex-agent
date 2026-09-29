@@ -232,27 +232,6 @@ test('a foreground run that was never adopted delivers nothing when it settles',
   assert.equal(delivered.length, 0, 'its caller already has the answer as a tool result');
 });
 
-test('a run that settles while its hold is being installed does not leave the hold standing', () => {
-  const settling = view({ id: 'sa_race' });
-  let releases = 0;
-  // The window `startBackgroundSubagentRun` guards too: adoption is decided, the hold is not yet
-  // installed, and the run ends in between. Reproduced by settling from inside the install, which
-  // is the only moment the settle hook can find an adoption with no release to call.
-  const adopted = adoptForegroundRun(settling, CHANNEL, {
-    hold: (held, channel) => {
-      settleAdoptedRun({ ...held, status: 'completed' }, toolResult('done'), channel);
-      return () => { releases++; };
-    },
-  });
-  assert.equal(adopted, true);
-  assert.equal(releases, 1, 'the install, arriving second, performed the release');
-  assert.equal(delivered.length, 1, 'delivered by whoever got there first');
-  // And the adoption is gone, so a late second settle cannot deliver or release twice.
-  settleAdoptedRun({ ...settling, status: 'completed' }, toolResult('done'), CHANNEL);
-  assert.equal(delivered.length, 1);
-  assert.equal(releases, 1);
-});
-
 test('adopting the same run twice takes one hold, not two', () => {
   const before = busyTracker.count;
   assert.equal(adoptForegroundRun(view({ id: 'sa_twice' }), CHANNEL), true);

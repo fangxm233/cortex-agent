@@ -75,19 +75,15 @@ export function startBackgroundSubagentRun(
   start: (onSettled: NonNullable<StartSubagentRunOptions['onSettled']>) => SubagentRunView,
   channel: string | undefined,
 ): SubagentRunView {
-  // The hold can only be installed once the run has an id, but a run can settle before that line
-  // is reached (an invalid model, say). The flag closes that window: whichever of the two happens
-  // second performs the release, so the hold is never left standing.
-  let release: (() => void) | null = null;
-  let settledFirst = false;
+  // The hold can only be installed once the run has an id. A run settles no earlier than a later
+  // microtask, even one that fails at once (an invalid model, say), so the hold is always in place
+  // by the time the settle hook releases it.
+  let release: (() => void) | undefined;
   const view = start((settled, result) => {
-    if (release) release();
-    else settledFirst = true;
+    release?.();
     deliverBackgroundSubagentResult(settled, result, channel);
   });
-  const hold = holdSessionForBackgroundRun(view, channel);
-  if (settledFirst) hold();
-  else release = hold;
+  release = holdSessionForBackgroundRun(view, channel);
   return view;
 }
 

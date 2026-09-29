@@ -264,9 +264,9 @@ test('startBackgroundSubagentRun holds for the run and releases when it settles'
   assert.match(delivered[0].text, /the findings/);
 });
 
-test('a run that settles before the hold is installed still releases it', async () => {
+test('a run that fails at once still releases its hold', async () => {
   const before = busyTracker.count;
-  // Synchronous rejection: `settle` runs inside the same tick, before the hold exists.
+  // An immediate rejection still settles in a later microtask, after the hold is installed.
   const started = startBackgroundSubagentRun(onSettled => startSubagentRun({
     invocation: invocation(),
     sessionId: SESSION,

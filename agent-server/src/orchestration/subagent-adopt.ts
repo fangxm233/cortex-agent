@@ -19,18 +19,9 @@ const log = createLogger('subagent-adopt');
  * Lives beside `subagent-delivery.ts` rather than inside it because the decision is an
  * orchestration one (who can still receive this?) while that module owns the mechanism.
  */
-export interface AdoptDeps {
-  hold?: typeof holdSessionForBackgroundRun;
-  deliver?: typeof deliverBackgroundSubagentResult;
-}
-
 interface Adoption {
-  /** The hold's release, once installed. Null while it is still being taken. */
-  release: (() => void) | null;
-  /** The run settled before the hold finished installing — see the note in `adoptForegroundRun`. */
-  settledFirst: boolean;
-  /** Guards the one release + one delivery this run gets, whichever path reaches them. */
-  done: boolean;
+  /** The hold's release, once installed. */
+  release?: () => void;
 }
 
 const adoptions = new Map<string, Adoption>();
@@ -43,22 +34,15 @@ const adoptions = new Map<string, Adoption>();
  * needs a channel to deliver to, so adopting one of those would only keep children spending tokens
  * on an answer that lands nowhere.
  */
-export function adoptForegroundRun(
-  view: SubagentRunView, channel: string | undefined, deps: AdoptDeps = {},
-): boolean {
+export function adoptForegroundRun(view: SubagentRunView, channel: string | undefined): boolean {
   if (!channel || !view.sessionId) return false;
   // Both the sweep and an explicit detach can reach the same run; the second one is a no-op rather
   // than a second hold nobody would release.
   if (adoptions.has(view.id)) return true;
 
-  const entry: Adoption = { release: null, settledFirst: false, done: false };
+  const entry: Adoption = {};
   adoptions.set(view.id, entry);
-  const hold = (deps.hold ?? holdSessionForBackgroundRun)(view, channel);
-  // Installing the hold is not atomic with the decision to adopt, and the run is live throughout —
-  // it can settle in between. Same resolution as `startBackgroundSubagentRun`: whichever of the two
-  // arrives second performs the release, so the hold is never left standing.
-  if (entry.settledFirst) hold();
-  else entry.release = hold;
+  entry.release = holdSessionForBackgroundRun(view, channel);
   log.info(`Subagent run ${view.id} adopted into the background for session ${view.sessionId}`);
   return true;
 }
@@ -71,15 +55,12 @@ export function adoptForegroundRun(
  */
 export function settleAdoptedRun(
   view: SubagentRunView, result: SubagentToolResult | null, channel: string | undefined,
-  deps: AdoptDeps = {},
 ): void {
   const entry = adoptions.get(view.id);
-  if (!entry || entry.done) return;
-  entry.done = true;
+  if (!entry) return;
   adoptions.delete(view.id);
-  if (entry.release) entry.release();
-  else entry.settledFirst = true;
-  (deps.deliver ?? deliverBackgroundSubagentResult)(view, result, channel);
+  entry.release?.();
+  deliverBackgroundSubagentResult(view, result, channel);
 }
 
 /** Test seam: forget every adoption. Releases nothing — a test owns its own holds. */
