@@ -14,7 +14,7 @@ import {
 } from './init.js';
 import type { ConfigStatus } from './init.js';
 import { cmdFeishu } from './feishu-login.js';
-import { cmdDoctor, getDoctorHelp } from './doctor-cli.js';
+import { cmdDoctor } from './doctor-cli.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -471,13 +471,6 @@ async function runInitCli(args: string[]): Promise<CliResult> {
   }
 }
 
-function runDoctorCli(args: string[]): Promise<CliResult> | CliResult {
-  if (args.includes('--help') || args.includes('-h')) {
-    return { exitCode: 0, stdout: getDoctorHelp(), stderr: '' };
-  }
-  return cmdDoctor(args);
-}
-
 function touchRestartTrigger(trigger: string): void {
   mkdirSync(STORE_DIR, { recursive: true });
   if (!existsSync(trigger)) {
@@ -607,7 +600,7 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
     deps.getAuthStatus ?? getAuthStatus,
     deps.customProviderStores ?? defaultCustomProviderStores(),
   ),
-  doctor: (args) => runDoctorCli(args),
+  doctor: (args) => cmdDoctor(args),
   feishu: (args) => cmdFeishu(args),
   restart: () => runRestartCli(),
   'setup-gateway': (args) => runSetupGatewayCli(args),
