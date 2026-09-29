@@ -1,22 +1,6 @@
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
-import { projectStore } from '@domain/projects/index.js';
 import { t } from '@core/i18n.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
-
-// ── Dynamic project name discovery (from context/projects/) ──
-
-let _projectNames: string[] | null = null;
-
-function loadProjectNames(): string[] {
-  return projectStore.list().map(p => p.id);
-}
-
-function getProjectNames(): string[] {
-  if (_projectNames === null) {
-    _projectNames = loadProjectNames();
-  }
-  return _projectNames;
-}
 
 export interface CostEntry {
   timestamp: string;
@@ -221,42 +205,6 @@ async function recordCost(input: RecordCostInput): Promise<void> {
   if (input.provider) entry.provider = input.provider;
   if (input.model) entry.model = input.model;
   await costRepo.recordEntry(entry);
-}
-
-/**
- * Detect project from a message string.
- *
- * @deprecated Use projectStore.resolveFromMessage() instead.
- *
- * Priority:
- *   1. [project:xxx] explicit tag — always wins
- *   2. Case-insensitive substring match against context/projects/ directory names
- *      (longest match wins when multiple project names appear in the message)
- *   3. 'general' fallback
- */
-function detectProject(message: string | null | undefined): string {
-  if (!message) return 'general';
-
-  // 1. Explicit [project:xxx] tag
-  const tagMatch = message.match(/\[project:([^\]]+)\]/);
-  if (tagMatch) return tagMatch[1];
-
-  // 2. Dynamic project name matching
-  const projects = getProjectNames();
-  const lower = message.toLowerCase();
-
-  let bestMatch: string | null = null;
-  let bestLen = 0;
-  for (const project of projects) {
-    const lowerProject = project.toLowerCase();
-    if (lower.includes(lowerProject) && project.length > bestLen) {
-      bestMatch = project;
-      bestLen = project.length;
-    }
-  }
-
-  // 3. Fallback
-  return bestMatch || 'general';
 }
 
 function createTokenBucket(): TokenBucket {
@@ -552,12 +500,7 @@ async function formatCostReport(project: string | null = null): Promise<string> 
   return lines.join('\n');
 }
 
-/** Reset the project name cache. Pass an array to pre-seed the cache (for tests). */
-function _resetProjectCache(names?: string[] | null): void {
-  _projectNames = names ?? null;
-}
-
 export {
-  costRepo, recordCost, detectProject, getCostSummary, checkBudget, setBudget,
-  clearProjectBudget, listProjectBudgets, formatCostReport, _resetProjectCache,
+  costRepo, recordCost, getCostSummary, checkBudget, setBudget,
+  clearProjectBudget, listProjectBudgets, formatCostReport,
 };
