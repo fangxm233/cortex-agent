@@ -110,11 +110,7 @@ def _assert_host_credential_absent(root: Path, credential: str) -> None:
 def test_pi_openai_codex_completes_real_docker_lifecycle_with_admitted_oauth(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    admit_capability(
-        monkeypatch,
-        "pi-openai-codex-oauth",
-        protocol="openai-codex-responses",
-    )
+    admit_capability(monkeypatch, "pi-openai-codex-oauth")
     credential = _credential()
     _install_scan_environment(monkeypatch)
     monkeypatch.setenv(CREDENTIAL_ENV, credential)

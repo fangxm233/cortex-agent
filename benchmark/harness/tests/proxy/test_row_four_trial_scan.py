@@ -1,7 +1,5 @@
 #
-# No container, no Docker and no network egress: the upstream is a synthetic loopback server. The
-# row's `??` protocol member is filled for the duration of a test only — the shipped registry is
-# never written, because filling it is the act of the gate that owns the raise checklist.
+# No container, no Docker and no network egress: the upstream is a synthetic loopback server.
 
 import json
 from pathlib import Path
@@ -37,7 +35,6 @@ from test_openai_codex_adapter import (
 )
 
 CAPABILITY_ID = "pi-openai-codex-oauth"
-PROTOCOL = "openai-codex-responses"
 TRIAL_ID = "trial-row-four-scan"
 CREDENTIAL_ENV = "CORTEX_BENCH_ROW_FOUR_CREDENTIAL"
 DEADLINE_SECONDS = 600
@@ -125,7 +122,7 @@ def row_four_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     shipped revoke — so every file the scan reads was written by the production path."""
     from cortex_bench_harness.proxy.adapters import openai_codex_responses
 
-    admit_capability(monkeypatch, CAPABILITY_ID, protocol=PROTOCOL)
+    admit_capability(monkeypatch, CAPABILITY_ID)
     monkeypatch.setattr(openai_codex_responses, "_now_ms", lambda: COMPILED_AT_EPOCH_MS)
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)

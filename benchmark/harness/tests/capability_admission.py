@@ -7,7 +7,6 @@
 # raising a row is reserved to the gate that owns the raise checklist, and a test that mutated the
 # shipped declaration would exercise a state no authority granted.
 
-from dataclasses import replace
 from types import MappingProxyType
 
 import pytest
@@ -30,16 +29,14 @@ def _install(monkeypatch: pytest.MonkeyPatch, rows: dict) -> None:
 
 
 def admit_capability(
-    monkeypatch: pytest.MonkeyPatch, capability_id: str, *, protocol: str | None = None,
+    monkeypatch: pytest.MonkeyPatch, capability_id: str,
 ) -> CredentialCapabilityKey:
-    """Admit one row for this test, optionally under a filled protocol member."""
+    """Admit one row for this test, leaving its key — and so adapter selection — untouched."""
     rows = dict(CAPABILITY_REGISTRY)
     key = next(key for key, row in rows.items() if row.id == capability_id)
-    admitted = key if protocol is None else replace(key, protocol=protocol)
-    del rows[key]
-    rows[admitted] = CredentialCapability(capability_id, ADMITTED)
+    rows[key] = CredentialCapability(capability_id, ADMITTED)
     _install(monkeypatch, rows)
-    return admitted
+    return key
 
 
 def refuse_capability(
