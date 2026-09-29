@@ -9,7 +9,7 @@
 //         lose signals instead, which is the failure that matters.
 
 import { createLogger } from '@core/log.js';
-import { waitpointRepo } from '@store/waitpoint-repo.js';
+import { waitpointRepo, type WaitpointRepo } from '@store/waitpoint-repo.js';
 import { isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { ingestSignal, productionIngestDeps, toSignalInput, type IngestDeps } from './waitpoint-ingress.js';
 
@@ -48,8 +48,10 @@ export interface RemoteDrainDeps {
   runBash: (device: string, command: string, timeoutMs: number) => Promise<{ stdout: string }>;
 }
 
-async function listDevicesWithArmedWaitpoints(): Promise<string[]> {
-  const armed = await waitpointRepo.listArmed();
+export async function listDevicesWithArmedWaitpoints(
+  repo: Pick<WaitpointRepo, 'listArmed'> = waitpointRepo,
+): Promise<string[]> {
+  const armed = await repo.listArmed();
   const devices = new Set<string>();
   for (const wp of armed) {
     if (wp.emitFrom.kind === 'device' && wp.emitFrom.device) devices.add(wp.emitFrom.device);

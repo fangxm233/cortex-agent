@@ -7,7 +7,9 @@ import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
 import { createWaitpoint, type WaitpointServiceDeps } from '../../../src/domain/waitpoints/service.js';
 import { resetSignalIngressState, type IngestDeps } from '../../../src/orchestration/waitpoint-ingress.js';
 import { resetWaitpointTimers } from '../../../src/orchestration/waitpoint-notifier.js';
-import { drainDeviceSpools, parseSpoolBatch, type RemoteDrainDeps } from '../../../src/orchestration/waitpoint-remote-drain.js';
+import {
+  drainDeviceSpools, listDevicesWithArmedWaitpoints, parseSpoolBatch, type RemoteDrainDeps,
+} from '../../../src/orchestration/waitpoint-remote-drain.js';
 
 let tmpDir: string;
 const BASE = 1_700_000_000_000;
@@ -196,7 +198,8 @@ test('the device list is derived from armed waitpoints, not from the device regi
     { label: 'remote', intent: 'x', owner: owner(), emitFrom: { kind: 'device', device: 'cluster' } },
     h.service,
   );
-  const armed = await h.repo.listArmed();
-  const devices = [...new Set(armed.flatMap((wp) => (wp.emitFrom.kind === 'device' ? [wp.emitFrom.device] : [])))];
-  assert.deepEqual(devices, ['cluster'], 'a local waitpoint must never cause a device round trip');
+  assert.deepEqual(
+    await listDevicesWithArmedWaitpoints(h.repo), ['cluster'],
+    'a local waitpoint must never cause a device round trip',
+  );
 });
