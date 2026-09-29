@@ -204,7 +204,7 @@ async function decideScheduled(outcome: ThreadRunOutcome, c: {
     result: (outcome.result?.lastAgentResult ?? null) as any,
     threadResult: (outcome.result ?? {}) as Record<string, any>,
     project: c.projectId, label: c.label,
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
+    sessionOrigin: 'scheduled',
     scheduleId: c.scheduleId,
   });
   return { kind: 'done' };

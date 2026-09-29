@@ -12,10 +12,6 @@ interface CliResult {
 
 interface CliOptions {
   scheduler?: Scheduler;
-  schedulesFile?: string;
-  channel?: string;
-  projectId?: string;
-  now?: number;
 }
 
 interface TaskPatch {
@@ -106,7 +102,7 @@ function getScheduleHelp(): string {
 
 function buildScheduler(options: CliOptions): Scheduler {
   if (options.scheduler) return options.scheduler;
-  return new Scheduler(async () => {}, {}, { watchFile: false, schedulesFile: options.schedulesFile });
+  return new Scheduler(async () => {}, {}, { watchFile: false });
 }
 
 async function runScheduleCli(args: string[], options: CliOptions = {}): Promise<CliResult> {
@@ -165,7 +161,7 @@ async function runScheduleCli(args: string[], options: CliOptions = {}): Promise
       // Detect flag mode vs legacy positional mode
       if (rest[0]?.startsWith('--')) {
         // Flag mode: add --type interval --interval 30m --message "msg"
-        const addArgs: Record<string, string | null> = { type: null, interval: null, time: null, day: null, delay: null, message: null, projectId: options.projectId || 'general', profile: null };
+        const addArgs: Record<string, string | null> = { type: null, interval: null, time: null, day: null, delay: null, message: null, projectId: 'general', profile: null };
         for (let i = 0; i < rest.length; i += 2) {
           const flag = rest[i], value = rest[i + 1];
           if (!flag?.startsWith('--') || value == null) throw new Error(`invalid add arguments near: ${flag || '<end>'}`);
@@ -210,14 +206,14 @@ async function runScheduleCli(args: string[], options: CliOptions = {}): Promise
         const message = rest.slice(2).join(' ');
         const err = assertValidMessage(message);
         if (err) return fail(err);
-        return ok({ task: await scheduler.add('interval', { intervalMs, message, projectId: options.projectId || 'general', profile: null }) });
+        return ok({ task: await scheduler.add('interval', { intervalMs, message, projectId: 'general', profile: null }) });
       }
       if (type === 'daily') {
         const time = rest[1];
         const message = rest.slice(2).join(' ');
         const err = assertValidMessage(message);
         if (err) return fail(err);
-        return ok({ task: await scheduler.add('daily', { time, message, projectId: options.projectId || 'general', profile: null }) });
+        return ok({ task: await scheduler.add('daily', { time, message, projectId: 'general', profile: null }) });
       }
       if (type === 'weekly') {
         const dayValue = rest[1];
@@ -226,14 +222,14 @@ async function runScheduleCli(args: string[], options: CliOptions = {}): Promise
         const message = rest.slice(3).join(' ');
         const err = assertValidMessage(message);
         if (err) return fail(err);
-        return ok({ task: await scheduler.add('weekly', { dayOfWeek, time, message, projectId: options.projectId || 'general', profile: null }) });
+        return ok({ task: await scheduler.add('weekly', { dayOfWeek, time, message, projectId: 'general', profile: null }) });
       }
       if (type === 'once') {
         const delay = parseMaybeDuration(rest[1]);
         const message = rest.slice(2).join(' ');
         const err = assertValidMessage(message);
         if (err) return fail(err);
-        return ok({ task: await scheduler.add('once', { delay, message, projectId: options.projectId || 'general', profile: null }) });
+        return ok({ task: await scheduler.add('once', { delay, message, projectId: 'general', profile: null }) });
       }
       return fail(`Unknown add type: '${type}'. Valid types: interval, daily, weekly, once`);
     }

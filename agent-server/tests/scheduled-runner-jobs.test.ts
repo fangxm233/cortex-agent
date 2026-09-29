@@ -53,7 +53,7 @@ test('registerThreadSession registers under the LAST step track id with backend 
       totalCostUsd: 0.1, totalNumTurns: 3,
     },
     project: 'proj-a', label: 'scan arxiv',
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
+    sessionOrigin: 'scheduled',
     scheduleId: 'sched-42',
   });
 
@@ -92,7 +92,7 @@ test('registerThreadSession skips hook-injected steps when picking the run track
       totalCostUsd: 0.1, totalNumTurns: 3,
     },
     project: 'proj-d', label: 'scan arxiv',
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
+    sessionOrigin: 'scheduled',
     scheduleId: 'sched-43',
   });
 
@@ -111,7 +111,7 @@ test('registerThreadSession falls back to result.sessionId when the thread has n
     result: { sessionId: 'backend-uuid-2' } as any,
     threadResult: { totalCostUsd: 0, totalNumTurns: 1 },
     project: 'proj-b', label: null,
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
+    sessionOrigin: 'scheduled',
   });
 
   const rec = await sessionStore.getById('backend-uuid-2');
@@ -125,7 +125,7 @@ test('registerThreadSession registers nothing without a result session id', asyn
     result: null,
     threadResult: { thread: { steps: [{ sessionId: 'track-orphan' }] } },
     project: 'proj-c', label: null,
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
+    sessionOrigin: 'scheduled',
   });
 
   assert.equal(await sessionStore.getById('track-orphan'), null, 'no registration without an agent result');

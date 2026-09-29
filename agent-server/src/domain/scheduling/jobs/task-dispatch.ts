@@ -379,7 +379,7 @@ async function decideDispatch(outcome: ThreadRunOutcome, c: {
     result: (outcome.result?.lastAgentResult ?? null) as any,
     threadResult: (outcome.result ?? {}) as Record<string, any>,
     project, label: selectedTask.text?.substring(0, 60) || null,
-    sessionKind: 'scheduled', sessionOrigin: 'thread',
+    sessionOrigin: 'thread',
   });
   if (selectedTask.id) dispatchFailureCounts.delete(selectedTask.id);
   return {

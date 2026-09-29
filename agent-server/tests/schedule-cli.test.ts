@@ -260,7 +260,7 @@ test('scheduler update rejects invalid fields for the task type', withTempSchedu
 }));
 
 test('schedule CLI get prints the selected task as JSON', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['get', 'int1'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['get', 'int1'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.id, 'int1');
@@ -268,7 +268,7 @@ test('schedule CLI get prints the selected task as JSON', withTempSchedules(asyn
 }));
 
 test('schedule CLI set interval updates the task interval', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['set', 'interval', 'int1', '2h'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['set', 'interval', 'int1', '2h'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.task.id, 'int1');
@@ -277,7 +277,7 @@ test('schedule CLI set interval updates the task interval', withTempSchedules(as
 }));
 
 test('schedule CLI pause pauses a recurring task', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['pause', 'int1'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['pause', 'int1'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.task.id, 'int1');
@@ -289,7 +289,7 @@ test('schedule CLI pause pauses a recurring task', withTempSchedules(async ({ sc
 test('schedule CLI resume resumes a paused recurring task', withTempSchedules(async ({ scheduler }) => {
   await scheduler.pause('int1');
 
-  const result = await runScheduleCli(['resume', 'int1'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['resume', 'int1'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.task.id, 'int1');
@@ -299,7 +299,7 @@ test('schedule CLI resume resumes a paused recurring task', withTempSchedules(as
 }));
 
 test('schedule CLI update changes common fields and daily time', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['update', 'daily1', '--time', '10:30', '--message', 'updated daily'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['update', 'daily1', '--time', '10:30', '--message', 'updated daily'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.task.time, '10:30');
@@ -308,7 +308,7 @@ test('schedule CLI update changes common fields and daily time', withTempSchedul
 }));
 
 test('schedule CLI remove deletes the target task', withTempSchedules(async ({ scheduler }) => {
-  const result = await runScheduleCli(['remove', 'int1'], { scheduler, now: 1000 });
+  const result = await runScheduleCli(['remove', 'int1'], { scheduler });
   const parsed = JSON.parse(result.stdout);
 
   assert.equal(parsed.removed, true);

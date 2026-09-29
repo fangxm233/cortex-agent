@@ -3,12 +3,12 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { getActiveProfile } from '../../agents/index.js';
 import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
-export async function registerThreadSession(channel: string, { sessionName, result, threadResult, project, label, sessionKind, sessionOrigin, scheduleId }: {
+export async function registerThreadSession(channel: string, { sessionName, result, threadResult, project, label, sessionOrigin, scheduleId }: {
   sessionName: string; result: AgentResult | null; threadResult: Record<string, any>;
-  project: string; label: string | null; sessionKind: 'scheduled' | 'local';
+  project: string; label: string | null;
   /** How the finalized session was initiated: scheduled jobs pass 'scheduled', task-dispatch
-   *  threads pass 'thread'. Passed explicitly because sessionKind='local' cannot distinguish
-   *  a dispatch thread (origin 'thread') from a direct session. */
+   *  threads pass 'thread'. Both register with kind 'scheduled', so only the origin tells
+   *  them apart. */
   sessionOrigin: 'scheduled' | 'thread';
   /** ScheduleTask.id whose fire produced this run (scheduled-task job). Persisted on the session
    *  record so the UI can group runs by schedule and render the trigger card. */
@@ -32,7 +32,7 @@ export async function registerThreadSession(channel: string, { sessionName, resu
   const trackSessionId = realStep?.sessionId ?? steps[steps.length - 1]?.sessionId ?? null;
   await sessionStore.registerSession(sessionName, {
     sessionId: trackSessionId || result.sessionId, channel,
-    backend: resolveRunBackend({ channel }), kind: sessionKind,
+    backend: resolveRunBackend({ channel }), kind: 'scheduled',
     origin: sessionOrigin,
     label,
     profileName: getActiveProfile(channel),

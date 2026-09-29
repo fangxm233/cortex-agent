@@ -292,7 +292,6 @@ test('golden 9: registerThreadSession keeps track id as sessionId and backend id
     threadResult: { thread: { steps: [{ sessionName: 'cortex-step', sessionId: trackSid, agentSlotId: 'agent:coder' }] } },
     project: 'projX',
     label: 'nightly run label',
-    sessionKind: 'scheduled',
     sessionOrigin: 'scheduled',
     scheduleId: 'sched-9',
   });
