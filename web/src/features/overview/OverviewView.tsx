@@ -104,7 +104,7 @@ export function OverviewView(): JSX.Element {
   const budgetPct = budgetPercent(cost?.today, cost?.dailyBudget);
   const dailyBars = useMemo(() => dailySeriesBars(cost?.dailyCost), [cost?.dailyCost]);
   const avgPerDay = useMemo(() => dailyAverage(cost?.dailyCost), [cost?.dailyCost]);
-  const whereRows = useMemo(() => whereItGoesRows(cost?.byTriggerScoped, 'week'), [cost?.byTriggerScoped]);
+  const whereRows = useMemo(() => whereItGoesRows(cost?.byTriggerScoped), [cost?.byTriggerScoped]);
 
   const schedulesQuery = useQuery({
     ...trpc.schedules.list.queryOptions({ projectId: activeProjectId ?? undefined }),
@@ -471,7 +471,7 @@ export function OverviewView(): JSX.Element {
               <div key={s.id}>
                 {idx > 0 && <div style={{ height: 1, background: 'var(--proto-line-soft)', margin: '0 0 9px' }} />}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={s.paused ? 'var(--proto-muted)' : 'var(--proto-muted)'} strokeWidth="1.5">
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted)" strokeWidth="1.5">
                     <circle cx="7" cy="7" r="5.6" />
                     <path d="M7 4v3.2l2.2 1.3" />
                   </svg>

@@ -98,13 +98,10 @@ export interface WhereItGoesRow {
  * what fits the card, and computes each row's share of the shown total. Empty/undefined → `[]` (the
  * card then shows an honest no-spend line — never fabricated bars).
  */
-export function whereItGoesRows(
-  byTriggerScoped: TriggerBreakdown | null | undefined,
-  period: 'week' | 'today' | 'month' = 'week',
-): WhereItGoesRow[] {
+export function whereItGoesRows(byTriggerScoped: TriggerBreakdown | null | undefined): WhereItGoesRow[] {
   if (!byTriggerScoped) return [];
   const entries = Object.entries(byTriggerScoped)
-    .map(([label, bucket]) => ({ label, cost: bucket[period] }))
+    .map(([label, bucket]) => ({ label, cost: bucket.week }))
     .filter((e) => e.cost > 0)
     .sort((a, b) => b.cost - a.cost)
     .slice(0, WHERE_IT_GOES_MAX_ROWS);

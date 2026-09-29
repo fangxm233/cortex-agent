@@ -85,7 +85,7 @@ function bareSelectStyle(font: string): CSSProperties {
 export interface ScheduleModalProps {
   form: ScheduleForm;
   /** 'edit' (design 27b) locks fields omitted by schedules.update. */
-  mode?: 'create' | 'edit';
+  mode: 'create' | 'edit';
   editableFields: ScheduleEditableFields;
   onChange: (patch: Partial<ScheduleForm>) => void;
   onCancel: () => void;
@@ -97,7 +97,7 @@ export interface ScheduleModalProps {
   now?: Date;
 }
 
-export function ScheduleModal({ form, mode = 'create', editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
+export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
   const lang = useLang();
   const optionCopy = OPTION_COPY[lang];
