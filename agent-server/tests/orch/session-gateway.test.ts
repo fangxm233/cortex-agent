@@ -2,24 +2,13 @@ import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
 import {
-  WEB_UI_SENDER, buildDeliveryMessage, deliverToSession, type DeliveryOrigin,
+  WEB_UI_SENDER, buildDeliveryMessage, deliverToSession,
 } from '../../src/orchestration/session-gateway.js';
 import {
   setOrchestrationRuntime, _resetOrchestrationRuntime,
 } from '../../src/orchestration/runtime.js';
 
 afterEach(() => { _resetOrchestrationRuntime(); });
-
-const EXPECTED: Record<DeliveryOrigin, { senderId: string; systemOrigin?: string; prefix: RegExp }> = {
-  'web-user': { senderId: WEB_UI_SENDER, prefix: /^web_\d+$/ },
-  'agent-result': { senderId: WEB_UI_SENDER, systemOrigin: 'agent-result', prefix: /^web_\d+$/ },
-  'ask-user-answer': { senderId: WEB_UI_SENDER, prefix: /^web_\d+$/ },
-  'resume': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'resume', prefix: /^resume_\d+$/ },
-  'thread-callback': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'thread-callback', prefix: /^cb_tg_\d+$/ },
-  'task-callback': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'task-callback', prefix: /^cb_tg_\d+$/ },
-  'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'subtask-question', prefix: /^cb_tg_\d+$/ },
-  'external-signal': { senderId: SYNTHETIC_CALLBACK_SENDER, systemOrigin: 'external-signal', prefix: /^cb_tg_\d+$/ },
-};
 
 test('a backgrounded agent result keeps a web sender id so it can still fold into a live turn', () => {
   // isInjectableMessage refuses SYNTHETIC_CALLBACK_SENDER; tagging this origin synthetic would
