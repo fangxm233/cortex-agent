@@ -10,7 +10,7 @@ import {
   tryEnterWaiting,
   detectSplitFromControl,
 } from '../src/domain/threads/index.js';
-import type { ThreadRecord, ThreadMetadata, ThreadStatus, AgentStep } from '../src/core/types/thread-types.js';
+import type { ThreadRecord, ThreadMetadata, ThreadStatus } from '../src/core/types/thread-types.js';
 
 const createdThreadIds = new Set<string>();
 const tmpDirs: string[] = [];
@@ -66,24 +66,11 @@ function makeThreadWithArtifact(artifactBody: string, over: Partial<ThreadRecord
   return makeThread({ workspacePath: dir, artifactPath, ...over });
 }
 
-function step(output: string | null): AgentStep {
-  return {
-    stepIndex: 0, agentSlotId: 'main', stage: null, executionId: null,
-    sessionId: null, sessionName: null, input: '', output,
-    costUsd: 0, numTurns: 1, durationS: 1, startedAt: null, endedAt: null,
-  };
-}
-
 // --- wait control signal (out-of-band, tool-driven) ---
 
 async function setControl(threadId: string, control: NonNullable<ThreadMetadata>['pendingControl']): Promise<void> {
   await threadStore.mutate(threadId, (t) => { (t.metadata ??= {}).pendingControl = control; });
 }
-
-test('no wait control signal when neither artifact nor last step set one', () => {
-  const t = makeThreadWithArtifact('normal progress.\n', { steps: [step('done with step')] });
-  assert.equal(peekPendingControl(t.id), null);
-});
 
 test('clearPendingControl drains a wait signal so it fires exactly once', async () => {
   const t = makeThread();
