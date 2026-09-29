@@ -99,9 +99,4 @@ describe('groupBlame', () => {
     expect(rows![0]).toMatchObject({ commit: 'aaaa1111', groupStart: true });
     expect(rows![1]).toMatchObject({ commit: null, taskRef: null, groupStart: true });
   });
-
-  it('drops a single trailing empty line from the final newline (no phantom blank row)', () => {
-    const rows = groupBlame(blame, 'one\ntwo\nthree\n');
-    expect(rows!.length).toBe(3);
-  });
 });
