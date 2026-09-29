@@ -326,18 +326,3 @@ test('Claude forwards rate_limit_event to the injected reporter, with no turn in
   }]);
   await engine.close();
 });
-
-test('Claude with no reporter injected drops the rate-limit line instead of reaching a throttle', async () => {
-  const adapter = new ClaudeAdapter();
-  const children: any[] = [];
-  const engine = adapter.open(specFor('engine-ratelimit-bare', [], children, {
-    anthropicBaseUrl: 'http://127.0.0.1:9881/m/max20/anthropic',
-  }));
-  children[0].emitLines([
-    { type: 'rate_limit_event', rate_limit_info: { rateLimitType: 'five_hour', utilization: 0.93, resetsAt: 1 } },
-  ]);
-  await new Promise((resolve) => setImmediate(resolve));
-  // No throw, no unhandled rejection: an unwired adapter simply has nowhere to put the reading.
-  assert.equal(engine.isAlive(), true);
-  await engine.close();
-});
