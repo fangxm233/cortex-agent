@@ -36,8 +36,9 @@ export interface RefResolver {
 /** `__active__` is the runtime-resolved default agent (prompt-builder.ts:20), not a config entity. */
 export const ACTIVE_AGENT = '__active__';
 
-const FILE_REF_PREFIX = 'file:';
-const PROMPT_FIELD_DIRS: Record<string, string> = {
+/** Prompt fields accept `file:<name>` to read the text from `prompts/<subdir>/<name>`. */
+export const FILE_REF_PREFIX = 'file:';
+export const PROMPT_FIELD_DIRS: Record<string, string> = {
   directive: 'directives',
   promptTemplate: 'promptTemplates',
   systemPrompt: 'systemPrompts',
@@ -586,6 +587,25 @@ function impactIssues(kind: EntityKind, name: string, registry: RawRegistry): Is
 
 // --- Entry points ---
 
+/** One entity on its own: the non-object check, then the per-kind validator. */
+function validateOne(
+  kind: EntityKind,
+  name: string,
+  body: unknown,
+  registry: RawRegistry,
+  refs?: RefResolver,
+): ValidationResult {
+  if (!isPlainObject(body)) {
+    return { errors: [{ path: '(root)', message: t('ux.tpl.bodyNotObject') }], warnings: [] };
+  }
+  if (kind === 'agent') return validateAgent(name, body, refs);
+  if (kind === 'shell') return validateShell(body);
+  if (isShellBinding(body)) {
+    return validateShellBinding(name, body as ShellTemplateBinding & Record<string, unknown>, registry);
+  }
+  return validateFullTemplate(name, body, registry);
+}
+
 /**
  * Validate one entity against the registry it will live in. The caller is expected to pass a
  * registry with the candidate already swapped in, so cross-entity references resolve against the
@@ -598,18 +618,9 @@ export function validateEntity(
   registry: RawRegistry,
   refs?: RefResolver,
 ): ValidationResult {
-  if (!isPlainObject(body)) {
-    return { errors: [{ path: '(root)', message: t('ux.tpl.bodyNotObject') }], warnings: [] };
-  }
-
-  let result: ValidationResult;
-  if (kind === 'agent') result = validateAgent(name, body, refs);
-  else if (kind === 'shell') result = validateShell(body);
-  else if (isShellBinding(body)) {
-    result = validateShellBinding(name, body as ShellTemplateBinding & Record<string, unknown>, registry);
-  } else result = validateFullTemplate(name, body, registry);
-
-  if (kind !== 'template') result.errors.push(...impactIssues(kind, name, registry));
+  const result = validateOne(kind, name, body, registry, refs);
+  // A body that is not even an object has no dependents to check against.
+  if (kind !== 'template' && isPlainObject(body)) result.errors.push(...impactIssues(kind, name, registry));
   return result;
 }
 
@@ -627,16 +638,7 @@ export function validateRegistry(
   for (const [kind, entities] of kinds) {
     for (const [name, body] of Object.entries(entities)) {
       // Skip the impact pass here: validating the whole registry already covers every dependent.
-      const result = isPlainObject(body)
-        ? kind === 'agent'
-          ? validateAgent(name, body, refs)
-          : kind === 'shell'
-            ? validateShell(body)
-            : isShellBinding(body)
-              ? validateShellBinding(name, body as ShellTemplateBinding & Record<string, unknown>, registry)
-              : validateFullTemplate(name, body, registry)
-        : { errors: [{ path: '(root)', message: t('ux.tpl.bodyNotObject') }], warnings: [] };
-      out.set(`${kind}:${name}`, result);
+      out.set(`${kind}:${name}`, validateOne(kind, name, body, registry, refs));
     }
   }
   return out;

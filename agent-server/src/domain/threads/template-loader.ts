@@ -7,7 +7,13 @@ import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-
 import { Icons } from '../../core/icons.js';
 import { resolveTemplate } from './template-resolver.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
-import { validateRegistry, type RawRegistry, type RefResolver } from './template-validate.js';
+import {
+  FILE_REF_PREFIX,
+  PROMPT_FIELD_DIRS,
+  validateRegistry,
+  type RawRegistry,
+  type RefResolver,
+} from './template-validate.js';
 import type { AgentDefinition, ThreadTemplate, ThreadConfigFile, ShellDefinition } from '@core/types/thread-types.js';
 import { t } from '@core/i18n.js';
 
@@ -17,12 +23,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'thread-templates.json');
 /** Directory-based config root (preferred). Exported for the write path. */
 export const CONFIG_TEMPLATES_DIR = path.join(CONFIG_DIR, 'thread-templates');
 const ENTITY_SUBDIRS = ['agents', 'templates', 'shells'] as const;
-export const FILE_REF_PREFIX = 'file:';
-const FIELD_DIRS: Record<string, string> = {
-  directive: 'directives',
-  promptTemplate: 'promptTemplates',
-  systemPrompt: 'systemPrompts',
-};
+export { FILE_REF_PREFIX };
 
 let agents: Record<string, AgentDefinition> = {};
 let templates: Record<string, ThreadTemplate> = {};
@@ -44,7 +45,7 @@ export function setAdminNotifier(fn: (text: string) => void): void { _adminNotif
 export function resolveFileRef(field: string, value: string | undefined): string | undefined {
   if (!value || !value.startsWith(FILE_REF_PREFIX)) return value;
   const filename = value.slice(FILE_REF_PREFIX.length);
-  const subdir = FIELD_DIRS[field];
+  const subdir = PROMPT_FIELD_DIRS[field];
   if (!subdir) return value;
   const filePath = path.join(PROMPTS_DIR, subdir, filename);
   try {
@@ -441,7 +442,7 @@ let _promptsReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 function startPromptsWatcher(): void {
   stopPromptsWatcher();
-  for (const subdir of Object.values(FIELD_DIRS)) {
+  for (const subdir of Object.values(PROMPT_FIELD_DIRS)) {
     for (const rel of [subdir, `${subdir}/templates`]) {
       const dir = path.join(PROMPTS_DIR, rel);
       try {
