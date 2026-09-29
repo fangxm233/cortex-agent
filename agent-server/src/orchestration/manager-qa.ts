@@ -4,7 +4,7 @@ import { isTerminalStatus } from '@domain/threads/tree.js';
 import { resumeManagerForQuestion } from './thread-callback.js';
 import { deliverToSession } from './session-gateway.js';
 import {
-  arm, disarm, setHumanAnswerRehydrator, tryConsume, _testResetHumanAnswerBackstop,
+  arm, disarm, setHumanAnswerRehydrator, _testResetHumanAnswerBackstop,
   type HumanAnswerHandler,
 } from './human-answer-backstop.js';
 import { createLogger } from '@core/log.js';
@@ -392,16 +392,6 @@ export function getAnswer(questionId: string): { found: boolean; answered: boole
     return { found: true, answered: true, answer: rec.answer };
   }
   return { found: true, answered: false, answer: null };
-}
-
-/** Interactive hook: if `channel` has a pending human-escalated question, consume this message as
- *  its answer and return true (the caller should then short-circuit normal turn handling).
- *
- *  Kept as the named entry for callers that already import this module (tests, and anything that
- *  wants the durable reload guaranteed); the interception itself is the channel registry. */
-export function tryAnswerFromHuman(channel: string, text: string): boolean {
-  ensureQaHydrated();
-  return tryConsume(channel, text);
 }
 
 // The conversation entry (`AgentRunner._routeWithAdmission`) calls `tryConsume` directly and cannot

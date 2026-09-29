@@ -5,10 +5,10 @@ import {
   askManager,
   submitAnswer,
   getAnswer,
-  tryAnswerFromHuman,
   _testResetManagerQa,
   _testSimulateManagerQaRestart,
 } from '../src/orchestration/manager-qa.js';
+import { tryConsume } from '../src/orchestration/human-answer-backstop.js';
 import {
   projectManagerQaEdges,
   readProductionTopologyFacts,
@@ -164,7 +164,7 @@ test('origin-session escalation keeps the human backstop armed — a human reply
   assert.equal(res.ok, true);
 
   // The human (or the origin agent relaying them) replies on the channel — captured as the answer.
-  const handled = tryAnswerFromHuman('C-human-origin2', 'Prioritize accuracy.');
+  const handled = tryConsume('C-human-origin2', 'Prioritize accuracy.');
   assert.equal(handled, true);
   const got = getAnswer(res.ok ? res.questionId : '');
   assert.equal(got.answered, true);
@@ -181,7 +181,7 @@ test('answer_subtask disarms the human backstop before the asker polls', async (
 
   assert.equal((await submitAnswer(qid, 'Prioritize accuracy.')).ok, true);
   assert.equal((await submitAnswer(qid, 'Overwrite it.')).ok, true);
-  assert.equal(tryAnswerFromHuman(channel, 'This is a new user turn.'), false);
+  assert.equal(tryConsume(channel, 'This is a new user turn.'), false);
   assert.deepEqual(getAnswer(qid), { found: true, answered: true, answer: 'Prioritize accuracy.' });
 });
 
@@ -193,8 +193,8 @@ test('a human answer disarms its backstop immediately and cannot be overwritten'
   assert.equal(res.ok, true);
   const qid = res.ok ? res.questionId : '';
 
-  assert.equal(tryAnswerFromHuman(channel, 'Use A.'), true);
-  assert.equal(tryAnswerFromHuman(channel, 'Unrelated later message.'), false);
+  assert.equal(tryConsume(channel, 'Use A.'), true);
+  assert.equal(tryConsume(channel, 'Unrelated later message.'), false);
   assert.deepEqual(getAnswer(qid), { found: true, answered: true, answer: 'Use A.' });
 });
 
@@ -210,7 +210,7 @@ test('answering an older question does not disarm a newer question on the same c
 
   assert.equal((await submitAnswer(q1.ok ? q1.questionId : '', 'First answer.')).ok, true);
   assert.deepEqual(getAnswer(q1.ok ? q1.questionId : ''), { found: true, answered: true, answer: 'First answer.' });
-  assert.equal(tryAnswerFromHuman(channel, 'Second answer.'), true);
+  assert.equal(tryConsume(channel, 'Second answer.'), true);
   assert.deepEqual(getAnswer(q2.ok ? q2.questionId : ''), { found: true, answered: true, answer: 'Second answer.' });
 });
 
