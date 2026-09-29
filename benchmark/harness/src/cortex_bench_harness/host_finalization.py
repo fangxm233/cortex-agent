@@ -23,7 +23,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .launcher.production_home import committed_input_bundle_files
+from .launcher.production_home import (
+    CONTAINER_HOME_DIR,
+    LAUNCH_ATTESTATION_FILENAME,
+    committed_input_bundle_files,
+)
 from .launcher.production_session import SESSION_OUTCOME_FILENAME
 from .launcher.trial_admission import ADMISSION_EVIDENCE_FILENAME
 from .launcher.trial_proxy import TrialRevocation
@@ -34,11 +38,16 @@ from .scan import (
     contains_sensitive_literal,
     scan_trial_artifacts,
 )
-from .trial_assets import ASSET_MANIFEST_PATH, PublishedAssets, TrialAssetError, publish_trial_assets
+from .trial_assets import (
+    ASSET_MANIFEST_PATH,
+    PRODUCTION_HOME_DIRNAME,
+    PublishedAssets,
+    TrialAssetError,
+    publish_trial_assets,
+)
 
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
 OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/5"
-LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
 CONTAINER_BOUNDARY_ATTESTATION_FILENAME = "cortex-bench-container-boundary-attestation.json"
 VERIFIER_ROOT = "verifier"
 VERIFIER_REWARD_JSON = "reward.json"
@@ -228,7 +237,7 @@ def _agent_outcome(
 
 
 def _cost_evidence(collected: Sequence[CollectedFile]) -> dict[str, object]:
-    prefix = "production-cortex-home/container-home/.aistatus/usage/"
+    prefix = f"{PRODUCTION_HOME_DIRNAME}/{CONTAINER_HOME_DIR}/.aistatus/usage/"
     paths = [
         f"{item.root}/{item.relative_path}" for item in collected
         if item.root == "agent" and item.kind == "file"

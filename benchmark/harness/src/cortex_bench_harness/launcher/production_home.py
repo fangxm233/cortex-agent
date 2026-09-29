@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
+from ..trial_assets import canonical_sha256
 from .production_arms import (
     MANAGER_QA_ENDPOINT,
     TASK_ROOT,
@@ -100,12 +101,9 @@ class _TreeSnapshot:
 
 def _canonical_sha256(value: object) -> str:
     try:
-        payload = json.dumps(
-            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-        )
+        return canonical_sha256(value)
     except (TypeError, ValueError) as error:
         raise ProductionHomeError("launcher facts must be canonical JSON values") from error
-    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _required_text(value: object, label: str) -> str:

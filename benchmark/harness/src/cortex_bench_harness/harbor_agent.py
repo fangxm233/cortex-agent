@@ -66,13 +66,14 @@ from .manifest import (
     write_harness_manifest,
 )
 from .proxy.manifest import fill_proxy_manifest
+from .trial_assets import PRODUCTION_HOME_DIRNAME
 from .scan.models import ArtifactInventory, ScanPolicy
 
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 BUNDLE_PACKAGE = "@cortex-agent/server"
-PRODUCTION_HOME_NAME = "production-cortex-home"
+PRODUCTION_HOME_NAME = PRODUCTION_HOME_DIRNAME
 VERSION_COMMAND = "cortex daemon --version"
 WORKSPACE_EVIDENCE_FILENAME = "workspace.diff"
 WORKSPACE_COLLECTOR = r"""
