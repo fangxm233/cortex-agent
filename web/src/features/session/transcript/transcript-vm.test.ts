@@ -677,7 +677,7 @@ describe('assistant preview handoff — final messages seal their block', () => 
 
   it('produces one assistant row for the reported cross-SSE arrival order', () => {
     const tail: LiveSessionMessage[] = [
-      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T },
     ];
     let state = finalizeAssistantPreview(initialAssistantPreviewState(), 'msg_A:1');
     state = applyAssistantPreviewDelta(state, delta('msg_A:1', 'as a leaf.', 1));
@@ -714,7 +714,7 @@ describe('buildTranscriptRows — the live streaming row', () => {
   it('the complete message replaces the preview — one assistant row, not two', () => {
     // What the hook produces at handover: the message is in the live tail and streamingText is null.
     const tail: LiveSessionMessage[] = [
-      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T },
     ];
     const rows = buildTranscriptRows(oneTurn, tail, { streamingText: null });
     const assistants = rows.filter((r) => r.kind === 'assistant');
@@ -772,7 +772,7 @@ describe('buildTranscriptRows — preview marks only the in-flight block', () =>
     // The handover instant: the complete message is in the live tail, the preview is retired, but
     // `streaming` stays true until the quiet gap elapses. That row must settle, not animate.
     const tail: LiveSessionMessage[] = [
-      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T },
     ];
     const rows = buildTranscriptRows(oneTurn, tail, { streaming: true, streamingText: null });
     const assistants = rows.filter((r) => r.kind === 'assistant') as { streaming: boolean; preview?: boolean }[];

@@ -51,9 +51,6 @@ export interface LiveSessionMessage {
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
   /** Agent-announced decisions (`send_decision`) carried by an assistant message. */
   decisions?: DecisionItem[];
-  /** Set on an assistant message whose text streamed as `session.message.delta` events first. It
-   *  identifies the preview this message supersedes (see endStreamingBlock). */
-  blockId?: string;
   /** Native-subagent grouping key — see ChatRow's `subagent` variant. */
   subagentId?: string;
   subagentSpawns?: SubagentSpawnView[];

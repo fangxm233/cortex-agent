@@ -383,7 +383,6 @@ export function useSessionMessageLiveSync(
         noticeAction: p.noticeAction,
         authAction: p.authAction,
         ts: p.ts ?? new Date().toISOString(),
-        blockId: p.blockId,
         // Without these the live row is indistinguishable from the main agent's own output: it
         // renders at the top level while the turn runs, then jumps into its subagent block when
         // the transcript refetches.
