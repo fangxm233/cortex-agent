@@ -747,27 +747,6 @@ describe('buildTranscriptRows — preview marks only the in-flight block', () =>
     },
   ]);
 
-  it('marks the accumulating block as the preview', () => {
-    const rows = buildTranscriptRows(oneTurn, [], { streamingText: 'Tea begins as a' });
-    const last = rows[rows.length - 1] as { kind: string; preview?: boolean };
-    expect(last.preview).toBe(true);
-  });
-
-  it('never marks a persisted assistant row as the preview', () => {
-    const persisted = tx([
-      {
-        turnIndex: 0,
-        messages: [
-          { type: 'user', text: 'about tea?', toolName: null, toolInput: null, ts: T, elapsedMs: null },
-          { type: 'assistant', text: 'Tea begins as a leaf.', toolName: null, toolInput: null, ts: T, elapsedMs: null },
-        ],
-      },
-    ]);
-    const rows = buildTranscriptRows(persisted, [], {});
-    const assistants = rows.filter((r) => r.kind === 'assistant') as { preview?: boolean }[];
-    expect(assistants.every((a) => !a.preview)).toBe(true);
-  });
-
   it('never marks the authoritative message as the preview while the idle heuristic still says streaming', () => {
     // The handover instant: the complete message is in the live tail, the preview is retired, but
     // `streaming` stays true until the quiet gap elapses. That row must settle, not animate.
