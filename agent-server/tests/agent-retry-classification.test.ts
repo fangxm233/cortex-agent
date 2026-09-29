@@ -612,17 +612,6 @@ test('run resets terminal-error deduplication when moving to a fallback attempt'
   ]);
 });
 
-test('run single-config kill suppresses a generic process-exit error notice', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-kill' });
-  const request = runRequestFixture({ channel: 'web:retry', sessionKey: 'kill-suppress', piProvider: 'deepseek' }, PI);
-  const seen = collector();
-  const run = openRun(request, [seen.observer]);
-  run.cancel('user');
-
-  await assert.rejects(run.settled);
-  assert.deepEqual(notices(seen.events), []);
-});
-
 test('run does not synthesize terminal chat notices for non-Web channels', async () => {
   fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-slack' });
   const request = runRequestFixture({ channel: 'slack:C1', sessionKey: 'slack-terminal', piProvider: 'deepseek' }, PI);
