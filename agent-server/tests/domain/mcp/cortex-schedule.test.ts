@@ -1,8 +1,9 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { resolveTargetShorthand, type CortexContextSnapshot } from '../../../src/domain/mcp/tools/schedule.js';
+import { resolveTargetShorthand } from '../../../src/domain/mcp/tools/schedule.js';
+import type { CortexContextInternal } from '../../../src/domain/mcp/tools/context.js';
 
-const FULL_CTX: CortexContextSnapshot = {
+const FULL_CTX: CortexContextInternal = {
   channel: 'C123',
   sessionId: 'sess-uuid-1',
   sessionName: 'cortex-abc111',

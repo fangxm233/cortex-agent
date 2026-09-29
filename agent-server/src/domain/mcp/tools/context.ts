@@ -98,7 +98,7 @@ export function webSessionId(ctx: CortexToolContext): string | null {
 
 /** Internal context — includes channel for downstream consumers (schedule.ts session/thread
  *  target resolution). Not exposed via MCP. */
-interface CortexContextInternal {
+export interface CortexContextInternal {
   channel: string | null;
   sessionId: string | null;
   sessionName: string | null;

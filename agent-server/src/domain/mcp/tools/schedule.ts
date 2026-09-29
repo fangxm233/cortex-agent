@@ -2,24 +2,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Scheduler, parseDuration } from '../../scheduling/scheduler.js';
 import { scheduleRepo, channelToProjectId, type ScheduleTarget, type ScheduleTask } from '@store/schedule-repo.js';
-import { resolveCortexContext, type CortexToolContext } from './context.js';
+import { resolveCortexContext, type CortexContextInternal, type CortexToolContext } from './context.js';
 
 // --- Target shorthand resolver (extracted for unit tests) ---
-
-/** Snapshot of the Cortex execution context — what cortex_context returns, sliced
- *  down to fields needed by target resolution. Decoupled from the Tool's response
- *  shape so the resolver can be unit-tested without spinning up MCP. */
-export interface CortexContextSnapshot {
-  channel: string | null;
-  sessionId: string | null;
-  sessionName: string | null;
-  threadId: string | null;
-  profile: string | null;
-  project: string | null;
-  backend: string | null;
-  scheduleTaskId: string | null;
-  callbackSource: string | null;
-}
 
 /** Target spec accepted by cortex_schedule_add: shorthand string OR explicit object.
  *  Shorthand strings are resolved to concrete ScheduleTarget objects at create time
@@ -31,7 +16,7 @@ export type TargetSpec =
   | 'current-thread'
   | ScheduleTarget;
 
-export function resolveTargetShorthand(spec: TargetSpec, ctx: CortexContextSnapshot): ScheduleTarget {
+export function resolveTargetShorthand(spec: TargetSpec, ctx: CortexContextInternal): ScheduleTarget {
   if (spec === undefined || spec === 'fresh') return { kind: 'fresh' };
 
   if (spec === 'current-project') {
@@ -81,10 +66,6 @@ function parseIntervalSpec(spec: string | number): number {
   if (parsed) return parsed;
   if (/^\d+$/.test(spec)) return Number(spec);
   throw new Error(`invalid interval: ${spec}`);
-}
-
-function parseDelaySpec(spec: string | number): number {
-  return parseIntervalSpec(spec);
 }
 
 // --- Scheduler instance (no-op runners, no fs watcher; daemon will hot-reload) ---
@@ -161,7 +142,7 @@ async function runScheduleAdd(
     } else {  // once
       if (input.delay === undefined) throw new Error('delay is required for type=once');
       task = await scheduler.add('once', {
-        delay: parseDelaySpec(input.delay),
+        delay: parseIntervalSpec(input.delay),
         message: input.message, projectId, profile: input.profile ?? null, preCheck: input.preCheck,
       });
     }
