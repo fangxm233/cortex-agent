@@ -281,11 +281,6 @@ export function App({
     setAwaitingResponse(true);
   }, [sendFrame, transcript]);
 
-  // Cancel (sends !cancel)
-  const handleCancel = useCallback(() => {
-    onSendCancel();
-  }, [onSendCancel]);
-
   // Clear view
   const handleClearView = useCallback(() => {
     transcript.clear();
@@ -380,7 +375,7 @@ export function App({
         handleSubmit('!newq');
         break;
       case 'cancel':
-        handleCancel();
+        onSendCancel();
         break;
       case 'restart':
         // Send the server-restart command. The WS connection drops during the respawn
@@ -414,7 +409,7 @@ export function App({
         handleSubmit(`!${name}${args ? ` ${args}` : ''}`);
         break;
     }
-  }, [handleClearView, handleSubmit, handleCancel, handleToggleMouse, sendFrame]);
+  }, [handleClearView, handleSubmit, onSendCancel, handleToggleMouse, sendFrame]);
 
   // `/resume` picker selection → switch to the chosen session; Esc/cancel closes it.
   const handleSlashResumeSelect = useCallback((sessionId: string, pickedProjectId: string) => {
@@ -433,7 +428,7 @@ export function App({
   // Keyboard bindings — toggles/cancel always active outside modals; scroll only
   // when the chat input owns focus; reconnect only when not connected.
   useKeybindings({
-    onCancel: handleCancel,
+    onCancel: onSendCancel,
     onScrollUp: handleScrollUp,
     onScrollDown: handleScrollDown,
     onClearView: handleClearView,
@@ -467,18 +462,14 @@ export function App({
     onRightClick: handleRightClick,
   });
 
-  // Dashboard subscription management callbacks. Depend on the stable inner
-  // functions (each a useCallback in useDashboardData), NOT the whole `dashboard`
-  // object — that object is recreated every render, which previously made these
-  // wrappers (and thus the Dashboard effect deps) change identity on every render.
+  // Dashboard subscription management callbacks. Use the stable inner functions
+  // (each a useCallback in useDashboardData), NOT the whole `dashboard` object —
+  // that object is recreated every render, which previously made these callbacks
+  // (and thus the Dashboard effect deps) change identity on every render.
   const { registerSubscription, unregisterSubscription } = dashboard;
   const handleRegisterSubscription = useCallback((queryId: string, tab: string) => {
     registerSubscription(queryId, tab as any);
   }, [registerSubscription]);
-
-  const handleUnregisterSubscription = useCallback((queryId: string) => {
-    unregisterSubscription(queryId);
-  }, [unregisterSubscription]);
 
   // Compute the actual reserved rows for the bottom UI so Transcript sizes its viewport exactly.
   // Base = marginTop(1) + border(3) + StatusLine(1) = 5, plus the optional line above the input
@@ -511,7 +502,7 @@ export function App({
             projectId={projectId}
             dashState={dashboard.state}
             onRegisterSubscription={handleRegisterSubscription}
-            onUnregisterSubscription={handleUnregisterSubscription}
+            onUnregisterSubscription={unregisterSubscription}
             activeTab={activeTab}
             onSetActiveTab={setActiveTab}
             onMutate={mutate}
