@@ -200,7 +200,7 @@ def resolve_launch_environment(
             f"the {credential_origin} source at execution time and must not be inherited: "
             "passing it through a launcher environment flag persists its value into run metadata")
     credential = _credential(
-        config, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
+        credential_origin, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
     references = _reference_values(
         config, credential_env, credential_origin, credential, environ, checkout)
     references.extend(_refresh_reference(config, codex_auth_path, environ))
@@ -300,14 +300,10 @@ def _credential_origin(config: CampaignConfig) -> str:
     return next(iter(grouped))
 
 
-def _uses_codex_auth(config: CampaignConfig) -> bool:
-    return _credential_origin(config) == CODEX_AUTH_ORIGIN
-
-
 def _credential(
-    config: CampaignConfig, *, gateway_path: Path, codex_auth_path: Path,
+    credential_origin: str, *, gateway_path: Path, codex_auth_path: Path,
 ) -> str:
-    if _uses_codex_auth(config):
+    if credential_origin == CODEX_AUTH_ORIGIN:
         return _codex_access_token(codex_auth_path)
     try:
         credential = load_deepseek_relay_credential(gateway_path)
