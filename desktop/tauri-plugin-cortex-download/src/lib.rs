@@ -58,17 +58,10 @@ pub struct InstallApkArgs {
     pub path: String,
 }
 
-/// The Kotlin `installApk` reply: which of the two install paths the plugin took.
+/// The Kotlin `installApk` reply; only its success matters.
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 #[derive(Debug, Clone, Deserialize)]
-struct InstallApkResponse {
-    /// `"staged"` — written into a `PackageInstaller` session that commits itself when the app next
-    /// goes to the background, with no confirm screen. `"prompt"` — the system package installer is
-    /// showing (or will show, the next time the app is on screen), exactly as before silent
-    /// updating existed. Defaulted so an older Kotlin side still deserializes.
-    #[serde(default)]
-    mode: String,
-}
+struct InstallApkResponse {}
 
 /// Handle to the registered mobile plugin (Android) — a stub marker on every other platform.
 pub struct CortexDownload<R: Runtime> {
@@ -98,10 +91,10 @@ impl<R: Runtime> CortexDownload<R> {
         }
     }
 
-    /// Hand a local APK to the Android package installer (app shell self-update) and report which
-    /// path it took: `"staged"` (a `PackageInstaller` session is written and will commit itself the
-    /// next time the app goes to the background — no confirm screen) or `"prompt"` (the system
-    /// installer is showing, which is what this plugin always did before).
+    /// Hand a local APK to the Android package installer (app shell self-update): either a
+    /// `PackageInstaller` session that commits itself the next time the app goes to the background
+    /// (no confirm screen), or the system installer prompt. The shell counts an `Err` as a failed
+    /// update attempt.
     ///
     /// Rust-only entry point — called by the app's update code, never invoked from the webview, so
     /// it needs no webview ACL permission. Errors on every other platform.
@@ -109,12 +102,12 @@ impl<R: Runtime> CortexDownload<R> {
     /// `Ok` means the APK was accepted, NOT that it is installed: the commit happens minutes or
     /// hours later, and the install kills this process. A commit that fails after the fact is
     /// reported as the `Err` of the *next* call — the only seam left once this one has returned.
-    pub fn stage_apk(&self, path: String) -> Result<String, String> {
+    pub fn install_apk(&self, path: String) -> Result<(), String> {
         #[cfg(target_os = "android")]
         {
             self.handle
                 .run_mobile_plugin::<InstallApkResponse>("installApk", InstallApkArgs { path })
-                .map(|r| r.mode)
+                .map(|_| ())
                 .map_err(|e| e.to_string())
         }
         #[cfg(not(target_os = "android"))]
@@ -122,12 +115,6 @@ impl<R: Runtime> CortexDownload<R> {
             let _ = path;
             Err("APK install is only supported on Android".to_string())
         }
-    }
-
-    /// [`Self::stage_apk`] without the mode, for callers that only need the success/failure seam
-    /// (the shell counts an `Err` as a failed update attempt).
-    pub fn install_apk(&self, path: String) -> Result<(), String> {
-        self.stage_apk(path).map(|_| ())
     }
 }
 
