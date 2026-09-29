@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DEFAULTS_DIR, HOOKS_DIR } from '../../core/utils.js';
 import { createLogger } from '../../core/log.js';
+import { fromCanonical } from '../../core/tool-names.js';
 import {
   filterHookEntries,
   loadHookRegistry,
@@ -49,24 +50,6 @@ export interface BeforeAgentStartEvent {
 /** Return type for tool_call handlers: block the tool call or let it proceed. */
 export type ToolCallReturn = { block: true; reason?: string } | undefined;
 
-// PI tool name → Claude-native name used by agent:* registry matchers.
-const TOOL_NAME_MAP: Record<string, string> = {
-  bash: 'Bash',
-  read: 'Read',
-  write: 'Write',
-  edit: 'Edit',
-  grep: 'Grep',
-  glob: 'Glob',
-  web_fetch: 'WebFetch',
-  web_search: 'WebSearch',
-  ask_user_question: 'AskUserQuestion',
-  enter_plan_mode: 'EnterPlanMode',
-  exit_plan_mode: 'ExitPlanMode',
-  todo_write: 'TodoWrite',
-  skill: 'Skill',
-  agent: 'Agent',
-};
-
 const AGENT_EVENT_MAP: Record<AgentHookEvent, string> = {
   'agent:pre-tool': 'tool_call',
   'agent:post-tool': 'tool_result',
@@ -87,9 +70,11 @@ const CLAUDE_EVENT_MAP: Record<AgentHookEvent, string> = {
   'agent:turn-end': 'Stop',
 };
 
-/** Map a PI lowercase/snake_case tool name to the Claude-native PascalCase name. */
+/** Map a PI lowercase/snake_case tool name to the Claude-native PascalCase name used by agent:*
+ *  registry matchers. MCP names skip the lookup so they keep the capitalized fallback. */
 export function toClaude(piName: string): string {
-  return TOOL_NAME_MAP[piName] ?? (piName.charAt(0).toUpperCase() + piName.slice(1));
+  return (piName.startsWith('mcp__') ? null : fromCanonical('claude', piName))
+    ?? (piName.charAt(0).toUpperCase() + piName.slice(1));
 }
 
 /**
