@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { TRPCProvider, createTrpcClient } from '@/lib/trpc';
 import { readDesktopConfig, isNativeShell } from '@/lib/desktop-config';
-import { TooltipProvider, ToastProvider } from '@/design';
+import { ToastProvider } from '@/design';
 import { LangProvider, LangServerSync } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
@@ -81,23 +81,21 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <ThemeProvider>
-          <TooltipProvider>
-            <ToastProvider>
-              <LangProvider>
-                {/* Browser mode only: nothing below may talk to the server until this browser is
-                    known to pass its auth gate — including LangServerSync, whose query would
-                    otherwise be the app's first unauthenticated 401. Inside LangProvider and
-                    ThemeProvider so the login screen is themed and speaks the stored language;
-                    native shells render straight through. */}
-                <UiAuthGate>
-                  {/* Makes the server's one language knob the source of truth for this SPA's
-                      vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
-                  <LangServerSync />
-                  <LoginFlowProvider>{children}</LoginFlowProvider>
-                </UiAuthGate>
-              </LangProvider>
-            </ToastProvider>
-          </TooltipProvider>
+          <ToastProvider>
+            <LangProvider>
+              {/* Browser mode only: nothing below may talk to the server until this browser is
+                  known to pass its auth gate — including LangServerSync, whose query would
+                  otherwise be the app's first unauthenticated 401. Inside LangProvider and
+                  ThemeProvider so the login screen is themed and speaks the stored language;
+                  native shells render straight through. */}
+              <UiAuthGate>
+                {/* Makes the server's one language knob the source of truth for this SPA's
+                    vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
+                <LangServerSync />
+                <LoginFlowProvider>{children}</LoginFlowProvider>
+              </UiAuthGate>
+            </LangProvider>
+          </ToastProvider>
         </ThemeProvider>
       </TRPCProvider>
     </QueryClientProvider>

@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import { addToast, removeToast, TONE_LEVEL, type ToastAction, type ToastItem, type ToastLevel } from './toast-store';
 import type { Tone } from './tone';
 
-// The app's single bubble queue. `ToastProvider` owns the state (mount it once near the app root,
-// like `TooltipProvider`); the renderers are separate so each shell can place the stack where it
+// The app's single bubble queue. `ToastProvider` owns the state (mount it once near the app root);
+// the renderers are separate so each shell can place the stack where it
 // belongs — `ToastViewport` (desktop, bottom-right, scheme 18a) and `MNotificationToaster`
 // (mobile, top banner). Nothing is rendered here.
 //

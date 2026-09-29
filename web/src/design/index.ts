@@ -3,7 +3,6 @@ export { PlusGlyph, type PlusGlyphProps } from './PlusGlyph';
 export { useClipboardFeedback, type ClipboardFeedback } from './useClipboardFeedback';
 export { Card, type CardProps } from './Card';
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
-export { TooltipProvider } from './Tooltip';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export {
   Modal,
