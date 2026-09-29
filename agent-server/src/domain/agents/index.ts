@@ -10,8 +10,3 @@ export * from './profile-switch.js';
 export * from './agent-switch.js';
 export * from './model-selection.js';
 export { resolveRateLimitProvider } from './provider-run-lifecycle.js';
-export {
-  buildPiGatewaySubPath,
-  CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
-  filterChannelScopedPlugins, filterScopedPlugins,
-} from '../runs/engine-spec.js';
