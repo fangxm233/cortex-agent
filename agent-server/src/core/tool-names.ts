@@ -68,17 +68,6 @@ function buildReverse(forward: NativeMap): Map<string, CanonicalToolName> {
   return m;
 }
 
-/** PI answers to these through an extension shim without a NativeMap entry. */
-const PI_SHIM_ONLY_TOOLS = ['agent'];
-
-/** Every tool label a backend's own dispatch boundary answers to. Design §13.10 GS4 draws a
- *  benchmark policy guard's allow-list from exactly this namespace, so it is derived from the table
- *  the adapters already translate through rather than restated somewhere it can drift. */
-export function nativeToolNames(backend: Backend): string[] {
-  const mapped = Object.values(FORWARD_BY_BACKEND[backend]).filter((name): name is string => !!name);
-  return backend === 'pi' ? [...mapped, ...PI_SHIM_ONLY_TOOLS] : mapped;
-}
-
 /** True when `nativeName` maps to `canonical` under ANY backend. For the shared paths that are
  *  not scoped to one backend (a background continuation runs on whichever engine is live).
  *  Native names are unambiguous across backends — no backend maps a
