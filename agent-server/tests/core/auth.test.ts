@@ -90,7 +90,6 @@ test('ensureAuthTokens appends to an existing .env preserving prior content and 
   // Prior content preserved.
   assert.match(written, /CORTEX_MACHINE=hub/);
   // The appended key starts on its own line (no concatenation onto hub).
-  assert.doesNotMatch(written, /lab2CORTEX_/);
   assert.match(written, /\nCORTEX_CLIENT_TOKEN=/);
 });
 
