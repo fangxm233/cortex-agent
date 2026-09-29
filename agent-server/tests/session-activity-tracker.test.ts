@@ -140,42 +140,6 @@ test('session activity tracker records local mutations without file contents', a
   }
 });
 
-test('session activity tracker records remote mutations without response payloads', async () => {
-  const root = mkTemp('session-activity-remote-mutations-');
-  const sessionId = 'eeeeeeee-1111-4222-8333-666666666666';
-  try {
-    process.env.CORTEX_SESSION_ID = sessionId;
-    process.env.CORTEX_HOME = root;
-    const tracker = await import(moduleUrl('defaults/hooks/session-activity-tracker.mjs'));
-    const privatePayload = JSON.stringify({
-      originalFile: 'private-before\n',
-      structuredPatch: [{ lines: ['-private-before', '+private-after'] }],
-    });
-    tracker.processPayload({
-      tool_name: 'mcp__cortex__remote_edit',
-      tool_input: { device: 'lab', file_path: '/srv/x.md', old_string: 'before', new_string: 'after' },
-      tool_response: [
-        { type: 'text', text: 'File edited: /srv/x.md' },
-        { type: 'text', text: privatePayload },
-      ],
-    });
-
-    const logPath = path.join(root, 'logs', 'session-activity', `${sessionId}.jsonl`);
-    const [{ ts: _ts, ...record }] = fs.readFileSync(logPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    assert.deepEqual(record, {
-      session_id: sessionId,
-      tool: 'Edit',
-      event: 'edit_file',
-      file_path: '/srv/x.md',
-      device: 'lab',
-    });
-  } finally {
-    delete process.env.CORTEX_HOME;
-    delete process.env.CORTEX_SESSION_ID;
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test('session activity tracker records every event without time-window dedupe', async () => {
   // Net-diff reconstruction requires every Edit/Write to be captured; dropping a duplicate
   // would silently lose a hunk. Read/Skill have no such constraint but we keep one policy.

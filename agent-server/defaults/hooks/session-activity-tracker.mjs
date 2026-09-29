@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.24
+// @cortex-hook-version 2026.9.28
 
 import { readFileSync, mkdirSync, appendFileSync } from 'fs';
 import { join, resolve } from 'path';
@@ -9,9 +9,6 @@ import { homedir } from 'os';
 const DATA_DIR = process.env.CORTEX_HOME
   ? resolve(process.env.CORTEX_HOME)
   : join(homedir(), '.cortex');
-
-const MCP_REMOTE_EDIT_TOOL = 'mcp__cortex__remote_edit';
-const MCP_REMOTE_WRITE_TOOL = 'mcp__cortex__remote_write';
 
 function resolveDataDir() {
   const override = process.env.CORTEX_HOME;
@@ -80,20 +77,6 @@ function toRecord(payload, sessionId) {
       tool: toolName,
       event: isEdit ? 'edit_file' : 'write_file',
       file_path: resolve(filePath),
-    };
-  }
-
-  if (toolName === MCP_REMOTE_EDIT_TOOL || toolName === MCP_REMOTE_WRITE_TOOL) {
-    const filePath = payload.tool_input?.file_path;
-    if (!filePath) return null;
-    const isEdit = toolName === MCP_REMOTE_EDIT_TOOL;
-    return {
-      ts: new Date().toISOString(),
-      session_id: sessionId,
-      tool: isEdit ? 'Edit' : 'Write',
-      event: isEdit ? 'edit_file' : 'write_file',
-      file_path: filePath,
-      device: payload.tool_input?.device,
     };
   }
 
