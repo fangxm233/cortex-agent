@@ -54,7 +54,6 @@ async function executeCommand(
   channel: string,
   adapter: PlatformAdapter,
   trimmedMessage: string,
-  _commandName: string,
   threadAnchorId?: string | null,
 ): Promise<void> {
   const result = await handler(channel, adapter, trimmedMessage, threadAnchorId);
@@ -82,7 +81,7 @@ async function executeCommand(
   }
 }
 
-const catchHandlerError = (promise: Promise<unknown>, cmd: string, channel: string, adapter: PlatformAdapter, threadAnchorId?: string | null): void => {
+const catchHandlerError = (promise: Promise<unknown>, cmd: string, channel: string, adapter: PlatformAdapter): void => {
   Promise.resolve(promise).catch(err => {
     log.error(`Error in ${cmd}:`, err?.message || err);
     if (err?.data) log.error(`Slack error data:`, JSON.stringify(err.data));
@@ -94,7 +93,6 @@ const catchHandlerError = (promise: Promise<unknown>, cmd: string, channel: stri
 function createHandlerSet(deps: CommandDeps) {
   const router = deps.commandRouter;
   return {
-    router,
     cancel: createCancelHandler(deps.cancelDispatchedTask ?? null, router),
     status: createStatusHandler(deps.getExecutionStatusReport ?? null, router),
     compact: createCompactHandler(deps.compactSessionByChannel ?? null),
@@ -180,8 +178,8 @@ function executeMatch(
   adapter: PlatformAdapter,
   anchor?: string | null,
 ): true {
-  const promise = executeCommand(match.handler, channel, adapter, message, match.prefix, anchor);
-  catchHandlerError(promise, match.prefix, channel, adapter, anchor);
+  const promise = executeCommand(match.handler, channel, adapter, message, anchor);
+  catchHandlerError(promise, match.prefix, channel, adapter);
   return true;
 }
 
@@ -211,7 +209,5 @@ function createDispatcher(exact: Record<string, Handler>, prefixes: PrefixHandle
 
 export function registerCommands(deps: CommandDeps) {
   const handlers = createHandlerSet(deps);
-  const dispatch = createDispatcher(createExactCommands(handlers), createPrefixCommands(handlers));
-  (dispatch as any).router = handlers.router;
-  return dispatch;
+  return createDispatcher(createExactCommands(handlers), createPrefixCommands(handlers));
 }
