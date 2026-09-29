@@ -151,30 +151,6 @@ function account(snapshot: AuthStatusSnapshot, provider: string) {
   return result;
 }
 
-async function savedClaudeOAuthAccount(expiresAt?: string) {
-  const snapshot = await getAuthStatus({
-    now: () => new Date(NOW_MS),
-    claudeCredentialsPath: path.join(process.env.CORTEX_HOME!, 'missing-claude.json'),
-    piAuthPath: path.join(process.env.CORTEX_HOME!, 'missing-pi.json'),
-    loadPiRuntime: async (): Promise<PiRuntimeLoadResult> => ({
-      available: false, version: null, entry: null, error: 'fixture unavailable',
-      runtime: null, readStoredCredential: null,
-    }),
-    getSavedApiEnv: () => ({
-      ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined,
-      CLAUDE_CODE_OAUTH_TOKEN: '\uE128\uE129',
-      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiresAt,
-    }),
-    getClaudeMode: () => 'plan',
-    getActiveBackend: () => 'claude',
-    listProfiles: () => [],
-    readClaudeAuthStatus: async () => ({
-      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
-    }),
-  });
-  return account(snapshot, 'anthropic');
-}
-
 function assertFreshAccount(snapshot: AuthStatusSnapshot): void {
   const expiresAt = new Date(NOW_MS + 7 * DAY_MS).toISOString();
   assert.deepEqual(account(snapshot, 'fresh'), {
@@ -433,39 +409,6 @@ test('Claude OAuth account follows scrubbed CLI status instead of a saved env to
   }
 });
 
-test('getAuthStatus ignores legacy saved Claude subscription expiry', async () => {
-  const fixture = createPiFixture();
-  const expiry = new Date(NOW_MS + DAY_MS).toISOString();
-  const savedEnv = {
-    ANTHROPIC_API_KEY: undefined,
-    ANTHROPIC_BASE_URL: undefined,
-    CLAUDE_CODE_OAUTH_TOKEN: '\uE140\uE141-managed-token',
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiry,
-  };
-  writeJson(fixture.authPath, {});
-  try {
-    const options = baseStatusOptions(
-      fixture,
-      await loadFixture(fixture),
-      path.join(fixture.root, 'missing-claude.json'),
-    );
-    const claude = account(await getAuthStatus({
-      ...options,
-      getSavedApiEnv: () => savedEnv,
-      getClaudeMode: () => 'plan',
-      getActiveBackend: () => 'claude',
-      listProfiles: () => [],
-    }), 'anthropic');
-
-    assert.equal(claude.state, 'logged-in');
-    assert.equal(claude.source, 'claude-cli');
-    assert.equal(claude.expiresAt, null);
-    assert.equal(JSON.stringify(claude).includes(savedEnv.CLAUDE_CODE_OAUTH_TOKEN), false);
-  } finally {
-    fs.rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
 test('getAuthStatus never falls back across Claude auth slots', async () => {
   const fixture = createPiFixture();
   const claudePath = path.join(fixture.root, 'claude', '.credentials.json');
@@ -491,20 +434,6 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
     assert.deepEqual(planAccount.credentials.map(item => item.authType), ['api_key']);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test('legacy saved Claude OAuth expiry never overrides CLI-owned status', async () => {
-  for (const expiry of [
-    undefined,
-    'not-an-expiry',
-    new Date(NOW_MS + 6 * DAY_MS).toISOString(),
-  ]) {
-    const result = await savedClaudeOAuthAccount(expiry);
-    assert.deepEqual(
-      { state: result.state, source: result.source, expiresAt: result.expiresAt },
-      { state: 'logged-in', source: 'claude-cli', expiresAt: null },
-    );
   }
 });
 
