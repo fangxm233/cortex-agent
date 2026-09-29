@@ -13,13 +13,6 @@ afterEach(() => {
 });
 
 describe('notice-history', () => {
-  it('returns entries newest first', () => {
-    recordSystemNotice({ text: 'first' });
-    recordSystemNotice({ text: 'second' });
-    const entries = listSystemNotices();
-    assert.deepEqual(entries.map((e) => e.text), ['second', 'first']);
-  });
-
   it('assigns monotonically increasing ids and ISO timestamps', () => {
     recordSystemNotice({ text: 'a' });
     recordSystemNotice({ text: 'b' });

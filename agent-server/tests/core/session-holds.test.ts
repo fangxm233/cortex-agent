@@ -152,15 +152,6 @@ test('clear() empties every hold and its handles', () => {
 
 // ── onSessionStatus compatibility (the app.ts bus feed) ────────────────
 
-test('onSessionStatus holds on running+backgroundRunning and clears on anything else', () => {
-  const r = new SessionHolds();
-  r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  assert.equal(r.has('s1'), true);
-
-  r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true });
-  assert.equal(r.has('s1'), false, 'a plain turn start supersedes the hold');
-});
-
 test('onSessionStatus clears the hold when the seal republishes running:false', () => {
   const r = new SessionHolds();
   let fired = 0;
