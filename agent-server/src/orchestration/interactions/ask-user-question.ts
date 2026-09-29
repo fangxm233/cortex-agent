@@ -7,8 +7,6 @@ const log = createLogger('ask-user');
 
 const ASK_USER_QUESTION_TTL_MS = 1800000; // 30 minutes
 
-// pendingId → lightweight record for action routing
-const pendingAskUserQuestions = new Map();
 // groupId → group record with all questions + collected answers
 const pendingAskUserQuestionGroups = new Map();
 
@@ -48,15 +46,7 @@ function getGroup(groupId) {
 }
 
 function deleteGroup(groupId) {
-  const group = pendingAskUserQuestionGroups.get(groupId);
-  if (group) {
-    for (const q of group.questions) pendingAskUserQuestions.delete(q.pendingId);
-    pendingAskUserQuestionGroups.delete(groupId);
-  }
-}
-
-function getPendingQuestion(pendingId) {
-  return pendingId ? pendingAskUserQuestions.get(pendingId) : null;
+  pendingAskUserQuestionGroups.delete(groupId);
 }
 
 // --- Hook mode support ---
@@ -91,9 +81,6 @@ function createHookGroup(requestId, channel, sessionId, questions, extensionUiId
     answers: new Map(),
     createdAt: Date.now(),
   };
-  for (const q of group.questions) {
-    pendingAskUserQuestions.set(q.pendingId, { ...q, groupId, channel });
-  }
   pendingAskUserQuestionGroups.set(groupId, group);
   return group;
 }
@@ -183,21 +170,10 @@ async function sendMessages(result, channel, adapter: PlatformAdapter, messageTs
       const ref = await adapter.postMessage(askMsgDest, { text, richBlocks }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
       group.responseMessageTs = ref.messageId;
     }
-    for (const q of group.questions) {
-      pendingAskUserQuestions.set(q.pendingId, { ...q, groupId, channel });
-    }
     pendingAskUserQuestionGroups.set(groupId, group);
     sentCount++;
   }
   return sentCount;
-}
-
-/** Return the first non-expired pending question group for a channel, or null. */
-function getGroupByChannel(channel: string): any | null {
-  for (const group of pendingAskUserQuestionGroups.values()) {
-    if (group.channel === channel && !isExpired(group)) return group;
-  }
-  return null;
 }
 
 /** Return the pending question group registered under a PreToolUse hook requestId, or null. */
@@ -221,11 +197,9 @@ export {
   buildQuestionModalDefinition,
   isExpired,
   getGroup,
-  getGroupByChannel,
   getGroupByHookRequestId,
   deleteGroupByHookRequestId,
   deleteGroup,
-  getPendingQuestion,
   createHookGroup,
   registerHookResolver,
   tryResolveHook,
