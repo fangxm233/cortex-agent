@@ -524,19 +524,6 @@ test('loadWebMcp selects Web tools without adding another config', () => {
 });
 
 test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the web layer', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-web-thread',
-    mcpComposition: 'thread-control',
-    loadWebMcp: true,
-  });
   assert.ok(!resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-web-thread',
     mcpComposition: 'thread-control', loadWebMcp: true,
@@ -544,19 +531,6 @@ test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the we
 });
 
 test('buildSpawnArgs loadFeishuMcp — thread-control composition suppresses the feishu layer', () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-feishu-thread',
-    mcpComposition: 'thread-control',
-    loadFeishuMcp: true,
-  });
   assert.ok(!resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-feishu-thread',
     mcpComposition: 'thread-control', loadFeishuMcp: true,
