@@ -17,7 +17,6 @@ import { t } from '../../core/i18n.js';
 
 interface AskUserModalProps {
   modal: ModalDefinition;
-  triggerId: string;
   sendFrame: (frame: TuiFrame) => void;
   ackErrors: Record<string, string>;
   onClose: () => void;
@@ -53,7 +52,6 @@ function getInteractiveFields(fields: ModalField[]): Array<{ field: InteractiveF
 
 export function AskUserModal({
   modal,
-  triggerId,
   sendFrame,
   ackErrors,
   onClose,

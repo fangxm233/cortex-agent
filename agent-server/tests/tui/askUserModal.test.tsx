@@ -68,7 +68,6 @@ test('AskUserModal submit builds correct modal.submit values', async (t) => {
 
   const app = React.createElement(AskUserModal, {
     modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
     sendFrame: (f: TuiFrame) => { frames.push(f); },
     ackErrors: {},
     onClose: () => {},
@@ -125,7 +124,6 @@ test('AskUserModal multi_select: submit with toggled options', async (t) => {
 
   const app = React.createElement(AskUserModal, {
     modal: MULTI_MODAL,
-    triggerId: 'tr-2',
     sendFrame: (f: TuiFrame) => { frames.push(f); },
     ackErrors: {},
     onClose: () => {},
@@ -171,7 +169,6 @@ test('AskUserModal escape closes without submitting', async (t) => {
 
   const app = React.createElement(AskUserModal, {
     modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
     sendFrame: () => {},
     ackErrors: {},
     onClose: () => { closeCalled = true; },

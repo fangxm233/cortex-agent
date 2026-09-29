@@ -538,7 +538,6 @@ export function App({
       {activeModal ? (
         <AskUserModal
           modal={activeModal.modal}
-          triggerId={activeModal.triggerId}
           sendFrame={sendFrame}
           ackErrors={modalAckErrors}
           onClose={() => { setActiveModal(null); setModalAckErrors({}); }}
