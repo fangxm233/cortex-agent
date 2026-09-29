@@ -169,10 +169,10 @@ test('runMigrations - skips when file is already up to date', async () => {
     templates: {},
   });
 
-  // User config already has systemPrompt
+  // User config lacks systemPrompt, so running the migration would backfill it
   await writeJson(path.join(configDir, 'thread-templates.json'), {
     agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
+      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
     },
     templates: {},
   });
@@ -184,9 +184,9 @@ test('runMigrations - skips when file is already up to date', async () => {
 
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
-  // Content should be unchanged
+  // Migration was skipped, so systemPrompt was not backfilled
   const content = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(content.agents.main.systemPrompt, 'file:direct.md');
+  assert.equal(content.agents.main.systemPrompt, undefined);
   // Versions should still track the existing version
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions['config/thread-templates.json'], '2026.5.23');
