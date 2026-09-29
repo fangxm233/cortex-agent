@@ -23,7 +23,7 @@ export const MESSAGE_MAX_CHARS = 2000;
 export const DATA_MAX_CHARS = 16000;
 
 export interface WaitpointServiceDeps {
-  repo: Pick<WaitpointRepo, 'get' | 'list' | 'listArmed' | 'insert' | 'update' | 'mutate' | 'remove'>;
+  repo: Pick<WaitpointRepo, 'get' | 'list' | 'insert' | 'update' | 'mutate'>;
   now: () => number;
   /** Sliding-window cap on wakes per waitpoint per hour. */
   maxWakesPerHour: () => number;

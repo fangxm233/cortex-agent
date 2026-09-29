@@ -46,13 +46,6 @@ export class RetentionCandidateRepo {
     });
   }
 
-  async clearCategory(category: RetentionCandidateCategory): Promise<void> {
-    await this.repo.mutate((data) => {
-      delete data.categories[category];
-      return { next: data, result: undefined };
-    });
-  }
-
   flush(): Promise<void> {
     return this.repo.flush();
   }

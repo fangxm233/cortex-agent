@@ -37,7 +37,7 @@ export interface SessionRetentionDeps {
   /** Per-session cumulative stats carried over from archived executions. Optional so existing
    *  callers and fixtures keep working; absent ⇒ the carry is simply not pruned. */
   sessionTotals?: Pick<SessionTotalsCarryRepo, 'forget'>;
-  candidateRepo: Pick<RetentionCandidateRepo, 'mark' | 'isConfirmed' | 'clear' | 'clearCategory'>;
+  candidateRepo: Pick<RetentionCandidateRepo, 'mark' | 'isConfirmed' | 'clear'>;
   liveness: RetentionLivenessSnapshot;
   paths: SessionRetentionPaths;
   syncClaudeUserCleanupPeriodDays: (days: number) => Promise<ClaudeUserSettingsSyncResult>;

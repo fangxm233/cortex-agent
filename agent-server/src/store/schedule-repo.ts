@@ -111,10 +111,8 @@ function makeMigrate(channelRegistryPath?: string): (raw: unknown) => SchedulesD
 
 export class ScheduleRepo {
   private _repo: JsonRepository<SchedulesData>;
-  private _channelRegistryPath: string | undefined;
 
   constructor(filePath: string = SCHEDULES_FILE, channelRegistryPath?: string) {
-    this._channelRegistryPath = channelRegistryPath;
     this._repo = new JsonRepository<SchedulesData>({
       filePath,
       defaultValue: defaultData,

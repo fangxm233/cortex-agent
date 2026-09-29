@@ -19,7 +19,7 @@ test('retention candidates persist by category+key and survive repo reloads', as
   assert.equal(await reopened.isConfirmed('pi', 'backend-1', 2001), false);
 });
 
-test('retention candidates clear one key or a whole category', async () => {
+test('retention candidates clear one key', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-retention-candidates-'));
   const filePath = path.join(root, 'retention-candidates.json');
   const repo = new RetentionCandidateRepo(filePath);
@@ -31,8 +31,5 @@ test('retention candidates clear one key or a whole category', async () => {
   await repo.clear('history', 'track-1');
   assert.equal(await repo.isConfirmed('history', 'track-1', 1000), false);
   assert.equal(await repo.isConfirmed('history', 'track-2', 1000), true);
-
-  await repo.clearCategory('history');
-  assert.equal(await repo.isConfirmed('history', 'track-2', 1000), false);
   assert.equal(await repo.isConfirmed('pi', 'backend-1', 1000), true);
 });

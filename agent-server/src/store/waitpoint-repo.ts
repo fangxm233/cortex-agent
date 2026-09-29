@@ -144,13 +144,6 @@ export class WaitpointRepo {
     });
   }
 
-  async remove(id: string): Promise<void> {
-    await this._repo.mutate((data) => {
-      delete data[id];
-      return { next: data, result: undefined };
-    });
-  }
-
   /** Generic mutate passthrough for composite operations (sweeps touching many records at once). */
   async mutate<R>(fn: (data: WaitpointsData) => { next: WaitpointsData; result: R }): Promise<R> {
     return this._repo.mutate(fn);
@@ -159,11 +152,6 @@ export class WaitpointRepo {
   /** Wait for any in-flight mutate() to complete. For graceful SIGTERM drain. */
   flush(): Promise<void> {
     return this._repo.flush();
-  }
-
-  /** Test hook. */
-  invalidate(): void {
-    this._repo.invalidate();
   }
 }
 
