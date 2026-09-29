@@ -127,7 +127,6 @@ class ProtocolTest {
           {"id":"exec-2","sessionId":null,"status":"completed","finishedAt":null}
         ]""")
         assertEquals(listOf("exec-1", "exec-2"), rows.map { it.id })
-        assertEquals(listOf("one", null), rows.map { it.sessionId })
         assertEquals("", rows[1].finishedAt)
         assertThrows(Exception::class.java) { Protocol.executions("""[{"sessionId":"one"}]""") }
     }

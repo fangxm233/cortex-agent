@@ -77,7 +77,7 @@ internal object Protocol {
     // stay on the server: a background notification never carries transcript text.
     fun executions(body: String): List<ExecutionRow> = objects(JSONArray(body)).map {
         // optString disagrees on JSON null between Android and the JVM test artifact.
-        ExecutionRow(requiredId(it, "id"), it.optional("sessionId"), it.optional("finishedAt") ?: "")
+        ExecutionRow(requiredId(it, "id"), it.optional("finishedAt") ?: "")
     }
 
     fun executionDetail(body: JSONObject): ExecutionDetail = ExecutionDetail(

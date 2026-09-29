@@ -6,8 +6,8 @@ import org.junit.Test
 class CompletionsTest {
     private val idle = Session("one", "project", running = false, awaiting = false, background = false, name = "Atlas")
 
-    private fun row(id: String, session: String? = "one", finished: String = "2026-01-01T00:00:01Z") =
-        ExecutionRow(id, session, finished)
+    private fun row(id: String, finished: String = "2026-01-01T00:00:01Z") =
+        ExecutionRow(id, finished)
 
     private fun detail(status: String = "completed", kind: String = "local", thread: String? = null,
         session: String? = "one", project: String? = "project") =
@@ -51,7 +51,7 @@ class CompletionsTest {
     }
 
     @Test fun executionsOutsideTheDirectSessionListNeverAnnounce() {
-        val result = scan(listOf(row("a", session = "thread-session")), lookup = { detail(session = "thread-session") })
+        val result = scan(listOf(row("a")), lookup = { detail(session = "thread-session") })
         assertTrue(result.announce.isEmpty())
         assertEquals(listOf("a"), result.processed)
     }
@@ -59,7 +59,7 @@ class CompletionsTest {
     @Test fun repeatedCompletionsOfOneSessionCollapseToTheLatest() {
         val late = Session("two", "project", running = false, awaiting = false, background = false, name = "Late")
         val rows = listOf(row("b", finished = "2026-01-01T00:00:03Z"), row("a", finished = "2026-01-01T00:00:02Z"),
-            row("c", session = "two", finished = "2026-01-01T00:00:04Z"))
+            row("c", finished = "2026-01-01T00:00:04Z"))
         val result = scan(rows, sessions = listOf(idle, late),
             lookup = { id -> detail(session = if (id == "c") "two" else "one") })
         assertEquals(listOf("one", "two"), result.announce.map { it.sessionId })

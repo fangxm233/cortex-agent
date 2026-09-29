@@ -1,6 +1,6 @@
 package dev.cortex.notifications
 
-internal data class ExecutionRow(val id: String, val sessionId: String?, val finishedAt: String)
+internal data class ExecutionRow(val id: String, val finishedAt: String)
 internal data class ExecutionDetail(
     val status: String, val kind: String, val threadId: String?,
     val sessionId: String?, val projectId: String?,
