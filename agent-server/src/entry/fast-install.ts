@@ -72,7 +72,7 @@ function readManifest(file: string): Record<string, unknown> | null {
 }
 
 /** Normalized dependency declaration, stable under key ordering. */
-export function dependencyFingerprint(manifest: Record<string, unknown>): string {
+function dependencyFingerprint(manifest: Record<string, unknown>): string {
   return JSON.stringify(
     DEPENDENCY_FIELDS.map((field) => {
       const value = manifest[field];

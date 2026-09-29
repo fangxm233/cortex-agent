@@ -14,7 +14,7 @@ function buildStartupMessage({ machine, restartReason }: { machine?: string; res
 
 async function sendStartupDmIfConfigured(
   adapter: PlatformAdapter,
-  { machine, restartReason }: { machine?: string; restartReason?: string } = {},
+  { machine, restartReason }: { machine?: string; restartReason?: string },
 ) {
   return emitSystemNotice(adapter, {
     text: buildStartupMessage({ machine, restartReason }),
@@ -22,4 +22,4 @@ async function sendStartupDmIfConfigured(
   });
 }
 
-export { buildStartupMessage, sendStartupDmIfConfigured };
+export { sendStartupDmIfConfigured };

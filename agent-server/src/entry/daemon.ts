@@ -929,5 +929,3 @@ function main() {
 if (isMainModule(import.meta.url)) {
   main();
 }
-
-export { main, buildChildProcessConfig };
