@@ -8,17 +8,15 @@ async function sendPlanToSlack(
   planContent: string | null,
   channel: string,
   adapter: PlatformAdapter,
-  { machine, threadAnchorId }: { machine?: string; threadAnchorId?: string | null } = {},
 ): Promise<void> {
+  const label = '**[PLAN]**';
   if (!planContent) {
-    const label = machine ? `**[PLAN: ${machine}]**` : '**[PLAN]**';
-    await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${t('notice.plan.noContent')}`, { threadId: threadAnchorId });
+    await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${t('notice.plan.noContent')}`);
     return;
   }
 
-  const label = '**[PLAN]**';
   const prompt = t('notice.plan.generated');
 
-  await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${prompt}\n${planContent}`, { threadId: threadAnchorId });
+  await postOnce(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' }, `${Icons.memo} ${label} ${prompt}\n${planContent}`);
 }
 export { sendPlanToSlack };

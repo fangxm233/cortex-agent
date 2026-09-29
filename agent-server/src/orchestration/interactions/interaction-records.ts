@@ -55,17 +55,6 @@ export function buildResolvedText(kind: InteractionKind, status: InteractionStat
   return result?.feedback ? t('notice.interaction.planRejectedWith', { feedback: result.feedback }) : t('notice.interaction.planRejected');
 }
 
-/** Legacy-compatible subtype for display (old clients render InteractionRow off this). */
-export function deriveSubtype(kind: InteractionKind, status: InteractionStatus): string {
-  if (kind === 'plan-approval') {
-    if (status === 'approved') return 'plan-approved';
-    if (status === 'rejected') return 'plan-rejected';
-    return `plan-${status}`;
-  }
-  if (status === 'answered') return 'ask-user-answered';
-  return `ask-user-${status}`;
-}
-
 export class InteractionRecords {
   private index = new Map<string, InteractionIndexEntry>();
   private history: HistoryDep | null = null;
@@ -181,10 +170,6 @@ export class InteractionRecords {
     for (const [id, entry] of this.index) {
       if (entry.status !== 'pending' && entry.createdAt < cutoff) this.index.delete(id);
     }
-  }
-
-  _testReset(): void {
-    this.index.clear();
   }
 }
 
