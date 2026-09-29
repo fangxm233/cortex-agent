@@ -7,22 +7,18 @@ const log = createLogger('feishu-http');
 type FeishuHttpInstance = typeof lark.defaultHttpInstance;
 
 export interface FeishuHttpOptions {
-  /** Whole-request timeout. axios applies it through `req.setTimeout`, so a TLS handshake that
-   *  never completes ends here (ECONNABORTED) instead of at the OS-level TCP timeout. */
-  timeoutMs?: number;
-  /** Timeout for file uploads / message-resource downloads, whose bodies are large. */
-  uploadTimeoutMs?: number;
-  /** Delay before each retry; the length is the number of extra attempts. */
-  retryDelaysMs?: readonly number[];
-  agent?: https.Agent;
   /** Test seam. */
   sleep?: (ms: number) => Promise<void>;
 }
 
+/** Whole-request timeout. axios applies it through `req.setTimeout`, so a TLS handshake that
+ *  never completes ends here (ECONNABORTED) instead of at the OS-level TCP timeout. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
+/** Timeout for file uploads / message-resource downloads, whose bodies are large. */
 export const DEFAULT_UPLOAD_TIMEOUT_MS = 120_000;
-/** Two extra attempts, ≤ 1s added per adapter call. feishu-output-stream's own three retries sit
- *  on top, so one output write covers ≈ 5s of a network blip instead of 2.3s. */
+/** Delay before each retry; the length is the number of extra attempts. Two extra attempts, ≤ 1s
+ *  added per adapter call. feishu-output-stream's own three retries sit on top, so one output
+ *  write covers ≈ 5s of a network blip instead of 2.3s. */
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [250, 750];
 
 const CONFIGURED = Symbol.for('cortex.feishu-http.configured');
@@ -96,20 +92,18 @@ export function configureFeishuHttp(instance: FeishuHttpInstance, opts: FeishuHt
   if (marked[CONFIGURED]) return;
   marked[CONFIGURED] = true;
 
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const uploadTimeoutMs = opts.uploadTimeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS;
-  const delays = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+  const delays = DEFAULT_RETRY_DELAYS_MS;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
-  instance.defaults.timeout = timeoutMs;
+  instance.defaults.timeout = DEFAULT_TIMEOUT_MS;
   // Explicit, not Node's ≥19 default: the device this was diagnosed on runs an unknown Node.
-  instance.defaults.httpsAgent = opts.agent ?? new https.Agent({ keepAlive: true });
+  instance.defaults.httpsAgent = new https.Agent({ keepAlive: true });
 
   // axios merges defaults into the config before request interceptors run, so `timeout` here is
   // the default (or a caller's own, e.g. WSClient's 15s on pullConnectConfig — left alone).
   instance.interceptors.request.use((config) => {
-    if (LARGE_BODY_URL.test(String(config.url ?? '')) && (config.timeout ?? 0) < uploadTimeoutMs) {
-      config.timeout = uploadTimeoutMs;
+    if (LARGE_BODY_URL.test(String(config.url ?? '')) && (config.timeout ?? 0) < DEFAULT_UPLOAD_TIMEOUT_MS) {
+      config.timeout = DEFAULT_UPLOAD_TIMEOUT_MS;
     }
     return config;
   });
