@@ -98,7 +98,8 @@ async function releaseLocksOwnedByAsync(executionId: string | null | undefined):
  *  thread_wait must release BEFORE yielding. Otherwise the lock is held for the entire
  *  child-wait window (starving sibling managers' decomposes), and the terminal auto-release
  *  cannot recover it because re-entry completes under a NEW executionId that no longer matches
- *  the original lock owner — leaking the lock until its 20-min TTL expires. Idempotent. */
+ *  the original lock owner — leaking the lock until its 20-min TTL expires. Idempotent.
+ *  Async so the suspend path never parks the event loop on a contended cross-process lock. */
 export async function releaseExecutionLocksAsync(executionId: string | null | undefined): Promise<void> {
   await releaseLocksOwnedByAsync(executionId);
 }
