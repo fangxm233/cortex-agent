@@ -24,10 +24,7 @@ export function parseAccel(accel: string): ParsedAccel {
 }
 
 const KEY_LABELS: Record<string, string> = {
-  arrowleft: '←',
-  arrowright: '→',
   '=': '+',
-  ',': ',',
 };
 
 export function formatAccel(accel: string, commandKey: boolean): string {
@@ -118,15 +115,12 @@ const NATIVE_KEYS: Record<string, string> = {
   '=': 'Equal',
   '-': 'Minus',
   ',': 'Comma',
-  '.': 'Period',
-  '/': 'Slash',
 };
 
 function nativeKey(key: string): string {
   if (NATIVE_KEYS[key]) return NATIVE_KEYS[key]!;
   if (/^[a-z]$/.test(key)) return `Key${key.toUpperCase()}`;
   if (/^[0-9]$/.test(key)) return `Digit${key}`;
-  if (/^f\d+$/.test(key)) return key.toUpperCase();
   return key.toUpperCase();
 }
 
