@@ -22,7 +22,6 @@ import { initAuthEvents } from '../../src/domain/auth/auth-events.js';
 import {
   applyAuthEnv,
   removeClaudeCodeOAuthToken,
-  saveClaudeCodeOAuthToken,
 } from '../../src/domain/agents/config.js';
 import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
 
@@ -165,7 +164,12 @@ test('the daemon env admits a legacy token only until Claude owns a credential',
   });
   process.env.HOME = home;
   fs.rmSync(path.dirname(credentialsPath), { recursive: true, force: true });
-  await saveClaudeCodeOAuthToken('sk-ant-oat01-legacy-fixture');
+  fs.mkdirSync(path.join(home, 'config'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, 'config', '.env'),
+    'CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-legacy-fixture"\n',
+    { mode: 0o600 },
+  );
   _testSetHealthy(false);
 
   applyAuthEnv();

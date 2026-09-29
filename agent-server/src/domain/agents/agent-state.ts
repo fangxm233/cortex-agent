@@ -191,7 +191,3 @@ export function saveAgentState(state: AgentState): void {
   if (state.claudeModel) data.claudeModel = state.claudeModel;
   writeFileSync(STATE_FILE, JSON.stringify(data));
 }
-
-/** Absolute paths, for the doctor check and the init writer. */
-export const AGENT_STATE_FILE = STATE_FILE;
-export const LEGACY_MODE_FILE = LEGACY_FILE;

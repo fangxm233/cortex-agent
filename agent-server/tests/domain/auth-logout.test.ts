@@ -402,10 +402,9 @@ test('legacy Claude OAuth env remains removable without invoking Claude logout',
   const liveBefore = liveFileStamps();
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-cc-oauth-'));
   const options = claudeStatusOptions(root, 'plan');
-  const config = await resetSavedEnv();
-  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN, {
-    expiresAt: '2031-01-01T00:00:00.000Z',
-  });
+  await resetSavedEnv();
+  writeFile(ENV_FILE, `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(OAUTH_TOKEN)}\n`
+    + 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="2031-01-01T00:00:00.000Z"\n');
   const cliLogout = vi.fn(async () => {});
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
@@ -434,8 +433,8 @@ test('Claude CLI logout clears its credential and the legacy Cortex token', asyn
   writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
   } }));
-  const config = await resetSavedEnv();
-  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN);
+  await resetSavedEnv();
+  writeFile(ENV_FILE, `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(OAUTH_TOKEN)}\n`);
   const cliLogout = vi.fn(async () => { writeFile(credentialsPath, '{}\n'); });
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {

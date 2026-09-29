@@ -3,7 +3,6 @@ import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
 import * as os from 'node:os';
 import * as path from 'path';
-import * as http from 'http';
 import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { claudeOwnsOAuthCredential } from '@core/claude-credentials.js';
 import { resolveProfileConfig } from './profile-manager.js';
@@ -28,9 +27,6 @@ export interface ApiEnv {
   CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
   CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: string | undefined;
 }
-
-// Gateway proxy URL for Claude Code's ANTHROPIC_BASE_URL (DR-0001)
-const GATEWAY_ANTHROPIC_URL = `${GATEWAY_URL}/anthropic`;
 
 // Per-request mode URL: encodes mode in URL path so gateway resolves endpoints per-request
 // instead of relying on global POST /mode state (eliminates race conditions)
@@ -113,12 +109,6 @@ function requireAnthropicApiKey(value: string): string {
   return key;
 }
 
-function requireClaudeOAuthToken(value: string): string {
-  const token = normalizeEnvValue(value);
-  if (!token || /[\s"\\]/.test(token)) throw new Error('Enter a valid Claude OAuth token.');
-  return token;
-}
-
 function savedEnvMatcher(name: string, flags: string): RegExp {
   return new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=.*$`, flags);
 }
@@ -136,21 +126,11 @@ function removeSavedEnv(contents: string, name: string): string {
   return contents.replace(new RegExp(`${line.source}(?:\\r?\\n|$)`, 'gm'), '');
 }
 
-function throwIfSaveAborted(signal?: AbortSignal): void {
-  if (!signal?.aborted) return;
-  if (signal.reason instanceof Error) throw signal.reason;
-  throw new Error('Credential save aborted.');
-}
-
-async function saveCredential(name: string, value: string, signal?: AbortSignal): Promise<void> {
-  throwIfSaveAborted(signal);
+async function saveCredential(name: string, value: string): Promise<void> {
   await mutateFileAtomically(
     ENV_FILE,
-    contents => {
-      throwIfSaveAborted(signal);
-      return upsertSavedEnv(contents, name, value);
-    },
-    { mode: 0o600, signal },
+    contents => upsertSavedEnv(contents, name, value),
+    { mode: 0o600 },
   );
 }
 
@@ -167,29 +147,6 @@ export async function saveAnthropicApiKey(value: string): Promise<void> {
   await saveCredential('ANTHROPIC_API_KEY', key);
   savedApiEnv.ANTHROPIC_API_KEY = key;
   process.env.ANTHROPIC_API_KEY = key;
-}
-
-export async function saveClaudeCodeOAuthToken(
-  value: string,
-  options: { expiresAt?: string; signal?: AbortSignal } = {},
-): Promise<void> {
-  const token = requireClaudeOAuthToken(value);
-  const expiresAt = normalizeEnvValue(options.expiresAt);
-  throwIfSaveAborted(options.signal);
-  await mutateFileAtomically(
-    ENV_FILE,
-    contents => {
-      throwIfSaveAborted(options.signal);
-      const withToken = upsertSavedEnv(contents, 'CLAUDE_CODE_OAUTH_TOKEN', token);
-      return expiresAt
-        ? upsertSavedEnv(withToken, 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT', expiresAt)
-        : removeSavedEnv(withToken, 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT');
-    },
-    { mode: 0o600, signal: options.signal },
-  );
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
-  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = expiresAt;
-  process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
 }
 
 export async function removeAnthropicApiKey(): Promise<void> {
@@ -266,15 +223,6 @@ function persist(): void {
   saveAgentState(agentState);
 }
 
-function saveModeFile(
-  profile: string | null = activeProfile,
-  agent: string | null = defaultAgent,
-): void {
-  activeProfile = profile;
-  defaultAgent = agent;
-  persist();
-}
-
 export function getActiveProfile(channel?: string): string | null {
   if (channel && channelProfiles[channel]) return channelProfiles[channel];
   // '__active__' is the init default — resolve to profiles.json defaultProfile if still unset
@@ -327,16 +275,12 @@ export function setActiveProfile(profileName: string | null, channel?: string): 
   } else {
     activeProfile = profileName;
   }
-  saveModeFile(activeProfile);
+  persist();
 }
 
 export function clearChannelProfile(channel: string): void {
   delete channelProfiles[channel];
-  saveModeFile(activeProfile);
-}
-
-export function getChannelProfiles(): Record<string, string> {
-  return { ...channelProfiles };
+  persist();
 }
 
 /** The channel's whole selection on top of its profile (model / provider / thinking). null when the
@@ -345,12 +289,6 @@ export function getChannelOverride(channel?: string | null): ChannelOverride | n
   if (!channel) return null;
   const override = agentState.channelOverrides[channel];
   return override && Object.keys(override).length > 0 ? { ...override } : null;
-}
-
-/** The channel-scoped model override `!model` writes. null when the channel runs its profile's
- *  own model, which is the normal case. */
-export function getChannelModelOverride(channel?: string | null): string | null {
-  return getChannelOverride(channel)?.model ?? null;
 }
 
 /**
@@ -457,7 +395,7 @@ export function setDefaultAgent(name: string | null, channel?: string): void {
     return;
   }
   defaultAgent = name;
-  saveModeFile(activeProfile, defaultAgent);
+  persist();
 }
 
 /** Drop the channel's agent selection — it follows the global default again. */
@@ -566,46 +504,9 @@ export function applyAuthEnv(): void {
   if (token === null) assignEnvVar('CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT', null);
 }
 
-export function setGatewayMode(mode: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({ mode });
-    const modeUrl = `${GATEWAY_URL}/mode`;
-    const parsed = new URL(modeUrl);
-    const req = http.request({
-      hostname: parsed.hostname,
-      port: parsed.port,
-      path: parsed.pathname,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-      },
-      timeout: 3000,
-    }, (res) => {
-      let data = '';
-      res.on('data', (chunk: Buffer) => { data += chunk; });
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(data);
-        } else {
-          reject(new Error(`Gateway /mode returned ${res.statusCode}: ${data}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Gateway /mode timeout')); });
-    req.write(payload);
-    req.end();
-  });
-}
-
 // NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
 // processes (cortex init / setup-gateway via domain/threads), and an import-time write would
 // rewrite ANTHROPIC_API_KEY before gateway-generator discovery runs, breaking api endpoint
 // generation. The server entry (app.ts) calls applyAuthEnv() explicitly after dotenv loads.
 
-export {
-  GATEWAY_ANTHROPIC_URL,
-  GATEWAY_MANAGED_KEY_PLACEHOLDER,
-  saveModeFile,
-};
+export { GATEWAY_MANAGED_KEY_PLACEHOLDER };
