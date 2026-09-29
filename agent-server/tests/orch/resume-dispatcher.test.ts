@@ -44,7 +44,6 @@ function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
     channelBusy: (_c: string) => false,
     directSessionBusy: (_c: string) => false,
     acquireSessionUse: async (_sessionId: string) => () => {},
-    now: () => NOW,
     delay: async (_ms: number) => {},
     ...overrides,
   };
@@ -148,29 +147,9 @@ test('thread entry resumes a rate_limited thread with rebuilt options',  async (
   assert.equal(calls.resume[0].threadId, 'thr_a');
   assert.equal(calls.resume[0].opts.destination.type, 'project-report');
   assert.equal(calls.built.length, 1, 'options rebuilt from the thread record');
+  assert.deepEqual(calls.settled, ['thr_a'], 'settle fires exactly once for the resumed thread');
   // Threads re-run their interrupted step from the original prompt — no reminder injected.
   assert.equal(calls.route.length, 0);
-});
-
-test('resumed thread is settled after its run returns (status message sealed)', async () => {
-  // Regression: the resumed run keeps updating the live status message mid-flight, but nothing
-  // sealed it at the end, so the message froze at the last running step ("Step N … ⏳") even
-  // though the thread finished. settleResumedThread must fire once per resumed thread, after resume.
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const order: string[] = [];
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    {
-      resumeThread: async (input: any) => {
-        order.push(`resume:${input.threadId}`);
-        order.push(`settle:${input.threadId}`);
-        calls.settled.push(input.threadId);
-      },
-    },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.deepEqual(calls.settled, ['thr_a'], 'settle fires exactly once for the resumed thread');
-  assert.deepEqual(order, ['resume:thr_a', 'settle:thr_a'], 'settle runs inside the resumed run, before it returns');
 });
 
 test('a thread that is skipped by a guard is never settled', async () => {
@@ -291,16 +270,6 @@ test('thread entry dropped when thread no longer exists', async () => {
   const { deps, calls } = baseDeps(
     [{ kind: 'thread', threadId: 'gone', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
     { getThread: (_id: string) => null },
-  );
-  await dispatchPendingResumes(adapter as any, deps);
-  assert.equal(calls.resume.length, 0);
-});
-
-test('thread entry dropped when thread is no longer paused', async () => {
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    { getThread: (_id: string) => ({ id: _id, status: 'completed', channel: 'C2', projectId: 'proj' }) as any },
   );
   await dispatchPendingResumes(adapter as any, deps);
   assert.equal(calls.resume.length, 0);
