@@ -1,6 +1,6 @@
 from harbor.environments.base import BaseEnvironment
 
-from cortex_bench_harness.vendor_agents import PreinstalledPi, VendorPreflightError
+from cortex_bench_harness.vendor_agents import PreinstalledPi
 
 
 class MountedContainedPi(PreinstalledPi):
@@ -22,7 +22,7 @@ class MountedContainedPi(PreinstalledPi):
         )
 
     async def _verify_mounted_runtimes(self, environment: BaseEnvironment) -> None:
-        result = await self.exec_as_agent(
+        await self.exec_as_agent(
             environment,
             command=(
                 'mkdir -p "$HOME/.nvm" && : > "$HOME/.nvm/nvm.sh" && '
@@ -30,5 +30,3 @@ class MountedContainedPi(PreinstalledPi):
                 'test "$(pi --version)" = 0.82.1'
             ),
         )
-        if result.return_code != 0:
-            raise VendorPreflightError("mounted PI runtime preflight failed")

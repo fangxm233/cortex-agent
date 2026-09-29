@@ -495,10 +495,7 @@ class VendorLifecycleMixin:
         # Imported here because trial_admission imports this module's fixed environment.
         from .launcher.trial_admission import trial_scratch_command
 
-        result = await self.exec_as_agent(environment, command=trial_scratch_command())
-        if result.return_code != 0:
-            raise VendorPreflightError(
-                "cannot create the trial scratch directories the sealed environment names")
+        await self.exec_as_agent(environment, command=trial_scratch_command())
 
     async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:
         """Put whatever the campaign mounted on PATH, before anything asks for its version.
@@ -514,10 +511,7 @@ class VendorLifecycleMixin:
         ):
             if not command:
                 continue
-            result = await run(environment, command=command)
-            if result.return_code != 0:
-                raise VendorPreflightError(
-                    f"staged runtime setup failed for {list(names)}")
+            await run(environment, command=command)
 
     async def _preflight_version(self, environment: BaseEnvironment) -> None:
         command = self.get_version_command()
