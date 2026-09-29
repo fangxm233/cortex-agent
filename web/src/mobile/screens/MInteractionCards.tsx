@@ -27,7 +27,6 @@ export interface MIntCopy {
   readLink: string;
   approve: string;
   reject: string;
-  approveHint: string;
   viewFullPlan: string;
   viewOriginalPlan: string;
   rewriteNote: string;
@@ -53,7 +52,6 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     readLink: '阅读 ›',
     approve: '批准并执行',
     reject: '驳回并反馈',
-    approveHint: '',
     viewFullPlan: '查看完整计划 ›',
     viewOriginalPlan: '查看原计划 ›',
     rewriteNote: '',
@@ -76,7 +74,6 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     readLink: 'Read ›',
     approve: 'Approve & run',
     reject: 'Reject with note',
-    approveHint: '',
     viewFullPlan: 'View full plan ›',
     viewOriginalPlan: 'View original plan ›',
     rewriteNote: '',
@@ -383,9 +380,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 'var(--r-control)', background: MC.inkSolid, boxShadow: 'var(--accent-glow)', color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
         </div>
         {/* footer — `来自 X` source has no entity field → left slot omitted (GAP) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 11px ${MONO}`, color: MC.muted }}>
-          <span style={{ marginLeft: 'auto', color: MC.muted }}>{copy.approveHint}</span>
-        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 11px ${MONO}`, color: MC.muted }} />
       </div>
     );
   }
