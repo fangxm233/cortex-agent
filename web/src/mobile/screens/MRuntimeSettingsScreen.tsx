@@ -85,7 +85,7 @@ function NumberSettingRow(props: {
     sub={L[props.descriptor.descKey]} trailing={
     <div className="mobile-settings-number-control">
       <input type="number" aria-label={L[props.descriptor.titleKey]} value={draft} onChange={(event) => setDraft(event.target.value)}
-        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
+        min={props.descriptor.min} max={props.descriptor.max}
         step={1} />
       <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
         onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>

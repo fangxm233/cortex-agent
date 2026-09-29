@@ -99,7 +99,7 @@ describe('runtime settings panel save gates', () => {
     expect(blocked.props.disabled).toBe(true);
   });
 
-  it('accepts 0 as off for the PI mid-turn percent and rejects a value below the range', () => {
+  it('gates the PI compaction reserve on its token range', () => {
     const onSet = vi.fn();
     let renderer: ReturnType<typeof create>;
     act(() => {

@@ -141,8 +141,6 @@ export interface NumberSettingDescriptor {
   /** Inclusive bounds of the accepted range, mirroring the server's own setting validator. */
   min: number;
   max: number;
-  /** 0 is accepted as "off" on top of the range (the range itself never includes it). */
-  zeroMeansOff?: boolean;
 }
 
 export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
@@ -164,20 +162,18 @@ export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
   },
 ];
 
-/** A draft this descriptor accepts: inside the range, or exactly 0 when 0 means "off". */
+/** A draft this descriptor accepts: inside the range. */
 export function numberSettingValid(
   descriptor: NumberSettingDescriptor,
   value: number | null,
 ): value is number {
   if (value === null) return false;
-  if (descriptor.zeroMeansOff && value === 0) return true;
   return value >= descriptor.min && value <= descriptor.max;
 }
 
-/** Range hint appended to the invalid message, e.g. "50–99" or "0, 50–99". */
+/** Range hint appended to the invalid message, e.g. "50–99". */
 export function numberSettingRangeLabel(descriptor: NumberSettingDescriptor): string {
-  const range = `${descriptor.min}–${descriptor.max}`;
-  return descriptor.zeroMeansOff ? `0, ${range}` : range;
+  return `${descriptor.min}–${descriptor.max}`;
 }
 
 export type DurationUnit = 'sec' | 'min' | 'hr';

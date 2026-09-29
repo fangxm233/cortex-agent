@@ -334,7 +334,7 @@ function NumberControl(props: {
     <div style={CONTROL_STRIP_STYLE}>
       <input
         data-number-input={props.descriptor.setting} type="number" step={1} value={props.draft}
-        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
+        min={props.descriptor.min} max={props.descriptor.max}
         style={NUMBER_INPUT} onChange={(event) => props.onDraft(event.target.value)}
       />
       <SButton tone="neutral" data-number-save={props.descriptor.setting} disabled={!props.canSave}
