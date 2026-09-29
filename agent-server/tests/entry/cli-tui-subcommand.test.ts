@@ -24,13 +24,6 @@ describe('parseTuiArgs', () => {
 // ─── tuiPortListening ─────────────────────────────────────────────
 
 describe('tuiPortListening', () => {
-  it('returns false when nothing is listening (connection refused)', async () => {
-    // Port 1 (tcpmux) is reserved on all platforms — nothing should be
-    // listening there, so TCP connect will get ECONNREFUSED immediately.
-    const result = await tuiPortListening(1);
-    assert.equal(result, false);
-  });
-
   it('returns true when a TCP server is bound on the port', async () => {
     const server = net.createServer();
     await new Promise<void>((resolve, reject) => {
@@ -47,6 +40,8 @@ describe('tuiPortListening', () => {
   });
 
   it('does not hang indefinitely on unreachable port', async () => {
+    // Port 1 (tcpmux) is reserved on all platforms — nothing should be
+    // listening there, so TCP connect will get ECONNREFUSED immediately.
     const start = Date.now();
     const result = await tuiPortListening(1);
     const elapsed = Date.now() - start;
