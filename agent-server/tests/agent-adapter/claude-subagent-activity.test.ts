@@ -21,7 +21,7 @@ function turnFor(out: Seen) {
   return {
     resolve: () => {}, reject: () => {},
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
+    finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
     onProgress: (p: any) => { out.progress.push(p); },
     onAssistantMessage: (text: string, _blockId?: string, _model?: string | null, subagent?: any) => {
       out.assistantText.push(text);

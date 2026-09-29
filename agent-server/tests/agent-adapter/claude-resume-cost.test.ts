@@ -60,7 +60,7 @@ describe('resumed process cost accounting', () => {
     session.currentTurn = {
       resolve: (value: any) => { resolved = value; }, reject: () => {},
       resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-      askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
+      finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null, onSubagentEnd: null,
       rawStream: FAKE_STREAM, txtStream: FAKE_STREAM, killed: false, spontaneous: false,
     };

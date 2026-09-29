@@ -47,7 +47,7 @@ function fakeTurn(capture: { value?: any; error?: any; resolves?: number }) {
     resolve: (v: any) => { capture.value = v; capture.resolves = (capture.resolves ?? 0) + 1; },
     reject: (e: any) => { capture.error = e; },
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+    finalOutput: null, longestOutput: null, turnCount: 0,
     onProgress: null, onAssistantMessage: null, onToolUse: null, onToolResult: null, onCompact: null,
     rawStream: { write() {}, end() {} } as any, txtStream: { write() {}, end() {} } as any, killed: false,
   };

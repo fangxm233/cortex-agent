@@ -12,7 +12,7 @@ function sessionCapturing(results: string[], t: { onTestFinished: (fn: () => voi
   s.currentTurn = {
     resolve: () => {}, reject: () => {},
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
+    finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
     onProgress: null, onAssistantMessage: null, onAssistantDelta: null, onToolUse: null,
     onToolResult: (_toolUseId: string, content: string) => { results.push(content); },
     onCompact: null, onContextUsage: null, onSubagentActivity: null,

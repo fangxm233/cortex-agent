@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { CancelledError, DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
+import { DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
 import { summarizeToolInput } from './tool-summarizers.js';
 import { buildPrompt as sharedBuildPrompt } from '../normalize/prompt-builder.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
@@ -196,13 +196,11 @@ function rateLimitResultMessage(resultData: any): string | null {
 export function extractResult(
   resultData: any,
   effectiveSessionId: string,
-  killed: boolean,
   code: number,
   stderr: string,
   planFilePath: string | null,
   enteredPlanMode: boolean,
   exitedPlanMode: boolean,
-  askUserQuestions: any[],
   finalOutput: string | null,
   longestOutput: string | null,
 ): ExtractResultOutcome {
@@ -233,9 +231,9 @@ export function extractResult(
     }
   }
   const effectiveOutput = mergeSubstantialOutput(finalOutput, longestOutput);
-  const value = { sessionId: resolvedSessionId, total_cost_usd, num_turns, rateLimited, rateLimitMessage, planFilePath, enteredPlanMode, exitedPlanMode, askUserQuestions, finalOutput: effectiveOutput || null };
+  const value = { sessionId: resolvedSessionId, total_cost_usd, num_turns, rateLimited, rateLimitMessage, planFilePath, enteredPlanMode, exitedPlanMode, askUserQuestions: [], finalOutput: effectiveOutput || null };
   if (rateLimited) return { resolved: true, value };
-  if (code !== 0) return { resolved: false, error: killed ? new CancelledError() : new Error(stderr || `claude exited with code ${code}`) };
+  if (code !== 0) return { resolved: false, error: new Error(stderr || `claude exited with code ${code}`) };
   return { resolved: true, value };
 }
 

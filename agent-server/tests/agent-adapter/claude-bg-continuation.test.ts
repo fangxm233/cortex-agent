@@ -12,7 +12,7 @@ function fakeTurn(capture: { value?: any; error?: any }) {
     resolve: (v: any) => { capture.value = v; },
     reject: (e: any) => { capture.error = e; },
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+    finalOutput: null, longestOutput: null, turnCount: 0,
     onProgress: null, onAssistantMessage: null, onToolUse: null, onCompact: null,
     rawStream: FAKE_STREAM, txtStream: FAKE_STREAM, killed: false,
   };

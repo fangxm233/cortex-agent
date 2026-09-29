@@ -1342,7 +1342,7 @@ function subagentTestSession(): {
   const events: any[] = [];
   const turn: any = {
     resolve: () => {}, reject: () => {}, resultData: null,
-    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, askUserQuestions: [],
+    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
     finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
     onProgress: (p: any) => events.push({ kind: 'progress', ...p }),
     onAssistantMessage: (text: string, blockId?: string, model?: string | null, subagent?: any) =>

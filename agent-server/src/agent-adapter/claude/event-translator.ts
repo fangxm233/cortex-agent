@@ -120,13 +120,6 @@ export function pushDerivedTurnEvents(
   preserveUnreportedAccounting: boolean,
 ): void {
   // Derived events, in order, before the terminating turn_complete.
-  for (const q of (result.askUserQuestions || [])) {
-    push({
-      type: 'ask_user_question',
-      toolUseId: q.toolUseId ?? '',
-      questions: q.questions as any,
-    });
-  }
   if (result.planFilePath) {
     push({
       type: 'plan_written',

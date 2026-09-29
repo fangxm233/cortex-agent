@@ -331,7 +331,7 @@ function fakeTurn(overrides: Record<string, unknown> = {}): any {
   return {
     resolve: () => {}, reject: () => {},
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+    finalOutput: null, longestOutput: null, turnCount: 0,
     onProgress: null, onAssistantMessage: null, onAssistantDelta: null,
     onToolUse: null, onToolResult: null, onCompact: null, onContextUsage: null,
     rawStream: FAKE_STREAM, txtStream: FAKE_STREAM, killed: false,

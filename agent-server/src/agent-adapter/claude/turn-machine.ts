@@ -45,7 +45,6 @@ export interface PendingTurn {
   planFilePath: string | null;
   enteredPlanMode: boolean;
   exitedPlanMode: boolean;
-  askUserQuestions: any[];
   finalOutput: string | null;
   longestOutput: string | null;
   /** Main-agent assistant messages only. Native-subagent lines are counted separately below, the
@@ -283,7 +282,6 @@ export class ClaudeTurnMachine {
       planFilePath: null,
       enteredPlanMode: false,
       exitedPlanMode: false,
-      askUserQuestions: [],
       finalOutput: null,
       longestOutput: null,
       turnCount: 0,
@@ -426,7 +424,7 @@ export class ClaudeTurnMachine {
       ...this.continuationCallbacks(),
       resultData: null, planFilePath: null,
       enteredPlanMode: false, exitedPlanMode: false,
-      askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
+      finalOutput: null, longestOutput: null, turnCount: 0, subagentTurnCount: 0,
       capturePairKey: streams.pairKey,
       releaseCapture: streams.releaseCapture,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
@@ -527,9 +525,8 @@ export class ClaudeTurnMachine {
 
   private handleResultEvent(turn: PendingTurn, data: any): void {
     turn.resultData = { ...data, total_cost_usd: this.captureTurnAccounting(data) };
-    const result = extractResult(turn.resultData, this.host.sessionId, false, 0, '',
-      turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.askUserQuestions,
-      turn.finalOutput, turn.longestOutput);
+    const result = extractResult(turn.resultData, this.host.sessionId, 0, '',
+      turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.finalOutput, turn.longestOutput);
     this.settleResultTurn(turn, data, result);
   }
 
@@ -818,9 +815,8 @@ export class ClaudeTurnMachine {
       } else if (turn.killed) {
         turn.reject(new CancelledError());
       } else {
-        const result = extractResult(turn.resultData, this.host.sessionId, false, code || 1, stderr,
-          turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.askUserQuestions,
-          turn.finalOutput, turn.longestOutput);
+        const result = extractResult(turn.resultData, this.host.sessionId, code || 1, stderr,
+          turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.finalOutput, turn.longestOutput);
         if (result.resolved) turn.resolve(result.value);
         else turn.reject(result.error);
       }
