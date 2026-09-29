@@ -23,17 +23,15 @@ export interface AgentMenuProps {
   overridden: boolean;
   /** `null` hands the conversation back to the host's default agent. */
   onPick: (name: string | null) => void;
-  placement?: 'above' | 'below';
-  align?: 'left' | 'right';
 }
 
-export function AgentMenu({ agents, overridden, onPick, placement, align }: AgentMenuProps): JSX.Element {
+export function AgentMenu({ agents, overridden, onPick }: AgentMenuProps): JSX.Element {
   const L = useVocab();
   const [hover, setHover] = useState<string | null>(null);
   const shared = { hover, setHover };
 
   return (
-    <MenuCard kind="agent" minWidth={236} placement={placement} align={align}>
+    <MenuCard kind="agent" minWidth={236} align="left">
       <SectionTitle text={L.wbAgent} />
       <MenuRow
         id="agent:default"

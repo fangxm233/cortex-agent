@@ -137,8 +137,6 @@ export interface SelectionMenuProps {
   onPickThinking: (level: string | null) => void;
   onPickMode: (mode: string | null) => void;
   onClearAll: () => void;
-  placement?: 'above' | 'below';
-  align?: 'left' | 'right';
 }
 
 /** The one line that replaces a screenful of greyed-out rows. */
@@ -317,10 +315,10 @@ function ModePane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
 export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
   const [hover, setHover] = useState<string | null>(null);
   const shared = { hover, setHover };
-  const { pane, placement, align } = props;
+  const { pane } = props;
 
   return (
-    <MenuCard kind="selection" level={pane} placement={placement} align={align}>
+    <MenuCard kind="selection" level={pane}>
       <div key={pane} className="selection-pane" data-pane={pane}>
         {pane === 'root' && <RootPane props={props} shared={shared} />}
         {pane === 'model' && <ModelPane props={props} shared={shared} />}

@@ -339,8 +339,6 @@ export function SessionSelectorView({ selection }: { selection: SessionSelection
           onPickThinking={(level) => { backToRoot(); selection.pickThinking(level); }}
           onPickMode={(mode) => { backToRoot(); selection.pickMode(mode); }}
           onClearAll={() => { close(); selection.clearAll(); }}
-          placement="above"
-          align="right"
         />
       ) : null}
     </span>
@@ -401,8 +399,6 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
           // One level, so a pick is the whole visit — the menu closes behind it, the way naming a
           // profile closes the engine one.
           onPick={(name) => { close(); selection.pickAgent(name); }}
-          placement="above"
-          align="left"
         />
       ) : null}
     </span>
