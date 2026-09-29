@@ -7,8 +7,9 @@
     "strict": false,
     "noImplicitAny": false,
     // This base config is for editors + `tsc --noEmit` typechecking only. The real
-    // build uses the standalone tsconfig.build.json (outDir: dist). noEmit:true here
-    // stops a bare `tsc` from littering src/ and tests/ with compiled .js next to each .ts.
+    // build uses tsconfig.build.json, which extends this file and adds the emit options
+    // (outDir: dist). noEmit:true here stops a bare `tsc` from littering src/ and tests/
+    // with compiled .js next to each .ts.
     "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "react",
