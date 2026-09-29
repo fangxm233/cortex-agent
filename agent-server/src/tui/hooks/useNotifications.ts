@@ -71,10 +71,6 @@ export function _markRead(prev: NotifState, notificationId: string): NotifState 
   };
 }
 
-export function _clearNotifications(): NotifState {
-  return { notifications: new Map(), ids: [], unreadCount: 0 };
-}
-
 // ── Hook ──
 
 export function useNotifications(): {
@@ -83,7 +79,6 @@ export function useNotifications(): {
   unreadCount: number;
   add: (frame: Notification) => void;
   markRead: (id: string) => void;
-  clear: () => void;
 } {
   const [state, setState] = useState<NotifState>(EMPTY_NOTIF_STATE);
 
@@ -95,16 +90,11 @@ export function useNotifications(): {
     setState(prev => _markRead(prev, id));
   }, []);
 
-  const clear = useCallback((): void => {
-    setState(_clearNotifications());
-  }, []);
-
   return {
     notifications: state.notifications,
     ids: state.ids,
     unreadCount: state.unreadCount,
     add,
     markRead,
-    clear,
   };
 }

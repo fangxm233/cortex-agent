@@ -5,18 +5,12 @@ import { t } from '../../core/i18n.js';
 
 interface NotificationsProps {
   open: boolean;
-  unreadCount: number;
   notifications: Map<string, NotificationEntry>;
   ids: string[];
   onMarkRead: (id: string) => void;
   onClose: () => void;
   /** Called when user selects a notification from detail view. Triggers session switch. */
   onSelect?: (notif: NotificationEntry) => void;
-}
-
-export function NotificationsBadge({ unreadCount }: { unreadCount: number }): React.JSX.Element | null {
-  if (unreadCount === 0) return null;
-  return <Text color="yellow">🔔 {unreadCount}</Text>;
 }
 
 export function NotificationsModal({
@@ -26,7 +20,7 @@ export function NotificationsModal({
   onMarkRead,
   onClose,
   onSelect,
-}: Omit<NotificationsProps, 'unreadCount'> & { open: boolean }): React.JSX.Element | null {
+}: NotificationsProps): React.JSX.Element | null {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
   const [focusedId, setFocusedId] = React.useState<string | null>(null);
 
