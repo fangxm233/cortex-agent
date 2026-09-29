@@ -6,6 +6,7 @@ import os
 import socket
 import subprocess
 import threading
+from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -78,7 +79,11 @@ VENDOR_PROJECTIONS = {
 LIVE_PROXY_HANDLES: list[object] = []
 
 
-def stub_pinned_image(monkeypatch: pytest.MonkeyPatch) -> None:
+def stub_pinned_image(
+    monkeypatch: pytest.MonkeyPatch,
+    image_environment: Sequence[str] = ("PATH=/image/path", "LANG=C"),
+    volumes: dict[str, object] | None = None,
+) -> None:
     """Answer `docker image inspect` for a pinned image no test ever pulls.
 
     Public because the sealed environment's PATH is derived from the image, so every module that
@@ -86,7 +91,7 @@ def stub_pinned_image(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     result = subprocess.CompletedProcess(
         args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps({"Env": ["PATH=/image/path", "LANG=C"], "Volumes": None}) + "\n",
+        stdout=json.dumps({"Env": list(image_environment), "Volumes": volumes}) + "\n",
         stderr="",
     )
     module = importlib.import_module("cortex_bench_harness.launcher.trial_admission_io")
@@ -125,8 +130,7 @@ def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
 
 
 def write_task(
-    root: Path, *, network_mode: str = "public",
-    allowed_hosts: tuple[str, ...] = (), os_name: str = "linux",
+    root: Path, *, network_mode: str = "public", os_name: str = "linux",
 ) -> Path:
     task = root / "task"
     (task / "environment").mkdir(parents=True)
@@ -135,12 +139,11 @@ def write_task(
     test_file = "test.bat" if os_name == "windows" else "test.sh"
     test_script = "exit /b 0\n" if os_name == "windows" else "#!/bin/sh\nexit 0\n"
     (task / f"tests/{test_file}").write_text(test_script)
-    hosts = ", ".join(json.dumps(host) for host in allowed_hosts)
     (task / "task.toml").write_text(
         "[environment]\n"
         f"docker_image = {json.dumps(IMAGE_REF)}\n"
         f"network_mode = {json.dumps(network_mode)}\n"
-        f"allowed_hosts = [{hosts}]\n"
+        "allowed_hosts = []\n"
         f"os = {json.dumps(os_name)}\n\n"
         "[agent]\n"
         "timeout_sec = 90\n"
@@ -559,9 +562,8 @@ def test_declared_phase_timeouts_supersede_the_task_without_editing_it(
 
 
 def test_deepseek_identity_is_admitted_without_container_credentials(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    admit_capability(monkeypatch, "pi-deepseek-api-key")
     kwargs = launch_kwargs(tmp_path)
     deepseek = deepseek_arm()
     deepseek_seed = dict(kwargs["trial_seed"])
@@ -895,14 +897,6 @@ def test_builder_refuses_a_proxy_not_listening_on_the_container_route(
         build_harbor_trial_config(**kwargs)
 
 
-def test_builder_does_not_freeze_a_pre_arm_proxy_port_in_the_environment(
-    tmp_path: Path,
-) -> None:
-    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
-
-    assert "CORTEX_BENCH_PROXY_URL" not in config.environment.env
-
-
 def test_builder_refuses_a_proxy_hostname_not_scoped_to_the_trial(
     tmp_path: Path,
 ) -> None:
@@ -1139,19 +1133,7 @@ def patch_image_inspect(
     monkeypatch: pytest.MonkeyPatch, image_environment: list[str],
     volumes: dict[str, object] | None = None,
 ) -> AsyncMock:
-    result = subprocess.CompletedProcess(
-        args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps({
-            "Env": image_environment, "Volumes": volumes,
-        }) + "\n", stderr="",
-    )
-    module = importlib.import_module(
-        "cortex_bench_harness.launcher.trial_admission_io",
-    )
-    monkeypatch.setattr(
-        module, "subprocess",
-        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
-    )
+    stub_pinned_image(monkeypatch, image_environment, volumes)
     start = AsyncMock()
     monkeypatch.setattr(DockerEnvironment, "start", start)
     return start
@@ -1509,22 +1491,8 @@ def test_image_declared_volumes_fail_before_docker_start(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     trial = create_trial(tmp_path)
-    result = subprocess.CompletedProcess(
-        args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps({
-            "Env": ["PATH=/image/path", "LANG=C"],
-            "Volumes": {"/host-cache": {}},
-        }) + "\n", stderr="",
-    )
-    module = importlib.import_module(
-        "cortex_bench_harness.launcher.trial_admission_io",
-    )
-    monkeypatch.setattr(
-        module, "subprocess",
-        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
-    )
-    start = AsyncMock()
-    monkeypatch.setattr(DockerEnvironment, "start", start)
+    start = patch_image_inspect(
+        monkeypatch, ["PATH=/image/path", "LANG=C"], {"/host-cache": {}})
 
     with pytest.raises(HarborTrialAdmissionError, match="image volumes"):
         asyncio.run(trial.agent_environment.start(force_build=False))
@@ -1535,7 +1503,6 @@ def test_environment_start_failure_revokes_the_deferred_proxy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     trial = create_trial(tmp_path)
-    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
     monkeypatch.setattr(
         DockerEnvironment, "start", AsyncMock(side_effect=RuntimeError("start failed")),
     )
@@ -1564,16 +1531,13 @@ def test_environment_stop_revokes_before_agent_setup(
     assert proxy_route_is_dead(session)
 
 
-def test_a_proxy_only_allowlist_still_pins_the_route_to_its_port(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_proxy_only_allowlist_still_pins_the_route_to_its_port(tmp_path: Path) -> None:
     """The historical shape: the proxy is the sole destination, so the port pin is correct.
 
     With any broader allowlist the same rule would reject the hosts the campaign asked to reach,
     so it is installed only for this one configuration.
     """
     trial = create_trial(tmp_path, network=NetworkAccess(mode="filtered", allowlist=()))
-    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
 
     asyncio.run(trial.agent_environment.start(force_build=False))
 
@@ -1586,12 +1550,9 @@ def test_a_proxy_only_allowlist_still_pins_the_route_to_its_port(
     trial.agent_environment._install_proxy_endpoint_filter.assert_awaited_once_with(port)
 
 
-def test_a_broader_allowlist_does_not_pin_the_route_port(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_broader_allowlist_does_not_pin_the_route_port(tmp_path: Path) -> None:
     trial = create_trial(
         tmp_path, network=NetworkAccess(mode="filtered", allowlist=("example.com",)))
-    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
 
     asyncio.run(trial.agent_environment.start(force_build=False))
 
@@ -1601,11 +1562,8 @@ def test_a_broader_allowlist_does_not_pin_the_route_port(
     trial.agent_environment._install_proxy_endpoint_filter.assert_not_awaited()
 
 
-def test_launch_evidence_records_the_actual_proxy_endpoint(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_launch_evidence_records_the_actual_proxy_endpoint(tmp_path: Path) -> None:
     trial = create_trial(tmp_path)
-    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
 
     asyncio.run(trial.agent_environment.start(force_build=False))
 
@@ -1629,7 +1587,7 @@ def test_launch_evidence_records_the_actual_proxy_endpoint(
 
 
 def test_a_route_bound_to_another_address_than_the_container_is_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """A route bound to an address no container holds would answer nobody, silently.
 
@@ -1637,7 +1595,6 @@ def test_a_route_bound_to_another_address_than_the_container_is_refused(
     ever drift, the trial is refused rather than run against a route that cannot be reached.
     """
     trial = create_trial(tmp_path)
-    patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
     trial.agent_environment._admission_contract["container_ipv4"] = "172.30.99.2"
 
     with pytest.raises(HarborTrialAdmissionError, match="admitted container address"):

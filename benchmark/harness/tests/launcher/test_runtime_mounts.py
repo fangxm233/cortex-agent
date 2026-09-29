@@ -46,8 +46,8 @@ def stage_runtimes(root: Path, *names: str) -> dict[str, str]:
     return staged
 
 
-def mounted_campaign(root: Path, **overrides: object) -> Path:
-    document = campaign_document(root, comparisons=[], **overrides)
+def mounted_campaign(root: Path) -> Path:
+    document = campaign_document(root, comparisons=[])
     document["runtimes"] = stage_runtimes(root, "node", "pi")
     document["arms"] = [
         arm_document("cortex-a", runtime_mounts=["node"]),
