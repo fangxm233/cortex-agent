@@ -39,29 +39,6 @@ export function decimalText(value: DecimalValue): string {
   return negative && value.units !== 0n ? `-${text}` : text;
 }
 
-export function subtractDecimal(left: DecimalValue, right: DecimalValue): DecimalValue {
-  const scale = Math.max(left.scale, right.scale);
-  return { units: atScale(left, scale) - atScale(right, scale), scale };
-}
-
-export function multiplyDecimal(left: DecimalValue, right: DecimalValue): DecimalValue {
-  return { units: left.units * right.units, scale: left.scale + right.scale };
-}
-
-export function compareDecimal(left: DecimalValue, right: DecimalValue): number {
-  const scale = Math.max(left.scale, right.scale);
-  const difference = atScale(left, scale) - atScale(right, scale);
-  return difference === 0n ? 0 : Number(difference > 0n) * 2 - 1;
-}
-
-export function absDecimal(value: DecimalValue): DecimalValue {
-  return value.units < 0n ? { units: -value.units, scale: value.scale } : value;
-}
-
-export function maxDecimal(left: DecimalValue, right: DecimalValue): DecimalValue {
-  return compareDecimal(left, right) >= 0 ? left : right;
-}
-
 /**
  * The one lossy step in the pipeline, isolated here on purpose: a journal cost arrives as a
  * JavaScript number and its shortest round-tripping decimal is the most that value can honestly
@@ -75,8 +52,4 @@ export function decimalFromNumber(value: number): DecimalValue {
 function rescale(value: DecimalValue): DecimalValue {
   if (value.scale >= 0) return value;
   return { units: value.units * 10n ** BigInt(-value.scale), scale: 0 };
-}
-
-function atScale(value: DecimalValue, scale: number): bigint {
-  return value.units * 10n ** BigInt(scale - value.scale);
 }
