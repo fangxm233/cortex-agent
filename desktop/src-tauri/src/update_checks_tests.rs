@@ -33,10 +33,7 @@ fn bundle() -> Vec<u8> {
 
 // One real HTTP request per fixture proves that even cached updates fetch a fresh manifest.
 fn manifest_server(status: u16, body: &str) -> (String, std::thread::JoinHandle<String>) {
-    response_server(status, body.as_bytes())
-}
-
-fn response_server(status: u16, body: &[u8]) -> (String, std::thread::JoinHandle<String>) {
+    let body = body.as_bytes();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
