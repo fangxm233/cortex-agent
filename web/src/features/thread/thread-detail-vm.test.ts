@@ -116,10 +116,9 @@ describe('buildThreadDetailVm', () => {
     expect(vm.steps.map((s) => s.kind)).toEqual(['done', 'done', 'running', 'pending']);
   });
 
-  it('carries the per-step session id / name / index for the expandable chat', () => {
+  it('carries the per-step session id / name for the expandable chat', () => {
     const vm = buildThreadDetailVm(expDetail, NOW, 'en');
     // every step exposes its own session so any step (not just the running one) can render its chat
-    expect(vm.steps.map((s) => s.stepIndex)).toEqual([0, 1, 2, 3]);
     expect(vm.steps[0].sessionId).toBe('cortex-plan');
     expect(vm.steps[0].sessionName).toBe('cortex-plan');
     expect(vm.steps[2].sessionId).toBe('cortex-review');
@@ -137,8 +136,6 @@ describe('buildThreadDetailVm', () => {
     expect(running.agent).toBeDefined();
     expect(running.agent?.profile).toBe('reviewer');
     expect(running.agent?.execInfo).toBe('exec_31b0 · local');
-    expect(running.agent?.lastOutput).toBe('Now checking the headline claim.');
-    expect(running.agent?.streaming).toBe(true);
     expect(running.subCount).toBe(2);
     expect(running.subs).toHaveLength(2);
     expect(running.subs[0]).toMatchObject({ id: 'thr_b7f3', name: 'verify-metrics', level: 'L2' });

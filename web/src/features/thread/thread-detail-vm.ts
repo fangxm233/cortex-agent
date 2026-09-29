@@ -3,7 +3,6 @@
 // Data-driven, not stage-name-string matched: the active step
 // surfaces whatever children the DTO carries. Flagged gaps:
 //   - crumb ancestor NAMES ride the drill trail (threads.get has no parent chain) → real, no new scope;
-//   - the AGENT feed is `agentFlow.lastOutput` only (no per-agent tool-call trace in the DTO — Stage 4);
 //   - artifact text is present only when the detail modal requests it explicitly.
 
 import type {
@@ -12,7 +11,7 @@ import type {
   ThreadChildNode,
   ThreadInfo,
 } from '@cortex-agent/ui-contract';
-import { nodeLevel, MAX_LEVEL } from './nested-threads';
+import { nodeLevel } from './nested-threads';
 import {
   buildThreadDetailFacts,
   type ThreadDetailFacts,
@@ -96,7 +95,6 @@ export interface DetailStepSub {
   pill: DetailPill;
   hasLine: boolean;
   line: string;
-  isMax: boolean;
   /** Show the `open ›` drill link: the sub-thread has a subtree to re-root into (children/truncated).
    *  Decoupled from `hasLine` so a *terminal* sub-thread that still has children stays drillable (the
    *  task's ≤5-level 2b nesting). The prototype nests `open ›` inside `hasLine`, but that mirrors mock
@@ -109,8 +107,6 @@ export interface DetailStepSub {
 export interface DetailStepAgent {
   profile: string;
   execInfo: string;
-  lastOutput: string | null;
-  streaming: boolean;
   live: boolean;
 }
 
@@ -123,8 +119,6 @@ export interface DetailStep {
   agent?: DetailStepAgent;
   subs: DetailStepSub[];
   subCount: number;
-  /** Zero-based step index (from the DTO), used as a stable selection key. */
-  stepIndex: number;
   /** The agent session backing this step — its transcript (assistant markdown + tool calls) is the
    *  step's expandable chat. Null for a pending step that has not started (no session yet). */
   sessionId: string | null;
@@ -179,7 +173,6 @@ function mapSub(node: ThreadChildNode, lang: Lang): DetailStepSub {
     pill,
     hasLine: !!node.activeAgent,
     line: node.activeAgent ?? '',
-    isMax: nodeLevel(node) >= MAX_LEVEL || node.truncated,
     drillable: node.children.length > 0 || node.truncated,
   };
 }
@@ -202,8 +195,7 @@ function buildRunningAgent(
   const step = item.step;
   const execInfo = [step.executionId, copy.local].filter(Boolean).join(' · ');
   return {
-    profile: facts.activeProfile ?? copy.agent, execInfo,
-    lastOutput: facts.activeOutput, streaming: true, live: facts.live,
+    profile: facts.activeProfile ?? copy.agent, execInfo, live: facts.live,
   };
 }
 
@@ -222,7 +214,7 @@ function mapStep(
     kind: item.kind, title: stepTitle(step, copy), note: step.outputSummary ?? '',
     meta: running ? stepMeta(item, lang) || copy.running : item.kind === 'done' ? stepMeta(item, lang) : copy.gated,
     hasConnector: index > 0, agent: running ? buildRunningAgent(item, facts, copy) : undefined,
-    subs, subCount: subs.length, stepIndex: step.stepIndex,
+    subs, subCount: subs.length,
     sessionId: step.sessionId, sessionName: step.sessionName,
     profile: running ? (facts.activeProfile ?? step.agentSlotId) : step.agentSlotId,
   };

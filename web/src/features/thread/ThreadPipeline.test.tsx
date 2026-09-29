@@ -6,15 +6,15 @@ import type { DetailStep, ThreadDetailVm } from './thread-detail-vm';
 
 vi.mock('./ThreadStepChat', () => ({ ThreadStepChat: () => null }));
 
-function step(kind: DetailStep['kind'], stepIndex: number): DetailStep {
-  return { kind, stepIndex, title: kind, note: 'Stage note', meta: 'Stage metadata',
+function step(kind: DetailStep['kind']): DetailStep {
+  return { kind, title: kind, note: 'Stage note', meta: 'Stage metadata',
     hasConnector: false, subs: [], subCount: 0, sessionId: null, sessionName: null, profile: null };
 }
 
 const vm: ThreadDetailVm = {
   name: 'Example', tid: 'example', pill: { text: 'Running', bg: '', fg: '', tone: 'running' },
   template: '', started: '', elapsed: '', cost: '', task: '', depthDots: [], depthText: '', live: true,
-  steps: [step('pending', 0), step('running', 1)],
+  steps: [step('pending'), step('running')],
   artifact: { path: null, live: false, updated: '', taskId: null, taskProject: null,
     workspacePath: null, writtenBy: [], content: null },
 };
