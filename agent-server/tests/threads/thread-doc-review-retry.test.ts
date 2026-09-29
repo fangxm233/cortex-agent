@@ -44,6 +44,7 @@ import {
 import { runThread, type ThreadRunResult } from '../../src/domain/threads/runner.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import type { RunThreadOptions, ThreadRecord } from '../../src/core/types/thread-types.js';
+import { attemptShell } from '../_attempt-stub.js';
 
 const FIRST_THREE_STEPS = [
   ['doc-writer', 'write'],
@@ -77,34 +78,6 @@ afterAll(async () => {
 
 function result(sessionId: string, output: string) {
   return { sessionId, finalOutput: output, total_cost_usd: 0, num_turns: 1 };
-}
-
-/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
- *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` and the
- *  request's `session.backendSessionId`. */
-function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
-  return {
-    engine: {
-      backend: input?.request?.profile?.backend ?? 'claude',
-      identity: 'test-engine',
-      backendSessionId,
-      run: () => ({}),
-      steer: () => ({ accepted: false }),
-      ingestExternal: () => false,
-      respondToDialog: () => false,
-      compact: async () => ({}),
-      close: async () => {},
-      kill: () => true,
-    },
-    engineRun: {},
-    spec: input?.request?.spec,
-    backend: input?.request?.profile?.backend ?? 'claude',
-    identity: null,
-    foreground,
-    settled: foreground,
-    backendSessionId,
-    kill: () => true,
-  };
 }
 
 function queueStep(artifactPath: string, addition: string, sessionId: string): void {

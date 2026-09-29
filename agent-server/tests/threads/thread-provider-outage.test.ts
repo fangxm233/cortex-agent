@@ -30,6 +30,7 @@ import * as resumeRegistry from '../../src/domain/costs/resume-registry.js';
 import { dispatchPendingResumes } from '../../src/orchestration/resume-dispatcher.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import type { RunThreadOptions, ThreadRecord } from '../../src/core/types/thread-types.js';
+import { attemptShell as sharedAttemptShell } from '../_attempt-stub.js';
 
 const createdThreadIds = new Set<string>();
 const adapter = new MockAdapter({ adminChannel: 'admin' });
@@ -155,32 +156,9 @@ function makeOptions(thread: ThreadRecord): RunThreadOptions {
   };
 }
 
-/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
- *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` (which
- *  the run records as its resume target) and the request's `session.backendSessionId`. */
+/** This file's profile runs on PI, so attempts default to that backend. */
 function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
-  return {
-    engine: {
-      backend: input?.request?.profile?.backend ?? 'pi',
-      identity: 'test-engine',
-      backendSessionId,
-      run: () => ({}),
-      steer: () => ({ accepted: false }),
-      ingestExternal: () => false,
-      respondToDialog: () => false,
-      compact: async () => ({}),
-      close: async () => {},
-      kill: () => true,
-    },
-    engineRun: {},
-    spec: input?.request?.spec,
-    backend: input?.request?.profile?.backend ?? 'pi',
-    identity: null,
-    foreground,
-    settled: foreground,
-    backendSessionId,
-    kill: () => true,
-  };
+  return sharedAttemptShell(input, backendSessionId, foreground, 'pi');
 }
 
 function queueError(failure: string | Error): void {

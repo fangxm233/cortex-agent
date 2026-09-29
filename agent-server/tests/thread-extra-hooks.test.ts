@@ -43,6 +43,7 @@ import type {
   ThreadHookConfig,
   ThreadRecord,
 } from '../src/core/types/thread-types.js';
+import { attemptShell } from './_attempt-stub.js';
 
 const createdThreadIds = new Set<string>();
 let tmpRoot: string;
@@ -185,32 +186,6 @@ function attemptHandle(
     })();
     const backendSessionId = typeof value.sessionId === 'string' ? value.sessionId : null;
     return attemptShell(input, backendSessionId, foreground);
-  };
-}
-
-/** The non-promise half of a synthetic attempt, shared by every stub in this file. */
-function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
-  return {
-    engine: {
-      backend: input?.request?.profile?.backend ?? 'claude',
-      identity: 'test-engine',
-      backendSessionId,
-      run: () => ({}),
-      steer: () => ({ accepted: false }),
-      ingestExternal: () => false,
-      respondToDialog: () => false,
-      compact: async () => ({}),
-      close: async () => {},
-      kill: () => true,
-    },
-    engineRun: {},
-    spec: input?.request?.spec,
-    backend: input?.request?.profile?.backend ?? 'claude',
-    identity: null,
-    foreground,
-    settled: foreground,
-    backendSessionId,
-    kill: () => true,
   };
 }
 
