@@ -4,32 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { guard, ok, unwrap, type FeishuToolDeps } from './types.js';
 import { uploadFeishuImage } from '@platform/adapters/feishu-image.js';
-import { withStagedRemoteFile } from '../tools/remote-file.js';
+import { resolveReadableFilePath, stripChannelPrefix, withStagedRemoteFile } from '../tools/remote-file.js';
 import type { LarkClient } from './client.js';
-
-function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
-  const resolved = path.isAbsolute(filePathInput)
-    ? filePathInput
-    : path.resolve(process.cwd(), filePathInput);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-  const stat = fs.statSync(resolved);
-  if (!stat.isFile()) {
-    throw new Error(`Not a file: ${resolved}`);
-  }
-  return { resolved, size: stat.size };
-}
-
-/** Strip the 'feishu:' prefix from a channel ID (tolerates already-bare values for back-compat).
- *  Multi-platform conduits carry the 'feishu:' prefix from FEISHU_CHANNEL env var;
- *  the Feishu OpenAPI expects bare channel IDs (e.g., oc_123abc).
- *  This mirrors FeishuAdapter._unwrap() behavior. */
-function stripFeishuPrefix(channelId: string): string {
-  const PREFIX = 'feishu:';
-  if (!channelId) return channelId;
-  return channelId.startsWith(PREFIX) ? channelId.slice(PREFIX.length) : channelId;
-}
 
 /** Infer Feishu file type from file extension (used by the OpenAPI file.create call).
  *  Feishu API only supports specific file_type values:
@@ -74,7 +50,7 @@ export async function uploadFileToFeishu(
   const uploadName = fileName || path.basename(resolved);
 
   // Strip 'feishu:' prefix from channel ID for Feishu API compatibility
-  const bareChannel = stripFeishuPrefix(channel);
+  const bareChannel = stripChannelPrefix(channel, 'feishu:');
 
   // An image goes into the chat as an image, so the user sees it without opening anything. The file
   // card below stays the fallback: non-images, images over 10 MB, and apps without `im:resource`.
@@ -125,7 +101,6 @@ export function registerFileTools(server: McpServer, deps: FeishuToolDeps): void
           const uploaded = await upload(file_path, file_name);
           return ok(`File uploaded: ${uploaded.fileName} (${uploaded.size} bytes)`);
         }
-        if (!deps.ctx) throw new Error('`device` is not available in this context');
         const uploaded = await withStagedRemoteFile(deps.ctx, device, file_path,
           staged => upload(staged.localPath, file_name || staged.name));
         return ok(`File uploaded from ${device}: ${uploaded.fileName} (${uploaded.size} bytes)`);

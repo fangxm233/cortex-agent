@@ -4,18 +4,14 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TokenBucketRateLimiter } from '../../../platform/utils/rate-limiter.js';
-import { Icons } from '../../../core/icons.js';
-import { withStagedRemoteFile } from './remote-file.js';
+import { resolveReadableFilePath, stripChannelPrefix, withStagedRemoteFile } from './remote-file.js';
 import type { CortexToolContext } from './context.js';
-import { t } from '@core/i18n.js';
 
 export interface SlackToolDeps {
   slack: WebClient | null;
   fallbackChannel: string | undefined;
-  branchMachine: string | undefined;
-  callbackSource: string | undefined;
   /** Carried so file tools can reach the daemon to stage a remote device's file. */
-  ctx?: CortexToolContext;
+  ctx: CortexToolContext;
 }
 
 /** Production deps for one session: a WebClient when the session carries a bot token. */
@@ -23,8 +19,6 @@ export function slackDepsFor(ctx: CortexToolContext): SlackToolDeps {
   return {
     slack: ctx.slackBotToken ? new WebClient(ctx.slackBotToken) : null,
     fallbackChannel: ctx.channel ?? undefined,
-    branchMachine: ctx.branchMachine ?? undefined,
-    callbackSource: ctx.callbackSource ?? undefined,
     ctx,
   };
 }
@@ -46,37 +40,6 @@ function _envNum(key: string, def: number): number {
   return v ? Number(v) : def;
 }
 
-function withReplyPrefix(text: string | undefined, { branchMachine, callbackSource }: { branchMachine?: string; callbackSource?: string }): string | undefined {
-  if (!text) return text;
-  if (branchMachine) return `${Icons.satellite} *[${t('notice.reply.branch', { name: branchMachine })}]* ${text}`;
-  if (callbackSource) return `${Icons.reply} *[${t('notice.reply.callback', { name: callbackSource })}]* ${text}`;
-  return text;
-}
-
-function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
-  const resolved = path.isAbsolute(filePathInput)
-    ? filePathInput
-    : path.resolve(process.cwd(), filePathInput);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-  const stat = fs.statSync(resolved);
-  if (!stat.isFile()) {
-    throw new Error(`Not a file: ${resolved}`);
-  }
-  return { resolved, size: stat.size };
-}
-
-/** Strip the 'slack:' prefix from a channel ID (tolerates already-bare values for back-compat).
- *  Multi-platform conduits carry the 'slack:' prefix from SLACK_CHANNEL env var;
- *  the Slack WebClient API expects bare channel IDs.
- *  This mirrors SlackAdapter._unwrap() behavior. */
-function stripSlackPrefix(channelId: string): string {
-  const PREFIX = 'slack:';
-  if (!channelId) return channelId;
-  return channelId.startsWith(PREFIX) ? channelId.slice(PREFIX.length) : channelId;
-}
-
 /** Lazy-initialized per-process rate limiter for Slack API calls in the MCP server. */
 let _rateLimiter: TokenBucketRateLimiter | null = null;
 
@@ -89,7 +52,7 @@ export async function uploadFileToSlack(slack: WebClient, { channel, filePath, f
   const uploadName = fileName || path.basename(resolved);
 
   // Strip 'slack:' prefix from channel ID for Slack API compatibility
-  const bareChannel = stripSlackPrefix(channel);
+  const bareChannel = stripChannelPrefix(channel, 'slack:');
 
   if (initialComment) {
     await rl.acquire('chat.postMessage', bareChannel);
@@ -127,13 +90,6 @@ export async function uploadFileToSlack(slack: WebClient, { channel, filePath, f
   return { path: resolved, fileName: uploadName, size };
 }
 
-/** Tests construct deps without a context; only the remote path needs one, so it is demanded here
- *  rather than made mandatory for every Slack tool. */
-function requireCtx(deps: SlackToolDeps): CortexToolContext {
-  if (!deps.ctx) throw new Error('`device` is not available in this context');
-  return deps.ctx;
-}
-
 export function registerSlackTools(server: McpServer, deps: SlackToolDeps): void {
   server.tool(
     'slack_send_file',
@@ -164,7 +120,7 @@ export function registerSlackTools(server: McpServer, deps: SlackToolDeps): void
         // A device's file is fetched to disk first: the Slack SDK uploads from a path, so there is
         // nothing to gain from streaming it anywhere else on the way.
         const uploaded = device
-          ? await withStagedRemoteFile(requireCtx(deps), device, file_path,
+          ? await withStagedRemoteFile(deps.ctx, device, file_path,
             staged => upload(staged.localPath, file_name || staged.name))
           : await upload(file_path, file_name);
         return {

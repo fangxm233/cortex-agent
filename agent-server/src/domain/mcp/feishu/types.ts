@@ -7,7 +7,7 @@ export interface FeishuToolDeps {
   /** Session channel used when a tool call names none (may carry the `feishu:` prefix). */
   fallbackChannel?: string | null;
   /** Carried so the file tool can reach the daemon to stage a remote device's file. */
-  ctx?: CortexToolContext;
+  ctx: CortexToolContext;
 }
 
 export interface McpResult {
