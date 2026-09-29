@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
+import { clockTime } from '@/lib/time-format';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
 // MessageStream: bare hover actions, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
@@ -245,7 +246,7 @@ function timeHHMM(ts: string | undefined): string | null {
   if (!ts) return null;
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return clockTime(d);
 }
 
 /**
