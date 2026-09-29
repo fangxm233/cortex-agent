@@ -31,9 +31,6 @@ export interface DiscoveredAnthropicModel {
 
 export interface FetchAnthropicModelsOptions extends ClaudeCredentialDeps {
   fetchImpl?: typeof fetch;
-  /** Overrides ANTHROPIC_BASE_URL; the gateway route when the daemon has one, else direct. */
-  baseUrl?: string;
-  timeoutMs?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,7 +41,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *  (same URL every turn bills to), else the API directly. */
 function resolveBaseUrl(options: FetchAnthropicModelsOptions): string {
   const env = options.env ?? process.env;
-  const configured = options.baseUrl?.trim() || env.ANTHROPIC_BASE_URL?.trim();
+  const configured = env.ANTHROPIC_BASE_URL?.trim();
   return (configured || 'https://api.anthropic.com').replace(/\/+$/, '');
 }
 
@@ -90,7 +87,7 @@ export async function fetchAnthropicModels(
   const response = await doFetch(url, {
     method: 'GET',
     headers: credential.headers,
-    signal: AbortSignal.timeout(options.timeoutMs ?? HTTP_TIMEOUT_MS),
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`models request failed: HTTP ${response.status}`);
   const body: unknown = await response.json();
@@ -161,8 +158,6 @@ export function anthropicModelThinking(
 }
 
 export interface AnthropicModelDiscovery {
-  /** The cached list with no fetch kicked at all. */
-  peek(): DiscoveredAnthropicModel[];
   /**
    * The cached list, plus a BACKGROUND fetch when it has gone stale — the answer is whatever is
    * cached right now, never a wait. This is what decorating callers use: unlike PI, whose scan
@@ -172,7 +167,6 @@ export interface AnthropicModelDiscovery {
   get(): DiscoveredAnthropicModel[];
   /** The list, waiting out a cold fetch (bounded), for callers whose purpose IS the list. */
   ensure(timeoutMs?: number): Promise<DiscoveredAnthropicModel[]>;
-  refresh(): void;
 }
 
 export interface AnthropicModelDiscoveryOptions {
@@ -195,10 +189,8 @@ export function createAnthropicModelDiscovery(
     logFailure: (message) => log.info(`Anthropic model discovery failed: ${message}`),
   });
   return {
-    peek: () => cache.peek(),
     get: () => cache.get(),
     ensure: (timeoutMs = ANTHROPIC_MODEL_ENSURE_TIMEOUT_MS) => cache.ensure(timeoutMs),
-    refresh: () => cache.refresh(),
   };
 }
 

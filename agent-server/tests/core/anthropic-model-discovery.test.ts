@@ -139,7 +139,7 @@ test('thinking levels are reported per model and inherited by the [1m] twin', ()
   });
 });
 
-test('peek never fetches; ensure waits out a cold fetch and then serves the cache', async () => {
+test('ensure waits out a cold fetch and then serves the cache', async () => {
   let fetches = 0;
   let now = 1_000;
   const discovery = createAnthropicModelDiscovery({
@@ -148,9 +148,6 @@ test('peek never fetches; ensure waits out a cold fetch and then serves the cach
     cacheTtlMs: 10_000,
     retryMs: 5_000,
   });
-
-  assert.deepEqual(discovery.peek(), []);
-  assert.equal(fetches, 0);
 
   assert.equal((await discovery.ensure(1_000)).length, 1);
   assert.equal(fetches, 1);
