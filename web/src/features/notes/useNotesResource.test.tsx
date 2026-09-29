@@ -91,33 +91,14 @@ describe('useNotesResource', () => {
     const mounted = await mount('nimbus');
     expect(adapter.list).toHaveBeenCalledWith('nimbus');
     expect(resource?.notes.map((entry) => entry.id)).toEqual(['n1']);
-    expect(resource?.loading).toBe(false);
     mounted.renderer.unmount();
     mounted.queryClient.clear();
 
     const empty = await mount('');
     expect(adapter.list).toHaveBeenCalledTimes(1);
     expect(resource?.notes).toEqual([]);
-    expect(resource?.loading).toBe(false);
     empty.renderer.unmount();
     empty.queryClient.clear();
-  });
-
-  it('reports list loading and query errors', async () => {
-    let fail: ((error: Error) => void) | undefined;
-    adapter.list.mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
-    const { queryClient, renderer } = await mount('nimbus');
-    expect(resource?.loading).toBe(true);
-
-    await act(async () => {
-      fail?.(new Error('list unavailable'));
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    await flush();
-    expect(resource?.loading).toBe(false);
-    expect(resource?.error?.message).toBe('list unavailable');
-    renderer.unmount();
-    queryClient.clear();
   });
 
   it('scopes all five mutations and invalidates the same project list after each settlement', async () => {
@@ -156,7 +137,7 @@ describe('useNotesResource', () => {
     queryClient.clear();
   });
 
-  it('exposes aggregate mutation busy state and real query or mutation errors', async () => {
+  it('exposes aggregate mutation busy state and rejects failed mutations', async () => {
     let finish: ((value: NoteInfo) => void) | undefined;
     adapter.add.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     const { queryClient, renderer } = await mount('nimbus');
@@ -174,7 +155,6 @@ describe('useNotesResource', () => {
     await act(async () => {
       await expect(resource?.update('n1', 'nope')).rejects.toThrow('update denied');
     });
-    expect(resource?.error?.message).toBe('update denied');
     renderer.unmount();
     queryClient.clear();
   });

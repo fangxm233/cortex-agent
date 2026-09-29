@@ -5,21 +5,12 @@ import { useTRPC } from '@/lib/trpc';
 
 export interface NotesResource {
   notes: NoteInfo[];
-  loading: boolean;
   busy: boolean;
-  error: Error | null;
   add: (text: string) => Promise<NoteInfo>;
   update: (id: string, text: string) => Promise<NoteInfo>;
   setCompleted: (id: string, completed: boolean) => Promise<NoteInfo>;
   delete: (id: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
-}
-
-function asError(value: unknown): Error | null {
-  if (!value) return null;
-  if (value instanceof Error) return value;
-  const message = typeof value === 'object' && 'message' in value ? String(value.message) : String(value);
-  return new Error(message);
 }
 
 export function useNotesResource(projectId: string): NotesResource {
@@ -36,9 +27,8 @@ export function useNotesResource(projectId: string): NotesResource {
   const remove = useMutation(trpc.notes.delete.mutationOptions({ onSettled: settled }));
   const clear = useMutation(trpc.notes.clearCompleted.mutationOptions({ onSettled: settled }));
   return {
-    notes: list.data ?? [], loading: list.isLoading,
+    notes: list.data ?? [],
     busy: add.isPending || update.isPending || complete.isPending || remove.isPending || clear.isPending,
-    error: asError(list.error ?? add.error ?? update.error ?? complete.error ?? remove.error ?? clear.error),
     add: (text) => add.mutateAsync({ projectId: scope.current, text }),
     update: (id, text) => update.mutateAsync({ projectId: scope.current, id, text }),
     setCompleted: (id, completed) => complete.mutateAsync({ projectId: scope.current, id, completed }),
