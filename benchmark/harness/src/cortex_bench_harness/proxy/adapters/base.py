@@ -1,5 +1,7 @@
+import json
 from dataclasses import dataclass
 from typing import Mapping, Protocol
+from urllib.parse import urlsplit
 
 from ..models import ProxyUsage
 
@@ -58,3 +60,32 @@ class ProviderAdapter(Protocol):
 
 
     def clear_credential(self) -> None: ...
+
+
+def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:
+    if upstream_base_url is None:
+        return ()
+    host = urlsplit(upstream_base_url).hostname
+    if not host:
+        raise ValueError("upstream_base_url must name a host")
+    return (host,)
+
+
+def _validated_credential(credential: str | None) -> str | None:
+    if credential is None:
+        return None
+    if not credential or "\r" in credential or "\n" in credential:
+        raise ValueError("credential must be a non-empty single line")
+    return credential
+
+
+def _refused_route(reason: str) -> RouteDecision:
+    return RouteDecision(False, None, reason)
+
+
+def _json_object(payload: bytes) -> dict[str, object] | None:
+    try:
+        value = json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return value if isinstance(value, dict) else None

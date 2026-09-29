@@ -11,7 +11,14 @@ from urllib.parse import SplitResult, urlencode, urlsplit
 import zstandard
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
-from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
+from .base import (
+    AuthInjectionUnavailable,
+    BodyDecision,
+    RouteDecision,
+    _json_object,
+    _refused_route,
+    _validated_credential,
+)
 
 ADAPTER_ID = "openai-codex-responses/oauth"
 RESPONSES_ROUTE = "codex_responses"
@@ -298,18 +305,6 @@ def _validate_bound_expiry(token: str | None, expires_at_ms: int | None) -> None
         raise ValueError("codex access token expiry does not match the preflight expiry")
 
 
-def _validated_credential(credential: str | None) -> str | None:
-    if credential is None:
-        return None
-    if not credential or "\r" in credential or "\n" in credential:
-        raise ValueError("credential must be a non-empty single line")
-    return credential
-
-
-def _refused_route(reason: str) -> RouteDecision:
-    return RouteDecision(False, None, reason)
-
-
 def _jwt_segment(document: dict[str, object]) -> str:
     # Standard base64 rather than base64url: the client decodes the payload with
     # a decoder that rejects the url-safe alphabet.
@@ -339,14 +334,6 @@ def _decompressed(body: bytes) -> bytes | None:
             body, max_output_size=MAX_DECOMPRESSED_BODY_BYTES)
     except zstandard.ZstdError:
         return None
-
-
-def _json_object(payload: bytes) -> dict[str, object] | None:
-    try:
-        value = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
 
 
 def _sse_payloads(body: bytes) -> Iterator[bytes]:

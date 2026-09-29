@@ -1,9 +1,15 @@
-import json
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyDiagnosticCode, ProxyUsage
-from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
+from .base import (
+    AuthInjectionUnavailable,
+    BodyDecision,
+    RouteDecision,
+    _json_object,
+    _upstream_hosts,
+    _validated_credential,
+)
 
 ADAPTER_ID = "deepseek-chat-completions/api-key"
 CHAT_COMPLETIONS_ROUTE = "chat_completions"
@@ -231,23 +237,6 @@ def _token(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def _json_object(payload: bytes) -> dict[str, object] | None:
-    try:
-        value = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
-
-
-def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:
-    if upstream_base_url is None:
-        return ()
-    host = urlsplit(upstream_base_url).hostname
-    if not host:
-        raise ValueError("upstream_base_url must name a host")
-    return (host,)
-
-
 def _validated_completion_cap(frozen_completion_cap: object) -> int | None:
     if frozen_completion_cap is None:
         return None
@@ -258,11 +247,3 @@ def _validated_completion_cap(frozen_completion_cap: object) -> int | None:
     ):
         raise ValueError("frozen_completion_cap must be a positive integer")
     return frozen_completion_cap
-
-
-def _validated_credential(credential: str | None) -> str | None:
-    if credential is None:
-        return None
-    if not credential or "\r" in credential or "\n" in credential:
-        raise ValueError("credential must be a non-empty single line")
-    return credential

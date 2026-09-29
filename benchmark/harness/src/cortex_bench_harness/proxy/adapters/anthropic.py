@@ -1,8 +1,15 @@
-import json
 from urllib.parse import urlsplit
 
 from ..models import PROXY_SCHEMA_VERSION, ProxyUsage
-from .base import AuthInjectionUnavailable, BodyDecision, RouteDecision
+from .base import (
+    AuthInjectionUnavailable,
+    BodyDecision,
+    RouteDecision,
+    _json_object,
+    _refused_route,
+    _upstream_hosts,
+    _validated_credential,
+)
 
 MESSAGES_BETA_ROUTE = "messages_beta"
 MESSAGES_PATH = "/v1/messages"
@@ -117,27 +124,6 @@ class AnthropicMessagesSubscriptionOAuthAdapter(AnthropicMessagesApiKeyAdapter):
         return outbound
 
 
-def _upstream_hosts(upstream_base_url: str | None) -> tuple[str, ...]:
-    if upstream_base_url is None:
-        return ()
-    host = urlsplit(upstream_base_url).hostname
-    if not host:
-        raise ValueError("upstream_base_url must name a host")
-    return (host,)
-
-
-def _validated_credential(credential: str | None) -> str | None:
-    if credential is None:
-        return None
-    if not credential or "\r" in credential or "\n" in credential:
-        raise ValueError("credential must be a non-empty single line")
-    return credential
-
-
-def _refused_route(reason: str) -> RouteDecision:
-    return RouteDecision(False, None, reason)
-
-
 def _sse_documents(body: bytes) -> list[dict[str, object] | None]:
     # An event this adapter cannot parse is reported as None, never dropped:
     # a silently skipped event would leave a partial count looking complete.
@@ -155,14 +141,6 @@ def _closes_stream(
         document.get("type") == MESSAGE_DELTA_EVENT
         and _valid_token(usage, "output_tokens")
     )
-
-
-def _json_object(payload: bytes) -> dict[str, object] | None:
-    try:
-        value = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return value if isinstance(value, dict) else None
 
 
 def _merge_usage(
