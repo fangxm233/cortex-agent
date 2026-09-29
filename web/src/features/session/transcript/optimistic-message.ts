@@ -11,8 +11,6 @@ export interface OptimisticUserMessage extends PendingUserMessage {
   target: OptimisticTarget;
   fingerprint: string;
   authorityBaselineKeys: string[];
-  authorityOrdinal: number;
-  phase: 'sending' | 'accepted';
 }
 
 export interface UserMessageAuthority {
@@ -143,30 +141,18 @@ function matchingAuthorityOccurrences(
   return authorityOccurrences(source, sessionId).filter((item) => item.fingerprint === fingerprint);
 }
 
-function sameTarget(a: OptimisticTarget, b: OptimisticTarget): boolean {
-  if (a.kind !== b.kind) return false;
-  return a.kind === 'session'
-    ? a.sessionId === (b as Extract<OptimisticTarget, { kind: 'session' }>).sessionId
-    : a.projectId === (b as Extract<OptimisticTarget, { kind: 'draft' }>).projectId;
-}
-
 export function createOptimisticUserMessage(
   input: { clientId: string; target: OptimisticTarget; text: string; attachments?: Attachment[]; ts: string },
-  current: OptimisticUserMessage[],
   source: UserMessageAuthority,
 ): OptimisticUserMessage {
   const fingerprint = userMessageFingerprint(input.text, input.attachments);
   const baseline = input.target.kind === 'session'
     ? matchingAuthorityOccurrences(source, input.target.sessionId, fingerprint)
     : [];
-  const prior = current.filter((item) => sameTarget(item.target, input.target) && item.fingerprint === fingerprint);
-  const authorityOrdinal = Math.max(baseline.length, ...prior.map((item) => item.authorityOrdinal), 0) + 1;
   return {
     ...input,
     fingerprint,
     authorityBaselineKeys: baseline.map(occurrenceKey),
-    authorityOrdinal,
-    phase: 'sending',
   };
 }
 
@@ -198,7 +184,7 @@ export function promoteOptimisticUserMessage(
 ): OptimisticUserMessage[] {
   return messages.map((message) => message.clientId === clientId
     ? stampAccepted({
-        ...message, target: { kind: 'session', sessionId }, phase: 'accepted',
+        ...message, target: { kind: 'session', sessionId },
         attachments: promotedAttachments(message.attachments, sessionId),
       }, acceptedAt)
     : message);
@@ -218,7 +204,7 @@ export function acceptOptimisticUserMessage(
   acceptedAt?: string,
 ): OptimisticUserMessage[] {
   return messages.map((message) => message.clientId === clientId
-    ? stampAccepted({ ...message, phase: 'accepted' }, acceptedAt)
+    ? stampAccepted(message, acceptedAt)
     : message);
 }
 

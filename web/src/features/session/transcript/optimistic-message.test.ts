@@ -42,7 +42,7 @@ function optimistic(
     target: { kind: 'session', sessionId: 's1' },
     text,
     ts: current.length === 0 ? T0 : T1,
-  }, current, source);
+  }, source);
 }
 
 function deferred<T>() {
@@ -66,7 +66,7 @@ describe('runOptimisticMutation', () => {
   ])('enqueues a renderable $target.kind row before its mutation promise settles', async ({ target, result }) => {
     const gate = deferred<typeof result>();
     let ledger: OptimisticUserMessage[] = [];
-    const message = createOptimisticUserMessage({ clientId: 'local-1', target, text: 'hello now', ts: T0 }, [], authority());
+    const message = createOptimisticUserMessage({ clientId: 'local-1', target, text: 'hello now', ts: T0 }, authority());
     const settled = runOptimisticMutation({
       message,
       mutate: () => gate.promise,
@@ -198,7 +198,7 @@ describe('optimistic user reconciliation', () => {
     // of that very message looks older than the send and can never retire it.
     const skewed = createOptimisticUserMessage({
       clientId: 'local-skew', target: { kind: 'session', sessionId: 's1' }, text: 'ahead', ts: T2,
-    }, [], authority());
+    }, authority());
     const committed = authority({ transcript: transcript([user('ahead', T1)]) });
 
     expect(renderedUsers([skewed], committed)).toEqual(['ahead', 'ahead']);
@@ -214,7 +214,7 @@ describe('optimistic user reconciliation', () => {
   it('still refuses a message older than the server accepted this send', () => {
     const skewed = createOptimisticUserMessage({
       clientId: 'local-skew', target: { kind: 'session', sessionId: 's1' }, text: 'ahead', ts: T2,
-    }, [], authority());
+    }, authority());
     const accepted = acceptOptimisticUserMessage([skewed], 'local-skew', T1);
     const older = authority({ transcript: transcript([user('ahead', T0)]) });
 
@@ -225,7 +225,7 @@ describe('optimistic user reconciliation', () => {
   it('restates a created-session draft row on the server clock as it is promoted', () => {
     const draft = createOptimisticUserMessage({
       clientId: 'local-draft', target: { kind: 'draft', projectId: 'atlas' }, text: 'first', ts: T2,
-    }, [], authority());
+    }, authority());
     const promoted = promoteOptimisticUserMessage([draft], 'local-draft', 's-new', T0)[0];
     const created = authority({ transcript: { ...transcript([user('first', T1)]), sessionId: 's-new' } });
 
@@ -285,8 +285,6 @@ describe('optimistic user reconciliation', () => {
     const first = optimistic('same', [], oldSource, 'local-1');
     const second = optimistic('same', [first], oldSource, 'local-2');
 
-    expect(first.authorityOrdinal).toBe(2);
-    expect(second.authorityOrdinal).toBe(3);
     expect(renderedUsers([first, second], oldSource)).toEqual(['same', 'same', 'same']);
 
     const oneNew = authority({ transcript: transcript([
@@ -308,7 +306,7 @@ describe('optimistic user reconciliation', () => {
   it('does not reconcile against another session and promotes one draft row to its created session', () => {
     const draft = createOptimisticUserMessage({
       clientId: 'local-draft', target: { kind: 'draft', projectId: 'atlas' }, text: 'first', ts: T0,
-    }, [], authority());
+    }, authority());
     const promoted = promoteOptimisticUserMessage([draft], 'local-draft', 's-new')[0];
     const otherSessionLive: LiveSessionMessage[] = [{ sessionId: 'other', role: 'user', text: 'first', ts: T1 }];
 
@@ -326,7 +324,7 @@ describe('optimistic user reconciliation', () => {
     const attachments = [{ name: 'a.png', path: 'workspace/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
     const local = createOptimisticUserMessage({
       clientId: 'local-file', target: { kind: 'session', sessionId: 's1' }, text: '', attachments, ts: T0,
-    }, [], authority());
+    }, authority());
     const source = authority({ pendingUser: [{ id: 'pin-file', text: '', attachments, ts: T1 }] });
     const reconciled = reconcileOptimisticUserMessages([local], source);
 
@@ -339,7 +337,7 @@ describe('optimistic user reconciliation', () => {
     const committedAttachment = [{ ...draftAttachment[0], path: 'workspace/attachments/s-new/a.png' }];
     const draft = createOptimisticUserMessage({
       clientId: 'local-file', target: { kind: 'draft', projectId: 'atlas' }, text: '', attachments: draftAttachment, ts: T0,
-    }, [], authority());
+    }, authority());
     const promoted = promoteOptimisticUserMessage([draft], draft.clientId, 's-new')[0];
     const source = authority({
       transcript: {

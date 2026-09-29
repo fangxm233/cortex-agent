@@ -96,7 +96,7 @@ export function useOptimisticUserMessages(input: OptimisticUserMessagesInput): O
       : { kind: 'session' as const, sessionId };
     return createOptimisticUserMessage({
       clientId: crypto.randomUUID(), target, text, attachments, ts: new Date().toISOString(),
-    }, messagesRef.current, currentAuthority());
+    }, currentAuthority());
   }, [isDraft, projectId, sessionId, currentAuthority]);
 
   const enqueue = useCallback((message: OptimisticUserMessage) => {
