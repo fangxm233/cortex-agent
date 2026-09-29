@@ -9,7 +9,7 @@ import { mergeTranscriptDelta } from './transcript-delta';
 // `{ sessionId, compactSubagents: true }` one, so every existing
 // `invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }))` still matches.
 
-export function useTranscriptQuery(sessionId: string, enabled = true) {
+export function useTranscriptQuery(sessionId: string) {
   const trpc = useTRPC();
   const client = useTRPCClient();
   const queryClient = useQueryClient();
@@ -17,7 +17,7 @@ export function useTranscriptQuery(sessionId: string, enabled = true) {
 
   return useQuery({
     ...options,
-    enabled: enabled && !!sessionId,
+    enabled: !!sessionId,
     queryFn: async (): Promise<SessionTranscript> => {
       const input = { sessionId, compactSubagents: true } as const;
       // Read the cached value ONCE and merge against that same object: a concurrent write cannot
