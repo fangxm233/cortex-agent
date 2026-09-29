@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { defineModal } from '@/design/modal-registry';
-import { useToast } from '@/design';
-import { useVocab } from '@/i18n';
 import { ScheduleModal } from './ScheduleModal';
 import {
   useScheduleEditorController,
-  type ScheduleEditorControllerOptions,
   type ScheduleEditorRequest,
 } from './useScheduleEditorController';
+import { useScheduleEditorToasts } from './useScheduleEditorToasts';
 
 interface OpenOptions {
   projectId?: string | null;
@@ -37,27 +35,11 @@ export function useScheduleModal(): ScheduleModalContextValue {
   }), [open]);
 }
 
-function useEditorOutcomes(): ScheduleEditorControllerOptions {
-  const L = useVocab();
-  const { toast } = useToast();
-  const onCreated = useCallback(() => {
-    toast({ title: L.scToastCreated, tone: 'done' });
-  }, [L.scToastCreated, toast]);
-  const onUpdated = useCallback(() => {
-    toast({ title: L.scToastUpdated, tone: 'done' });
-  }, [L.scToastUpdated, toast]);
-  const onError = useCallback((mode: 'create' | 'edit', error: Error) => {
-    toast({ title: mode === 'edit' ? L.scToastUpdateFailed : L.scToastCreateFailed,
-      description: error.message, tone: 'failed' });
-  }, [L.scToastCreateFailed, L.scToastUpdateFailed, toast]);
-  return { onCreated, onUpdated, onError };
-}
-
 function ScheduleEditorSurface({ request, onClose }: {
   request: ScheduleModalRequest;
   onClose: () => void;
 }) {
-  const editor = useScheduleEditorController(useEditorOutcomes(), request);
+  const editor = useScheduleEditorController(useScheduleEditorToasts(), request);
   // A completed save closes the editor from inside the controller; drop the registry key with it so
   // the surface unmounts exactly where the old provider stopped rendering its modal.
   const { form, close } = editor;

@@ -1,6 +1,4 @@
 import { useCallback, useState } from 'react';
-import { useToast } from '@/design';
-import { useVocab } from '@/i18n';
 import { MBottomSheet } from '@/mobile/ui/kit';
 import { scheduleRowAction, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
@@ -8,6 +6,7 @@ import {
   useScheduleEditorController,
   type ScheduleEditorController,
 } from '@/features/schedule/useScheduleEditorController';
+import { useScheduleEditorToasts } from '@/features/schedule/useScheduleEditorToasts';
 import { MScheduleEditor } from './MScheduleEditor';
 import {
   ListLevel,
@@ -142,17 +141,8 @@ export function MScheduleSheetView(props: MScheduleSheetViewProps) {
 }
 
 export function MScheduleSheet(props: MScheduleSheetProps) {
-  const copy = useVocab();
-  const { toast } = useToast();
   const markMany = useMarkManyRead();
-  const editor = useScheduleEditorController({
-    onCreated: () => toast({ title: copy.scToastCreated, tone: 'done' }),
-    onUpdated: () => toast({ title: copy.scToastUpdated, tone: 'done' }),
-    onError: (mode, error) => toast({
-      title: mode === 'edit' ? copy.scToastUpdateFailed : copy.scToastCreateFailed,
-      description: error.message, tone: 'failed',
-    }),
-  });
+  const editor = useScheduleEditorController(useScheduleEditorToasts());
   return <MScheduleSheetView {...props} editor={editor} onMarkAllRead={markMany.markManyRead}
     markAllPending={markMany.pending} />;
 }
