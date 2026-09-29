@@ -23,9 +23,8 @@ vi.mock('@core/settings.js', () => ({
 }));
 
 import {
-  shouldAlert, checkDiskOnce, initDiskMonitor,
+  shouldAlert, checkDiskOnce, initDiskMonitor, stopDiskMonitor,
   WARN_BYTES, HYSTERESIS_BYTES, REALERT_COOLDOWN_MS,
-  _testReset,
 } from '../src/domain/monitor/disk-monitor.js';
 
 const CLEAN_STATE = { hasAlerted: false, lastAlertAt: null };
@@ -40,7 +39,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  _testReset();
+  stopDiskMonitor();
   vi.useRealTimers();
 });
 

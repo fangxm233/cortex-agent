@@ -132,13 +132,7 @@ function stopDiskMonitor(): void {
   _state = { hasAlerted: false, lastAlertAt: null };
 }
 
-function _testReset(): void {
-  stopDiskMonitor();
-}
-
 export {
-  initDiskMonitor, stopDiskMonitor, checkDiskOnce, shouldAlert, formatBytes,
+  initDiskMonitor, stopDiskMonitor, checkDiskOnce, shouldAlert,
   WARN_BYTES, HYSTERESIS_BYTES, REALERT_COOLDOWN_MS,
-  _testReset,
 };
-export type { AlertState, AlertDecision };
