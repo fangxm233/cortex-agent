@@ -66,36 +66,20 @@ function entryBundles(entry: McpServerEntry): McpBundleName[] | null {
   return isBundled && typeof args[1] === 'string' ? parseMcpBundles(args[1]) : null;
 }
 
-function knownToolsIn(configs: readonly McpConfigDocument[]): Set<string> {
-  const known = new Set<string>();
-  for (const config of configs) {
-    for (const [serverName, entry] of Object.entries(config.mcpServers)) {
-      const logicalServers = entryBundles(entry) ?? [serverName];
-      for (const logicalName of logicalServers) {
-        for (const tool of MCP_TOOLS_BY_SERVER[logicalName] ?? []) known.add(tool);
-      }
-    }
-  }
-  return known;
-}
-
 interface CollectedMcpEntries {
   external: Record<string, McpServerEntry>;
-  bundles: McpBundleName[];
   template: McpServerEntry | null;
 }
 
 function collectMcpEntries(documents: readonly McpConfigDocument[]): CollectedMcpEntries {
-  const collected: CollectedMcpEntries = { external: {}, bundles: [], template: null };
+  const collected: CollectedMcpEntries = { external: {}, template: null };
   for (const document of documents) {
     for (const [name, entry] of Object.entries(document.mcpServers)) {
-      const selected = entryBundles(entry);
-      if (selected === null) {
+      if (entryBundles(entry) === null) {
         collected.external[name] = entry;
         continue;
       }
       collected.template ??= entry;
-      collected.bundles.push(...selected);
     }
   }
   return collected;
@@ -103,16 +87,15 @@ function collectMcpEntries(documents: readonly McpConfigDocument[]): CollectedMc
 
 function mergedMcpConfig(
   documents: readonly McpConfigDocument[], encodedAllowlist: string | undefined,
-  selectedBundles?: readonly McpBundleName[],
+  selectedBundles: readonly McpBundleName[],
 ): McpConfigDocument {
-  const { external, bundles: declaredBundles, template } = collectMcpEntries(documents);
-  const bundles = selectedBundles ?? declaredBundles;
+  const { external, template } = collectMcpEntries(documents);
   if (!template) return { mcpServers: external };
   if (external[BUNDLED_MCP_SERVER_NAME]) {
     throw new Error(`User MCP server name conflicts with reserved ${BUNDLED_MCP_SERVER_NAME}`);
   }
   const args = Array.isArray(template.args) ? [...template.args] : [];
-  args[1] = encodeMcpBundles(bundles);
+  args[1] = encodeMcpBundles(selectedBundles);
   const env = {
     ...(template.env ?? {}),
     ...(encodedAllowlist ? { [MCP_TOOL_ALLOWLIST_ENV]: encodedAllowlist } : {}),
@@ -127,7 +110,7 @@ function mergedMcpConfig(
 
 function materializedConfigPath(
   outputDir: string, configPaths: readonly string[], documents: readonly McpConfigDocument[],
-  encodedAllowlist: string | undefined, selectedBundles: readonly McpBundleName[] | undefined,
+  encodedAllowlist: string | undefined, selectedBundles: readonly McpBundleName[],
 ): string {
   const digest = createHash('sha256')
     .update(JSON.stringify({ configPaths, documents, encodedAllowlist, selectedBundles }))
@@ -157,13 +140,11 @@ function narrowAllowlistToSurface(
 export function materializeMcpToolAllowlistConfigs(
   configPaths: readonly string[], allowlist: readonly string[] | undefined,
   outputDir = path.join(CONFIG_DIR, 'mcp-tool-gates'),
-  selectedBundles?: readonly McpBundleName[],
+  selectedBundles: readonly McpBundleName[],
 ): string[] {
   if (allowlist === undefined) return [...configPaths];
   const documents = configPaths.map(readMcpConfig);
-  const selectedTools = selectedBundles
-    ? new Set(selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []))
-    : knownToolsIn(documents);
+  const selectedTools = new Set(selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []));
   const canonical = narrowAllowlistToSurface(
     canonicalizeMcpToolAllowlist(allowlist), selectedTools,
   );

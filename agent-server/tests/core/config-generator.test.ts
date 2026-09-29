@@ -51,6 +51,8 @@ test('buildInteractionConfig: interaction bridge only (no core/ext leak)', () =>
   });
 });
 
+const THREAD_BUNDLES = ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread'] as const;
+
 test('materialization collapses Cortex entries and preserves user MCP entries', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-tool-gate-'));
   const threadPath = path.join(root, 'thread.json');
@@ -69,6 +71,7 @@ test('materialization collapses Cortex entries and preserves user MCP entries', 
     [threadPath, tasksPath, userPath],
     ['thread_wait', 'task_status', 'thread_wait'],
     path.join(root, 'generated'),
+    THREAD_BUNDLES,
   );
   assert.equal(generated.length, 1);
   assert.equal(statSync(path.dirname(generated[0])).mode & 0o777, 0o700);
@@ -98,7 +101,7 @@ test('materialization refuses an allowlist name that exists in no bundle at all'
   writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
   assert.throws(
     () => materializeMcpToolAllowlistConfigs(
-      [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'),
+      [threadPath], ['thread_wait', 'task_sttaus'], path.join(root, 'generated'), THREAD_BUNDLES,
     ),
     /Unknown MCP tool.*task_sttaus/,
   );
@@ -113,7 +116,7 @@ test('an allowlist is an upper bound: a real tool this spawn does not compose is
   const threadPath = path.join(root, 'thread.json');
   writeFileSync(threadPath, JSON.stringify(buildThreadConfig('/test')));
   const [generated] = materializeMcpToolAllowlistConfigs(
-    [threadPath], ['thread_wait', 'send_file'], path.join(root, 'generated'),
+    [threadPath], ['thread_wait', 'send_file'], path.join(root, 'generated'), THREAD_BUNDLES,
   );
   const config = JSON.parse(readFileSync(generated, 'utf8'));
   assert.equal(
@@ -197,7 +200,7 @@ test('Windows bundled-server paths are recognized during materialization', () =>
     },
   }));
   const [generated] = materializeMcpToolAllowlistConfigs(
-    [configPath], ['current_time'], path.join(root, 'generated'),
+    [configPath], ['current_time'], path.join(root, 'generated'), ['cortex-core'],
   );
   const config = JSON.parse(readFileSync(generated, 'utf8'));
   assert.deepEqual(Object.keys(config.mcpServers), ['cortex-core']);
