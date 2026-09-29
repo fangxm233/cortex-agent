@@ -79,9 +79,6 @@ export default defineConfig({
           'tests/**/*.test.tsx',
         ],
     exclude: [
-      'tests/**/_shims-*',
-      'tests/**/_combined*',
-      'tests/**/_plan*',
       'tests/**/integration-*.test.ts',
       'node_modules/**',
       ...(SHARD === 'isolated' ? SHARED_POOL_FILES : []),
