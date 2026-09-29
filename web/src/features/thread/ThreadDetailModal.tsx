@@ -12,12 +12,11 @@ const threadDetailModal = defineModal<string>('thread-detail', { requireProvider
 
 interface ThreadDetailModalContextValue {
   openThread: (threadId: string) => void;
-  closeThread: () => void;
 }
 
 export function useThreadDetailModal(): ThreadDetailModalContextValue {
-  const { open, close } = threadDetailModal.useModalActions();
-  return useMemo(() => ({ openThread: open, closeThread: close }), [open, close]);
+  const { open } = threadDetailModal.useModalActions();
+  return useMemo(() => ({ openThread: open }), [open]);
 }
 
 function ModalMessage({ children, failed }: { children: ReactNode; failed?: boolean }) {

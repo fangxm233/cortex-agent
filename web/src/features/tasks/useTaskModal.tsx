@@ -14,15 +14,13 @@ const taskModal = defineModal<TaskModalRef>('task-detail');
 
 interface TaskModalContextValue {
   openTask: (projectId: string, taskId: string) => void;
-  closeTask: () => void;
 }
 
 export function useTaskModal(): TaskModalContextValue {
-  const { open, close } = taskModal.useModalActions();
+  const { open } = taskModal.useModalActions();
   return useMemo(() => ({
     openTask: (projectId: string, taskId: string) => open({ projectId, taskId }),
-    closeTask: close,
-  }), [open, close]);
+  }), [open]);
 }
 
 function useTaskModalActions(onClose: () => void) {
