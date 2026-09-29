@@ -8,7 +8,6 @@ import {
   pluginTargetKey,
   pluginToggleDisabledReason,
   resolvePluginTarget,
-  resolvePluginTargetKey,
   setPluginDraftMode,
   syncPluginDraft,
   togglePluginDraftId,
@@ -100,7 +99,7 @@ describe('plugins panel VM target identity', () => {
     expect(pluginTargetKey(targets[1])).toBe('template-slot:workflow:1:writer');
     expect(pluginTargetKey(targets[2])).toBe('template-shell:bound');
     expect(resolvePluginTarget(targets, 'template-slot:workflow:1:writer')).toEqual(targets[1]);
-    expect(resolvePluginTargetKey(targets, 'missing')).toBe('agent:writer');
+    expect(resolvePluginTarget(targets, 'missing')).toEqual(targets[0]);
   });
 });
 
@@ -257,7 +256,7 @@ describe('plugins panel VM MCP payloads', () => {
     const duped = { ...next, pluginIds: ['mcp-plugin', 'alpha', 'mcp-plugin'] };
 
     expect(draftMcpPlugins(target, duped, PLUGINS).map((item) => item.id)).toEqual(['mcp-plugin']);
-    expect(buildPluginsAssignArgs(target, duped, true)).toEqual({
+    expect(buildPluginsAssignArgs(target, duped)).toEqual({
       target: {
         kind: 'template-slot',
         templateName: 'workflow',
@@ -267,7 +266,6 @@ describe('plugins panel VM MCP payloads', () => {
         mode: 'custom',
       },
       pluginIds: ['mcp-plugin', 'alpha'],
-      acknowledgeMcp: true,
     });
   });
 });

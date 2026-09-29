@@ -82,11 +82,6 @@ export function resolvePluginTarget(targets: readonly PluginAssignmentTarget[], 
   return targets.find((target) => pluginTargetKey(target) === key) ?? targets[0] ?? null;
 }
 
-export function resolvePluginTargetKey(targets: readonly PluginAssignmentTarget[], key: string | null): string | null {
-  const target = resolvePluginTarget(targets, key);
-  return target ? pluginTargetKey(target) : null;
-}
-
 function draftSourceFingerprint(
   mode: PluginTemplateSlotTarget['mode'] | null,
   pluginIds: readonly string[],
@@ -251,7 +246,6 @@ export function draftMcpPlugins(
 export function buildPluginsAssignArgs(
   target: PluginAssignmentTarget | null,
   draft: PluginsPanelDraft | null,
-  acknowledgeMcp = false,
 ): PluginsAssignArgs | null {
   if (!target || !draft || !isEditableTarget(target)) return null;
   const pluginIds = dedupePluginIds(draft.pluginIds);
@@ -268,7 +262,6 @@ export function buildPluginsAssignArgs(
       },
       pluginIds,
     };
-  if (acknowledgeMcp) args.acknowledgeMcp = true;
   return args;
 }
 
