@@ -475,11 +475,7 @@ export function App({
   // functions (each a useCallback in useDashboardData), NOT the whole `dashboard`
   // object — that object is recreated every render, which previously made these
   // wrappers (and thus the Dashboard effect deps) change identity on every render.
-  const { markPending, registerSubscription, unregisterSubscription } = dashboard;
-  const handleMarkPending = useCallback((tab: string) => {
-    markPending(tab as any);
-  }, [markPending]);
-
+  const { registerSubscription, unregisterSubscription } = dashboard;
   const handleRegisterSubscription = useCallback((queryId: string, tab: string) => {
     registerSubscription(queryId, tab as any);
   }, [registerSubscription]);
@@ -519,7 +515,6 @@ export function App({
             sendFrame={sendFrame}
             projectId={projectId}
             dashState={dashboard.state}
-            onMarkPending={handleMarkPending}
             onRegisterSubscription={handleRegisterSubscription}
             onUnregisterSubscription={handleUnregisterSubscription}
             activeTab={activeTab}

@@ -37,7 +37,6 @@ interface DashboardProps {
   mutate?: (op: string, args: Record<string, unknown>) => Promise<MutateResult>;
   projectId: string | null;
   dashState: DashState;
-  onMarkPending: (tab: string) => void;
   onRegisterSubscription: (queryId: string, tab: string) => void;
   onUnregisterSubscription: (queryId: string) => void;
   activeTab: string;
@@ -55,7 +54,6 @@ function TabContent({
   mutate,
   projectId,
   dashState,
-  onMarkPending,
   onRegisterSubscription,
   onUnregisterSubscription,
 }: {
@@ -65,7 +63,6 @@ function TabContent({
   mutate?: (op: string, args: Record<string, unknown>) => Promise<MutateResult>;
   projectId: string | null;
   dashState: DashState;
-  onMarkPending: (tab: string) => void;
   onRegisterSubscription: (queryId: string, tab: string) => void;
   onUnregisterSubscription: (queryId: string) => void;
 }): React.JSX.Element {
@@ -75,13 +72,10 @@ function TabContent({
   // Holding them in refs lets the query/subscribe effect depend only on
   // [tab, projectId], so it never re-fires (and re-subscribes) merely because the
   // parent re-rendered. Without this the effect cleaned up + re-ran every render,
-  // each run calling onMarkPending → setState → re-render → infinite loop (the
-  // Ctrl+D render storm that pegged a CPU core at ~95% with "Maximum update depth
-  // exceeded").
+  // re-querying and re-subscribing each time (the root of the Ctrl+D render storm
+  // that pegged a CPU core at ~95% with "Maximum update depth exceeded").
   const sendFrameRef = useRef(sendFrame);
   sendFrameRef.current = sendFrame;
-  const onMarkPendingRef = useRef(onMarkPending);
-  onMarkPendingRef.current = onMarkPending;
   const onRegisterSubscriptionRef = useRef(onRegisterSubscription);
   onRegisterSubscriptionRef.current = onRegisterSubscription;
   const onUnregisterSubscriptionRef = useRef(onUnregisterSubscription);
@@ -99,7 +93,6 @@ function TabContent({
 
       // Send query for initial data
       sendFrameRef.current({ type: 'ui.query', id: queryId, scope: tab === 'cost' ? 'cost.summary' : `${tab}.list`, params: projectId ? { projectId } : {} });
-      onMarkPendingRef.current(tab);
 
       // Subscribe to events
       sendFrameRef.current({ type: 'ui.subscribe', id: queryId, filter: { events: scope.events, projectId } });
@@ -121,7 +114,6 @@ function TabContent({
 
     if (dashState.tabs[tab].loading) {
       sendFrameRef.current({ type: 'ui.query', id: scope.queryId, scope: tab === 'cost' ? 'cost.summary' : `${tab}.list`, params: projectId ? { projectId } : {} });
-      onMarkPendingRef.current(tab);
     }
   }, [dashState.tabs[tab].loading, tab, projectId]);
 
@@ -149,7 +141,6 @@ export function Dashboard({
   mutate,
   projectId,
   dashState,
-  onMarkPending,
   onRegisterSubscription,
   onUnregisterSubscription,
   activeTab,
@@ -191,7 +182,6 @@ export function Dashboard({
           mutate={mutate}
           projectId={projectId}
           dashState={dashState}
-          onMarkPending={onMarkPending}
           onRegisterSubscription={onRegisterSubscription}
           onUnregisterSubscription={onUnregisterSubscription}
         />

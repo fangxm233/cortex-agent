@@ -15,7 +15,6 @@ export type TabName = 'threads' | 'tasks' | 'schedules' | 'executions' | 'cost';
 
 export interface DashState {
   tabs: Record<TabName, TabData>;
-  pendingQueries: Set<string>; // tab names with in-flight queries
 }
 
 const INITIAL_TAB: TabData = { data: [], loading: false, error: null, lastUpdated: null };
@@ -28,7 +27,6 @@ export const EMPTY_DASH_STATE: DashState = {
     executions: { ...INITIAL_TAB },
     cost: { ...INITIAL_TAB },
   },
-  pendingQueries: new Set(),
 };
 
 export const TAB_SCOPES: Record<TabName, { queryId: string; events: string[] }> = {
@@ -41,29 +39,9 @@ export const TAB_SCOPES: Record<TabName, { queryId: string; events: string[] }> 
 
 // ── Pure state helpers (exported for testing) ──
 
-export function _createPendingQuery(prev: DashState, tab: TabName): DashState {
-  const pending = new Set(prev.pendingQueries);
-  pending.add(tab);
-  return { ...prev, pendingQueries: pending };
-}
-
-export function _clearPendingQuery(prev: DashState, tab: TabName): DashState {
-  const pending = new Set(prev.pendingQueries);
-  pending.delete(tab);
-  return { ...prev, pendingQueries: pending };
-}
-
-export function _handleQueryResult(
-  prev: DashState,
-  queryId: string,
-  scopes: Record<string, { queryId: string; events: string[] }>,
-  frame: UiQueryResult,
-): DashState {
-  // Only accept frames that echo our query id
-  if (frame.id !== queryId) return prev;
-
-  // Find which tab this queryId maps to
-  const tabEntry = Object.entries(scopes).find(([, s]) => s.queryId === queryId);
+export function _handleQueryResult(prev: DashState, frame: UiQueryResult): DashState {
+  // Find which tab this query id maps to
+  const tabEntry = Object.entries(TAB_SCOPES).find(([, s]) => s.queryId === frame.id);
   if (!tabEntry) return prev;
 
   const tab = tabEntry[0] as TabName;
@@ -74,17 +52,13 @@ export function _handleQueryResult(
       ...prev.tabs,
       [tab]: { data, loading: false, error: null, lastUpdated: Date.now() },
     };
-    const pending = new Set(prev.pendingQueries);
-    pending.delete(tab);
-    return { tabs, pendingQueries: pending };
+    return { ...prev, tabs };
   } else {
     const tabs = {
       ...prev.tabs,
       [tab]: { data: [], loading: false, error: (frame as any).error?.message ?? t('tui.common.unknownError'), lastUpdated: null },
     };
-    const pending = new Set(prev.pendingQueries);
-    pending.delete(tab);
-    return { tabs, pendingQueries: pending };
+    return { ...prev, tabs };
   }
 }
 
@@ -110,25 +84,19 @@ export function _handleEvent(
 export function useDashboardData(): {
   state: DashState;
   dispatch: (frame: UiQueryResult | UiEvent) => void;
-  markPending: (tab: TabName) => void;
   registerSubscription: (queryId: string, tab: TabName) => void;
   unregisterSubscription: (queryId: string) => void;
-  activeSubscriptions: Map<string, TabName>;
 } {
   const [state, setState] = useState<DashState>(EMPTY_DASH_STATE);
   const [activeSubscriptions] = useState(() => new Map<string, TabName>());
 
   const dispatch = useCallback((frame: UiQueryResult | UiEvent) => {
     if (frame.type === 'ui.queryResult') {
-      setState(prev => _handleQueryResult(prev, frame.id, TAB_SCOPES, frame as UiQueryResult));
+      setState(prev => _handleQueryResult(prev, frame as UiQueryResult));
     } else if (frame.type === 'ui.event') {
       setState(prev => _handleEvent(prev, activeSubscriptions, frame as UiEvent));
     }
   }, [activeSubscriptions]);
-
-  const markPending = useCallback((tab: TabName) => {
-    setState(prev => _createPendingQuery(prev, tab));
-  }, []);
 
   const registerSubscription = useCallback((queryId: string, tab: TabName) => {
     activeSubscriptions.set(queryId, tab);
@@ -141,9 +109,7 @@ export function useDashboardData(): {
   return {
     state,
     dispatch,
-    markPending,
     registerSubscription,
     unregisterSubscription,
-    activeSubscriptions,
   };
 }

@@ -2,8 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _handleQueryResult, _handleEvent,
-  _createPendingQuery, _clearPendingQuery,
-  EMPTY_DASH_STATE, TAB_SCOPES,
+  EMPTY_DASH_STATE,
   type TabName,
 } from '../../src/tui/hooks/useDashboardData.js';
 import type { UiQueryResult, UiEvent } from '../../src/platform/tui/protocol.js';
@@ -41,8 +40,6 @@ function makeUiEvent(subscribeId: string, eventType: string): UiEvent {
 test('_handleQueryResult stores data for a tab', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    'dash-threads',
-    TAB_SCOPES,
     makeQueryResult('threads', 'dash-threads', THREADS_DATA),
   );
 
@@ -56,8 +53,6 @@ test('_handleQueryResult stores data for a tab', () => {
 test('_handleQueryResult with error sets error state', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    'dash-threads',
-    TAB_SCOPES,
     makeQueryResult('threads', 'dash-threads', null, false),
   );
 
@@ -70,8 +65,6 @@ test('_handleQueryResult with non-array (object) data wraps in array', () => {
   const costSummary = { totalCost: 42.5, monthlyCost: 100.0, dailyCost: 5.0, models: { 'gpt-4': 30.0 }, budgetRemaining: 957.5 };
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    'dash-cost',
-    TAB_SCOPES,
     makeQueryResult('cost', 'dash-cost', costSummary),
   );
 
@@ -85,13 +78,11 @@ test('_handleQueryResult with non-array (object) data wraps in array', () => {
 test('_handleQueryResult with unknown id is no-op', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    'dash-threads',
-    TAB_SCOPES,
     makeQueryResult('threads', 'unknown-id', THREADS_DATA),
   );
 
   // State unchanged — no tab matched this query id
-  assert.equal(state.tabs.threads.data.length, 0);
+  assert.equal(state, EMPTY_DASH_STATE);
 });
 
 test('_handleEvent refreshes tab on matching event', () => {
@@ -109,22 +100,4 @@ test('_handleEvent refreshes tab on matching event', () => {
   // For now, events just set loading = true (trigger re-fetch on next render)
   assert.equal(state.tabs.threads.loading, true);
   assert.equal(state.tabs.threads.error, null);
-});
-
-test('_createPendingQuery and _clearPendingQuery manage pending state', () => {
-  let state = EMPTY_DASH_STATE;
-
-  // Create pending query for threads
-  state = _createPendingQuery(state, 'threads');
-  assert.equal(state.pendingQueries.has('threads'), true);
-
-  // Create pending for tasks
-  state = _createPendingQuery(state, 'tasks');
-  assert.equal(state.pendingQueries.has('tasks'), true);
-  assert.equal(state.pendingQueries.has('threads'), true);
-
-  // Clear threads
-  state = _clearPendingQuery(state, 'threads');
-  assert.equal(state.pendingQueries.has('threads'), false);
-  assert.equal(state.pendingQueries.has('tasks'), true);
 });

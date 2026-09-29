@@ -11,7 +11,6 @@ interface SidePanelProps {
   sendFrame: (frame: any) => void;
   projectId: string | null;
   dashState: DashState;
-  onMarkPending: (tab: string) => void;
   onRegisterSubscription: (queryId: string, tab: string) => void;
   onUnregisterSubscription: (queryId: string) => void;
   activeTab: string;
@@ -27,7 +26,6 @@ export function SidePanel({
   sendFrame,
   projectId,
   dashState,
-  onMarkPending,
   onRegisterSubscription,
   onUnregisterSubscription,
   activeTab,
@@ -46,7 +44,6 @@ export function SidePanel({
         sendFrame={sendFrame}
         projectId={projectId}
         dashState={dashState}
-        onMarkPending={onMarkPending}
         onRegisterSubscription={onRegisterSubscription}
         onUnregisterSubscription={onUnregisterSubscription}
         activeTab={activeTab}

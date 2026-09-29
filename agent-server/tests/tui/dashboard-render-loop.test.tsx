@@ -20,7 +20,6 @@ test('dashboard tab does not re-subscribe/re-query when caller passes unstable c
       sendFrame: (f: any) => sent.push(f),
       projectId: 'general',
       dashState: EMPTY_DASH_STATE,
-      onMarkPending: () => {},
       onRegisterSubscription: () => {},
       onUnregisterSubscription: () => {},
       activeTab: 'threads',
