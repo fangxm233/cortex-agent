@@ -319,7 +319,6 @@ function bulkAddTasksUnlocked(project: string, inputs: BulkTaskInput[]) {
   }
 
   // 4. Resolve depends-on
-  const HEX_ID_RE = /^[0-9a-fA-F]{4}$/;
   const resolvedDeps = new Map<string, string[]>();
 
   for (let i = 0; i < inputs.length; i++) {
