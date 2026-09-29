@@ -1,7 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { createHash } from 'node:crypto';
-
 import {
   ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, isDurableAttemptEdgeKind,
   threadScopedIdentityHolds, validAttemptTokens,
@@ -133,7 +129,6 @@ const UNACCOUNTED_CODES = new Set<CompositeManifestViolationCode>([
 ]);
 
 type CompositeFailureReason = 'composite_manifest_invalid' | 'attempt_unaccounted';
-type BenchmarkFailureClass = 'R';
 
 function failureCode(reason: CompositeFailureReason): number {
   return reason === 'attempt_unaccounted' ? 39 : 40;
@@ -144,34 +139,6 @@ export interface CompositeManifestViolation {
   /** The shipped §2.6 code this refusal rides. Never a newly allocated one. */
   readonly failure_code: number;
   readonly detail: string;
-}
-
-export class CompositeManifestError extends Error {
-  readonly code: number;
-  readonly failureClass: BenchmarkFailureClass;
-
-  constructor(
-    readonly reason: CompositeFailureReason | 'output_path_exists',
-    detail: string,
-    readonly violations: readonly CompositeManifestViolation[] = [],
-  ) {
-    super(`${reason}: ${detail}`);
-    this.name = 'CompositeManifestError';
-    const rides = reason === 'attempt_unaccounted' ? reason : 'composite_manifest_invalid';
-    this.code = failureCode(rides);
-    this.failureClass = 'R';
-  }
-
-  record(): Record<string, unknown> {
-    return {
-      code: this.code,
-      failure_class: this.failureClass,
-      reason: this.reason,
-      violations: this.violations.map(violation => ({
-        code: violation.code, failure_code: violation.failure_code, detail: violation.detail,
-      })),
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -525,10 +492,6 @@ export function validateCompositeManifest(
       continue;
     }
     const legality = EDGE_ENDPOINT_LEGALITY[edge.kind];
-    if (!legality) {
-      add('edge_endpoint_type_invalid', `unknown kind ${String(edge.kind)}`);
-      continue;
-    }
     if (!legality.from.includes(edge.from.ref)) {
       add('edge_endpoint_type_invalid', `${edge.kind}.from may not be ${edge.from.ref}`);
     }
@@ -665,109 +628,4 @@ export function validateCompositeManifest(
   }
 
   return violations;
-}
-
-// ---------------------------------------------------------------------------------------------
-// F8 — the composite manifest's atomic publication (§9.5, §7.2 P22 `publishComposite`)
-// ---------------------------------------------------------------------------------------------
-
-export interface CompositeManifestFileSystem {
-  readFile(filePath: string): Buffer;
-  exists(filePath: string): boolean;
-  open(filePath: string, flags: number, mode: number): number;
-  write(fd: number, data: Buffer, offset: number, length?: number): number;
-  fsync(fd: number): void;
-  close(fd: number): void;
-  link(source: string, destination: string): void;
-  unlink(filePath: string): void;
-}
-
-export const NODE_COMPOSITE_MANIFEST_FS: CompositeManifestFileSystem = {
-  readFile: filePath => fs.readFileSync(filePath),
-  exists: filePath => fs.existsSync(filePath),
-  open: (filePath, flags, mode) => fs.openSync(filePath, flags, mode),
-  write: (fd, data, offset, length = data.length - offset) => fs.writeSync(fd, data, offset, length),
-  fsync: fd => fs.fsyncSync(fd),
-  close: fd => fs.closeSync(fd),
-  link: (source, destination) => fs.linkSync(source, destination),
-  unlink: filePath => fs.unlinkSync(filePath),
-};
-
-function temporaryPath(outputPath: string): string {
-  const nonce = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
-  return `${outputPath}.tmp.${nonce}`;
-}
-
-function writeFull(fd: number, bytes: Buffer, fileSystem: CompositeManifestFileSystem): void {
-  let offset = 0;
-  while (offset < bytes.length) {
-    offset += fileSystem.write(fd, bytes, offset, bytes.length - offset);
-  }
-}
-
-function safeCleanup(filePath: string, fileSystem: CompositeManifestFileSystem): void {
-  try {
-    if (fileSystem.exists(filePath)) fileSystem.unlink(filePath);
-  } catch { /* cleanup is best-effort; the publication result is what matters */ }
-}
-
-function isErrno(error: unknown, code: string): boolean {
-  return (error as NodeJS.ErrnoException)?.code === code;
-}
-
-/**
- * F8's manifest half opens a temp path with `O_EXCL`, writes, fsyncs, closes, then hard-links it
- * to the final path. A pre-existing final path
- * is `output_path_exists` and a HARD failure — G4-PB6's ground for keeping one production writer,
- * because a second writer turns that hard failure into a race.
- *
- * G4-CM5: the manifest's identity is the sha256 over its canonical bytes, and the published file is
- * re-read and re-hashed before this returns; a differing hash is `composite_manifest_invalid`.
- *
- * The ATIF half of F8 keeps its own shipped publisher and is not touched here.
- */
-export function publishComposite(
-  manifest: CompositeManifest,
-  outputPath: string,
-  fileSystem: CompositeManifestFileSystem = NODE_COMPOSITE_MANIFEST_FS,
-): { path: string; sha256: string } {
-  const resolved = path.resolve(outputPath);
-  const bytes = canonicalCompositeManifestBytes(manifest);
-  const expected = createHash('sha256').update(bytes).digest('hex');
-  if (fileSystem.exists(resolved)) {
-    throw new CompositeManifestError('output_path_exists', resolved);
-  }
-  const temporary = temporaryPath(resolved);
-  let fd: number | null = null;
-  try {
-    fd = fileSystem.open(
-      temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, 0o600,
-    );
-    writeFull(fd, bytes, fileSystem);
-    fileSystem.fsync(fd);
-    fileSystem.close(fd);
-    fd = null;
-    try {
-      fileSystem.link(temporary, resolved);
-    } catch (error) {
-      if (isErrno(error, 'EEXIST')) {
-        throw new CompositeManifestError('output_path_exists', resolved);
-      }
-      throw error;
-    }
-    safeCleanup(temporary, fileSystem);
-  } catch (error) {
-    if (fd !== null) {
-      try { fileSystem.close(fd); } catch { /* the throw below is the outcome */ }
-    }
-    safeCleanup(temporary, fileSystem);
-    throw error;
-  }
-  const republished = createHash('sha256').update(fileSystem.readFile(resolved)).digest('hex');
-  if (republished !== expected) {
-    throw new CompositeManifestError(
-      'composite_manifest_invalid', `published bytes re-read as ${republished}`,
-    );
-  }
-  return { path: resolved, sha256: expected };
 }

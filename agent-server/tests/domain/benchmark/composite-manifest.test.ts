@@ -2,9 +2,6 @@
 // each violation is REFUSED with its OWN named code, asserted BY CODE. No assertion in this file
 // matches a message string — `codesOf` collects `violation.code`, never `violation.detail`.
 
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
@@ -12,18 +9,14 @@ import {
   COMPOSITE_MANIFEST_KEYS,
   COMPOSITE_MANIFEST_SCHEMA_VERSION,
   COMPOSITE_MANIFEST_VIOLATION_CODES,
-  CompositeManifestError,
   MODE_CHECK_IDS,
   SHARED_CHECK_IDS,
   buildCompositeManifest,
   canonicalCompositeManifestBytes,
   checkIdsForMode,
-  NODE_COMPOSITE_MANIFEST_FS,
-  publishComposite,
   validateCompositeManifest,
   type CompositeManifest,
   type CompositeManifestContext,
-  type CompositeManifestFileSystem,
   type CompositeManifestViolationCode,
 } from '../../../src/domain/benchmark/composite-manifest.js';
 import {
@@ -635,115 +628,5 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
     ));
     expect(codesOf(mutate(manifest, { predicate: { mode: 'direct', checks } }), directContext))
       .toContain('predicate_check_detail_invalid');
-  });
-});
-
-describe('publishComposite — F8 atomic publication (§9.5, §7.2 P22)', () => {
-  function tempRoot(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'composite-'));
-  }
-
-  it('publishes the canonical bytes and returns their sha256', () => {
-    const root = tempRoot();
-    try {
-      const output = path.join(root, 'composite.json');
-      const manifest = directManifest();
-      const result = publishComposite(manifest, output);
-      const bytes = canonicalCompositeManifestBytes(manifest);
-      expect(fs.readFileSync(output)).toEqual(bytes);
-      expect(result.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
-      expect(result.path).toBe(output);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('G4-CM5: it re-reads and re-hashes what it published', () => {
-    const root = tempRoot();
-    try {
-      const output = path.join(root, 'composite.json');
-      const result = publishComposite(directManifest(), output);
-      const reread = createHash('sha256').update(fs.readFileSync(output)).digest('hex');
-      expect(reread).toBe(result.sha256);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('a pre-existing final path is a HARD output_path_exists, never an overwrite', () => {
-    const root = tempRoot();
-    try {
-      const output = path.join(root, 'composite.json');
-      fs.writeFileSync(output, 'occupied');
-      expect(() => publishComposite(directManifest(), output)).toThrow(CompositeManifestError);
-      // The publication is guarded so a second writer turns a hard failure into a race (G4-PB6).
-      expect(fs.readFileSync(output, 'utf8')).toBe('occupied');
-      try {
-        publishComposite(directManifest(), output);
-      } catch (error) {
-        expect((error as CompositeManifestError).reason).toBe('output_path_exists');
-      }
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('leaves no temporary file behind on success or on refusal', () => {
-    const root = tempRoot();
-    try {
-      const output = path.join(root, 'composite.json');
-      publishComposite(directManifest(), output);
-      expect(fs.readdirSync(root)).toEqual(['composite.json']);
-      expect(() => publishComposite(directManifest(), output)).toThrow();
-      expect(fs.readdirSync(root)).toEqual(['composite.json']);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  // Found BY THE PRE-REGISTERED MUTATION SWEEP (M14c survived). The pre-check and the link's EEXIST
-  // translation are deliberately redundant, so removing either one alone stayed green: the other
-  // masked it. The EEXIST arm is only reachable when the final path appears BETWEEN the pre-check
-  // and the link — a TOCTOU race no single-threaded test can provoke through the real filesystem.
-  // Injecting the seam reaches it, and turns the redundancy into two independently proven guards.
-  it('refuses with output_path_exists when the final path appears in the pre-check/link race', () => {
-    const root = tempRoot();
-    try {
-      const output = path.join(root, 'composite.json');
-      const linked: string[] = [];
-      const racing: CompositeManifestFileSystem = {
-        ...NODE_COMPOSITE_MANIFEST_FS,
-        // The pre-check sees nothing AT THE FINAL PATH ONLY. Every other path — notably the
-        // temporary, which `safeCleanup` probes through this same seam — stays truthful, so this
-        // test cannot manufacture a cleanup result the real filesystem would not produce.
-        exists: filePath => (
-          filePath === path.resolve(output) ? false : NODE_COMPOSITE_MANIFEST_FS.exists(filePath)
-        ),
-        // ...and the publication loses the race to a writer that got there first.
-        link: (source, destination) => {
-          linked.push(destination);
-          throw Object.assign(new Error('EEXIST'), { code: 'EEXIST' });
-        },
-      };
-      let reason: string | null = null;
-      try {
-        publishComposite(directManifest(), output, racing);
-      } catch (error) {
-        reason = (error as CompositeManifestError).reason;
-      }
-      expect(reason).toBe('output_path_exists');
-      expect(linked).toEqual([path.resolve(output)]);
-      // The lost race still leaves no temporary file behind.
-      expect(fs.readdirSync(root)).toEqual([]);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('CompositeManifestError carries the shipped code and a JSON record for stderr', () => {
-    const error = new CompositeManifestError('composite_manifest_invalid', 'detail', []);
-    expect(error.code).toBe(40);
-    expect(error.record().reason).toBe('composite_manifest_invalid');
-    expect(error.record().code).toBe(40);
   });
 });
