@@ -61,10 +61,6 @@ const expectedSettings = {
   feishuAdminChannel: 'oc_123',
 };
 
-async function loadMigration(): Promise<() => Promise<void>> {
-  return migrateEnvToSettings;
-}
-
 async function backupNames(): Promise<string[]> {
   const names = await fs.readdir(CONFIG_DIR);
   return names.filter((name) => name.startsWith('.env.bak-')).sort();
@@ -102,8 +98,7 @@ describe.sequential('migrateEnvToSettings', () => {
     ].join('\n');
     await fs.writeFile(ENV_FILE, original);
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')), expectedSettings);
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), `${MIGRATION_COMMENT}\n${preserved}`);
@@ -117,7 +112,7 @@ describe.sequential('migrateEnvToSettings', () => {
     const envBefore = await fs.stat(ENV_FILE, { bigint: true });
     const settingsBefore = await fs.stat(SETTINGS_FILE, { bigint: true });
 
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.deepEqual(await backupNames(), backups);
     assert.equal((await fs.stat(ENV_FILE, { bigint: true })).mtimeNs, envBefore.mtimeNs);
@@ -143,8 +138,7 @@ describe.sequential('migrateEnvToSettings', () => {
       '',
     ].join('\n'));
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')), {
       ...existing,
@@ -159,8 +153,7 @@ describe.sequential('migrateEnvToSettings', () => {
     await fs.writeFile(ENV_FILE, original);
     const before = await fs.stat(ENV_FILE, { bigint: true });
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), original);
     assert.equal((await fs.stat(ENV_FILE, { bigint: true })).mtimeNs, before.mtimeNs);
@@ -169,9 +162,8 @@ describe.sequential('migrateEnvToSettings', () => {
   });
 
   test('does not fail or create files when .env is absent', async () => {
-    const migrate = await loadMigration();
 
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.deepEqual(await fs.readdir(CONFIG_DIR), []);
   });
@@ -186,8 +178,7 @@ describe.sequential('migrateEnvToSettings', () => {
     ].join('\n');
     await fs.writeFile(ENV_FILE, original);
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), original);
     assert.deepEqual(await backupNames(), []);
@@ -204,8 +195,7 @@ describe.sequential('migrateEnvToSettings', () => {
     ].join('\n');
     await fs.writeFile(ENV_FILE, original);
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')), {
       showToolCalls: false,
@@ -223,8 +213,7 @@ describe.sequential('migrateEnvToSettings', () => {
     await fs.writeFile(SETTINGS_FILE, originalSettings);
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), originalEnv);
     assert.equal(await fs.readFile(SETTINGS_FILE, 'utf8'), originalSettings);
@@ -239,8 +228,7 @@ describe.sequential('migrateEnvToSettings', () => {
     await fs.writeFile(SETTINGS_FILE, originalSettings);
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), originalEnv);
     assert.equal(await fs.readFile(SETTINGS_FILE, 'utf8'), originalSettings);
@@ -253,8 +241,7 @@ describe.sequential('migrateEnvToSettings', () => {
     await fs.writeFile(ENV_FILE, original);
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const migrate = await loadMigration();
-    await migrate();
+    await migrateEnvToSettings();
 
     assert.equal(await fs.readFile(ENV_FILE, 'utf8'), original);
     assert.deepEqual(await backupNames(), []);
@@ -268,8 +255,7 @@ describe.sequential('migrateEnvToSettings', () => {
     const previousUmask = process.umask(0o022);
 
     try {
-      const migrate = await loadMigration();
-      await migrate();
+      await migrateEnvToSettings();
     } finally {
       process.umask(previousUmask);
     }
