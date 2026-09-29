@@ -211,29 +211,3 @@ const _systemClearRateLimit: MutateParity<'system.clearRateLimit', typeof system
 const _systemRefreshUsage: MutateParity<'system.refreshUsage', typeof systemRefreshUsageInput> = true;
 const _systemApplyUpdate: MutateParity<'system.applyUpdate', typeof systemApplyUpdateInput> = true;
 const _systemSkipUpdate: MutateParity<'system.skipUpdate', typeof systemSkipUpdateInput> = true;
-
-// Reference the guards so noUnusedLocals (if enabled) stays quiet and the
-// checks are not tree-shaken away by the type checker.
-export const _contractParityChecked = [
-  _projectsList, _sessionsList, _sessionsTranscript, _sessionsSubagentTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
-  _executionsList,
-  _waitpointsList,
-  _waitpointsCancel, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
-  _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
-  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _sessionsSetAgent, _sessionsSetSelection,
-  _sessionsSetCommission, _threadsCancel, _executionsCancel,
-  _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
-  _commissionsList, _commissionsGet, _commissionsDecisions, _commissionsClose,
-  _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
-  _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
-  _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
-  _configSet, _configSetProviderRateLimitPolicy,
-  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _authSyncGateway,
-  _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
-  _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
-  _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,
-  _threadTemplatesDetail, _threadTemplatesValidate, _threadTemplatesSave, _threadTemplatesRemove,
-  _systemDaemonStatus, _systemRateLimitStatus, _systemUsageStatus,
-  _systemRestart, _systemClearRateLimit, _systemRefreshUsage,
-  _systemNotices, _systemUpdateStatus, _systemApplyUpdate, _systemSkipUpdate,
-] as const;
