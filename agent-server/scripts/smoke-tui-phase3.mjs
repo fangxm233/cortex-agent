@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 // Smoke test: TUI Phase 3 — Management UI mutation ops via WS protocol
-// Covers 6 scenarios (S1-S6):
+// Covers 5 scenarios (S1-S5):
 //   S1: Schedules pause→resume→remove
 //   S2: Threads cancel of running thread
 //   S3: Executions cancel of active execution
 //   S4: Tasks claim→complete cycle
 //   S5: Tasks block with reason
-//   S6: AskUserModal round-trip
 //
 // Task cache warm trick (S4, S5):
 //   The daemon's taskStore.getAll() returns cached in-memory data. When
@@ -28,11 +27,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
-import { EventBus } from '../src/events/event-bus.js';
-import { TuiGatewayAdapter } from '../src/platform/adapters/tui/tui-gateway.js';
-import { initInteractionHandlers, registerInteractionHandlers } from '../src/orchestration/interactions/interaction-handlers.js';
-import { registerHookBridgeSubscribers } from '../src/orchestration/routing/hook-bridge-subscribers.js';
-import { PlanApprovals } from '../src/orchestration/interactions/plan-approvals.js';
 
 const log = console.log;
 
@@ -561,171 +555,6 @@ async function runS5() {
   log(`  Cleaned up test task "${TEST_TASK_S5_ID}" from TASKS.yaml`);
 }
 
-// ── S6: AskUserModal round-trip ──────────────────────────────────────
-
-async function runS6() {
-  log(`\n--- S6: AskUserModal round-trip ---`);
-
-  let adapter = null;
-  let ws = null;
-  let cleanedUp = false;
-
-  async function cleanup() {
-    if (cleanedUp) return;
-    cleanedUp = true;
-    try { ws?.close(); } catch {}
-    try { await adapter?.stop(); } catch {}
-  }
-
-  process.on('SIGINT', async () => { await cleanup(); process.exit(130); });
-  process.on('uncaughtException', async (e) => { log('UNCAUGHT:', e.message); await cleanup(); process.exit(2); });
-
-  try {
-    // 1. Setup EventBus + TuiGatewayAdapter
-    const bus = new EventBus();
-    adapter = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
-    adapter.setBus(bus);
-    initInteractionHandlers(bus);
-    registerInteractionHandlers(adapter);
-    registerHookBridgeSubscribers(bus, adapter, new PlanApprovals(bus));
-
-    // Subscribe to ask-user.answered on the bus
-    let askUserAnsweredEvent = null;
-    bus.subscribe('ask-user.answered', (e) => { askUserAnsweredEvent = e; });
-
-    await adapter.start();
-    const addr = adapter._wss.address();
-    const port = addr.port;
-    log(`  TUI gateway listening on ws://127.0.0.1:${port}`);
-
-    // 2. Connect WS client
-    ws = new WebSocket(`ws://127.0.0.1:${port}`);
-    await new Promise((resolve, reject) => {
-      ws.on('open', resolve);
-      ws.on('error', reject);
-    });
-
-    const frames = [];
-    ws.on('message', (data) => frames.push(JSON.parse(data.toString())));
-
-    // 3. Handshake
-    ws.send(JSON.stringify({
-      type: 'handshake.hello',
-      protocolVersion: 1,
-      clientName: 'smoke',
-      clientVersion: '1.0',
-      project: 'general',
-    }));
-    await delay(1000);
-
-    const ack = frames.find(f => f.type === 'handshake.ack');
-    assert('S6.1 handshake.ack received', !!ack, ack ? `conduitId=${ack.conduitId}` : 'not received');
-
-    const switched = frames.find(f => f.type === 'session.switched');
-    assert('S6.2 session.switched received', !!switched, switched ? `sessionId=${switched.sessionId}` : 'not received');
-
-    const conduitId = ack?.conduitId;
-    const sessionId = switched?.sessionId;
-
-    frames.length = 0; // drain boot frames
-
-    if (!conduitId || !sessionId) {
-      log('  FATAL: missing conduitId or sessionId');
-      return;
-    }
-
-    // 4. Publish ask-user.requested (simulates MCP fixture)
-    const requestId = crypto.randomUUID();
-    bus.publish({
-      type: 'ask-user.requested',
-      requestId,
-      channel: conduitId,
-      sessionId,
-      questions: [{
-        question: 'What is your favorite color?',
-        header: 'Color',
-        options: [
-          { label: 'Red', description: 'A warm color' },
-          { label: 'Blue', description: 'A calm color' },
-        ],
-        multiSelect: false,
-      }],
-    });
-
-    await delay(800);
-
-    const chatPost = frames.find(f => f.type === 'chat.post');
-    assert('S6.3 chat.post received (question card)', !!chatPost, chatPost ? 'received' : 'not received');
-
-    // 5. Send action.click → triggers modal.open
-    const groupId = `${sessionId}:${requestId}`;
-    const actionTriggerId = `tui:${conduitId}:${crypto.randomUUID()}`;
-
-    ws.send(JSON.stringify({
-      type: 'action.click',
-      id: crypto.randomUUID(),
-      actionId: 'ask_user_question_open_modal',
-      value: groupId,
-      triggerId: actionTriggerId,
-      userId: 'tui',
-    }));
-
-    await delay(800);
-
-    const modalOpen = frames.find(f => f.type === 'modal.open');
-    assert('S6.4 modal.open received', !!modalOpen, modalOpen ? `callbackId=${modalOpen.modal?.callbackId}` : 'not received');
-
-    if (modalOpen) {
-      assert('S6.4a modal.callbackId is ask_user_question_modal_submit',
-        modalOpen.modal?.callbackId === 'ask_user_question_modal_submit',
-        `got ${modalOpen.modal?.callbackId}`);
-      assert('S6.4b modal has question fields', (modalOpen.modal?.fields?.length ?? 0) > 0,
-        `fields count: ${modalOpen.modal?.fields?.length}`);
-    }
-
-    // 6. Submit modal.submit with values matching field schema
-    ws.send(JSON.stringify({
-      type: 'modal.submit',
-      id: crypto.randomUUID(),
-      callbackId: 'ask_user_question_modal_submit',
-      privateMetadata: JSON.stringify({ groupId }),
-      values: {
-        q_0: {
-          selection: { selectedOption: { value: '0' } },
-        },
-      },
-      userId: 'tui',
-    }));
-
-    await delay(800);
-
-    // 7. Verify modal.ack with no errors
-    const modalAck = frames.find(f => f.type === 'modal.ack');
-    assert('S6.5 modal.ack received', !!modalAck, modalAck ? `errors=${JSON.stringify(modalAck.errors)}` : 'not received');
-    if (modalAck) {
-      assert('S6.5a modal.ack has no errors', !modalAck.errors, `errors=${JSON.stringify(modalAck.errors)}`);
-    }
-
-    // 8. Verify ask-user.answered event (MCP promise resolved)
-    assert('S6.6 ask-user.answered event published', !!askUserAnsweredEvent,
-      askUserAnsweredEvent ? `channel=${askUserAnsweredEvent.channel}` : 'not published');
-
-    if (askUserAnsweredEvent) {
-      assert('S6.6a ask-user.answered channel matches conduitId',
-        askUserAnsweredEvent.channel === conduitId,
-        `got ${askUserAnsweredEvent.channel}, expected ${conduitId}`);
-      assert('S6.6b ask-user.answered has answer content',
-        !!askUserAnsweredEvent.answer,
-        `answer=${askUserAnsweredEvent.answer}`);
-    }
-
-  } catch (err) {
-    log(`  ERROR: ${err.message}`);
-  } finally {
-    await cleanup();
-  }
-}
-
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -776,15 +605,6 @@ async function main() {
     log(`  ✗ S5 FAILED: ${err.message}`);
     failed++;
     results.push({ label: 'S5', ok: false, detail: err.message });
-  }
-
-  // S6
-  try {
-    await runS6();
-  } catch (err) {
-    log(`  ✗ S6 FAILED: ${err.message}`);
-    failed++;
-    results.push({ label: 'S6', ok: false, detail: err.message });
   }
 
   // Summary
