@@ -227,18 +227,18 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
   actionsDisabled: boolean;
-  custom?: MCustomProvidersProps;
-  onRescan?: () => void;
-  rescanning?: boolean;
+  custom: MCustomProvidersProps;
+  onRescan: () => void;
+  rescanning: boolean;
 }) {
   const L = useVocab();
-  const trailing = onRescan ? (
+  const trailing = (
     <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
       style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 8px',
         background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650 }}>
       {L.accountsSyncModels}
     </button>
-  ) : <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>{vm.piProviders.length} PI</span>;
+  );
   const header = (
     <MDrillHeader onBack={onBack} trailing={trailing}>
       <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>
@@ -265,34 +265,32 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
           </div>
         ))}
         {vm.piProviders.length === 0 ? <MCard><span style={{ fontSize: 12, color: MC.muted }}>{L.accountsNoProviders}</span></MCard> : null}
-        {custom ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <MGroupLabel>
-              {L.cpvTitle} · {custom.providers.length}
-              <button
-                type="button" data-cpv-action="new" disabled={custom.savePending}
-                onClick={custom.onNew}
-                style={{
-                  marginLeft: 8, border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '3px 8px',
-                  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
-                }}
-              >
-                {L.cpvNew}
-              </button>
-            </MGroupLabel>
-            {custom.providers.length > 0
-              ? custom.providers.map(provider => (
-                <CustomProviderCard
-                  key={provider.name} provider={provider}
-                  editDisabled={custom.savePending} deleteDisabled={custom.removePending}
-                  confirming={custom.confirmingDelete === provider.name}
-                  onEdit={() => custom.onEdit(provider)}
-                  onDelete={() => custom.onDelete(provider.name)}
-                />
-              ))
-              : <MCard><span style={{ fontSize: 12, color: MC.muted }}>{L.cpvNone}</span></MCard>}
-          </div>
-        ) : null}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <MGroupLabel>
+            {L.cpvTitle} · {custom.providers.length}
+            <button
+              type="button" data-cpv-action="new" disabled={custom.savePending}
+              onClick={custom.onNew}
+              style={{
+                marginLeft: 8, border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '3px 8px',
+                background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
+              }}
+            >
+              {L.cpvNew}
+            </button>
+          </MGroupLabel>
+          {custom.providers.length > 0
+            ? custom.providers.map(provider => (
+              <CustomProviderCard
+                key={provider.name} provider={provider}
+                editDisabled={custom.savePending} deleteDisabled={custom.removePending}
+                confirming={custom.confirmingDelete === provider.name}
+                onEdit={() => custom.onEdit(provider)}
+                onDelete={() => custom.onDelete(provider.name)}
+              />
+            ))
+            : <MCard><span style={{ fontSize: 12, color: MC.muted }}>{L.cpvNone}</span></MCard>}
+        </div>
       </MScrollBody>
     </MScreen>
   );

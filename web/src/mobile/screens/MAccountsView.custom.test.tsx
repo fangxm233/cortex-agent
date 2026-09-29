@@ -44,6 +44,7 @@ function mountView(over: {
         <MAccountsView
           vm={buildAccountsVm(EMPTY_STATUS)}
           onBack={() => {}} onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
+          onRescan={() => {}} rescanning={false}
           custom={{
             providers: over.providers ?? [PROVIDER],
             confirmingDelete: over.confirmingDelete ?? null,

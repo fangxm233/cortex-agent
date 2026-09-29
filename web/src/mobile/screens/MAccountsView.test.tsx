@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
-import { MAccountsView } from './MAccountsView';
+import { MAccountsView, type MCustomProvidersProps } from './MAccountsView';
 
 const status: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
@@ -35,6 +35,11 @@ const status: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
+const custom: MCustomProvidersProps = {
+  providers: [], confirmingDelete: null, savePending: false, removePending: false,
+  onNew: () => {}, onEdit: () => {}, onDelete: () => {},
+};
+
 function mount(
   onLogin = vi.fn(),
   onLogout = vi.fn(),
@@ -50,6 +55,7 @@ function mount(
           onLogin={onLogin}
           onLogout={onLogout}
           actionsDisabled={actionsDisabled}
+          custom={custom} onRescan={() => {}} rescanning={false}
         />
       </LangProvider>,
     );
@@ -108,6 +114,7 @@ describe('MAccountsView', () => {
           <MAccountsView
             vm={buildAccountsVm(withSensitiveDetail)} onBack={() => {}}
             onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
+            custom={custom} onRescan={() => {}} rescanning={false}
           />
         </LangProvider>,
       );

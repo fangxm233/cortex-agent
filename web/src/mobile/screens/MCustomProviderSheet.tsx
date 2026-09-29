@@ -41,7 +41,7 @@ function Field({ label, hint, danger, children }: {
   );
 }
 
-export function MCustomProviderSheet({ draft, creating, errors, pending, onChange, onSave, onClose, behind }: {
+export function MCustomProviderSheet({ draft, creating, errors, pending, onChange, onSave, onClose }: {
   draft: CustomProviderFormState;
   creating: boolean;
   errors: CustomProviderFormErrors;
@@ -49,7 +49,6 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
   onChange: (next: CustomProviderFormState) => void;
   onSave: () => void;
   onClose: () => void;
-  behind?: ReactNode;
 }) {
   const L = useVocab();
   const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
@@ -59,7 +58,7 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
   const savable = isCustomProviderFormValid(errors) && !pending;
 
   return (
-    <MBottomSheet onClose={onClose} behind={behind}>
+    <MBottomSheet onClose={onClose}>
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
         <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
           {creating ? L.cpvCreateTitle : L.cpvEditTitle}
