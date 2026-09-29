@@ -137,27 +137,6 @@ test('run: absent middle cost preserves the cumulative cursor across chained con
   assert.equal(merged.costReported, true);
 });
 
-test('run: spontaneous continuation routes assistant text + final result to the background stream', async (t) => {
-  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
-
-  // Background task completes → CLI re-invokes the model with no active turn.
-  session.handleLine(TASK_STARTED);
-  session.handleLine(RESULT_FIRST);
-  await tick();
-  session.handleLine(TASK_NOTIFICATION);     // arms continuation, pending → 0
-  session.handleLine(ASSISTANT_CONT);        // opens a synthetic continuation turn, routes text
-  session.handleLine(RESULT_CONT);           // finalizes continuation
-
-  await run.settled;
-  await done;
-
-  const texts = events.filter((e) => e.type === 'assistant_text').map((e) => e.text);
-  assert.deepEqual(texts, ['Background task done: DONE'], 'assistant text routed to the background stream');
-  const results = backgroundResults(events);
-  assert.equal(results.length, 1, 'the run stream received the continuation result');
-  assert.equal(results[0].result.pendingBackgroundTasks, 0, 'no background tasks remain at continuation end');
-});
-
 test('run: spontaneous continuation normalizes a temporary 429 into a rate-limited background result', async (t) => {
   const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
@@ -238,10 +217,10 @@ test('integration: real captured line sequence becomes the background RunEvents 
   await run.settled;
   await done;
 
-  const text = events
+  const texts = events
     .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
-    .map((e) => e.text).join('');
-  assert.match(text, /Background task done: DONE/);
+    .map((e) => e.text);
+  assert.deepEqual(texts, ['Background task done: DONE']);
   const continuation = events.filter((e) => 'phase' in e && e.phase === 'background');
   assert.ok(continuation.some((e) => e.type === 'assistant_text'), 'the continuation text is background');
   // `background_result` is the run's own terminal kind and carries no `phase` tag — the type
