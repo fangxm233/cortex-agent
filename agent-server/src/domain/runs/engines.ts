@@ -1,6 +1,6 @@
 import { createLogger } from '@core/log.js';
 import { getClaudeEngineAdapter, getPiEngineAdapter } from './adapters.js';
-import type { AgentCompactResult, EngineSpec } from '../../agent-adapter/types.js';
+import type { EngineSpec } from '../../agent-adapter/types.js';
 import type { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import type { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import type { PIEngineSession } from '../../agent-adapter/pi/engine.js';
@@ -164,12 +164,6 @@ export class SessionEngines {
 
   listKeys(): string[] {
     return [...this.sessions.keys()];
-  }
-
-  async compact(key: string): Promise<AgentCompactResult> {
-    const engine = this.sessions.get(key);
-    if (!engine) throw new Error(`No engine session for ${key}`);
-    return engine.compact();
   }
 
   /** Record the exact transcript path restored by rewind before the next resume spawn.
