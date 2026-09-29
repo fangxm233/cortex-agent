@@ -227,12 +227,7 @@ pub fn hash_file(path: &Path) -> io::Result<String> {
         }
         hasher.update(&buf[..n]);
     }
-    let digest = hasher.finalize();
-    let mut out = String::with_capacity(64);
-    for b in digest {
-        out.push_str(&format!("{:02x}", b));
-    }
-    Ok(out)
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 /// Append `suffix` to a full path (`Cortex.AppImage` → `Cortex.AppImage.old`) — NOT an extension

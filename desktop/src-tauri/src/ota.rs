@@ -54,19 +54,11 @@ pub fn needs_update(installed: Option<&str>, manifest_version: &str) -> bool {
     installed != Some(manifest_version)
 }
 
-fn to_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{:02x}", b));
-    }
-    s
-}
-
 /// Constant-purpose integrity check: SHA-256(bytes) == expected_hex (case-insensitive).
 pub fn verify_sha256(bytes: &[u8], expected_hex: &str) -> bool {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    to_hex(&hasher.finalize()).eq_ignore_ascii_case(expected_hex)
+    format!("{:x}", hasher.finalize()).eq_ignore_ascii_case(expected_hex)
 }
 
 fn zip_err(e: zip::result::ZipError) -> io::Error {
