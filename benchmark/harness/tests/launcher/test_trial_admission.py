@@ -212,7 +212,6 @@ def vendor_arm(vendor_agent: str) -> dict[str, object]:
 def seed() -> dict[str, object]:
     return {
         "arm": arm(),
-        "arm_path": "arm://cortex-direct",
         "trial_id": "trial-one",
         "root_run_id": "trial-one.cortex-direct",
         "task": {
@@ -270,7 +269,7 @@ def vendor_launch_kwargs(root: Path, vendor_agent: str) -> dict[str, object]:
     selected_arm = vendor_arm(vendor_agent)
     vendor_seed = dict(kwargs["trial_seed"])
     vendor_seed.update(
-        arm=selected_arm, arm_path=f"arm://pure-{vendor_agent}",
+        arm=selected_arm,
         root_run_id=f"trial-one.pure-{vendor_agent}",
     )
     kwargs.update(arm=selected_arm, trial_seed=vendor_seed)
@@ -566,8 +565,7 @@ def test_deepseek_identity_is_admitted_without_container_credentials(
     kwargs = launch_kwargs(tmp_path)
     deepseek = deepseek_arm()
     deepseek_seed = dict(kwargs["trial_seed"])
-    deepseek_seed.update(arm=deepseek, arm_path="arm://cortex-deepseek-direct",
-                         pi_benchmark_capability_proven=True)
+    deepseek_seed.update(arm=deepseek)
     credential = dict(deepseek_seed["credential"])
     credential.update(upstream_base_url="https://api.deepseek.com",
                       route_identity_host="api.deepseek.com")

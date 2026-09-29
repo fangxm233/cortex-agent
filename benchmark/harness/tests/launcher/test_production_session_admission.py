@@ -128,12 +128,11 @@ def launch_kwargs(root: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> di
             "image_size_bytes": len(b"sealed session fixture"),
         },
         "trial_seed": {
-            "arm": production_arm(bundle), "arm_path": f"arm://{arm_name}",
+            "arm": production_arm(bundle),
             "trial_id": TRIAL_ID, "root_run_id": f"{TRIAL_ID}.{arm_name}",
             "task": {"task_id": "sealed-task", "image_ref": IMAGE_REF,
                      "image_digest": DIGEST},
             "profile_name": "benchmark", "paid_run": False,
-            "pi_benchmark_capability_proven": True,
             "credential": {
                 "upstream_base_url": "http://127.0.0.1:9099",
                 "route_identity_host": "api.deepseek.com",

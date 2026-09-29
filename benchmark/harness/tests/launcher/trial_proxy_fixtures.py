@@ -61,7 +61,7 @@ def seed_credential(upstream: str) -> dict[str, object]:
 
 def trial_seed(upstream: str, **overrides: object) -> dict[str, object]:
     return {
-        "arm": cortex_arm(), "arm_path": f"arm://{ARM_NAME}", "trial_id": TRIAL_ID,
+        "arm": cortex_arm(), "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},

@@ -1213,7 +1213,6 @@ def test_each_trial_is_armed_through_the_production_path_with_the_declared_docum
     }, "the declared envelope, plus the address this trial's slot binds to"
     assert kwargs["host_scan_policy"] == document["host_scan_policy"]
     assert seed["paid_run"] is False
-    assert seed["pi_benchmark_capability_proven"] is True
     assert seed["trial_id"] == "camp-01-task-one-cortex-a"
     assert seed["root_run_id"] == "camp-01-task-one-cortex-a.cortex-a"
     assert seed["task"] == {"task_id": "task-one", "image_ref": IMAGE_REF,

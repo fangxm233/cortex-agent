@@ -302,10 +302,10 @@ class CampaignConfig:
 
     def trial_seed(self, plan: TrialPlan) -> dict[str, object]:
         return {
-            "arm": dict(plan.arm), "arm_path": f"arm://{plan.arm_name}",
+            "arm": dict(plan.arm),
             "trial_id": plan.trial_id, "root_run_id": plan.root_run_id,
             "task": plan.task.as_seed_task(), "profile_name": PROFILE_NAME,
-            "paid_run": self.paid, "pi_benchmark_capability_proven": True,
+            "paid_run": self.paid,
             "credential": self.trial_credential(plan),
             "model_alias_policy": dict(MODEL_ALIAS_POLICY),
         }

@@ -34,7 +34,7 @@ def trial_seed(
     upstream: str, capability_id: str, *, model: str, trial_id: str = "trial-fixture",
 ) -> dict[str, object]:
     return {
-        "arm": cortex_arm(capability_id, model=model), "arm_path": f"arm://{ARM_NAME}",
+        "arm": cortex_arm(capability_id, model=model),
         "trial_id": trial_id, "root_run_id": f"{trial_id}.{ARM_NAME}",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},

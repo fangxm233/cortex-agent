@@ -160,7 +160,7 @@ def direct_arm() -> dict[str, object]:
 
 def trial_seed(overrides: dict[str, object] | None = None) -> dict[str, object]:
     seed: dict[str, object] = {
-        "arm": direct_arm(), "arm_path": "arm://cortex-direct",
+        "arm": direct_arm(),
         "trial_id": "trial-install-only", "root_run_id": "root-install-only",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
@@ -246,7 +246,7 @@ def test_committed_zero_paid_direct_campaigns_materialize_the_production_bundle(
     tmp_path: Path, config_name: str,
 ) -> None:
     (arm,) = load_campaign_config(CAMPAIGNS_DIR / config_name).arms
-    seed = trial_seed({"arm": arm, "arm_path": f"arm://{arm['name']}"})
+    seed = trial_seed({"arm": arm})
     manifest = manifest_seed(tmp_path)
     manifest["arm"] = arm["name"]
     agent = CortexBenchAgent(

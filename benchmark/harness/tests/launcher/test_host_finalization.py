@@ -120,7 +120,7 @@ def arm() -> dict[str, object]:
 
 def trial_seed(upstream: str) -> dict[str, object]:
     return {
-        "arm": arm(), "arm_path": f"arm://{ARM_NAME}", "trial_id": TRIAL_ID,
+        "arm": arm(), "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"task@{DIGEST}",
                  "image_digest": DIGEST},

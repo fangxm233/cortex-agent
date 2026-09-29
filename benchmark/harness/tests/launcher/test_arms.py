@@ -80,7 +80,7 @@ def baseline_arm(
 def trial_seed() -> dict[str, object]:
     digest = f"sha256:{'a' * 64}"
     return {
-        "arm": cortex_arm(), "arm_path": "arm://cortex-direct",
+        "arm": cortex_arm(),
         "trial_id": "trial-001", "root_run_id": "trial-001.cortex-direct",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{digest}",
                  "image_digest": digest},
