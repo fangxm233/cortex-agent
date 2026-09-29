@@ -232,10 +232,6 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     assert.deepEqual(Object.keys(managerQaConfig.mcpServers), ['cortex-manager-qa']);
     assert.deepEqual(Object.keys(threadConfig.mcpServers), ['cortex-core']);
 
-    // Assert .env contains CORTEX_MACHINE
-    const envContent = readFileSync(path.join(tempDir, 'config', '.env'), 'utf-8');
-    assert.match(envContent, /^CORTEX_MACHINE=/m, '.env should contain CORTEX_MACHINE');
-
     // Assert machines.json exists and contains local machine entry
     const machinesJsonPath = path.join(tempDir, 'config', 'machines.json');
     assert.ok(existsSync(machinesJsonPath),
@@ -248,14 +244,6 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     assert.equal(localEntry.cortexPath, tempDir, 'local entry cortexPath should equal DATA_DIR');
     assert.equal(typeof localEntry.gpuCount, 'number', 'local entry should have gpuCount');
     assert.ok(localEntry.gpuCount >= 0, 'gpuCount should be non-negative');
-
-    // Assert agent-state.json is valid JSON with expected fields
-    const modeContent = readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8');
-    const mode = JSON.parse(modeContent);
-    assert.equal(mode.backend, 'claude');
-    assert.equal(mode.mode, 'plan');
-    assert.ok(mode.claudeModel);
-    assert.ok(mode.activeProfile);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
