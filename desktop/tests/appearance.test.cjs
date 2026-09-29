@@ -11,7 +11,7 @@ function bootstrap(page, glass, blocked = false) {
   const document = {
     documentElement: {
       setAttribute: (key, value) => { attributes[key] = value; },
-      style: { setProperty() {} }, classList: { add() {} },
+      style: { setProperty() {} },
     },
     querySelector: () => null,
   };

@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Cortex — Connect</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/theme.css">
   <meta name="theme-color" content="">
   <script>
@@ -71,15 +70,6 @@
             meta.setAttribute('content', hex);
           }
         }
-      } catch (e) {}
-    })();
-
-    // Mobile vs desktop layout. The native shell injects `window.__CORTEX_MOBILE__ = true` on Android
-    // (init_script in lib.rs) BEFORE this runs, so we can pick the full-bleed mobile layout up-front —
-    // the `.mobile` class on <html> gates the mobile CSS, so there is no desktop→mobile layout flash.
-    (function () {
-      try {
-        if (window.__CORTEX_MOBILE__) document.documentElement.classList.add('mobile');
       } catch (e) {}
     })();
   </script>
