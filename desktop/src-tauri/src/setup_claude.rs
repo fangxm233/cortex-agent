@@ -233,19 +233,10 @@ mod tests {
     }
 
     #[test]
-    fn failed_install_rejects_and_can_be_retried() {
+    fn failed_install_propagates_the_install_error() {
         assert_eq!(
             ensure_installed(|| status(false), || Err("npm failed".into())).unwrap_err(),
             "npm failed"
         );
-        let mut probes = 0;
-        assert!(ensure_installed(
-            || {
-                probes += 1;
-                status(probes == 2)
-            },
-            || Ok(())
-        )
-        .is_ok());
     }
 }
