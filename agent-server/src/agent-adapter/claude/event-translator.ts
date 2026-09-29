@@ -37,9 +37,6 @@ export function promptAccounting(usage: TurnTokenUsage | null) {
 /** Options bag accepted by `ClaudeSession.sendMessage`. */
 export interface ClaudeTurnCallbacks {
   attachments?: UserMessage['attachments'];
-  callbackSource?: string | null;
-  scheduleTaskId?: string | null;
-  isUserInitiated?: boolean;
   onProgress?: ((progress: any) => void) | null;
   onAssistantMessage?: ((
     text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,

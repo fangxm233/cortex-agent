@@ -1,7 +1,6 @@
 import path from 'node:path';
 
 interface ActiveCaptureEntry {
-  pairKey: string;
   paths: string[];
   refs: number;
 }
@@ -18,7 +17,7 @@ export class ActiveClaudeCaptureRegistry {
         if (!entry.paths.includes(filePath)) entry.paths.push(filePath);
       }
     } else {
-      this.byPair.set(pairKey, { pairKey, paths: normalized, refs: 1 });
+      this.byPair.set(pairKey, { paths: normalized, refs: 1 });
     }
     let released = false;
     return () => {
@@ -41,10 +40,6 @@ export class ActiveClaudeCaptureRegistry {
 
   listPairs(): string[] {
     return [...this.byPair.keys()];
-  }
-
-  clear(): void {
-    this.byPair.clear();
   }
 }
 
