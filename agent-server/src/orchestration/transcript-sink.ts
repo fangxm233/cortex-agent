@@ -92,7 +92,7 @@ export interface TranscriptSinkOptions {
 }
 
 /** Fire-and-forget history append; never let a logging write break the turn. */
-function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
+export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
   void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
 }
 

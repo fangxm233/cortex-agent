@@ -32,7 +32,7 @@ import {
   publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered,
   publishSessionStatus, publishSessionTurn,
 } from '../session-events.js';
-import { createTranscriptSink, persistSessionContextUsage } from '../transcript-sink.js';
+import { createTranscriptSink, persistSessionContextUsage, recordHistory } from '../transcript-sink.js';
 import { createSessionDeltaStream } from '../delta-coalescer.js';
 import { tryInjectIntoLiveTurn, type MidTurnInjectDeps } from '../mid-turn-inject.js';
 import { commitPendingInjection } from '../pending-injection-recovery.js';
@@ -775,11 +775,6 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
 }
 
 // --- Small shared helpers --------------------------------------------------------------------------
-
-/** Fire-and-forget history append; never let a logging write break the turn. */
-export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
-  void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
-}
 
 /** Compose two optional onToolUse callbacks so both fire on each tool_use event. */
 function composeToolUse(

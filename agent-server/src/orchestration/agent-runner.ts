@@ -17,7 +17,8 @@ import { publishSessionDebugUpdated } from './session-events.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
 import { prepareConversationRequest } from './conversation-request.js';
-import { openTurn, buildInjectDeps, recordHistory } from './turn/turn.js';
+import { openTurn, buildInjectDeps } from './turn/turn.js';
+import { recordHistory } from './transcript-sink.js';
 import {
   acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
