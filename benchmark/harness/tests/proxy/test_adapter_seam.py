@@ -27,20 +27,20 @@ DENIED_TARGETS = [
 ]
 
 
-def limits(max_cost: str = "5") -> ProxyLimits:
+def limits() -> ProxyLimits:
     return ProxyLimits(max_requests=8)
 
 
 def start_proxy(
     tmp_path: Path, upstream_base_url: str, *, credential: str | None = REAL_CREDENTIAL,
-    frozen_model: str | None = SYNTHETIC_MODEL, max_cost: str = "20",
+    frozen_model: str | None = SYNTHETIC_MODEL,
 ):
     return start_trial_proxy(
         trial_id="trial-seam", upstream_base_url=upstream_base_url,
         adapter=row_one_adapter(upstream_base_url, credential, frozen_model),
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
-        limits=limits(max_cost), log_path=tmp_path / "seam.jsonl",
+        limits=limits(), log_path=tmp_path / "seam.jsonl",
         lease_terms=LEASE_TERMS,
     )
 
@@ -163,7 +163,7 @@ def test_body_without_a_locatable_model_is_refused_never_passed_through(
 
 def test_refused_requests_leave_the_whole_request_count_for_an_admitted_one(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
-        handle = start_proxy(tmp_path, upstream.base_url, max_cost="5")
+        handle = start_proxy(tmp_path, upstream.base_url)
         try:
             proxy_request(handle.base_url, handle.dummy_token, "denied", target="/v1/messages")
             proxy_request(handle.base_url, handle.dummy_token, "denied", model="claude-other-9")
