@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleExecutionsList } from '../../../src/domain/ui-service/query/executions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 const now = Date.now();
 const mockExecutions = [
@@ -32,31 +33,10 @@ const mockExecutions = [
   },
 ];
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
-    projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
+function makeDeps(): UiServiceDeps {
+  return makeUiDeps({
     executionRegistry: { getExecution: () => null, getAll: () => mockExecutions, cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-    ...overrides,
-  };
+  });
 }
 
 test('executions.list filters by status', async () => {

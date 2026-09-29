@@ -11,6 +11,7 @@ import {
   parseBlamePorcelain,
 } from '../../../src/domain/ui-service/query/memory.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 // ── Fixture: a real on-disk project memory tree under a temp dir ──────────────
 function makeProject(): { root: string; outsideFile: string } {
@@ -40,7 +41,7 @@ function makeProject(): { root: string; outsideFile: string } {
 
 function makeDeps(projectId: string, root: string): UiServiceDeps {
   const project = { id: projectId, name: projectId, kind: 'user' as const, contextDir: root };
-  return {
+  return makeUiDeps({
     projectStore: {
       list: () => [project],
       get: (id: string) => (id === projectId ? project : undefined),
@@ -48,27 +49,7 @@ function makeDeps(projectId: string, root: string): UiServiceDeps {
       getDefault: () => project,
       createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }),
     },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
-    executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-  };
+  });
 }
 
 // ── (1) tree lists real project memory entries ───────────────────────────────

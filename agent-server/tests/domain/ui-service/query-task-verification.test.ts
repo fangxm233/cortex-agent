@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleTaskVerification } from '../../../src/domain/ui-service/query/task-verification.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const t0 = Date.parse('2026-06-01T00:00:00Z');
@@ -65,31 +66,11 @@ const mockExecutions = [
   },
 ];
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
-    projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    threadStore: { getAll: () => [], get: () => null },
+function makeDeps(): UiServiceDeps {
+  return makeUiDeps({
     taskStore: { getAll: () => Object.values(mockTasks), getById: (id: string) => mockTasks[id] ?? null, load: () => {}, refresh: () => {} },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: (id: string) => mockExecutions.find(e => e.id === id) ?? null, getAll: () => mockExecutions, cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-    ...overrides,
-  };
+  });
 }
 
 test('tasks.verification: completed task exposes real completed-note / completed-at evidence', async () => {

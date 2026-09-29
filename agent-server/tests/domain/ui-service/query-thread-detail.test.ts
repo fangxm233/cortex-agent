@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleThreadsGet } from '../../../src/domain/ui-service/query/threads.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { makeUiDeps } from './ui-deps-fixture.js';
 
 // A 6-level chain (root + 6 descendants) to exercise the ≤5-level depth cap, plus a
 // running thread with one completed step + a synthesized active step,
@@ -76,31 +77,12 @@ const mockTasks = [
   { id: 'ef78', text: 'Unrelated child', project: 'cortex-self', parent: 'ffff', status: 'done', priority: 'low', template: 'worker', why: '', done_when: '', depends_on: [], plan: '', claimed_by: null, blocked_by: null, paused: false },
 ];
 
-function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
-  return {
-    projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
-    sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
+function makeDeps(): UiServiceDeps {
+  return makeUiDeps({
     threadStore: { getAll: () => Object.values(threads), get: (id: string) => threads[id] ?? null },
     taskStore: { getAll: () => mockTasks, getById: (id: string) => mockTasks.find(t => t.id === id) ?? null, load: () => {}, refresh: () => {} },
-    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: (id: string) => mockExecutions.find(e => e.id === id) ?? null, getAll: () => mockExecutions, cancelExecution: () => null },
-    conversationHistory: {
-      getHistory: async () => null,
-      getCompactHistoryAt: async () => ({ value: null, cursor: '' }),
-      getSubagentHistory: async (sessionId, subagentId) => ({ sessionId, subagentId, events: [] }),
-    },
-    sendSessionMessage: () => {},
-    approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
-    cancelSessionRun: async () => 0,
-    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
-    clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
-    adapter: { getProjectConduits: async () => ({}) } as any,
-    ...overrides,
-  };
+  });
 }
 
 test('threads.get throws for unknown thread id', async () => {
