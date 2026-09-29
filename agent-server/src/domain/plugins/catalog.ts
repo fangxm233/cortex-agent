@@ -36,12 +36,6 @@ interface ManifestPathResult {
   issues: PluginCatalogIssue[];
 }
 
-interface SkillRootResult {
-  state: 'missing' | 'present' | 'invalid';
-  path?: string;
-  issues: PluginCatalogIssue[];
-}
-
 type SkillFormat = 'portable' | 'legacy';
 
 function makeIssue(
@@ -183,27 +177,21 @@ function invalidLegacyManifest(message: string): PortableManifestResult {
   };
 }
 
-function invalidFileIssue(
-  relativePath: string,
-  scope: 'manifest' | 'mcp',
-): PluginCatalogIssue {
-  const code = scope === 'manifest' ? 'manifest_invalid' : 'mcp_invalid';
-  const message = scope === 'manifest'
-    ? `${relativePath} must be a regular file inside the plugin root`
-    : 'mcp.json must be a regular file inside the plugin root';
-  return makeIssue(code, scope, relativePath, message);
+function invalidFileIssue(relativePath: string): PluginCatalogIssue {
+  return makeIssue(
+    'manifest_invalid',
+    'manifest',
+    relativePath,
+    `${relativePath} must be a regular file inside the plugin root`,
+  );
 }
 
-function manifestPath(
-  pluginRoot: string,
-  relativePath: string,
-  scope: 'manifest' | 'mcp',
-): ManifestPathResult {
+function manifestPath(pluginRoot: string, relativePath: string): ManifestPathResult {
   const absolute = path.join(pluginRoot, relativePath);
   if (!lstatExists(absolute)) return { state: 'missing', issues: [] };
   const contained = resolveContainedAbsolutePath(pluginRoot, absolute);
   if (!contained || !isRegularFile(contained)) {
-    return { state: 'invalid', issues: [invalidFileIssue(relativePath, scope)] };
+    return { state: 'invalid', issues: [invalidFileIssue(relativePath)] };
   }
   return { state: 'present', path: contained, issues: [] };
 }
@@ -212,7 +200,7 @@ function skillRootIssue(message: string): PluginCatalogIssue {
   return makeIssue('skill_invalid', 'skill', 'skills', message);
 }
 
-function skillRoot(pluginRoot: string): SkillRootResult {
+function skillRoot(pluginRoot: string): ManifestPathResult {
   const absolute = path.join(pluginRoot, 'skills');
   if (!lstatExists(absolute)) return { state: 'missing', issues: [] };
   const contained = resolveContainedAbsolutePath(pluginRoot, absolute);
@@ -403,7 +391,7 @@ function portablePathResult(
   pluginRoot: string,
   dataDir: string,
 ): PluginCatalogEntry | null {
-  const rootManifest = manifestPath(pluginRoot, 'plugin.json', 'manifest');
+  const rootManifest = manifestPath(pluginRoot, 'plugin.json');
   if (rootManifest.state === 'invalid') {
     const entry = emptyEntry(id);
     entry.kind = 'portable';
@@ -419,7 +407,7 @@ function legacyPathResult(
   id: string,
   pluginRoot: string,
 ): PluginCatalogEntry | null {
-  const legacyManifest = manifestPath(pluginRoot, path.join('.claude-plugin', 'plugin.json'), 'manifest');
+  const legacyManifest = manifestPath(pluginRoot, path.join('.claude-plugin', 'plugin.json'));
   if (legacyManifest.state === 'invalid') {
     const entry = emptyEntry(id);
     entry.kind = 'legacy';
