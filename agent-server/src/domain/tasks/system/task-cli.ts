@@ -317,7 +317,6 @@ const VALUE_OPTIONS = new Set([
   ...Object.keys(STRING_OPT_KEYS),
   ...Object.keys(APPEND_OPT_KEYS),
   '--task-ids',
-  '--file',
 ]);
 
 function getCliHelp(): string {
