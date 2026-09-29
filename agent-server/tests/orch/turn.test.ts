@@ -13,7 +13,6 @@ import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { Capability } from '../../src/agent-adapter/capabilities.js';
 import { openTurn, type TurnInput } from '../../src/orchestration/turn/turn.js';
-import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
@@ -130,7 +129,6 @@ test('a turn with ledger:null opens and completes no conversation-ledger turn', 
   assert.equal(h.adapter.updated.length >= 1, true);
   assert.deepEqual(h.statuses.map((s) => s.running), [true, false]);
   assert.equal(h.leaseReleases, 1, 'the lease is released exactly once');
-  assert.equal(activeTurns.has('slack:C-turn-noledger'), false, 'the turn deregistered itself');
 });
 
 // ── 2. statusPrefix — the edit-retry shape ───────────────────────────────────
@@ -177,7 +175,6 @@ test('a request that cannot be assembled still releases the lease, seals and pub
     true,
     'the error body reached the channel',
   );
-  assert.equal(activeTurns.has('slack:C-turn-prepfail'), false);
 });
 
 // ── 5. The platform being unreachable does not lose the turn ─────────────────
@@ -212,7 +209,6 @@ test('the status message post failing does not lose the turn: the run opens, the
     'the reply still reached the channel through the output stream',
   );
   assert.equal(h.leaseReleases, 1);
-  assert.equal(activeTurns.has('slack:C-turn-nostatus'), false);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(unhandled, []);
 });
@@ -231,7 +227,6 @@ test('a seal the platform cannot take is logged, not escalated: a successful tur
     false,
     'no error body was posted for a seal failure',
   );
-  assert.equal(activeTurns.has('slack:C-turn-noseal'), false);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(unhandled, []);
 });

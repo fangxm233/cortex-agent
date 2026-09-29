@@ -205,7 +205,6 @@ export class Turn {
         },
       );
     }
-    activeTurns.register(channel, this);
 
     // 3. Superseded while the ledger turn was still pending: the edit that replaced this message
     //    already killed nothing (there is no run yet), so the turn simply stops here. Deliberately
@@ -213,7 +212,6 @@ export class Turn {
     //    close and no status to seal (characterized by tests/orch/turn-golden.test.ts).
     if (opensTracking && this.trackingToken && consumePendingTurnSupersession(channel, this.trackingToken)) {
       finishTurnTracking(channel, this.trackingToken);
-      activeTurns.unregister(channel, this);
       return;
     }
 
@@ -483,12 +481,11 @@ export class Turn {
         threadAnchorId, userMessageTs, userMessage: this.input.user.text,
       });
     } finally {
-      // 12. One exit: lease, tracking, delta stream, registry, running:false.
+      // 12. One exit: lease, tracking, delta stream, running:false.
       this.releaseLease();
       if (this.trackingToken) finishTurnTracking(channel, this.trackingToken);
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
       deltaStream?.dispose();
-      activeTurns.unregister(channel, this);
       // Skip the idle seal when a bg-hold is active — it owns the terminal running:false publish
       // once the background work finishes (else the session flips to idle immediately and the
       // spontaneous continuation is untracked). True for BOTH surfaces since T2.2: the Slack hold

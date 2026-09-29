@@ -8,14 +8,6 @@ import {
   isTurnTrackingPending, markPendingTurnSuperseded, waitForTurnTracking,
 } from './turn-tracking.js';
 
-/** What a live turn exposes to the rest of orchestration. Deliberately structural (not the `Turn`
- *  class) so this module has no import edge back into `turn.ts`. */
-export interface ActiveTurnHandle {
-  readonly channel: string;
-  /** The tracking id of the session this turn runs under, or null for a session-less turn. */
-  readonly sessionId: string | null;
-}
-
 /** The per-channel `onAssistantMessage` callback the hook bridge forwards streaming text to.
  *  Carries an optional `.stream` handle (the durable output stream) that hook-bridge-subscribers
  *  reaches for, so the slot stores the callback object as given. */
@@ -27,38 +19,14 @@ export type StreamingCallback = (text: string) => void;
 export type SupersedeReason = 'edit';
 
 class ActiveTurns {
-  private readonly byChannel = new Map<string, ActiveTurnHandle>();
   /** channel → the streaming callback of the work currently writing to that channel. Deliberately
-   *  NOT scoped to a registered turn: a background-continuation hold keeps streaming into the same
-   *  reply after its turn has unregistered, and the hold's seal is what clears the slot. */
+   *  NOT scoped to a turn: a background-continuation hold keeps streaming into the same reply
+   *  after its turn has ended, and the hold's seal is what clears the slot. */
   private readonly streaming = new Map<string, StreamingCallback>();
   /** Channels whose current agent was superseded by a message edit. Channel-keyed, not turn-keyed,
    *  for the same reason: it is marked while the old turn is being killed and read by that turn's
    *  terminal handler, which may run after the replacement turn has claimed the channel. */
   private readonly superseded = new Map<string, SupersedeReason>();
-
-  // ── the live turn ────────────────────────────────────────────────────────
-
-  /** Called by the Turn at step 2 (once its ledger tracking is open). A second turn on the same
-   *  channel replaces the first: the channel queue admits one turn at a time, and a supersede
-   *  hands the channel over rather than sharing it. */
-  register(channel: string, turn: ActiveTurnHandle): void {
-    this.byChannel.set(channel, turn);
-  }
-
-  /** Called by the Turn at step 12. Scoped to the registering turn so a turn that outlives its
-   *  successor's registration cannot erase it on the way out. */
-  unregister(channel: string, turn: ActiveTurnHandle): void {
-    if (this.byChannel.get(channel) === turn) this.byChannel.delete(channel);
-  }
-
-  get(channel: string): ActiveTurnHandle | null {
-    return this.byChannel.get(channel) ?? null;
-  }
-
-  has(channel: string): boolean {
-    return this.byChannel.has(channel);
-  }
 
   // ── the streaming slot ───────────────────────────────────────────────────
 
@@ -73,14 +41,8 @@ class ActiveTurns {
     return this.streaming.get(channel) ?? null;
   }
 
-  /** Clear the channel's streaming callback unconditionally. Low-level: prefer
-   *  `releaseStreamingCallback` from anything that registered a slot of its own. */
-  clearStreamingCallback(channel: string): void {
-    this.streaming.delete(channel);
-  }
-
   /** Give up a slot the caller registered (turn end, or background-hold seal), scoped to the
-   *  registered callback exactly as `unregister` is scoped to the registering turn. A hold's seal
+   *  registered callback. A hold's seal
    *  can land AFTER the next turn claimed the channel — supersede fires the old hold's seal from
    *  inside the new turn's `beginForegroundSession` — and an unscoped delete would then erase the
    *  successor's slot, silently cutting its streaming, mid-turn injection and interaction reads.
@@ -132,7 +94,6 @@ class ActiveTurns {
 
   /** Test seam — no production path clears the whole map. */
   _reset(): void {
-    this.byChannel.clear();
     this.streaming.clear();
     this.superseded.clear();
   }

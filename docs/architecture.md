@@ -131,7 +131,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `turn/turn-prep.ts` | What a caller resolves before `openTurn`: the turn's files, its session record and use lease, the browser endpoint the session opted into |
 | `turn/terminal.ts` | A turn's terminal rendering: status seal, the ledger's turn completion, the error body, error-session persistence |
 | `turn/turn-tracking.ts` | The ledger half of a turn's bookkeeping: begin, snapshot, accept, and the supersede-while-pending window |
-| `turn/active-turns.ts` | Per-channel turn state: which `Turn` is live, the streaming callback it registered, the edit-supersede flag |
+| `turn/active-turns.ts` | Per-channel turn state: the streaming callback a turn registered, the edit-supersede flag |
 | `turn/background-hold.ts` | One hold lifecycle for "the turn is over but the session is not": busy bracket, `SessionHolds` registration, run subscription, six terminal verdicts |
 | `turn/hold-render-platform.ts` | The Slack/Feishu rendering of a held turn — the status line while the background phase runs, and its seal |
 | `turn/hold-render-web.ts` | The web rendering of a held turn — the continuation's prose, tools and notices on the session event stream |
