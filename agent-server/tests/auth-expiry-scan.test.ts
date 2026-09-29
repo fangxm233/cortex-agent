@@ -49,15 +49,12 @@ function snapshot(accounts: AuthAccountStatus[]): AuthStatusSnapshot {
   };
 }
 
-async function scan(
-  accounts: AuthAccountStatus[],
-  wasRecentlyNotified = () => false,
-): Promise<MockAdapter> {
+async function scan(accounts: AuthAccountStatus[]): Promise<MockAdapter> {
   const adapter = new MockAdapter({ adminChannel: 'slack:admin' });
   await runAuthExpiryScan(adapter, {
     now: () => NOW_MS,
     readStatus: async () => snapshot(accounts),
-    wasRecentlyNotified,
+    wasRecentlyNotified: () => false,
     buildPlatformAction: buildAuthRequiredLoginAction,
   });
   return adapter;

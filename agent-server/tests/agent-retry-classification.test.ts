@@ -29,7 +29,7 @@ import {
 } from '../src/domain/costs/rate-limit-throttle.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { RunRegistry } from '../src/core/run-registry.js';
-import { runRequestFixture, attemptFromFixture, attemptFixture, type RunRequestFixtureInput } from './run-request-fixture.js';
+import { runRequestFixture, attemptFixture, type RunRequestFixtureInput } from './run-request-fixture.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 
 type FakeRuntimeFactory = ReturnType<typeof makeFakeRuntimeFactory>;
@@ -49,7 +49,6 @@ vi.mock('../src/domain/runs/engines.js', async (importOriginal) => {
   const { mkdirSync } = await import('node:fs');
   const { PIAdapter } = await import('../src/agent-adapter/pi/adapter.js');
   const { ClaudeAdapter } = await import('../src/agent-adapter/claude/adapter.js');
-  const { makeFakeRuntimeFactory: makeFake } = await import('./agent-adapter/pi-fake-runtime.js');
   const sessionDir = join(dir(), `agent-retry-classification-sessions-${process.pid}`);
   mkdirSync(sessionDir, { recursive: true });
   const delegating = (request: unknown, callbacks: unknown) =>
@@ -111,16 +110,13 @@ function openRun(request: RunRequest, observers: RunObserver[]): AgentRunImpl {
 interface Collected {
   observer: RunObserver;
   events: RunEvent[];
-  closes(): number;
 }
 
 function collector(): Collected {
   const events: RunEvent[] = [];
-  let closed = 0;
   return {
-    observer: { onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
+    observer: { onEvent: (event) => { events.push(event); } },
     events,
-    closes: () => closed,
   };
 }
 
@@ -429,7 +425,7 @@ for (const authCase of AUTH_BACKEND_CASES) {
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 test('run falls back after PI exhausts a generic provider-retry error', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-primary' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-primary' });
   const fallbackAttempt = attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' });
   const request = withFallback(
     claudeRequestWithScript(
@@ -476,7 +472,7 @@ test('run falls back after PI exhausts a generic provider-retry error', async ()
 });
 
 test('run emits one terminal error notice for a deterministic authentication failure', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-auth-terminal' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-auth-terminal' });
   const request = runRequestFixture({ channel: 'web:retry', sessionKey: 'auth-terminal', piProvider: 'deepseek' }, PI);
   withFallback(request, attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' }));
   const seen = collector();
@@ -498,7 +494,7 @@ test('provider outage gates automated configs but not direct interactive session
   t.onTestFinished(() => throttleReset());
 
   assert.equal(allConfigsRateLimited('single-test'), true);
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-outage' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-outage' });
   const request = runRequestFixture({
     channel: 'web:retry', sessionKey: 'outage-interactive', piProvider: 'deepseek', isUserInitiated: true,
   }, PI);
@@ -532,7 +528,7 @@ test('run shows a warning when a user chat rate-limit result will auto-resume', 
 });
 
 test('run shows the auto-resume warning for a thrown user-chat rate-limit error', async (t) => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-rl-throw' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-rl-throw' });
   await activateProviderThrottle('deepseek');
   t.onTestFinished(() => throttleReset());
   const request = runRequestFixture({
@@ -567,7 +563,7 @@ test('run keeps a non-resumable rate-limit result as an error notice', async (t)
 });
 
 test('run does not duplicate an API Error event when the attempt terminates with the same error', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-api-error' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-api-error' });
   const message = 'API Error: 400 invalid_request';
   const request = runRequestFixture({ channel: 'web:retry', sessionKey: 'api-error-dedupe', piProvider: 'deepseek' }, PI);
   const seen = collector();
@@ -585,7 +581,7 @@ test('run does not duplicate an API Error event when the attempt terminates with
 });
 
 test('run resets terminal-error deduplication when moving to a fallback attempt', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-dedupe' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-dedupe' });
   const firstError = 'API Error: Unable to connect to API (ECONNRESET)';
   const fallbackAttempt = attemptFixture({ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' });
   const request = claudeRequestWithScript(
@@ -613,7 +609,7 @@ test('run resets terminal-error deduplication when moving to a fallback attempt'
 });
 
 test('run does not synthesize terminal chat notices for non-Web channels', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-slack' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-slack' });
   const request = runRequestFixture({ channel: 'slack:C1', sessionKey: 'slack-terminal', piProvider: 'deepseek' }, PI);
   const seen = collector();
   const run = openRun(request, [seen.observer]);
@@ -628,7 +624,7 @@ test('run does not synthesize terminal chat notices for non-Web channels', async
 });
 
 test('run does not turn user cancellation into an error notice', async () => {
-  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 'pi-cancel' });
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 'pi-cancel' });
   const request = runRequestFixture({ channel: 'web:retry', sessionKey: 'cancel-notice', piProvider: 'deepseek' }, PI);
   const seen = collector();
   const run = openRun(request, [seen.observer]);

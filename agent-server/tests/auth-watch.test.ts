@@ -35,10 +35,10 @@ function authSnapshot() {
   } as any;
 }
 
-function setup(initialNow = 0) {
+function setup() {
   const bus = new EventBus();
   const adapter = new MockAdapter({ adminChannel: 'slack:admin' });
-  const clock = { now: initialNow };
+  const clock = { now: 0 };
   jobCtx.bus = bus;
   registerAuthWatch(bus, adapter, {
     now: () => clock.now,
@@ -184,7 +184,7 @@ function authCardCount(adapter: MockAdapter): number {
   )).length;
 }
 
-function recoveryLoginService(bus: EventBus) {
+function recoveryLoginService() {
   return createAuthLoginService({
     claudeOAuthConsumer: async interaction => {
       await interaction.prompt({ type: 'manual_code', message: 'Enter code' });
@@ -212,7 +212,7 @@ test('expired notice to one-click success recovers once and resets the reminder 
   const router = new CommandActionRouter();
   registerCommands({
     scheduler: null, commandRouter: router, getAuthStatus: async () => authSnapshot(),
-    authLogin: recoveryLoginService(bus),
+    authLogin: recoveryLoginService(),
   });
   router.bindToAdapter(adapter);
   initAuthEvents(bus);
