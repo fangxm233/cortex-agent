@@ -5,8 +5,6 @@ import {
   type MScheduleEditorProps,
 } from './MScheduleEditorFields';
 
-export type { MScheduleEditorProps } from './MScheduleEditorFields';
-
 export function MScheduleEditor(props: MScheduleEditorProps) {
   const copy = useVocab();
   const fields = { ...props, copy };

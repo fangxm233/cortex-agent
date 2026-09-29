@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { canCreateProject } from '@/features/projects/new-project';
 
@@ -16,7 +15,6 @@ export function MNewProjectView({
   copy,
   error,
   pending,
-  behind,
 }: {
   name: string;
   onNameChange: (v: string) => void;
@@ -25,12 +23,11 @@ export function MNewProjectView({
   copy: MNewProjectCopy;
   error: string | null;
   pending: boolean;
-  behind?: ReactNode;
 }) {
   const creatable = canCreateProject(name);
   const submittable = creatable && !pending;
   return (
-    <MBottomSheet onClose={onClose} behind={behind}>
+    <MBottomSheet onClose={onClose}>
       {/* title row (L511) */}
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 12px' }}>
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
