@@ -12,7 +12,6 @@ import {
   generateDefaultModeJson,
   safeCopy,
   isBackendInstalled,
-  generateGatewayUsageYaml,
   generateSystemdUnit,
   generateLaunchdPlist,
   runFeishuUserLogin,
@@ -404,29 +403,6 @@ test('safeCopy creates parent directories for destination', () => {
 
 test('isBackendInstalled is always true for the bundled pi backend', () => {
   assert.equal(isBackendInstalled('pi'), true);
-});
-
-// ─── generateGatewayUsageYaml ───────────────────────────────────
-
-test('generateGatewayUsageYaml with enabled config includes all fields', () => {
-  const yamlStr = generateGatewayUsageYaml({
-    enabled: true,
-    name: 'Alice',
-    org: 'ACME',
-    email: 'alice@acme.com',
-  });
-  assert.match(yamlStr, /uploadEnabled: true/);
-  assert.match(yamlStr, /name: Alice/);
-  assert.match(yamlStr, /org: ACME/);
-  assert.match(yamlStr, /email: alice@acme.com/);
-});
-
-test('generateGatewayUsageYaml with disabled config omits user fields', () => {
-  const yamlStr = generateGatewayUsageYaml({ enabled: false });
-  assert.match(yamlStr, /uploadEnabled: false/);
-  assert.doesNotMatch(yamlStr, /name:/);
-  assert.doesNotMatch(yamlStr, /org:/);
-  assert.doesNotMatch(yamlStr, /email:/);
 });
 
 // ─── generateSystemdUnit ────────────────────────────────────────

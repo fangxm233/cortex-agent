@@ -590,17 +590,6 @@ export function getAistatusConfigPath(): string {
   return path.join(os.homedir(), '.aistatus', 'config.yaml');
 }
 
-/** Generate gateway usage config YAML string. */
-export function generateGatewayUsageYaml(config: GatewayUsageConfig): string {
-  const doc: Record<string, unknown> = { uploadEnabled: config.enabled };
-  if (config.enabled) {
-    doc.name = config.name || '';
-    doc.org = config.org || '';
-    doc.email = config.email || '';
-  }
-  return yaml.stringify(doc);
-}
-
 /** Write gateway usage config to ~/.aistatus/config.yaml, or <configDir>/config.yaml if configDir is given (for testing). */
 function writeGatewayUsageConfig(config: GatewayUsageConfig, configDir?: string): void {
   const configPath = configDir
