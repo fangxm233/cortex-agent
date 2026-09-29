@@ -106,7 +106,7 @@ function RebuildCard({ rebuild, copy }: { rebuild: DaemonRebuildVm; copy: MDaemo
   );
 }
 
-// ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime/extras sub-line ──
+// ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime sub-line ──
 function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCopy; border: boolean }) {
   const dash = copy.dash;
   return (
@@ -131,7 +131,6 @@ function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCo
       </div>
       <div style={{ font: `400 12px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
         {copy.uptimeLabel} {proc.uptime ?? dash}
-        {proc.extras.map((extra) => ` · ${extra.key} ${extra.value}`).join('')}
       </div>
     </div>
   );
@@ -362,7 +361,6 @@ export function MDaemonView({
                   <span style={{ color: MC.faint, flex: 'none' }}>{vm.lastRestart.time}</span>
                   <span style={{ color: MC.sub }}>
                     {copy.lastRestartLabel}
-                    {vm.lastRestart.reason ? ` · ${vm.lastRestart.reason}` : ''}
                   </span>
                 </div>
               )}

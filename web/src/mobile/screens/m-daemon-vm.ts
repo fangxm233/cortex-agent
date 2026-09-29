@@ -14,8 +14,6 @@ export type MDaemonProcess = DaemonProcessVm;
 export interface MDaemonRestart {
   /** Relative time label from the real `lastRestart.at`. */
   time: string;
-  /** Real restart reason, or null → honest `—`. */
-  reason: string | null;
 }
 
 export type MEventTone = 'default' | 'fail';
@@ -56,7 +54,7 @@ function fallbackProcesses(facts: DaemonVm, ok: boolean): MDaemonProcess[] {
   const status = ok ? 'running' : 'unknown';
   const process = (name: string): MDaemonProcess => ({
     name, label: '', status, tone: daemonStatusTone(status),
-    pid: null, port: null, uptime: null, extras: [],
+    pid: null, port: null, uptime: null,
   });
   return [process('cortex-server'), process('cortex-daemon')];
 }
@@ -79,7 +77,7 @@ function mapEvents(executions: ExecutionInfo[], now: number, lang: TimeLang): MD
 function restartEvent(facts: DaemonVm, now: number, lang: TimeLang): MDaemonRestart | null {
   const at = facts.lastRestart?.at;
   if (!at) return null;
-  return { time: relTime(at, now, lang), reason: facts.lastRestart?.reason ?? null };
+  return { time: relTime(at, now, lang) };
 }
 
 export function buildDaemonVm(input: {

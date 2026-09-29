@@ -95,7 +95,6 @@ export async function handleSystemDaemonStatus(
     pid: daemonPid,
     uptime: daemonUptime,
     port: null,
-    extras: null,
   });
 
   // ── cortex-server (app.js child) ──
@@ -111,13 +110,11 @@ export async function handleSystemDaemonStatus(
     pid: childPid,
     uptime: childUptime,
     port: uiPort || 3117, // 3117 = default main port
-    extras: null,
   });
 
   // ── Last restart info — read .restart mtime if present ──
   const restartFile = path.join(STORE_DIR, '.restart');
   let lastRestartAt: string | null = null;
-  let lastRestartReason: string | null = null;
   try {
     if (existsSync(restartFile)) {
       const { mtime } = statSync(restartFile);
@@ -129,7 +126,7 @@ export async function handleSystemDaemonStatus(
 
   return {
     processes,
-    lastRestart: { at: lastRestartAt, reason: lastRestartReason },
+    lastRestart: { at: lastRestartAt },
     rebuild: liveRebuildProgress(daemonPid, daemonAlive),
   };
 }

@@ -11,7 +11,7 @@ import { dateTime } from '@/lib/time-format';
 // Daemon status modal — 1:1 from scheme.dc.html #17a (L2376–2441).
 // Opened by clicking the daemon badge in the LeftRail header.
 // Two process rows (cortex-daemon, cortex-server) with liveness dot,
-// PID, uptime, port/extras. Soft restart + Hard restart with inline
+// PID, uptime, port. Soft restart + Hard restart with inline
 // confirmation for hard restart.
 
 export interface DaemonStatusModalProps {
@@ -267,12 +267,6 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                       :{proc.port}
                     </span>
                   )}
-                  {proc.extras.map((extra) => (
-                    <span key={extra.key}>
-                      <span style={{ color: 'var(--proto-muted-3)' }}>{extra.key} </span>
-                      {extra.value}
-                    </span>
-                  ))}
                 </div>
               </div>
             );
@@ -350,9 +344,6 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               }}
             >
               {L.dmLastRestart} {dateTime(lastRestart.at) ?? '—'}
-              {lastRestart.reason
-                ? ` · ${L.dmReason}: ${lastRestart.reason}`
-                : ''}
             </div>
           )}
         </div>

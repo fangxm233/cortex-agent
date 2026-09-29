@@ -2261,12 +2261,11 @@ export interface DaemonProcessInfo {
   pid: number | null;
   uptime: string | null;
   port: number | null;
-  extras: Record<string, string | number> | null;
 }
 
 export interface SystemDaemonStatus {
   processes: DaemonProcessInfo[];
-  lastRestart: { at: string | null; reason: string | null };
+  lastRestart: { at: string | null };
   /** The supervisor's hot-rebuild pipeline: the run in flight, or the last one it finished. Null
    *  when no rebuild has run (production installs never rebuild) or when the record belongs to a
    *  supervisor that is no longer alive. */

@@ -10,14 +10,8 @@ import type {
 import type { Tone } from '@/design/tone';
 import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
 
-export interface DaemonExtraVm {
-  key: string;
-  value: string | number;
-}
-
-export interface DaemonProcessVm extends Omit<DaemonProcessInfo, 'extras'> {
+export interface DaemonProcessVm extends DaemonProcessInfo {
   tone: Tone;
-  extras: DaemonExtraVm[];
 }
 
 export interface DaemonRebuildStepVm {
@@ -135,8 +129,5 @@ export function buildDaemonVm(
 }
 
 function processVm(process: DaemonProcessInfo): DaemonProcessVm {
-  const extras = process.extras
-    ? Object.entries(process.extras).map(([key, value]) => ({ key, value }))
-    : [];
-  return { ...process, tone: daemonStatusTone(process.status), extras };
+  return { ...process, tone: daemonStatusTone(process.status) };
 }

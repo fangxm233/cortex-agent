@@ -15,14 +15,13 @@ function process(status: DaemonProcessInfo['status']): DaemonProcessInfo {
     pid: status === 'running' ? 41 : null,
     uptime: status === 'running' ? '2h 4m' : null,
     port: null,
-    extras: status === 'running' ? { clients: 3, host: 'atlas' } : null,
   };
 }
 
 function status(rebuild: DaemonRebuildProgress | null = null): SystemDaemonStatus {
   return {
     processes: [process('running'), process('stopped'), process('unknown')],
-    lastRestart: { at: '2026-08-27T20:00:00.000Z', reason: 'manual' },
+    lastRestart: { at: '2026-08-27T20:00:00.000Z' },
     rebuild,
   };
 }
@@ -66,21 +65,16 @@ function runningRebuild(): DaemonRebuildProgress {
 }
 
 describe('buildDaemonVm', () => {
-  it('keeps real process metrics and flattens extras without presentation tokens', () => {
+  it('keeps real process metrics without presentation tokens', () => {
     const vm = buildDaemonVm(status(), 'en');
     expect(vm.processes[0]).toMatchObject({
       name: 'cortex-running', status: 'running', tone: 'done', pid: 41, uptime: '2h 4m',
     });
-    expect(vm.processes[0].extras).toEqual([
-      { key: 'clients', value: 3 },
-      { key: 'host', value: 'atlas' },
-    ]);
-    expect(vm.processes[1].extras).toEqual([]);
   });
 
   it('preserves the real restart record and has an honest empty fallback', () => {
     expect(buildDaemonVm(status(), 'en').lastRestart).toEqual({
-      at: '2026-08-27T20:00:00.000Z', reason: 'manual',
+      at: '2026-08-27T20:00:00.000Z',
     });
     expect(buildDaemonVm(null, 'en')).toEqual({ processes: [], lastRestart: null, rebuild: null });
   });

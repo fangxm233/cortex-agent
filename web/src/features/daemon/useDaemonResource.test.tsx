@@ -35,9 +35,9 @@ vi.mock('@/lib/trpc', () => ({
 const DAEMON_STATUS: SystemDaemonStatus = {
   processes: [{
     name: 'cortex-daemon', label: 'supervisor', status: 'running', pid: 42,
-    uptime: '1h', port: null, extras: null,
+    uptime: '1h', port: null,
   }],
-  lastRestart: { at: null, reason: null },
+  lastRestart: { at: null },
   rebuild: null,
 };
 
