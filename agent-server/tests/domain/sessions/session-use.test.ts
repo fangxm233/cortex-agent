@@ -105,15 +105,3 @@ test('retention skips in-use sessions via the protected set', async () => {
   assert.deepEqual(afterRelease.map((entry) => entry.session.sessionId), ['sess-held']);
 });
 
-test('withSessionUse runs fn while leased and returns null for a refused lease', async () => {
-  const repo = await makeRepo();
-  const use = new SessionUseTracker(repo);
-  await repo.registerSession('cortex-with', registerOpts('sess-with'));
-
-  const observed = await use.withSessionUse('sess-with', async () => [...use.activeSessionUseIds()]);
-  assert.deepEqual(observed, ['sess-with']);
-  // Lease released after fn resolves.
-  assert.deepEqual([...use.activeSessionUseIds()], []);
-
-  assert.equal(await use.withSessionUse('missing', async () => 'ran'), null);
-});

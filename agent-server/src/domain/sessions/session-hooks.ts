@@ -28,8 +28,6 @@ const SESSION_EVENTS = {
 
 export interface SessionHookConfig {
   command: string;
-  args?: string[];
-  timeout?: number;
 }
 
 export type HookName = keyof typeof SESSION_EVENTS;
@@ -38,12 +36,7 @@ function normalizeHookEntry(entry: HookEntry): SessionHookConfig {
   const command = entry.run.script === undefined
     ? entry.run.command
     : `node ${path.join(HOOKS_DIR, entry.run.script)}`;
-  return {
-    command,
-    timeout: entry.run.timeout === undefined
-      ? DEFAULT_TIMEOUT_MS
-      : entry.run.timeout * 1_000,
-  };
+  return { command };
 }
 
 export function loadHookConfig(name: HookName): SessionHookConfig | null {
@@ -352,24 +345,7 @@ async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?: string
  *  record carries the profileName, correct for both user-conversation and thread-spawned
  *  sessions. The old channel-level conversation-ledger fallback is gone — it could disagree
  *  with the registry on a channel hosting both kinds of session and resume with the wrong
- *  profile (routing through the wrong gateway mode → Anthropic 400 on thinking blocks).
- *
- *  Exported (rather than inlined) so the priority logic is unit-testable in isolation
- *  without spinning up the real repo singletons. */
-export interface ProfileLookupDeps {
-  lookupRegistryProfile: (sessionId: string) => Promise<string | null>;
-}
-
-export async function resolveOnNewProfileName(
-  channel: string,
-  sessionId: string,
-  deps: ProfileLookupDeps,
-): Promise<string | null> {
-  return deps.lookupRegistryProfile(sessionId);
-}
-
-/** Default binding of the registry lookup — composes lookupBySessionId + lookupSession.
- *  Extracted so prepareOnNewRun's call site stays one line and tests can swap in fakes. */
+ *  profile (routing through the wrong gateway mode → Anthropic 400 on thinking blocks). */
 async function defaultLookupRegistryProfile(sessionId: string): Promise<string | null> {
   const name = await sessionStore.lookupBySessionId(sessionId);
   if (!name) return null;
@@ -386,7 +362,6 @@ async function prepareOnNewRun(
 ): Promise<{ spec: SessionHookSpec; stream: OutputStream } | null> {
   if (!isOnNewHookConfigured()) return null;
 
-  const backend = resolveBackendForChannel(channel);
   const sessionId = await getSessionAsync(channel);
   if (!sessionId) {
     log.info('onNew hook skipped: no active session for channel', channel);
@@ -395,9 +370,7 @@ async function prepareOnNewRun(
   const sessionName = (await sessionStore.lookupBySessionId(sessionId)) || sessionId.slice(0, 8);
 
   // Registry is the single source of truth for the per-session profileName.
-  const profileName = await resolveOnNewProfileName(channel, sessionId, {
-    lookupRegistryProfile: defaultLookupRegistryProfile,
-  });
+  const profileName = await defaultLookupRegistryProfile(sessionId);
 
   const anchor = await resolveOnNewThreadAnchor(channel, threadAnchorId);
   const stream = adapter.openOutputStream({ type: 'interactive-reply', conduit: channel, sessionId: '' }, { threadId: anchor });
@@ -431,19 +404,6 @@ export async function fireAndForgetPreCloseHook(
   void runSessionHook(prepared.spec, prepared.stream).catch((err) => {
     log.error('onNew hook async completion failed:', err?.message || err);
   });
-}
-
-/** Synchronous variant of fireAndForgetPreCloseHook — awaits the hook to completion.
- *  Reserved for cases where the caller wants to block on the !new pipeline (e.g.
- *  test harness, scripted teardown). */
-export async function runPreCloseHook(
-  channel: string,
-  adapter: PlatformAdapter,
-  threadAnchorId?: string | null,
-): Promise<void> {
-  const prepared = await prepareOnNewRun(channel, adapter, threadAnchorId);
-  if (!prepared) return;
-  await runSessionHook(prepared.spec, prepared.stream);
 }
 
 // ── onMessageEnd entry point ─────────────────────────────────────────────────

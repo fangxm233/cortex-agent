@@ -33,18 +33,6 @@ export class SessionUseTracker {
     };
   }
 
-  /** Run `fn` while holding a use lease; returns null (without running `fn`) when the lease is
-   *  refused. The lease is always released, even if `fn` throws. */
-  async withSessionUse<T>(sessionId: string, fn: () => Promise<T>): Promise<T | null> {
-    const release = await this.acquireSessionUse(sessionId);
-    if (!release) return null;
-    try {
-      return await fn();
-    } finally {
-      release();
-    }
-  }
-
   /** The sessionIds with at least one live use lease — a snapshot the caller may keep. */
   activeSessionUseIds(): ReadonlySet<string> {
     return new Set(this.activeUses.keys());
@@ -61,8 +49,5 @@ export const sessionUse = new SessionUseTracker(sessionStore);
 
 export const acquireSessionUse = (sessionId: string): Promise<(() => void) | null> =>
   sessionUse.acquireSessionUse(sessionId);
-
-export const withSessionUse = <T>(sessionId: string, fn: () => Promise<T>): Promise<T | null> =>
-  sessionUse.withSessionUse(sessionId, fn);
 
 export const activeSessionUseIds = (): ReadonlySet<string> => sessionUse.activeSessionUseIds();

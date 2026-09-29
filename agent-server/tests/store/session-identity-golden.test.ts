@@ -8,7 +8,6 @@ import path from 'node:path';
 import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '../../src/store/session-registry-repo.js';
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { seedTestProfiles } from '../_seed-profiles.js';
-import { resolveOnNewProfileName } from '../../src/domain/sessions/session-hooks.js';
 import { registerThreadSession } from '../../src/domain/scheduling/jobs/register-thread-session.js';
 import { setSessionAsync, getSessionAsync } from '../../src/domain/sessions/session.js';
 import {
@@ -393,19 +392,17 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
   });
 });
 
-// ── 11. resolveOnNewProfileName reads the registry ONLY ──
+// ── 11. The session record's profileName is not touched by ledger conversation headers ──
 // B.T2 deleted the ledger fallback: the registry record's profileName is the single source of truth.
 // Case (b) — a registry record with no profile but a ledger conversation that DOES carry one —
 // therefore resolves to null now (it was 'scan' before the fallback was removed). The ledger
-// conversations below are set up precisely to prove they no longer influence the answer.
-test('golden 11: resolveOnNewProfileName reads the registry only; the ledger no longer contributes', async () => {
+// conversations below are set up precisely to prove they do not write through to the record.
+test('golden 11: session-record profileName is isolated from ledger conversation headers', async () => {
   const { registry, ledger } = freshStores();
-  const deps = {
-    lookupRegistryProfile: async (sessionId: string) => {
-      const name = await registry.lookupBySessionId(sessionId);
-      if (!name) return null;
-      return (await registry.lookupSession(name))?.profileName ?? null;
-    },
+  const recordProfile = async (sessionId: string) => {
+    const name = await registry.lookupBySessionId(sessionId);
+    if (!name) return null;
+    return (await registry.lookupSession(name))?.profileName ?? null;
   };
 
   // (a) registry has the profile → wins (and the disagreeing ledger profile is ignored).
@@ -423,9 +420,9 @@ test('golden 11: resolveOnNewProfileName reads the registry only; the ledger no 
   // (c) neither source → null.
 
   const snapshot = {
-    a_registryWins: await resolveOnNewProfileName('web:11a', 'sid-11a', deps),
-    b_ledgerFallback: await resolveOnNewProfileName('web:11b', 'sid-11b', deps),
-    c_neither: await resolveOnNewProfileName('web:11c', 'sid-11c', deps),
+    a_registryWins: await recordProfile('sid-11a'),
+    b_ledgerFallback: await recordProfile('sid-11b'),
+    c_neither: await recordProfile('sid-11c'),
   };
 
   assert.deepEqual(normalize(snapshot), {

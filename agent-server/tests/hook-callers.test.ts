@@ -196,7 +196,7 @@ test('thread public path rejects JSON missing insertAgent and targetAgent', asyn
   assert.match(result.errors.join('\n'), /missing insertAgent or targetAgent/);
 });
 
-test('session config lookup normalizes registry scripts, commands, and timeout units', () => {
+test('session config lookup normalizes registry scripts and commands', () => {
   writeSessionHooks([{
     id: 'session-new-hook',
     event: 'cortex:session.new',
@@ -206,7 +206,6 @@ test('session config lookup normalizes registry scripts, commands, and timeout u
 
   assert.deepEqual(loadHookConfig('onNew'), {
     command: `node ${path.join(HOOKS_DIR, 'new-hook.mjs')}`,
-    timeout: 2_500,
   });
   assert.equal(isOnNewHookConfigured(), true);
   assert.equal(isOnMessageEndHookConfigured(), false);
@@ -214,7 +213,6 @@ test('session config lookup normalizes registry scripts, commands, and timeout u
   writeSessionHooks([messageEndEntry('printf command-is-verbatim')]);
   assert.deepEqual(loadHookConfig('onMessageEnd'), {
     command: 'printf command-is-verbatim',
-    timeout: 1_000,
   });
 });
 
