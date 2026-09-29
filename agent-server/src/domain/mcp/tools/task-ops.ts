@@ -29,19 +29,17 @@ async function proxySendCommand(
 // When tool output exceeds a character threshold, save full output to a local
 // file and return a pointer + preview. Prevents context window explosion while
 // keeping full results accessible via Read tool.
-// remote_read excluded (Infinity) — self-bounds via word-count error on client.
 
 const TOOL_RESULT_DIR = path.join(WORKSPACE_DIR, 'tool-results');
 
-const RESULT_SIZE_THRESHOLDS: Record<string, number> = {
+const RESULT_SIZE_THRESHOLDS = {
   remote_bash: 30_000,
   remote_grep: 20_000,
   remote_glob: 100_000,
-  remote_read: Infinity,
-};
+} as const;
 
-function persistLargeResult(toolName: string, text: string): string {
-  const threshold = RESULT_SIZE_THRESHOLDS[toolName] ?? 30_000;
+function persistLargeResult(toolName: keyof typeof RESULT_SIZE_THRESHOLDS, text: string): string {
+  const threshold = RESULT_SIZE_THRESHOLDS[toolName];
   if (text.length <= threshold) return text;
 
   fs.mkdirSync(TOOL_RESULT_DIR, { recursive: true });
