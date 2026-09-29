@@ -1,6 +1,5 @@
 import type { SessionContextUsage } from '@core/types/agent-types.js';
 import { channelEngineBusy } from '@core/session-state.js';
-import { runRegistry } from '@core/run-registry.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import {
   effectiveBackendSessionId,
@@ -12,7 +11,6 @@ import {
   isSessionCompactionSupported,
   type CompactAgentRequest,
 } from '@domain/runs/compact.js';
-import { resolveBackendForChannel } from '@domain/agents/config.js';
 import type { AgentCompactResult } from '../agent-adapter/types.js';
 import { conduitQueues, enqueueAndWait } from './conduit-queue.js';
 import { publishSessionContextCompacted } from './session-events.js';
@@ -116,7 +114,6 @@ async function applyCompactResult(
 export async function compactActiveSessionContext(
   opts: { channel: string },
 ): Promise<CompactActiveSessionOutcome> {
-  const backend = resolveBackendForChannel(opts.channel);
   const sessionId = await getSessionAsync(opts.channel);
   if (!sessionId) return { ok: false, reason: 'no-session' };
   return compactSessionContext(sessionId);

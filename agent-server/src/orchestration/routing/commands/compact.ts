@@ -1,12 +1,11 @@
 import { Icons } from '@core/icons.js';
 import { t } from '@core/i18n.js';
-import type { CompactSessionOutcome } from '../../session-compact.js';
+import type { CompactActiveSessionOutcome } from '../../session-compact.js';
 import type { CommandResult } from './command-context.js';
 
-export type CompactChannelOutcome = CompactSessionOutcome | { ok: false; reason: 'no-session' };
 export type CompactSessionByChannel = (
   opts: { channel: string },
-) => Promise<CompactChannelOutcome>;
+) => Promise<CompactActiveSessionOutcome>;
 
 export function createCompactHandler(compactSession: CompactSessionByChannel | null) {
   return async function handleCompact(channel: string): Promise<CommandResult> {
