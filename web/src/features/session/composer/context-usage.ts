@@ -1,7 +1,6 @@
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 
 export interface ContextUsageViewModel {
-  compact: string;
   current: string;
   maximum: string;
   percentLabel: string;
@@ -39,7 +38,6 @@ export function contextUsageViewModel(usage: SessionContextUsage | null): Contex
   const maximum = usage?.contextWindow ?? null;
   const percent = usage?.percent ?? null;
   return {
-    compact: `${formatCompactTokens(used)} / ${formatCompactTokens(maximum)}`,
     current: formatInteger(used),
     maximum: formatInteger(maximum),
     percentLabel: percent === null ? '—' : `${formatDecimal(percent)}%`,
@@ -50,13 +48,6 @@ export function contextUsageViewModel(usage: SessionContextUsage | null): Contex
 
 function nullableNonNegative(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function formatCompactTokens(value: number | null): string {
-  if (value === null) return '—';
-  if (value >= 1_000_000) return `${formatDecimal(value / 1_000_000)}m`;
-  if (value >= 1_000) return `${formatDecimal(value / 1_000)}k`;
-  return formatDecimal(value);
 }
 
 function formatInteger(value: number | null): string {
