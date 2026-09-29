@@ -47,11 +47,6 @@ const IMAGE_MAGIC: Record<string, string> = {
   'RIFF': 'image/webp',
 };
 
-function sleep(ms: number): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 /** Maximum entries in the pendingEdits coalescing map (LRU eviction). */
 const PENDING_EDITS_MAX = 200;
 
