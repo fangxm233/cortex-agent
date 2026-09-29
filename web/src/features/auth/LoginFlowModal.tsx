@@ -56,7 +56,6 @@ interface AuthSelectProps<T extends string> {
   className: string;
   ariaLabel?: string;
   ariaLabelledBy?: string;
-  placeholder?: string;
 }
 
 function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
@@ -67,14 +66,14 @@ function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
     // default compact density is inline and would shrink the selection out of line with it.
     return <Select {...dataProps} density="bare" aria-label={props.ariaLabel}
       aria-labelledby={props.ariaLabelledBy} value={props.value} options={props.options}
-      onValueChange={props.onValueChange} placeholder={props.placeholder} className={props.className} />;
+      onValueChange={props.onValueChange} className={props.className} />;
   }
   const hasValue = props.options.some((option) => option.value === props.value);
   return (
     <select {...dataProps} aria-label={props.ariaLabel} aria-labelledby={props.ariaLabelledBy}
       value={props.value} onChange={(event) => props.onValueChange(event.target.value as T)}
       className={props.className}>
-      {!hasValue ? <option value="">{props.placeholder}</option> : null}
+      {!hasValue ? <option value="" /> : null}
       {props.options.map((option) => (
         <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
       ))}

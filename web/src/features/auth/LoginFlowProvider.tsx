@@ -12,7 +12,6 @@ import { LoginFlowModal, type LoginFlowTarget } from './LoginFlowModal';
 
 interface LoginFlowContextValue {
   openLogin: (target?: LoginFlowTarget) => void;
-  closeLogin: () => void;
 }
 
 interface LoginRequest {
@@ -37,7 +36,7 @@ export function LoginFlowProvider({ children }: { children: ReactNode }) {
   const rememberState = useCallback((state: LoginFlowState) => {
     if (request.target?.noticeId) noticeStates.current.set(request.target.noticeId, state);
   }, [request.target]);
-  const value = useMemo(() => ({ openLogin, closeLogin }), [openLogin, closeLogin]);
+  const value = useMemo(() => ({ openLogin }), [openLogin]);
   return (
     <LoginFlowContext.Provider value={value}>
       {children}
