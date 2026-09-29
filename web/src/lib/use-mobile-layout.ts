@@ -67,11 +67,3 @@ export function useMobileLayout(): boolean {
   if (isDesktopShell()) return false;
   return viewport;
 }
-
-/**
- * Alias of {@link useMobileLayout} for call sites that read as a question about the device rather
- * than about the layout. Same value, same subscription — the two names are interchangeable.
- */
-export function useIsMobile(): boolean {
-  return useMobileLayout();
-}

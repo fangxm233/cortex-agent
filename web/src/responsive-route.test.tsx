@@ -7,7 +7,7 @@ import { layoutDestination } from './responsive-route';
 const harness = vi.hoisted(() => ({ mobile: false, routes: [] as RouteObject[], listeners: new Set<() => void>() }));
 vi.mock('@/lib/use-mobile-layout', async (original) => ({
   ...await original<object>(),
-  useIsMobile: () => useSyncExternalStore(
+  useMobileLayout: () => useSyncExternalStore(
     (listener) => { harness.listeners.add(listener); return () => { harness.listeners.delete(listener); }; },
     () => harness.mobile,
   ),

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useIsMobile } from '@/lib/use-mobile-layout';
+import { useMobileLayout } from '@/lib/use-mobile-layout';
 import { matchMobileRoute, mobileRoutePath } from '@/mobile/mobile-route-manifest';
 
 /** Translate only when the current route belongs to the other layout. Unknown or desktop-only
@@ -30,7 +30,7 @@ export function layoutDestination(pathname: string, mobile: boolean): string {
 /** One browser/hash router owns history for both layouts. A resize changes only the layout guard,
  * not the router instance, so deep links and back/forward never read an inactive router's state. */
 export function ResponsiveRoute({ mobile, children }: { mobile: boolean; children: ReactNode }) {
-  const isMobile = useIsMobile();
+  const isMobile = useMobileLayout();
   const location = useLocation();
   if (isMobile !== mobile) {
     return <Navigate to={layoutDestination(location.pathname, isMobile)} replace />;

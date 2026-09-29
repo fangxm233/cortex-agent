@@ -18,7 +18,7 @@ import type {
 import { Button, MBottomSheet, Modal, Select, type SelectOption } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
-import { useIsMobile } from '@/lib/use-mobile-layout';
+import { useMobileLayout } from '@/lib/use-mobile-layout';
 import { trpcErrorCode, useTRPC, useTRPCClient } from '@/lib/trpc';
 import { buildLoginFlowVm, type LoginFlowVm } from './login-flow-vm';
 
@@ -59,7 +59,7 @@ interface AuthSelectProps<T extends string> {
 }
 
 function AuthSelect<T extends string>(props: AuthSelectProps<T>): JSX.Element {
-  const isMobile = useIsMobile();
+  const isMobile = useMobileLayout();
   const dataProps = { [`data-auth-${props.field}`]: true };
   if (!isMobile) {
     // `bare` so the class below — shared with the plain text prompt input — owns the whole box; the
@@ -745,7 +745,7 @@ export function LoginFlowModal({
   open, onClose, target, initialState, onFlowStateChange,
 }: LoginFlowModalProps) {
   const L = useVocab();
-  const isMobile = useIsMobile();
+  const isMobile = useMobileLayout();
   const controller = useLoginController(open, target, initialState, onFlowStateChange);
   const vm = buildLoginFlowVm(controller.latest, L);
   const title = flowTitle(controller);
