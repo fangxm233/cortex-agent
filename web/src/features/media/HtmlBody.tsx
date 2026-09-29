@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { fileDownloadUrl } from '@/lib/files';
-import { authHeaders } from '@/lib/desktop-config';
+import { useMemo, useRef } from 'react';
 import { useTheme } from '@/theme';
 import type { DocItem } from './preview-item';
 import { useViewHeight } from './useViewHeight';
+import { useWorkspaceText } from './useWorkspaceText';
 import { useMediaCopy } from './media-copy';
 import {
   VIEW_SANDBOX, VIEW_HEIGHT_DEFAULT, wrapViewDocument,
@@ -19,8 +18,6 @@ const VIEW_SIZE_LIMIT = 2 * 1024 * 1024;
 
 const mono = "'IBM Plex Mono',monospace";
 
-type LoadState = 'loading' | 'ok' | 'toolarge' | 'failed';
-
 export interface HtmlBodyProps {
   item: DocItem;
   /**
@@ -34,8 +31,7 @@ export function HtmlBody({ item, mode = 'expanded' }: HtmlBodyProps): JSX.Elemen
   const theme = useTheme();
   const copy = useMediaCopy();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
-  const [html, setHtml] = useState<string | null>(null);
+  const { text: html, state } = useWorkspaceText(item.path, VIEW_SIZE_LIMIT);
 
   // Effective theme comes off the root attribute the theme layer already maintains; re-read it
   // whenever the preference changes so a view's form controls and scrollbars follow the app.
@@ -49,24 +45,6 @@ export function HtmlBody({ item, mode = 'expanded' }: HtmlBodyProps): JSX.Elemen
       ink: getComputedStyle(root).getPropertyValue('--proto-ink').trim() || undefined,
     };
   }, [theme]);
-
-  useEffect(() => {
-    let alive = true;
-    setState('loading');
-    setHtml(null);
-    (async () => {
-      const res = await fetch(fileDownloadUrl(item.path, 'inline'), { headers: authHeaders() });
-      if (!res.ok) throw new Error(`download failed: ${res.status}`);
-      const blob = await res.blob();
-      if (blob.size > VIEW_SIZE_LIMIT) {
-        if (alive) setState('toolarge');
-        return;
-      }
-      const text = await blob.text();
-      if (alive) { setHtml(text); setState('ok'); }
-    })().catch(() => { if (alive) setState('failed'); });
-    return () => { alive = false; };
-  }, [item.path]);
 
   const srcDoc = useMemo(
     () => (html === null ? null : wrapViewDocument(html, { theme: effectiveTheme, ink })),

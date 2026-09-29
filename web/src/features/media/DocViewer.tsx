@@ -11,6 +11,7 @@ import { useDockIntake } from '@/design/dock-intake';
 import { isMarkdownName } from './doc-kind';
 import type { DocItem } from './preview-item';
 import { HtmlBody } from './HtmlBody';
+import { useWorkspaceText } from './useWorkspaceText';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 
 // Shared in-app document previewer — the single inline viewer for agent-sent (and user-uploaded)
@@ -41,27 +42,8 @@ const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {
  *  for; every other kind already renders as raw text and ignores it.
  *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
 export function TextBody({ item, source = false }: { item: DocItem; source?: boolean }): JSX.Element {
-  const [text, setText] = useState<string | null>(null);
-  const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
+  const { text, state } = useWorkspaceText(item.path, TEXT_PREVIEW_LIMIT);
   const copy = useMediaCopy();
-
-  useEffect(() => {
-    let alive = true;
-    setState('loading');
-    setText(null);
-    (async () => {
-      const res = await fetch(fileDownloadUrl(item.path, 'inline'), { headers: authHeaders() });
-      if (!res.ok) throw new Error(`download failed: ${res.status}`);
-      const blob = await res.blob();
-      if (blob.size > TEXT_PREVIEW_LIMIT) {
-        if (alive) setState('toolarge');
-        return;
-      }
-      const t = await blob.text();
-      if (alive) { setText(t); setState('ok'); }
-    })().catch(() => { if (alive) setState('failed'); });
-    return () => { alive = false; };
-  }, [item.path]);
 
   if (state === 'loading') return <Centered>{copy.loading}</Centered>;
   if (state === 'failed') return <Centered failed>{copy.loadFailed.replace('{name}', item.name)}</Centered>;
