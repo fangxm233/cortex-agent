@@ -1,6 +1,5 @@
 import { readFileSync } from 'fs';
 import * as path from 'path';
-import { JsonRepository } from '@core/json-repository.js';
 import { CONFIG_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { createFileWatchMonitor } from '@core/resilient-watch.js';
@@ -17,33 +16,16 @@ export function getProfileConfigRevision(): number {
 }
 
 export class ProfileRepo {
-  private readonly _repo: JsonRepository<ProfilesFile>;
   private readonly _filePath: string;
   private _syncCache: ProfilesFile | null = null;
 
   constructor(filePath: string = PROFILES_FILE) {
     this._filePath = filePath;
-    this._repo = new JsonRepository<ProfilesFile>({
-      filePath,
-      // profiles.json is required; throw immediately if not present.
-      // Matches existing loadProfilesFile() behavior which throws on ENOENT.
-      defaultValue: () => { throw new Error(`profiles.json not found at ${filePath}`); },
-      // Basic cast; full schema validation is performed by profile-manager.ts callers
-      // (validateProfilesFile) to avoid a circular runtime import.
-      migrate: (raw) => raw as ProfilesFile,
-    });
-  }
-
-  async read(): Promise<ProfilesFile> {
-    const data = await this._repo.read();
-    this._syncCache = data;
-    return data;
   }
 
   /**
-   * Synchronous read for legacy sync callers (profile-manager.ts public API).
-   * First call reads from disk; subsequent calls serve from cache. save()/mutate()
-   * update the cache on success so sync readers see fresh data.
+   * Synchronous read for profile-manager.ts. First call reads from disk; subsequent
+   * calls serve from cache until invalidate() drops it.
    */
   readSync(): ProfilesFile {
     if (this._syncCache) return this._syncCache;
@@ -53,28 +35,9 @@ export class ProfileRepo {
     return parsed;
   }
 
-  async save(data: ProfilesFile): Promise<void> {
-    await this._repo.write(data);
-    this._syncCache = data;
-  }
-
-  async mutate<R>(fn: (cur: ProfilesFile) => { next: ProfilesFile; result: R }): Promise<R> {
-    return this._repo.mutate((cur) => {
-      const { next, result } = fn(cur);
-      this._syncCache = next;
-      return { next, result };
-    });
-  }
-
-  /** Drop the in-memory cache so the next read() fetches from disk. Test hook. */
+  /** Drop the in-memory cache so the next readSync() fetches from disk. */
   invalidate(): void {
-    this._repo.invalidate();
     this._syncCache = null;
-  }
-
-  /** Wait for any in-flight mutate() to complete. For graceful SIGTERM drain. */
-  flush(): Promise<void> {
-    return this._repo.flush();
   }
 }
 

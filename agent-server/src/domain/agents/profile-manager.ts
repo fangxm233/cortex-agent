@@ -99,10 +99,10 @@ export function isValidThinkingLevel(backend: Backend, level: string): boolean {
 let validatedProfiles: ProfilesFile | null = null;
 
 /**
- * Identity, not a revision counter, is what makes this safe: every path that can change the
- * profiles — `save`, `mutate`, and the hot-reload watcher's `invalidate` + `readSync` — installs a
- * NEW object, so a stale verdict cannot outlive a change. A file that fails validation is never
- * recorded, so it keeps throwing until it is fixed.
+ * Identity, not a revision counter, is what makes this safe: the only path that can change the
+ * cached profiles — the hot-reload watcher's `invalidate` + `readSync` — installs a NEW object, so
+ * a stale verdict cannot outlive a change. A file that fails validation is never recorded, so it
+ * keeps throwing until it is fixed.
  */
 function loadProfilesFile(): ProfilesFile {
   try {

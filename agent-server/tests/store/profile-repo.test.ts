@@ -46,7 +46,7 @@ async function createRepo(initial?: ProfilesFile): Promise<{ repo: ProfileRepo; 
   return { repo: new ProfileRepo(filePath), filePath };
 }
 
-// ── Read: async + sync ────────────────────────────────────────
+// ── Read: sync cache ──────────────────────────────────────────
 
 test('ProfileRepo - readSync() caches after first call', async () => {
   const { repo, filePath } = await createRepo();
@@ -61,86 +61,6 @@ test('ProfileRepo - readSync() caches after first call', async () => {
   repo.invalidate();
   const third = repo.readSync();
   assert.equal(third.defaultProfile, 'changed');
-});
-
-test('ProfileRepo - read() throws if profiles.json is missing', async () => {
-  const filePath = path.join(tmpDir, `profiles-missing-${_testIdx++}.json`);
-  const repo = new ProfileRepo(filePath);
-  await assert.rejects(
-    () => repo.read(),
-    /profiles\.json not found/,
-  );
-});
-
-// ── Concurrent mutate: no lost profiles ────────────────────────
-
-test('ProfileRepo - 10 concurrent mutate() add 10 profiles without loss', async () => {
-  const { repo } = await createRepo({ defaultProfile: 'base', profiles: { base: { model: 'claude-opus-4-6' } } });
-
-  await Promise.all(
-    Array.from({ length: 10 }, (_, i) =>
-      repo.mutate((cur) => {
-        const next: ProfilesFile = {
-          defaultProfile: cur.defaultProfile,
-          profiles: { ...cur.profiles, [`p${i}`]: { model: `model-${i}` } },
-        };
-        return { next, result: undefined };
-      })
-    )
-  );
-
-  const data = await repo.read();
-  assert.equal(Object.keys(data.profiles).length, 11, '1 seed + 10 added profiles');
-  for (let i = 0; i < 10; i++) {
-    assert.equal(data.profiles[`p${i}`]?.model, `model-${i}`);
-  }
-});
-
-// ── Flush: mid-mutate flush resolves only after pending work ──
-
-test('ProfileRepo - flush() resolves only after all pending mutations (FIFO on mutex)', async () => {
-  const { repo } = await createRepo();
-
-  const resolutionOrder: string[] = [];
-  const N = 10;
-
-  const mutations = Array.from({ length: N }, (_, i) =>
-    repo.mutate((cur) => {
-      const next: ProfilesFile = {
-        defaultProfile: cur.defaultProfile,
-        profiles: { ...cur.profiles, [`m${i}`]: { model: `model-${i}` } },
-      };
-      return { next, result: undefined };
-    }).then(() => { resolutionOrder.push(`mut-${i}`); })
-  );
-
-  const flushDone = repo.flush().then(() => { resolutionOrder.push('flush'); });
-
-  await Promise.all([...mutations, flushDone]);
-
-  assert.equal(
-    resolutionOrder[N],
-    'flush',
-    `flush must be last; got ${resolutionOrder.join(', ')}`,
-  );
-});
-
-// ── Save: roundtrip + sync cache stays fresh ──────────────────
-
-test('ProfileRepo - save() updates both async read() and readSync() cache', async () => {
-  const { repo } = await createRepo();
-  // Warm both caches.
-  await repo.read();
-  repo.readSync();
-
-  const next: ProfilesFile = {
-    defaultProfile: 'solo',
-    profiles: { solo: { model: 'claude-haiku-4-5' } },
-  };
-  await repo.save(next);
-
-  assert.deepEqual(await repo.read(), next);
-  assert.deepEqual(repo.readSync(), next);
 });
 
 // ── Hot-reload watcher ────────────────────────────────────────
