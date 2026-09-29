@@ -21,10 +21,6 @@ agent-server/conversation-ledger.json
 agent-server/schedules.json
 agent-server/orient-state.json
 agent-server/executions.json
-agent-server/logs/
-agent-server/logs/session-activity/
-agent-server/logs/events/
-agent-server/tmp/
 agent-server/tasks/
 agent-server/data/pi/
 agent-server/dist/
@@ -83,9 +79,6 @@ __pycache__/
 research-context/projects/*/experiments/index.md
 research-context/projects/*/knowledge/index.md
 research-context/projects/*/patterns/index.md
-
-# Local worktrees
-.claude/worktrees/
 
 data/client-pids.json
 data/client-version.json
