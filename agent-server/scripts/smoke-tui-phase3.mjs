@@ -51,7 +51,6 @@ const EXEC_TO_CANCEL = 'exec_scheduled_mpnwxhdp_89kn'; // general project, aband
 
 let passed = 0;
 let failed = 0;
-const results = [];
 
 function assert(label, ok, detail) {
   if (ok) {
@@ -61,12 +60,6 @@ function assert(label, ok, detail) {
     failed++;
     log(`  ✗ ${label}: ${detail || 'assertion failed'}`);
   }
-  results.push({ label, ok, detail });
-}
-
-function assertEqual(label, actual, expected) {
-  const ok = actual === expected;
-  assert(label, ok, ok ? `= ${JSON.stringify(expected)}` : `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 }
 
 function delay(ms) {
@@ -154,7 +147,6 @@ function writeTasksYaml(filePath, content) {
 // Find line ranges for a task by ID in YAML content
 function findTaskInYaml(content, taskId) {
   const lines = content.split('\n');
-  const taskLines = [];
   let inTask = false;
   let taskStart = -1;
   let taskEnd = -1;
@@ -179,7 +171,7 @@ function findTaskInYaml(content, taskId) {
     }
   }
   if (foundId) {
-    return { start: taskStart, end: taskEnd, lines: lines.slice(taskStart, taskEnd) };
+    return { start: taskStart, end: taskEnd };
   }
   return null;
 }
@@ -568,7 +560,6 @@ async function main() {
   } catch (err) {
     log(`  ✗ S1 FAILED: ${err.message}`);
     failed++;
-    results.push({ label: 'S1', ok: false, detail: err.message });
   }
 
   // S2
@@ -577,7 +568,6 @@ async function main() {
   } catch (err) {
     log(`  ✗ S2 FAILED: ${err.message}`);
     failed++;
-    results.push({ label: 'S2', ok: false, detail: err.message });
   }
 
   // S3
@@ -586,7 +576,6 @@ async function main() {
   } catch (err) {
     log(`  ✗ S3 FAILED: ${err.message}`);
     failed++;
-    results.push({ label: 'S3', ok: false, detail: err.message });
   }
 
   // S4
@@ -595,7 +584,6 @@ async function main() {
   } catch (err) {
     log(`  ✗ S4 FAILED: ${err.message}`);
     failed++;
-    results.push({ label: 'S4', ok: false, detail: err.message });
   }
 
   // S5
@@ -604,7 +592,6 @@ async function main() {
   } catch (err) {
     log(`  ✗ S5 FAILED: ${err.message}`);
     failed++;
-    results.push({ label: 'S5', ok: false, detail: err.message });
   }
 
   // Summary
