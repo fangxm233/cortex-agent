@@ -293,7 +293,7 @@ type IndependentPanelProps = Pick<
   'section' | 'onClose' | 'onPanelDirtyChange'
 >;
 
-type IndependentPanelRenderer = (props: IndependentPanelProps) => JSX.Element;
+type IndependentPanelRenderer = () => JSX.Element;
 
 const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, IndependentPanelRenderer>> = {
   appearance: () => <AppearancePanel />,
@@ -307,7 +307,7 @@ function IndependentSettingsPanel(props: IndependentPanelProps) {
     return <AccountsPanel onLogin={(target) => { props.onClose(); openLogin(target); }} />;
   }
   const render = INDEPENDENT_PANEL_RENDERERS[props.section];
-  return render ? render(props) : null;
+  return render ? render() : null;
 }
 
 function ConfiguredSettingsPanel(props: SectionContentProps) {
@@ -323,7 +323,7 @@ function ConfiguredSettingsPanel(props: SectionContentProps) {
 }
 
 function SettingsSectionContent(props: SectionContentProps) {
-  const independent = ['appearance', 'accounts', 'usage', 'plugins'].includes(props.section);
+  const independent = props.section === 'accounts' || INDEPENDENT_PANEL_RENDERERS[props.section] !== undefined;
   const panel = independent ? <IndependentSettingsPanel {...props} /> : <ConfiguredSettingsPanel {...props} />;
   if (isBoundedPanel(props.section)) return panel;
   return <div style={PANEL_STACK_STYLE}>{panel}</div>;
