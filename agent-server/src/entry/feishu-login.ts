@@ -17,12 +17,7 @@ import {
   type FeishuDomain,
   type FetchLike,
 } from '@domain/mcp/feishu/user-auth.js';
-
-export interface CliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
+import type { CliResult } from '@core/cli-utils.js';
 
 /** Injectable seams so the dispatcher is testable without real stdin/network/CONFIG_DIR. */
 export interface FeishuCliDeps {

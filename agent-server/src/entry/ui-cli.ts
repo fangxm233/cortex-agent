@@ -1,13 +1,7 @@
-import { formatError } from '@core/cli-utils.js';
+import { formatError, type CliResult } from '@core/cli-utils.js';
 import { getResolvedPaths } from './init.js';
 import { enableLocalUi } from './local-ui.js';
 import { getUiHelp } from './cli-help.js';
-
-export interface CliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
 
 /** Read the value following a flag, or undefined when the flag is absent. */
 function optionValue(args: string[], flag: string): string | undefined {

@@ -1,14 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { formatError, formatHelp, cliError, readStdinSync, type HelpSpec } from '@core/cli-utils.js';
+import { formatError, formatHelp, cliError, readStdinSync, type HelpSpec, type CliResult } from '@core/cli-utils.js';
 import { isMainModule } from '@core/utils.js';
-
-export interface SignalCliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
 
 interface ParsedArgs {
   help: boolean;
@@ -146,7 +140,7 @@ function writeSpoolFile(dir: string, name: string, contents: string): void {
   fs.renameSync(tmp, path.join(dir, name));
 }
 
-export async function runSignalCli(argv: string[], options: SignalCliOptions = {}): Promise<SignalCliResult> {
+export async function runSignalCli(argv: string[], options: SignalCliOptions = {}): Promise<CliResult> {
   const env = options.env ?? process.env;
   try {
     const parsed = parseSignalArgs(argv);

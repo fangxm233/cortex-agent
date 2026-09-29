@@ -1,4 +1,4 @@
-import { formatHelp } from '@core/cli-utils.js';
+import { formatHelp, type CliResult } from '@core/cli-utils.js';
 import {
   runDiagnostics,
   applySafeFixes,
@@ -10,12 +10,6 @@ import {
   type FixOutcome,
   type CheckStatus,
 } from '../domain/system/doctor.js';
-
-export interface CliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
 
 export interface CmdDoctorDeps {
   diag: DoctorDeps;

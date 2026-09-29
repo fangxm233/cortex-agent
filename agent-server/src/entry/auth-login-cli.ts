@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { formatHelp } from '@core/cli-utils.js';
+import { formatHelp, type CliResult } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 import { setProcessLogPolicy } from '@core/log.js';
 import { getAuthStatus, type AuthStatusSnapshot } from '@domain/auth/auth-status.js';
@@ -7,7 +7,6 @@ import { authLoginService, type AuthLoginService } from '@domain/auth/login-serv
 import type { LoginFlowState, StartLoginFlowInput } from '@domain/auth/login-flow.js';
 import { syncGatewayFromBackends, type GatewaySyncResult } from '@domain/auth/gateway-sync.js';
 import { createLoginTerminal, ensureClaudeForLogin, type LoginTerminal } from './auth-login-terminal.js';
-import type { AuthCliResult } from './auth-cli.js';
 
 export interface LoginCliDeps {
   tty: boolean;
@@ -93,7 +92,7 @@ async function driveFlow(initial: LoginFlowState, deps: LoginCliDeps, signal: Ab
   }
   return state;
 }
-async function login(options: Options, deps: LoginCliDeps): Promise<AuthCliResult> {
+async function login(options: Options, deps: LoginCliDeps): Promise<CliResult> {
   const input = await selectInput(options, deps);
   const initial = await deps.service.start(input);
   let state: LoginFlowState;
@@ -120,7 +119,7 @@ export function defaultLoginDeps(): LoginCliDeps {
     return { ...result, reason: result.reason && result.reason !== 'no-endpoints' ? 'sync-failed' : result.reason };
   } };
 }
-export async function runAuthLoginCli(args: string[], deps = defaultLoginDeps()): Promise<AuthCliResult> {
+export async function runAuthLoginCli(args: string[], deps = defaultLoginDeps()): Promise<CliResult> {
   if (args.includes('--help') || args.includes('-h')) return { exitCode: 0, stdout: loginHelp(), stderr: '' };
   const restoreLog = setProcessLogPolicy({ consoleToStderr: true, files: false, console: false });
   try {

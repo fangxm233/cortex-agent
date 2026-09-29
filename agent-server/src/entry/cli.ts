@@ -29,6 +29,7 @@ import {
 import { runUiCli } from './ui-cli.js';
 import { LoginCliError } from './auth-login-cli.js';
 import { t } from '@core/i18n.js';
+import type { CliResult } from '@core/cli-utils.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
@@ -398,14 +399,6 @@ export function getConfigOutput(): string {
   };
 
   return formatConfigOutput(paths, status);
-}
-
-// ─── CLI Result type ────────────────────────────────────────────
-
-export interface CliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
 }
 
 export interface RunCliDeps extends AuthCliDeps {}

@@ -26,8 +26,9 @@ import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/utils.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import { cmdFeishu, type CliResult } from './feishu-login.js';
+import { cmdFeishu } from './feishu-login.js';
 import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
+import type { CliResult } from '@core/cli-utils.js';
 
 // ─── Path computation (DATA_DIR resolved locally to support --home override) ──
 

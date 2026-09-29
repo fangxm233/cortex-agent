@@ -1,4 +1,4 @@
-import { formatError, formatHelp, readStdinSync } from '@core/cli-utils.js';
+import { formatError, formatHelp, readStdinSync, type CliResult } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 import {
   CUSTOM_PROVIDER_APIS,
@@ -12,12 +12,6 @@ import {
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
 
-export interface ProviderCliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
 export interface ProviderCliOptions {
   /** Reads the key when `--key -` is used. Injected so tests need no real stdin. */
   readSecret?: () => string;
@@ -29,7 +23,7 @@ function labels() {
   return { validValues: t('provider.cli.validValues'), hint: t('provider.cli.hint') };
 }
 
-function fail(message: string, opts: { validValues?: string[]; hint: string }): ProviderCliResult {
+function fail(message: string, opts: { validValues?: string[]; hint: string }): CliResult {
   return {
     exitCode: 1,
     stdout: '',
@@ -87,7 +81,7 @@ interface ParsedFlags {
 
 const VALUE_FLAGS = new Set(['--name', '--api', '--url', '--key']);
 
-function parseFlags(args: string[]): ParsedFlags | ProviderCliResult {
+function parseFlags(args: string[]): ParsedFlags | CliResult {
   const values = new Map<string, string>();
   const models: string[] = [];
   let json = false;
@@ -126,7 +120,7 @@ function renderProvider(provider: CustomProviderView): string {
     : t('provider.cli.listItemUnrouted', { name: provider.name, api: provider.api });
 }
 
-function runList(flags: ParsedFlags, stores: CustomProviderStores): ProviderCliResult {
+function runList(flags: ParsedFlags, stores: CustomProviderStores): CliResult {
   const providers = listCustomProviders(stores);
   if (flags.json) {
     return { exitCode: 0, stdout: JSON.stringify({ ok: true, providers }, null, 2), stderr: '' };
@@ -149,7 +143,7 @@ function runAdd(
   flags: ParsedFlags,
   stores: CustomProviderStores,
   options: ProviderCliOptions,
-): ProviderCliResult {
+): CliResult {
   for (const flag of ['--name', '--api', '--url']) {
     if (!flags.values.has(flag)) {
       return fail(t('provider.cli.missingFlag', { flag }), { hint: 'cortex auth provider add --help' });
@@ -185,7 +179,7 @@ function runAdd(
   return { exitCode: 0, stdout, stderr: '' };
 }
 
-function runRemove(flags: ParsedFlags, stores: CustomProviderStores): ProviderCliResult {
+function runRemove(flags: ParsedFlags, stores: CustomProviderStores): CliResult {
   const name = flags.values.get('--name');
   if (!name) {
     return fail(t('provider.cli.missingFlag', { flag: '--name' }), { hint: 'cortex auth provider remove --help' });
@@ -217,7 +211,7 @@ export function runProviderCli(
   args: string[],
   stores: CustomProviderStores,
   options: ProviderCliOptions = {},
-): ProviderCliResult {
+): CliResult {
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     return { exitCode: 0, stdout: getProviderHelp(), stderr: '' };
   }

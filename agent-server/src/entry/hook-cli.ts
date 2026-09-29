@@ -6,6 +6,7 @@ import {
   formatError,
   formatHelp,
   readStdinSync,
+  type CliResult,
   type HelpSpec,
 } from '@core/cli-utils.js';
 import { runHookProcess } from '@core/hook-exec.js';
@@ -31,12 +32,6 @@ export interface HookCliOptions {
   templateDir?: string;
   hooksDir?: string;
   askPost?: AskPostFn;
-}
-
-export interface HookCliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
 }
 
 interface ParsedArgs {
@@ -191,11 +186,11 @@ const BOOLEAN_FIELDS: Record<string, 'dryRun' | 'help' | 'multi'> = {
   '-h': 'help',
 };
 
-function success(payload: unknown, exitCode = 0): HookCliResult {
+function success(payload: unknown, exitCode = 0): CliResult {
   return { exitCode, stdout: JSON.stringify(payload, null, 2), stderr: '' };
 }
 
-function failure(message: string): HookCliResult {
+function failure(message: string): CliResult {
   return { exitCode: 1, stdout: '', stderr: message };
 }
 
@@ -339,7 +334,7 @@ function statePayload(
 // The write itself is delegated to the shared registry writer, so the CLI and the Web UI cannot
 // drift into two different on-disk representations of the same toggle. The CLI keeps ownership of
 // what the writer has no opinion about: --dry-run, and the richer template-scoped error message.
-function handleState(context: HandlerContext, enabled: boolean): HookCliResult {
+function handleState(context: HandlerContext, enabled: boolean): CliResult {
   const hook = registryForMutation(context.parsed.id!, context.hooks);
   if (context.parsed.dryRun) {
     return success(statePayload(hook, enabled, hook.enabled !== enabled, true));
@@ -361,7 +356,7 @@ function readPayload(payload: string): string {
   }
 }
 
-async function handleTest(context: HandlerContext): Promise<HookCliResult> {
+async function handleTest(context: HandlerContext): Promise<CliResult> {
   const hook = findHook(context.parsed.id!, context.hooks);
   const payload = readPayload(context.parsed.payload!);
   const result = await runHookProcess(hookProcessOptions(hook, context.options.hooksDir, payload));
@@ -446,7 +441,7 @@ function buildAskBody(parsed: ParsedArgs, questions: any[]): Record<string, unkn
 }
 
 /** Map the webhook response to CLI output — timeout exits 2, other bridge errors exit 1. */
-function mapAskResponse(resp: { status: number; body: any }): HookCliResult {
+function mapAskResponse(resp: { status: number; body: any }): CliResult {
   if (resp.status !== 200) {
     return failure(formatError(`Webhook returned status ${resp.status}: ${resp.body?.error ?? JSON.stringify(resp.body ?? {})}`));
   }
@@ -458,7 +453,7 @@ function mapAskResponse(resp: { status: number; body: any }): HookCliResult {
   return success({ ok: true, answers: resp.body?.answers ?? {} });
 }
 
-async function handleAsk(context: HandlerContext): Promise<HookCliResult> {
+async function handleAsk(context: HandlerContext): Promise<CliResult> {
   const questions = parseAskQuestions(context.parsed);
   const body = buildAskBody(context.parsed, questions);
   const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
@@ -467,7 +462,7 @@ async function handleAsk(context: HandlerContext): Promise<HookCliResult> {
   return mapAskResponse(await context.options.askPost(url, body, headers));
 }
 
-async function dispatch(context: HandlerContext): Promise<HookCliResult> {
+async function dispatch(context: HandlerContext): Promise<CliResult> {
   const command = context.parsed.command!;
   if (command === 'list') {
     return success({ ok: true, hooks: context.hooks.map(summarizeMountedHook) });
@@ -487,7 +482,7 @@ async function dispatch(context: HandlerContext): Promise<HookCliResult> {
 export async function runHookCli(
   argv: string[],
   cliOptions: HookCliOptions = {},
-): Promise<HookCliResult> {
+): Promise<CliResult> {
   try {
     const parsed = parseArgs(argv);
     if (parsed.help) {

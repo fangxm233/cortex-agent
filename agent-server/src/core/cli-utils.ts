@@ -109,6 +109,15 @@ function readStdinSync(): string {
   return readStdinBufferSync().toString('utf8');
 }
 
+// ─── CLI Result ───────────────────────────────────────────────
+
+/** What a CLI command handler returns: the process exit code plus captured output. */
+interface CliResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
 // ─── CLI Error Helper ─────────────────────────────────────────
 
 /** Create an Error with a cliMessage property for structured CLI error handling */
@@ -125,4 +134,4 @@ export {
   readStdinBufferSync,
   cliError,
 };
-export type { HelpSpec, HelpLabels, CommandSpec, OptionSpec, ExampleSpec };
+export type { HelpSpec, HelpLabels, CommandSpec, OptionSpec, ExampleSpec, CliResult };

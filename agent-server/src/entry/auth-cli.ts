@@ -1,4 +1,4 @@
-import { formatError } from '@core/cli-utils.js';
+import { formatError, type CliResult } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 import { formatAuthStatusSummary } from '@domain/auth/auth-format.js';
 import type { AuthStatusSnapshot } from '@domain/auth/auth-status.js';
@@ -13,12 +13,6 @@ export interface AuthCliDeps {
   customProviderStores?: CustomProviderStores;
 }
 
-export interface AuthCliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
 function authErrorLabels() {
   return {
     validValues: t('cmd.auth.cli.validValues'),
@@ -26,7 +20,7 @@ function authErrorLabels() {
   };
 }
 
-function parseAuthCommand(args: string[]): AuthCliResult | string[] {
+function parseAuthCommand(args: string[]): CliResult | string[] {
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
   }
@@ -38,7 +32,7 @@ function parseAuthCommand(args: string[]): AuthCliResult | string[] {
   return { exitCode: 1, stdout: '', stderr };
 }
 
-function validateAuthOptions(options: string[]): AuthCliResult | null {
+function validateAuthOptions(options: string[]): CliResult | null {
   if (options.includes('--help') || options.includes('-h')) {
     return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
   }
@@ -55,7 +49,7 @@ export async function runAuthCli(
   args: string[],
   readStatus: () => Promise<AuthStatusSnapshot>,
   stores: CustomProviderStores,
-): Promise<AuthCliResult> {
+): Promise<CliResult> {
   if (args[0] === 'login') return runAuthLoginCli(args.slice(1));
   // Custom providers are part of the account surface, so they hang off `cortex auth`.
   if (args[0] === 'provider') return runProviderCli(args.slice(1), stores);
