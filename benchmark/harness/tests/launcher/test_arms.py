@@ -9,7 +9,6 @@ from cortex_bench_harness.launcher.arms import (
     backend_cli_binary,
     build_agent_config,
     require_pinned_image,
-    select_arm,
 )
 
 def cortex_arm() -> dict[str, object]:
@@ -92,18 +91,6 @@ def trial_seed() -> dict[str, object]:
                        "dummy_token_ref": "offline-token-handle"},
         "model_alias_policy": {"kind": "exact"},
     }
-
-
-def test_select_arm_is_explicit_unique_and_immutable() -> None:
-    selected = select_arm([cortex_arm(), baseline_arm("codex")], "cortex-direct")
-
-    assert selected["name"] == "cortex-direct"
-    with pytest.raises(TypeError):
-        selected["name"] = "changed"  # type: ignore[index]
-    with pytest.raises(LookupError, match="missing"):
-        select_arm([cortex_arm()], "missing")
-    with pytest.raises(ValueError, match="unique"):
-        select_arm([cortex_arm(), cortex_arm()], "cortex-direct")
 
 
 def test_image_selection_requires_the_reference_to_match_its_digest() -> None:

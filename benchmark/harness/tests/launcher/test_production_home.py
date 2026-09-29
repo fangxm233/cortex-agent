@@ -12,11 +12,11 @@ from cortex_bench_harness.scan import (
     ScanPolicy,
     scan_trial_artifacts,
 )
-from cortex_bench_harness.launcher import (
+from cortex_bench_harness.launcher import production_home
+from cortex_bench_harness.launcher.production_home import (
     ProductionArmLaunchFacts,
     ProductionHomeError,
     materialize_production_home,
-    production_home,
 )
 from cortex_bench_harness.launcher.production_arms import (
     ProductionArmBundle,

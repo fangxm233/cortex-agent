@@ -1,8 +1,7 @@
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from types import MappingProxyType
-from typing import Any, cast
+from typing import Any
 
 from harbor.models.trial.config import AgentConfig
 
@@ -21,15 +20,6 @@ VENDOR_CORTEX_FIELDS = frozenset({
 })
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 BACKEND_CLI_BINARIES = {"claude": "claude", "pi": "pi"}
-# A backend composes only once its per-trial adapter is proven; until then it names the gate that
-# owns the proof. Empty is not "everything is allowed": an undeclared backend has no CLI binary
-# either, so it still refuses, with the generic wording below.
-BACKEND_LIFTING_GATES: dict[str, str] = {}
-# Every declared Cortex mode has a production role set. Unknown future modes still fail closed.
-MODE_LIFTING_GATES: dict[str, str] = {}
-COMPOSABLE_MODES = frozenset({"direct", "coder-review", "manager"})
-CODER_REVIEW_MODE = "coder-review"
-CODER_REVIEW_VARIANTS = frozenset({"audit-retry", "reviewer-fix"})
 
 
 class ImageDigestUnpinnedError(ValueError):
@@ -40,20 +30,7 @@ class BackendUnsupportedForKindError(ValueError):
     reason = "backend_unsupported_for_kind"
 
 
-class ArmCompositionUnsupportedError(ValueError):
-    reason = "arm_composition_unsupported"
-
-
 ArmDefinition = Mapping[str, object]
-TaskDefinition = Mapping[str, object]
-
-
-def _freeze(value: object) -> object:
-    if isinstance(value, Mapping):
-        return MappingProxyType({str(key): _freeze(item) for key, item in value.items()})
-    if isinstance(value, list):
-        return tuple(_freeze(item) for item in value)
-    return value
 
 
 def _arm_name(arm: Mapping[str, object]) -> str:
@@ -61,35 +38,6 @@ def _arm_name(arm: Mapping[str, object]) -> str:
     if not isinstance(name, str) or not name:
         raise ValueError("every arm requires a non-empty name")
     return name
-
-
-def select_arm(arms: Sequence[Mapping[str, object]], arm_name: str) -> ArmDefinition:
-    names = [_arm_name(arm) for arm in arms]
-    if len(names) != len(set(names)):
-        raise ValueError("arm names must be unique")
-    matches = [arm for arm in arms if _arm_name(arm) == arm_name]
-    if len(matches) != 1:
-        raise LookupError(f"arm not found: {arm_name}")
-    return cast(ArmDefinition, _freeze(matches[0]))
-
-
-def _task_id(task: Mapping[str, object]) -> str:
-    task_id = task.get("task_id")
-    if not isinstance(task_id, str) or not task_id:
-        raise ValueError("every task requires a non-empty task_id")
-    return task_id
-
-
-def select_task(
-    tasks: Sequence[Mapping[str, object]], task_id: str,
-) -> TaskDefinition:
-    identifiers = [_task_id(task) for task in tasks]
-    if len(identifiers) != len(set(identifiers)):
-        raise ValueError("task ids must be unique")
-    matches = [task for task in tasks if _task_id(task) == task_id]
-    if len(matches) != 1:
-        raise LookupError(f"task not found: {task_id}")
-    return cast(TaskDefinition, _freeze(matches[0]))
 
 
 def require_pinned_image(image_ref: str, image_digest: str) -> tuple[str, str]:
@@ -124,61 +72,19 @@ def _common_config(
     }
 
 
-def _orchestration_mode(arm: ArmDefinition) -> str:
-    orchestration = arm.get("orchestration")
-    if not isinstance(orchestration, Mapping):
-        raise ValueError("cortex arms require orchestration")
-    mode = orchestration.get("mode")
-    if not isinstance(mode, str) or not mode:
-        raise ValueError("cortex arms require orchestration.mode")
-    return mode
-
-
 def arm_backend(arm: ArmDefinition) -> str:
     """The backend that selects the arm's parent role surface and its guard tool namespace."""
     return _required_text(arm, "backend")
-
-
-def arm_orchestration_mode(arm: ArmDefinition) -> str:
-    """The orchestration mode that selects which role set the composer emits."""
-    return _orchestration_mode(arm)
-
-
-def arm_coder_review_variant(arm: ArmDefinition) -> str:
-    """The variant that selects the third role slot and the whitelisted child template."""
-    orchestration = arm.get("orchestration")
-    variant = orchestration.get("coder_review_variant") if isinstance(orchestration, Mapping) else None
-    if variant not in CODER_REVIEW_VARIANTS:
-        raise ValueError(
-            f"arm {_arm_name(arm)} requires orchestration.coder_review_variant"
-            f" in {sorted(CODER_REVIEW_VARIANTS)}"
-        )
-    return cast(str, variant)
 
 
 def backend_cli_binary(arm: ArmDefinition) -> str:
     backend = arm_backend(arm)
     binary = BACKEND_CLI_BINARIES.get(backend)
     if binary is None:
-        gate = BACKEND_LIFTING_GATES.get(backend, "its owning gate")
         raise BackendUnsupportedForKindError(
-            f"arm {_arm_name(arm)} backend {backend} is unsupported until {gate} lands"
+            f"arm {_arm_name(arm)} backend {backend} is unsupported until its owning gate lands"
         )
     return binary
-
-
-def require_composable_arm(arm: ArmDefinition) -> None:
-    if arm.get("kind") != "cortex":
-        raise ValueError("Cortex composition requires a Cortex arm")
-    backend = _required_text(arm, "backend")
-    backend_cli_binary(arm)
-    mode = _orchestration_mode(arm)
-    if mode not in COMPOSABLE_MODES:
-        gate = MODE_LIFTING_GATES.get(mode, "its owning gate")
-        raise ArmCompositionUnsupportedError(
-            f"arm {_arm_name(arm)} ({backend}, {mode}) composition is unsupported"
-            f" until {gate} lands"
-        )
 
 
 def _cortex_kwargs(
