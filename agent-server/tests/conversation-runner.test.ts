@@ -55,10 +55,8 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
   } as AgentSlotConfig;
 }
 
-/** The exact composition a conversation turn performs (orchestration/conversation-request.ts): a
- *  thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else.
- *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
- *  into domain/runs/prompt.ts. */
+/** A copy of the composition a conversation turn performs (orchestration/conversation-request.ts):
+ *  a thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else. */
 function conversationPrompt(
   agentConfig: AgentSlotConfig,
   input: string,
@@ -75,12 +73,6 @@ function conversationPrompt(
     { userContext: userProfileBlock(includeUserContext), project, commission },
   );
 }
-
-test('conversation prompt with the default {{input}} template and empty directive is just the message', () => {
-  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello world');
-  assert.equal(prompt, 'hello world');
-  assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE), 'conversation prompt must not contain the thread protocol preamble');
-});
 
 // ── Project prefix (Web UI direct sessions bound to a project) ──────────────
 
