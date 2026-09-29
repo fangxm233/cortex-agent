@@ -274,28 +274,11 @@ export class FeishuAdapter implements PlatformAdapter {
 
     const threadId = opts?.threadId;
     if (threadId) {
-      const cardContent = JSON.stringify(cardJson);
-      // reply_in_thread:true collects the card into a real Feishu 话题 thread (matching
-      // postMessage/replyInThread). Without it Feishu posts an inline quoted reply in the
-      // main timeline, so the card never lands inside the topic. Some chats reject thread
-      // replies (230071/230072) — fall back to a plain reply so the card is never lost.
-      const reply = (replyInThread: boolean) => this.client.im.v1.message.reply({
-        path: { message_id: threadId },
-        data: { msg_type: 'interactive', content: cardContent, reply_in_thread: replyInThread },
-      });
-      let res: any;
-      try {
-        res = await reply(true);
-      } catch (e) {
-        const code = (e as any)?.response?.data?.code;
-        if (code === 230071 || code === 230072) {
-          log.warn(`Feishu chat rejects thread replies (code ${code}); falling back to plain reply`);
-          res = await reply(false);
-        } else {
-          throw e;
-        }
-      }
-      const messageId = (res as any)?.data?.message_id || '';
+      // Reply inside the topic thread (matching postMessage/replyInThread). Without
+      // reply_in_thread Feishu posts an inline quoted reply in the main timeline, so the
+      // card would never land inside the topic.
+      const res = await this.replyWithThreadFallback(threadId, 'interactive', JSON.stringify(cardJson));
+      const messageId = res?.data?.message_id || '';
       return { conduit: this._wrap(channel), messageId, threadId };
     }
 
@@ -882,30 +865,33 @@ export class FeishuAdapter implements PlatformAdapter {
     };
   }
 
-  private async replyInThread(threadMessageId: string, content: MessageContent, conduit: string): Promise<MessageRef> {
-    const { msgType, msgContent } = this.buildMessagePayload(content);
-    // reply_in_thread:true collects replies into a real Feishu 话题 thread (Slack-
-    // style: first message in channel, the rest under it) instead of inline quoted
-    // replies in the main timeline. Some chats reject thread replies (err 230071 /
-    // 230072 — group disallows / aggregated message); fall back to a plain reply so
-    // output is never lost.
+  /**
+   * Reply to a message with reply_in_thread:true, which collects replies into a real
+   * Feishu 话题 thread (Slack-style: first message in channel, the rest under it)
+   * instead of inline quoted replies in the main timeline. Some chats reject thread
+   * replies (err 230071 / 230072 — group disallows / aggregated message); fall back
+   * to a plain reply so output is never lost.
+   */
+  private async replyWithThreadFallback(messageId: string, msgType: string, content: string): Promise<any> {
     const reply = (replyInThread: boolean) => this.client.im.v1.message.reply({
-      path: { message_id: threadMessageId },
-      data: { msg_type: msgType, content: msgContent, reply_in_thread: replyInThread },
+      path: { message_id: messageId },
+      data: { msg_type: msgType, content, reply_in_thread: replyInThread },
     });
-    let res: any;
     try {
-      res = await reply(true);
+      return await reply(true);
     } catch (e) {
       const code = (e as any)?.response?.data?.code;
       if (code === 230071 || code === 230072) {
         log.warn(`Feishu chat rejects thread replies (code ${code}); falling back to plain reply`);
-        res = await reply(false);
-      } else {
-        throw e;
+        return await reply(false);
       }
+      throw e;
     }
+  }
 
+  private async replyInThread(threadMessageId: string, content: MessageContent, conduit: string): Promise<MessageRef> {
+    const { msgType, msgContent } = this.buildMessagePayload(content);
+    const res = await this.replyWithThreadFallback(threadMessageId, msgType, msgContent);
     const messageId = res?.data?.message_id || '';
     return { conduit: this._wrap(conduit), messageId, threadId: threadMessageId };
   }
