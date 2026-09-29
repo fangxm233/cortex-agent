@@ -11,8 +11,6 @@ export function osNotificationSpec(item: NotificationItem): OsNotificationSpec {
   return { title: item.title, body: item.meta };
 }
 
-export function osNotifyAvailable(): boolean { return isNativeShell(); }
-
 let permissionGranted: boolean | null = null;
 let permissionRequest: Promise<boolean> | undefined;
 const PROMPT_KEY = 'cortex.mobile.notifications.permission-requested';
@@ -32,7 +30,7 @@ function rememberPrompt(): void {
 
 /** Resume rechecks OS settings without showing another permission dialog. */
 export async function refreshOsNotifyPermission(): Promise<boolean> {
-  if (!osNotifyAvailable()) return false;
+  if (!isNativeShell()) return false;
   try {
     const { isPermissionGranted } = await import('@tauri-apps/plugin-notification');
     permissionGranted = await isPermissionGranted();
@@ -53,7 +51,7 @@ async function requestOnce(): Promise<boolean> {
 }
 
 export async function ensureOsNotifyPermission(): Promise<boolean> {
-  if (!osNotifyAvailable()) return false;
+  if (!isNativeShell()) return false;
   if (permissionRequest) return permissionRequest;
   if (permissionGranted !== null) return permissionGranted;
   permissionRequest = requestOnce().finally(() => { permissionRequest = undefined; });
@@ -61,7 +59,7 @@ export async function ensureOsNotifyPermission(): Promise<boolean> {
 }
 
 export async function sendOsNotification(spec: OsNotificationSpec, data?: Record<string, string>): Promise<boolean> {
-  if (!osNotifyAvailable()) return false;
+  if (!isNativeShell()) return false;
   try {
     if (!await ensureOsNotifyPermission()) return false;
     if (isMobileShell()) {
@@ -110,8 +108,7 @@ async function listenLegacyActions(cb: OsActionHandler, signal?: AbortSignal): P
 }
 
 export async function onOsNotificationAction(cb: OsActionHandler, signal?: AbortSignal): Promise<() => void> {
-  if (!osNotifyAvailable() || signal?.aborted) return () => {};
-  if (!isMobileShell()) return listenLegacyActions(cb, signal);
+  if (!isMobileShell() || signal?.aborted) return () => {};
   try {
     const status = await mobileNotificationStatus();
     if (status) return listenNativeNotificationActions((action) => cb({ ...action }), signal);

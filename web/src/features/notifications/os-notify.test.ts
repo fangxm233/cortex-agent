@@ -193,7 +193,8 @@ describe('native shell', () => {
 
 describe('onOsNotificationAction (tap → deep-link)', () => {
   it('removes late legacy listeners and prevents callbacks after abort', async () => {
-    h.native = true;
+    h.native = true; h.mobile = true;
+    h.invoke.mockRejectedValue('command mobile_notifications_status not found');
     let resolve!: () => void;
     h.registration = new Promise((done) => { resolve = done; });
     const controller = new AbortController();
@@ -210,7 +211,8 @@ describe('onOsNotificationAction (tap → deep-link)', () => {
   });
 
   it('normalizes the real Android nested action envelope', async () => {
-    h.native = true;
+    h.native = true; h.mobile = true;
+    h.invoke.mockRejectedValue('command mobile_notifications_status not found');
     const cb = vi.fn();
     const off = await onOsNotificationAction(cb);
     h.actionCb?.({ notification: { extra: { sessionId: 's7', projectId: 'orchard' } } });
@@ -227,7 +229,8 @@ describe('onOsNotificationAction (tap → deep-link)', () => {
   });
 
   it('delivers the tapped notification extra to the callback in the native shell', async () => {
-    h.native = true;
+    h.native = true; h.mobile = true;
+    h.invoke.mockRejectedValue('command mobile_notifications_status not found');
     const cb = vi.fn();
     const off = await onOsNotificationAction(cb);
     expect(h.actionCb).not.toBeNull();
