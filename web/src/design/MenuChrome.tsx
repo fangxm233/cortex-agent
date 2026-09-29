@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 
 // The chrome the composer's pickers share: one card, one row, one hover rule.
 //
@@ -126,4 +126,21 @@ export function MenuCard({ kind, level, minWidth = 244, placement = 'above', ali
       <div data-menu-scroll style={{ maxHeight: 420, overflowY: 'auto' }}>{children}</div>
     </div>
   );
+}
+
+// While a picker is open, Escape runs `escape` and a click outside runs `close`. A menu with levels
+// retreats one level on Escape (a sub-pane back to the root) and only closes at the root — the same
+// thing the mobile sheet's hardware back does; a flat menu passes `close` for both. A click outside
+// is unambiguous and always closes.
+export function useDismissMenu(open: boolean, escape: () => void, close: () => void): void {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') escape(); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('click', close);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', close);
+    };
+  }, [open, escape, close]);
 }

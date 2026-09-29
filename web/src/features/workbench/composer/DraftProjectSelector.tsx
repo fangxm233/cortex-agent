@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
+import { useState } from 'react';
+import { MenuCard, MENU_BUTTON_STYLE, MENU_FOCUS, useDismissMenu } from '@/design/MenuChrome';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
@@ -50,14 +50,8 @@ export function DraftProjectSelector({ disabled = false }: { disabled?: boolean 
   const { currentProjectId, projects, projectOrder, setCurrentProject } = useCurrentProject();
   const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('click', close);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('click', close); };
-  }, [open]);
+  const close = () => setOpen(false);
+  useDismissMenu(open, close, close);
   if (!currentProjectId) return null;
 
   const orderedProjects = orderDraftProjects(projects, projectOrder);

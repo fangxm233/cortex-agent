@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionSelectionOverride } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -12,7 +12,7 @@ import {
   type SelectionRootRow, type ThinkingOption,
 } from '@/features/session/list/selection-menu';
 import { AgentMenu } from './AgentMenu';
-import { MENU_FOCUS } from '@/design/MenuChrome';
+import { MENU_FOCUS, useDismissMenu } from '@/design/MenuChrome';
 import { SelectionMenu, type SelectionPane } from './SelectionMenu';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import {
@@ -88,22 +88,6 @@ export interface SessionSelection {
   pickMode: (mode: string | null) => void;
   /** Hand every override back to the profile in one move. */
   clearAll: () => void;
-}
-
-// Escape retreats one level (a sub-pane back to the root) and only closes the picker when it is
-// already at the root — the same thing the mobile sheet's hardware back does. A click outside is
-// unambiguous and always closes.
-function useDismissMenu(open: boolean, escape: () => void, close: () => void): void {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') escape(); };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('click', close);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('click', close);
-    };
-  }, [open, escape, close]);
 }
 
 export function useSessionSelection(props: SessionSelectorProps): SessionSelection {
