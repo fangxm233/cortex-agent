@@ -10,7 +10,6 @@ const DAEMON_LOG_PATH = path.join(moduleDir(import.meta.url), '..', '..', '..', 
 interface TailState {
   interval: ReturnType<typeof setInterval>;
   offset: number;
-  adapter: PlatformAdapter;
 }
 
 const activeTails = new Map<string, TailState>();
@@ -68,7 +67,7 @@ function startTailInterval(channel: string, adapter: PlatformAdapter, offset: nu
       // File gone or unreadable — silently skip
     }
   }, 3000);
-  activeTails.set(channel, { interval, offset, adapter });
+  activeTails.set(channel, { interval, offset });
 }
 
 export async function handleTailCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
