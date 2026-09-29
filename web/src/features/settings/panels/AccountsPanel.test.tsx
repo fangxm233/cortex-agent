@@ -40,13 +40,6 @@ const status: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
-vi.mock('@/features/auth/LoginFlowProvider', () => ({
-  useLoginFlow: () => ({
-    openLogin: (target: unknown) => harness.loginCalls.push(target),
-    closeLogin: () => {},
-  }),
-}));
-
 vi.mock('@/design', async importOriginal => ({
   ...await importOriginal<typeof import('@/design')>(),
   useToast: () => ({ toast: (value: unknown) => harness.toasts.push(value) }),
@@ -101,7 +94,7 @@ import { AccountsPanel } from './AccountsPanel';
 
 function mount(): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
-  act(() => { renderer = create(<LangProvider><AccountsPanel /></LangProvider>); });
+  act(() => { renderer = create(<LangProvider><AccountsPanel onLogin={(target) => harness.loginCalls.push(target)} /></LangProvider>); });
   return renderer;
 }
 
@@ -135,7 +128,7 @@ describe('desktop accounts settings', () => {
     expect(harness.invalidations).toEqual([{ __kind: 'auth.status' }]);
   });
 
-  it('starts the shared LoginFlow with the row target', () => {
+  it('hands the row target to the login handler', () => {
     const renderer = mount();
     const oauth = actions(renderer, 'openrouter', 'login').find(node => node.props['data-auth-type'] === 'oauth');
     act(() => { oauth?.props.onClick(); });

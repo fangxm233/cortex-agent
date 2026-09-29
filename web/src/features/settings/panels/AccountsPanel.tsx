@@ -1,7 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
-import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   buildAccountsVm,
@@ -45,7 +44,7 @@ function StatePill({ value }: { value: AccountStatusVm }) {
 }
 
 export interface AccountsPanelProps {
-  onLogin?: (target: AccountActionTarget) => void;
+  onLogin: (target: AccountActionTarget) => void;
 }
 
 function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): string {
@@ -247,7 +246,6 @@ function PiProviderList({ providers, filter, onFilter, actions, onRescan, rescan
 
 export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   const L = useVocab();
-  const { openLogin } = useLoginFlow();
   const controller = useAccountsController();
   const [filter, setFilter] = useState('');
   if (controller.statusLoading) return <div style={PANEL_TEXT_STYLE}>{L.accountsLoading}</div>;
@@ -257,7 +255,7 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   const vm = buildAccountsVm(controller.status, filter);
   const actions = {
     disabled: controller.logoutPending,
-    onLogin: onLogin ?? openLogin,
+    onLogin,
     onLogout: controller.logout,
   };
   return (
