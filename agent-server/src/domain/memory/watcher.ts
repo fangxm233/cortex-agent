@@ -9,7 +9,6 @@ const log = createLogger('memory-watcher');
 const MEMORY_SUBDIRS = ['experiments', 'knowledge', 'patterns'];
 const DEBOUNCE_MS = 2000;
 
-const watchers: fs.FSWatcher[] = [];
 const pendingRegens = new Map<string, NodeJS.Timeout>();
 
 function onFileChange(projectName: string, subdir: string, filename: string | null): void {
@@ -61,7 +60,6 @@ export function startMemoryWatcher(): void {
           log.error(`Watcher error for ${project}/${subdir}:`, err.message);
         });
 
-        watchers.push(watcher);
         watchCount++;
       } catch (err) {
         log.error(`Failed to watch ${project}/${subdir}:`, err);
@@ -70,18 +68,4 @@ export function startMemoryWatcher(): void {
   }
 
   log.info(`Watching ${watchCount} directories across ${projectDirs.length} projects`);
-}
-
-export function stopMemoryWatcher(): void {
-  for (const w of watchers) {
-    try { w.close(); } catch { /* ignore */ }
-  }
-  watchers.length = 0;
-
-  for (const timer of pendingRegens.values()) {
-    clearTimeout(timer);
-  }
-  pendingRegens.clear();
-
-  log.info('Stopped');
 }
