@@ -35,11 +35,6 @@ export function usesCommandKey(): boolean {
   return /Mac|iPhone|iPad/i.test(globalThis.navigator?.platform ?? globalThis.navigator?.userAgent ?? '');
 }
 
-/** Space the caption buttons need at the right edge (3 × 46px, Windows convention). */
-export function captionInsetRight(): number {
-  return titleBarMode() === 'custom' ? 138 : 0;
-}
-
 /** Space the macOS traffic lights need at the left edge. */
 export function captionInsetLeft(): number {
   return titleBarMode() === 'overlay' ? 78 : 0;
