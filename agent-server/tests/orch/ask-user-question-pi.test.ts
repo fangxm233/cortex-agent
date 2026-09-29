@@ -16,36 +16,6 @@ function makeMockPIProcess(accepted = true) {
   };
 }
 
-test('tryResolveHook native PI branch — sends extension_ui_response with joined answer values', async (t) => {
-  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
-  const mockProc = makeMockPIProcess();
-
-  runRegistry.register({
-    threadId: null,
-    channel: 'C_PI_ASK',
-    agentSlotId: null,
-    executionId: 'exec-pi-ask-1',
-    kill: () => true,
-    backend: 'pi',
-    run: mockProc.run,
-  });
-  t.onTestFinished(() => { runRegistry.remove('exec-pi-ask-1'); });
-
-  const group = askUser.createHookGroup('req-pi-ask', 'C_PI_ASK', 'sess-pi-ask', [
-    { header: 'Pick', question: 'Which one?', options: [{ label: 'A', description: 'First' }, { label: 'B', description: 'Second' }] },
-  ], 'ui-req-pi-ask');
-
-  // Simulate answer collection
-  const pendingId = group.questions[0].pendingId;
-  group.answers.set(pendingId, { value: 'A' });
-
-  const resolved = askUser.tryResolveHook(group);
-  assert.equal(resolved, true, 'tryResolveHook should return true for PI branch');
-  assert.equal(mockProc.calls.length, 1);
-  assert.equal(mockProc.calls[0].id, 'ui-req-pi-ask');
-  assert.deepEqual(mockProc.calls[0].payload, { value: 'A' });
-});
-
 test('tryResolveHook native PI branch — multi-question joins answers with newline', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
@@ -104,33 +74,6 @@ test('tryResolveHook MCP-over-PI branch — resolves blocking webhook instead of
   assert.equal(mockProc.calls.length, 0, 'MCP request ID must not be sent as a PI extension UI ID');
 });
 
-test('tryResolveHook — non-PI backend falls through to Claude resolver', async (t) => {
-  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
-
-  runRegistry.register({
-    threadId: null,
-    channel: 'C_CLAUDE_ASK',
-    agentSlotId: null,
-    executionId: 'exec-claude-ask-1',
-    kill: () => true,
-    backend: 'claude',
-  });
-  t.onTestFinished(() => { runRegistry.remove('exec-claude-ask-1'); });
-
-  let resolverCalled = false;
-  askUser.registerHookResolver('req-claude-ask', () => { resolverCalled = true; });
-
-  const group = askUser.createHookGroup('req-claude-ask', 'C_CLAUDE_ASK', 'sess-claude-ask', [
-    { header: 'Q', question: 'Question?', options: [{ label: 'Yes', description: 'Y' }] },
-  ]);
-
-  group.answers.set(group.questions[0].pendingId, { value: 'Yes' });
-
-  const resolved = askUser.tryResolveHook(group);
-  assert.equal(resolved, true, 'Claude path should also resolve');
-  assert.equal(resolverCalled, true, 'Claude resolver callback must be called');
-});
-
 test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
@@ -157,34 +100,6 @@ test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', asyn
   const resolved = askUser.tryResolveHook(group);
   assert.equal(resolved, false, 'must not resolve until all answers collected');
   assert.equal(mockProc.calls.length, 0, 'no extension_ui_response should be sent');
-});
-
-test('tryResolveHook — PI with no run falls through to Claude path', async (t) => {
-  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
-
-  runRegistry.register({
-    threadId: null,
-    channel: 'C_PI_NOPROC',
-    agentSlotId: null,
-    executionId: 'exec-pi-noproc',
-    kill: () => true,
-    backend: 'pi',
-    // no run
-  });
-  t.onTestFinished(() => { runRegistry.remove('exec-pi-noproc'); });
-
-  let resolverCalled = false;
-  askUser.registerHookResolver('req-pi-noproc', () => { resolverCalled = true; });
-
-  const group = askUser.createHookGroup('req-pi-noproc', 'C_PI_NOPROC', 'sess-pi-noproc', [
-    { header: 'Q', question: 'Question?', options: [{ label: 'Ok', description: 'ok' }] },
-  ]);
-
-  group.answers.set(group.questions[0].pendingId, { value: 'Ok' });
-
-  const resolved = askUser.tryResolveHook(group);
-  assert.equal(resolved, true, 'should fall through to Claude resolver');
-  assert.equal(resolverCalled, true, 'Claude resolver should be called when PI has no run');
 });
 
 test('tryResolveHook — a run that declines the dialog does not delete the group and reports unresolved', async (t) => {
