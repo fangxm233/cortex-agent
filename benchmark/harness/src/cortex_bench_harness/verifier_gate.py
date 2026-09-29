@@ -324,14 +324,11 @@ def run_probe(plan: ProbePlan) -> TaskProbe:
     )
 
 
-def build_plans(
-    config: CampaignConfig, *, timeout_seconds: int | None = None,
-) -> tuple[ProbePlan, ...]:
+def build_plans(config: CampaignConfig) -> tuple[ProbePlan, ...]:
     """One plan per task the campaign declares, refusing a task with no readable test script."""
     network = "none" if config.network.filtered else "bridge"
     mounts = _gate_runtime_mounts(config)
-    seconds = timeout_seconds or int(
-        config.timeouts.get("verifier_seconds", DEFAULT_PROBE_SECONDS))
+    seconds = int(config.timeouts.get("verifier_seconds", DEFAULT_PROBE_SECONDS))
     plans: list[ProbePlan] = []
     for task in config.tasks:
         tests_dir = Path(task.path) / "tests"
@@ -366,11 +363,9 @@ def _gate_runtime_mounts(config: CampaignConfig) -> dict[str, str]:
     return {}
 
 
-def run_gate(
-    config: CampaignConfig, *, timeout_seconds: int | None = None,
-) -> dict[str, object]:
+def run_gate(config: CampaignConfig) -> dict[str, object]:
     """Probe every task the campaign declares, as concurrently as the campaign runs trials."""
-    plans = build_plans(config, timeout_seconds=timeout_seconds)
+    plans = build_plans(config)
     workers = max(1, config.concurrency)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         probes = tuple(pool.map(run_probe, plans))
