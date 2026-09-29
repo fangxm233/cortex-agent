@@ -16,6 +16,7 @@ import type {
   SettingSnapshotEntry,
 } from '@core/settings-spec.js';
 import type {
+  AttachmentMeta,
   AuthNoticeAction,
   ChatNoticeLevel,
   NoticeAction,
@@ -476,21 +477,7 @@ export interface SessionsCreateArgs {
 // Files are stored under DATA_DIR/tmp/attachments/<sessionId>/ on the server;
 // the message carries paths so the agent can read them directly.
 
-export interface AttachmentMeta {
-  name: string;
-  path: string;
-  size: number;
-  mimeType: string;
-  /**
-   * `view` is an agent-authored HTML document meant to be RENDERED in the chat (the `send_view`
-   * MCP tool), not merely downloaded. It is minted only by the server-side view sender — the
-   * upload classifiers (`classifyMime`, `classifyAttachment`) can never produce it, so a file a
-   * user uploads is never executable no matter what its extension says. Renderers must treat this
-   * bucket as untrusted content and load it in a `sandbox="allow-scripts"` frame WITHOUT
-   * `allow-same-origin` (see web/src/features/media/html-sandbox.ts).
-   */
-  type: 'image' | 'video' | 'file' | 'view';
-}
+export type { AttachmentMeta } from '@core/types/agent-types.js';
 
 export interface SessionsSendArgs {
   sessionId: string;

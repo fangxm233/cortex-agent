@@ -16,7 +16,7 @@ import {
   readHistoryStream,
   resumeHistoryAccumulator,
 } from './conversation-history-reader.js';
-import type { ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
+import type { AttachmentMeta, ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
@@ -144,7 +144,7 @@ export interface HistoryEvent {
   /** Groups events under the user turn that triggered them. */
   turnIndex: number;
   /** Optional file attachments (user events from web composer). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  attachments?: AttachmentMeta[];
   /** Agent-announced decisions with append-only response actions folded in. */
   decisions?: HistoryDecisionItem[];
   /** Present on a user event that replaced an earlier message via edit+rewind. Derived on read
@@ -197,7 +197,7 @@ export interface RawEvent {
   resolvedVia?: InteractionResolvedVia;
   ts: string;
   /** Optional file attachments (user events from web composer). */
-  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  attachments?: AttachmentMeta[];
   decisions?: RawDecisionItem[];
   decisionId?: string;
   action?: DecisionActionKind;
@@ -559,7 +559,7 @@ export class ConversationHistoryRepo {
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
    *  An optional `ts` override lets the caller share a single timestamp with the
    *  EventBus event so the web UI's content-based de-dup produces identical keys. */
-  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; agentMessage?: string; sourceId?: string; systemOrigin?: SystemTurnOrigin }): Promise<void> {
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: AttachmentMeta[]; agentMessage?: string; sourceId?: string; systemOrigin?: SystemTurnOrigin }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
@@ -580,7 +580,7 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; decisions?: RawDecisionItem[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: AttachmentMeta[]; decisions?: RawDecisionItem[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
       attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,

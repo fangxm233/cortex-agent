@@ -52,6 +52,24 @@ export interface NoticeAction {
   kind: 'cancel-resume';
 }
 
+/** A file attached to a chat message (uploaded, sent by the agent, or an inbound platform file).
+ *  The message carries the server-side path so the agent can read it directly. */
+export interface AttachmentMeta {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+  /**
+   * `view` is an agent-authored HTML document meant to be RENDERED in the chat (the `send_view`
+   * MCP tool), not merely downloaded. It is minted only by the server-side view sender — the
+   * upload classifiers (`classifyMime`, `classifyAttachment`) can never produce it, so a file a
+   * user uploads is never executable no matter what its extension says. Renderers must treat this
+   * bucket as untrusted content and load it in a `sandbox="allow-scripts"` frame WITHOUT
+   * `allow-same-origin` (see web/src/features/media/html-sandbox.ts).
+   */
+  type: 'image' | 'video' | 'file' | 'view';
+}
+
 /** Backend-neutral snapshot of the tokens currently occupying an agent's context window. */
 export interface ContextUsage {
   usedTokens: number | null;

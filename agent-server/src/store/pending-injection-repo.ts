@@ -1,15 +1,9 @@
 import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
-import type { SystemTurnOrigin } from '@core/types/agent-types.js';
+import type { AttachmentMeta, SystemTurnOrigin } from '@core/types/agent-types.js';
 
-export interface PendingAttachment {
-  name: string;
-  path: string;
-  size: number;
-  mimeType: string;
-  type: 'image' | 'video' | 'file' | 'view';
-}
+export type PendingAttachment = AttachmentMeta;
 
 export interface PendingInjectionRecord {
   id: string;
