@@ -2,12 +2,8 @@ import {
   ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, isDurableAttemptEdgeKind,
   threadScopedIdentityHolds, validAttemptTokens,
   type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
-  type EndpointRefKind,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
-
-export type { AttemptEdge, AttemptEdgeKind, AttemptRecord, EndpointRef, EndpointRefKind };
-export { ATTEMPT_EDGE_KINDS, EDGE_ENDPOINT_LEGALITY };
 
 export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/2';
 

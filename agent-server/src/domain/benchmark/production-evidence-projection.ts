@@ -77,7 +77,6 @@ export class ProductionEvidenceExportError extends Error {
 }
 
 export interface ProductionEvidenceProjection {
-  readonly manifest: CompositeManifest;
   readonly files: ReadonlyMap<string, Buffer>;
   readonly terminalPaths: readonly string[];
 }
@@ -638,7 +637,7 @@ export async function projectProductionBenchmarkEvidence(
   });
   if (violations.length > 0) fail(`composite invalid: ${violations.map(item => item.code).join(',')}`);
   return {
-    manifest, files: projectionFiles(projected, manifest),
+    files: projectionFiles(projected, manifest),
     terminalPaths: projected.map(item => item.terminalPath),
   };
 }

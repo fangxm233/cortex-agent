@@ -14,7 +14,6 @@ import {
 } from './production-evidence-projection.js';
 
 export type { ProductionEvidenceExportInput, ProductionEvidenceSources };
-export { ProductionEvidenceExportError };
 
 export interface ProductionEvidenceExportResult {
   readonly directory: string;
