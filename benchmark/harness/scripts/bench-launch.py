@@ -153,8 +153,6 @@ def check_subnets(config: CampaignConfig) -> dict[str, object]:
         return report
     pool = ipaddress.IPv4Network(config.docker_network.subnet_pool)
     free = suggest_free_pools(pool.prefixlen, live)
-    report["collisions"] = collisions
-    report["free_pools"] = free
     detail = "; ".join(
         f"slot {entry['slot']} {entry['subnet']} overlaps {entry['held_by']} "
         f"({entry['holder_subnet']})" for entry in collisions)
@@ -404,12 +402,8 @@ def execute(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     return _document(config, "run", steps), 0
 
 
-def _only_for(stale: list[str]) -> str | None:
-    if stale == ["wheel_path"]:
-        return "wheel"
-    if stale == ["npm_artifact_path"]:
-        return "npm"
-    return None
+def _only_for(stale: list[str]) -> str:
+    return {"wheel_path": "wheel", "npm_artifact_path": "npm"}[stale[0]]
 
 
 def _passthrough(arguments: argparse.Namespace) -> list[str]:
