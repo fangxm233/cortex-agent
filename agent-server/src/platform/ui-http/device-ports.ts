@@ -1,7 +1,7 @@
 import type * as http from 'http';
 import { createLogger } from '@core/log.js';
 import { json, readJsonBody } from './http-json.js';
-import { listenerProbes, type ListeningPort } from './listening-ports.js';
+import { listenerProbes, MIN_FORWARDABLE_PORT, type ListeningPort } from './listening-ports.js';
 
 const log = createLogger('device-ports');
 
@@ -84,7 +84,7 @@ export function createDevicePortRoutes(deps: DevicePortDeps): Record<
       if (!device) return json(res, 400, { ok: false, error: 'device is required' });
       // Same floor as the local forward: nothing a dev server needs lives below 1024, and the
       // accident of mapping 22 is worse than the inconvenience.
-      if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+      if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT || port > 65535) {
         return json(res, 400, { ok: false, error: 'port must be an integer in 1024..65535' });
       }
       try {

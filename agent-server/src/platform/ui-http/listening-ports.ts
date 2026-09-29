@@ -15,7 +15,6 @@
 /** Privileged ports are never offered — nothing a dev server needs lives below 1024, and the
  *  accident (forwarding 22 or 3389) is worse than the inconvenience. */
 export const MIN_FORWARDABLE_PORT = 1024;
-const MIN_PORT = MIN_FORWARDABLE_PORT;
 
 /** Marks where netstat output ends and the pid→name table begins in one round trip. */
 const TASKLIST_MARKER = '#--tasklist--#';
@@ -75,7 +74,7 @@ export function parseNetstatListeners(stdout: string): ListeningPort[] {
     const idx = local.lastIndexOf(':');
     if (idx < 0) continue;
     const port = Number(local.slice(idx + 1));
-    if (!Number.isInteger(port) || port < MIN_PORT) continue;
+    if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
     const address = local.slice(0, idx);
     if (!REACHABLE.has(address)) continue;
     const pid = Number(parts[parts.length - 1]);
@@ -117,8 +116,7 @@ export function parseSsListeners(stdout: string): ListeningPort[] {
     const port = Number(local.slice(idx + 1));
     if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
     const address = local.slice(0, idx);
-    const loopback = address === '127.0.0.1' || address === '[::1]' || address === '*' || address === '0.0.0.0' || address === '[::]';
-    if (!loopback) continue;
+    if (!REACHABLE.has(address)) continue;
     const proc = /users:\(\("([^"]+)"/.exec(line);
     const existing = out.get(port);
     // Prefer the entry that carries a process name.
@@ -164,7 +162,7 @@ export function parseLsofListeners(stdout: string): ListeningPort[] {
       const idx = value.lastIndexOf(':');
       if (idx < 0) continue;
       const port = Number(value.slice(idx + 1));
-      if (!Number.isInteger(port) || port < MIN_PORT) continue;
+      if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
       const address = value.slice(0, idx);
       if (!REACHABLE.has(address)) continue;
       const existing = out.get(port);
@@ -206,7 +204,7 @@ export function parseProcNetTcp(stdout: string): ListeningPort[] {
     const address = PROC_REACHABLE.get(hexAddr?.toUpperCase() ?? '');
     if (!address) continue;
     const port = parseInt(hexPort, 16);
-    if (!Number.isInteger(port) || port < MIN_PORT) continue;
+    if (!Number.isInteger(port) || port < MIN_FORWARDABLE_PORT) continue;
     if (!out.has(port)) out.set(port, { port, address, process: null });
   }
   return [...out.values()].sort((a, b) => a.port - b.port);
