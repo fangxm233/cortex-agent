@@ -13,6 +13,7 @@ import { sortProjectsByActivity } from '@/features/session/list/left-rail-projec
 import {
   ACTIVE_THREAD_STATUSES,
   projectAttentionBadge,
+  runningCountByProject,
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
 
@@ -101,11 +102,9 @@ export function buildProjectSwitchRows(
   approvalCounts: Record<string, number> = {},
 ): MProjectSwitchRow[] {
   const others = projects.filter((p) => p.id !== currentId);
+  const runningCounts = runningCountByProject(threads);
   return sortProjectsByActivity(others, lastActivity).map((p) => {
-    const running = threads.reduce(
-      (n, t) => n + (t.projectId === p.id && ACTIVE_THREAD_STATUSES.has(t.status) ? 1 : 0),
-      0,
-    );
+    const running = runningCounts[p.id] ?? 0;
     const bucket = globalByProject?.[p.id];
     const unread = unreadCounts[p.id] ?? 0;
     const actionRequired = (actionCounts[p.id] ?? 0) + (approvalCounts[p.id] ?? 0);
