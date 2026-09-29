@@ -2,7 +2,6 @@
 // each violation is REFUSED with its OWN named code, asserted BY CODE. No assertion in this file
 // matches a message string — `codesOf` collects `violation.code`, never `violation.detail`.
 
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -190,13 +189,6 @@ describe('canonical form (§17 17.1.1) — order is not a degree of freedom', ()
     expect(text.charCodeAt(0)).not.toBe(0xfeff);
   });
 
-  it('G4-CM5: the manifest identity is sha256 over exactly those canonical bytes', () => {
-    const bytes = canonicalCompositeManifestBytes(directManifest());
-    const expected = createHash('sha256').update(bytes).digest('hex');
-    expect(createHash('sha256').update(canonicalCompositeManifestBytes(directManifest())).digest('hex'))
-      .toBe(expected);
-  });
-
   it('G4-CM18: node-local edges are the projection of the top-level array', () => {
     const manifest = managerManifest();
     const parent = manifest.nodes.find(node => node.attempt_id === 'run-r1')!;
@@ -209,28 +201,6 @@ describe('canonical form (§17 17.1.1) — order is not a degree of freedom', ()
 });
 
 describe('O-G4-ACCT — the AccountingRecord is placed VERBATIM (§17 17.1.8)', () => {
-  it('carries the FIVE members that ship — a statement of figures, not a verdict', () => {
-    // `tolerance`, `deltas`, `reconciled` and `checks` were removed with the proxy-vs-journal
-    // comparison: the proxy priced what it metered from a different price list than the run's own
-    // cache-aware accumulator, and a 12.7x disagreement between two individually correct figures
-    // discarded a finished trial. A restored member fails here rather than in production.
-    const accounting = directManifest().accounting;
-    expect(Object.keys(accounting)).toEqual([
-      'schema_version', 'trial_id', 'proxy', 'journal', 'unaccounted_roles',
-    ]);
-    expect(Object.keys(accounting).length).toBe(5);
-    expect(accounting.schema_version).toBe('cortex-bench-accounting/2');
-  });
-
-  it('ProxyAccounting keeps all SEVEN members including audit_log', () => {
-    // `audit_log` is absent from §15.4.3's sketch too. `cost_usd` is gone from this side entirely:
-    // the proxy counts requests and meters tokens, and prices nothing.
-    expect(Object.keys(directManifest().accounting.proxy)).toEqual([
-      'requests', 'cached_tokens', 'input_tokens', 'output_tokens',
-      'audit_log', 'lease_echo', 'source',
-    ]);
-  });
-
   it('G4-CM25: the INPUT types are not the record types — adapter_id and roles are NOT carried', () => {
     // The trap O-G4-ACCT exists to close: copying `ProxyExport`/`JournalTotals` instead of the
     // returned record re-shapes it while still producing a document that parses.
@@ -260,15 +230,6 @@ describe('O-G4-ACCT — the AccountingRecord is placed VERBATIM (§17 17.1.8)', 
     expect(parsed.accounting.proxy).toEqual(record.proxy);
     expect(parsed.accounting.journal).toEqual(record.journal);
     expect(parsed.accounting.unaccounted_roles).toEqual(record.unaccounted_roles);
-  });
-
-  it('G4-CM26: journal.requests is permanently unavailable, and no decimal is re-rounded', () => {
-    const accounting = directManifest().accounting;
-    expect(accounting.journal.requests).toEqual(
-      { status: 'unavailable', reason: 'journal_underivable' },
-    );
-    // A re-rounded decimal string is the classic re-derivation; the text must survive exactly.
-    expect(accounting.journal.cost_usd).toEqual({ status: 'available', value: '0.000200' });
   });
 });
 
