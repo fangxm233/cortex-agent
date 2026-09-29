@@ -9,8 +9,7 @@ import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 
-export type { ExecutionRecord, DispatchInfo } from '@store/execution-repo.js';
-export { TERMINAL_STATUSES };
+export type { ExecutionRecord } from '@store/execution-repo.js';
 
 const lockLog = createLogger('execution-lock-release');
 
@@ -100,11 +99,6 @@ async function releaseLocksOwnedByAsync(executionId: string | null | undefined):
  *  child-wait window (starving sibling managers' decomposes), and the terminal auto-release
  *  cannot recover it because re-entry completes under a NEW executionId that no longer matches
  *  the original lock owner — leaking the lock until its 20-min TTL expires. Idempotent. */
-export function releaseExecutionLocks(executionId: string | null | undefined): void {
-  releaseLocksOwnedBy(executionId);
-}
-
-/** Async twin of `releaseExecutionLocks` for event-loop-sensitive callers (thread suspend path). */
 export async function releaseExecutionLocksAsync(executionId: string | null | undefined): Promise<void> {
   await releaseLocksOwnedByAsync(executionId);
 }
@@ -151,22 +145,10 @@ export function completeExecution(id: string, metrics?: Parameters<typeof execut
   return r;
 }
 
-export function completeExecutionByTaskId(taskId: string, metrics?: Parameters<typeof executionRepo.completeExecutionByTaskId>[1]) {
-  const record = executionRepo.getExecutionByTaskId(taskId);
-  if (!record) return null;
-  return completeExecution(record.id, metrics);
-}
-
 export function failExecution(id: string, metrics?: Parameters<typeof executionRepo.failExecution>[1]) {
   const r = executionRepo.failExecution(id, metrics);
   if (r && TERMINAL_STATUSES.has(r.status)) releaseLocksOwnedBy(id);
   return r;
-}
-
-export function failExecutionByTaskId(taskId: string, metrics?: Parameters<typeof executionRepo.failExecutionByTaskId>[1]) {
-  const record = executionRepo.getExecutionByTaskId(taskId);
-  if (!record) return null;
-  return failExecution(record.id, metrics);
 }
 
 export function cancelExecution(id: string, metrics?: Parameters<typeof executionRepo.cancelExecution>[1]) {
@@ -232,11 +214,4 @@ export async function reconcileStaleDispatches(opts: Parameters<typeof execution
   const { count, staled } = await executionRepo.reconcileStaleDispatches(opts);
   for (const id of staled) await releaseLocksOwnedByAsync(id);
   return count;
-}
-
-// --- Deprecated ---
-
-/** @deprecated ExecutionRepo uses in-memory Map; cache clearing is a no-op. */
-export function clearExecutionCache(): void {
-  // no-op: ExecutionRepo does not use module-level cache
 }

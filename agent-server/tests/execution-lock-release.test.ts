@@ -144,11 +144,11 @@ test('markMissingRunningExecutionsStale auto-releases lock', async () => {
   }
 });
 
-// G: releaseExecutionLocks releases the lock owned by the executionId (suspend path, DR-0014).
+// G: releaseExecutionLocksAsync releases the lock owned by the executionId (suspend path, DR-0014).
 //    A manager that acquired a lock (e.g. `decompose --auto-lock`) and then suspends on its
 //    children must release BEFORE yielding — otherwise the lock is held across the whole child
 //    wait and the terminal auto-release later can't match it (re-entry uses a new executionId).
-test('releaseExecutionLocks releases the lock owned by the executionId (suspend path)', () => {
+test('releaseExecutionLocksAsync releases the lock owned by the executionId (suspend path)', async () => {
   const { project, cleanup } = makeTestProject();
   const execId = startExec('lock-test-suspend');
 
@@ -157,7 +157,7 @@ test('releaseExecutionLocks releases the lock owned by the executionId (suspend 
     assert.equal(readLock(project)?.owner, execId);
 
     // Simulate thread_wait suspension: release without ending the execution.
-    executionRegistry.releaseExecutionLocks(execId);
+    await executionRegistry.releaseExecutionLocksAsync(execId);
 
     assert.equal(readLock(project), null, 'lock should be released on suspend');
     // Execution is still live (NOT terminal) — suspend does not complete it.
@@ -168,8 +168,8 @@ test('releaseExecutionLocks releases the lock owned by the executionId (suspend 
   }
 });
 
-// H: releaseExecutionLocks(execB) does NOT release a lock held by execA (owner-match).
-test('releaseExecutionLocks(execB) does not release lock held by execA', () => {
+// H: releaseExecutionLocksAsync(execB) does NOT release a lock held by execA (owner-match).
+test('releaseExecutionLocksAsync(execB) does not release lock held by execA', async () => {
   const { project, cleanup } = makeTestProject();
   const execA = startExec('lock-test-suspend-a');
   const execB = startExec('lock-test-suspend-b');
@@ -178,7 +178,7 @@ test('releaseExecutionLocks(execB) does not release lock held by execA', () => {
     acquireLock(project, { owner: execA });
     assert.equal(readLock(project)?.owner, execA);
 
-    executionRegistry.releaseExecutionLocks(execB);
+    await executionRegistry.releaseExecutionLocksAsync(execB);
 
     const lock = readLock(project);
     assert.ok(lock);
