@@ -6,7 +6,6 @@ import {
 import {
   ClaudeAuthCliError,
   loginClaudeAuth,
-  type ClaudeAuthCliDependencies,
   type ClaudeAuthLoginOptions,
 } from './cc-auth-cli.js';
 import { publishAuthRecovered } from './auth-events.js';
@@ -20,7 +19,6 @@ const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
 
 export interface ClaudeSubscriptionLoginDependencies {
   login?: typeof loginClaudeAuth;
-  cli?: ClaudeAuthCliDependencies;
   removeLegacyToken?: () => Promise<void>;
   reloadAuth?: () => void;
   publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
@@ -33,22 +31,16 @@ export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
   detail: string;
 }
 
-export class ClaudeSubscriptionLoginError extends LoginFlowError {}
-
-function loginError(code: string, message: string): ClaudeSubscriptionLoginError {
-  return new ClaudeSubscriptionLoginError(code, message);
-}
-
-function safeLoginError(error: unknown): ClaudeSubscriptionLoginError {
+function safeLoginError(error: unknown): LoginFlowError {
   if (error instanceof ClaudeAuthCliError) {
     if (error.code === 'claude_auth_cancelled') {
-      return loginError('claude_subscription_cancelled', t('ux.auth.ccCancelled'));
+      return new LoginFlowError('claude_subscription_cancelled', t('ux.auth.ccCancelled'));
     }
     if (error.code === 'claude_auth_timeout') {
-      return loginError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
+      return new LoginFlowError('claude_subscription_timeout', t('ux.auth.ccTimeout'));
     }
   }
-  return loginError('claude_subscription_failed', t('ux.auth.ccFailed'));
+  return new LoginFlowError('claude_subscription_failed', t('ux.auth.ccFailed'));
 }
 
 function loginOptions(interaction: AuthInteraction): ClaudeAuthLoginOptions {
@@ -71,7 +63,7 @@ async function clearLegacyToken(
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
     (dependencies.reloadAuth ?? applyAuthEnv)();
   } catch {
-    throw loginError(
+    throw new LoginFlowError(
       'claude_subscription_cleanup_failed',
       t('ux.auth.ccCleanupFailed'),
     );
@@ -83,7 +75,7 @@ export async function loginClaudeSubscription(
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
   try {
-    await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction), dependencies.cli);
+    await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction));
   } catch (error) {
     throw safeLoginError(error);
   }

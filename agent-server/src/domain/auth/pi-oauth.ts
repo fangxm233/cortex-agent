@@ -44,13 +44,6 @@ type PiOAuthLoginFailure = Extract<PiOAuthLoginResult, { ok: false }>;
 export interface PiOAuthLoginDependencies {
   loadRuntime?: () => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
-  publishRecovered?: (input: { backend: 'pi'; provider: string }) => void;
-}
-
-export class PiOAuthLoginFlowError extends LoginFlowError {
-  constructor(readonly result: PiOAuthLoginFailure) {
-    super(result.error.code, result.error.message);
-  }
 }
 
 function failed(
@@ -87,7 +80,7 @@ function finishLogin(
   dependencies: PiOAuthLoginDependencies,
 ): PiOAuthLoginResult {
   (dependencies.refreshProviders ?? (() => piProviderDiscovery.refresh()))();
-  (dependencies.publishRecovered ?? publishAuthRecovered)({ backend: 'pi', provider });
+  publishAuthRecovered({ backend: 'pi', provider });
   return { ok: true, provider, authType: 'oauth', expiresAt };
 }
 
@@ -136,7 +129,7 @@ export function createPiOAuthLoginConsumer(
 ): LoginFlowConsumer {
   return async (interaction) => {
     const result = await loginPiOAuth(providerId, interaction, dependencies);
-    if (result.ok === false) throw new PiOAuthLoginFlowError(result);
+    if (result.ok === false) throw new LoginFlowError(result.error.code, result.error.message);
     return {
       provider: result.provider,
       authType: result.authType,

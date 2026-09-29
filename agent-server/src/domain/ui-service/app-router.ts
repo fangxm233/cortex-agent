@@ -149,7 +149,6 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'session-running': 'CONFLICT',
   'not-available': 'BAD_REQUEST',
   'not_manageable': 'BAD_REQUEST',
-  'external_credential': 'BAD_REQUEST',
   'runtime_unavailable': 'BAD_REQUEST',
   'logout_failed': 'INTERNAL_SERVER_ERROR',
   'task-lock-busy': 'CONFLICT',

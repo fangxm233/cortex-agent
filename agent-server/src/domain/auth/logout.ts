@@ -30,7 +30,6 @@ export interface LogoutAccountInput {
 
 export type AuthLogoutErrorCode =
   | 'not_manageable'
-  | 'external_credential'
   | 'runtime_unavailable'
   | 'logout_failed';
 
@@ -52,9 +51,7 @@ export interface LogoutAccountDependencies {
   getAuthStatus?: (options?: GetAuthStatusOptions) => Promise<AuthStatusSnapshot>;
   getAuthStatusOptions?: GetAuthStatusOptions;
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
-  getSavedApiEnv?: typeof getSavedApiEnv;
   removeAnthropicApiKey?: typeof removeAnthropicApiKey;
-  removeClaudeCodeOAuthToken?: typeof removeClaudeCodeOAuthToken;
   logoutClaudeAuth?: typeof logoutClaudeAuth;
   configureClaudeEnv?: () => void;
   refreshProviders?: () => void;
@@ -63,7 +60,6 @@ export interface LogoutAccountDependencies {
 
 const ERROR_KEYS: Record<AuthLogoutErrorCode, string> = {
   not_manageable: 'ux.auth.notManageable',
-  external_credential: 'ux.auth.externalCredential',
   runtime_unavailable: 'ux.auth.piRuntimeUnavailable',
   logout_failed: 'ux.auth.logoutFailed',
 };
@@ -134,12 +130,9 @@ async function removeClaudeSavedCredential(
   }
 }
 
-async function clearLegacyClaudeOAuth(
-  dependencies: LogoutAccountDependencies,
-): Promise<void> {
-  const saved = (dependencies.getSavedApiEnv ?? getSavedApiEnv)();
-  if (!saved.CLAUDE_CODE_OAUTH_TOKEN) return;
-  await (dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken)();
+async function clearLegacyClaudeOAuth(): Promise<void> {
+  if (!getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN) return;
+  await removeClaudeCodeOAuthToken();
 }
 
 async function logoutClaude(
@@ -152,12 +145,11 @@ async function logoutClaude(
     return removeClaudeSavedCredential(input, remove, dependencies);
   }
   if (credential.source === 'legacy-env') {
-    const remove = dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken;
-    return removeClaudeSavedCredential(input, remove, dependencies);
+    return removeClaudeSavedCredential(input, removeClaudeCodeOAuthToken, dependencies);
   }
   try {
     await (dependencies.logoutClaudeAuth ?? logoutClaudeAuth)();
-    await clearLegacyClaudeOAuth(dependencies);
+    await clearLegacyClaudeOAuth();
     reloadClaude(dependencies);
     return succeeded(input);
   } catch {

@@ -188,11 +188,11 @@ function logoutDeps(result: unknown, calls: unknown[]): UiServiceDeps {
   } as unknown as UiServiceDeps;
 }
 
-test('auth.logout tRPC maps external credentials to a client error with guidance', async () => {
+test('auth.logout tRPC maps an unmanageable credential to a client error with guidance', async () => {
   const failure = {
     ok: false as const, ...LOGOUT_INPUT,
     error: {
-      code: 'external_credential' as const,
+      code: 'not_manageable' as const,
       message: 'Run `claude /logout` in a terminal.',
     },
   };

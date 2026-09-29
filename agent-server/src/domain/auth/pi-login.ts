@@ -43,13 +43,6 @@ type PiApiKeyLoginFailure = Extract<PiApiKeyLoginResult, { ok: false }>;
 export interface PiApiKeyLoginDependencies {
   loadRuntime?: () => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
-  publishRecovered?: (input: { backend: 'pi'; provider: string }) => void;
-}
-
-export class PiApiKeyLoginFlowError extends LoginFlowError {
-  constructor(readonly result: PiApiKeyLoginFailure) {
-    super(result.error.code, result.error.message);
-  }
 }
 
 function failed(
@@ -76,7 +69,7 @@ function supportsApiKeyLogin(provider: PiProvider): boolean {
 
 function finishLogin(provider: string, dependencies: PiApiKeyLoginDependencies): PiApiKeyLoginResult {
   (dependencies.refreshProviders ?? (() => piProviderDiscovery.refresh()))();
-  (dependencies.publishRecovered ?? publishAuthRecovered)({ backend: 'pi', provider });
+  publishAuthRecovered({ backend: 'pi', provider });
   return { ok: true, provider, authType: 'api_key', expiresAt: null };
 }
 
@@ -120,7 +113,7 @@ export function createPiApiKeyLoginConsumer(
 ): LoginFlowConsumer {
   return async (interaction) => {
     const result = await loginPiApiKey(providerId, interaction, dependencies);
-    if (result.ok === false) throw new PiApiKeyLoginFlowError(result);
+    if (result.ok === false) throw new LoginFlowError(result.error.code, result.error.message);
     return {
       provider: result.provider,
       authType: result.authType,

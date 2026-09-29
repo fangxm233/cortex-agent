@@ -300,12 +300,11 @@ export async function loginClaudeAuth(
 
 export async function logoutClaudeAuth(
   dependencies: ClaudeAuthCliDependencies = {},
-  signal?: AbortSignal,
 ): Promise<void> {
   const child = spawnAuth(['auth', 'logout'], dependencies);
   drain(child);
-  await waitForExit(child, dependencies, { signal, failureCode: 'claude_auth_logout_failed' });
-  const status = await readClaudeAuthStatus(dependencies, signal);
+  await waitForExit(child, dependencies, { failureCode: 'claude_auth_logout_failed' });
+  const status = await readClaudeAuthStatus(dependencies);
   if (status.loggedIn) {
     throw cliError('claude_auth_still_logged_in', 'Claude Code remained logged in after logout.');
   }

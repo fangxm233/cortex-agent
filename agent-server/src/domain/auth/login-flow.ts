@@ -20,8 +20,7 @@ export function isLoginFlowError(error: unknown): error is LoginFlowError {
     && typeof candidate.code === 'string';
 }
 
-export type LoginFlowStep = 'select_backend' | 'select_provider' | 'select_auth_type'
-  | 'prompt' | 'running' | 'done' | 'failed' | 'cancelled';
+export type LoginFlowStep = 'prompt' | 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface LoginPromptOption {
   id: string;
