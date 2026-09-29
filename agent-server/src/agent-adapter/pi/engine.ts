@@ -44,9 +44,9 @@ function takePending(pending: PendingInjection[], text: string): PendingInjectio
  */
 export class PIEngineSession implements EngineSession {
   readonly backend: Backend = 'pi';
-  /** The pool's reuse key. PI derives it from the fully resolved request (`sessionIdentity`), which
-   *  is strictly more precise than `engineIdentity(spec)` because it covers the resolved env, MCP
-   *  servers and gateway routing too. SessionEngines compares this exact string. */
+  /** The pool's reuse key. PI derives it from the fully resolved request (`sessionIdentity`), so it
+   *  covers the resolved env, MCP servers and gateway routing too. SessionEngines compares this
+   *  exact string. */
   readonly identity: string;
   readonly capabilities: ReadonlySet<Capability>;
   private readonly session: PISession;

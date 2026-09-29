@@ -7,7 +7,7 @@ import type { RunObserver } from '@domain/runs/request.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { runRegistry } from '@core/run-registry.js';
 import { sessionHolds, type SessionHoldHandles } from '@core/session-holds.js';
-import { isBgContinuationEnabled } from '../../agent-adapter/bg-wait.js';
+import { isBgContinuationEnabled, remainingBg } from '../../agent-adapter/bg-wait.js';
 import { trackPendingTask } from '../busy-tracker.js';
 import { publishSessionStatus } from '../session-events.js';
 
@@ -339,11 +339,6 @@ export function backgroundHoldObserver(w: ObserverWiring): RunObserver {
       }
     },
   };
-}
-
-function remainingBg(result: { pendingBackgroundTasks?: number | null; undeliveredBackgroundTasks?: number | null } | null | undefined): number {
-  if (!result) return 0;
-  return (result.pendingBackgroundTasks ?? 0) + (result.undeliveredBackgroundTasks ?? 0);
 }
 
 // ── the gate ──────────────────────────────────────────────────────────────────

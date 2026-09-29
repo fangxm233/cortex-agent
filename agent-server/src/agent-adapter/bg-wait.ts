@@ -1,11 +1,9 @@
 //
 // The engine owns the wait itself now (`continuation-phase.ts`): it merges the continuation
 // turns, runs the grace/max-wait watchdog, and bounds the run. What stays here is the pure
-// policy around it: whether background work remains, which backend/result combinations are
-// eligible, and how long the ambient bounds are.
+// policy around it: whether background work remains and how long the ambient bounds are.
 
 import { getSettings } from '@core/settings.js';
-import type { AgentResult } from '@core/types/agent-types.js';
 
 /** Background-task continuation feature gate. */
 export function isBgContinuationEnabled(): boolean {
@@ -36,26 +34,4 @@ export function getBgMaxWaitMs(): number {
 export function remainingBg(result: { pendingBackgroundTasks?: number; undeliveredBackgroundTasks?: number } | null | undefined): number {
   if (!result) return 0;
   return (result.pendingBackgroundTasks ?? 0) + (result.undeliveredBackgroundTasks ?? 0);
-}
-
-/** Backend and result prerequisites shared by the engine's background phase and the hold gates. */
-export function canAwaitBgContinuation(
-  backend: string,
-  result: AgentResult | null | undefined,
-  canRegisterSink: boolean,
-): boolean {
-  if (backend !== 'claude' || !canRegisterSink) return false;
-  if (!result || result.rateLimited) return false;
-  return remainingBg(result) > 0;
-}
-
-/** Inline policy: settings-enabled thread turns wait; interactive turns do not. */
-export function shouldAwaitBgInline(
-  backend: string,
-  threadId: string | null | undefined,
-  result: AgentResult | null | undefined,
-  canRegisterSink: boolean,
-): boolean {
-  if (!isBgContinuationEnabled() || !threadId) return false;
-  return canAwaitBgContinuation(backend, result, canRegisterSink);
 }

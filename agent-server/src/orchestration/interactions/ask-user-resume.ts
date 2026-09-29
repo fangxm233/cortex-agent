@@ -12,7 +12,7 @@ import * as askUserQuestion from './ask-user-question.js';
 const log = createLogger('ask-user-resume');
 
 /** Ask-user groups are thread-less in practice, but the pre-refactor path fell back to
- *  `shouldAwaitBgInline` (settings-gated, thread-keyed); mirror that decision here. */
+ *  the inline background policy (settings-gated, thread-keyed); mirror that decision here. */
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
   try {

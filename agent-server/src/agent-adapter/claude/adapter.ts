@@ -29,7 +29,6 @@ import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
   buildPrompt,
   clearActivePlanFile,
-  extractAskUserQuestions,
   getCurrentPlanFilePath,
   mergeSubstantialOutput,
   createStreamDeltaState,
@@ -181,38 +180,8 @@ function cloneTextArray(values: string[] | null | undefined): string[] {
   return values ? [...values] : [];
 }
 
-function sameTextArray(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
 function optionalTextArray(values: string[] | null | undefined): string[] | null {
   return values === undefined || values === null ? null : [...values];
-}
-
-function sameOptionalTextArray(
-  left: readonly string[] | null, right: readonly string[] | null,
-): boolean {
-  if (left === null || right === null) return left === right;
-  return sameTextArray(left, right);
-}
-
-export function sameClaudeSpawnCompatibility(
-  left: ClaudeSpawnCompatibility,
-  right: ClaudeSpawnCompatibility,
-): boolean {
-  return left.cwd === right.cwd
-    && left.routeIdentity === right.routeIdentity
-    && left.composition === right.composition
-    && left.interactionBridge === right.interactionBridge
-    && left.tools === right.tools
-    && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
-    && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
-    && left.browserMcpConfigIdentity === right.browserMcpConfigIdentity
-    && left.disableSkills === right.disableSkills
-    && sameTextArray(left.pluginDirs, right.pluginDirs)
-    && sameTextArray(left.mcpConfigPaths, right.mcpConfigPaths)
-    && sameOptionalTextArray(left.mcpToolAllowlist, right.mcpToolAllowlist)
-    && sameOptionalTextArray(left.settingSources, right.settingSources);
 }
 
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
@@ -235,12 +204,12 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
 }
 
 /**
- * A string whose equality is exactly {@link sameClaudeSpawnCompatibility}'s predicate — the pool key
+ * A string that is equal exactly when two spawn compatibilities are — the pool key
  * `EngineSession.identity` needs. Serialized as an explicit, literal field list rather than
  * `Object.keys`, so the order is stable and a future field cannot silently change the encoding.
  *
- * `null` and `[]` stay distinct for `mcpToolAllowlist` (sameOptionalTextArray is identity-sensitive
- * when either side is null) and arrays keep their order (sameTextArray is order-sensitive).
+ * `null` and `[]` stay distinct for `mcpToolAllowlist` and `settingSources`, and arrays keep their
+ * order.
  */
 export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibility): string {
   const fields: Array<[string, unknown]> = [
@@ -405,10 +374,6 @@ class ClaudeSession implements TurnHost {
       settingSources: this.settingSources,
       streamDeltas: this.streamDeltas,
     });
-  }
-
-  matchesSpawn(next: ClaudeSpawnCompatibility): boolean {
-    return sameClaudeSpawnCompatibility(this.compatibility, next);
   }
 
   private handleProcessClose(code: number | null): void {
@@ -966,7 +931,6 @@ function makeSessionForTest(
 }
 
 export const _test = {
-  extractAskUserQuestions,
   mergeSubstantialOutput,
   computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,

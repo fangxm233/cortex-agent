@@ -262,9 +262,8 @@ export interface EngineRunOptions {
 export interface EngineSession {
   readonly backend: Backend;
   /** The pool's reuse test: a stable string derived from the spec this session was opened from.
-   *  Produced by the BACKEND (`pi.specIdentity` / `claude.specIdentity`), not by the shared
-   *  `engineIdentity(spec)` — each backend's own identity covers resolved env / MCP / args and is
-   *  strictly more precise. See the note on `engineIdentity` in domain/runs/engine-spec.ts. */
+   *  Produced by the BACKEND (`pi.specIdentity` / `claude.specIdentity`), whose identity covers the
+   *  resolved env / MCP / args. */
   readonly identity: string;
   /** Feature gates this *session* supports. Per session, not per backend (D9): a profile can
    *  declare a backend-level capability the concrete session does not implement, so the run layer

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
-import { ClaudeAdapter, claudeCompatibilityIdentity, sameClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter, claudeCompatibilityIdentity } from '../../src/agent-adapter/claude/adapter.js';
 import type { ClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
 import { toRunEvent, type RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
@@ -243,7 +243,7 @@ test('Claude steer(): a delivered injection surfaces injection_delivered with th
   await engine.close();
 });
 
-// --- (4) identity string equality ⟺ the structural compatibility predicate ----------------------
+// --- (4) identity string equality tracks spawn compatibility ------------------------------------
 
 const BASE: ClaudeSpawnCompatibility = {
   cwd: '/w', routeIdentity: 'r1', composition: 'direct', interactionBridge: false,
@@ -280,31 +280,25 @@ const VARIANTS: ClaudeSpawnCompatibility[] = [
   { ...BASE, settingSources: ['user', 'project'] },
 ];
 
-test('claudeCompatibilityIdentity string equality is exactly sameClaudeSpawnCompatibility', () => {
-  let agreements = 0;
-  for (const left of VARIANTS) {
-    for (const right of VARIANTS) {
-      const structural = sameClaudeSpawnCompatibility(left, right);
-      const byIdentity = claudeCompatibilityIdentity(left) === claudeCompatibilityIdentity(right);
-      assert.equal(
-        byIdentity, structural,
-        `disagreement:\n  ${JSON.stringify(left)}\n  ${JSON.stringify(right)}`,
+test('claudeCompatibilityIdentity is equal for a clone and distinct for every other variant', () => {
+  assert.equal(claudeCompatibilityIdentity(VARIANTS[0]), claudeCompatibilityIdentity(VARIANTS[1]));
+  const distinct = VARIANTS.slice(1);
+  for (let i = 0; i < distinct.length; i += 1) {
+    for (let j = i + 1; j < distinct.length; j += 1) {
+      assert.notEqual(
+        claudeCompatibilityIdentity(distinct[i]), claudeCompatibilityIdentity(distinct[j]),
+        `collision:\n  ${JSON.stringify(distinct[i])}\n  ${JSON.stringify(distinct[j])}`,
       );
-      agreements += 1;
     }
   }
-  assert.equal(agreements, VARIANTS.length * VARIANTS.length);
-  // The table must actually contain a same/different mix, or the assertion above proves nothing.
-  assert.equal(sameClaudeSpawnCompatibility(VARIANTS[0], VARIANTS[1]), true);
-  assert.equal(sameClaudeSpawnCompatibility(VARIANTS[0], VARIANTS[2]), false);
   assert.notEqual(
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: null }),
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: [] }),
   );
   // An agent that switched its skills off, or narrowed its setting sources, has to be re-spawned:
   // both are argv-time flags a live process cannot be re-pointed with.
-  assert.equal(sameClaudeSpawnCompatibility(BASE, { ...BASE, disableSkills: true }), false);
-  assert.equal(sameClaudeSpawnCompatibility(BASE, { ...BASE, settingSources: [] }), false);
+  assert.notEqual(claudeCompatibilityIdentity(BASE), claudeCompatibilityIdentity({ ...BASE, disableSkills: true }));
+  assert.notEqual(claudeCompatibilityIdentity(BASE), claudeCompatibilityIdentity({ ...BASE, settingSources: [] }));
 });
 
 // --- (5) Provider rate-limit signals (P2.5b) ----------------------------------------------------

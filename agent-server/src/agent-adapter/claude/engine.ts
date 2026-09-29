@@ -69,8 +69,8 @@ function takePending(pending: PendingInjection[], text: string): PendingInjectio
  */
 export class ClaudeEngineSession implements EngineSession {
   readonly backend: Backend = 'claude';
-  /** The pool's reuse key. Claude compares compatibility structurally; this string serializes that
-   *  exact predicate (`claudeCompatibilityIdentity`) so SessionEngines can compare plain strings. */
+  /** The pool's reuse key: the spawn compatibility serialized by `claudeCompatibilityIdentity`, so
+   *  SessionEngines can compare plain strings. */
   readonly identity: string;
   readonly capabilities: ReadonlySet<Capability>;
   private readonly session: ClaudeEngineSessionHost;

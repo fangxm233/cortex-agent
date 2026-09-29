@@ -83,8 +83,8 @@ export class SessionEngines {
 
   /**
    * Claude's pool read: the old Claude pool predicate moved off `ClaudeSession`.
-   * `specIdentity` replaces `matchesSpawn` — string equality IS the structural
-   * predicate; the fourth clause has no PI equivalent and compares the spec's resume target
+   * `specIdentity` serializes the spawn compatibility, so string equality is the compatibility
+   * check; the fourth clause has no PI equivalent and compares the spec's resume target
    * against the session's **live** `sessionId`. Claude's retire path logs nothing and does not
    * check `isAlive()` before closing (`close()` itself is a no-op once dead); keep both as they are.
    */

@@ -1,7 +1,7 @@
 import { getSettings } from '@core/settings.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
-  AgentProcessSpawner, EngineSpec, CortexContextEnv, McpComposition,
+  EngineSpec, CortexContextEnv, McpComposition,
 } from '../../agent-adapter/types.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
@@ -302,44 +302,4 @@ export function buildEngineSpec(
     backend: backendField(request, attempt),
     process: policy.process,
   };
-}
-
-/**
- * A stable string for "would this spec reuse the same engine": canonical JSON with sorted keys,
- * excluding `resume`, `env.context.executionId`, and `process.spawner`.
- *
- * NOT the pool's reuse test, despite D3 proposing it as one. `SessionEngines.acquire` calls the
- * BACKEND's `specIdentity` (`pi.specIdentity` / `claude.specIdentity`) instead, because each covers
- * the resolved env, MCP composition and argv that this generic form cannot see — a spec pair that
- * looks identical here can still need different processes. Kept and tested as the neutral
- * definition; do not "fix" the pool to call it without first widening it.
- */
-export function engineIdentity(spec: EngineSpec): string {
-  const { resume: _resume, ...rest } = spec;
-  const context = spec.env.context
-    ? Object.fromEntries(
-        Object.entries(spec.env.context).filter(([key]) => key !== 'executionId'),
-      ) as CortexContextEnv
-    : undefined;
-  const projected = {
-    ...rest,
-    env: { ...spec.env, context },
-    process: { ...spec.process, spawner: undefined as AgentProcessSpawner | undefined },
-  };
-  return JSON.stringify(canonicalize(projected));
-}
-
-/** Recursively sort object keys and drop `undefined` so identity is independent of construction order. */
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-      const entry = (value as Record<string, unknown>)[key];
-      if (entry === undefined) continue;
-      out[key] = canonicalize(entry);
-    }
-    return out;
-  }
-  return value;
 }

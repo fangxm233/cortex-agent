@@ -444,7 +444,7 @@ function setupStepCallbacks(
 }
 
 /** The background policy a thread step runs under. The pre-refactor path left `awaitBackground`
- *  undefined, so the engine fell back to `shouldAwaitBgInline` (settings-gated, thread-keyed).
+ *  undefined, so the engine fell back to its inline background policy (settings-gated, thread-keyed).
  *  Mapping that decision onto the RunRequest preserves the exact same behaviour:
  *  `'inline'` while the bg-continuation feature is enabled (thread steps always carry a threadId),
  *  `'none'` when it is disabled. */

@@ -105,19 +105,6 @@ export function takeTextBlockId(state: StreamDeltaState): string | null {
   return id;
 }
 
-export function extractAskUserQuestions(data: any, sessionId: string): Array<{ toolUseId: string | null; questions: any[]; sessionId: string }> {
-  const questions = [];
-  for (const block of (data.message?.content || [])) {
-    if (block.type !== 'tool_use' || block.name !== 'AskUserQuestion') continue;
-    questions.push({
-      toolUseId: block.id || null,
-      questions: Array.isArray(block.input?.questions) ? block.input.questions : [],
-      sessionId,
-    });
-  }
-  return questions;
-}
-
 export function formatAssistantEvent(data: any): string | null {
   const parts: string[] = [];
   for (const block of (data.message?.content || [])) {

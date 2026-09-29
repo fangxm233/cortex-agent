@@ -33,7 +33,6 @@ import {
   INTERACTION_BRIDGE_TOOLS,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
-  extractAskUserQuestions,
   setActivePlanFile,
   clearActivePlanFile,
   getCurrentPlanFilePath,
@@ -1077,38 +1076,6 @@ test('buildClaudeEnv — context.taskId/taskProject surface as CORTEX_TASK_ID/PR
   });
   assert.equal(env.CORTEX_TASK_ID, 'a1b2');
   assert.equal(env.CORTEX_TASK_PROJECT, 'cortex-self');
-});
-
-// --- extractAskUserQuestions ---
-
-test('extractAskUserQuestions filters tool_use blocks by name AskUserQuestion and preserves toolUseId/questions', () => {
-  const data = {
-    message: {
-      content: [
-        { type: 'text', text: 'hello' },
-        {
-          type: 'tool_use',
-          name: 'AskUserQuestion',
-          id: 'tu-1',
-          input: { questions: [{ question: 'Q1' }] },
-        },
-        { type: 'tool_use', name: 'Bash', id: 'tu-2', input: { command: 'ls' } },
-        {
-          type: 'tool_use',
-          name: 'AskUserQuestion',
-          id: 'tu-3',
-          input: { questions: [{ question: 'Q2' }, { question: 'Q3' }] },
-        },
-      ],
-    },
-  };
-  const questions = extractAskUserQuestions(data, 'session-xyz');
-  assert.equal(questions.length, 2);
-  assert.equal(questions[0].toolUseId, 'tu-1');
-  assert.equal(questions[0].sessionId, 'session-xyz');
-  assert.deepEqual(questions[0].questions, [{ question: 'Q1' }]);
-  assert.equal(questions[1].toolUseId, 'tu-3');
-  assert.equal(questions[1].questions.length, 2);
 });
 
 // --- activePlanFiles helpers (encapsulation per Design Decision 3) ---

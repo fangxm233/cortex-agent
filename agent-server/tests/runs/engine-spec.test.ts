@@ -2,7 +2,6 @@ import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import * as path from 'node:path';
-import { engineIdentity } from '../../src/domain/runs/engine-spec.js';
 import { specFromFixture, type RunRequestFixtureInput } from '../run-request-fixture.js';
 import type { RunAttemptConfig } from '../../src/domain/agents/profile-manager.js';
 import type { ModeEnv } from '../../src/domain/agents/config.js';
@@ -358,67 +357,4 @@ test('buildEngineSpec keeps a raw tools string on rawClaude and canonical tools 
   const canonical = specFromFixture(canonicalOptions, FIXTURE_CONFIG);
   assert.equal(canonical.tools.rawClaude, undefined);
   assert.deepEqual(canonical.tools.canonical, ['Read', 'Bash']);
-});
-
-// --- engineIdentity ---
-
-function baseSpec(): EngineSpec {
-  return specFromFixture(DIRECT_OPTIONS, FIXTURE_CONFIG);
-}
-
-test('engineIdentity is independent of object key order', () => {
-  const base = baseSpec();
-  const reordered: EngineSpec = {
-    process: { cliPath: base.process.cliPath, spawner: base.process.spawner },
-    backend: { ...base.backend },
-    extraOption: base.extraOption,
-    context: { scheduleTaskId: base.context.scheduleTaskId, callbackSource: base.context.callbackSource, channel: base.context.channel },
-    flags: { isUserInitiated: base.flags.isUserInitiated, preserveUnreportedAccounting: base.flags.preserveUnreportedAccounting, captureTranscripts: base.flags.captureTranscripts, streamDeltas: base.flags.streamDeltas, settingSources: base.flags.settingSources, disableSkills: base.flags.disableSkills, disableHooks: base.flags.disableHooks },
-    route: { gatewayPath: base.route.gatewayPath, gatewayBaseUrl: base.route.gatewayBaseUrl, anthropicBaseUrl: base.route.anthropicBaseUrl },
-    env: { context: base.env.context ? {
-      taskGeneration: base.env.context.taskGeneration, taskProject: base.env.context.taskProject,
-      taskId: base.env.context.taskId, threadDepth: base.env.context.threadDepth,
-      useCoreMcp: base.env.context.useCoreMcp, executionId: base.env.context.executionId,
-      trackSessionId: base.env.context.trackSessionId, sessionName: base.env.context.sessionName,
-      project: base.env.context.project, profile: base.env.context.profile, threadId: base.env.context.threadId,
-    } : undefined, pinned: base.env.pinned, unsets: base.env.unsets, sets: base.env.sets },
-    mcp: { browserCdpEndpoint: base.mcp.browserCdpEndpoint, configPaths: base.mcp.configPaths, allowlist: base.mcp.allowlist, servers: base.mcp.servers, composition: base.mcp.composition },
-    plugins: { fingerprint: base.plugins.fingerprint, skillDirs: base.plugins.skillDirs, dirs: base.plugins.dirs },
-    tools: { rawClaude: base.tools.rawClaude, canonical: base.tools.canonical },
-    prompt: { append: base.prompt.append, system: base.prompt.system },
-    model: { maxOutputTokens: base.model.maxOutputTokens, thinking: base.model.thinking, provider: base.model.provider, id: base.model.id },
-    resume: { resume: base.resume.resume, backendSessionId: base.resume.backendSessionId },
-    cwd: base.cwd,
-    engineKey: base.engineKey,
-  };
-  assert.equal(engineIdentity(base), engineIdentity(reordered));
-});
-
-test('engineIdentity ignores resume, env.context.executionId and process.spawner', () => {
-  const base = baseSpec();
-  const mutated = structuredClone(base);
-  mutated.resume = { backendSessionId: 'other-session', resume: false };
-  mutated.env.context = { ...mutated.env.context, executionId: 'other-execution' };
-  mutated.process.spawner = (() => ({ process: null as never })) as never;
-  assert.equal(engineIdentity(base), engineIdentity(mutated));
-});
-
-test('engineIdentity changes when model, tools, env.sets or plugins.dirs change', () => {
-  const base = baseSpec();
-  assert.notEqual(
-    engineIdentity(base),
-    engineIdentity({ ...base, model: { ...base.model, id: 'other-model' } }),
-  );
-  assert.notEqual(
-    engineIdentity(base),
-    engineIdentity({ ...base, tools: { ...base.tools, rawClaude: 'Bash,Read' } }),
-  );
-  assert.notEqual(
-    engineIdentity(base),
-    engineIdentity({ ...base, env: { ...base.env, sets: { FOO: '1' } } }),
-  );
-  assert.notEqual(
-    engineIdentity(base),
-    engineIdentity({ ...base, plugins: { ...base.plugins, dirs: ['/plugins/x'] } }),
-  );
 });
