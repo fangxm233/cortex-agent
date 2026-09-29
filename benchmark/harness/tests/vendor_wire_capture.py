@@ -89,6 +89,13 @@ def tool_events() -> list[dict[str, object]]:
     ]
 
 
+def sse(events: list[dict[str, object]]) -> bytes:
+    return "".join(
+        f"event: {event['type']}\ndata: {json.dumps(event, separators=(',', ':'))}\n\n"
+        for event in events
+    ).encode()
+
+
 @dataclass(frozen=True)
 class RunSpec:
     name: str
@@ -176,10 +183,7 @@ class CaptureHandler(BaseHTTPRequestHandler):
 
     def _send_stream(self, server: CaptureServer) -> None:
         events = tool_events() if server.spec.subagent and len(server.requests) == 1 else text_events()
-        payload = b"".join(
-            f"event: {event['type']}\ndata: {json.dumps(event, separators=(',', ':'))}\n\n".encode()
-            for event in events
-        )
+        payload = sse(events)
         server.responses.append({"status": 200, "content_type": "text/event-stream",
                                  "events": events})
         self.send_response(200)
