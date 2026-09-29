@@ -10,7 +10,7 @@ import { pickCopy } from '@/mobile/ui/format';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
-  durationDraftFromMs, durationDraftToMs, getSetting, numberSettingValid,
+  durationDraftFromMs, durationDraftToMs, numberSettingValid,
   hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
   type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
@@ -35,7 +35,7 @@ function ToggleRow(props: {
   onToggle: RuntimeSettingWriter['onToggle'];
 }) {
   const L = useVocab();
-  const entry = getSetting(props.settings, props.descriptor.setting);
+  const entry = props.settings[props.descriptor.setting];
   const value = typeof entry?.value === 'boolean' ? entry.value : false;
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
     sub={L[props.descriptor.descKey]}
@@ -46,8 +46,8 @@ function ToggleRow(props: {
 function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const settings = indexSettings(props.snapshot.settings);
-  const slack = getSetting(settings, 'adminChannel')?.value;
-  const feishu = getSetting(settings, 'feishuAdminChannel')?.value;
+  const slack = settings.adminChannel?.value;
+  const feishu = settings.feishuAdminChannel?.value;
   return <>
     <MSettingsCard>{NOTIFY_SETTINGS.map((descriptor) => <ToggleRow key={descriptor.setting}
       descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle} />)}</MSettingsCard>
@@ -75,7 +75,7 @@ function NumberSettingRow(props: {
   write: RuntimeSettingWriter;
 }) {
   const L = useVocab();
-  const entry = getSetting(props.settings, props.descriptor.setting);
+  const entry = props.settings[props.descriptor.setting];
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(current === null ? '' : String(current));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
@@ -94,7 +94,7 @@ function NumberSettingRow(props: {
 
 function AdvancedReadOnly(props: { snapshot: ConfigSnapshot; settings: SettingsIndex }) {
   const L = useVocab();
-  const concurrencyEntry = getSetting(props.settings, 'taskDispatchMaxConcurrent');
+  const concurrencyEntry = props.settings.taskDispatchMaxConcurrent;
   const concurrency = concurrencyEntry?.value;
   const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
   const concurrencyLabel = !concurrencyEntry ? '—' : typeof concurrency === 'number' ? concurrency : L.stAuto;
@@ -147,8 +147,8 @@ function JobInterval(props: {
 
 function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: SettingsIndex; write: RuntimeSettingWriter }) {
   const L = useVocab();
-  const enabled = getSetting(props.settings, props.descriptor.enabled);
-  const interval = getSetting(props.settings, props.descriptor.interval);
+  const enabled = props.settings[props.descriptor.enabled];
+  const interval = props.settings[props.descriptor.interval];
   const value = typeof enabled?.value === 'boolean' ? enabled.value : false;
   return <div style={{ borderBottom: '1px solid var(--m-divider)' }}>
     <MSettingsRow title={L[props.descriptor.titleKey]} sub={L[props.descriptor.descKey]} last

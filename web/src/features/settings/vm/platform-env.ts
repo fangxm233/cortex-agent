@@ -32,10 +32,6 @@ export function indexSettings(settings: ConfigSettingEntry[] | undefined): Setti
   return out;
 }
 
-export function getSetting(index: SettingsIndex, key: SettingKey): ConfigSettingEntry | undefined {
-  return index[key];
-}
-
 export function parseWholeNumber(input: string): number | null {
   if (!/^[0-9]+$/.test(input)) return null;
   const value = Number(input);

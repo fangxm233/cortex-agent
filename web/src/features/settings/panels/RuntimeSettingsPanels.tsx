@@ -25,7 +25,6 @@ import {
   NOTIFY_SETTINGS,
   durationDraftFromMs,
   durationDraftToMs,
-  getSetting,
   hasAnyKey,
   indexEnv,
   indexSettings,
@@ -104,7 +103,7 @@ function notifyRows(args: {
   L: Vocab;
 }): ReactNode[] {
   return NOTIFY_SETTINGS.map((descriptor) => {
-    const entry = getSetting(args.settings, descriptor.setting);
+    const entry = args.settings[descriptor.setting];
     const suffix = descriptor.setting === 'turnNotify' && args.threshold !== undefined
       ? ` · ${args.threshold}s`
       : '';
@@ -126,8 +125,8 @@ function notifyRows(args: {
 function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot; settings: SettingsIndex }) {
   const L = useVocab();
   const zh = useLang() === 'zh';
-  const slackChannel = getSetting(settings, 'adminChannel')?.value;
-  const feishuChannel = getSetting(settings, 'feishuAdminChannel')?.value;
+  const slackChannel = settings.adminChannel?.value;
+  const feishuChannel = settings.feishuAdminChannel?.value;
   return (
     <SSection label={L.stNotifyRoutingTitle}
       action={<span style={MONO_VALUE_STYLE}>{L.stNotifyRoutingRight}</span>}>
@@ -243,7 +242,7 @@ export function NotificationsPanelView({
 }) {
   const L = useVocab();
   const settings = indexSettings(snapshot.settings);
-  const thresholdEntry = getSetting(settings, 'turnNotifyThresholdS');
+  const thresholdEntry = settings.turnNotifyThresholdS;
   const threshold = typeof thresholdEntry?.value === 'number' ? thresholdEntry.value : undefined;
   return (
     <>
@@ -292,7 +291,7 @@ function advancedFlagRows(args: {
       return <ReadOnlyEnvRow key={flag.env} snapshot={args.snapshot}
         title={args.L[flag.titleKey]} desc={args.L[flag.descKey]} />;
     }
-    const entry = getSetting(args.settings, flag.setting);
+    const entry = args.settings[flag.setting];
     return <RuntimeSettingToggleRow key={flag.setting} settingKey={flag.setting}
       value={typeof entry?.value === 'boolean' ? entry.value : false}
       source={typeof entry?.value === 'boolean' ? entry.source : null}
@@ -303,7 +302,7 @@ function advancedFlagRows(args: {
 
 function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
   const L = useVocab();
-  const entry = getSetting(settings, 'taskDispatchMaxConcurrent');
+  const entry = settings.taskDispatchMaxConcurrent;
   const value = typeof entry?.value === 'number' ? entry.value : entry?.value === null ? null : undefined;
   return (
     <SRow
@@ -352,7 +351,7 @@ function NumberSettingRow(props: {
   onSet: RuntimeSettingWriter['onSet'];
 }) {
   const L = useVocab();
-  const entry = getSetting(props.settings, props.descriptor.setting);
+  const entry = props.settings[props.descriptor.setting];
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(() => (current === null ? '' : String(current)));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
@@ -436,8 +435,8 @@ function BuiltinJobRow(props: {
   onSet: RuntimeSettingWriter['onSet'];
 }) {
   const L = useVocab();
-  const enabledEntry = getSetting(props.settings, props.descriptor.enabled);
-  const intervalEntry = getSetting(props.settings, props.descriptor.interval);
+  const enabledEntry = props.settings[props.descriptor.enabled];
+  const intervalEntry = props.settings[props.descriptor.interval];
   const enabled = typeof enabledEntry?.value === 'boolean' ? enabledEntry.value : false;
   const onClick = enabledEntry && !props.pending
     ? () => props.onToggle(props.descriptor.enabled, !enabled) : undefined;
