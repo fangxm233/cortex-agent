@@ -1308,10 +1308,11 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
     for role in bundle.expected_roles:
         assert f"assets/bundle/defaults/prompts/systemPrompts/{role}.md" in asset_paths(envelope)
     recorded = envelope["launch"]["config_bundle"]
-    assert recorded["canonical_sha256"] == materialized.input_bundle_sha256
-    assert recorded["file_count"] == materialized.input_bundle_file_count
-    assert len(recorded["files"]) == materialized.input_bundle_file_count
-    assert canonical_sha256(recorded["files"]) == materialized.input_bundle_sha256
+    attestation = json.loads(materialized.launch_attestation_path.read_bytes())
+    assert recorded["canonical_sha256"] == attestation["pre_boot_input_bundle_sha256"]
+    assert recorded["file_count"] == attestation["input_bundle_file_count"]
+    assert len(recorded["files"]) == attestation["input_bundle_file_count"]
+    assert canonical_sha256(recorded["files"]) == attestation["pre_boot_input_bundle_sha256"]
     assert recorded["files"] == list(committed_input_bundle_files(bundle.key))
 
 

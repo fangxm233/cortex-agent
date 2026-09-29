@@ -82,10 +82,6 @@ class MaterializedProductionHome:
     webhook_token: str
     launch_attestation_path: Path
     production_evidence_context: Mapping[str, object]
-    input_bundle_sha256: str
-    input_bundle_file_count: int
-    cortex_home_tree_sha256: str
-    cortex_home_file_count: int
     bundle_manifest_hash: str
 
 
@@ -423,8 +419,8 @@ def _validate_destinations(cortex_home: Path, attestation_path: Path) -> None:
         raise ProductionHomeError(f"launch attestation already exists: {attestation_path}")
 
 
-def _runtime_home(value: Path | None, local_home: Path) -> Path:
-    runtime_home = Path(value) if value is not None else local_home
+def _runtime_home(value: Path) -> Path:
+    runtime_home = Path(value)
     if not runtime_home.is_absolute():
         raise ProductionHomeError("runtime CORTEX_HOME must be absolute")
     return runtime_home
@@ -432,10 +428,10 @@ def _runtime_home(value: Path | None, local_home: Path) -> Path:
 
 def materialize_production_home(
     *, cortex_home: Path, artifacts_dir: Path, facts: ProductionArmLaunchFacts,
-    inherited_environment: Mapping[str, str], runtime_cortex_home: Path | None = None,
+    inherited_environment: Mapping[str, str], runtime_cortex_home: Path,
 ) -> MaterializedProductionHome:
     home = Path(cortex_home).resolve()
-    runtime_home = _runtime_home(runtime_cortex_home, home)
+    runtime_home = _runtime_home(runtime_cortex_home)
     attestation_path = Path(artifacts_dir).resolve() / LAUNCH_ATTESTATION_FILENAME
     _validate_destinations(home, attestation_path)
     proxy_base_url = _validate_facts(facts)
@@ -462,7 +458,5 @@ def materialize_production_home(
         arm_bundle=facts.arm_bundle, cortex_home=home, process_environment=environment,
         client_token=client_token, webhook_token=webhook_token,
         launch_attestation_path=attestation_path, production_evidence_context=evidence_context,
-        input_bundle_sha256=bundle.sha256, input_bundle_file_count=bundle.count,
-        cortex_home_tree_sha256=home_sha256, cortex_home_file_count=home_count,
         bundle_manifest_hash=manifest_hash,
     )

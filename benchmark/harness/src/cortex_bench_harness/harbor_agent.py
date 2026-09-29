@@ -385,7 +385,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, command=f"test -f {shlex.quote(str(target))}",
         )
         binary = backend_cli_binary(self._trial_seed.arm)
-        cli_path = await self._probe(
+        await self._probe(
             environment, f'realpath -- "$(command -v {shlex.quote(binary)})"',
             f"Installed {binary} CLI path probe returned no path",
         )
@@ -393,9 +393,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, f"{shlex.quote(binary)} --version",
             f"Installed {binary} CLI version probe returned no version",
         )
-        return InstalledProductionServer(
-            bundle_root, PurePosixPath(cli_path), cli_version,
-        )
+        return InstalledProductionServer(bundle_root, cli_version)
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:

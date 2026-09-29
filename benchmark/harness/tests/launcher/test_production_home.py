@@ -440,6 +440,7 @@ def test_hashes_both_trees_and_writes_exact_linked_attestation(tmp_path: Path) -
     result = materialize_production_home(
         cortex_home=tmp_path / "fresh-cortex-home", artifacts_dir=tmp_path / "artifacts",
         facts=launch, inherited_environment={"PATH": "/usr/bin:/bin"},
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
     )
     bundle_sha, bundle_count = tree_digest(DIRECT_BUNDLE.bundle_dir)
     home_sha, home_count = tree_digest(result.cortex_home)
@@ -565,7 +566,7 @@ def test_attestation_is_the_last_materialization_write(
     result = materialize(tmp_path)
 
     assert observed == {
-        "home_sha": result.cortex_home_tree_sha256,
+        "home_sha": read_json(result.launch_attestation_path)["cortex_home_tree_sha256"],
         "all_read_only": True,
     }
 
@@ -579,6 +580,7 @@ def test_one_bundle_byte_mutation_changes_bundle_home_and_manifest_hashes(
     before = materialize_production_home(
         cortex_home=tmp_path / "home-before", artifacts_dir=tmp_path / "artifacts-before",
         facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
     )
     profile = copied_bundle / "config/profiles.json"
     profile.chmod(0o644)
@@ -586,10 +588,13 @@ def test_one_bundle_byte_mutation_changes_bundle_home_and_manifest_hashes(
     after = materialize_production_home(
         cortex_home=tmp_path / "home-after", artifacts_dir=tmp_path / "artifacts-after",
         facts=facts(tmp_path, copied), inherited_environment={"PATH": "/bin"},
+        runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
     )
 
-    assert after.input_bundle_sha256 != before.input_bundle_sha256
-    assert after.cortex_home_tree_sha256 != before.cortex_home_tree_sha256
+    before_attestation = read_json(before.launch_attestation_path)
+    after_attestation = read_json(after.launch_attestation_path)
+    for field in ("pre_boot_input_bundle_sha256", "cortex_home_tree_sha256"):
+        assert after_attestation[field] != before_attestation[field]
     assert after.bundle_manifest_hash != before.bundle_manifest_hash
 
 
@@ -601,6 +606,7 @@ def test_refuses_an_existing_home_before_writing_an_attestation(tmp_path: Path) 
         materialize_production_home(
             cortex_home=existing, artifacts_dir=tmp_path / "artifacts-existing",
             facts=facts(tmp_path), inherited_environment={},
+            runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         )
     assert not (tmp_path / "artifacts-existing").exists()
 
@@ -615,6 +621,7 @@ def test_refuses_a_symlinked_bundle_before_creating_the_home(tmp_path: Path) -> 
         materialize_production_home(
             cortex_home=tmp_path / "symlink-home", artifacts_dir=tmp_path / "artifacts-link",
             facts=facts(tmp_path, copied), inherited_environment={},
+            runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         )
     assert not (tmp_path / "symlink-home").exists()
 
@@ -627,6 +634,7 @@ def test_refuses_a_direct_provider_route_before_creating_the_home(tmp_path: Path
         materialize_production_home(
             cortex_home=tmp_path / "invalid-home", artifacts_dir=tmp_path / "artifacts-invalid",
             facts=invalid, inherited_environment={},
+            runtime_cortex_home=Path("/logs/agent/production-cortex-home"),
         )
     assert not (tmp_path / "invalid-home").exists()
 
@@ -644,8 +652,9 @@ def test_audit_retry_arm_materializes_its_own_bundle_and_never_the_direct_one(
     assert not (home / "prompts/directives/direct.md").exists()
     assert read_json(home / "config/profiles.json")["defaultProfile"] == "coder-review"
     bundle_sha, bundle_count = tree_digest(AUDIT_RETRY_BUNDLE.bundle_dir)
-    assert (result.input_bundle_sha256, result.input_bundle_file_count) == (
-        bundle_sha, bundle_count)
+    attestation = read_json(result.launch_attestation_path)
+    assert attestation["pre_boot_input_bundle_sha256"] == bundle_sha
+    assert attestation["input_bundle_file_count"] == bundle_count
     (tmp_path / "direct").mkdir()
-    assert result.input_bundle_sha256 != materialize(
-        tmp_path / "direct", bundle=DIRECT_BUNDLE).input_bundle_sha256
+    direct = materialize(tmp_path / "direct", bundle=DIRECT_BUNDLE)
+    assert bundle_sha != read_json(direct.launch_attestation_path)["pre_boot_input_bundle_sha256"]

@@ -94,7 +94,6 @@ Executor = Callable[..., Awaitable[ExecResult]]
 @dataclass(frozen=True)
 class InstalledProductionServer:
     bundle_root: PurePosixPath
-    backend_cli_path: PurePosixPath
     backend_cli_version: str
 
 

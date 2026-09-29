@@ -104,7 +104,6 @@ def session(
         root_run_id="root-direct", materialized_home=materialized,
         installed=InstalledProductionServer(
             bundle_root=PurePosixPath("/installed/server"),
-            backend_cli_path=PurePosixPath("/usr/local/bin/pi"),
             backend_cli_version="0.82.1",
         ),
     )
