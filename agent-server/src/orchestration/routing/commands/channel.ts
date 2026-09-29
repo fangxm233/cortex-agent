@@ -114,12 +114,6 @@ export function createRegisterHandler(router?: CommandActionRouter) {
   };
 }
 
-/** @deprecated Use createRegisterHandler() instead. */
-export async function handleRegisterCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createRegisterHandler();
-  await handler(channel, adapter, trimmedMessage);
-}
-
 export async function handleUnregisterCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   const args = trimmedMessage.split(/\s+/).slice(1);
@@ -251,10 +245,4 @@ export function createProjectDirHandler(router?: CommandActionRouter) {
       }],
     };
   };
-}
-
-/** @deprecated Use createProjectDirHandler() instead. */
-export async function handleProjectDirCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createProjectDirHandler();
-  await handler(channel, adapter, trimmedMessage);
 }

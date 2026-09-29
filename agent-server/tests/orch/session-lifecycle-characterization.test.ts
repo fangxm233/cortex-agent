@@ -2,7 +2,7 @@ import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { handleNewCmd, handleResumeCmd } from '../../src/orchestration/routing/commands/session.js';
+import { handleNewCmd, createResumeHandler } from '../../src/orchestration/routing/commands/session.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
@@ -41,9 +41,9 @@ test('handleNewCmd clears sessions for all backends and the ledger', async () =>
   assert.equal(conv, null);
 });
 
-// ── handleResumeCmd test ──────────────────────────────────────────────────────
+// ── createResumeHandler test ─────────────────────────────────────────────────
 
-test('handleResumeCmd (arg path) attaches to an existing session', async () => {
+test('createResumeHandler (arg path) attaches to an existing session', async () => {
   const sid = crypto.randomUUID();
   const channel = 'c4-resume';
 
@@ -57,7 +57,7 @@ test('handleResumeCmd (arg path) attaches to an existing session', async () => {
 
   const adapter = new MockAdapter({ adminChannel: 'admin' });
 
-  await handleResumeCmd(channel, adapter, '!resume cortex-resume-c4');
+  await createResumeHandler()(channel, adapter, '!resume cortex-resume-c4');
 
   // Assert: sessions.json points at the resumed session
   const stored = await getSessionAsync(channel, 'claude');

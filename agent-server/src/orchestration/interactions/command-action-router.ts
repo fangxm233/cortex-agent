@@ -1,14 +1,4 @@
-import type { PlatformAdapter, ActionContext, ModalSubmitContext, MessageRef } from '@platform/index.js';
-
-// --- Session state ---
-
-export interface CommandSession {
-  commandName: string;
-  channel: string;
-  messageRef?: MessageRef;
-  data: Record<string, unknown>;
-  createdAt: number;
-}
+import type { PlatformAdapter, ActionContext, ModalSubmitContext } from '@platform/index.js';
 
 // --- Registration types ---
 
@@ -29,7 +19,6 @@ const NAMESPACE_PREFIX = 'cmd:';
 export class CommandActionRouter {
   private actionHandlers = new Map<string, (ctx: ActionContext) => Promise<void>>();
   private modalHandlers = new Map<string, (ctx: ModalSubmitContext) => Promise<void>>();
-  private sessions = new Map<string, CommandSession>();
   private _adapter: PlatformAdapter | null = null;
   private _bound = false;
 
@@ -80,51 +69,5 @@ export class CommandActionRouter {
       adapter.onModalSubmit(callbackId, handler);
     }
     this._bound = true;
-  }
-
-  // --- Session state management ---
-
-  /** Generate a session key and store state. Returns the key for use as action value. */
-  createSession(
-    channel: string,
-    commandName: string,
-    data: Record<string, unknown>,
-    messageRef?: MessageRef,
-  ): string {
-    const key = `${channel}:${commandName}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    this.sessions.set(key, {
-      commandName,
-      channel,
-      messageRef,
-      data,
-      createdAt: Date.now(),
-    });
-    // Auto-expire after 30 minutes
-    setTimeout(() => this.sessions.delete(key), 30 * 60 * 1000).unref();
-    return key;
-  }
-
-  getSession(key: string): CommandSession | undefined {
-    return this.sessions.get(key);
-  }
-
-  deleteSession(key: string): void {
-    this.sessions.delete(key);
-  }
-
-  /** Look up all sessions for a given channel (for cleanup on !new). */
-  getSessionsByChannel(channel: string): CommandSession[] {
-    const result: CommandSession[] = [];
-    for (const session of this.sessions.values()) {
-      if (session.channel === channel) result.push(session);
-    }
-    return result;
-  }
-
-  /** Clear all sessions for a channel (e.g., on !new). */
-  clearChannelSessions(channel: string): void {
-    for (const [key, session] of this.sessions) {
-      if (session.channel === channel) this.sessions.delete(key);
-    }
   }
 }

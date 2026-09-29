@@ -153,9 +153,3 @@ export function createTasksHandler(router?: CommandActionRouter) {
     };
   };
 }
-
-/** @deprecated Use createTasksHandler() instead. */
-export async function handleTasksCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createTasksHandler();
-  await handler(channel, adapter, trimmedMessage);
-}

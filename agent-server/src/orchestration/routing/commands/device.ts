@@ -78,9 +78,3 @@ export function createDevicesHandler(router?: CommandActionRouter) {
     };
   };
 }
-
-/** @deprecated Use createDevicesHandler() instead. */
-export async function handleDevicesCmd(channel: string, adapter: PlatformAdapter): Promise<void> {
-  const handler = createDevicesHandler();
-  await handler(channel, adapter);
-}

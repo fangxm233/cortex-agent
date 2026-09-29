@@ -198,9 +198,3 @@ export function createHelpHandler(router?: CommandActionRouter) {
     };
   };
 }
-
-/** @deprecated Use createHelpHandler() instead. Kept for backward compat in tests. */
-export async function handleHelp(channel: string, adapter: PlatformAdapter): Promise<void> {
-  const handler = createHelpHandler();
-  await handler(channel, adapter);
-}

@@ -33,18 +33,6 @@ test('CommandActionRouter: duplicate actionId throws', () => {
   }, /duplicate actionId/);
 });
 
-test('CommandActionRouter: clearChannelSessions removes sessions for channel only', () => {
-  const router = new CommandActionRouter();
-  router.createSession('C1', 'a', {});
-  router.createSession('C1', 'b', {});
-  router.createSession('C2', 'c', {});
-  assert.equal(router.getSessionsByChannel('C1').length, 2);
-  assert.equal(router.getSessionsByChannel('C2').length, 1);
-  router.clearChannelSessions('C1');
-  assert.equal(router.getSessionsByChannel('C1').length, 0);
-  assert.equal(router.getSessionsByChannel('C2').length, 1);
-});
-
 // ============================================================
 // Interactive !cancel with 2+ executions
 // ============================================================
@@ -179,7 +167,7 @@ test('!status Refresh button click re-runs report and updates message', async ()
 // Interactive !resume (Phase 3)
 // ============================================================
 
-// Note: !resume backward compat test omitted — handleResumeCmd uses async file I/O
+// Note: !resume backward compat test omitted — the resume handler uses async file I/O
 // (sessionRegistryRepo) that hangs in the test environment without a real data dir.
 
 // ============================================================

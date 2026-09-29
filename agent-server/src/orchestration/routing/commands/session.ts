@@ -145,9 +145,3 @@ export function createResumeHandler(router?: CommandActionRouter) {
     };
   };
 }
-
-/** @deprecated Use createResumeHandler() instead. */
-export async function handleResumeCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createResumeHandler();
-  await handler(channel, adapter, trimmedMessage);
-}

@@ -306,12 +306,6 @@ export function createProfileHandler(router?: CommandActionRouter) {
   };
 }
 
-/** @deprecated Use createProfileHandler() instead. */
-export async function handleProfileCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createProfileHandler();
-  await handler(channel, adapter, trimmedMessage);
-}
-
 export async function handleSkillsCmd(channel: string, adapter: PlatformAdapter): Promise<void> {
   const groups = getDisplaySkillGroups();
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
@@ -504,10 +498,4 @@ export function createAgentHandler(router?: CommandActionRouter) {
       actions: buildAgentButtons(channel),
     };
   };
-}
-
-/** @deprecated Use createAgentHandler() instead. */
-export async function handleAgentCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const handler = createAgentHandler();
-  await handler(channel, adapter, trimmedMessage);
 }
