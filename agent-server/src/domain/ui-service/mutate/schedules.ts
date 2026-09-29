@@ -1,26 +1,7 @@
 import { t } from '@core/i18n.js';
 import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '../types.js';
+import { toScheduleInfo } from '../query/schedules.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
-
-/** Map a persisted ScheduleTask → ScheduleInfo DTO (mirrors query/schedules.ts). */
-function toScheduleInfo(s: ScheduleTask): ScheduleInfo {
-  return {
-    id: s.id,
-    type: s.type,
-    message: s.message,
-    projectId: s.projectId,
-    profile: s.profile ?? null,
-    nextRun: s.nextRun != null ? new Date(s.nextRun).toISOString() : null,
-    lastRun: s.lastRun != null ? new Date(s.lastRun).toISOString() : null,
-    paused: s.isPaused ?? false,
-    pausedBy: s.pausedBy ?? null,
-    intervalMs: s.intervalMs ?? null,
-    time: s.time ?? null,
-    dayOfWeek: s.dayOfWeek ?? null,
-    target: s.target ?? null,
-    fallback: s.fallback ?? null,
-  };
-}
 
 export async function handlePauseSchedule(
   deps: UiServiceDeps,

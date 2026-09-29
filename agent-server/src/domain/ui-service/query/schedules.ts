@@ -1,4 +1,25 @@
 import type { UiServiceDeps, ScheduleInfo, SchedulesListParams } from '../types.js';
+import type { ScheduleTask } from '@store/schedule-repo.js';
+
+/** Map a persisted ScheduleTask → ScheduleInfo DTO. */
+export function toScheduleInfo(s: ScheduleTask): ScheduleInfo {
+  return {
+    id: s.id,
+    type: s.type,
+    message: s.message,
+    projectId: s.projectId,
+    profile: s.profile ?? null,
+    nextRun: s.nextRun != null ? new Date(s.nextRun).toISOString() : null,
+    lastRun: s.lastRun != null ? new Date(s.lastRun).toISOString() : null,
+    paused: s.isPaused ?? false,
+    pausedBy: s.pausedBy ?? null,
+    intervalMs: s.intervalMs ?? null,
+    time: s.time ?? null,
+    dayOfWeek: s.dayOfWeek ?? null,
+    target: s.target ?? null,
+    fallback: s.fallback ?? null,
+  };
+}
 
 export async function handleSchedulesList(
   deps: UiServiceDeps,
@@ -15,20 +36,5 @@ export async function handleSchedulesList(
     schedules = schedules.filter((s) => (s.isPaused ?? false) === paused);
   }
 
-  return schedules.map((s): ScheduleInfo => ({
-    id: s.id,
-    type: s.type,
-    message: s.message,
-    projectId: s.projectId,
-    profile: s.profile ?? null,
-    nextRun: s.nextRun != null ? new Date(s.nextRun).toISOString() : null,
-    lastRun: s.lastRun != null ? new Date(s.lastRun).toISOString() : null,
-    paused: s.isPaused ?? false,
-    pausedBy: (s as any).pausedBy ?? null,
-    intervalMs: s.intervalMs ?? null,
-    time: s.time ?? null,
-    dayOfWeek: s.dayOfWeek ?? null,
-    target: s.target ?? null,
-    fallback: s.fallback ?? null,
-  }));
+  return schedules.map(toScheduleInfo);
 }
