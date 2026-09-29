@@ -6,10 +6,10 @@ import { addAgentToThread, createThread, getTemplate, getAgent } from '@domain/t
 import { getActiveHandle } from '@domain/threads/runner.js';
 import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { threadStore } from '@store/thread-repo.js';
-import { type ThreadExecCtx, downloadFiles, bufferUserMessage } from './thread-input.js';
+import { type ThreadExecCtx, bufferUserMessage } from './thread-input.js';
 import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
 import { createLogger } from '@core/log.js';
-import type { AttachmentFailure } from './routing/file-handler.js';
+import { downloadMessageFiles, type AttachmentFailure } from './routing/file-handler.js';
 import { t } from '@core/i18n.js';
 
 export type { ThreadExecCtx };
@@ -85,7 +85,7 @@ export class ThreadExecutor {
     // A thread's first step takes the files. An attachment that would not download cannot be named
     // in the step prompt (the template composes it), so the user is told in the channel instead —
     // the one thing that must not happen is the whole thing passing in silence.
-    const { files: downloadedFiles, failures } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
+    const { files: downloadedFiles, failures } = await downloadMessageFiles(ctx.message, ctx.hasFiles, ctx.adapter);
     if (failures.length > 0) await this._reportFailedDownloads(ctx, failures);
     const args = { channel: ctx.channel, adapter: ctx.adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles };
     try {

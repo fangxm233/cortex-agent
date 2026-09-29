@@ -48,8 +48,16 @@ async function downloadFiles(
 
 /** The inbound message's own attachment directory key: conduit + platform message id. Stable, so a
  *  redelivery of the same message reuses its directory instead of littering a new one. */
-export function inboundAttachmentKey(message: IncomingMessage): string {
+function inboundAttachmentKey(message: IncomingMessage): string {
   return `${message.ref.conduit || 'unknown'}-${message.ref.messageId || 'nomsg'}`;
 }
 
-export { downloadFiles };
+/** Download an inbound message's attachments into its own directory; none when it has no files. */
+export async function downloadMessageFiles(
+  message: IncomingMessage,
+  hasFiles: boolean,
+  adapter: PlatformAdapter,
+): Promise<InboundFiles> {
+  if (!hasFiles || !message.files) return { files: [], failures: [] };
+  return downloadFiles(message.files, adapter, inboundAttachmentKey(message));
+}

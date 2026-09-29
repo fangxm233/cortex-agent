@@ -23,9 +23,7 @@ import {
   acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
 import { tryConsume as tryHumanAnswerBackstop } from './human-answer-backstop.js';
-import {
-  downloadFiles as downloadPlatformFiles, inboundAttachmentKey, type InboundFiles,
-} from './routing/file-handler.js';
+import { downloadMessageFiles, type InboundFiles } from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { isRebuildHeld, refuseTurnForRebuild } from '@domain/system/rebuild-hold.js';
 
@@ -296,12 +294,7 @@ function mergeAttachments(
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
   let pending: Promise<InboundFiles> | null = null;
   return () => {
-    pending ??= downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
+    pending ??= downloadMessageFiles(ctx.message, ctx.hasFiles, ctx.adapter);
     return pending;
   };
-}
-
-async function downloadFiles(message: IncomingMessage, hasFiles: boolean, adapter: PlatformAdapter): Promise<InboundFiles> {
-  if (!hasFiles || !message.files) return { files: [], failures: [] };
-  return downloadPlatformFiles(message.files, adapter, inboundAttachmentKey(message));
 }

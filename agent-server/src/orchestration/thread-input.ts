@@ -3,9 +3,7 @@ import type { Destination, PlatformAdapter, IncomingMessage } from '@platform/in
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { evictPendingUserInput, registerPendingUserInput } from '@domain/threads/pending-user-inputs.js';
-import {
-  downloadFiles as downloadPlatformFiles, inboundAttachmentKey, type InboundFiles,
-} from './routing/file-handler.js';
+import { downloadMessageFiles } from './routing/file-handler.js';
 import { threadStore } from '@store/thread-repo.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 import { t } from '@core/i18n.js';
@@ -25,13 +23,6 @@ export interface ThreadExecCtx {
   isActiveThread: boolean;
 }
 
-// --- Shared helper ---
-
-export async function downloadFiles(message: IncomingMessage, hasFiles: boolean, adapter: PlatformAdapter): Promise<InboundFiles> {
-  if (!hasFiles || !message.files) return { files: [], failures: [] };
-  return downloadPlatformFiles(message.files, adapter, inboundAttachmentKey(message));
-}
-
 // --- Message buffering (Phase 6) ---
 
 /** Reserve user input synchronously so the runner sees it before the current step exits. */
@@ -46,7 +37,7 @@ function reserveUserInput(thread: any, text: string): { inputId: string; evicted
 }
 
 async function prepareUserInput(ctx: ThreadExecCtx, inputId: string, text: string): Promise<void> {
-  const { files, failures } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
+  const { files, failures } = await downloadMessageFiles(ctx.message, ctx.hasFiles, ctx.adapter);
   const thread = threadStore.get(ctx.existingThread.id);
   const input = thread?.metadata?.pendingUserInputs?.find((entry) => entry.id === inputId);
   if (!thread || !input) return;
