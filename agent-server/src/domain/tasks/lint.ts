@@ -1,5 +1,4 @@
-import { type Task } from '@core/task-parser.js';
-import { getTaskStatsFromTasks } from './parser.js';
+import { type Task, getTaskStatsFromTasks } from '@core/task-parser.js';
 
 export function findCycles(tasks: Task[]) {
   const byId = Object.fromEntries(tasks.filter((t) => t.id).map((t) => [t.id, t]));

@@ -1,11 +1,11 @@
 import * as fs from 'node:fs';
-import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { isMainModule, listProjectDirs } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { cliError, formatHelp, readStdinSync } from '@core/cli-utils.js';
 
 const log = createLogger('task-cli');
 import {
+  type TaskGenerationExpectation,
   VALID_STATUSES,
   PRIORITY_ORDER,
   filterTasks,
@@ -17,7 +17,7 @@ import {
   depsPayload,
   printTaskListToString,
   printStatsText,
-} from '../parser.js';
+} from '@core/task-parser.js';
 import { lintTasks } from '../lint.js';
 import { recordVerdict, readLedger } from '../acceptance-ledger.js';
 import { loadConfig, listTemplateNames } from '../../threads/template-loader.js';
