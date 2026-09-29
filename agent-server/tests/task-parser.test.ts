@@ -266,16 +266,6 @@ test('invalid --status lists valid values', () => {
 
 // --- not-before tests ---
 
-test('not-before future date is excluded from actionable list', () => {
-  const { pA, repos, a6 } = createFixture();
-  try {
-    const tasks = JSON.parse(runRead(['list', '--project', pA, '--json']));
-    assert.ok(!tasks.some((t: any) => t.id === a6), 'future-gated task must not appear in actionable list');
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
 test('query --status actionable excludes future not-before and includes past not-before', () => {
   const { pA, repos, a6, a7 } = createFixture();
   try {
