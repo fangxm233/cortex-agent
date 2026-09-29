@@ -15,7 +15,7 @@ export {
 } from './Modal';
 export { MBottomSheet, shouldFlingClose } from './BottomSheet';
 export { useBackDismiss, armBackGuard, type BackGuardHost } from './use-back-dismiss';
-export { Popover, PopoverClose, type PopoverProps } from './Popover';
+export { Popover, type PopoverProps } from './Popover';
 export { Select, type SelectDensity, type SelectOption, type SelectProps, type SelectValue } from './Select';
 export { CONTROL_HEIGHT } from './controls';
 export { ToastProvider, useToast, useToastOptional, useToastItems, DEFAULT_TOAST_MS, type ToastInput } from './Toast';

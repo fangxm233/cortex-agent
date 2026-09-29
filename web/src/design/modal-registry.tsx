@@ -105,12 +105,6 @@ export function ModalRegistryProvider({ children }: { children: ReactNode }): JS
   return <ModalRegistryContext.Provider value={registry}>{children}</ModalRegistryContext.Provider>;
 }
 
-export function useModalRegistry(): ModalRegistry {
-  const registry = useContext(ModalRegistryContext);
-  if (!registry) throw new Error('useModalRegistry must be used within a ModalRegistryProvider');
-  return registry;
-}
-
 /** `open()` for a modal that carries nothing, `open(payload)` for one that does. */
 export type ModalOpen<TPayload> = [TPayload] extends [void]
   ? () => void
@@ -127,7 +121,6 @@ export interface ModalHandle<TPayload> extends ModalActions<TPayload> {
 }
 
 export interface ModalKey<TPayload> {
-  kind: string;
   /** Subscribes to this kind. For the ONE host that renders the modal. */
   useModal: () => ModalHandle<TPayload>;
   /** Stable open/close with no subscription. For triggers — a menu item, a card, a banner. */
@@ -168,7 +161,6 @@ export function defineModal<TPayload = void>(
   }
 
   return {
-    kind,
     useModal(): ModalHandle<TPayload> {
       const registry = useRegistry();
       const actions = useActions(registry);

@@ -60,12 +60,12 @@ export const RETAIN_CAP = 50;
 export const MAX_VISIBLE = 3;
 
 /** Append `item` newest-last. Drops a consecutive duplicate of the current newest; trims the oldest
- *  beyond `cap`. Never mutates the input. */
-export function addToast(list: ToastItem[], item: ToastItem, cap = RETAIN_CAP): ToastItem[] {
+ *  beyond `RETAIN_CAP`. Never mutates the input. */
+export function addToast(list: ToastItem[], item: ToastItem): ToastItem[] {
   const last = list[list.length - 1];
   if (last && item.dedupeKey !== undefined && last.dedupeKey === item.dedupeKey) return list;
   const next = [...list, item];
-  return next.length > cap ? next.slice(next.length - cap) : next;
+  return next.length > RETAIN_CAP ? next.slice(next.length - RETAIN_CAP) : next;
 }
 
 /** Remove a bubble by id. No-op for an unknown id. Never mutates the input. */
@@ -73,14 +73,11 @@ export function removeToast(list: ToastItem[], id: string): ToastItem[] {
   return list.filter((t) => t.id !== id);
 }
 
-/** Split into the newest `max` (rendered, oldest-of-visible first → newest last) and the count of
- *  older ones folded into the "+N" pill. */
-export function splitVisible(
-  list: ToastItem[],
-  max = MAX_VISIBLE,
-): { visible: ToastItem[]; overflow: number } {
-  if (list.length <= max) return { visible: list, overflow: 0 };
-  return { visible: list.slice(list.length - max), overflow: list.length - max };
+/** Split into the newest `MAX_VISIBLE` (rendered, oldest-of-visible first → newest last) and the
+ *  count of older ones folded into the "+N" pill. */
+export function splitVisible(list: ToastItem[]): { visible: ToastItem[]; overflow: number } {
+  if (list.length <= MAX_VISIBLE) return { visible: list, overflow: 0 };
+  return { visible: list.slice(list.length - MAX_VISIBLE), overflow: list.length - MAX_VISIBLE };
 }
 
 /** Compact relative age (`now / 2m / 1h` · `刚刚 / 2分钟前`) for the mono time slot (scheme 18a). */
