@@ -90,9 +90,7 @@ describe('backendSupportsBrowser', () => {
   it('accepts every spawn path that composes the browser MCP server', () => {
     // Claude print and TUI both append a --mcp-config file; PI writes the same descriptor into the
     // envelope its MCP bridge reads.
-    expect(backendSupportsBrowser('claude', 'print')).toBe(true);
-    expect(backendSupportsBrowser('claude', 'tui')).toBe(true);
-    expect(backendSupportsBrowser('claude', null)).toBe(true);
+    expect(backendSupportsBrowser('claude')).toBe(true);
     expect(backendSupportsBrowser('pi')).toBe(true);
   });
 

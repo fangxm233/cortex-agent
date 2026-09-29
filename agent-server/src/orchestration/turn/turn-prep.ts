@@ -4,8 +4,6 @@ import { inboundAttachmentMeta } from '../attachments-store.js';
 import { createLogger } from '@core/log.js';
 import { resolveWorkspaceRelPath } from '@core/utils.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
-import { getActiveProfile } from '@domain/agents/index.js';
-import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
@@ -70,18 +68,6 @@ export async function collectTurnFiles(
   };
 }
 
-/** The session's backend decides whether a browser can be driven at all; the profile's
- *  `claudeBackend` decides whether it is the print adapter — the only one wired for it. */
-function browserBackendSupported(channel: string, backend: string): boolean {
-  let claudeBackend: string | null = null;
-  try {
-    claudeBackend = resolveProfileConfig(getActiveProfile(channel)).claudeBackend;
-  } catch {
-    // Unknown profile: fall back to the backend alone rather than refusing outright.
-  }
-  return backendSupportsBrowser(backend, claudeBackend);
-}
-
 /**
  * A browser-enabled session holds the shared Chrome for the duration of its turn. Acquiring outside
  * the adapter keeps the spawn path synchronous and gives us one obvious place to pair with a
@@ -89,13 +75,12 @@ function browserBackendSupported(channel: string, backend: string): boolean {
  * it — the session is still worth running.
  */
 export async function acquireTurnBrowser(args: {
-  channel: string;
   backend: string;
   browser: { device: string } | null;
 }): Promise<{ held: string | null; cdpEndpoint: string | null }> {
-  const { channel, backend, browser } = args;
+  const { backend, browser } = args;
   if (!browser) return { held: null, cdpEndpoint: null };
-  if (!browserBackendSupported(channel, backend)) {
+  if (!backendSupportsBrowser(backend)) {
     log.warn(`session opted into the browser but the ${backend} backend cannot use it — skipping`);
     return { held: null, cdpEndpoint: null };
   }

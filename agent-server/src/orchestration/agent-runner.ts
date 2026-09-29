@@ -234,7 +234,7 @@ export class AgentRunner {
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       backendSessionId = null; // fresh: the backend self-assigns its id on this first turn
     }
-    const browser = await acquireTurnBrowser({ channel, backend, browser: sessionBrowser });
+    const browser = await acquireTurnBrowser({ backend, browser: sessionBrowser });
     const debugEnabled = isDebugMode();
     const trackSessionId = sessionId;
     try {
