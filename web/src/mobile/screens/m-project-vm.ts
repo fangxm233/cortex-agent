@@ -22,11 +22,10 @@ import {
  */
 export function threadCountsForProject(
   threads: ThreadInfo[],
-  projectId: string | null,
+  projectId: string,
 ): { running: number; waiting: number } {
   let running = 0;
   let waiting = 0;
-  if (!projectId) return { running, waiting };
   for (const t of threads) {
     if (t.projectId !== projectId) continue;
     if (ACTIVE_THREAD_STATUSES.has(t.status)) running++;

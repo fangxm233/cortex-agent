@@ -41,10 +41,6 @@ describe('threadCountsForProject', () => {
     // `waiting` is additionally reported on its own.
     expect(threadCountsForProject(threads, 'nimbus')).toEqual({ running: 3, waiting: 1 });
   });
-
-  it('returns zeros for a null current project (no fabrication)', () => {
-    expect(threadCountsForProject([thread({})], null)).toEqual({ running: 0, waiting: 0 });
-  });
 });
 
 describe('onlineMachineCount', () => {
