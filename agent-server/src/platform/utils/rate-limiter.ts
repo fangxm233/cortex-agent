@@ -132,12 +132,6 @@ export class TokenBucketRateLimiter {
     return this.buckets.size;
   }
 
-  /** Exposed for testing: return true if backoff is active for a key */
-  _isBackedOff(key: string): boolean {
-    const b = this.buckets.get(key);
-    return b ? b.backoffUntil > Date.now() : false;
-  }
-
   /** Exposed for testing: simulate time passing by running cleanup + advancing state */
   _advanceTime(ms: number): void {
     const now = Date.now();
@@ -177,7 +171,6 @@ export class TokenBucketRateLimiter {
     }
 
     // No tokens — estimate wait time
-    const capacity = this._capacityForKey(key);
     const refillPerSec = this._refillPerSecForKey(key);
     const waitMs = refillPerSec > 0
       ? Math.ceil((1 - state.tokens) / refillPerSec * 1000)

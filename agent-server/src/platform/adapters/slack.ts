@@ -643,11 +643,6 @@ export class SlackAdapter implements PlatformAdapter {
     log.info(`adminChannel=${channel} written to settings.json`);
   }
 
-  /** Expose the rate limiter for sharing with MCP tools and testing. */
-  getRateLimiter(): TokenBucketRateLimiter {
-    return this.rateLimiter;
-  }
-
   // --- Output stream ---
 
   openOutputStream(destination: Destination, opts?: OpenOutputStreamOpts): OutputStream {
