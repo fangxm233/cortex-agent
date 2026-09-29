@@ -26,12 +26,7 @@ const copy: MSettingsCopy = {
   footerBrand: 'cortex mobile', switchProfile: 'Switch',
 };
 
-const vm: MSettingsVm = {
-  daemonHost: null, profileName: 'default', profileModel: 'sonnet', profileThinking: 'high',
-  profiles: [], budgetSpendLabel: '$0 / $10', budgetBarPct: '0%', notifyOn: true,
-  autoResumeOn: false, notifyEnabledCount: 1, platforms: ['slack'], templatesCount: 2,
-  pluginsCount: null, mcpServers: ['filesystem'], hooks: [],
-};
+const vm: MSettingsVm = { profileName: 'default', profileModel: 'sonnet', profileThinking: 'high' };
 
 function renderSettings(overrides: Partial<Parameters<typeof MSettingsView>[0]> = {}) {
   return create(

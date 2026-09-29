@@ -39,7 +39,7 @@ export function MSettingsScreen() {
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const machines = useMachinesResource();
-  const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT, undefined), [config.data]);
+  const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT), [config.data]);
   return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
     onlineMachines={onlineMachineCount(machines.machines)}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
