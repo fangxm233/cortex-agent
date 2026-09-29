@@ -40,13 +40,11 @@ export interface ClaudeCredentialSlotVm {
 
 export interface ClaudeAccountVm {
   provider: string;
-  label: string;
   inUse: boolean;
   slots: ClaudeCredentialSlotVm[];
 }
 
 export interface PiProviderVm {
-  backend: 'pi';
   provider: string;
   label: string;
   inUse: boolean;
@@ -69,16 +67,10 @@ export interface AccountProviderGroupVm {
   providers: PiProviderVm[];
 }
 
-export interface AccountsSummaryVm {
-  claudeLoggedIn: boolean;
-  piLoggedInCount: number;
-}
-
 export interface MAccountsVm {
   claude: ClaudeAccountVm | null;
   piProviders: PiProviderVm[];
   groups: AccountProviderGroupVm[];
-  summary: AccountsSummaryVm;
 }
 
 const STATUS: Record<AuthAccountState, AccountStatusVm> = {
@@ -121,7 +113,6 @@ function claudeVm(account: AuthAccountStatus | undefined): ClaudeAccountVm | nul
   if (!account) return null;
   return {
     provider: account.provider,
-    label: account.label,
     inUse: account.inUse,
     slots: CLAUDE_SLOT_ORDER.map(authType => claudeSlot(account, authType)),
   };
@@ -143,7 +134,6 @@ function manageableTypes(account: AuthAccountStatus): AuthType[] {
 
 function piProviderVm(account: AuthAccountStatus): PiProviderVm {
   return {
-    backend: 'pi',
     provider: account.provider,
     label: account.label,
     inUse: account.inUse,
@@ -158,10 +148,6 @@ function piProviderVm(account: AuthAccountStatus): PiProviderVm {
 function providerOrder(left: PiProviderVm, right: PiProviderVm): number {
   const useOrder = Number(right.inUse) - Number(left.inUse);
   return useOrder || left.label.localeCompare(right.label);
-}
-
-function isUsable(state: AuthAccountState): boolean {
-  return state === 'logged-in' || state === 'expiring';
 }
 
 function providerGroups(providers: PiProviderVm[]): AccountProviderGroupVm[] {
@@ -182,17 +168,6 @@ function matchesFilter(account: AuthAccountStatus, filter: string): boolean {
     || account.label.toLocaleLowerCase().includes(needle);
 }
 
-function summary(accounts: AuthAccountStatus[]): AccountsSummaryVm {
-  const claude = accounts.find(account => account.backend === 'claude');
-  const claudeLoggedIn = !!claude && (
-    isUsable(claude.state) || claude.credentials.some(item => isUsable(item.state))
-  );
-  const piLoggedInCount = accounts.filter(account => (
-    account.backend === 'pi' && isUsable(account.state)
-  )).length;
-  return { claudeLoggedIn, piLoggedInCount };
-}
-
 export function buildAccountsVm(snapshot: AuthStatusSnapshot, filter = ''): MAccountsVm {
   const claude = snapshot.accounts.find(account => account.backend === 'claude');
   const piProviders = snapshot.accounts.filter(account => (
@@ -202,6 +177,5 @@ export function buildAccountsVm(snapshot: AuthStatusSnapshot, filter = ''): MAcc
     claude: claudeVm(claude),
     piProviders,
     groups: providerGroups(piProviders),
-    summary: summary(snapshot.accounts),
   };
 }
