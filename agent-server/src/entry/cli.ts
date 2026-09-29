@@ -110,14 +110,18 @@ export async function cmdTui(args: string[]): Promise<void> {
   await new Promise<never>(() => {}); // keep alive until child exits
 }
 
-// ─── Daemon stop ──────────────────────────────────────────────────
+// ─── Daemon PID ───────────────────────────────────────────────────
 
-async function stopDaemonInternal(): Promise<CliResult> {
+/**
+ * Read the daemon PID file for stop/status. Returns the live PID, or the result to report
+ * when there is no running daemon (missing, corrupted or stale PID files are cleaned up).
+ */
+function readLiveDaemonPid(): { pid: number } | { result: CliResult } {
   const pidFile = path.join(STORE_DIR, 'daemon.pid');
 
   // Case 1: No PID file
   if (!existsSync(pidFile)) {
-    return { exitCode: 0, stdout: 'Cortex daemon is not running.\n', stderr: '' };
+    return { result: { exitCode: 0, stdout: 'Cortex daemon is not running.\n', stderr: '' } };
   }
 
   // Read PID
@@ -127,10 +131,10 @@ async function stopDaemonInternal(): Promise<CliResult> {
     pid = Number(raw);
     if (!Number.isFinite(pid) || pid <= 0) {
       try { unlinkSync(pidFile); } catch {}
-      return { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' };
+      return { result: { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' } };
     }
   } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to read PID file: ${err.message}\n` };
+    return { result: { exitCode: 1, stdout: '', stderr: `Failed to read PID file: ${err.message}\n` } };
   }
 
   // Case 2: PID file exists but process is dead (stale)
@@ -138,8 +142,18 @@ async function stopDaemonInternal(): Promise<CliResult> {
   try { process.kill(pid, 0); alive = true; } catch { alive = false; }
   if (!alive) {
     try { unlinkSync(pidFile); } catch {}
-    return { exitCode: 0, stdout: `Cortex daemon is not running (removed stale PID file for PID ${pid}).\n`, stderr: '' };
+    return { result: { exitCode: 0, stdout: `Cortex daemon is not running (removed stale PID file for PID ${pid}).\n`, stderr: '' } };
   }
+  return { pid };
+}
+
+// ─── Daemon stop ──────────────────────────────────────────────────
+
+async function stopDaemonInternal(): Promise<CliResult> {
+  const pidFile = path.join(STORE_DIR, 'daemon.pid');
+  const daemon = readLiveDaemonPid();
+  if ('result' in daemon) return daemon.result;
+  const { pid } = daemon;
 
   // Case 3: Process is alive — send SIGTERM
   try {
@@ -225,33 +239,9 @@ function getProcessUptime(pid: number): string {
 }
 
 function getDaemonStatusInternal(): CliResult {
-  const pidFile = path.join(STORE_DIR, 'daemon.pid');
-
-  // Case 1: No PID file
-  if (!existsSync(pidFile)) {
-    return { exitCode: 0, stdout: 'Cortex daemon is not running.\n', stderr: '' };
-  }
-
-  // Read PID
-  let pid: number;
-  try {
-    const raw = readFileSync(pidFile, 'utf8').trim();
-    pid = Number(raw);
-    if (!Number.isFinite(pid) || pid <= 0) {
-      try { unlinkSync(pidFile); } catch {}
-      return { exitCode: 0, stdout: 'Cortex daemon is not running (removed corrupted PID file).\n', stderr: '' };
-    }
-  } catch (err: any) {
-    return { exitCode: 1, stdout: '', stderr: `Failed to read PID file: ${err.message}\n` };
-  }
-
-  // Case 2: PID file exists but process is dead (stale)
-  let alive = false;
-  try { process.kill(pid, 0); alive = true; } catch { alive = false; }
-  if (!alive) {
-    try { unlinkSync(pidFile); } catch {}
-    return { exitCode: 0, stdout: `Cortex daemon is not running (removed stale PID file for PID ${pid}).\n`, stderr: '' };
-  }
+  const daemon = readLiveDaemonPid();
+  if ('result' in daemon) return daemon.result;
+  const { pid } = daemon;
 
   // Case 3: Process is alive — report status
   const uptime = getProcessUptime(pid);
@@ -315,15 +305,8 @@ function daemonRestartInternal(): CliResult {
   }
 
   // Touch .restart trigger file for the daemon to pick up
-  const trigger = path.join(STORE_DIR, '.restart');
   try {
-    mkdirSync(STORE_DIR, { recursive: true });
-    if (existsSync(trigger)) {
-      const now = new Date();
-      utimesSync(trigger, now, now);
-    } else {
-      writeFileSync(trigger, '');
-    }
+    touchRestartTrigger(path.join(STORE_DIR, '.restart'));
     return { exitCode: 0, stdout: `Restart signal sent to daemon (PID ${pid}).\n`, stderr: '' };
   } catch (err: any) {
     return { exitCode: 1, stdout: '', stderr: `Failed to signal daemon restart: ${err.message || String(err)}\n` };
