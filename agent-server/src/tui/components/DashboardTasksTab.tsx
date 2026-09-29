@@ -45,7 +45,6 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
 
   // Refs for stale-closure-safe access inside useInput / callbacks
   const confirmingIndexRef = useRef<number | null>(null);
-  const confirmModeRef = useRef<ConfirmMode>(null);
   const focusedIndexRef = useRef(0);
   focusedIndexRef.current = focusedIndex;
   const mutateRef = useRef(mutate);
@@ -141,12 +140,10 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
       doMutate('tasks.unclaim', task.id);
     } else if (input === 'd' && !key.ctrl) {
       confirmingIndexRef.current = focusedIndexRef.current;
-      confirmModeRef.current = 'complete';
       setConfirmingIndex(focusedIndexRef.current);
       setConfirmMode('complete');
     } else if (input === 'b' && !key.shift) {
       confirmingIndexRef.current = focusedIndexRef.current;
-      confirmModeRef.current = 'block';
       setConfirmingIndex(focusedIndexRef.current);
       setConfirmMode('block');
     } else if (input === 'B' || (input === 'b' && key.shift)) {
@@ -173,13 +170,11 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
               doMutate('tasks.complete', tasks[idx].id);
             }
             confirmingIndexRef.current = null;
-            confirmModeRef.current = null;
             setConfirmingIndex(null);
             setConfirmMode(null);
           }}
           onCancel={() => {
             confirmingIndexRef.current = null;
-            confirmModeRef.current = null;
             setConfirmingIndex(null);
             setConfirmMode(null);
           }}
@@ -197,13 +192,11 @@ function TasksList({ data, mutate, projectId, active = true }: DashboardTasksTab
               doMutate('tasks.block', tasks[idx].id, { reason });
             }
             confirmingIndexRef.current = null;
-            confirmModeRef.current = null;
             setConfirmingIndex(null);
             setConfirmMode(null);
           }}
           onCancel={() => {
             confirmingIndexRef.current = null;
-            confirmModeRef.current = null;
             setConfirmingIndex(null);
             setConfirmMode(null);
           }}
