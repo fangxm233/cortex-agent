@@ -91,12 +91,7 @@ VERIFIER_UVX_ALIAS = TRIAL_ROOT / "home/.local/bin/uvx"
 VERIFIER_UVX_TARGET = PurePosixPath("/opt/terminal-bench-verifier/bin/uvx")
 INSTALLED_AGENT_BIN = "/installed-agent/npm/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
-PROVIDER_ENV_KEYS = {
-    "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
-    "deepseek": frozenset({"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"}),
-    "openai": frozenset({"OPENAI_API_KEY", "OPENAI_BASE_URL"}),
-    "openai-codex": frozenset({"OPENAI_API_KEY"}),
-}
+SUPPORTED_PROVIDERS = frozenset({"anthropic", "deepseek", "openai", "openai-codex"})
 CREDENTIAL_ENV_KEYS = (
     "AWS_SHARED_CREDENTIALS_FILE",
     "AWS_CONFIG_FILE",
@@ -149,7 +144,7 @@ def _deadline_seconds(arm: Mapping[str, object]) -> int:
 
 def _provider(arm: Mapping[str, object]) -> str:
     provider = _required_text(arm, "provider")
-    if provider not in PROVIDER_ENV_KEYS:
+    if provider not in SUPPORTED_PROVIDERS:
         raise HarborTrialAdmissionError(f"unsupported provider environment: {provider}")
     return provider
 
