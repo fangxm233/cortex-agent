@@ -48,11 +48,6 @@ export function stepDotKind(step: ThreadStepDetail): StepDotKind {
   return 'pending';
 }
 
-/** 2-decimal dollar amount, e.g. "$2.10" (prototype money()). */
-export function formatCost(v: number): string {
-  return formatUsd(v);
-}
-
 export interface RightPanelBudget {
   todayLabel: string;
   limitLabel: string;
@@ -64,19 +59,19 @@ export function rightPanelBudget(
   today: number | undefined,
   dailyLimit: number | undefined,
 ): RightPanelBudget {
-  const todayLabel = typeof today === 'number' ? formatCost(today) : '—';
+  const todayLabel = typeof today === 'number' ? formatUsd(today) : '—';
   if (dailyLimit == null || dailyLimit <= 0) {
     return { todayLabel, limitLabel: '—', percent: 0 };
   }
   const percent = Math.max(0, Math.min(100, ((today ?? 0) / dailyLimit) * 100));
-  return { todayLabel, limitLabel: formatCost(dailyLimit), percent };
+  return { todayLabel, limitLabel: formatUsd(dailyLimit), percent };
 }
 
 /** Collapsed step meta "39m · $2.10" (duration then cost); omits null parts. */
 export function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
   const parts: string[] = [];
   if (step.durationS != null) parts.push(formatSpanPrecise(Math.round(step.durationS) * 1000, lang));
-  if (step.costUsd != null) parts.push(formatCost(step.costUsd));
+  if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
   return parts.join(' · ');
 }
 
@@ -92,17 +87,12 @@ export function subtaskActivity(task: ThreadSubtaskInfo, lang: TimeLang): Activi
   return { label: L.pillWaiting, tone: 'idle' };
 }
 
-/** Relative age of an ISO timestamp: "now" / "42m" / "3h" / "2d" · "刚刚" / "42分钟前". */
-export function formatAge(iso: string, now: number, lang: TimeLang): string {
-  return relTime(iso, now, lang);
-}
-
 /** Thread card meta line "thr_8f2c · task a293 · step 3/4 · 42m". */
 export function threadMetaLine(info: ThreadInfo, now: number, lang: TimeLang): string {
   const parts: string[] = [info.id];
   if (info.taskId) parts.push(pickVocab(lang).cmTaskRef.replace('{id}', info.taskId));
   if (info.currentStep) parts.push(fillStep(workbenchCopy(lang).metaStep, info.currentStep.index + 1, info.totalSteps));
-  parts.push(formatAge(info.createdAt, now, lang));
+  parts.push(relTime(info.createdAt, now, lang));
   return parts.join(' · ');
 }
 

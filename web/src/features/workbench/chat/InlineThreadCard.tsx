@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
+import { StepDot } from '@/features/workbench/right-panel/StepDot';
 import { buildThreadCard, type ThreadCardVm, type ThreadCardRow, type ThreadCardSub } from './inline-thread-card-vm';
 
 // Inline thread card — 1:1 from prototype.dc.html L180–246, bound to REAL threads.get (B1). This is
@@ -14,59 +15,6 @@ import { buildThreadCard, type ThreadCardVm, type ThreadCardRow, type ThreadCard
 // thread (empty list) or when no session is selected. Renders whatever the DTO carries (data-driven).
 
 const mono = "'IBM Plex Mono',monospace";
-
-function NodeCell({ row }: { row: ThreadCardRow }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {row.node === 'done' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: 'var(--proto-success-bg)',
-            color: 'var(--proto-success)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 8,
-            fontWeight: 700,
-            flex: 'none',
-          }}
-        >
-          ✓
-        </span>
-      )}
-      {row.node === 'running' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: 'var(--proto-accent)',
-            flex: 'none',
-            boxShadow: '0 0 0 3px var(--proto-accent-bg)',
-          }}
-        />
-      )}
-      {row.node === 'pending' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            border: '1.5px solid var(--proto-line-3)',
-            boxSizing: 'border-box',
-            flex: 'none',
-          }}
-        />
-      )}
-      {row.hasTail && (
-        <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />
-      )}
-    </div>
-  );
-}
 
 function SubCard({ sub, onOpenNested }: { sub: ThreadCardSub; onOpenNested: () => void }) {
   const L = useVocab();
@@ -164,7 +112,7 @@ function InlineCardHeader({ card, onOpen }: { card: ThreadCardVm; onOpen: () => 
 function InlineRow({ row, onOpenNested }: { row: ThreadCardRow; onOpenNested: () => void }) {
   return (
     <Fragment>
-      <NodeCell row={row} />
+      <StepDot kind={row.node} hasTail={row.hasTail} />
       <div style={{ minWidth: 0, paddingBottom: row.padB }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
           <span style={{ fontSize: 11.5, fontWeight: row.fw, color: row.node === 'running' ? 'var(--proto-ink)' : 'var(--proto-muted)', flex: 'none' }}>{row.name}</span>

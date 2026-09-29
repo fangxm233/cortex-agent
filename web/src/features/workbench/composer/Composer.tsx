@@ -10,7 +10,7 @@ import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from '@/features/session/composer/composer-slash';
-import { formatCost } from '@/features/workbench/right-panel/right-panel-vm';
+import { formatUsd } from '@/lib/format';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from '@/features/session/state/selected-session';
 import {
@@ -317,7 +317,7 @@ export function Composer({
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
   // Last run's cost; render — when unknown (running turn not yet finalized / never ran).
-  const costText = cost == null ? DASH : formatCost(cost);
+  const costText = cost == null ? DASH : formatUsd(cost);
   // A session has run at least one turn once it carries a turn count. A fresh/never-run session (draft
   // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
   const hasRun = !isDraft && turns != null;

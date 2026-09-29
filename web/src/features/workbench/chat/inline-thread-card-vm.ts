@@ -5,12 +5,17 @@
 
 import type {
   ThreadDetail,
-  ThreadStepDetail,
   ThreadChildNode,
 } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
-import { formatSpanPrecise, type TimeLang } from '@/lib/time-format';
-import { threadPill, type Pill } from '@/features/workbench/right-panel/right-panel-vm';
+import type { TimeLang } from '@/lib/time-format';
+import {
+  threadPill,
+  stepDotKind,
+  stepMeta,
+  type Pill,
+  type StepDotKind,
+} from '@/features/workbench/right-panel/right-panel-vm';
 import { fillStep, workbenchCopy } from '@/features/workbench/workbench-copy';
 import { pickVocab } from '@/i18n';
 
@@ -39,16 +44,13 @@ export interface ThreadCardSub {
 }
 
 export interface ThreadCardRow {
-  node: 'done' | 'running' | 'pending';
+  node: StepDotKind;
   hasTail: boolean;
   padB: string;
   name: string;
   fw: number;
-  color: string;
   sub: string;
-  subColor: string;
   meta: string;
-  metaColor: string;
   chev: boolean;
   expanded: boolean;
   subs: ThreadCardSub[];
@@ -66,14 +68,6 @@ export interface ThreadCardVm {
 /** display level: root children = L2, grandchildren = L3 (prototype uses L2/L3). */
 function childLevel(depth: number): string {
   return 'L' + (depth + 2);
-}
-
-/** collapsed step meta: "3m · $0.04" from real duration/cost (both optional). */
-function stepMeta(step: ThreadStepDetail, lang: TimeLang): string {
-  const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatSpanPrecise(Math.round(step.durationS) * 1000, lang));
-  if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
-  return parts.join(' · ');
 }
 
 function mapNested(node: ThreadChildNode, lang: TimeLang): ThreadCardNested | null {
@@ -118,8 +112,7 @@ export function buildThreadCard(detail: ThreadDetail, lang: TimeLang): ThreadCar
   const copy = workbenchCopy(lang);
   const steps = detail.steps;
   const rows: ThreadCardRow[] = steps.map((step, i) => {
-    const node: ThreadCardRow['node'] =
-      step.status === 'completed' ? 'done' : step.status === 'running' ? 'running' : 'pending';
+    const node = stepDotKind(step);
     const running = node === 'running';
     const done = node === 'done';
     const subs = running ? detail.children.map((child) => mapSub(child, lang)) : [];
@@ -130,11 +123,8 @@ export function buildThreadCard(detail: ThreadDetail, lang: TimeLang): ThreadCar
       padB: hasTail ? '8px' : '2px',
       name: step.stage ?? pickVocab(lang).cmStepN.replace('{n}', String(step.stepIndex + 1)),
       fw: running ? 600 : 500,
-      color: running ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)',
       sub: running ? (detail.activeStage ?? '') : (step.outputSummary ?? ''),
-      subColor: running ? 'var(--proto-muted-3)' : 'var(--proto-faint)',
       meta: running ? stepMeta(step, lang) || copy.metaRunning : done ? stepMeta(step, lang) : copy.metaGated,
-      metaColor: running ? 'var(--proto-accent)' : done ? 'var(--proto-faint)' : 'var(--proto-disabled)',
       chev: done,
       expanded: running,
       subs,

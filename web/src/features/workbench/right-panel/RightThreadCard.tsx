@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { formatUsd } from '@/lib/format';
 import { useLang, useVocab } from '@/i18n';
 import { useTaskModal } from '@/features/tasks/useTaskModal';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
@@ -12,11 +13,11 @@ import {
   stepMeta,
   threadMetaLine,
   depthInfo,
-  formatCost,
   subtaskActivity,
   type ActivityTone,
 } from './right-panel-vm';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
+import { StepDot } from './StepDot';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 type TaskProjectDetail = Pick<ThreadDetail, 'projectId' | 'artifacts'>;
@@ -33,57 +34,6 @@ const NODE_ICON = (
     <path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
   </svg>
 );
-
-function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasTail: boolean }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {kind === 'done' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: 'var(--proto-success-bg)',
-            color: 'var(--proto-success)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 8,
-            fontWeight: 700,
-            flex: 'none',
-          }}
-        >
-          ✓
-        </span>
-      )}
-      {kind === 'running' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: 'var(--proto-accent)',
-            flex: 'none',
-            boxShadow: '0 0 0 3px var(--proto-accent-bg)',
-          }}
-        />
-      )}
-      {kind === 'pending' && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            border: '1.5px solid var(--proto-line-3)',
-            boxSizing: 'border-box',
-            flex: 'none',
-          }}
-        />
-      )}
-      {hasTail && <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />}
-    </div>
-  );
-}
 
 const ACTIVITY_COLORS: Record<ActivityTone, string> = {
   running: 'var(--proto-accent)',
@@ -207,7 +157,7 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
       <span title={copy.pauseUnavailable} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
       <span data-cancel-thread-id={threadId} onClick={() => cancel.mutate({ threadId })} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}>{L.cancel}</span>
       <span onClick={() => openThread(threadId)} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.open}</span>
-      <span style={{ marginLeft: 'auto', font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>Σ {formatCost(cost)}</span>
+      <span style={{ marginLeft: 'auto', font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>Σ {formatUsd(cost)}</span>
     </div>
   );
 }
