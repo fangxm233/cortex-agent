@@ -1,13 +1,10 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, Mapping
 
 from ..proxy.models import PROXY_SCHEMA_VERSION
 
-CAPABILITY_STATES = frozenset({
-    "unsupported", "offline-contract-passed", "live-handshake-passed",
-})
 CapabilityState = Literal[
     "unsupported", "offline-contract-passed", "live-handshake-passed",
 ]
@@ -92,19 +89,6 @@ def capability_key_for(capability_id: str) -> CredentialCapabilityKey:
     return matches[0]
 
 
-def _project_row(
-    key: CredentialCapabilityKey,
-    capability: CredentialCapability,
-) -> dict[str, object]:
-    _validate_evidence_binding(key, capability)
-    row: dict[str, object] = {
-        "id": capability.id, "state": capability.state, "key": asdict(key),
-    }
-    if capability.evidence_sha256 is not None:
-        row["evidence_sha256"] = capability.evidence_sha256
-    return row
-
-
 def _validate_evidence_binding(
     key: CredentialCapabilityKey, capability: CredentialCapability,
 ) -> None:
@@ -136,8 +120,3 @@ def _validate_evidence_binding(
 
 def _evidence_path(capability_id: str, state: CapabilityState) -> Path:
     return Path(__file__).with_name("evidence") / f"{capability_id}.{state}.json"
-
-
-def project_credential_capabilities() -> list[dict[str, object]]:
-    rows = sorted(CAPABILITY_REGISTRY.items(), key=lambda item: item[1].id)
-    return [_project_row(key, capability) for key, capability in rows]
