@@ -3,12 +3,9 @@ import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import type { EventBus } from '@events/index.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import {
-  approveTaskAsync as lifecycleApproveTask,
   blockTaskAsync as lifecycleBlockTask,
   claimTaskAsync as lifecycleClaimTask,
-  clearApprovalTaskAsync as lifecycleClearApprovalTask,
   pauseTaskAsync as lifecyclePauseTask,
-  requestApprovalTaskAsync as lifecycleRequestApprovalTask,
   resumeTaskAsync as lifecycleResumeTask,
   unblockTaskAsync as lifecycleUnblockTask,
   unclaimTaskAsync as lifecycleUnclaimTask,
@@ -19,16 +16,12 @@ import {
 } from './system/task-completion.js';
 import {
   addTaskAsync as lifecycleAddTask,
-  batchEditAsync as lifecycleBatchEdit,
   decomposeTaskAsync as lifecycleDecomposeTask,
 } from './system/task-mutations.js';
-import { editTaskAsync as lifecycleEditTask } from './system/task-lifecycle-edit.js';
 import {
-  acquireLockAsync,
   assertLockHeld,
   getOwnerIdentity,
   isProjectLocked,
-  releaseLockAsync,
 } from './system/task-lock.js';
 
 interface ClaimTaskOptions {
@@ -45,55 +38,8 @@ interface CompleteTaskOptions extends OwnedMutationOptions {
   ownership?: TaskGenerationExpectation;
 }
 
-interface AddTaskOptions {
-  plan?: string;
-  system?: boolean;
-}
-
 interface DecomposeTaskOptions extends OwnedMutationOptions {
   keepParent?: boolean;
-  system?: boolean;
-}
-
-interface AddTaskRequest {
-  project: string;
-  text: string;
-  why: string;
-  doneWhen: string;
-  priority: string;
-  template: string | null;
-  dependsOn: string[] | null;
-  plan: string | null;
-}
-
-const SYSTEM_LOCK_RETRY_MS = 50;
-let systemLockSequence = 0;
-
-async function addTaskRecord(request: AddTaskRequest): Promise<any> {
-  return await lifecycleAddTask(
-    request.project, request.text, request.why, request.doneWhen,
-    request.priority, request.template, request.dependsOn, request.plan,
-  );
-}
-
-async function acquireSystemProjectLock(project: string): Promise<string> {
-  const owner = `system:${process.pid}:${++systemLockSequence}`;
-  // Async lock: a contended cross-process mutation lock must not park the event loop here.
-  while (!(await acquireLockAsync(project, { owner })).acquired) {
-    await new Promise((resolve) => setTimeout(resolve, SYSTEM_LOCK_RETRY_MS));
-  }
-  return owner;
-}
-
-async function releaseSystemProjectLock(project: string, owner: string): Promise<void> {
-  const result = await releaseLockAsync(project, owner);
-  if (!result.released) throw new Error(result.message || `Failed to release project lock for ${project}`);
-}
-
-function decomposeLockError(project: string, options: DecomposeTaskOptions): string | null {
-  if (!options.system) return assertLockHeld(project, getOwnerIdentity());
-  const lock = isProjectLocked(project);
-  return lock.locked ? `Project lock held by ${lock.owner} — split deferred` : null;
 }
 
 export class TaskMutator {
@@ -231,46 +177,6 @@ export class TaskMutator {
     });
   }
 
-  async requestApproval(taskId: string): Promise<any> {
-    return this.store.runExclusive(async () => {
-      const task = this.store.getById(taskId);
-      if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = await lifecycleRequestApprovalTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: requestApproval ${taskId}`); }
-      return result;
-    });
-  }
-
-  async approve(taskId: string): Promise<any> {
-    return this.store.runExclusive(async () => {
-      const task = this.store.getById(taskId);
-      if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = await lifecycleApproveTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: approve ${taskId}`); }
-      return result;
-    });
-  }
-
-  async clearApproval(taskId: string): Promise<any> {
-    return this.store.runExclusive(async () => {
-      const task = this.store.getById(taskId);
-      if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = await lifecycleClearApprovalTask(task.text, task.project, taskId);
-      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: clearApproval ${taskId}`); }
-      return result;
-    });
-  }
-
-  async batchEdit(project: string, taskIds: string[], options: any): Promise<any> {
-    return this.store.runExclusive(async () => {
-      const lockError = assertLockHeld(project, getOwnerIdentity());
-      if (lockError) return { success: false, message: lockError };
-      const result = await lifecycleBatchEdit(project, taskIds, options);
-      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: batch-edit ${taskIds.length} tasks in ${project}`); }
-      return result;
-    });
-  }
-
   async add(
     project: string,
     text: string,
@@ -279,48 +185,15 @@ export class TaskMutator {
     priority?: string,
     template?: string,
     dependsOn?: string[],
-    options: AddTaskOptions = {},
   ): Promise<any> {
-    const request: AddTaskRequest = {
-      project, text, why, doneWhen,
-      priority: priority || 'medium',
-      template: template || null,
-      dependsOn: dependsOn || null,
-      plan: options.plan || null,
-    };
-    if (options.system) return this.addSystemTask(request);
     return this.store.runExclusive(async () => {
       const lockError = assertLockHeld(project, getOwnerIdentity());
       if (lockError) return { success: false, message: lockError };
-      const result = await addTaskRecord(request);
+      const result = await lifecycleAddTask(
+        project, text, why, doneWhen,
+        priority || 'medium', template || null, dependsOn || null, null,
+      );
       if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: add task to ${project}`); }
-      return result;
-    });
-  }
-
-  private async addSystemTask(request: AddTaskRequest): Promise<any> {
-    const owner = await acquireSystemProjectLock(request.project);
-    return this.store.runExclusive(async () => {
-      let result: any;
-      try {
-        result = await addTaskRecord(request);
-      } finally {
-        await releaseSystemProjectLock(request.project, owner);
-      }
-      if (result.success) {
-        this.store.refresh();
-        await this.store.commitAndPush(`task-store: add task to ${request.project}`);
-      }
-      return result;
-    });
-  }
-
-  async edit(project: string, options: any): Promise<any> {
-    return this.store.runExclusive(async () => {
-      const lockError = assertLockHeld(project, getOwnerIdentity());
-      if (lockError) return { success: false, message: lockError };
-      const result = await lifecycleEditTask(project, options);
-      if (result.success) { this.store.refresh(); await this.store.commitAndPush(`task-store: edit task in ${project}`); }
       return result;
     });
   }
@@ -333,8 +206,8 @@ export class TaskMutator {
     options: DecomposeTaskOptions = {},
   ): Promise<any> {
     return this.store.runExclusive(async () => {
-      const lockError = decomposeLockError(project, options);
-      if (lockError) return { success: false, message: lockError };
+      const lock = isProjectLocked(project);
+      if (lock.locked) return { success: false, message: `Project lock held by ${lock.owner} — split deferred` };
       const result = await lifecycleDecomposeTask(project, taskText, subtasks, taskId || null, {
         keepParent: options.keepParent,
         ownership: options.ownership,

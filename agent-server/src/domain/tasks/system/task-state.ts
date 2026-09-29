@@ -322,27 +322,21 @@ const claimTaskAsync = lockTaskMutationAsync(claimTaskUnlocked);
 const unclaimTaskAsync = lockTaskMutationAsync(unclaimTaskUnlocked);
 const pauseTaskAsync = lockTaskMutationAsync(pauseTaskUnlocked);
 const resumeTaskAsync = lockTaskMutationAsync(resumeTaskUnlocked);
-const requestApprovalTaskAsync = lockTaskMutationAsync(requestApprovalTaskUnlocked);
-const approveTaskAsync = lockTaskMutationAsync(approveTaskUnlocked);
-const clearApprovalTaskAsync = lockTaskMutationAsync(clearApprovalTaskUnlocked);
 const blockTaskAsync = lockTaskMutationAsync(blockTaskUnlocked);
 const unblockTaskAsync = lockTaskMutationAsync(unblockTaskUnlocked);
 
 export {
   approveTask,
-  approveTaskAsync,
   blockTask,
   blockTaskAsync,
   claimTask,
   claimTaskAsync,
   clearApprovalTask,
-  clearApprovalTaskAsync,
   pauseTask,
   pauseTaskAsync,
   pendingTask,
   reopenTask,
   requestApprovalTask,
-  requestApprovalTaskAsync,
   resumeTask,
   resumeTaskAsync,
   unblockTask,

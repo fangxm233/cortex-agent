@@ -216,7 +216,7 @@ test('delayed split cannot mutate a task reclaimed by a newer generation', async
     }, {
       detect: () => ({ split: true, subtasks: [{ text: 'Old child' }], error: null }),
       decompose: (project, text, subtasks, taskId, options) =>
-        taskMutator.decompose(project, text, subtasks, taskId, { ...options, system: true }),
+        taskMutator.decompose(project, text, subtasks, taskId, options),
       unclaim: async () => {},
     });
     assert.equal(result.handled, true);

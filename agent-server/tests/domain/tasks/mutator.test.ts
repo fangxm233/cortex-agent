@@ -15,13 +15,16 @@ import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { isActionable, parseTasksFile } from '../../../src/core/task-parser.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
 import { TaskMutator } from '../../../src/domain/tasks/mutator.js';
-import { addTask as lifecycleAddTask } from '../../../src/domain/tasks/system/task-mutations.js';
 import {
+  approveTask as lifecycleApproveTask,
   claimTask as lifecycleClaimTask,
+  clearApprovalTask as lifecycleClearApprovalTask,
   pendingTask as lifecyclePendingTask,
   reopenTask as lifecycleReopenTask,
+  requestApprovalTask as lifecycleRequestApprovalTask,
 } from '../../../src/domain/tasks/system/task-state.js';
-import { getOwnerIdentity, releaseLock, writeLock } from '../../../src/domain/tasks/system/task-lock.js';
+import { editTask as lifecycleEditTask } from '../../../src/domain/tasks/system/task-lifecycle-edit.js';
+import { getOwnerIdentity, writeLock } from '../../../src/domain/tasks/system/task-lock.js';
 
 beforeEach(() => {
   hookBus.emitCortexEvent.mockReset();
@@ -426,15 +429,13 @@ test('resume — fails when task is not paused', async () => {
   }
 });
 
-// ─── 9. requestApproval ───────────────────────────────────────────
+// ─── 9. requestApproval (lifecycle, used by the cortex-task CLI) ────
 
-test('requestApproval — marks a task as approval-needed', async () => {
+test('requestApprovalTask — marks a task as approval-needed', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.requestApproval(fx.seedTaskId);
+    const result = lifecycleRequestApprovalTask('Seed task', proj, fx.seedTaskId);
     assert.equal(result.success, true);
     assert.match(
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
@@ -445,13 +446,12 @@ test('requestApproval — marks a task as approval-needed', async () => {
   }
 });
 
-test('requestApproval — fails when task already requires approval', async () => {
+test('requestApprovalTask — fails when task already requires approval', () => {
   const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
   try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    await mutator.requestApproval(fx.seedTaskId);
-    const result = await mutator.requestApproval(fx.seedTaskId);
+    lifecycleRequestApprovalTask('Seed task', proj, fx.seedTaskId);
+    const result = lifecycleRequestApprovalTask('Seed task', proj, fx.seedTaskId);
     assert.equal(result.success, false);
     assert.match(result.message, /already requires approval/i);
   } finally {
@@ -459,16 +459,14 @@ test('requestApproval — fails when task already requires approval', async () =
   }
 });
 
-// ─── 10. approve ─────────────────────────────────────────────────
+// ─── 10. approve (lifecycle) ─────────────────────────────────────
 
-test('approve — approves a task', async () => {
+test('approveTask — approves a task', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    await mutator.requestApproval(fx.seedTaskId);
-    const result = await mutator.approve(fx.seedTaskId);
+    lifecycleRequestApprovalTask('Seed task', proj, fx.seedTaskId);
+    const result = lifecycleApproveTask('Seed task', proj, fx.seedTaskId);
     assert.equal(result.success, true);
     const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
     assert.match(disk, /approved-at:\s*"?\d{4}-\d{2}-\d{2}"?/);
@@ -478,17 +476,15 @@ test('approve — approves a task', async () => {
   }
 });
 
-// ─── 11. clearApproval ───────────────────────────────────────────
+// ─── 11. clearApproval (lifecycle) ───────────────────────────────
 
-test('clearApproval — clears approval tags from a task', async () => {
+test('clearApprovalTask — clears approval tags from a task', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    await mutator.requestApproval(fx.seedTaskId);
-    await mutator.approve(fx.seedTaskId);
-    const result = await mutator.clearApproval(fx.seedTaskId);
+    lifecycleRequestApprovalTask('Seed task', proj, fx.seedTaskId);
+    lifecycleApproveTask('Seed task', proj, fx.seedTaskId);
+    const result = lifecycleClearApprovalTask('Seed task', proj, fx.seedTaskId);
     assert.equal(result.success, true);
     const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
     assert.doesNotMatch(disk, /approval-needed:\s*true/);
@@ -498,58 +494,13 @@ test('clearApproval — clears approval tags from a task', async () => {
   }
 });
 
-test('clearApproval — fails when task has no approval tags', async () => {
-  const fx = makeFixtureRepo();
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.clearApproval(fx.seedTaskId);
-    assert.equal(result.success, false);
-    assert.match(result.message, /no approval tags/i);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-// ─── 12. batchEdit ───────────────────────────────────────────────
-
-test('batchEdit — edits multiple tasks in a project', async () => {
-  const proj = nextProject();
-  const fx = makeFixtureRepo([proj]);
-  try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const r1 = await mutator.add(proj, 'Batch A', 'test', 'exists', 'low', 'coder-review');
-    const r2 = await mutator.add(proj, 'Batch B', 'test', 'exists', 'low', 'coder-review');
-    assert.equal(r1.success, true);
-    assert.equal(r2.success, true);
-
-    const result = await mutator.batchEdit(proj, [r1.task_id, r2.task_id], { priority: 'high' });
-    assert.equal(result.success, true);
-    assert.match(result.message, /2\/2 tasks updated/);
-
-    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
-    assert(disk.includes('priority: high'));
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('batchEdit — fails when none of the task IDs exist', async () => {
+test('clearApprovalTask — fails when task has no approval tags', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.batchEdit(proj, ['zzzz', 'yyyy'], { priority: 'high' });
+    const result = lifecycleClearApprovalTask('Seed task', proj, fx.seedTaskId);
     assert.equal(result.success, false);
-    assert(result.results);
-    assert.equal(result.results.length, 2);
-    assert.equal(result.results[0].success, false);
+    assert.match(result.message, /no approval tags/i);
   } finally {
     fx.cleanup();
   }
@@ -601,75 +552,13 @@ test('add — fails with empty text', async () => {
   }
 });
 
-test('add — system mutation persists an inherited plan without an agent lock', async () => {
+// ─── 14. edit (lifecycle, used by the cortex-task CLI) ────────────
+
+test('editTask — edits a task priority', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.add(
-      proj, 'Review followup', 'recover review', 'suite is green',
-      'high', 'coder-review', [], { plan: 'plans/review.md', system: true },
-    );
-
-    assert.equal(result.success, true);
-    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
-    assert.match(disk, /text:\s*Review followup/);
-    assert.match(disk, /priority:\s*high/);
-    assert.match(disk, /template:\s*coder-review/);
-    assert.match(disk, /plan:\s*plans\/review\.md/);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-test('add — system mutation waits for a foreign writer and preserves both changes', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  const foreignOwner = 'foreign-writer';
-  try {
-    writeLock(proj, {
-      owner: foreignOwner,
-      acquired_at: new Date().toISOString(),
-      expires_at: '2099-01-01T00:00:00.000Z',
-    });
-    const staleSnapshot = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
-    const mutator = new TaskMutator(createRepo());
-
-    const systemAdd = mutator.add(
-      proj, 'Review followup', 'recover review', 'suite is green',
-      'high', 'coder-review', [], { system: true },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    fs.writeFileSync(fx.tasksPathFor(proj), staleSnapshot);
-    const foreignAdd = lifecycleAddTask(
-      proj, 'Foreign task', 'concurrent mutation', 'exists', 'medium', 'coder-review',
-    );
-    assert.equal(foreignAdd.success, true);
-    assert.equal(releaseLock(proj, foreignOwner).released, true);
-
-    assert.equal((await systemAdd).success, true);
-    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
-    assert.match(disk, /text:\s*Foreign task/);
-    assert.match(disk, /text:\s*Review followup/);
-  } finally {
-    releaseLock(proj, foreignOwner, { force: true });
-    fx.cleanup();
-  }
-});
-
-// ─── 14. edit ────────────────────────────────────────────────────
-
-test('edit — edits a task priority', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.edit(proj, { taskId: fx.seedTaskId, priority: 'high' });
+    const result = lifecycleEditTask(proj, { taskId: fx.seedTaskId, priority: 'high' });
     assert.equal(result.success, true);
     assert.match(
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
@@ -680,15 +569,11 @@ test('edit — edits a task priority', async () => {
   }
 });
 
-test('edit — fails with invalid priority', async () => {
+test('editTask — fails with invalid priority', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.edit(proj, { taskId: fx.seedTaskId, priority: 'wrong' });
+    const result = lifecycleEditTask(proj, { taskId: fx.seedTaskId, priority: 'wrong' });
     assert.equal(result.success, false);
     assert.match(result.message, /invalid priority/i);
   } finally {
@@ -698,12 +583,10 @@ test('edit — fails with invalid priority', async () => {
 
 // ─── 15. decompose ───────────────────────────────────────────────
 
-test('decompose — splits a task into subtasks', async () => {
+test('decompose — splits a task into subtasks without an agent lock', async () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];
   try {
-    const owner = getOwnerIdentity();
-    writeLock(proj, { owner, acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
     const repo = createRepo();
     const mutator = new TaskMutator(repo);
     const subtasks = [
@@ -718,6 +601,22 @@ test('decompose — splits a task into subtasks', async () => {
     assert.match(disk, /text:\s*Subtask 1/);
     assert.match(disk, /text:\s*Subtask 2/);
     assert.doesNotMatch(disk, /text:\s*"?Seed task/); // original replaced
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('decompose — defers while any project lock is held', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    writeLock(proj, { owner: 'foreign-writer', acquired_at: new Date().toISOString(), expires_at: '2099-01-01T00:00:00.000Z' });
+    const before = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    const mutator = new TaskMutator(createRepo());
+    const result = await mutator.decompose(proj, 'Seed task', [{ text: 'Child' }], fx.seedTaskId);
+    assert.equal(result.success, false);
+    assert.match(result.message, /split deferred/);
+    assert.equal(fs.readFileSync(fx.tasksPathFor(proj), 'utf8'), before);
   } finally {
     fx.cleanup();
   }
@@ -812,26 +711,6 @@ test('add \xe2\x80\x94 succeeds when lock held by current owner', async () => {
   }
 });
 
-// --- 17. Lock-required: edit ---
-
-test('edit \xe2\x80\x94 fails without lock held', async () => {
-  const fx = makeFixtureRepo();
-  const proj = fx.projects[0];
-  try {
-    const repo = createRepo();
-    const mutator = new TaskMutator(repo);
-    const result = await mutator.edit(proj, { taskId: fx.seedTaskId, text: 'edited' });
-    assert.equal(result.success, false);
-    assert.match(result.message, /lock/i);
-  } finally {
-    fx.cleanup();
-  }
-});
-
-// --- 18. Lock-required: batchEdit ---
-
-// --- 19. Lock-required: decompose ---
-
 // --- 20. Other project lock scoping ---
 
 test('other project lock does not affect current project operation', async () => {
@@ -907,13 +786,13 @@ test('claim — fails for completed or blocked tasks', async () => {
   }
 });
 
-test('approve — fails for completed or blocked tasks', async () => {
+test('approveTask — fails for completed or blocked tasks', async () => {
   const fxDone = makeFixtureRepo();
   try {
     const mutator = new TaskMutator(createRepo());
     await mutator.claim(fxDone.seedTaskId, 'agent');
     await mutator.complete(fxDone.seedTaskId, 'done');
-    const res = await mutator.approve(fxDone.seedTaskId);
+    const res = lifecycleApproveTask('Seed task', fxDone.projects[0], fxDone.seedTaskId);
     assert.equal(res.success, false);
     assert.match(res.message, /completed/i);
   } finally {
@@ -924,7 +803,7 @@ test('approve — fails for completed or blocked tasks', async () => {
   try {
     const mutator = new TaskMutator(createRepo());
     await mutator.block(fxBlocked.seedTaskId, 'reason');
-    const res = await mutator.approve(fxBlocked.seedTaskId);
+    const res = lifecycleApproveTask('Seed task', fxBlocked.projects[0], fxBlocked.seedTaskId);
     assert.equal(res.success, false);
     assert.match(res.message, /blocked/);
   } finally {

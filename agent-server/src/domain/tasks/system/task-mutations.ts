@@ -3,7 +3,7 @@ import { createLogger } from '@core/log.js';
 import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
 import { collectAllExistingHashes, generateHash } from './task-id-utils.js';
 import {
-  editTask, editTaskAsync, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName,
+  editTask, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName,
   withTaskFileMutationLock, withTaskFileMutationLockAsync, writeTasks,
 } from './task-lifecycle-edit.js';
 import { recordProductionTopologyFact } from '../production-topology-ledger.js';
@@ -439,20 +439,4 @@ const decomposeTask = lockProjectMutation(decomposeTaskOwnedUnlocked);
 const addTaskAsync = lockProjectMutationAsync(addTaskUnlocked);
 const decomposeTaskAsync = lockProjectMutationAsync(decomposeTaskOwnedUnlocked);
 
-/** Async twin of `batchEdit`: issues the per-task edits through the async lock. */
-async function batchEditAsync(project: string, taskIds: string[], options: any = {}) {
-  const results: { taskId: string; success: boolean; message: string }[] = [];
-  for (const id of taskIds) {
-    const result = await editTaskAsync(project, { ...options, taskId: id });
-    results.push({ taskId: id, success: result.success, message: result.message || '' });
-  }
-  const succeeded = results.filter((r) => r.success).length;
-  const failed = results.filter((r) => !r.success);
-  let message = `Batch edit: ${succeeded}/${taskIds.length} tasks updated`;
-  if (failed.length > 0) {
-    message += `\nFailed:\n${failed.map((r) => `  [${r.taskId}] ${r.message}`).join('\n')}`;
-  }
-  return { success: failed.length === 0, message, results };
-}
-
-export { addTask, addTaskAsync, batchEdit, batchEditAsync, bulkAddTasks, decomposeTask, decomposeTaskAsync };
+export { addTask, addTaskAsync, batchEdit, bulkAddTasks, decomposeTask, decomposeTaskAsync };

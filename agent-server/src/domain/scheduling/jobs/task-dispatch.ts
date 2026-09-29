@@ -341,8 +341,8 @@ async function decideDispatch(outcome: ThreadRunOutcome, c: {
     { threadId, taskId: selectedTask.id ?? null, project, ownership },
     {
       detect: detectSplitFromControl,
-      // system:true — no agent lock in the dispatch path; defer if a foreign lock exists.
-      decompose: (pr, t, subs, tid, opts) => taskMutator.decompose(pr, t, subs, tid, { ...opts, system: true }),
+      // No agent lock in the dispatch path; decompose defers if a foreign lock exists.
+      decompose: (pr, t, subs, tid, opts) => taskMutator.decompose(pr, t, subs, tid, opts),
       unclaim: (tid) => taskMutator.unclaim(tid, { ownership }),
     },
   );
