@@ -82,7 +82,7 @@ pub enum Apply {
     /// Installable in one click but needs a root authorization dialog: only ever on a
     /// user-present path, never at quit or startup.
     Elevated,
-    /// Needs the user to finish it by hand; the reason is surfaced to the SPA.
+    /// Needs the user to finish it by hand; the payload records why.
     Assisted(&'static str),
 }
 
@@ -93,14 +93,6 @@ impl Apply {
             Apply::Auto => "auto",
             Apply::Elevated => "elevated",
             Apply::Assisted(_) => "assisted",
-        }
-    }
-
-    /// Why this site cannot be updated silently, for logs and the SPA's explanation.
-    pub fn reason(&self) -> Option<&'static str> {
-        match self {
-            Apply::Assisted(reason) => Some(reason),
-            _ => None,
         }
     }
 }
