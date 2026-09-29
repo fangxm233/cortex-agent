@@ -22,10 +22,6 @@ const HOLD_LEASE_MS = 5 * 60_000;
 export interface RebuildHold {
   /** The pipeline step in flight ('web', 'install', 'restart'), when the supervisor named one. */
   phase: string | null;
-  /** What triggered the rebuild, verbatim ('src change: core/foo.ts'). */
-  reason: string | null;
-  /** When this process first started holding, in epoch ms. */
-  since: number;
 }
 
 interface HeldState extends RebuildHold {
@@ -34,14 +30,11 @@ interface HeldState extends RebuildHold {
 
 let held: HeldState | null = null;
 
-/** Apply a supervisor hold message. Renews the lease and keeps the original `since`, so the UI and
- *  the refusal text can say how long the app has been closed for business. */
-export function holdNewTurns(p: { phase?: string | null; reason?: string | null; now?: number }): void {
+/** Apply a supervisor hold message. Renews the lease. */
+export function holdNewTurns(p: { phase?: string | null; now?: number }): void {
   const now = p.now ?? Date.now();
   held = {
     phase: p.phase ?? null,
-    reason: p.reason ?? null,
-    since: held?.since ?? now,
     expiresAt: now + HOLD_LEASE_MS,
   };
 }
@@ -58,8 +51,7 @@ export function rebuildHold(now = Date.now()): RebuildHold | null {
     held = null;
     return null;
   }
-  const { phase, reason, since } = held;
-  return { phase, reason, since };
+  return { phase: held.phase };
 }
 
 /** True while new turns must be refused. */
@@ -109,8 +101,3 @@ export async function refuseTurnForRebuild(p: {
     text: t('startup.rebuildHoldDropped', { phase, channel: p.channel, preview: preview(p.text) }),
   }).catch(() => {});
 }
-
-/** Test hook: drop the hold between cases. */
-export const _test = {
-  reset(): void { held = null; },
-};

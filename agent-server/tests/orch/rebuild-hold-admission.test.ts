@@ -2,7 +2,7 @@ import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { ThreadExecutor } from '../../src/orchestration/thread-executor.js';
-import { holdNewTurns, _test as holdTest } from '../../src/domain/system/rebuild-hold.js';
+import { holdNewTurns, releaseNewTurnHold } from '../../src/domain/system/rebuild-hold.js';
 import { resetSystemNoticeHistory, listSystemNotices } from '../../src/domain/system/notice-history.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
@@ -12,7 +12,7 @@ import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
 // into a live turn. A turn started here is orphaned by the SIGTERM a moment later.
 
 afterEach(() => {
-  holdTest.reset();
+  releaseNewTurnHold();
   resetSystemNoticeHistory();
 });
 
@@ -48,7 +48,7 @@ function spyRunner() {
 test('a held app starts no turn: nothing tracked, queued or injected', async () => {
   const { runner, calls } = spyRunner();
   const ctx = makeCtx();
-  holdNewTurns({ phase: 'web', reason: 'src change: core/foo.ts' });
+  holdNewTurns({ phase: 'web' });
 
   await runner.route(ctx);
 
@@ -80,7 +80,7 @@ test('a callback refused under the hold is recorded instead of answered into a c
     channel: 'web:cb',
     userMessage: '[Background agent sa_99 — phase 2]\n\nDone.',
   });
-  holdNewTurns({ phase: 'restart', reason: 'src rebuild' });
+  holdNewTurns({ phase: 'restart' });
 
   await runner.route(ctx);
 
@@ -100,7 +100,7 @@ test('thread routing is held on the same rule', async () => {
     execute: async () => {},
   });
   const ctx = makeCtx({ threadStartMatch: ['!thread review', 'review'] as any });
-  holdNewTurns({ phase: 'install', reason: 'src change: core/foo.ts' });
+  holdNewTurns({ phase: 'install' });
 
   await executor.route(ctx as any);
 

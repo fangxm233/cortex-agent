@@ -6,7 +6,6 @@ import {
   rebuildHold,
   refuseTurnForRebuild,
   releaseNewTurnHold,
-  _test as holdTest,
 } from '../../../src/domain/system/rebuild-hold.js';
 import { handleDaemonMessage } from '../../../src/entry/daemon-notice.js';
 import {
@@ -16,34 +15,34 @@ import {
 import { MockAdapter } from '../../../src/platform/testing.js';
 
 afterEach(() => {
-  holdTest.reset();
+  releaseNewTurnHold();
   resetSystemNoticeHistory();
 });
 
 const T0 = Date.parse('2026-09-21T06:00:00.000Z');
 
-test('a hold keeps the phase it was last told, and its first moment', () => {
-  holdNewTurns({ phase: 'server', reason: 'src change: core/foo.ts', now: T0 });
-  holdNewTurns({ phase: 'web', reason: 'src change: core/foo.ts', now: T0 + 4_000 });
+test('a hold keeps the phase it was last told', () => {
+  holdNewTurns({ phase: 'server', now: T0 });
+  holdNewTurns({ phase: 'web', now: T0 + 4_000 });
 
   const hold = rebuildHold(T0 + 4_100);
-  assert.deepEqual(hold, { phase: 'web', reason: 'src change: core/foo.ts', since: T0 });
+  assert.deepEqual(hold, { phase: 'web' });
 });
 
 test('the hold expires on its own, so a dead supervisor cannot mute the app forever', () => {
-  holdNewTurns({ phase: 'install', reason: 'manual trigger', now: T0 });
+  holdNewTurns({ phase: 'install', now: T0 });
   assert.equal(isRebuildHeld(T0 + 60_000), true, 'a minute in, a long install is still plausible');
   assert.equal(isRebuildHeld(T0 + 6 * 60_000), false, 'six minutes of silence means carry on');
 });
 
 test('a renewed phase extends the lease from the new message, not the first one', () => {
-  holdNewTurns({ phase: 'server', reason: 'r', now: T0 });
-  holdNewTurns({ phase: 'web', reason: 'r', now: T0 + 4 * 60_000 });
+  holdNewTurns({ phase: 'server', now: T0 });
+  holdNewTurns({ phase: 'web', now: T0 + 4 * 60_000 });
   assert.equal(isRebuildHeld(T0 + 6 * 60_000), true);
 });
 
 test('releasing lifts the hold immediately', () => {
-  holdNewTurns({ phase: 'web', reason: 'r', now: T0 });
+  holdNewTurns({ phase: 'web', now: T0 });
   releaseNewTurnHold();
   assert.equal(isRebuildHeld(T0), false);
   assert.equal(rebuildHold(T0), null);
@@ -51,7 +50,7 @@ test('releasing lifts the hold immediately', () => {
 
 test('a person who is waiting is answered where they typed, with the phase', async () => {
   const adapter = new MockAdapter();
-  holdNewTurns({ phase: 'web', reason: 'src change: core/foo.ts' });
+  holdNewTurns({ phase: 'web' });
 
   await refuseTurnForRebuild({ adapter: adapter as any, channel: 'web:s1', text: 'status?', interactive: true });
 
@@ -64,7 +63,7 @@ test('a person who is waiting is answered where they typed, with the phase', asy
 
 test('a callback nobody is reading becomes a notice naming what was dropped', async () => {
   const adapter = new MockAdapter();
-  holdNewTurns({ phase: 'restart', reason: 'src rebuild' });
+  holdNewTurns({ phase: 'restart' });
 
   await refuseTurnForRebuild({
     adapter: adapter as any,

@@ -30,7 +30,7 @@ export async function handleDaemonMessage(
   // and through the abort notice, and a toast per phase would be noise. Handled without a notice, so
   // it returns before the notice branch below.
   if (msg?.type === 'rebuild-hold') {
-    if (msg.hold) holdNewTurns({ phase: msg.phase ?? null, reason: msg.reason ?? null });
+    if (msg.hold) holdNewTurns({ phase: msg.phase ?? null });
     else releaseNewTurnHold();
     return true;
   }
