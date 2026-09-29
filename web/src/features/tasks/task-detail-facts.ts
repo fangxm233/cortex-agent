@@ -38,10 +38,8 @@ export interface TaskDispatchFacts {
 
 export interface TaskVerificationFacts {
   evidence: TaskVerificationInfo['evidence'];
-  hasEvidence: boolean;
   dispatches: TaskDispatchFacts[];
   newestDispatch: TaskDispatchFacts | null;
-  completingExecution: TaskDispatchFacts | null;
 }
 
 export interface TaskDetailFacts {
@@ -87,15 +85,10 @@ export function buildTaskVerificationFacts(info: TaskVerificationInfo): TaskVeri
     dispatch,
     isCompleting: completingId != null && dispatch.executionId === completingId,
   }));
-  const evidence = info.evidence;
   return {
-    evidence,
-    hasEvidence: evidence.completed && (
-      evidence.completedNote != null || evidence.completingOutput != null || evidence.completedAt != null
-    ),
+    evidence: info.evidence,
     dispatches,
     newestDispatch: dispatches[0] ?? null,
-    completingExecution: dispatches.find((item) => item.isCompleting) ?? null,
   };
 }
 

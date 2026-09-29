@@ -89,7 +89,7 @@ describe('task detail facts', () => {
 });
 
 describe('task verification facts', () => {
-  it('sorts dispatches newest-first without mutation and identifies newest and completing executions', () => {
+  it('sorts dispatches newest-first without mutation and identifies the newest execution', () => {
     const older = dispatch({ executionId: 'older', startedAt: '2030-01-01T00:00:00.000Z' });
     const newest = dispatch({ executionId: 'newest', status: 'completed', startedAt: '2030-01-03T00:00:00.000Z' });
     const middle = dispatch({ executionId: 'middle', startedAt: '2030-01-02T00:00:00.000Z' });
@@ -105,8 +105,5 @@ describe('task verification facts', () => {
     expect(facts.dispatches.map((item) => item.dispatch.executionId)).toEqual(['newest', 'middle', 'older']);
     expect(input.map((item) => item.executionId)).toEqual(['older', 'newest', 'middle']);
     expect(facts.newestDispatch?.dispatch).toBe(newest);
-    expect(facts.completingExecution?.dispatch).toBe(middle);
-    expect(facts.completingExecution?.isCompleting).toBe(true);
-    expect(facts.hasEvidence).toBe(true);
   });
 });
