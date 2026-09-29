@@ -50,8 +50,6 @@ interface SelectedSessionContextValue {
   draftReloadToken: number;
   /** Seed a user-editable new-session draft without sending it. */
   prefillDraft: (text: string) => void;
-  /** Exit draft mode (e.g. after createAndSend succeeds, or user clicks a real session). */
-  clearDraft: () => void;
 }
 
 const SelectedSessionContext = createContext<SelectedSessionContextValue | null>(null);
@@ -157,12 +155,6 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
     setOverride(DRAFT_SENTINEL);
     setDraftReloadToken((value) => value + 1);
   }, [currentProjectId]);
-  const clearDraft = useCallback(() => {
-    setPendingCreatedSession(null);
-    setOverride(null);
-    setDraftCommission(null);
-    setDraftSelectionState(EMPTY_DRAFT_SELECTION);
-  }, []);
 
   const value = useMemo(
     () => ({
@@ -178,11 +170,10 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
       setDraftSelection,
       draftReloadToken,
       prefillDraft,
-      clearDraft,
     }),
     [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft,
       draftCommission, startCommissionDraft,
-      draftSelection, setDraftSelection, draftReloadToken, prefillDraft, clearDraft],
+      draftSelection, setDraftSelection, draftReloadToken, prefillDraft],
   );
 
   return <SelectedSessionContext.Provider value={value}>{children}</SelectedSessionContext.Provider>;

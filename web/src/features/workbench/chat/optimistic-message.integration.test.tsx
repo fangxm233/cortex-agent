@@ -151,7 +151,6 @@ vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
         selectCreatedSession: publishSelection,
         setDraftSelection: vi.fn(),
         prefillDraft: vi.fn(),
-        clearDraft: vi.fn(),
       };
     },
   };
