@@ -45,7 +45,11 @@ from .launcher.runtime_mounts import (
     runtime_agent_command,
     runtime_link_command,
 )
-from .launcher.trial_admission_io import atomic_write_json
+from .launcher.trial_admission_io import (
+    TRIAL_ROOT,
+    TRIAL_SCRATCH_DIRECTORIES,
+    atomic_write_json,
+)
 
 GATE_SCHEMA_VERSION = "cortex-bench-verifier-gate/1"
 GATE_REPORT_NAME = "verifier-gate.json"
@@ -230,10 +234,7 @@ def probe_command(plan: ProbePlan) -> str:
     in: the agent's sealed environment stops at the phase it protects, and a probe that used it
     would be answering a different question from the one the trial asks.
     """
-    scratch = " ".join(
-        f"{CONTAINER_AGENT_LOGS}/trial-home/{name}"
-        for name in ("home", "tmp", "xdg-cache", "xdg-config")
-    )
+    scratch = " ".join(str(TRIAL_ROOT / name) for name in TRIAL_SCRATCH_DIRECTORIES)
     prelude = [
         f"mkdir -p {CONTAINER_VERIFIER_LOGS} {CONTAINER_AGENT_LOGS} {scratch} {CONTAINER_TESTS}",
         f"chmod -R 777 {CONTAINER_VERIFIER_LOGS} {CONTAINER_AGENT_LOGS}",

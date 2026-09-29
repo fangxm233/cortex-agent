@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, override
 
 from harbor.environments.docker.docker import DockerEnvironment
@@ -22,6 +22,14 @@ DENYLIST_FILTER_TABLE = "cortex_network_denylist"
 MAIN_SERVICE_NAME = "main"
 # Docker's cpuset syntax: single cores and ranges, comma separated ("0-7", "0,2,4").
 CPUSET_PATTERN = re.compile(r"\d+(-\d+)?(,\d+(-\d+)?)*")
+TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
+# The scratch directories the sealed environment NAMES, which therefore have to EXIST. Nothing
+# created them: an agent that runs `mkdir -p` before writing never noticed, and PI -- whose bash
+# executor spills to `os.tmpdir()` with a bare `createWriteStream` once a command's output grows
+# past its buffer -- died on the first task that produced enough output. It solved the two tasks
+# that did not. A trial whose TMPDIR does not exist is a trap that springs on output volume, so
+# these are created as the agent before the agent runs.
+TRIAL_SCRATCH_DIRECTORIES = ("home", "tmp", "xdg-cache", "xdg-config")
 
 
 class HarborTrialAdmissionError(ValueError):

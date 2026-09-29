@@ -52,6 +52,8 @@ from .network_policy import (
     resolve_denylist,
 )
 from .trial_admission_io import (
+    TRIAL_ROOT,
+    TRIAL_SCRATCH_DIRECTORIES,
     HarborTrialAdmissionError, PullDisabledDockerEnvironment,
     atomic_write_json,
     environment_digest,
@@ -84,7 +86,6 @@ IMAGE_ENVIRONMENT_DENYLIST = frozenset({
 })
 ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
 ADMISSION_VERIFIER_IMPORT_PATH = "cortex_bench_harness.launcher.trial_verifier:AdmittedVerifier"
-TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 VERIFIER_UVX_ALIAS = TRIAL_ROOT / "home/.local/bin/uvx"
 VERIFIER_UVX_TARGET = PurePosixPath("/opt/terminal-bench-verifier/bin/uvx")
 INSTALLED_AGENT_BIN = "/installed-agent/npm/bin"
@@ -182,15 +183,6 @@ def _forbidden_network_hosts(seed: TrialSeed) -> set[str]:
             "metadata.google.internal",
         ) if host
     }
-
-
-# The scratch directories the sealed environment NAMES, which therefore have to EXIST. Nothing
-# created them: an agent that runs `mkdir -p` before writing never noticed, and PI -- whose bash
-# executor spills to `os.tmpdir()` with a bare `createWriteStream` once a command's output grows
-# past its buffer -- died on the first task that produced enough output. It solved the two tasks
-# that did not. A trial whose TMPDIR does not exist is a trap that springs on output volume, so
-# these are created as the agent before the agent runs.
-TRIAL_SCRATCH_DIRECTORIES = ("home", "tmp", "xdg-cache", "xdg-config")
 
 
 def trial_scratch_command() -> str:

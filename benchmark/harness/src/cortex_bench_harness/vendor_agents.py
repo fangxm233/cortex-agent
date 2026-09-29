@@ -20,6 +20,7 @@ from harbor.models.trial.paths import EnvironmentPaths
 from .container_boundary import ContainerBoundaryObservation
 from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .launcher.trial_admission_io import (
+    TRIAL_ROOT,
     HarborTrialAdmissionError,
     atomic_write_json,
     validate_admission_environment,
@@ -43,7 +44,6 @@ from .launcher.trial_seed import TrialSeed, parse_trial_seed
 from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from .scan.models import ArtifactInventory, ScanPolicy
 
-TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 EVIDENCE_PATH = PurePosixPath("/logs/agent/vendor-runtime-files.json")
 PI_PROMPT_PATH = PurePosixPath("/logs/agent/pi/prompt.md")
 PI_SESSION_PATH = PurePosixPath("pi/sessions")
