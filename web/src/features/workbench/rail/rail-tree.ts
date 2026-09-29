@@ -13,7 +13,7 @@ import {
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
 import { resolveRailOrder, type RailSortMode } from './rail-order';
-import type { TimeLang } from '@/lib/time-format';
+import { clockTime, type TimeLang } from '@/lib/time-format';
 
 // The rail is ONE flat list of project folders — every project is present, none is folded away
 // behind an "other projects" group. Projects with nothing in them sink to the bottom by activity
@@ -138,8 +138,7 @@ export function sessionTooltipStamp(s: SessionInfo): string {
     d.getFullYear() +
     '-' + pad2(d.getMonth() + 1) +
     '-' + pad2(d.getDate()) +
-    ' ' + pad2(d.getHours()) +
-    ':' + pad2(d.getMinutes())
+    ' ' + clockTime(d)
   );
 }
 

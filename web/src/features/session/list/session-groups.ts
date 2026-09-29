@@ -1,4 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { clockTime } from '@/lib/time-format';
 
 // Pure session display helpers shared by the rail, schedule runs and the mobile screens. All time
 // reasoning is local calendar day / wall-clock.
@@ -36,7 +37,7 @@ export function sessionStamp(s: SessionInfo, now: Date | number = Date.now()): s
   const nowMs = typeof now === 'number' ? now : now.getTime();
   const ms = effectiveMs(s);
   const d = new Date(ms);
-  const clock = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  const clock = clockTime(d);
   const earlier = localDayIndex(ms) < localDayIndex(nowMs) - 1;
   const date = earlier
     ? (d.getFullYear() === new Date(nowMs).getFullYear() ? '' : d.getFullYear() + '-') +
