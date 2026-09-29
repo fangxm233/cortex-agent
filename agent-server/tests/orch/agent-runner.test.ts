@@ -1,10 +1,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { AgentRunner, acceptUserMessage, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
+import { AgentRunner } from '../../src/orchestration/agent-runner.js';
+import { acceptUserMessage, emitTurnProgress } from '../../src/orchestration/turn/turn.js';
+import { persistSessionContextUsage } from '../../src/orchestration/transcript-sink.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
-import { loadConfig } from '../../src/domain/threads/template-loader.js';
-import { getActiveProfile } from '../../src/domain/agents/config.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -322,22 +322,3 @@ test('(b) route() calls track(+1) then the enqueue fn calls track(-1) in finally
 
   assert.ok(trackCalls.includes(-1), 'track(-1) called in finally by enqueue fn');
 });
-
-// ── (c) enqueue is called with the correct channel ───────────────────────────
-
-// ── (d) resolveDefaultAgent — no default agent → uses activeProfile ───────────
-
-test('(d) resolveDefaultAgent with no default agent uses activeProfile for profileForRun', () => {
-  // When mode-manager has no default agent (getDefaultAgent() returns null/empty),
-  // resolveDefaultAgent returns effectiveMessage unchanged and uses activeProfile.
-  const result = resolveDefaultAgent('my task');
-  assert.equal(typeof result.effectiveMessage, 'string');
-  // profileForRun is getActiveProfile(channel), typed string | null — with no default agent it
-  // equals the active profile (null when none is configured). Verify the "uses activeProfile"
-  // claim directly instead of asserting a type the contract does not guarantee.
-  assert.equal(result.profileForRun, getActiveProfile());
-  // The message is either the original or prepended with directive
-  assert.ok(result.effectiveMessage.includes('my task'));
-  assert.equal(result.defaultAgentName === null || typeof result.defaultAgentName === 'string', true);
-});
-

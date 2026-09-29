@@ -14,7 +14,7 @@ import {
 import {
   _resetSubagentRuns, startSubagentRun, waitForSubagentRun, getSubagentChildStatuses, listSubagentRuns,
 } from '../src/domain/agents/subagent/registry.js';
-import { beginForegroundSession } from '../src/orchestration/agent-runner.js';
+import { beginForegroundSession } from '../src/orchestration/turn/turn.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentRunStatus } from '../src/domain/agents/subagent/registry.js';

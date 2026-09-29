@@ -2,59 +2,11 @@ import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { resolveSessionName } from '../../src/orchestration/agent-runner.js';
 import { handleNewCmd, handleResumeCmd } from '../../src/orchestration/routing/commands/session.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { getActiveProfile, resolveBackendForChannel } from '../../src/domain/agents/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
-import type { PlatformAdapter } from '../../src/platform/adapter.js';
-
-// Stub adapter for tests 1-3: resolveSessionName only calls resolveInboundProject
-const stubAdapter = { resolveInboundProject: async () => 'projX' } as unknown as PlatformAdapter;
-
-// ── resolveSessionName tests ──────────────────────────────────────────────────
-
-test('resolveSessionName returns existing name for a known sessionId (no new record)', async () => {
-  const sid = crypto.randomUUID();
-  const channel = 'c0-existing';
-  await sessionStore.registerSession('cortex-known-c0', {
-    sessionId: sid,
-    channel,
-    backend: 'claude',
-    kind: 'local',
-    projectId: 'general',
-  });
-
-  const name = await resolveSessionName(sid, channel, 'hello', stubAdapter);
-  assert.equal(name, 'cortex-known-c0');
-
-  // Verify the record is still intact (no duplicate/overwrite)
-  const stillThere = await sessionStore.lookupBySessionId(sid);
-  assert.equal(stillThere, 'cortex-known-c0');
-});
-
-test('resolveSessionName registers a new record with correct fields for an unknown sessionId', async () => {
-  const sid = crypto.randomUUID();
-  const channel = 'c0-new';
-  const longMsg = 'x'.repeat(100);
-
-  const name = await resolveSessionName(sid, channel, longMsg, stubAdapter);
-  assert(name);
-  assert(typeof name === 'string');
-  assert(name.length > 0);
-
-  const rec = await sessionStore.getById(sid);
-  assert(rec !== null);
-  assert.equal(rec.channel, channel);
-  assert.equal(rec.kind, 'local');
-  assert.equal(rec.backend, resolveBackendForChannel(channel));
-  assert.equal(rec.projectId, 'projX');
-  assert.equal(rec.label, longMsg.substring(0, 60));
-  assert.equal(rec.label?.length, 60);
-  assert.equal(rec.profileName, getActiveProfile(channel));
-});
 
 // ── handleNewCmd test ─────────────────────────────────────────────────────────
 

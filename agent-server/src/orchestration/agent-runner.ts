@@ -1,4 +1,4 @@
-import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
+import type { Destination, PlatformAdapter, MessageRef, IncomingMessage } from '@platform/index.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -14,7 +14,6 @@ import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import { publishSessionDebugUpdated } from './session-events.js';
-import { persistSessionContextUsage, type SessionContextUsagePersistenceDeps } from './transcript-sink.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
 import { prepareConversationRequest } from './conversation-request.js';
@@ -293,19 +292,6 @@ function mergeAttachments(
   const merged = [...(web ?? []), ...(platform ?? [])];
   return merged.length > 0 ? merged : undefined;
 }
-
-// Moved to transcript-sink.ts (the one transcript observer). Re-exported here so the existing
-// agent-runner tests and importers keep their import path.
-export { persistSessionContextUsage, type SessionContextUsagePersistenceDeps };
-
-// Moved under turn/ (they belong to the turn, not to admission). Re-exported so the existing
-// importers keep their import path: entry/app.ts + thread-executor for `buildInteractiveCallbacks`,
-// the agent-runner / subagent / cancel / session-lifecycle tests for the rest.
-export {
-  acceptUserMessage, type AcceptUserMessageDeps, beginForegroundSession,
-  emitTurnProgress, type TurnProgressDeps, buildInteractiveCallbacks,
-} from './turn/turn.js';
-export { resolveDefaultAgent, resolveSessionName } from './turn/turn-prep.js';
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
   let pending: Promise<InboundFiles> | null = null;

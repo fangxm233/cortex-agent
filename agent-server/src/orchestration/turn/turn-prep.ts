@@ -1,14 +1,12 @@
-import type { DownloadedFile, IncomingMessage, PlatformAdapter } from '@platform/index.js';
+import type { DownloadedFile, IncomingMessage } from '@platform/index.js';
 import type { AttachmentFailure, InboundFiles } from '../routing/file-handler.js';
 import { inboundAttachmentMeta } from '../attachments-store.js';
 import { createLogger } from '@core/log.js';
 import { resolveWorkspaceRelPath } from '@core/utils.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
-import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
-import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
-import { getAgent } from '@domain/threads/index.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
 
@@ -120,53 +118,4 @@ export async function acquireTurnBrowser(args: {
 export function releaseTurnBrowser(held: string | null): void {
   if (held === BROWSER_DEVICE_SERVER) releaseBrowser();
   else if (held) releaseDeviceBrowser(held);
-}
-
-export interface AgentConfig {
-  effectiveMessage: string;
-  profileForRun: string;
-  defaultAgentName: string | null;
-  claudeAgent: string | null;
-  systemPrompt: string | null;
-  outputStyle: string | null;
-  tools: string | null;
-  pluginDirs: string[] | null;
-}
-
-/** Exposed for unit testing. */
-export function resolveDefaultAgent(agentMessage: string, channel?: string): AgentConfig {
-  const defaultAgentName = getDefaultAgent();
-  const defaultAgentDef = defaultAgentName ? getAgent(defaultAgentName) : null;
-  const profileForRun = (defaultAgentDef && defaultAgentDef.profile !== '__active__')
-    ? defaultAgentDef.profile
-    : getActiveProfile(channel);
-  let effectiveMessage = agentMessage;
-  if (defaultAgentDef?.directive) {
-    effectiveMessage = defaultAgentDef.directive + '\n\n' + agentMessage;
-  }
-  return {
-    effectiveMessage, profileForRun, defaultAgentName,
-    claudeAgent: defaultAgentDef?.claudeAgent || null,
-    systemPrompt: defaultAgentDef?.systemPrompt || null,
-    outputStyle: defaultAgentDef?.outputStyle || null,
-    tools: defaultAgentDef?.tools || null,
-    pluginDirs: defaultAgentDef?.pluginDirs || null,
-  };
-}
-
-export async function resolveSessionName(sessionId: string | null, channel: string, userMessage: string, adapter: PlatformAdapter): Promise<string> {
-  if (sessionId) {
-    const existing = await sessionStore.lookupBySessionId(sessionId);
-    if (existing) return existing;
-    const channelProject = await adapter.resolveInboundProject(channel);
-    return registerNamedSession(sessionStore, {
-      sessionId,
-      channel,
-      backend: resolveBackendForChannel(channel),
-      label: userMessage?.substring(0, 60),
-      profileName: getActiveProfile(channel),
-      projectId: channelProject ?? 'general',
-    });
-  }
-  return sessionStore.generateSessionName();
 }

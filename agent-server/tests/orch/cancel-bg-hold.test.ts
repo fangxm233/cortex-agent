@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 
 import { cancelBgHolds, cancelChannelRuns, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import type { RunningExecution } from '../../src/core/run-registry.js';
-import { beginForegroundSession } from '../../src/orchestration/agent-runner.js';
+import { beginForegroundSession } from '../../src/orchestration/turn/turn.js';
 import { runRegistry } from '../../src/core/run-registry.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
 
