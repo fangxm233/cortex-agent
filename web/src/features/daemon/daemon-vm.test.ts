@@ -87,7 +87,7 @@ describe('buildDaemonVm', () => {
     const vm = buildDaemonVm(status(runningRebuild()), 'en', T0 + 12_000);
     const rebuild = vm.rebuild!;
     expect(rebuild).toMatchObject({
-      status: 'running', running: true, current: 'web', completed: 2, total: 5,
+      status: 'running', completed: 2, total: 5,
       reason: 'src change: core/foo.ts', elapsed: '12s',
     });
     // Finished steps are timed by their own span; the one in flight runs up to `now`.
@@ -119,7 +119,7 @@ describe('buildDaemonVm', () => {
     };
     const rebuild = buildDaemonVm(status(aborted), 'en', T0 + 60_000).rebuild!;
     expect(rebuild).toMatchObject({
-      status: 'aborted', running: false, completed: 1, total: 5,
+      status: 'aborted', completed: 1, total: 5,
       detail: 'Rebuild aborted at step "ui-contract" (exit 2)',
     });
     // Terminal: the elapsed clock stops at endedAt instead of running on with `now`.
@@ -144,7 +144,7 @@ describe('buildDaemonVm', () => {
       detail: 'Build finished; install and restart wait for app.ts to go idle.',
     };
     const rebuild = buildDaemonVm(status(deferred), 'en', T0 + 60_000).rebuild!;
-    expect(rebuild).toMatchObject({ status: 'deferred', running: false, completed: 3, total: 5 });
+    expect(rebuild).toMatchObject({ status: 'deferred', completed: 3, total: 5 });
     expect(rebuildStatusTone(rebuild.status)).toBe('waiting');
   });
 });

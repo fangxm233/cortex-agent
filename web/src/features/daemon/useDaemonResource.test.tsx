@@ -105,7 +105,7 @@ describe('useDaemonResource status lifecycle', () => {
     const { queryClient, renderer } = await mount();
     const query = () => queryClient.getQueryCache().find({ queryKey: ['system.daemonStatus', {}] });
     expect((query()?.options as { refetchInterval?: number }).refetchInterval).toBe(1_000);
-    expect(resource?.facts.rebuild).toMatchObject({ status: 'running', current: 'web' });
+    expect(resource?.facts.rebuild).toMatchObject({ status: 'running' });
     // A settled rebuild is still rendered, but it no longer justifies the fast poll.
     adapter.status.mockResolvedValue(DAEMON_STATUS);
     await act(async () => { await queryClient.refetchQueries({ queryKey: ['system.daemonStatus', {}] }); });

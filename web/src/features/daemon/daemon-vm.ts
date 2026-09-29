@@ -26,18 +26,14 @@ export interface DaemonRebuildStepVm {
 
 export interface DaemonRebuildVm {
   status: DaemonRebuildStatus;
-  running: boolean;
   /** What triggered the pipeline, verbatim ('src change: core/foo.ts'). */
   reason: string;
-  current: DaemonRebuildStepName | null;
   steps: DaemonRebuildStepVm[];
   /** Steps that finished, out of the plan — the honest denominator, not a percentage guess. */
   completed: number;
   total: number;
   /** Elapsed so far, or total taken once terminal. */
   elapsed: string;
-  startedAt: string;
-  endedAt: string | null;
   /** Abort reason, or the note attached to a terminal record. */
   detail: string | null;
 }
@@ -100,15 +96,11 @@ function rebuildVm(progress: DaemonRebuildProgress, now: number, lang: TimeLang)
   const steps = progress.steps.map((step) => stepVm(step, now, lang));
   return {
     status: progress.status,
-    running: progress.status === 'running',
     reason: progress.reason,
-    current: progress.current,
     steps,
     completed: steps.filter((step) => step.status === 'done').length,
     total: steps.length,
     elapsed: spanBetween(progress.startedAt, progress.endedAt, now, lang) ?? formatSpan(0, lang),
-    startedAt: progress.startedAt,
-    endedAt: progress.endedAt,
     detail: progress.detail,
   };
 }
