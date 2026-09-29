@@ -29,10 +29,3 @@ def provisional_lease_bound_ms(h0_epoch_ms: int, deadline_budget_ms: int) -> int
         raise ValueError("deadline_budget_ms must be a positive duration")
     return h0_epoch_ms + SETUP_TIMEOUT_MS + deadline_budget_ms + TEARDOWN_GRACE_MS
 
-
-def setup_within_bound(h0_epoch_ms: int, phase_b_epoch_ms: int) -> bool:
-    """Whether phase B reported in inside `SETUP_TIMEOUT_MS`, the premise that makes `P` a bound.
-
-    Both arguments are read on the host clock, so their difference is a host duration.
-    """
-    return 0 <= phase_b_epoch_ms - h0_epoch_ms <= SETUP_TIMEOUT_MS
