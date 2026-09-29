@@ -37,14 +37,9 @@ async function makeHarness() {
     fs.mkdir(captureDir, { recursive: true }),
     fs.mkdir(claudeProjectDir, { recursive: true }),
   ]);
-  // One registry owns identity now. `bindings` is a thin adapter over it that preserves the old
-  // setSessionAsync/getSessionAsync call shape the tests still use, and the ledger is a façade over
-  // the same registry (as production wires conversationLedger onto sessionStore).
+  // One registry owns identity now; the ledger is a façade over the same registry (as production
+  // wires conversationLedger onto sessionStore).
   const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
-  const bindings = {
-    setSessionAsync: (channel: string, sessionId: string, _backend?: string) => registry.bindChannel(channel, sessionId),
-    getSessionAsync: async (channel: string, _backend?: string) => (await registry.getBoundSessionId(channel)) ?? undefined,
-  };
   return {
     root,
     storeDir,
@@ -53,7 +48,6 @@ async function makeHarness() {
     captureDir,
     claudeProjectDir,
     registry,
-    bindings,
     ledger: new ConversationLedgerRepo(registry),
     history: new ConversationHistoryRepo(historyDir),
     candidates: new RetentionCandidateRepo(path.join(storeDir, 'retention-candidates.json')),
@@ -64,7 +58,7 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
   const h = await makeHarness();
   await h.registry.registerSession('cortex-old', registerOpts('track-old', { backendSessionId: 'backend-old' }));
   await h.registry.updateSession('cortex-old', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
-  await h.bindings.setSessionAsync('web:track-old', 'track-old', 'claude');
+  await h.registry.bindChannel('web:track-old', 'track-old');
   await h.ledger.initConversation('web:track-old', {
     sessionId: 'track-old', sessionName: 'cortex-old', backend: 'claude',
   });
@@ -137,7 +131,7 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
 
   assert.equal(second.registryCommitted, 1);
   assert.equal(await h.registry.getById('track-old'), null);
-  assert.equal(await h.bindings.getSessionAsync('web:track-old', 'claude'), undefined);
+  assert.equal(await h.registry.getBoundSessionId('web:track-old'), null);
   assert.equal(await h.history.getHistory('track-old'), null);
   await assert.rejects(() => fs.stat(backupPath), { code: 'ENOENT' });
 });
