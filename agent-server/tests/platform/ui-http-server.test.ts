@@ -10,7 +10,7 @@ import { generateKeyPair, exportJWK, SignJWT, type JWK, type CryptoKey } from 'j
 import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import { createAccessJwtVerifier, accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
-import { startUiHttpServer, resolveWorkspacePath } from '@entry/start-ui-http.js';
+import { startUiHttpServer } from '@entry/start-ui-http.js';
 import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
 import { APP_UPDATE_MANIFEST_PATH } from '@platform/ui-http/app-update.js';
 import { WORKSPACE_DIR, DATA_DIR, STORE_DIR } from '@core/paths.js';
@@ -571,14 +571,6 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
   });
 
   // Downloads are auth-gated and confined to the workspace root by a traversal guard.
-  test('resolveWorkspacePath: confines to WORKSPACE_DIR and rejects traversal / wrong prefix', () => {
-    const ok = resolveWorkspacePath('workspace/outputs/s1/a.txt');
-    assert.ok(ok && ok.startsWith(path.resolve(WORKSPACE_DIR) + path.sep));
-    assert.equal(resolveWorkspacePath('workspace/../../etc/passwd'), null, 'traversal escapes → null');
-    assert.equal(resolveWorkspacePath('outputs/s1/a.txt'), null, 'missing workspace/ prefix → null');
-    assert.equal(resolveWorkspacePath('/etc/passwd'), null, 'absolute path → null');
-  });
-
   test('download: without a token is rejected 401', async () => {
     const { statusCode } = await get(w.port, `${'/api/files/download'}?path=workspace/outputs/x/a.txt`);
     assert.equal(statusCode, 401);

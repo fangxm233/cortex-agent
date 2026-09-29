@@ -272,15 +272,6 @@ const DOWNLOAD_CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.zip': 'application/zip',
 };
 
-/** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.
- *  Thin wrapper over the shared `resolveWorkspaceRelPath` (core/paths) so the download route and the
- *  agent-runner attachment mapping resolve the `workspace/` alias identically. Returns null when the
- *  prefix is wrong or the resolved target escapes the workspace root. Exported for the traversal-guard
- *  unit test. */
-export function resolveWorkspacePath(rel: string): string | null {
-  return resolveWorkspaceRelPath(rel);
-}
-
 /** GET /api/files/download?path=workspace/…&disposition=inline|attachment — streams the file. */
 async function handleDownload(req: IncomingMessage, res: ServerResponse): Promise<void> {
   let url: URL;
@@ -296,7 +287,7 @@ async function handleDownload(req: IncomingMessage, res: ServerResponse): Promis
     jsonReply(res, 400, { ok: false, code: 'missing-path', message: 'path query param required' });
     return;
   }
-  const target = resolveWorkspacePath(rel);
+  const target = resolveWorkspaceRelPath(rel);
   if (!target) {
     jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'Path escapes the workspace root' });
     return;
