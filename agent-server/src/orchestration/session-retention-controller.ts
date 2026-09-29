@@ -6,8 +6,6 @@ export interface SessionRetentionControllerDeps {
   onSettingsChange: (callback: (changedKeys: string[]) => void) => () => void;
   runSweep: (retentionDays: number) => Promise<void>;
   onError?: (error: Error) => void;
-  setTimeoutFn?: typeof setTimeout;
-  clearTimeoutFn?: typeof clearTimeout;
 }
 
 export interface SessionRetentionController {
@@ -16,8 +14,6 @@ export interface SessionRetentionController {
 }
 
 export function createSessionRetentionController(deps: SessionRetentionControllerDeps): SessionRetentionController {
-  const setTimeoutFn = deps.setTimeoutFn ?? setTimeout;
-  const clearTimeoutFn = deps.clearTimeoutFn ?? clearTimeout;
   let unsubscribe: (() => void) | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let debounce: ReturnType<typeof setTimeout> | null = null;
@@ -27,15 +23,15 @@ export function createSessionRetentionController(deps: SessionRetentionControlle
   let stopped = false;
 
   function clearTimers(): void {
-    if (timer) clearTimeoutFn(timer);
-    if (debounce) clearTimeoutFn(debounce);
+    if (timer) clearTimeout(timer);
+    if (debounce) clearTimeout(debounce);
     timer = null;
     debounce = null;
   }
 
   function scheduleNext(): void {
     if (stopped) return;
-    timer = setTimeoutFn(() => { void queueSweep(deps.getRetentionDays()); }, SIX_HOURS_MS);
+    timer = setTimeout(() => { void queueSweep(deps.getRetentionDays()); }, SIX_HOURS_MS);
     (timer as NodeJS.Timeout).unref?.();
   }
 
@@ -71,8 +67,8 @@ export function createSessionRetentionController(deps: SessionRetentionControlle
 
   function onSettingsChanged(changedKeys: string[]): void {
     if (!changedKeys.includes('sessionRetentionDays') || stopped) return;
-    if (debounce) clearTimeoutFn(debounce);
-    debounce = setTimeoutFn(() => {
+    if (debounce) clearTimeout(debounce);
+    debounce = setTimeout(() => {
       debounce = null;
       void queueSweep(deps.getRetentionDays());
     }, SETTINGS_DEBOUNCE_MS);

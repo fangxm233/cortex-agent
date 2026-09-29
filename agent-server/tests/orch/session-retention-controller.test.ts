@@ -8,16 +8,13 @@ afterEach(() => {
 
 test('retention controller runs on start, every 6h from completion, debounces settings, and stops cleanly', async () => {
   vi.useFakeTimers();
-  const changed: string[][] = [];
   let unsubscribeCount = 0;
-  let stopped = false;
   const runs: number[] = [];
   let resolveRun: (() => void) | null = null;
   const runGate = () => new Promise<void>((resolve) => { resolveRun = resolve; });
   const controller = createSessionRetentionController({
     getRetentionDays: () => 30,
     onSettingsChange: (cb) => {
-      changed.push([]);
       const wrapper = (keys: string[]) => cb(keys);
       (controller as any)._testOnChange = wrapper;
       return () => { unsubscribeCount += 1; };
@@ -26,8 +23,6 @@ test('retention controller runs on start, every 6h from completion, debounces se
       runs.push(days);
       await runGate();
     },
-    setTimeoutFn: setTimeout,
-    clearTimeoutFn: clearTimeout,
   });
 
   const startPromise = controller.start();
@@ -57,9 +52,7 @@ test('retention controller runs on start, every 6h from completion, debounces se
 
   await controller.stop();
   assert.equal(unsubscribeCount, 1);
-  stopped = true;
   vi.advanceTimersByTime(12 * 60 * 60 * 1000);
-  assert.equal(stopped, true);
   assert.deepEqual(runs, [30, 30, 30]);
 });
 
@@ -80,8 +73,6 @@ test('retention controller queues latest retention days while a sweep is in flig
       runs.push(days);
       if (runs.length === 1) await gate;
     },
-    setTimeoutFn: setTimeout,
-    clearTimeoutFn: clearTimeout,
   });
 
   const startPromise = controller.start();
@@ -120,8 +111,6 @@ test('retention controller reports sweep errors and keeps scheduling future runs
       }
     },
     onError: (error) => { errors.push(error.message); },
-    setTimeoutFn: setTimeout,
-    clearTimeoutFn: clearTimeout,
   });
 
   await controller.start();
