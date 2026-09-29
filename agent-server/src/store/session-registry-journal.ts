@@ -316,11 +316,12 @@ function detectLegacyFormat(entries: Array<[string, unknown]>): 'new' | 'old' {
 }
 
 function newFormatSessions(entries: Array<[string, unknown]>): SessionRecord[] {
-  return entries.map(([id, value]) => normalizeNewFormatRecord(id, value));
-}
-
-function normalizeNewFormatRecord(id: string, value: unknown): SessionRecord {
-  return assertNewFormatRecord(value, id);
+  return entries.map(([id, value]) => {
+    const row = value as Record<string, unknown>;
+    const kind = toKindValue(row.kind);
+    const label = toNullableString(row.label);
+    return assertSessionRecord(row.origin === undefined ? { ...row, origin: deriveSessionOrigin(kind, label) } : row, id);
+  });
 }
 
 async function oldFormatSessions(entries: Array<[string, unknown]>): Promise<SessionRecord[]> {
@@ -505,35 +506,6 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     createdAt: toStringValue(row?.createdAt),
     lastUsedAt: toStringValue(row?.lastUsedAt),
     label: toNullableString(row?.label),
-    profileName: toNullableString(row?.profileName),
-    agentName: toOptionalNullableString(row?.agentName),
-    backendSessionId: toOptionalNullableString(row?.backendSessionId),
-    lastReadAt: toOptionalNullableString(row?.lastReadAt),
-    scheduleId: toOptionalNullableString(row?.scheduleId),
-    commissionId: toOptionalNullableString(row?.commissionId),
-    commissionDraft: toOptionalNullableString(row?.commissionDraft),
-    commissionBlockFor: toOptionalNullableString(row?.commissionBlockFor),
-    contextUsage: row?.contextUsage,
-    browser: toOptionalBrowserValue(row?.browser),
-  } satisfies SessionRecord;
-  return assertRecordId(record, expectedId);
-}
-
-function assertNewFormatRecord(raw: unknown, expectedId: string): SessionRecord {
-  const row = raw as Record<string, unknown>;
-  const kind = toKindValue(row?.kind);
-  const label = toNullableString(row?.label);
-  const record = {
-    name: toStringValue(row?.name),
-    sessionId: toStringValue(row?.sessionId),
-    projectId: toStringValue(row?.projectId),
-    channel: toStringValue(row?.channel),
-    backend: toStringValue(row?.backend),
-    kind,
-    origin: row?.origin === undefined ? deriveSessionOrigin(kind, label) : toOriginValue(row?.origin),
-    createdAt: toStringValue(row?.createdAt),
-    lastUsedAt: toStringValue(row?.lastUsedAt),
-    label,
     profileName: toNullableString(row?.profileName),
     agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),

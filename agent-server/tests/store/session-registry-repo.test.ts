@@ -368,7 +368,7 @@ test('session registry replays commissionDraft and clears it when the commission
   const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession('cortex-draft', registerOpts('sess-draft', { commissionDraft: '_draft-cortex-draft' }));
 
-  // Survives a cold replay — the field must be whitelisted in BOTH journal asserts or every
+  // Survives a cold replay — the field must be whitelisted in the journal record assert or every
   // restart silently drops commission mode (the bug the browser opt-in originally had).
   const reopened = new SessionRegistryRepo(filePath);
   const replayed = await reopened.getById('sess-draft');
