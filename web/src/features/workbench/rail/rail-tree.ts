@@ -233,7 +233,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const scheduleRows = buildScheduleRows(
       schedulesByProject.get(project.id) ?? [],
       scheduledByProject.get(project.id) ?? [],
-      now,
     );
     const running = runningCounts[project.id] ?? 0;
     // The badge counts both, but its COLOUR only ever means one thing: amber = something is waiting

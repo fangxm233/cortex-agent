@@ -58,7 +58,6 @@ function rowMs(row: ScheduleRow): number {
 export function buildScheduleRows(
   schedules: ScheduleInfo[],
   scheduledSessions: SessionInfo[],
-  _now: number,
 ): ScheduleRow[] {
   const grouped = runsBySchedule(scheduledSessions);
   const rows: ScheduleRow[] = [];

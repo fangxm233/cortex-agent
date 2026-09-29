@@ -69,7 +69,7 @@ export function MSessionListScreen() {
   const sessions = sessionsQuery.data ?? [];
   const rows = useMemo(() => buildSessionRows(sessions, Date.now(), lang), [sessions, lang]);
   const scheduleRows = useMemo(
-    () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? [], Date.now()),
+    () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? []),
     [schedulesQuery.data, scheduledQuery.data],
   );
 

@@ -85,7 +85,7 @@ function mount(rows: ReturnType<typeof buildScheduleRows>, editor: ScheduleEdito
 describe('MScheduleSheetView', () => {
   it('pushes a pending row into an editor level in the same bottom sheet with real ScheduleInfo', () => {
     const real = schedule();
-    const rows = buildScheduleRows([real], [], Date.now());
+    const rows = buildScheduleRows([real], []);
     const editor = editorFor(real);
     const { renderer } = mount(rows, editor);
 
@@ -98,7 +98,7 @@ describe('MScheduleSheetView', () => {
 
   it('Escape and hardware back retreat one level, then close only from the list', () => {
     const real = schedule({ id: 'repeat-1', type: 'daily', time: '07:30' });
-    const rows = buildScheduleRows([real], [run()], Date.now());
+    const rows = buildScheduleRows([real], [run()]);
     const editor = editorFor(real);
     const { renderer, onClose } = mount(rows, editor);
 
@@ -120,7 +120,7 @@ describe('MScheduleSheetView', () => {
 
   it('allows back and reopening another editor while a save is pending', () => {
     const real = schedule();
-    const rows = buildScheduleRows([real], [], Date.now());
+    const rows = buildScheduleRows([real], []);
     const editor = editorFor(real);
     editor.pending = true;
     const { renderer } = mount(rows, editor);
@@ -141,7 +141,7 @@ describe('MScheduleSheetView', () => {
       run({ sessionId: 'run-1', unread: true }),
       run({ sessionId: 'run-2', createdAt: '2030-01-01T09:00:00.000Z',
         lastUsedAt: '2030-01-01T09:00:00.000Z' }),
-    ], Date.now());
+    ]);
     const onMarkAllRead = vi.fn();
     const { renderer } = mount(rows, editorFor(real), vi.fn(), { onMarkAllRead });
 
@@ -154,7 +154,7 @@ describe('MScheduleSheetView', () => {
 
   it('opens the run-level manage action as an editor and back returns only to runs', () => {
     const real = schedule({ id: 'repeat-1', type: 'daily', time: '07:30' });
-    const rows = buildScheduleRows([real], [run()], Date.now());
+    const rows = buildScheduleRows([real], [run()]);
     const editor = editorFor(real);
     const { renderer } = mount(rows, editor);
 

@@ -53,8 +53,6 @@ function mkSched(p: Partial<ScheduleInfo> & { id: string }): ScheduleInfo {
   };
 }
 
-const now = new Date(2026, 6, 6, 15, 0, 0).getTime(); // local Mon Jul 6 2026 15:00
-
 describe('buildScheduleRows', () => {
   it('one row per live schedule with its runs sorted latest-first', () => {
     const rows = buildScheduleRows(
@@ -63,7 +61,6 @@ describe('buildScheduleRows', () => {
         mkRun({ sessionId: 'r1', createdAt: '2026-07-05T07:30:00.000Z' }),
         mkRun({ sessionId: 'r2', createdAt: '2026-07-06T07:30:00.000Z' }),
       ],
-      now,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].scheduleId).toBe('sch1');
@@ -73,7 +70,7 @@ describe('buildScheduleRows', () => {
   });
 
   it('keeps a live schedule visible with zero runs (never fired / runs purged)', () => {
-    const rows = buildScheduleRows([mkSched({ id: 'schN', message: 'env check' })], [], now);
+    const rows = buildScheduleRows([mkSched({ id: 'schN', message: 'env check' })], []);
     expect(rows).toHaveLength(1);
     expect(rows[0].runs).toEqual([]);
     expect(rows[0].latest).toBeNull();
@@ -84,7 +81,6 @@ describe('buildScheduleRows', () => {
     const rows = buildScheduleRows(
       [],
       [mkRun({ sessionId: 'o1', scheduleId: 'gone', label: 'EXP summary' })],
-      now,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].schedule).toBeNull();
@@ -99,7 +95,6 @@ describe('buildScheduleRows', () => {
         mkRun({ sessionId: 'o1', scheduleId: 'gone', createdAt: '2026-07-05T07:30:00.000Z' }),
         mkRun({ sessionId: 'o2', scheduleId: 'gone', createdAt: '2026-07-06T07:30:00.000Z' }),
       ],
-      now,
     );
     expect(rows[0].kind).toBe('repeat');
     expect(rows[0].runs).toHaveLength(2);
@@ -109,14 +104,13 @@ describe('buildScheduleRows', () => {
     const rows = buildScheduleRows(
       [mkSched({ id: 'sch1', type: 'once', message: 'summarize EXP' })],
       [],
-      now,
     );
     expect(rows[0].kind).toBe('once');
     expect(rows[0].runs).toEqual([]);
   });
 
   it('ignores scheduled sessions without a scheduleId (legacy) — they are not rows', () => {
-    const rows = buildScheduleRows([], [mkRun({ sessionId: 'x', scheduleId: null })], now);
+    const rows = buildScheduleRows([], [mkRun({ sessionId: 'x', scheduleId: null })]);
     expect(rows).toEqual([]);
   });
 
@@ -127,7 +121,6 @@ describe('buildScheduleRows', () => {
         mkRun({ sessionId: 'r1', unread: false }),
         mkRun({ sessionId: 'r2', createdAt: '2026-07-06T08:00:00.000Z', unread: true }),
       ],
-      now,
     );
     expect(rows[0].unread).toBe(true);
   });
@@ -139,13 +132,11 @@ describe('buildScheduleRows', () => {
         mkRun({ sessionId: 'q1', scheduleId: 'quiet', createdAt: '2026-07-01T12:00:00.000Z' }),
         mkRun({ sessionId: 'b1', scheduleId: 'busy', createdAt: '2026-07-06T07:30:00.000Z' }),
       ],
-      now,
     );
     expect(rows.map((r) => r.scheduleId)).toEqual(['busy', 'quiet']);
     const withPending = buildScheduleRows(
       [mkSched({ id: 'pending', message: 'new one' }), mkSched({ id: 'busy', message: 'busy' })],
       [mkRun({ sessionId: 'b1', scheduleId: 'busy' })],
-      now,
     );
     expect(withPending.map((r) => r.scheduleId)).toEqual(['busy', 'pending']);
   });
@@ -157,7 +148,6 @@ describe('buildScheduleRows', () => {
         mkRun({ sessionId: 'kept' }),
         mkRun({ sessionId: 'adopted', origin: 'direct', kind: 'local', createdAt: '2026-07-06T09:00:00.000Z' }),
       ],
-      now,
     );
     expect(rows[0].runs.map((r) => r.sessionId)).toEqual(['kept']);
   });
@@ -180,7 +170,7 @@ describe('runOrdinals', () => {
 describe('scheduleRowAction', () => {
   const sched = mkSched({ id: 'sch1' });
   it('repeat row with runs opens the run-list modal', () => {
-    const [row] = buildScheduleRows([sched], [mkRun({ sessionId: 'r1' })], now);
+    const [row] = buildScheduleRows([sched], [mkRun({ sessionId: 'r1' })]);
     expect(scheduleRowAction(row)).toEqual({ type: 'modal' });
   });
 
@@ -188,13 +178,12 @@ describe('scheduleRowAction', () => {
     const [row] = buildScheduleRows(
       [],
       [mkRun({ sessionId: 'solo', scheduleId: 'gone' })],
-      now,
     );
     expect(scheduleRowAction(row)).toEqual({ type: 'open', sessionId: 'solo' });
   });
 
   it('a live schedule with zero runs edits the real schedule DTO', () => {
-    const [row] = buildScheduleRows([sched], [], now);
+    const [row] = buildScheduleRows([sched], []);
     expect(scheduleRowAction(row)).toEqual({ type: 'edit', schedule: sched });
   });
 });
@@ -208,7 +197,6 @@ describe('unreadScheduleCount', () => {
         mkRun({ sessionId: 'a2', scheduleId: 'a', createdAt: '2026-07-06T08:00:00.000Z', unread: true }),
         mkRun({ sessionId: 'b1', scheduleId: 'b' }),
       ],
-      now,
     );
     expect(unreadScheduleCount(rows)).toBe(1);
   });
@@ -223,7 +211,6 @@ describe('unreadRunIds', () => {
         mkRun({ sessionId: 'a2', scheduleId: 'a', createdAt: '2026-07-06T08:00:00.000Z' }),
         mkRun({ sessionId: 'a3', scheduleId: 'a', createdAt: '2026-07-06T09:00:00.000Z', unread: true }),
       ],
-      now,
     );
     expect(unreadRunIds(rowA)).toEqual(['a3', 'a1']);
   });
@@ -232,7 +219,6 @@ describe('unreadRunIds', () => {
     const [rowA] = buildScheduleRows(
       [mkSched({ id: 'a', message: 'a' })],
       [mkRun({ sessionId: 'a1', scheduleId: 'a' })],
-      now,
     );
     expect(unreadRunIds(rowA)).toEqual([]);
   });
