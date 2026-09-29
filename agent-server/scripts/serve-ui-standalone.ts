@@ -21,7 +21,7 @@ import { startUiHttpServer } from '@entry/start-ui-http.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { threadStore } from '@store/thread-repo.js';
-import { taskStore } from '@domain/tasks/store.js';
+import { taskStore } from '@store/task-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { executionLogTailer } from '@domain/executions/log-tailer.js';

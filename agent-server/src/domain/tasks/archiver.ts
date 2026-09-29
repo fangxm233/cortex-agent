@@ -7,7 +7,7 @@ import { type Task } from '@core/task-parser.js';
 import {
   readTasks, withTaskFileMutationLockAsync, writeTasks,
 } from './system/task-lifecycle-edit.js';
-import { taskStore } from './store.js';
+import { taskStore } from '@store/task-repo.js';
 
 const log = createLogger('task-archiver');
 

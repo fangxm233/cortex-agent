@@ -26,7 +26,7 @@ import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
-import { taskStore } from '@domain/tasks/store.js';
+import { taskStore } from '@store/task-repo.js';
 import { taskMutator } from '@domain/tasks/mutator.js';
 import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';

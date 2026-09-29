@@ -9,7 +9,7 @@ import { isDeviceOnline } from '../remote/client-manager.js';  // still needed f
 import { queryGpuSnapshot } from '../monitor/gpu-monitor.js';
 import * as executionRegistry from '../executions/registry.js';
 import type { ExecutionRecord } from '../executions/registry.js';
-import { taskStore } from './store.js';
+import { taskStore } from '@store/task-repo.js';
 import { taskMutator } from './mutator.js';
 import { listTemplateNames } from '../threads/template-loader.js';
 import { resolveTemplateProfiles } from '../threads/index.js';
