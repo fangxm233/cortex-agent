@@ -40,8 +40,8 @@ function render(live: boolean): string {
       vm={vm(live)}
       copy={copy}
       onBack={() => {}}
-      onMore={() => {}}
       onCancel={() => {}}
+      onArtifactClick={() => {}}
     />,
   );
 }

@@ -34,12 +34,10 @@ function Header({
   vm,
   copy,
   onBack,
-  onMore,
 }: {
   vm: MThreadDetailVm;
   copy: MThreadDetailCopy;
   onBack: () => void;
-  onMore: () => void;
 }) {
   const tone = statusTone(vm.status);
   const vocab = useVocabOptional();
@@ -79,7 +77,7 @@ function Header({
         <span style={{ font: `600 15px ${MONO}`, color: MC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vm.name}</span>
         <MPill tone={tone}>{copy.status[tone]}</MPill>
         <div style={{ marginLeft: 'auto', flex: 'none' }}>
-          <MMoreButton onClick={onMore} />
+          <MMoreButton />
         </div>
       </div>
       <div
@@ -209,7 +207,7 @@ function StepRow({ step, copy, selected, onSelect }: { step: MThreadStepVm; copy
   );
 }
 
-function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; copy: MThreadDetailCopy; onArtifactClick?: (artifact: MThreadArtifactVm) => void }) {
+function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; copy: MThreadDetailCopy; onArtifactClick: (artifact: MThreadArtifactVm) => void }) {
   return (
     <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
@@ -222,20 +220,20 @@ function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; cop
         vm.artifacts.map((a, i) => (
           <div
             key={i}
-            onClick={onArtifactClick ? () => onArtifactClick(a) : undefined}
+            onClick={() => onArtifactClick(a)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 9,
               padding: '9px 13px',
               borderBottom: i < vm.artifacts.length - 1 ? '1px solid var(--proto-alt)' : undefined,
-              cursor: onArtifactClick ? 'pointer' : undefined,
+              cursor: 'pointer',
             }}
           >
             <FileGlyph />
             <span style={{ font: `500 12px ${MONO}`, color: MC.body, minWidth: 0, overflowWrap: 'anywhere' }}>{a.filename}</span>
             <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{a.meta}</span>
-            {onArtifactClick && <span style={{ color: MC.run, fontSize: 8, flex: 'none' }}>▸</span>}
+            <span style={{ color: MC.run, fontSize: 8, flex: 'none' }}>▸</span>
           </div>
         ))
       )}
@@ -322,16 +320,14 @@ export function MThreadDetailView({
   vm,
   copy,
   onBack,
-  onMore,
   onCancel,
   onArtifactClick,
 }: {
   vm: MThreadDetailVm;
   copy: MThreadDetailCopy;
   onBack: () => void;
-  onMore: () => void;
   onCancel: () => void;
-  onArtifactClick?: (artifact: MThreadArtifactVm) => void;
+  onArtifactClick: (artifact: MThreadArtifactVm) => void;
 }): ReactNode {
   // Default selection follows the running step, else the last step for terminal threads.
   const runningIdx = vm.steps.findIndex((s) => s.kind === 'running');
@@ -342,7 +338,7 @@ export function MThreadDetailView({
   return (
     <MScreen
       label="1g 线程详情"
-      header={<Header vm={vm} copy={copy} onBack={onBack} onMore={onMore} />}
+      header={<Header vm={vm} copy={copy} onBack={onBack} />}
       footer={<Footer vm={vm} copy={copy} onCancel={onCancel} />}
     >
       <div style={{ padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>

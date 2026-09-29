@@ -90,7 +90,6 @@ export function MThreadDetailScreen() {
       vm={vm}
       copy={copy}
       onBack={() => navigate(-1)}
-      onMore={() => { /* rename/export/archive menu — out of 1g scope */ }}
       onCancel={controller.cancel}
       onArtifactClick={handleArtifactClick}
     />
