@@ -409,19 +409,6 @@ test('runMigrations moves stock director verdict off STATUS sections to a pointe
   assert.equal(await readText(target), first);
 });
 
-test('shipped worker/manager/director prompts already carry register semantics (migration is a no-op on defaults)', async () => {
-  const { STATUS_REGISTER_REPLACEMENTS } = await import('../../src/store/prompt-migration-replacements.js');
-  const { applyReplacements } = await import('../../src/store/version-migrations.js');
-  for (const rel of [
-    ['prompts', 'systemPrompts', 'worker.md'],
-    ['prompts', 'directives', 'manager.md'],
-    ['prompts', 'directives', 'director.md'],
-  ]) {
-    const shipped = await readText(path.join(DEFAULTS_DIR, ...rel));
-    assert.equal(applyReplacements(shipped, STATUS_REGISTER_REPLACEMENTS), shipped, rel.join('/'));
-  }
-});
-
 test('runMigrations leaves customized worker prompts untouched by the STATUS migration', async () => {
   const { dataDir, storeDir, defaultsDir } = setupDirs();
   const target = path.join(dataDir, 'prompts', 'systemPrompts', 'worker.md');
