@@ -2,8 +2,7 @@ package dev.cortex.notifications
 
 internal data class AlertChanges(val resolved: List<String>, val added: List<Alert>) {
     companion object {
-        fun between(seen: Map<String, SeenAlert>, owner: String, snapshot: List<Alert>?): AlertChanges {
-            if (snapshot == null) return AlertChanges(emptyList(), emptyList())
+        fun between(seen: Map<String, SeenAlert>, owner: String, snapshot: List<Alert>): AlertChanges {
             val current = snapshot.distinctBy { it.key }
             val keys = current.map { it.key }.toSet()
             val resolved = seen.filter { it.value.owner == owner && it.key !in keys }.keys.toList()

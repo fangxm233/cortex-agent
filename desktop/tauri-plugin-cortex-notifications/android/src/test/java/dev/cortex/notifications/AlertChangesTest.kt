@@ -15,12 +15,6 @@ class AlertChangesTest {
         assertTrue(changes.resolved.isEmpty())
     }
 
-    @Test fun failedOwnerPreservesAllPriorAlerts() {
-        val changes = AlertChanges.between(seen, question.owner, null)
-        assertTrue(changes.added.isEmpty())
-        assertTrue(changes.resolved.isEmpty())
-    }
-
     @Test fun resolutionCancelsOnlyItsOwner() {
         val changes = AlertChanges.between(seen, question.owner, emptyList())
         assertEquals(listOf(question.key), changes.resolved)
