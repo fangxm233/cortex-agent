@@ -27,7 +27,6 @@ export interface SignalCliOptions {
   env?: NodeJS.ProcessEnv;
   post?: (url: string, body: unknown) => Promise<{ status: number; body: any }>;
   spoolDir?: string;
-  writeSpool?: (dir: string, name: string, contents: string) => void;
 }
 
 const HELP: HelpSpec = {
@@ -189,7 +188,7 @@ export async function runSignalCli(argv: string[], options: SignalCliOptions = {
       }
       const dir = options.spoolDir ?? defaultSpoolDir(env);
       const name = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.json`;
-      (options.writeSpool ?? writeSpoolFile)(dir, name, JSON.stringify(payload));
+      writeSpoolFile(dir, name, JSON.stringify(payload));
       return { exitCode: 0, stdout: `spooled ${path.join(dir, name)}`, stderr: '' };
     }
 

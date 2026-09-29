@@ -30,7 +30,6 @@ export interface HookCliOptions {
   registryDir?: string;
   templateDir?: string;
   hooksDir?: string;
-  readStdin?: () => string;
   askPost?: AskPostFn;
 }
 
@@ -209,7 +208,6 @@ function defaults(options: HookCliOptions): Required<HookCliOptions> {
     registryDir: options.registryDir ?? path.join(CONFIG_DIR, 'hooks'),
     templateDir: options.templateDir ?? path.join(CONFIG_DIR, 'thread-templates', 'templates'),
     hooksDir: options.hooksDir ?? HOOKS_DIR,
-    readStdin: options.readStdin ?? readStdinSync,
     askPost: options.askPost ?? defaultAskPost,
   };
 }
@@ -350,8 +348,8 @@ function handleState(context: HandlerContext, enabled: boolean): HookCliResult {
   return success(statePayload(hook, enabled, changed, false));
 }
 
-function readPayload(payload: string, options: Required<HookCliOptions>): string {
-  if (payload === '-') return options.readStdin();
+function readPayload(payload: string): string {
+  if (payload === '-') return readStdinSync();
   try {
     return fs.readFileSync(payload, 'utf8');
   } catch (error) {
@@ -365,7 +363,7 @@ function readPayload(payload: string, options: Required<HookCliOptions>): string
 
 async function handleTest(context: HandlerContext): Promise<HookCliResult> {
   const hook = findHook(context.parsed.id!, context.hooks);
-  const payload = readPayload(context.parsed.payload!, context.options);
+  const payload = readPayload(context.parsed.payload!);
   const result = await runHookProcess(hookProcessOptions(hook, context.options.hooksDir, payload));
   const output: Record<string, unknown> = {
     ok: result.exitCode === 0 && !result.error,
@@ -402,9 +400,9 @@ function defaultAskPost(url: string, body: unknown, headers: Record<string, stri
   });
 }
 
-function parseAskQuestions(parsed: ParsedArgs, options: Required<HookCliOptions>): any[] {
+function parseAskQuestions(parsed: ParsedArgs): any[] {
   if (parsed.payload) {
-    const raw = readPayload(parsed.payload, options);
+    const raw = readPayload(parsed.payload);
     let questions: unknown;
     try { questions = JSON.parse(raw); } catch (e) {
       throw cliFailure(`--payload is not valid JSON: ${(e as Error).message}`, ['JSON array of question objects']);
@@ -461,7 +459,7 @@ function mapAskResponse(resp: { status: number; body: any }): HookCliResult {
 }
 
 async function handleAsk(context: HandlerContext): Promise<HookCliResult> {
-  const questions = parseAskQuestions(context.parsed, context.options);
+  const questions = parseAskQuestions(context.parsed);
   const body = buildAskBody(context.parsed, questions);
   const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
   const url = `http://127.0.0.1:${port}/hook/ask-user-question`;
