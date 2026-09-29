@@ -147,8 +147,8 @@ export function Composer({
    *  host (useSessionWaitpoints) rather than fetched here — see WaitRail. */
   waitpoints?: SessionWaitpoints | null;
   compactAction?: ContextCompactAction;
-  /** Optional larger surface that accepts file drops for this composer. */
-  dropTargetRef?: RefObject<HTMLElement>;
+  /** The larger surface that accepts file drops for this composer. */
+  dropTargetRef: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
 }): JSX.Element {
   const trpc = useTRPC();
@@ -216,7 +216,6 @@ export function Composer({
   const [statsOpen, setStatsOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const localDropTargetRef = useRef<HTMLDivElement>(null);
   // Resolve a restored draft bucket before the shared controller binds. This keeps a scope change
   // from briefly binding a random bucket and then clearing the restored metadata on the next render.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
@@ -300,8 +299,7 @@ export function Composer({
   const addFiles = attachmentUploads.addFiles;
   const removeAttachment = attachmentUploads.remove;
   const retryAttachment = attachmentUploads.retry;
-  const activeDropTargetRef = dropTargetRef ?? localDropTargetRef;
-  const { active: dragOver, fileCount: dragFileCount } = useFileDropTarget(activeDropTargetRef, addFiles);
+  const { active: dragOver, fileCount: dragFileCount } = useFileDropTarget(dropTargetRef, addFiles);
 
   const hasAttachments = attachments.length > 0;
   const doneAttachments = attachmentUploads.completed;
@@ -539,7 +537,7 @@ export function Composer({
     <div style={{ flex: 'none' }}>
       {/* The gutter sits OUTSIDE the card's own column, so the composer sheet is wider than the
           prose it answers rather than inset from it. */}
-      <div ref={localDropTargetRef} style={{ position: 'relative', padding: '6px 32px 14px' }}>
+      <div style={{ position: 'relative', padding: '6px 32px 14px' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
           {/* Slash palette */}
           {slashOpen ? <ComposerSlashMenu suggestions={slashList} onPick={onSlashPick} /> : null}
@@ -738,7 +736,7 @@ export function Composer({
 
           {dragOver && (
             <ChatDropOverlay
-              target={activeDropTargetRef.current}
+              target={dropTargetRef.current}
               fileCount={dragFileCount}
               attachedCount={attachments.length}
             />

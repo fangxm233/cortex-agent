@@ -133,6 +133,7 @@ function mountComposer(
         rejectOptimistic={() => true}
         compactAction={{ onCompact: compact, pending: false, disabled: false, status: null, error: null, disabledReason: null }}
         onOpenSettings={harness.openSettings}
+        dropTargetRef={{ current: null }}
         {...overrides}
       />
     </LangProvider>,
