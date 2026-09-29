@@ -3,7 +3,7 @@ import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.
 export interface SourceJournalHeader extends Record<string, unknown> {
   schema_version: string;
   root_run_id: string;
-  thread_id: string | null;
+  thread_id: string;
   agent_slot: string;
   resolved_cwd: string;
   model_execution_identity_hash: string;
@@ -28,50 +28,17 @@ export interface SourceFragment {
   terminal: Record<string, unknown>;
 }
 
-export interface ThreadLink {
-  callId: string;
-  threadId: string;
-}
-
-/**
- * One node of the attempt DAG as the ATIF builder walks it (§9.3 M3). `links` are the tool calls
- * THIS node made that resolve to a child trajectory; they annotate observations and never define
- * structure — a manager edge (`decompose`/`dispatch`) appears in no tool result at all, so `links`
- * is legitimately empty while `children` is not.
- */
+/** One node of the attempt DAG as the ATIF builder walks it (§9.3 M3). */
 export interface AtifNode {
   readonly fragment: SourceFragment;
-  readonly links: readonly ThreadLink[];
   readonly children: readonly AtifNode[];
-}
-
-export interface AtifFinalMetrics {
-  total_prompt_tokens: number;
-  total_completion_tokens: number;
-  total_cached_tokens: number;
-  total_cost_usd: number;
-  total_steps: number;
-  extra: {
-    prompt_tokens_definition: string;
-    cached_tokens_definition: string;
-    /**
-     * §17 G4-SA11 — native-subagent turns, DERIVED by Cortex from the journal's census events
-     * because the CLI maintains no such counter (G4-SA4). Carried BESIDE `total_steps`, never
-     * summed into it: `total_steps` is the parent's own turn total. Reconciling the two would
-     * erase exactly the distinction this field exists to record.
-     */
-    subagent_turns: number;
-  };
 }
 
 export interface AtifTrajectory {
   schema_version: 'ATIF-v1.7';
-  session_id?: string;
   trajectory_id: string;
   agent: Record<string, unknown>;
   steps: Array<Record<string, unknown>>;
-  notes?: string;
-  final_metrics?: AtifFinalMetrics;
   extra: Record<string, unknown>;
   subagent_trajectories?: AtifTrajectory[];
 }
@@ -251,17 +218,14 @@ function toolCalls(group: EventGroup): Array<Record<string, unknown>> {
   });
 }
 
-function observationResults(
-  group: EventGroup, links: ReadonlyMap<string, string>,
-): Array<Record<string, unknown>> {
+function observationResults(group: EventGroup): Array<Record<string, unknown>> {
   return group.records.flatMap(record => {
     const event = record.event;
     if (event.type !== 'tool_result') return [];
-    const childId = links.get(event.toolUseId);
     return [{
       source_call_id: event.toolUseId,
       content: event.content,
-      subagent_trajectory_ref: childId ? [{ trajectory_id: childId }] : null,
+      subagent_trajectory_ref: null,
       extra: { ok: event.ok },
     }];
   });
@@ -275,12 +239,10 @@ function stepMessage(group: EventGroup): string {
   return JSON.stringify(group.records.map(record => record.event));
 }
 
-function buildStep(
-  group: EventGroup, stepId: number, links: ReadonlyMap<string, string>,
-): Record<string, unknown> {
+function buildStep(group: EventGroup, stepId: number): Record<string, unknown> {
   const first = group.records[0];
   const calls = toolCalls(group);
-  const results = observationResults(group, links);
+  const results = observationResults(group);
   return {
     step_id: stepId,
     timestamp: first.ts,
@@ -338,65 +300,36 @@ function terminalStep(fragment: SourceFragment): Record<string, unknown> {
   };
 }
 
-function buildSteps(
-  fragment: SourceFragment, links: ReadonlyMap<string, string>,
-): Array<Record<string, unknown>> {
+function buildSteps(fragment: SourceFragment): Array<Record<string, unknown>> {
   if (fragment.events.length === 0) return [terminalStep(fragment)];
-  return groupEvents(fragment.events).map((group, index) => buildStep(group, index + 1, links));
+  return groupEvents(fragment.events).map((group, index) => buildStep(group, index + 1));
 }
 
 /**
- * §9.3 M3 — recursive. Every node is built with ITS OWN link map, so nesting follows the DAG to
- * whatever depth the DAG has: one level for `coder-review` (§9.4 C7), the full depth for `manager`
- * (§9.4 M-16). The two are the same code because depth is a property of the DAG, not of the builder.
+ * §9.3 M3 — recursive, so nesting follows the DAG to whatever depth the DAG has: one level for
+ * `coder-review` (§9.4 C7), the full depth for `manager` (§9.4 M-16). The two are the same code
+ * because depth is a property of the DAG, not of the builder.
  */
 function buildTrajectory(node: AtifNode): AtifTrajectory {
   const fragment = node.fragment;
-  const links = new Map(node.links.map(link => [link.callId, link.threadId]));
-  const id = fragment.header.thread_id ?? fragment.header.root_run_id;
   const trajectory: AtifTrajectory = {
     schema_version: 'ATIF-v1.7',
-    trajectory_id: id,
+    trajectory_id: fragment.header.thread_id,
     agent: buildAgent(fragment),
-    steps: buildSteps(fragment, links),
+    steps: buildSteps(fragment),
     extra: trajectoryExtra(fragment),
   };
-  if (fragment.header.thread_id === null) trajectory.session_id = fragment.header.root_run_id;
   if (node.children.length > 0) {
     trajectory.subagent_trajectories = node.children.map(buildTrajectory);
   }
   return trajectory;
 }
 
-function treeStepCount(trajectory: AtifTrajectory): number {
-  const childSteps = (trajectory.subagent_trajectories ?? [])
-    .reduce((total, child) => total + treeStepCount(child), 0);
-  return trajectory.steps.length + childSteps;
-}
-
-function attachFinalMetrics(root: AtifTrajectory, metrics: AtifFinalMetrics): AtifTrajectory {
-  root.final_metrics = metrics;
-  const atifSteps = treeStepCount(root);
-  if (metrics.total_steps !== atifSteps) {
-    root.notes = `final_metrics.total_steps=${metrics.total_steps} sums journal `
-      + `turn_complete.numTurns across parent and subagent fragments; the ATIF tree has `
-      + `${atifSteps} steps because it preserves normalized accounting and tool events.`;
-  }
-  return root;
-}
-
 /** Children arrive already ordered by the caller — call order, or the DAG's own node order for a
  *  manager tree. Timestamps never order trajectories. */
-export function buildAtifTree(
-  root: AtifNode,
-  linkSource: 'tool_result' | 'explicit',
-  finalMetrics: AtifFinalMetrics | null,
-): AtifTrajectory {
+export function buildAtifTree(root: AtifNode): AtifTrajectory {
   const trajectory = buildTrajectory(root);
-  trajectory.extra.subagent_link_source = linkSource;
-  if (finalMetrics === null) {
-    trajectory.extra.final_metrics_status = 'unavailable';
-    return trajectory;
-  }
-  return attachFinalMetrics(trajectory, finalMetrics);
+  trajectory.extra.subagent_link_source = 'explicit';
+  trajectory.extra.final_metrics_status = 'unavailable';
+  return trajectory;
 }

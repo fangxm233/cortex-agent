@@ -558,7 +558,7 @@ function atifNode(item: ProjectedAttempt, attempts: readonly ProjectedAttempt[])
       events: [...item.source.parsedJournal.events],
       terminal: terminalDocument(item),
     },
-    links: [], children: children.map(child => atifNode(child, attempts)),
+    children: children.map(child => atifNode(child, attempts)),
   };
 }
 
@@ -584,7 +584,7 @@ function trajectoryBytes(projected: readonly ProjectedAttempt[]): Buffer {
     && item.source.identity.root_attempt_id === item.source.identity.attempt_id
   ));
   if (root.length !== 1) fail(`ATIF root resolves to ${root.length} attempts`);
-  const trajectory = buildAtifTree(atifNode(root[0], projected), 'explicit', null);
+  const trajectory = buildAtifTree(atifNode(root[0], projected));
   bindAtifAttemptIds(trajectory, root[0], projected);
   return Buffer.from(`${JSON.stringify(trajectory, null, 2)}\n`, 'utf8');
 }
