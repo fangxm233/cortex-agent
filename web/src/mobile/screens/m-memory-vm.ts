@@ -30,16 +30,16 @@ export interface MMemoryVm {
 }
 
 export function buildMMemoryVm(
-  facts: MemoryTreeFacts | null | undefined,
+  facts: MemoryTreeFacts,
   now: number,
   lang: TimeLang,
 ): MMemoryVm {
-  const core: MMemoryFileRow[] = (facts?.topLevelFiles ?? []).map((file) => ({
+  const core: MMemoryFileRow[] = facts.topLevelFiles.map((file) => ({
     name: file.name,
     path: file.path,
     time: relTime(file.modifiedAt, now, lang),
   }));
-  const dirCards: MMemoryDirCard[] = (facts?.dirs ?? []).map((dir) => ({
+  const dirCards: MMemoryDirCard[] = facts.dirs.map((dir) => ({
     name: dir.name,
     entryCount: dir.entryCount,
     entries: dir.entries.map((file) => ({
@@ -49,7 +49,7 @@ export function buildMMemoryVm(
     })),
   }));
   return {
-    fileCount: facts?.fileCount ?? 0,
+    fileCount: facts.fileCount,
     core,
     dirs: dirCards,
     isEmpty: core.length === 0 && dirCards.length === 0,

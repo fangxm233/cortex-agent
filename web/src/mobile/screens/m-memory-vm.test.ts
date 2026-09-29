@@ -16,8 +16,8 @@ function facts(p: Partial<MemoryTree> = {}): MemoryTreeFacts {
 }
 
 describe('buildMMemoryVm', () => {
-  it('undefined tree → empty vm (loading-safe)', () => {
-    const vm = buildMMemoryVm(undefined, NOW, 'en');
+  it('empty tree → empty vm', () => {
+    const vm = buildMMemoryVm(facts(), NOW, 'en');
     expect(vm.isEmpty).toBe(true);
     expect(vm.fileCount).toBe(0);
     expect(vm.core).toEqual([]);
