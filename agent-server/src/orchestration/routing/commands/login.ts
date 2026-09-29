@@ -25,7 +25,6 @@ import type {
   PlatformAdapter,
   RichBlock,
 } from '@platform/index.js';
-import type { CustomProviderStores } from '@domain/pi-providers/index.js';
 import type { CommandResult } from './command-context.js';
 import { handleCustomProviderCommand } from './login-custom.js';
 import {
@@ -44,8 +43,6 @@ export interface LoginCommandDependencies {
   readStatus?: AuthStatusReader;
   authLogin?: AuthLoginService;
   router?: CommandActionRouter;
-  /** Files `!login custom` reads and writes; defaults to the host's own catalog and gateway. */
-  customProviderStores?: CustomProviderStores;
 }
 
 interface ResolvedLoginDependencies {
@@ -798,7 +795,7 @@ export function createLoginHandler(input: LoginCommandDependencies = {}) {
       return { text: formatAuthStatusSummary(await dependencies.readStatus()) };
     }
     if (request.kind === 'custom') {
-      return handleCustomProviderCommand(request.args, input.customProviderStores);
+      return handleCustomProviderCommand(request.args);
     }
     if (request.kind === 'usage') return { text: t('cmd.auth.usage') };
     if (request.backend === 'claude') return handleClaudeLoginRequest(channel, dependencies);
