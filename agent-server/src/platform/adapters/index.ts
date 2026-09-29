@@ -1,46 +1,10 @@
 import type { PlatformAdapter } from '../adapter.js';
 import { SlackAdapter } from './slack.js';
-import type { SlackAdapterConfig } from './slack.js';
 import { FeishuAdapter } from './feishu.js';
-import type { FeishuAdapterConfig } from './feishu.js';
 import { MockAdapter } from '../testing.js';
 import { TuiGatewayAdapter } from './tui/index.js';
 import { CompositeAdapter } from './composite-adapter.js';
 import { getSettings } from '@core/settings.js';
-
-export type PlatformType = 'slack' | 'discord' | 'telegram' | 'feishu' | 'tui' | 'test';
-
-export interface AdapterConfig {
-  platform: PlatformType;
-  slack?: SlackAdapterConfig;
-  feishu?: FeishuAdapterConfig;
-}
-
-export function createAdapter(config: AdapterConfig): PlatformAdapter {
-  switch (config.platform) {
-    case 'slack':
-      if (!config.slack) {
-        throw new Error('Slack adapter requires slack config (botToken, signingSecret, appToken)');
-      }
-      return new SlackAdapter(config.slack);
-
-    case 'feishu':
-      if (!config.feishu) {
-        throw new Error('Feishu adapter requires feishu config (appId, appSecret)');
-      }
-      return new FeishuAdapter(config.feishu);
-
-    case 'discord':
-    case 'telegram':
-      throw new Error(`Platform "${config.platform}" is not yet implemented. Contributions welcome!`);
-
-    default:
-      throw new Error(`Unknown platform: ${config.platform}`);
-  }
-}
-
-/** Options injected from the composition root for capabilities that cross layer boundaries. */
-export interface AdapterOverrides {}
 
 // ─── Primary adapters from credentials and settings ────────────────────
 
@@ -115,14 +79,6 @@ export function createPrimaryAdaptersFromEnv(): PlatformAdapter[] {
   return adapters;
 }
 
-/**
- * Back-compat shim: return the first configured primary adapter, or null.
- * Prefer createPrimaryAdaptersFromEnv() for multi-platform support.
- */
-export function createPrimaryAdapterFromEnv(): PlatformAdapter | null {
-  return createPrimaryAdaptersFromEnv()[0] ?? null;
-}
-
 // ─── TUI auto-enable logic ─────────────────────────────────────────────
 
 /**
@@ -170,7 +126,3 @@ export function createAdapterFromEnv(): PlatformAdapter {
   return new CompositeAdapter(all);
 }
 
-export { SlackAdapter } from './slack.js';
-export type { SlackAdapterConfig } from './slack.js';
-export { FeishuAdapter } from './feishu.js';
-export type { FeishuAdapterConfig } from './feishu.js';

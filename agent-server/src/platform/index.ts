@@ -39,15 +39,5 @@ export {
   askLevelIcon,
 } from './interactive-builder.js';
 export type { QuestionOption, QuestionRecord, QuestionGroup } from './interactive-builder.js';
-export { createAdapter, createAdapterFromEnv } from './adapters/index.js';
-export type { PlatformType, AdapterConfig } from './adapters/index.js';
-export { SlackAdapter } from './adapters/slack.js';
-export type { SlackAdapterConfig } from './adapters/slack.js';
-export { FeishuAdapter } from './adapters/feishu.js';
-export type { FeishuAdapterConfig } from './adapters/feishu.js';
-export {
-  CompositeAdapter,
-  extractTuiAdapter,
-  setPlatformAdminChannel,
-} from './adapters/composite-adapter.js';
-export type { AdminChannelPlatform } from './adapters/composite-adapter.js';
+export { createAdapterFromEnv } from './adapters/index.js';
+export { extractTuiAdapter, setPlatformAdminChannel } from './adapters/composite-adapter.js';
