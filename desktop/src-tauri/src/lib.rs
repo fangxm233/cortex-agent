@@ -147,19 +147,6 @@ fn get_connection_config(state: State<AppState>) -> ConnectionConfig {
     state.config.lock().unwrap().clone()
 }
 
-/// Low-level in-memory update. Prefer the `connect` command for the full
-/// persist-to-keychain flow.
-#[tauri::command]
-fn set_connection_config(
-    state: State<AppState>,
-    server_url: Option<String>,
-    token: Option<String>,
-) {
-    let mut config = state.config.lock().unwrap();
-    config.server_url = server_url;
-    config.token = token;
-}
-
 /// Persist credentials to the platform credential store and update AppState.
 ///
 /// Called by the connect screen after the user's test-connection probe
@@ -579,7 +566,6 @@ pub fn run() {
         .manage(desktop_notifications::NotificationState::default())
         .invoke_handler(tauri::generate_handler![
             get_connection_config,
-            set_connection_config,
             connect,
             disconnect,
             mobile_notifications::mobile_notifications_configure,
