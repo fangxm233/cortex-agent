@@ -1,7 +1,6 @@
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
-import { buildChildResultNotice } from '../src/orchestration/thread-notices.js';
 import {
   fireThreadCallback,
   notifyThreadParent,
@@ -79,8 +78,6 @@ function makeParentChild(opts: {
   threadStore.set(parent);
   return { parent, child };
 }
-
-// --- buildChildResultNotice ---
 
 // --- fireThreadCallback terminal guard ---
 

@@ -2,7 +2,6 @@ import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
-  getRootThreadId,
   getTreeThreads,
   checkSpawnGuards,
   buildThreadTree,
@@ -74,8 +73,6 @@ function makeChain(costs: [number, number, number] = [0, 0, 0]): { root: ThreadR
   threadStore.set(child);
   return { root, child, grandchild };
 }
-
-// --- getRootThreadId ---
 
 // --- getTreeThreads ---
 

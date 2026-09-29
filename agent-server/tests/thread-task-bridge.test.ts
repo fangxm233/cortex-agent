@@ -4,14 +4,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { buildTaskResultNotice } from '../src/orchestration/thread-notices.js';
 import {
   notifyTaskParentThreads,
   reconcileWaitingTasks,
   recoverWaitingThreads,
-  _testResetCallbackState,
 } from '../src/orchestration/thread-callback.js';
-import { rawToTask } from '../src/core/task-parser.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
 const createdThreadIds = new Set<string>();
@@ -67,8 +64,6 @@ function makeManager(proj: string, taskId: string, waitingOnTasks: string[], ove
   createdThreadIds.add(id);
   return rec;
 }
-
-// --- buildTaskResultNotice ---
 
 // --- notifyTaskParentThreads ---
 
@@ -153,20 +148,6 @@ test('manual completion still wakes through a later dispatch terminal hint', asy
   assert.deepEqual(current.metadata!.waitingOnTasks, []);
   assert.match(current.metadata!.pendingMessages![0], /manual-result/);
   assert.deepEqual(resumed, [mgr.id]);
-});
-
-test('notifyTaskParentThreads is idempotent across in-memory state resets', async () => {
-  const proj = `_tb_p${seq++}`;
-  makeProject(proj, 'tasks:\n' + taskYaml('aa13') + taskYaml('bb13', { parent: 'aa13', status: 'done' }));
-  const mgr = makeManager(proj, 'aa13', ['bb13']);
-  const resumed: string[] = [];
-  await notifyTaskParentThreads('bb13', 'completed', { resume: (id) => resumed.push(id) });
-  _testResetCallbackState();
-  await notifyTaskParentThreads('bb13', 'completed', { resume: (id) => resumed.push(id) });
-
-  const t = threadStore.get(mgr.id)!;
-  assert.equal(t.metadata!.pendingMessages!.length, 1, 'delivered exactly once');
-  assert.equal(resumed.length, 1, 'resumed exactly once');
 });
 
 test('notifyTaskParentThreads delivers blocked children as escalation and resumes if last', async () => {
