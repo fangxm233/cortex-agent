@@ -12,7 +12,7 @@ import {
   deliverBackgroundSubagentResult, holdSessionForBackgroundRun, startBackgroundSubagentRun,
 } from '../src/orchestration/subagent-delivery.js';
 import {
-  _resetSubagentRuns, startSubagentRun, waitForSubagentRun, getSubagentChildStatuses, listSubagentRuns,
+  _resetSubagentRuns, startSubagentRun, waitForSubagentRun, getSubagentChildStatuses,
 } from '../src/domain/agents/subagent/registry.js';
 import { beginForegroundSession } from '../src/orchestration/turn/turn.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
@@ -393,13 +393,13 @@ test('PI tool, channel and registry agree on a stopped chain child without start
   }));
   const tool = createSubagentTool(piDeps({ createSession, startBackgroundSubagent, onEvent: (notice: unknown) => notices.push(notice) }));
   const foreground = new AbortController();
-  await tool.execute('call-chain', { chain: [invocation().tasks[0], invocation().tasks[0]], run_in_background: true } as any,
+  const result = await tool.execute('call-chain', { chain: [invocation().tasks[0], invocation().tasks[0]], run_in_background: true } as any,
     foreground.signal, () => {}, { cwd: '/tmp' } as any);
   foreground.abort(); // the already-returned tool no longer owns the background children
-  const run = listSubagentRuns(SESSION)[0];
+  const runId = /Agent (\S+) started in the background/.exec(textOf(result))![1];
   assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-chain#0', 'running']]);
-  await stopBackgroundSubagent(run.id);
-  await waitForSubagentRun(run.id, 1000);
+  await stopBackgroundSubagent(runId);
+  await waitForSubagentRun(runId, 1000);
   assert.deepEqual([...getSubagentChildStatuses(SESSION)], [['call-chain#0', 'killed']]);
   assert.equal(createSession.mock.calls.length, 1);
   assert.deepEqual(notices.map(n => [n.ref, n.kind, n.status]), [

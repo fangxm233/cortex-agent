@@ -2,7 +2,7 @@ import { createLogger } from '@core/log.js';
 import type { Backend } from '../agent-adapter/types.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import {
-  detachSubagentRun, getSubagentRun, listSubagentRuns, stopSubagentRun, waitForSubagentRun,
+  detachSubagentRun, stopSubagentRun, waitForSubagentRun,
   type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';
 import { startDaemonSubagentRun } from '@domain/agents/subagent/service.js';
@@ -119,14 +119,6 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
       const view = detachSubagentRun(String(data.runId ?? ''));
       if (!view) return { success: false, error: `no such agent run: ${data.runId}` };
       return { success: true, data: { id: view.id, status: view.status } };
-    }
-    if (data.action === 'status') {
-      const view = getSubagentRun(String(data.runId ?? ''));
-      if (!view) return { success: false, error: `no such agent run: ${data.runId}` };
-      return { success: true, data: view };
-    }
-    if (data.action === 'list') {
-      return { success: true, data: { runs: listSubagentRuns(sessionId) } };
     }
     return { success: false, error: `unknown subagent action: ${data.action}` };
   } catch (error) {

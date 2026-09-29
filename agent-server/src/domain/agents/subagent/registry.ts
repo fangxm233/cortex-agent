@@ -214,14 +214,6 @@ export function getSubagentRun(id: string): SubagentRunView | null {
   return record ? viewOf(record) : null;
 }
 
-/** Live and recently finished runs, newest first. Scoped to one session when asked. */
-export function listSubagentRuns(sessionId?: string | null): SubagentRunView[] {
-  const all = [...runs.values()]
-    .filter(record => sessionId === undefined || record.sessionId === sessionId)
-    .map(viewOf);
-  return all.sort((left, right) => right.startedAt - left.startedAt);
-}
-
 export interface SubagentRunOutcome {
   view: SubagentRunView;
   /** Present only once the run has completed successfully. */
