@@ -1,39 +1,5 @@
-import type { TranscriptData } from '@platform/adapters/tui/ports.js';
-
-// ── Resolution types ─────────────────────────────────────────────
-
-export interface HandshakeResolution {
-  sessionId: string;
-  sessionName: string;
-  projectId: string;
-  isFresh: boolean;
-  emitNotFoundError: boolean;
-  transcript: TranscriptData | null;
-}
-
-export interface SwitchResolution {
-  sessionId: string;
-  sessionName: string;
-  projectId: string;
-  isFresh: boolean;
-  transcript: TranscriptData | null;
-}
-
-// ── Service interface ────────────────────────────────────────────
-
-export interface TuiSessionService {
-  resolveHandshake(opts: {
-    conduitId: string;
-    projectId: string;
-    resumeSessionId: string;
-  }): Promise<HandshakeResolution>;
-
-  switchSession(opts: {
-    conduitId: string;
-    projectId: string;
-    sessionId?: string | null;
-  }): Promise<SwitchResolution>;
-}
+// The resolution and service types are the TUI gateway's session port; re-exported for domain callers.
+export type { HandshakeResolution, SwitchResolution, TuiSessionService } from '@platform/adapters/tui/ports.js';
 
 // ── Deps (duck-typed, mirroring UiServiceDeps pattern) ───────────
 

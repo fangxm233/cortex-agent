@@ -12,6 +12,40 @@ export interface TranscriptData {
   messages: TranscriptMessage[];
 }
 
+// ── Session service port ─────────────────────────────────────────
+// The concrete implementation lives in @domain/tui-session; app.ts injects it.
+
+export interface HandshakeResolution {
+  sessionId: string;
+  sessionName: string;
+  projectId: string;
+  isFresh: boolean;
+  emitNotFoundError: boolean;
+  transcript: TranscriptData | null;
+}
+
+export interface SwitchResolution {
+  sessionId: string;
+  sessionName: string;
+  projectId: string;
+  isFresh: boolean;
+  transcript: TranscriptData | null;
+}
+
+export interface TuiSessionService {
+  resolveHandshake(opts: {
+    conduitId: string;
+    projectId: string;
+    resumeSessionId: string;
+  }): Promise<HandshakeResolution>;
+
+  switchSession(opts: {
+    conduitId: string;
+    projectId: string;
+    sessionId?: string | null;
+  }): Promise<SwitchResolution>;
+}
+
 /**
  * Per-conduit serial work queue port. The concrete impl (app.ts) wraps the shared
  * @orch/conduit-queue singletons so TUI message work serializes with the rest of

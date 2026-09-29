@@ -47,7 +47,7 @@ import {
 import { buildTranscriptReplay } from './tui-transcript.js';
 import { createLogger } from '@core/log.js';
 import { t } from '@core/i18n.js';
-import type { TranscriptData, ConduitQueuePort } from './ports.js';
+import type { ConduitQueuePort, TuiSessionService } from './ports.js';
 
 const log = createLogger('tui-gateway');
 
@@ -57,29 +57,6 @@ interface UiServiceHandle {
   query(scope: string, params: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; code?: string; message?: string }>;
   mutate(op: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; code?: string; message?: string }>;
   subscribe(filter: { events: string[]; projectId?: string | null }): AsyncIterable<{ type: string; ts: string; payload: unknown }> & { close(): void };
-}
-
-// ── Minimal session-service interface (avoids coupling to the domain type) ──
-// The concrete implementation lives in @domain/tui-session; app.ts injects it.
-
-interface TuiHandshakeResult {
-  sessionId: string;
-  sessionName: string;
-  projectId: string;
-  isFresh: boolean;
-  emitNotFoundError: boolean;
-  transcript: TranscriptData | null;
-}
-interface TuiSwitchResult {
-  sessionId: string;
-  sessionName: string;
-  projectId: string;
-  isFresh: boolean;
-  transcript: TranscriptData | null;
-}
-interface TuiSessionServiceHandle {
-  resolveHandshake(opts: { conduitId: string; projectId: string; resumeSessionId: string }): Promise<TuiHandshakeResult>;
-  switchSession(opts: { conduitId: string; projectId: string; sessionId?: string | null }): Promise<TuiSwitchResult>;
 }
 
 // ── Constants ─────
@@ -92,13 +69,7 @@ function makeMessageId(): string {
   return crypto.randomUUID();
 }
 
-export interface TuiAdapterControls {
-  setUiService(service: unknown): void;
-  setSessionService(service: TuiSessionServiceHandle): void;
-  setConduitQueue(queue: ConduitQueuePort): void;
-}
-
-export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
+export class TuiGatewayAdapter implements PlatformAdapter {
   readonly name = 'tui';
   readonly capabilities: PlatformCapabilities = {
     threads: false,
@@ -117,7 +88,7 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
   private _noopOutbound = false;
   private _connections = new Map<string, TuiConnection>();
   private _uiService: unknown = null;
-  private _sessionService: TuiSessionServiceHandle | null = null;
+  private _sessionService: TuiSessionService | null = null;
   private _conduitQueue: ConduitQueuePort | null = null;
 
   // PlatformAdapter handler registrations
@@ -131,13 +102,13 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     this._host = opts?.host ?? '127.0.0.1';
   }
 
-  // ── TuiAdapterControls ──────────────────────────────────────────
+  // ── Service wiring (app.ts) ─────────────────────────────────────
 
   setUiService(service: unknown): void {
     this._uiService = service;
   }
 
-  setSessionService(service: TuiSessionServiceHandle): void {
+  setSessionService(service: TuiSessionService): void {
     this._sessionService = service;
   }
 

@@ -16,7 +16,3 @@ export function setConduitState(conduitId: string, state: TuiConduitState): void
 export function deleteConduitState(conduitId: string): boolean {
   return tuiConduitStates.delete(conduitId);
 }
-
-export function hasConduitState(conduitId: string): boolean {
-  return tuiConduitStates.has(conduitId);
-}
