@@ -10,7 +10,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  */
 
 export interface UseZoomOptions {
-  minScale?: number;
   maxScale?: number;
   /** 'transform' = full pan+zoom via transform (images). 'css-zoom' = scale only (PDF in scroll container). */
   mode?: 'transform' | 'css-zoom';
@@ -134,7 +133,7 @@ interface ScrollAnchor {
 }
 
 export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
-  const { minScale = 1, maxScale = 5, mode = 'transform' } = opts;
+  const { maxScale = 5, mode = 'transform' } = opts;
   const [zoom, setZoom] = useState<ZoomState>({ scale: 1, x: 0, y: 0 });
   // Store element in state so the effect re-runs when the element mounts/unmounts
   // (fixes the case where the zoomable element renders conditionally after async load).
@@ -169,7 +168,7 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
     startTranslateY: number;
   } | null>(null);
 
-  const clamp = useCallback((s: number) => Math.min(maxScale, Math.max(minScale, s)), [minScale, maxScale]);
+  const clamp = useCallback((s: number) => Math.min(maxScale, Math.max(1, s)), [maxScale]);
 
   /** Save a scroll anchor at viewport center (used by button zoom). */
   const saveViewportAnchor = useCallback(() => {
@@ -191,11 +190,11 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   const zoomOut = useCallback(() => {
     saveViewportAnchor();
     setZoom((prev) => {
-      const next = Math.max(minScale, prev.scale - ZOOM_STEP);
+      const next = Math.max(1, prev.scale - ZOOM_STEP);
       if (next <= 1) return { scale: 1, x: 0, y: 0 };
       return { ...prev, scale: next };
     });
-  }, [minScale, saveViewportAnchor]);
+  }, [saveViewportAnchor]);
 
   const resetZoom = useCallback(() => {
     saveViewportAnchor();

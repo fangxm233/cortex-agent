@@ -71,7 +71,7 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
 function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   const { src, failed } = useMediaSrc(item);
   const copy = useMediaCopy();
-  const { containerRef, contentRef, style: zoomStyle } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
+  const { containerRef, contentRef, style: zoomStyle } = useZoom({ mode: 'transform', maxScale: 8 });
 
   if (failed) return <DockCentered failed>{copy.loadFailed.replace('{name}', item.name)}</DockCentered>;
   if (!src) return <DockCentered>{copy.loading}</DockCentered>;

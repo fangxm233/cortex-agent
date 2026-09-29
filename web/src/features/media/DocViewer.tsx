@@ -104,7 +104,7 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
   const [state, setState] = useState<'loading' | 'ok' | 'failed'>('loading');
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const { containerRef: zoomRef, style: zoomStyle, zoom, zoomIn, zoomOut, resetZoom } = useZoom({ mode: 'css-zoom', minScale: 1, maxScale: 5 });
+  const { containerRef: zoomRef, style: zoomStyle, zoom, zoomIn, zoomOut, resetZoom } = useZoom({ mode: 'css-zoom', maxScale: 5 });
 
   useEffect(() => {
     let alive = true;

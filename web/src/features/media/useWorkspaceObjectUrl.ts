@@ -5,12 +5,12 @@ import { fetchFileObjectUrl } from '@/lib/files';
 // A plain <img>/<video src> cannot set the x-cortex-token header, so previews go through the same
 // authenticated blob fetch as downloads (lib/files) and are wrapped in an object URL — correct in
 // browser/ui-http (proxy/Access) and desktop/remote (token header) modes alike. The URL is revoked
-// on unmount / path change. Pass `enabled=false` to skip the fetch (e.g. non-previewable types).
+// on unmount / path change.
 
-export function useWorkspaceObjectUrl(path: string | null | undefined, enabled = true): string | null {
+export function useWorkspaceObjectUrl(path: string | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!path || !enabled) {
+    if (!path) {
       setUrl(null);
       return;
     }
@@ -32,6 +32,6 @@ export function useWorkspaceObjectUrl(path: string | null | undefined, enabled =
       alive = false;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [path, enabled]);
+  }, [path]);
   return url;
 }

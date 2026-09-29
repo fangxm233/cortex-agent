@@ -36,7 +36,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
   const { src, failed } = useMediaSrc(item);
   const dl = useDownloadFile();
   const copy = useMediaCopy();
-  const { containerRef, contentRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
+  const { containerRef, contentRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', maxScale: 8 });
 
   // Android hardware back (and browser back) close the lightbox instead of navigating a route.
   useBackDismiss(onClose);
