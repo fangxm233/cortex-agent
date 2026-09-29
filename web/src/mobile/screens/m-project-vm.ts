@@ -11,11 +11,10 @@ import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/
 import { projectInitials } from '@/features/session/list/session-groups';
 import { sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import {
+  ACTIVE_THREAD_STATUSES,
   projectAttentionBadge,
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
-
-const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 
 /**
  * Per-project active thread counts. `running` folds 'running' + 'waiting' (parity with the desktop

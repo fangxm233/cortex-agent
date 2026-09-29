@@ -1,6 +1,6 @@
 import type { SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 
-const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
+export const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 
 export function runningCountByProject(threads: ThreadInfo[]): Record<string, number> {
   const counts: Record<string, number> = {};
