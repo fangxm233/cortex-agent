@@ -237,13 +237,13 @@ export function LeftRail(): JSX.Element {
 
   const toggleId = (
     setter: React.Dispatch<React.SetStateAction<Set<string>>>,
-    storageKey: string | null,
+    storageKey: string,
   ) => (id: string) => {
     setter((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      if (storageKey) saveIdSet(storageKey, next);
+      saveIdSet(storageKey, next);
       return next;
     });
   };
