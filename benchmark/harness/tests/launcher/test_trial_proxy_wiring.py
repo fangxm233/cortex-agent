@@ -42,7 +42,7 @@ from cortex_bench_harness.proxy.manifest import fill_proxy_manifest
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION, utc_text
 from capability_admission import admit_every_capability
 from trial_proxy_fixtures import (
-    BUNDLE_ROOT, CREDENTIAL_ENV, DEADLINE_SECONDS, DIGEST, H0_EPOCH_MS,
+    BUNDLE_ROOT, CREDENTIAL_ENV, DEADLINE_SECONDS, H0_EPOCH_MS,
     REAL_CREDENTIAL, REQUEST_BODY_LIMIT_BYTES, RESPONSE_BODY_LIMIT_BYTES, TRIAL_ID,
     ContainerEnvironment, arm_session, closed_upstream, codex_token, codex_vendor_arm,
     cortex_arm, epoch_datetime, manifest_seed, proxy_spec, public_agent,

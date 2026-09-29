@@ -104,7 +104,6 @@ class ContainerEnvironment:
 
     def __init__(self) -> None:
         self.calls: list[str] = []
-        self.uploads: list[tuple[Path | str, str]] = []
 
     async def exec(self, command: str, **_kwargs: object) -> ExecResult:
         self.calls.append(command)
@@ -121,25 +120,21 @@ class ContainerEnvironment:
         return ExecResult(return_code=0)
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
-        self.uploads.append((source_path, target_path))
+        return None
 
 
-def public_agent(
-    tmp_path: Path, upstream: str, *, proxy: dict[str, object] | None = None,
-    **seed_overrides: object,
-) -> CortexBenchAgent:
+def public_agent(tmp_path: Path, upstream: str) -> CortexBenchAgent:
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest_seed(tmp_path), trial_seed=trial_seed(upstream, **seed_overrides),
-        trial_proxy=proxy_spec() if proxy is None else proxy,
+        manifest=manifest_seed(tmp_path), trial_seed=trial_seed(upstream),
+        trial_proxy=proxy_spec(),
     )
 
 
 def arm_session(
     tmp_path: Path, upstream: str, *, arm: dict[str, object] | None = None,
     proxy_dir: Path | None = None, trial_roots: tuple[Path, ...] | None = None,
-    now_ms: int = H0_EPOCH_MS, spec: dict[str, object] | None = None,
-    credential: str = REAL_CREDENTIAL,
+    spec: dict[str, object] | None = None, credential: str = REAL_CREDENTIAL,
 ) -> TrialProxySession:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -148,7 +143,7 @@ def arm_session(
         spec=parse_trial_proxy_spec(spec or proxy_spec()),
         proxy_dir=proxy_dir or artifacts / "proxy",
         trial_roots=trial_roots or (artifacts,),
-        environ={CREDENTIAL_ENV: credential}, now_ms=lambda: now_ms,
+        environ={CREDENTIAL_ENV: credential}, now_ms=lambda: H0_EPOCH_MS,
     )
 
 

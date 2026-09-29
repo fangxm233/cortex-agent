@@ -13,10 +13,7 @@ def closed_upstream() -> str:
         return f"http://127.0.0.1:{probe.getsockname()[1]}"
 
 
-def cortex_arm(
-    capability_id: str, *, model: str, backend: str = "pi",
-    deadline_seconds: int = 120, max_cost_usd: str = "2.50",
-) -> dict[str, object]:
+def cortex_arm(capability_id: str, *, model: str, backend: str = "pi") -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
         "kind": "cortex", "name": ARM_NAME, "backend": backend,
@@ -24,18 +21,16 @@ def cortex_arm(
         "credential_capability": capability_id,
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
-            "max_provider_requests": 8, "max_cost_usd": max_cost_usd,
-            "deadline_seconds": deadline_seconds, "max_output_tokens": 65536,
+            "max_provider_requests": 8, "max_cost_usd": "2.50",
+            "deadline_seconds": 120, "max_output_tokens": 65536,
         },
     }
 
 
-def trial_seed(
-    upstream: str, capability_id: str, *, model: str, trial_id: str = "trial-fixture",
-) -> dict[str, object]:
+def trial_seed(upstream: str, capability_id: str, *, model: str) -> dict[str, object]:
     return {
         "arm": cortex_arm(capability_id, model=model),
-        "trial_id": trial_id, "root_run_id": f"{trial_id}.{ARM_NAME}",
+        "trial_id": "trial-fixture", "root_run_id": f"trial-fixture.{ARM_NAME}",
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
         "profile_name": "benchmark", "paid_run": False,
@@ -48,7 +43,7 @@ def trial_seed(
     }
 
 
-def manifest_seed(tmp_path: Path, *, trial_id: str = "trial-fixture") -> dict[str, object]:
+def manifest_seed(tmp_path: Path) -> dict[str, object]:
     files = {
         "wheel_path": tmp_path / "harness.whl",
         "lockfile_path": tmp_path / "uv.lock",
@@ -57,7 +52,7 @@ def manifest_seed(tmp_path: Path, *, trial_id: str = "trial-fixture") -> dict[st
     for file in files.values():
         file.write_bytes(b"launcher fixture")
     return {
-        "root_run_id": f"{trial_id}.{ARM_NAME}", "trial_id": trial_id, "arm": ARM_NAME,
+        "root_run_id": f"trial-fixture.{ARM_NAME}", "trial_id": "trial-fixture", "arm": ARM_NAME,
         **{name: str(file) for name, file in files.items()},
         "lockfile_manifest_path": "benchmark/harness/uv.lock",
         "image_ref": f"registry.invalid/task@{DIGEST}", "image_digest": DIGEST,
@@ -65,10 +60,9 @@ def manifest_seed(tmp_path: Path, *, trial_id: str = "trial-fixture") -> dict[st
     }
 
 
-def proxy_spec(**overrides: object) -> dict[str, object]:
+def proxy_spec() -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
-        **overrides,
     }

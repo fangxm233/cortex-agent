@@ -17,7 +17,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     arm_trial_proxy,
 )
 from cortex_bench_harness.proxy.adapters import AdapterUnavailable, select_adapter
-from test_trial_proxy_wiring import (
+from trial_proxy_fixtures import (
     CREDENTIAL_ENV,
     TRIAL_ID,
     closed_upstream,

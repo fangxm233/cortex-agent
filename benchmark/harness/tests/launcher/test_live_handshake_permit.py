@@ -33,7 +33,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     parse_trial_proxy_spec,
 )
 from cortex_bench_harness.scan.models import ArtifactInventory, ScanPolicy
-from trial_fixtures import closed_upstream
+from trial_proxy_fixtures import closed_upstream
 
 CAPABILITY_ID = "claude-subscription"
 HOST_CREDENTIAL = "sk-ant-oat01-LIVE-HANDSHAKE-HOST-ONLY"
