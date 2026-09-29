@@ -6,11 +6,6 @@ import type { TuiFrame } from '../platform/tui/protocol.js';
 // cells. Every layout step (wrap, pad, mouse-selection mapping) must measure in display columns,
 // or Chinese/full-width text drifts (wrong wrap point, phantom grey row, mis-aligned selection).
 
-/** Display width (terminal columns) of a string — CJK/full-width chars count as 2. */
-export function displayWidth(s: string): number {
-  return stringWidth(s);
-}
-
 /** Pad a string with spaces up to `width` DISPLAY columns (no-op if already ≥ width). */
 export function padToWidth(s: string, width: number): string {
   const w = stringWidth(s);
@@ -122,50 +117,6 @@ export function computeVisibleWindow(
   const effectiveOffset = Math.min(Math.max(0, scrollOffset), maxOffset);
   const end = idsLength - effectiveOffset;
   const start = Math.max(0, end - Math.max(1, visibleCount));
-  return { start, end };
-}
-
-// ── Line-aware transcript window ──
-// The transcript holds variable-height messages (a replayed history can have long,
-// multi-line entries). A message-count window overflows the terminal — Ink can't clear
-// rows that scrolled off, so borders/text garble. Estimate each message's rendered line
-// count and pick, from the bottom up, as many as fit the line budget.
-
-/** Estimate how many terminal rows a block of text occupies at the given width. */
-export function estimateLines(text: string, width: number): number {
-  if (!text) return 0;
-  const w = Math.max(1, width);
-  let lines = 0;
-  for (const line of text.split('\n')) {
-    lines += Math.max(1, Math.ceil(line.length / w));
-  }
-  return lines;
-}
-
-/**
- * Bottom-anchored window over variable-height rows. `lineCounts[i]` is the estimated
- * height of row i. Returns absolute [start, end) including as many rows from the bottom
- * (offset by `scrollOffset` rows) as fit `budget` lines — always at least one row.
- */
-export function computeLineWindow(
-  lineCounts: number[],
-  budget: number,
-  scrollOffset = 0,
-): { start: number; end: number } {
-  const n = lineCounts.length;
-  if (n === 0) return { start: 0, end: 0 };
-  const maxOffset = Math.max(0, n - 1);
-  const off = Math.min(Math.max(0, scrollOffset), maxOffset);
-  const end = n - off;
-  const cap = Math.max(1, budget);
-  let used = 0;
-  let start = end; // exclusive lower bound walked downward
-  for (let i = end - 1; i >= 0; i--) {
-    const h = Math.max(1, lineCounts[i]);
-    if (used + h > cap && start < end) break; // would overflow, and we already have ≥1 row
-    used += h;
-    start = i;
-  }
   return { start, end };
 }
 
@@ -427,19 +378,6 @@ export function extractSelectionText(
 export function osc52Copy(text: string): void {
   const b64 = Buffer.from(text).toString('base64');
   try { process.stdout.write(`\x1b]52;c;${b64}\x07`); } catch { /* best effort */ }
-}
-
-/** Parse SGR mouse wheel events from a raw stdin chunk. 64=up, 65=down (low bit = direction). */
-export function parseWheelEvents(chunk: string): Array<'up' | 'down'> {
-  const out: Array<'up' | 'down'> = [];
-  // eslint-disable-next-line no-control-regex
-  const re = /\x1b\[<(\d+);\d+;\d+[Mm]/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(chunk)) !== null) {
-    const b = parseInt(m[1], 10);
-    if ((b & 0x40) !== 0) out.push((b & 1) === 0 ? 'up' : 'down');
-  }
-  return out;
 }
 
 // ── Line-level transcript flattening ──

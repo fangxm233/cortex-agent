@@ -181,7 +181,7 @@ export class CompositeAdapter implements PlatformAdapter {
   readonly capabilities: PlatformCapabilities;
 
   private _adapters: PlatformAdapter[];
-  /** Cached TUI gateway reference (if any) for setBus / extractTuiAdapter. */
+  /** Cached TUI gateway reference (if any) for extractTuiAdapter. */
   private _tui: TuiGatewayAdapter | null;
   /** No-op adapter for unowned conduits (e.g. web sessions). */
   private _noop: PlatformAdapter = createNoopAdapter();

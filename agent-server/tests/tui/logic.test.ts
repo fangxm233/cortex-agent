@@ -11,7 +11,6 @@ import {
   pushHistory,
   matchResumeTarget,
   isMouseSequence,
-  parseWheelEvents,
   detectUserMessage,
   cursorToRowCol,
   rowColToCursor,
@@ -135,20 +134,13 @@ test('matchResumeTarget: exact sessionId, exact name, suffix, and bare suffix', 
   assert.equal(matchResumeTarget(SESSIONS, 'sid-bbbb'), 'sid-bbbb2222'); // id prefix
 });
 
-// ── isMouseSequence / parseWheelEvents ──
+// ── isMouseSequence ──
 
 test('isMouseSequence: detects raw ESC and SGR residue, passes normal text', () => {
   assert.equal(isMouseSequence('\x1b[<64;1;1M'), true);
   assert.equal(isMouseSequence('[<64;30;10M'), true); // ESC already stripped by Ink
   assert.equal(isMouseSequence('hello'), false);
   assert.equal(isMouseSequence(''), false);
-});
-
-test('parseWheelEvents: extracts up/down from SGR wheel codes', () => {
-  assert.deepEqual(parseWheelEvents('\x1b[<64;10;5M'), ['up']);
-  assert.deepEqual(parseWheelEvents('\x1b[<65;10;5M'), ['down']);
-  assert.deepEqual(parseWheelEvents('\x1b[<0;10;5M'), []); // plain click, not a wheel
-  assert.deepEqual(parseWheelEvents('\x1b[<64;1;1M\x1b[<65;1;1M'), ['up', 'down']);
 });
 
 // ── detectUserMessage ──

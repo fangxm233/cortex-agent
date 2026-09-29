@@ -19,7 +19,6 @@ import { useDashboardData } from './hooks/useDashboardData.js';
 import { SessionPicker } from './components/SessionPicker.js';
 import { SLASH_COMMANDS } from './slash-commands.js';
 import { AskUserModal } from './components/AskUserModal.js';
-import { PlanFeedbackModal } from './components/PlanFeedbackModal.js';
 import type { ResumableSession } from './components/SessionPicker.js';
 import { isNotification, isUiQueryResult, isUiEvent, isModalOpen, isModalAck, isErrorFrame, isChatPost, isChatUpdate } from '../platform/tui/protocol.js';
 import { computeFocusZone, isAgentResponseFrame, matchResumeTarget } from './logic.js';
@@ -547,21 +546,13 @@ export function App({
       {/* Input area */}
       {/* AskUserModal — pre-empts all other modals */}
       {activeModal ? (
-        activeModal.modal.callbackId.startsWith('plan')
-          ? <PlanFeedbackModal
-              modal={activeModal.modal}
-              triggerId={activeModal.triggerId}
-              sendFrame={sendFrame}
-              ackErrors={modalAckErrors}
-              onClose={() => { setActiveModal(null); setModalAckErrors({}); }}
-            />
-          : <AskUserModal
-              modal={activeModal.modal}
-              triggerId={activeModal.triggerId}
-              sendFrame={sendFrame}
-              ackErrors={modalAckErrors}
-              onClose={() => { setActiveModal(null); setModalAckErrors({}); }}
-            />
+        <AskUserModal
+          modal={activeModal.modal}
+          triggerId={activeModal.triggerId}
+          sendFrame={sendFrame}
+          ackErrors={modalAckErrors}
+          onClose={() => { setActiveModal(null); setModalAckErrors({}); }}
+        />
       ) : modalOpen ? (
         <Box borderStyle="single" borderDimColor paddingX={1} marginTop={1}>
           {notificationsOpen ? (

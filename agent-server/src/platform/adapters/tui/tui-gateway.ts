@@ -17,7 +17,6 @@ import type {
   PostMessageOpts,
   FileUploadOpts,
   ActionElement,
-  RichBlock,
 } from '../../types.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../../output-stream.js';
 import type { TuiFrame } from '../../tui/protocol.js';
@@ -35,7 +34,6 @@ import {
   isUiMutate,
   isUiSubscribe,
   isUiUnsubscribe,
-  encodeFrame,
   parseFrame,
 } from '../../tui/protocol.js';
 import { TuiConnection } from './tui-connection.js';
@@ -46,12 +44,10 @@ import {
   setConduitState,
   deleteConduitState,
 } from './tui-conduit-state.js';
-import { sendProjectReport, sendSystemNotice } from './tui-notifications.js';
 import { buildTranscriptReplay } from './tui-transcript.js';
 import { createLogger } from '@core/log.js';
 import { t } from '@core/i18n.js';
 import type { TranscriptData, ConduitQueuePort } from './ports.js';
-import type { EventBus, Subscription } from '@events/index.js';
 
 const log = createLogger('tui-gateway');
 
@@ -92,16 +88,11 @@ const KEEPALIVE_TIMEOUT_MS = 90_000;
 const KEEPALIVE_CHECK_INTERVAL = 30_000;
 const HANDSHAKE_TIMEOUT_MS = 5_000;
 
-function makeTriggerId(conduitId: string): string {
-  return `tui:${conduitId}:${crypto.randomUUID()}`;
-}
-
 function makeMessageId(): string {
   return crypto.randomUUID();
 }
 
 export interface TuiAdapterControls {
-  setBus(bus: EventBus): void;
   setUiService(service: unknown): void;
   setSessionService(service: TuiSessionServiceHandle): void;
   setConduitQueue(queue: ConduitQueuePort): void;
@@ -125,11 +116,9 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
   private _host: string;
   private _noopOutbound = false;
   private _connections = new Map<string, TuiConnection>();
-  private _bus: EventBus | null = null;
   private _uiService: unknown = null;
   private _sessionService: TuiSessionServiceHandle | null = null;
   private _conduitQueue: ConduitQueuePort | null = null;
-  private _busSubscriptions: Subscription[] = [];
 
   // PlatformAdapter handler registrations
   private _messageHandler: ((ctx: MessageContext) => Promise<void>) | null = null;
@@ -143,10 +132,6 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
   }
 
   // ── TuiAdapterControls ──────────────────────────────────────────
-
-  setBus(bus: EventBus): void {
-    this._bus = bus;
-  }
 
   setUiService(service: unknown): void {
     this._uiService = service;
@@ -200,24 +185,9 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
     });
 
     log.info(`TUI gateway listening on ws://${this._host}:${this._port}`);
-
-    // Subscribe to scheduler.tick for active conduit status
-    if (this._bus) {
-      this._busSubscriptions.push(
-        this._bus.subscribe('scheduler.tick', (_e: any) => {
-          // Optionally push status updates to connections whose project matches
-        }),
-      );
-    }
   }
 
   async stop(): Promise<void> {
-    // Unsubscribe from event bus
-    for (const sub of this._busSubscriptions) {
-      sub.unsubscribe();
-    }
-    this._busSubscriptions = [];
-
     // Close all connections
     for (const conn of this._connections.values()) {
       conn.close(1001, 'server shutdown');

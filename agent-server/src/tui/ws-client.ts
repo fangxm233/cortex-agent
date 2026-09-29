@@ -186,15 +186,3 @@ export class WsClient {
     }
   }
 }
-
-export function createHandshakeHello(clientVersion: string, resume?: string | null, project?: string | null): HandshakeHello {
-  const hello: HandshakeHello = {
-    type: 'handshake.hello',
-    protocolVersion: 1,
-    clientName: 'cortex-tui',
-    clientVersion,
-  };
-  if (resume) hello.resume = { sessionId: resume };
-  if (project) hello.project = project;
-  return hello;
-}

@@ -338,11 +338,10 @@ const adapter: PlatformAdapter = createHotReloadingAdapter();
 setOrchestrationRuntime({ adapter, bus });
 registerResumeWakeOnAgentSettle(bus, adapter);
 
-// Wire EventBus + injected dependencies into the TUI gateway before start() so it can
-// subscribe to bus events and resolve sessions during its own start()/handshake lifecycle.
+// Wire injected dependencies into the TUI gateway before start() so it can
+// resolve sessions during its own start()/handshake lifecycle.
 const tuiGateway = extractTuiAdapter(adapter);
 if (tuiGateway) {
-  tuiGateway.setBus(bus);
   // Session lifecycle service (transport-agnostic; gateway delegates handshake/switch to it).
   tuiGateway.setSessionService(createTuiSessionService({ sessionStore, conversationLedger, conversationHistory }));
   // Conduit-queue port — MUST wrap the shared @orch/conduit-queue singletons so TUI message

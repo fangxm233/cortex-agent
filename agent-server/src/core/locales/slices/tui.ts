@@ -121,12 +121,6 @@ export const tuiEn = {
   'tui.modal.typeHere': 'Type here...',
   'tui.modal.hintSubmit': 'Enter submit · ↑/↓ navigate · Esc cancel',
   'tui.modal.hintSelect': '↑/↓ navigate · Enter select · Esc cancel',
-  'tui.plan.approve': 'Approve',
-  'tui.plan.feedback': 'Provide Feedback',
-  'tui.plan.cancel': 'Cancel',
-  'tui.plan.typeFeedback': 'Type your feedback...',
-  'tui.plan.hintFeedback': 'Enter to submit · Esc back',
-  'tui.plan.hint': '↑/↓ navigate · Enter confirm · Esc cancel',
 
   // --- server-side TUI gateway / transcript replay ---
   'tui.gateway.reportTitle': 'Report: ${project}',
@@ -250,12 +244,6 @@ export const tuiZh: Record<keyof typeof tuiEn, string> = {
   'tui.modal.typeHere': '在此输入…',
   'tui.modal.hintSubmit': 'Enter 提交 · ↑/↓ 选择 · Esc 取消',
   'tui.modal.hintSelect': '↑/↓ 选择 · Enter 选定 · Esc 取消',
-  'tui.plan.approve': '批准',
-  'tui.plan.feedback': '提供反馈',
-  'tui.plan.cancel': '取消',
-  'tui.plan.typeFeedback': '输入你的反馈…',
-  'tui.plan.hintFeedback': 'Enter 提交 · Esc 返回',
-  'tui.plan.hint': '↑/↓ 选择 · Enter 确认 · Esc 取消',
 
   'tui.gateway.reportTitle': '报告：${project}',
   'tui.gateway.fileTitle': '文件已就绪',

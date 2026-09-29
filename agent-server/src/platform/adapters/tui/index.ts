@@ -10,6 +10,5 @@ export {
   hasConduitState,
 } from './tui-conduit-state.js';
 export type { TuiConduitState } from './tui-conduit-state.js';
-export { sendProjectReport, sendSystemNotice } from './tui-notifications.js';
 export { buildTranscriptReplay } from './tui-transcript.js';
 export type { TranscriptMessage, TranscriptData } from './ports.js';

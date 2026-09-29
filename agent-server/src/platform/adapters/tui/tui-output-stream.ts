@@ -1,9 +1,6 @@
 import type { OutputStream, MutableRegion } from '../../output-stream.js';
 import type { MessageRef, RichBlock, ActionElement, Destination } from '../../types.js';
 import type { TuiConnection } from './tui-connection.js';
-import { createLogger } from '@core/log.js';
-
-const log = createLogger('tui-out');
 
 let _streamIdCounter = 0;
 function nextStreamId(): string {
