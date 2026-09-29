@@ -11,7 +11,6 @@ import {
   type HookRegistryRecord,
   type HookResultMode,
   type HookRun,
-  type HookSource,
 } from './hook-registry.js';
 
 /** The writable surface of a declaration: everything except `id` and `version`. */
@@ -27,8 +26,6 @@ export interface HookEntryDraft {
 
 export interface HookStateResult {
   changed: boolean;
-  filePath: string;
-  source: HookSource;
   /** Set when the change is not durable — a managed entry restored by the next sync. */
   warning?: string;
 }
@@ -127,7 +124,7 @@ export function setHookEnabled(
   if (changed) {
     atomicWriteSync(record.filePath, serialize({ ...record.entry, enabled }));
   }
-  const result: HookStateResult = { changed, filePath: record.filePath, source: record.source };
+  const result: HookStateResult = { changed };
   if (record.source === 'managed' && !enabled) result.warning = MANAGED_RESYNC_WARNING;
   return result;
 }
@@ -173,7 +170,7 @@ export function updateHookEntry(
   const entry = buildEntry(id, draft);
   const changed = JSON.stringify(entry) !== JSON.stringify(record.entry);
   if (changed) atomicWriteSync(record.filePath, serialize(entry));
-  return { changed, filePath: record.filePath, source: record.source };
+  return { changed };
 }
 
 /** Delete one user declaration file. */

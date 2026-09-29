@@ -114,11 +114,7 @@ export const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
   ['cortex:session.messageEnd', 'stdout-as-prompt'],
 ]);
 
-export function classifyHookSource(
-  entry: { version?: unknown },
-  location: 'registry' | 'template' = 'registry',
-): HookSource {
-  if (location === 'template') return 'template-scoped';
+export function classifyHookSource(entry: { version?: unknown }): HookSource {
   return typeof entry.version === 'string' && CALVER_RE.test(entry.version)
     ? 'managed'
     : 'user';
@@ -328,7 +324,7 @@ function templateHook(
     id: `template:${template}:${phase.phase}`,
     event: phase.event,
     enabled: true,
-    source: classifyHookSource({}, 'template'),
+    source: 'template-scoped',
     run: run as unknown as TemplateRun,
     template,
     phase: phase.phase,
@@ -399,14 +395,12 @@ export function effectiveHookBackends(entry: HookEntry): HookBackend[] {
   return scoped ? implicit.filter((backend) => scoped.includes(backend)) : implicit;
 }
 
-const effectiveBackends = effectiveHookBackends;
-
 function matchesEvent(entry: HookEntry, criteria: HookFilterCriteria): boolean {
   return criteria.event === undefined || entry.event === criteria.event;
 }
 
 function matchesBackend(entry: HookEntry, criteria: HookFilterCriteria): boolean {
-  return criteria.backend === undefined || effectiveBackends(entry).includes(criteria.backend);
+  return criteria.backend === undefined || effectiveHookBackends(entry).includes(criteria.backend);
 }
 
 function matchesTools(entry: HookEntry, criteria: HookFilterCriteria): boolean {
