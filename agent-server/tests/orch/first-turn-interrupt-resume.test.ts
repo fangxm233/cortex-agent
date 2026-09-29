@@ -123,7 +123,6 @@ function runTurn(opts: {
       channel,
       userMessage: 'hello',
       files: opts.files ?? [],
-      trigger: 'user',
       onPromptBuilt: opts.onPromptBuilt ?? null,
     }),
   });

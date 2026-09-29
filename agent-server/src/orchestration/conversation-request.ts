@@ -46,11 +46,6 @@ export interface PrepareConversationRequestOptions {
   /** Attachments the platform refused to hand over; named in the prompt so the agent cannot
    *  answer as though the user had sent nothing. */
   failedFiles?: AttachmentFailure[];
-  /** Execution trigger; defaults to 'user'. Scheduled session-target dispatch passes 'scheduled'. */
-  trigger?: string;
-  scheduleTaskId?: string | null;
-  /** Profile override for `__active__` agents (used by scheduler). */
-  profileOverride?: string | null;
   /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session. */
   browserCdpEndpoint?: string | null;
   /** True once the session is bound to a landed commission; loads the commission skill bundle. */
@@ -300,11 +295,10 @@ export async function prepareConversationRequest(
   const project = projectId;
 
   // D5: one resolution for name, profile and the channel's `!model` override. A hardcoded agent
-  // profile is an explicit override; `__active__` means "whatever this channel resolves to", and
-  // the scheduler's own override still comes first.
+  // profile is an explicit override; `__active__` means "whatever this channel resolves to".
   const runConfig = resolveRunConfig({
     channel: opts.channel,
-    override: agentConfig.profile === '__active__' ? (opts.profileOverride ?? null) : agentConfig.profile,
+    override: agentConfig.profile === '__active__' ? null : agentConfig.profile,
   });
   // An unknown name here is not the user naming a bad profile — it is a channel profile that was
   // renamed or deleted since it was persisted, so the turn falls back to the default rather than
@@ -313,8 +307,6 @@ export async function prepareConversationRequest(
   const profile = runConfig.resolved
     ? effectiveProfile(runConfig)
     : effectiveProfile({ ...resolveRunConfig({ channel: opts.channel, override: profileName }) });
-
-  const trigger = opts.trigger || 'user';
 
   const request: RunRequest = {
     runId: randomUUID(),
@@ -337,12 +329,12 @@ export async function prepareConversationRequest(
     context: {
       channel: opts.channel,
       project,
-      trigger,
+      trigger: 'user',
       threadId: null,
-      executionKind: trigger === 'scheduled' ? 'scheduled' : 'local',
+      executionKind: 'local',
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
-      scheduleTaskId: opts.scheduleTaskId ?? null,
+      scheduleTaskId: null,
     },
     policy,
   };

@@ -263,7 +263,6 @@ export class AgentRunner {
           userMessage: agentMessage,
           files: turnFiles.files,
           failedFiles: turnFiles.failures,
-          trigger: 'user',
           browserCdpEndpoint: browser.cdpEndpoint,
           commissionMode: !!sessionCommissionId,
           onPromptBuilt: debugEnabled ? (prompt: string) => {
