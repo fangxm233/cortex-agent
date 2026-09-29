@@ -10,14 +10,14 @@ const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:
 export interface PlanReadOverlayProps {
   model: PlanCardModel;
   copy: DIntCopy;
-  lang?: 'zh' | 'en';
+  lang: 'zh' | 'en';
   onClose: () => void;
   onApprove: () => void;
   /** 请求修改 — closes the overlay and opens the card's feedback box (13c middle column). */
   onRequestChanges: () => void;
 }
 
-export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, onRequestChanges }: PlanReadOverlayProps): JSX.Element {
+export function PlanReadOverlay({ model, copy, lang, onClose, onApprove, onRequestChanges }: PlanReadOverlayProps): JSX.Element {
   const pending = model.status === 'pending';
   const [pct, setPct] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);

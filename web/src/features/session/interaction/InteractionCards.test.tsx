@@ -83,7 +83,7 @@ describe('interaction presentation', () => {
     vi.stubGlobal('window', { addEventListener, removeEventListener: vi.fn() });
     const onClose = vi.fn();
     const onApprove = vi.fn();
-    const tree = mount(<PlanReadOverlay model={plan} copy={copy} onClose={onClose}
+    const tree = mount(<PlanReadOverlay model={plan} copy={copy} lang="en" onClose={onClose}
       onApprove={onApprove} onRequestChanges={vi.fn()} />);
     expect(tree.root.findByProps({ role: 'dialog' }).props.style.backdropFilter).toBe('var(--glass-filter)');
     act(() => addEventListener.mock.calls[0][1]({ key: 'Escape' }));
@@ -98,7 +98,7 @@ describe('interaction presentation', () => {
 
   it('keeps sealed overlay status readable without a progress bar or action button', () => {
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
-    const tree = mount(<PlanReadOverlay model={{ ...plan, status: 'approved' }} copy={copy}
+    const tree = mount(<PlanReadOverlay model={{ ...plan, status: 'approved' }} copy={copy} lang="en"
       onClose={vi.fn()} onApprove={vi.fn()} onRequestChanges={vi.fn()} />);
     expect(tree.root.findAll((node) => node.type === 'div' && node.props.style?.height === 3)).toHaveLength(0);
     expect(tree.root.findAllByType('button')).toHaveLength(1);

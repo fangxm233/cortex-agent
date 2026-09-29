@@ -11,7 +11,7 @@ export interface InteractionActions {
   /** Submit the full per-question answer record (multi-select values pre-joined with ", "). */
   answerQuestion: (requestId: string, answers: Record<string, string>) => void;
   approvePlan: (requestId: string) => void;
-  rejectPlan: (requestId: string, feedback?: string) => void;
+  rejectPlan: (requestId: string, feedback: string) => void;
   /** Decline the auto-resume promised after a rate limit interrupted this session. */
   cancelResume: () => void;
   /** True once this session's resume has been declined — the control stays visible but inert. */
@@ -44,9 +44,9 @@ export function useInteractionActions(sessionId: string): InteractionActions {
     respondMut.mutate({ requestId, approved: true }, { onSettled: refresh });
   }, [respondMut, refresh]);
 
-  const rejectPlan = useCallback((requestId: string, feedback?: string) => {
+  const rejectPlan = useCallback((requestId: string, feedback: string) => {
     if (respondMut.isPending) return;
-    respondMut.mutate({ requestId, approved: false, feedback: feedback ?? '' }, { onSettled: refresh });
+    respondMut.mutate({ requestId, approved: false, feedback }, { onSettled: refresh });
   }, [respondMut, refresh]);
 
   const cancelResume = useCallback(() => {
