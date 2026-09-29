@@ -6,7 +6,7 @@ import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
 import { rebuildStatusTone, type DaemonRebuildVm } from '@/features/daemon/daemon-vm';
 import type { Tone } from '@/design/tone';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
-import type { ConnectionStatus } from '@/features/connection/connection-status';
+import { connectionLabelKey, type ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
 
 export interface MDaemonCopy {
@@ -255,15 +255,6 @@ function EventRow({ ev, copy }: { ev: MDaemonEvent; copy: MDaemonCopy }) {
   );
 }
 
-// Header pill: live UI<->server connectivity — supersedes the former query-inferred ok/err pill.
-type MConnLabelKey = 'connConnected' | 'connConnecting' | 'connReconnecting' | 'connDisconnected';
-const CONN_LABEL: Record<ConnectionStatus, MConnLabelKey> = {
-  connected: 'connConnected',
-  connecting: 'connConnecting',
-  reconnecting: 'connReconnecting',
-  disconnected: 'connDisconnected',
-};
-
 export function MDaemonView({
   vm,
   copy,
@@ -295,7 +286,7 @@ export function MDaemonView({
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             {mConnPulse(connStatus) && <MDot color={MC.amber} />}
-            <MPill tone={mConnTone(connStatus)}>{copy[CONN_LABEL[connStatus]]}</MPill>
+            <MPill tone={mConnTone(connStatus)}>{copy[connectionLabelKey(connStatus)]}</MPill>
           </span>
         </div>
       </MDrillHeader>}>
