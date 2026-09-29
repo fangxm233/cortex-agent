@@ -1,8 +1,8 @@
 //
 //         Two properties this layer owns and the service does not:
-//         - anti-enumeration: unknown ids and bad secrets are rate-limited globally and recorded
-//           in a bounded dead-letter ring, so a typo in a training script is debuggable and a
-//           scan for live waitpoints is not free.
+//         - anti-enumeration: unknown ids and bad secrets are rate-limited globally and logged,
+//           so a typo in a training script is debuggable and a scan for live waitpoints is not
+//           free.
 //         - spool ingestion: a file dropped in the spool dir is equivalent to a POST, which is how
 //           a machine with no curl (or no route to the daemon) still reports.
 
@@ -27,43 +27,23 @@ const log = createLogger('waitpoint-ingress');
 
 /** Any process that can write a file can signal: drop `<anything>.json` here. */
 export const SIGNAL_SPOOL_DIR = path.join(WORKSPACE_DIR, 'signals');
-/** Files that could never be applied (unparseable, unknown id) are parked here, not deleted. */
-export const SIGNAL_SPOOL_BAD_DIR = path.join(SIGNAL_SPOOL_DIR, 'bad');
 
 /** A spool entry larger than this is refused outright — signals are summaries, not logs. */
 export const SPOOL_FILE_MAX_BYTES = 64 * 1024;
 
-// --- dead letter + anti-enumeration ---
-
-export interface SignalRejection {
-  at: number;
-  reason: 'not-found' | 'bad-secret' | 'rate-limited';
-  id: string;
-  source: string;
-}
-
-const REJECTION_RING_MAX = 50;
-const rejections: SignalRejection[] = [];
+// --- anti-enumeration ---
 
 /** Failed lookups allowed per minute across all callers, before every miss is refused unread. */
 const MISS_BUDGET_PER_MINUTE = 60;
 let missWindowStart = 0;
 let missCount = 0;
 
-function recordRejection(reason: SignalRejection['reason'], id: string, source: string, now: number): void {
-  rejections.push({ at: now, reason, id, source });
-  if (rejections.length > REJECTION_RING_MAX) rejections.shift();
+function recordRejection(reason: 'not-found' | 'bad-secret' | 'rate-limited', id: string, source: string): void {
   log.warn(`signal rejected (${reason}) for ${id || '(no id)'} from ${source}`);
-}
-
-/** Recent rejected signals, newest last. Diagnostic surface for "my script says 404". */
-export function recentSignalRejections(): SignalRejection[] {
-  return [...rejections];
 }
 
 /** Test hook. */
 export function resetSignalIngressState(): void {
-  rejections.length = 0;
   missWindowStart = 0;
   missCount = 0;
 }
@@ -103,7 +83,7 @@ export async function ingestSignal(
 ): Promise<ApplySignalOutcome> {
   const now = deps.now();
   if (!input.id || typeof input.id !== 'string') {
-    recordRejection('not-found', String(input.id ?? ''), input.source, now);
+    recordRejection('not-found', String(input.id ?? ''), input.source);
     return { kind: 'not-found' };
   }
 
@@ -111,10 +91,10 @@ export async function ingestSignal(
 
   if (outcome.kind === 'not-found' || outcome.kind === 'bad-secret') {
     if (overMissBudget(now)) {
-      recordRejection('rate-limited', input.id, input.source, now);
+      recordRejection('rate-limited', input.id, input.source);
       return { kind: 'rate-limited' };
     }
-    recordRejection(outcome.kind, input.id, input.source, now);
+    recordRejection(outcome.kind, input.id, input.source);
     return outcome;
   }
 

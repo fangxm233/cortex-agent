@@ -8,7 +8,6 @@ import { applySignal, createWaitpoint, type WaitpointServiceDeps } from '../../.
 import {
   drainLocalSpool,
   ingestSignal,
-  recentSignalRejections,
   resetSignalIngressState,
   toSignalInput,
   type IngestDeps,
@@ -79,18 +78,13 @@ test('an accepted signal that fires is handed straight to the notifier', async (
   assert.match(h.sent[0], /\[Signal\]/);
 });
 
-test('unknown ids and bad secrets are recorded in the dead-letter ring', async () => {
+test('unknown ids and bad secrets are rejected', async () => {
   const h = await harness();
   const { waitpoint } = await createWaitpoint({ label: 'arm2', intent: 'training', owner: owner() }, h.service);
 
   assert.equal((await ingestSignal({ id: 'wp_typo', secret: 'x', source: 'http' }, h.deps)).kind, 'not-found');
   assert.equal((await ingestSignal({ id: waitpoint.id, secret: 'wrong', source: 'http' }, h.deps)).kind, 'bad-secret');
   assert.equal((await ingestSignal({ id: '', secret: 'x', source: 'http' }, h.deps)).kind, 'not-found');
-
-  const rejects = recentSignalRejections();
-  assert.equal(rejects.length, 3);
-  assert.deepEqual(rejects.map((r) => r.reason), ['not-found', 'bad-secret', 'not-found']);
-  assert.equal(rejects[0].id, 'wp_typo');
 });
 
 test('a flood of misses is refused before it can be used to enumerate live waitpoints', async () => {
@@ -100,7 +94,6 @@ test('a flood of misses is refused before it can be used to enumerate live waitp
     lastKind = (await ingestSignal({ id: `wp_scan${i}`, secret: 'x', source: 'http' }, h.deps)).kind;
   }
   assert.equal(lastKind, 'rate-limited');
-  assert.equal(recentSignalRejections().some((r) => r.reason === 'rate-limited'), true);
 
   // A legitimate signal still lands while the miss budget is exhausted.
   const { waitpoint, secret } = await createWaitpoint({ label: 'arm2', intent: 'training', owner: owner() }, h.service);
