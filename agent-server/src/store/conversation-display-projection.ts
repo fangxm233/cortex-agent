@@ -67,10 +67,6 @@ function elapsedMs(previousMs: number | null, ts: string): number | null {
   return currentMs - previousMs;
 }
 
-function nextPreviousMs(ts: string): number | null {
-  return parseTs(ts);
-}
-
 function copyEvent(event: HistoryEvent, elapsed: number | null): CompactConversationEvent {
   return { ...event, elapsedMs: elapsed };
 }
@@ -167,7 +163,7 @@ function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: num
 
 function consumeCompactEvent(state: CompactState, event: HistoryEvent, rev = 0): void {
   const elapsed = elapsedMs(state.previousMs, event.ts);
-  state.previousMs = nextPreviousMs(event.ts);
+  state.previousMs = parseTs(event.ts);
   if (event.type === 'user' && !event.systemOrigin) consumeTurnBoundary(state);
   openSpawnSummaries(state, event);
   if (event.subagentId && !isStructuralSpawnTool(event)) consumeChildEvent(state, event);
@@ -230,7 +226,7 @@ export function projectSubagentHistory(
   let previousMs: number | null = null;
   for (const event of history?.events ?? []) {
     const elapsed = elapsedMs(previousMs, event.ts);
-    previousMs = nextPreviousMs(event.ts);
+    previousMs = parseTs(event.ts);
     if (event.subagentId !== subagentId || !keepDetailEvent(event)) continue;
     events.push(detailEvent(event, elapsed));
   }
