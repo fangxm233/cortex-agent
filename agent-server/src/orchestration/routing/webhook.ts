@@ -158,11 +158,7 @@ async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promi
   }
 }
 
-function createWebhookHandler(_options: {
-  // `secret` (GitHub HMAC) is read at call time via getSecret(); kept in the type for
-  // backward-compatible option passing from startWebhookServer.
-  secret?: string;
-} = {}) {
+function createWebhookHandler() {
   let productionRootStarted = false;
   return (req, res) => {
     const threadOpOnly = process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY === '1';
@@ -888,16 +884,11 @@ function createWebhookHandler(_options: {
   };
 }
 
-function startWebhookServer(options: {
-  port?: number;
-  host?: string;
-  secret?: string;
-} = {}) {
-  const { port = PORT, host = '127.0.0.1' } = options;
-  const server = http.createServer(createWebhookHandler(options));
+function startWebhookServer() {
+  const server = http.createServer(createWebhookHandler());
 
-  server.listen(port, host, () => {
-    log.info(`Listening on ${host}:${port}/webhook/github`);
+  server.listen(PORT, '127.0.0.1', () => {
+    log.info(`Listening on 127.0.0.1:${PORT}/webhook/github`);
   });
 
   return server;
