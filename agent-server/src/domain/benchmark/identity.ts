@@ -47,12 +47,6 @@ export interface RoleToolSurfaceInput {
   hookPolicy: IdentityJsonValue;
 }
 
-export interface LauncherBundleManifestInput {
-  npmArtifactSha256: string;
-  backendCli: { name: string; version: string };
-  preBootInputBundleSha256: string;
-}
-
 function canonicalPrimitive(value: unknown): string | undefined {
   return JSON.stringify(value);
 }
@@ -94,16 +88,6 @@ export function canonicalJsonSha256(value: unknown): string {
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
-export function resolvedRouteHost(profile: ResolvedProfileConfig): string | null {
-  const value = profile.extraEnv.ANTHROPIC_BASE_URL;
-  if (!value) return null;
-  try {
-    return new URL(value).host;
-  } catch {
-    throw new Error(`Invalid resolved ANTHROPIC_BASE_URL: ${value}`);
-  }
-}
-
 export function computeModelExecutionIdentityHash(input: ModelExecutionIdentityInput): string {
   return canonicalJsonSha256({
     backend: input.backend,
@@ -137,13 +121,5 @@ export function computeRoleToolSurfaceHash(input: RoleToolSurfaceInput): string 
     mcp_tool_allowlist: input.mcpToolAllowlist
       ? [...new Set(input.mcpToolAllowlist)].sort() : undefined,
     hook_policy: input.hookPolicy,
-  });
-}
-
-export function computeLauncherBundleManifestHash(input: LauncherBundleManifestInput): string {
-  return canonicalJsonSha256({
-    npm_artifact_sha256: input.npmArtifactSha256,
-    backend_cli: input.backendCli,
-    pre_boot_input_bundle_sha256: input.preBootInputBundleSha256,
   });
 }

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { it } from 'vitest';
 import {
   canonicalJsonSha256,
-  computeLauncherBundleManifestHash,
   computeModelExecutionIdentityHash,
   computeRoleToolSurfaceHash,
   type ModelExecutionIdentityInput,
@@ -75,17 +74,4 @@ it('normalizes role collections and MCP tool gates', () => {
   });
   assert.equal(baseline, reordered);
   assert.notEqual(baseline, computeRoleToolSurfaceHash(roleSurface()));
-});
-
-it('hashes launcher bundle identity only from pre-boot production inputs', () => {
-  const input = {
-    npmArtifactSha256: SHA_A,
-    backendCli: { name: 'pi', version: '0.82.1' },
-    preBootInputBundleSha256: SHA_B,
-  };
-  assert.equal(computeLauncherBundleManifestHash(input), canonicalJsonSha256({
-    npm_artifact_sha256: SHA_A,
-    backend_cli: { name: 'pi', version: '0.82.1' },
-    pre_boot_input_bundle_sha256: SHA_B,
-  }));
 });
