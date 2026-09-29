@@ -64,7 +64,7 @@ export function WebBody({ tab, active, onUpdate }: {
     const onMessage = (event: MessageEvent): void => {
       const frame = frameRef.current;
       if (!frame) return;
-      const message = matchFrameTitleMessage(new Map([[tab.id, frame]]), event.source, event.data, event.origin);
+      const message = matchFrameTitleMessage(frame, event.source, event.data, event.origin);
       if (!message) return;
       onUpdate((entry) => applyBrowserTitle(entry, message.title, message.timeOrigin, message.phase));
     };
@@ -96,7 +96,7 @@ export function WebBody({ tab, active, onUpdate }: {
     } catch {
       reachable = false;
     }
-    const refused = frameRefusedEmbedding({ loaded: true, documentReachable: reachable });
+    const refused = frameRefusedEmbedding({ documentReachable: reachable });
     onUpdate((entry) => ({ ...entry, refused }));
   };
 

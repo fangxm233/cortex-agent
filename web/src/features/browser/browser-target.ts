@@ -103,8 +103,8 @@ export const WEB_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-mo
  * `previewOriginConflict` already refuses same-origin targets, which is what makes this test
  * unambiguous: a reachable document here can only mean the frame stayed put.
  */
-export function frameRefusedEmbedding(probe: { loaded: boolean; documentReachable: boolean }): boolean {
-  return probe.loaded && probe.documentReachable;
+export function frameRefusedEmbedding(probe: { documentReachable: boolean }): boolean {
+  return probe.documentReachable;
 }
 
 // ── History ───────────────────────────────────────────────────────────────────

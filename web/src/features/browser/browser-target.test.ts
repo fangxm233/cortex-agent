@@ -129,16 +129,10 @@ describe('frameRefusedEmbedding', () => {
   it('reads a still-reachable document after load as a refusal', () => {
     // A page that really loaded is cross-origin, so its contentDocument is null. Reaching one means
     // the frame never left the blank document it started on.
-    expect(frameRefusedEmbedding({ loaded: true, documentReachable: true })).toBe(true);
+    expect(frameRefusedEmbedding({ documentReachable: true })).toBe(true);
   });
 
   it('treats an unreachable document as a successful load', () => {
-    expect(frameRefusedEmbedding({ loaded: true, documentReachable: false })).toBe(false);
-  });
-
-  it('claims nothing before the load event', () => {
-    // Mid-load the frame is legitimately still on the blank document; calling that a refusal would
-    // flash the banner on every navigation.
-    expect(frameRefusedEmbedding({ loaded: false, documentReachable: true })).toBe(false);
+    expect(frameRefusedEmbedding({ documentReachable: false })).toBe(false);
   });
 });

@@ -34,16 +34,14 @@ export function parseFrameTitleMessage(data: unknown, origin: string): FrameTitl
 }
 
 export function matchFrameTitleMessage(
-  frames: ReadonlyMap<string, { contentWindow: unknown }>,
+  frame: { contentWindow: unknown },
   source: unknown,
   data: unknown,
   origin: string,
-): { tabId: string; title: string | null; timeOrigin: number; phase: FrameTitlePhase } | null {
-  const frame = [...frames].find(([, candidate]) => candidate.contentWindow === source);
-  if (!frame) return null;
+): { title: string | null; timeOrigin: number; phase: FrameTitlePhase } | null {
+  if (frame.contentWindow !== source) return null;
   const message = parseFrameTitleMessage(data, origin);
   return message ? {
-    tabId: frame[0],
     title: message.title,
     timeOrigin: message.timeOrigin,
     phase: message.phase,

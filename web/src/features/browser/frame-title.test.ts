@@ -63,24 +63,19 @@ describe('matchFrameTitleMessage', () => {
     timeOrigin: 1000,
     phase: 'load',
   };
-  const sourceA = {};
-  const sourceB = {};
-  const frames = new Map([
-    ['tab-a', { contentWindow: sourceA }],
-    ['tab-b', { contentWindow: sourceB }],
-  ]);
+  const source = {};
+  const frame = { contentWindow: source };
 
-  it('routes a valid message by frame identity', () => {
-    expect(matchFrameTitleMessage(frames, sourceB, data, 'http://127.0.0.1:41235')).toEqual({
-      tabId: 'tab-b',
+  it('accepts a valid message from the frame', () => {
+    expect(matchFrameTitleMessage(frame, source, data, 'http://127.0.0.1:41235')).toEqual({
       title: 'Dashboard',
       timeOrigin: 1000,
       phase: 'load',
     });
   });
 
-  it('rejects a sibling source or invalid payload', () => {
-    expect(matchFrameTitleMessage(frames, {}, data, 'http://127.0.0.1:41235')).toBeNull();
-    expect(matchFrameTitleMessage(frames, sourceA, data, 'http://127.0.0.1:3000')).toBeNull();
+  it('rejects another source or a mismatched origin', () => {
+    expect(matchFrameTitleMessage(frame, {}, data, 'http://127.0.0.1:41235')).toBeNull();
+    expect(matchFrameTitleMessage(frame, source, data, 'http://127.0.0.1:3000')).toBeNull();
   });
 });
