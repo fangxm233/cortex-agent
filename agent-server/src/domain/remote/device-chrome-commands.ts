@@ -15,16 +15,7 @@ const PORT_FILE = 'DevToolsActivePort';
 
 /** Candidate binaries, most specific first. Absolute paths for the platforms that install to a fixed
  *  location; bare names (resolved with `command -v`) for the ones that do not. */
-export function chromeCandidates(platform: string): string[] {
-  if (platform === 'win32') {
-    return [
-      '$PROGRAMFILES/Google/Chrome/Application/chrome.exe',
-      // `ProgramFiles(x86)` cannot be referenced as $VAR at all — bash rejects the parentheses
-      // inside ${...}, so the value has to come back out through printenv.
-      '$(printenv \'ProgramFiles(x86)\')/Google/Chrome/Application/chrome.exe',
-      '$LOCALAPPDATA/Google/Chrome/Application/chrome.exe',
-    ];
-  }
+function chromeCandidates(platform: string): string[] {
   if (platform === 'darwin') {
     return [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
