@@ -197,19 +197,13 @@ mod mac_application_tests {
     use notify_rust::error::{ApplicationError, MacOsError, NotificationError};
 
     #[test]
-    fn first_and_repeated_initialization_can_deliver() {
+    fn first_repeated_and_plugin_initialization_can_deliver() {
         assert_eq!(mac_application_ready(Ok(())), Ok(()));
-        for _ in 0..2 {
-            let repeated =
-                MacOsError::Application(ApplicationError::AlreadySet("com.apple.Terminal".into()));
-            assert_eq!(mac_application_ready(Err(repeated)), Ok(()));
+        // A repeated initialization and one the plugin already made both report AlreadySet.
+        for bundle in ["com.apple.Terminal", "app.cortex"] {
+            let already_set = MacOsError::Application(ApplicationError::AlreadySet(bundle.into()));
+            assert_eq!(mac_application_ready(Err(already_set)), Ok(()));
         }
-    }
-
-    #[test]
-    fn application_already_initialized_by_plugin_can_deliver() {
-        let preset = MacOsError::Application(ApplicationError::AlreadySet("app.cortex".into()));
-        assert_eq!(mac_application_ready(Err(preset)), Ok(()));
     }
 
     #[test]
