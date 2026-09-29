@@ -22,12 +22,11 @@ import type { MediaItem } from './preview-item';
 
 interface MediaViewerContextValue {
   openMedia: (item: MediaItem) => void;
-  close: () => void;
 }
 
-// Default to a no-op for callers outside a mounted provider; real open/close behavior is supplied
-// by MediaViewerProvider in each shell.
-const MediaViewerContext = createContext<MediaViewerContextValue>({ openMedia: () => {}, close: () => {} });
+// Default to a no-op for callers outside a mounted provider; real open behavior is supplied by
+// MediaViewerProvider in each shell.
+const MediaViewerContext = createContext<MediaViewerContextValue>({ openMedia: () => {} });
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -219,7 +218,7 @@ export function MediaViewerProvider({ children }: { children: ReactNode }): JSX.
     [dock],
   );
   const close = useCallback(() => setItem(null), []);
-  const value = useMemo(() => ({ openMedia, close }), [openMedia, close]);
+  const value = useMemo(() => ({ openMedia }), [openMedia]);
   // Docking hands the open item over to a dock tab and dismisses the modal.
   const onPin = dock.canDock
     ? () => {

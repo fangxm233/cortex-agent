@@ -31,11 +31,10 @@ const mono = "'IBM Plex Mono',monospace";
 
 interface DocViewerContextValue {
   openDoc: (item: DocItem) => void;
-  close: () => void;
 }
 
 // Default to a no-op so presentational components render without a provider in scope (mirrors MediaViewer).
-const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {}, close: () => {} });
+const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {} });
 
 /** Text/Markdown body — fetch the file's text (authenticated) and render it.
  *  `source` forces the raw text for a Markdown file, which is what the dock's "Source" toggle asks
@@ -465,7 +464,7 @@ export function DocViewerProvider({ children }: { children: ReactNode }): JSX.El
     [dock],
   );
   const close = useCallback(() => setItem(null), []);
-  const value = useMemo(() => ({ openDoc, close }), [openDoc, close]);
+  const value = useMemo(() => ({ openDoc }), [openDoc]);
   // Docking hands the open document over to a dock tab and dismisses the modal.
   const onPin = dock.canDock
     ? () => {
