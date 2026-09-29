@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
-import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR } from '@core/utils.js';
+import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR } from '@core/paths.js';
 import { runFile } from '@core/exec-async.js';
 import {
   clearDependsOnAll, findTask, getTasksPath, readTasks, taskFileProjects,

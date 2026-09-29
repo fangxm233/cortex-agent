@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PROJECTS_DIR, listProjectDirs } from '@core/utils.js';
+import { listProjectDirs } from '@core/utils.js';
+import { PROJECTS_DIR } from '@core/paths.js';
 import { parseTasksFile } from '@core/task-parser.js';
 import {
   readTasks, taskFileProjects, withTaskFileMutationLocks, writeTasks,

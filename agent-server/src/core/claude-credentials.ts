@@ -13,7 +13,8 @@ import { readFileSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { parse as parseDotenv } from 'dotenv';
-import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
+import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
+import { CONFIG_DIR } from './paths.js';
 
 /** OAuth tokens go on `Authorization: Bearer` and need this beta opt-in; API keys use `x-api-key`. */
 const OAUTH_BETA = 'oauth-2025-04-20';

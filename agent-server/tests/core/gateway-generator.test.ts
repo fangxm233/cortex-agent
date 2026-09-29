@@ -167,7 +167,7 @@ test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m]
 });
 
 test('discoverEndpoints: falls back to CONFIG_DIR/.env for ANTHROPIC_API_KEY', async (t) => {
-  const { CONFIG_DIR } = await import('../../src/core/utils.js');
+  const { CONFIG_DIR } = await import('../../src/core/paths.js');
   const envFile = nodePath.join(CONFIG_DIR, '.env');
   const original = process.env.ANTHROPIC_API_KEY;
   const originalEnvFile = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : null;

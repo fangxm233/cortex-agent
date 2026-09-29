@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
-import { SERVER_ROOT, CONFIG_DIR } from '@core/utils.js';
+import { SERVER_ROOT, CONFIG_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import {
   BUNDLED_MCP_SERVER_NAME, encodeMcpBundles, MCP_BUNDLES_ENV,

@@ -4,7 +4,7 @@
 // registerThreadSession) seeds the same set itself (the vitest setup file has already isolated CORTEX_HOME).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { profileRepo } from '../src/store/profile-repo.js';
 
 /** `plan`/`scan`/`qa` share backend claude; `execute` is pi — pins the cross-backend paths. */

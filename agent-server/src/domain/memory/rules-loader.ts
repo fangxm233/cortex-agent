@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 
 const RULES_DIR = path.join(DATA_DIR, 'rules');
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;

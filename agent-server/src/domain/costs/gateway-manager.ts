@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as http from 'http';
 import { createRequire } from 'module';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('gateway-mgr');

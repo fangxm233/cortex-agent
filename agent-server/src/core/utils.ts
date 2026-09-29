@@ -1,25 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import {
-  INSTALL_ROOT,
-  DEFAULTS_DIR,
-  PACKAGE_ROOT,
-  SERVER_ROOT,
-  REPO_ROOT,
-  DATA_DIR,
-  AGENT_CWD,
-  resolveSpawnCwd,
-  CONFIG_DIR,
-  STORE_DIR,
-  CONTEXT_DIR,
-  PROJECTS_DIR,
-  WORKSPACE_DIR,
-  resolveWorkspaceRelPath,
-  PLUGINS_DIR,
-  PROMPTS_DIR,
-  HOOKS_DIR,
-} from './paths.js';
+import { PROJECTS_DIR } from './paths.js';
 
 /** Directories to skip during recursive filesystem scans */
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'tmp', 'logs', '__pycache__']);
@@ -153,4 +135,4 @@ function withNpmPrefix(args: string[], binName: string): string[] {
  */
 const GATEWAY_MANAGED_KEY_PLACEHOLDER = 'cortex-gateway-managed';
 
-export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, AGENT_CWD, resolveSpawnCwd, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };
+export { SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };

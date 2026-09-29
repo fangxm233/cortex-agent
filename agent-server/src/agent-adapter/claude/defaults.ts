@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as os from 'os';
-import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
+import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/paths.js';
 import { SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;

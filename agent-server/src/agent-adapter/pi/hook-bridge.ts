@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { HOOKS_DIR } from '../../core/utils.js';
+import { HOOKS_DIR } from '../../core/paths.js';
 import { createLogger } from '../../core/log.js';
 import { fromCanonical } from '../../core/tool-names.js';
 import {

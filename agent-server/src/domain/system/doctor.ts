@@ -5,7 +5,8 @@ import * as http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
-import { DATA_DIR, CONFIG_DIR, STORE_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
+import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
+import { DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';

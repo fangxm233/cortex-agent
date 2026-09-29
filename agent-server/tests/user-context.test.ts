@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONTEXT_DIR } from '../src/core/utils.js';
+import { CONTEXT_DIR } from '../src/core/paths.js';
 import { loadUserContext } from '../src/domain/memory/user-context.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PROJECTS_DIR, STORE_DIR, listProjectDirs } from '@core/utils.js';
+import { listProjectDirs } from '@core/utils.js';
+import { PROJECTS_DIR, STORE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { loadConfig, listTemplateNames } from '../../threads/template-loader.js';
 import { type LockState, type Task, parseTasksFile, parseTasksFileWithLock, serializeTasksFileWithLock } from '@core/task-parser.js';

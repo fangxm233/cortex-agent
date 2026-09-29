@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 import * as crypto from 'crypto';
-import { AGENT_CWD, resolveSpawnCwd } from '@core/utils.js';
+import { AGENT_CWD, resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { fromCanonical } from '@core/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';

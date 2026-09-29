@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import path from 'node:path';
 import { executionRepo, TERMINAL_STATUSES } from '@store/execution-repo.js';
-import { PROJECTS_DIR } from '@core/utils.js';
+import { PROJECTS_DIR } from '@core/paths.js';
 import { releaseLock, releaseLockAsync } from '@domain/tasks/system/task-lock.js';
 import { parseTasksFileWithLock } from '@core/task-parser.js';
 import { createLogger } from '@core/log.js';

@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
-import { CONFIG_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { getAuthStatus, type AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 import type { PiRuntimeLoadResult } from '../src/domain/auth/pi-runtime.js';
 import { runAuthExpiryScan } from '../src/domain/scheduling/jobs/auth-expiry-scan.js';

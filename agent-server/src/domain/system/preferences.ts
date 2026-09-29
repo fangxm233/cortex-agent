@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { CONFIG_DIR } from '../../core/utils.js';
+import { CONFIG_DIR } from '../../core/paths.js';
 import { normalizeLocale, setLocale, type Locale } from '../../core/i18n.js';
 
 /** Operator display preferences. Extensible — language today, room for date/number formats etc. */

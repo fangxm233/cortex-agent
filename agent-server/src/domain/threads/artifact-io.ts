@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 import { threadStore } from '@store/thread-repo.js';
 
 interface MutationRecord {

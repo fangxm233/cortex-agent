@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import { readFileSync, appendFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
-import { CONFIG_DIR } from './utils.js';
+import { CONFIG_DIR } from './paths.js';
 import { createLogger } from './log.js';
 
 const log = createLogger('auth');

@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as net from 'net';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFileSync, unlinkSync } from 'fs';
-import { INSTALL_ROOT, DATA_DIR, STORE_DIR, isMainModule } from '@core/utils.js';
+import { isMainModule } from '@core/utils.js';
+import { INSTALL_ROOT, DATA_DIR, STORE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,

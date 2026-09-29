@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { pathToFileURL } from 'url';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { agentsMDContentBlocks } from './agents-md.js';
 import { isAbsoluteFilePath } from './remote-file.js';

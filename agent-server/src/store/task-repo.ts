@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { runFile } from '@core/exec-async.js';
-import { PROJECTS_DIR, DATA_DIR } from '@core/utils.js';
+import { PROJECTS_DIR, DATA_DIR } from '@core/paths.js';
 import {
   scanAllTasks,
   scanAvailableTasks,

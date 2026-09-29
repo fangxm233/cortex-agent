@@ -2,7 +2,7 @@ import * as readline from 'readline';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
-import { CONFIG_DIR } from '@core/utils.js';
+import { CONFIG_DIR } from '@core/paths.js';
 import {
   buildAuthorizeUrl,
   parseCodeFromInput,

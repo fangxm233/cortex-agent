@@ -12,7 +12,7 @@ import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { startClientHotReloadJob, startStoreArchiveJob } from '@entry/boot-jobs.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { moveDraftAttachments } from '@entry/draft-attachments.js';
-import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/paths.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';

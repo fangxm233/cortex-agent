@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'fs';
 import * as path from 'path';
 import { getSettings } from '@core/settings.js';
-import { CONTEXT_DIR } from '@core/utils.js';
+import { CONTEXT_DIR } from '@core/paths.js';
 
 const USER_MD_PATH = path.join(CONTEXT_DIR, 'user', 'USER.md');
 

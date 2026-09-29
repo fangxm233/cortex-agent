@@ -4,7 +4,7 @@ import { t } from '../../../core/i18n.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { type Task, scanAllTasks, completedHashSet, isActionable } from '@core/task-parser.js';
-import { PROJECTS_DIR } from '@core/utils.js';
+import { PROJECTS_DIR } from '@core/paths.js';
 import * as path from 'path';
 import { existsSync } from 'fs';
 

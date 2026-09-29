@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { runFile } from '@core/exec-async.js';
-import { PROJECTS_DIR, DATA_DIR } from '@core/utils.js';
+import { PROJECTS_DIR, DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { type Task } from '@core/task-parser.js';
 import {

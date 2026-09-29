@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';
-import { CONFIG_DIR } from '@core/utils.js';
+import { CONFIG_DIR } from '@core/paths.js';
 
 export type FeishuDomain = 'feishu' | 'lark';
 

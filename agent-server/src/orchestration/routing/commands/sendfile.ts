@@ -6,7 +6,7 @@ import { statSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { execFile } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
 
 async function sendLocalFile(channel: string, adapter: PlatformAdapter, reg: any, filePath: string, machine: string): Promise<void> {
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };

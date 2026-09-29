@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
 
 export interface AgentsMDEntry {
   path: string;

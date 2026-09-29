@@ -2,7 +2,7 @@ import type { DownloadedFile, IncomingMessage } from '@platform/index.js';
 import type { AttachmentFailure, InboundFiles } from '../routing/file-handler.js';
 import { inboundAttachmentMeta } from '../attachments-store.js';
 import { createLogger } from '@core/log.js';
-import { resolveWorkspaceRelPath } from '@core/utils.js';
+import { resolveWorkspaceRelPath } from '@core/paths.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';

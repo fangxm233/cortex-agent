@@ -8,7 +8,7 @@ import {
   getOnlineDevices,
   sendControlMessage,
 } from './client-manager.js';
-import { STORE_DIR } from '@core/utils.js';
+import { STORE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '@core/i18n.js';

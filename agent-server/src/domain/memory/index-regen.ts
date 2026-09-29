@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { PROJECTS_DIR, isMainModule } from '@core/utils.js';
+import { isMainModule } from '@core/utils.js';
+import { PROJECTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('index-regen');

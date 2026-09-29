@@ -82,7 +82,8 @@ import { t, setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
-import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/utils.js';
+import { isMainModule, moduleDir } from '@core/utils.js';
+import { DATA_DIR, CONFIG_DIR, STORE_DIR, INSTALL_ROOT } from '@core/paths.js';
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 import {

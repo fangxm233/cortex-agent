@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 
 /** PI_CODING_AGENT_DIR: PI reads models.json and auth.json from this dir. Daemon default only —
  *  a trial derives its own agent dir from the trial root (design §13 A1). */

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { STORE_DIR } from '../../core/utils.js';
+import { STORE_DIR } from '../../core/paths.js';
 
 export interface UpdateState {
   skippedVersion?: string;

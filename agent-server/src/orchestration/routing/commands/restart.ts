@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import type { PlatformAdapter } from '@platform/index.js';
-import { STORE_DIR } from '@core/utils.js';
+import { STORE_DIR } from '@core/paths.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';

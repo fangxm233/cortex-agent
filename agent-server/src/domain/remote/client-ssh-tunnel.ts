@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { STORE_DIR } from '@core/utils.js';
+import { STORE_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('client-ssh-tunnel');

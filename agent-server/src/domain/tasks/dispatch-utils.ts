@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
-import { CONFIG_DIR } from '@core/utils.js';
+import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { createLogger } from '@core/log.js';

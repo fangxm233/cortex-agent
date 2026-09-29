@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { DATA_DIR } from '../src/core/utils.js';
+import { DATA_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   buildStepPrompt,

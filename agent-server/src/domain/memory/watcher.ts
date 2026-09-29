@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { PROJECTS_DIR } from '@core/utils.js';
+import { PROJECTS_DIR } from '@core/paths.js';
 import { regenProject } from './index-regen.js';
 import { createLogger } from '@core/log.js';
 

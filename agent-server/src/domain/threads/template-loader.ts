@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'fs';
 import { isDeepStrictEqual } from 'node:util';
 import * as path from 'path';
-import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/utils.js';
+import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '../../core/icons.js';

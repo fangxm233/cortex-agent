@@ -2,7 +2,7 @@ import { test, beforeAll, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import { threadStore } from '../../src/store/thread-repo.js';
-import { DEFAULTS_DIR, CONFIG_DIR } from '../../src/core/utils.js';
+import { DEFAULTS_DIR, CONFIG_DIR } from '../../src/core/paths.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
 import {
   createThread,

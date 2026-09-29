@@ -2,7 +2,7 @@ import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   abortThread,

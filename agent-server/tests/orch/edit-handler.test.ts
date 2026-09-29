@@ -17,7 +17,7 @@ import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DATA_DIR } from '../../src/core/utils.js';
+import { DATA_DIR } from '../../src/core/paths.js';
 import { seedTestProfiles } from '../_seed-profiles.js';
 
 // The tests below select the 'plan' (claude) and 'execute' (pi) profiles; a scoped run starts from

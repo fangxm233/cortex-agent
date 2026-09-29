@@ -2,7 +2,7 @@ import { unlinkSync, readdirSync } from 'fs';
 import { copyFile, readdir } from 'node:fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { selectPISessionFilename } from '@core/pi-session-filename.js';
 

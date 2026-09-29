@@ -10,7 +10,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { CONFIG_DIR } from '@core/utils.js';
+import { CONFIG_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { EventBus } from '@events/index.js';
 import { MockAdapter } from '@platform/testing.js';

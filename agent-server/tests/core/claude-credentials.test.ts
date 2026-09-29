@@ -7,7 +7,7 @@ import {
   claudeOwnsOAuthCredential,
   resolveClaudeCredential,
 } from '../../src/core/claude-credentials.js';
-import { CONFIG_DIR } from '../../src/core/utils.js';
+import { CONFIG_DIR } from '../../src/core/paths.js';
 
 const CLAUDE_DIR = '/fixture/.claude';
 const CREDENTIALS = path.join(CLAUDE_DIR, '.credentials.json');

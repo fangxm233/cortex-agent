@@ -2,7 +2,7 @@ import { watch, FSWatcher } from 'fs';
 import { randomBytes } from 'crypto';
 import { runShell } from '@core/exec-async.js';
 import { Icons } from '../../core/icons.js';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from 'fs';
-import { resolveSpawnCwd } from '@core/utils.js';
+import { resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';

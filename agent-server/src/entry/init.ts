@@ -22,7 +22,7 @@ import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-
 import { mergeThreadTemplates } from '@domain/threads/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
-import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/utils.js';
+import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';

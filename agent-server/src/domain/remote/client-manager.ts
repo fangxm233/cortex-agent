@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile, spawn } from 'child_process';
 import { getMachineRegistry, applyReportedGpuCount, type MachineEntry, type MachineRegistry } from '../tasks/dispatch-utils.js';
-import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/utils.js';
+import { STORE_DIR, CONFIG_DIR, DATA_DIR } from '@core/paths.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';

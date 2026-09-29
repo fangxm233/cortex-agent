@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
 import { ensureTaskArtifact } from '@core/task-node.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';

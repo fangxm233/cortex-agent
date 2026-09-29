@@ -1,6 +1,6 @@
 import { readdirSync, existsSync } from 'fs';
 import * as path from 'path';
-import { DATA_DIR, PLUGINS_DIR } from '@core/utils.js';
+import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('skill-scanner');
