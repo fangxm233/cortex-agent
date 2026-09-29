@@ -52,7 +52,6 @@ export interface ClaudeReplay {
   rateLimits: RateLimitObservation[];
   /** Run events observed from the same production engine run. */
   events: RunEvent[];
-  result: AgentResult | null;
   error: Error | null;
 }
 
@@ -61,7 +60,6 @@ export async function replayClaudeTurns(turns: readonly string[][]): Promise<Cla
   const normalized: NormalizedEvent[] = [];
   const rateLimits: RateLimitObservation[] = [];
   const events: RunEvent[] = [];
-  let result: AgentResult | null = null;
   let error: Error | null = null;
   const { engine, session, close } = openClaudeTestEngine({
     onRateLimit: (info) => {
@@ -85,7 +83,7 @@ export async function replayClaudeTurns(turns: readonly string[][]): Promise<Cla
         await tick();
       }
       try {
-        result = await run.result;
+        await run.result;
       } catch (cause) {
         error = cause instanceof Error ? cause : new Error(String(cause));
       }
@@ -98,7 +96,7 @@ export async function replayClaudeTurns(turns: readonly string[][]): Promise<Cla
     if (done) await done;
     close();
   }
-  return { normalized, rateLimits, events, result, error };
+  return { normalized, rateLimits, events, error };
 }
 
 export async function replayClaudeFixture(name: string): Promise<NormalizedEvent[]> {

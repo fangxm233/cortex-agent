@@ -4,13 +4,11 @@ import type { ClaudeEngineSession } from '../../src/agent-adapter/claude/engine.
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 
 export interface ClaudePool {
-  engines: SessionEngines;
   /** The pooled engine session for a spec: reuse when it is alive and identical, else open fresh.
    *  This is the only surface a test should drive — `run()` is one turn, `close()` ends the pool
    *  entry, and the events/policy questions belong to the engine, not to a process handle. */
   open(spec: EngineSpec): ClaudeEngineSession;
   close(key: string): Promise<void>;
-  kill(key: string): boolean;
   listSessions(): string[];
   /** The pooled `ClaudeSession` inside the pooled engine. */
   getPooledSession(key: string): unknown;
@@ -31,10 +29,8 @@ export function claudePool(adapter: ClaudeAdapter): ClaudePool {
   if (existing) return existing;
   const engines = new SessionEngines({ claude: adapter });
   const pool: ClaudePool = {
-    engines,
     open: (spec) => engines.acquire(spec) as ClaudeEngineSession,
     close: (key) => engines.close(key),
-    kill: (key) => engines.kill(key),
     listSessions: () => engines.listKeys(),
     // The pool stores the engine; `_test.getPooledPrintSession` handed back the ClaudeSession
     // inside it. Reach through the engine so tests keep comparing the objects they used to.
