@@ -54,8 +54,6 @@ export const enExtra = {
   ttDuplicate: 'Duplicate',
   ttCancel: 'Cancel',
   ttFormat: 'Format',
-  ttNameLabel: 'name',
-  ttKindLabel: 'kind',
   ttNamePh: 'lowercase-with-hyphens',
   ttNoErrors: 'No errors',
   ttNoWarnings: 'No warnings',
@@ -83,7 +81,6 @@ export const enExtra = {
   ttToastWriteFailed: 'Write failed',
   ttToastConflict: 'Changed on disk since it was loaded — reload before saving',
   ttInvalidBadge: 'invalid',
-  ttFootNote: 'Files under config/thread-templates/. The filename is the identity; renaming is duplicate-then-delete. The directory is git-tracked, so git is the undo.',
 
   // ── Provider usage ──
   usageRefresh: 'Refresh',

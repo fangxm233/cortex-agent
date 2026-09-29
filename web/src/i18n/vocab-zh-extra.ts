@@ -54,8 +54,6 @@ export const zhExtra = {
   ttDuplicate: '复制',
   ttCancel: '取消',
   ttFormat: '格式化',
-  ttNameLabel: '名称',
-  ttKindLabel: '类型',
   ttNamePh: '小写字母与连字符',
   ttNoErrors: '没有错误',
   ttNoWarnings: '没有警告',
@@ -83,7 +81,6 @@ export const zhExtra = {
   ttToastWriteFailed: '写入失败',
   ttToastConflict: '加载后磁盘上已被改动 — 请重新加载再保存',
   ttInvalidBadge: '有错',
-  ttFootNote: '文件位于 config/thread-templates/。文件名即身份；改名请用复制再删除。该目录已纳入 git，git 就是撤销。',
 
   // ── Provider usage ──
   usageRefresh: '刷新',
