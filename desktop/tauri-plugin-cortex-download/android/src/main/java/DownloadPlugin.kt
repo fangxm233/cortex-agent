@@ -65,11 +65,11 @@ class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    // Takes over a downloaded, sha256-verified APK for the app shell's self-update and answers with
-    // the mode it chose: "staged" (written into a PackageInstaller session that commits itself once
-    // the app goes to the background) or "prompt" (the system installer, i.e. what this command did
-    // before silent updating existed — API < 31, a session that would not stage, or a device that
-    // has refused silent commits). Rejecting is the shell's signal to count a failed attempt.
+    // Takes over a downloaded, sha256-verified APK for the app shell's self-update: it is either
+    // written into a PackageInstaller session that commits itself once the app goes to the
+    // background, or handed to the system installer (API < 31, a session that would not stage, or a
+    // device that has refused silent commits). Rejecting is the shell's signal to count a failed
+    // attempt.
     // Called from Rust via run_mobile_plugin only — never from the webview.
     @Command
     fun installApk(invoke: Invoke) {
@@ -86,7 +86,7 @@ class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
             val outcome = runCatching { ApkInstaller.install(activity, file) }
             activity.runOnUiThread {
                 outcome.fold(
-                    onSuccess = { mode -> invoke.resolve(JSObject().also { it.put("mode", mode) }) },
+                    onSuccess = { invoke.resolve(JSObject()) },
                     onFailure = { e -> invoke.reject(installError(e)) },
                 )
             }

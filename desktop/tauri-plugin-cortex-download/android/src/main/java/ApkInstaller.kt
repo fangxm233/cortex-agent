@@ -60,12 +60,6 @@ internal object ApkInstaller {
     // system installer UI. A site that cannot commit silently must not retry quietly forever.
     private const val MAX_SESSION_FAILURES = 2
 
-    /** The APK is written and the commit is armed; nothing is shown to the user. */
-    const val MODE_STAGED = "staged"
-
-    /** The system package installer was raised (or parked for the next foreground moment). */
-    const val MODE_PROMPT = "prompt"
-
     /**
      * A commit failure parked by an earlier call. Its message is already a `code: detail` string
      * (see [fail]) that the webview words in its own language, so it is rejected as-is.
@@ -98,13 +92,14 @@ internal object ApkInstaller {
     }
 
     /**
-     * Stage [apk] and arm the commit. Returns [MODE_STAGED] or [MODE_PROMPT]; throws when the
-     * update could not be handed over at all, which is what the Rust side counts as a failed
-     * attempt.
+     * Stage [apk] and arm the commit (nothing is shown to the user), or raise the system package
+     * installer (or park it for the next foreground moment) when staging is not possible. Throws
+     * when the update could not be handed over at all, which is what the Rust side counts as a
+     * failed attempt.
      *
      * Runs on a worker thread (it copies the whole APK) — see DownloadPlugin.installApk.
      */
-    fun install(activity: Activity, apk: File): String {
+    fun install(activity: Activity, apk: File) {
         val context = activity.applicationContext
         attach(activity)
         forgetIfLanded(context)
@@ -117,20 +112,18 @@ internal object ApkInstaller {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || failures >= MAX_SESSION_FAILURES) {
             Log.i(TAG, "handing ${apk.name} to the system installer (api=${Build.VERSION.SDK_INT}, failures=$failures)")
             promptSystemInstaller(activity, apk)
-            return MODE_PROMPT
+            return
         }
-        return try {
+        try {
             stage(context, apk)
             // The check thread may well have run while the app was already in the background: that
             // is the safest moment there is, so do not make the user open and leave the app again.
             if (isBackground()) commitStaged(context)
-            MODE_STAGED
         } catch (e: Exception) {
             // Staging is the part that can still fail with the user present (no space, no installer
             // service, session quota). Degrading now beats waiting a whole check cycle.
             Log.w(TAG, "could not stage ${apk.name}; falling back to the system installer", e)
             promptSystemInstaller(activity, apk)
-            MODE_PROMPT
         }
     }
 
