@@ -44,16 +44,8 @@ export function withoutSubagentTools(
   allowlist: readonly string[] | undefined,
   selectedBundles: readonly string[],
 ): string[] {
-  return withoutTools(allowlist, selectedBundles, SUBAGENT_TOOLS);
-}
-
-function withoutTools(
-  allowlist: readonly string[] | undefined,
-  selectedBundles: readonly string[],
-  dropped: readonly string[],
-): string[] {
   const base = allowlist ?? selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []);
-  const drop = new Set(dropped);
+  const drop = new Set(SUBAGENT_TOOLS);
   return canonicalizeMcpToolAllowlist(base.filter(name => !drop.has(name)));
 }
 
