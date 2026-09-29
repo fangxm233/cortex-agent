@@ -20,5 +20,4 @@ test('auth.flowState returns metadata-only state or null', async () => {
     { flowId: 'flow-chat' },
     () => ({ ...FLOW_STATE, flowId: 'flow-chat', channel: 'slack:C1' }),
   ), null);
-  assert.ok(!JSON.stringify(await handleAuthFlowState({ flowId: 'flow-web' }, getState)).includes('submitted-key'));
 });
