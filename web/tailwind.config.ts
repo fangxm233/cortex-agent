@@ -181,58 +181,6 @@ const config: Config = {
           from: { opacity: '1', transform: 'scale(1)' },
           to: { opacity: '0', transform: 'scale(0.96)' },
         },
-        // Prototype 1:1 animation set (§8.6 RA / task 6d21). Verbatim from the
-        // prototype `<style>`. Deliberately the same 16 names as the raw
-        // `@keyframes cx*` in index.css: BOTH copies are live. The ~60 inline
-        // `style={{ animation: 'cxpulse …' }}` call sites need the global ones
-        // (Tailwind never sees an inline style), and these back the handful of
-        // `animate-cx*` utility classes. Keep the two definitions identical.
-        cxblink: { '0%,55%': { opacity: '1' }, '56%,100%': { opacity: '0' } },
-        cxpulse: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.3' } },
-        cxtoast: {
-          from: { opacity: '0', transform: 'translate(-50%,10px)' },
-          to: { opacity: '1', transform: 'translate(-50%,0)' },
-        },
-        cxfade: { from: { opacity: '0' }, to: { opacity: '1' } },
-        cxmodal: {
-          from: { opacity: '0', transform: 'translate(-50%,-46%) scale(0.975)' },
-          to: { opacity: '1', transform: 'translate(-50%,-50%) scale(1)' },
-        },
-        cxcmdk: {
-          from: { opacity: '0', transform: 'translate(-50%,-12px) scale(0.98)' },
-          to: { opacity: '1', transform: 'translate(-50%,0) scale(1)' },
-        },
-        cxpop: {
-          from: { opacity: '0', transform: 'translateY(-6px) scale(0.97)' },
-          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-        cxpopup: {
-          from: { opacity: '0', transform: 'translateY(8px) scale(0.97)' },
-          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-        cxpopover: {
-          from: { opacity: '0', transform: 'translateY(-10px) scale(0.97)' },
-          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
-        cxdrawer: { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
-        cxmodalout: {
-          from: { opacity: '1', transform: 'translate(-50%,-50%) scale(1)' },
-          to: { opacity: '0', transform: 'translate(-50%,-48%) scale(0.975)' },
-        },
-        cxcmdkout: {
-          from: { opacity: '1', transform: 'translate(-50%,0) scale(1)' },
-          to: { opacity: '0', transform: 'translate(-50%,-12px) scale(0.98)' },
-        },
-        cxdrawerout: { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(100%)' } },
-        cxfadeout: { from: { opacity: '1' }, to: { opacity: '0' } },
-        cxmsg: {
-          from: { opacity: '0', transform: 'translateY(12px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
-        cxrise: {
-          from: { opacity: '0', transform: 'translateY(6px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
       },
       animation: {
         'fade-in': 'fade-in 150ms ease-out',
@@ -249,7 +197,8 @@ const config: Config = {
         toastbar: 'toastbar 6000ms linear forwards',
         'popover-in': 'popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1)',
         'popover-out': 'popover-out 100ms ease-in',
-        // Prototype animation defaults (durations/easings as used in the source).
+        // Prototype animation defaults (durations/easings as used in the source); the
+        // cx* keyframes they name are the global ones in src/index.css.
         cxblink: 'cxblink 1.1s steps(1) infinite',
         cxpulse: 'cxpulse 1.6s ease-in-out infinite',
         cxtoast: 'cxtoast 0.18s ease-out',
