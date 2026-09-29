@@ -31,8 +31,6 @@ export interface DisplayProbe {
   override?: string;
   /** `$DISPLAY`, when set. */
   envDisplay?: string;
-  /** `$WAYLAND_DISPLAY`, when set. */
-  envWayland?: string;
   /** X displays owned by THIS uid that we actually connected to. */
   usableDisplays: string[];
   /** `Xvfb` is installed, so a virtual display can be created. */
@@ -199,7 +197,6 @@ export function resolveBrowserDisplay(env = process.env): BrowserDisplay {
     platform,
     override: env.CORTEX_BROWSER_DISPLAY,
     envDisplay: env.DISPLAY,
-    envWayland: env.WAYLAND_DISPLAY,
     usableDisplays: platform === 'linux' ? probeUsableDisplays() : [],
     hasXvfb: platform === 'linux' ? probeHasBinary('Xvfb') : false,
     interactiveSession: probeInteractiveSession(platform, env),

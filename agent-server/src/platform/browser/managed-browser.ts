@@ -130,13 +130,9 @@ function kill(): void {
 async function ensureStarted(): Promise<ManagedBrowser> {
   if (instance) return instance;
   if (starting) return starting; // concurrent acquires must not race two Chromes onto one profile
-  starting = launch()
-    .catch((e) => {
-      throw e;
-    })
-    .finally(() => {
-      starting = null;
-    });
+  starting = launch().finally(() => {
+    starting = null;
+  });
   return starting;
 }
 
@@ -300,5 +296,3 @@ async function waitForCdp(port: number): Promise<void> {
   }
   throw new Error(`Chrome did not expose CDP on ${port} within ${READY_TIMEOUT_MS}ms (${lastError})`);
 }
-
-export const __test = { PROFILE_DIR, PREFERRED_CDP_PORT, IDLE_RECLAIM_MS };

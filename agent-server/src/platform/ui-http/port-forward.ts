@@ -27,9 +27,8 @@ export const FORWARD_PORTS_PATH = '/api/forward/ports';
 /** Bound so a leaking client cannot exhaust file descriptors. */
 const MAX_CONCURRENT = 64;
 
-/** Close codes the desktop shell distinguishes. 1000-2999 are reserved by the protocol. */
+/** Close code the desktop shell distinguishes. 1000-2999 are reserved by the protocol. */
 export const CLOSE_TARGET_UNREACHABLE = 4004;
-export const CLOSE_POLICY = 4003;
 
 export interface ForwardTarget {
   host: string;
