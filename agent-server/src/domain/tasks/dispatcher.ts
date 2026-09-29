@@ -46,7 +46,7 @@ interface SelectAndClaimResult {
 }
 
 interface FilterDeps {
-  findActiveDispatchMatch?: (task: any, scheduleTaskId: string) => DispatchMatch | null;
+  findActiveDispatchMatch?: (task: any) => DispatchMatch | null;
   checkRealGpuOccupancy?: (machine: string) => Promise<GpuOccupancyResult>;
   isTemplateRateLimited?: (templateName: string, dispatchProfile: string | null) => boolean;
   /** Scheduler-resolved dispatch profile — used only to resolve `__active__` template slots. */
@@ -139,16 +139,9 @@ async function checkRealGpuOccupancy(machine: string): Promise<GpuOccupancyResul
   }
 }
 
-// --- Task selection ---
-
-function selectTask(tasks: any[] | null): any | null {
-  if (!tasks || tasks.length === 0) return null;
-  return tasks[0];
-}
-
 // --- Duplicate detection (execution registry only, no pending tracker) ---
 
-function findActiveDispatchMatch(task: any, _scheduleTaskId?: string): DispatchMatch | null {
+function findActiveDispatchMatch(task: any): DispatchMatch | null {
   const executionMatch = executionRegistry.findRunningDispatchMatch({
     taskHash: task.id,
     project: task.project,
@@ -198,7 +191,7 @@ function warnOnceUnknownTemplate(task: any): void {
 
 // --- Filter dispatchable tasks ---
 
-async function filterDispatchableTasks(tasks: any[] | null, scheduleTaskId: string, gpuBusyCounts: Map<string, number> = new Map(), deps: FilterDeps = {}): Promise<any[]> {
+async function filterDispatchableTasks(tasks: any[] | null, gpuBusyCounts: Map<string, number> = new Map(), deps: FilterDeps = {}): Promise<any[]> {
   if (!tasks || tasks.length === 0) return [];
 
   const findDuplicate = deps.findActiveDispatchMatch || findActiveDispatchMatch;
@@ -240,7 +233,7 @@ async function filterDispatchableTasks(tasks: any[] | null, scheduleTaskId: stri
       if (usedSlots + neededSlots > totalSlots) continue;
     }
 
-    const duplicateMatch = findDuplicate(task, scheduleTaskId);
+    const duplicateMatch = findDuplicate(task);
     if (duplicateMatch) continue;
 
     if (task.gpu) {
@@ -330,7 +323,7 @@ function buildDispatchPrompt(task: any): string {
 
 // --- Main entry point: select and claim a task for local execution ---
 
-async function selectAndClaimTask({ scheduleTaskId = 'builtin', dryRun = false, profileName = null }: { scheduleTaskId?: string; dryRun?: boolean; profileName?: string | null }): Promise<SelectAndClaimResult | null> {
+async function selectAndClaimTask({ dryRun = false, profileName = null }: { dryRun?: boolean; profileName?: string | null }): Promise<SelectAndClaimResult | null> {
   log.info('Starting task selection cycle');
 
   // Get actionable tasks + GPU busy machines
@@ -340,11 +333,11 @@ async function selectAndClaimTask({ scheduleTaskId = 'builtin', dryRun = false, 
   log.info(`Found ${tasks.length} actionable task(s)`);
 
   // Filter to dispatchable tasks (incl. per-template rate-limit eligibility)
-  const dispatchableTasks = await filterDispatchableTasks(tasks, scheduleTaskId, gpuBusyMachines, { profileName });
+  const dispatchableTasks = await filterDispatchableTasks(tasks, gpuBusyMachines, { profileName });
   log.info(`${dispatchableTasks.length} task(s) dispatchable after preflight`);
 
   // Select task
-  const selectedTask = selectTask(dispatchableTasks);
+  const selectedTask = dispatchableTasks[0] ?? null;
   if (!selectedTask) {
     log.info('No dispatchable tasks available');
     return null;
@@ -356,7 +349,7 @@ async function selectAndClaimTask({ scheduleTaskId = 'builtin', dryRun = false, 
   // The defensive unclaim below clears any stale [in-progress] tag from a prior cycle — the task
   // hasn't been claimed by this dispatch pass yet, but may have been claimed-then-aborted earlier.
   if (!isValidDispatchPrompt(selectedTask.text)) {
-    log.warn(`Guard dropped task with null/empty text: [${selectedTask.project}] ${selectedTask.id} (schedule=${scheduleTaskId})`);
+    log.warn(`Guard dropped task with null/empty text: [${selectedTask.project}] ${selectedTask.id}`);
     await taskMutator.unclaim(selectedTask.id);
     return null;
   }
@@ -397,9 +390,7 @@ export {
   isValidDispatchPrompt,
   isTemplateRateLimited,
   // For testing
-  selectTask,
   filterLockedProjects,
   filterDispatchableTasks,
   findActiveDispatchMatch,
-  checkRealGpuOccupancy,
 };

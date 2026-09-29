@@ -16,7 +16,7 @@ test('filterDispatchableTasks allows GPU task when machine has free slots (count
   // gpuBusyCounts: testbox has 1 in-progress GPU task, but testbox has 2 GPUs total
   const gpuBusyCounts = new Map([['testbox', 1]]);
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -39,7 +39,7 @@ test('filterDispatchableTasks blocks GPU task when all slots occupied', async ()
   ];
   const gpuBusyCounts = new Map([['testbox', 2]]);
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -61,7 +61,7 @@ test('filterDispatchableTasks blocks multi-GPU task when not enough free slots',
   // 1 slot already in use, task needs 2, machine has 2 total → only 1 free
   const gpuBusyCounts = new Map([['testbox', 1]]);
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -82,7 +82,7 @@ test('filterDispatchableTasks allows multi-GPU task when enough free slots', asy
   ];
   const gpuBusyCounts = new Map(); // no in-progress GPU tasks
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -104,7 +104,7 @@ test('filterDispatchableTasks backward-compatible: task without gpu_count defaul
   ];
   const gpuBusyCounts = new Map();
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -127,7 +127,7 @@ test('filterDispatchableTasks deducts assigned GPU indices from cache (no double
   ];
   const gpuBusyCounts = new Map(); // no in-progress GPU tasks
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', gpuBusyCounts, {
+  const filtered = await filterDispatchableTasks(tasks, gpuBusyCounts, {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [
@@ -153,7 +153,7 @@ test('filterDispatchableTasks accepts tasks without device tag (device tag remov
     { id: 'b2', project: 'proj', text: 'has gpu', gpu: 'testbox', template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({
       gpus: [{ index: 0, occupied: false, memUsedMB: 166, memTotalMB: 49140, processes: [] }],

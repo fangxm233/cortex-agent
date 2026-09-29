@@ -37,7 +37,7 @@ test('findActiveDispatchMatch returns null when no running execution matches', (
   const task = { id: 'abcd', project: 'example-project', text: '安装最新 Isaac Lab (develop branch)' };
   // findActiveDispatchMatch now uses executionRegistry directly (no deps injection)
   // Since there are no real running executions in test, it should return null
-  const match = findActiveDispatchMatch(task, 'sched-1');
+  const match = findActiveDispatchMatch(task);
   assert.equal(match, null);
 });
 
@@ -47,7 +47,7 @@ test('filterDispatchableTasks drops duplicate tasks before selection', async () 
     { id: 'b2', project: 'example-project', text: 'fresh task', gpu: null, template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: (task) => (task.id === 'a1' ? { source: 'pending', taskId: 'pending-1', machine: 'testbox' } : null),
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
   });
@@ -61,7 +61,7 @@ test('filterDispatchableTasks drops GPU-occupied candidates and keeps later free
     { id: 'b2', project: 'example-project', text: 'free cpu task', gpu: null, template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async (machine) => {
       assert.equal(machine, 'testbox');
@@ -80,7 +80,7 @@ test('filterDispatchableTasks caches GPU preflight by machine and deducts assign
   let calls = 0;
 
   // testbox has 1 free GPU (freeIndices: [0]) → first task gets it, second blocked
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => {
       calls += 1;
@@ -98,7 +98,7 @@ test('filterDispatchableTasks accepts tasks without device tag', async () => {
     { id: 'b2', project: 'example-project', text: 'another task', gpu: null, template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
   });
@@ -117,7 +117,7 @@ test('filterDispatchableTasks drops tasks with unknown or missing [template:X] t
     { id: 'c3', project: 'cortex-self', text: 'good known-template task', gpu: null, template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
   });
@@ -139,7 +139,7 @@ test('filterDispatchableTasks skips rate-limited-template task and keeps later u
   ];
   const seen: [string, string | null][] = [];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
     isTemplateRateLimited: (template: string, profile: string | null) => {
@@ -162,7 +162,7 @@ test('filterDispatchableTasks returns empty when every candidate template is rat
     { id: 'b2', project: 'cortex-self', text: 'task two', gpu: null, template: 'default' },
   ];
 
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
     isTemplateRateLimited: () => true,
@@ -180,7 +180,7 @@ test('filterDispatchableTasks default rate-limit check passes everything when no
 
   // No injected check → default isTemplateRateLimited → allConfigsRateLimited, which is
   // false when the throttle is inactive (isThrottled() short-circuit).
-  const filtered = await filterDispatchableTasks(tasks, 'sched-1', new Map(), {
+  const filtered = await filterDispatchableTasks(tasks, new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
     profileName: 'plan',
@@ -217,7 +217,7 @@ test('filterDispatchableTasks skips a template whose provider has an outage', as
 
   const filtered = await filterDispatchableTasks([
     { id: 'candidate-a', project: 'atlas', text: 'provider work', gpu: null, template: 'default' },
-  ], 'dispatch-schedule', new Map(), {
+  ], new Map(), {
     findActiveDispatchMatch: () => null,
     checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
     profileName: 'outage-profile',

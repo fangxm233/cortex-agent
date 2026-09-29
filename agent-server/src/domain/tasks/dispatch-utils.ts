@@ -1,4 +1,3 @@
-import * as crypto from 'crypto';
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR } from '@core/utils.js';
@@ -206,16 +205,6 @@ if (existsSync(MACHINES_FILE)) {
   }
 }
 
-// --- Task ID utilities ---
-
-function generateTaskId() {
-  return crypto.randomBytes(2).toString('hex');
-}
-
-function buildDispatchSessionName(taskId) {
-  return `task-dispatch-${taskId}`;
-}
-
 /** Test-only: directly set the in-memory machine registry. */
 function _testSetRegistry(registry: MachineRegistry): void {
   _registry = { ...registry };
@@ -337,8 +326,6 @@ export {
   loadMachinesFromFile,
   startMachineRegistryWatcher,
   stopMachineRegistryWatcher,
-  generateTaskId,
-  buildDispatchSessionName,
   processSplitOutcome,
   processAbortOutcome,
   _testSetRegistry,

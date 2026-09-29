@@ -106,7 +106,7 @@ test('task-file literals survive persistence, dispatch, and the first executor p
     assert.equal(persisted.why, spec.why);
     assert.equal(persisted['done-when'], spec['done-when']);
 
-    const selected = await selectAndClaimTask({ scheduleTaskId: 'literal-regression', dryRun: true });
+    const selected = await selectAndClaimTask({ dryRun: true });
     assert.ok(selected);
     assert.equal(selected.task.id, added['task-id']);
     assert.ok(selected.prompt.includes(`**Task:** ${spec.text}\n**Why:** ${spec.why}\n**Done when:** ${spec['done-when']}`));
@@ -135,7 +135,7 @@ test('task-file literals survive persistence, dispatch, and the first executor p
       '--text', plain.text, '--why', plain.why, '--done-when', plain['done-when'],
     ]);
     runTask(['lock-release', '--project', repo.project]);
-    const plainSelected = await selectAndClaimTask({ scheduleTaskId: 'literal-regression', dryRun: true });
+    const plainSelected = await selectAndClaimTask({ dryRun: true });
     assert.ok(plainSelected);
     assert.equal(
       normalizeTaskFields(selected.prompt, spec),
