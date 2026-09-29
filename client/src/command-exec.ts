@@ -82,37 +82,32 @@ export function spawnCommand(
   args: string[],
   timeoutMs: number,
   maxOutputBytes = 500_000,
-  platform: NodeJS.Platform = process.platform,
 ): Promise<CommandResult> {
   const proc = spawn(cmd, args, {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env },
-    detached: platform !== 'win32',
+    detached: process.platform !== 'win32',
   });
   const stdout = new OutputAccumulator(maxOutputBytes);
   const stderr = new OutputAccumulator(50_000);
   proc.stdout.on('data', (data: Buffer) => stdout.append(data.toString()));
   proc.stderr.on('data', (data: Buffer) => stderr.append(data.toString()));
-  return monitorCommand(proc, stdout, stderr, timeoutMs, platform);
+  return monitorCommand(proc, stdout, stderr, timeoutMs);
 }
 
 export function execBash(
   command: string,
   timeoutMs: number,
-  platform: NodeJS.Platform = process.platform,
 ): Promise<CommandResult> {
-  const shell = platform === 'win32' ? findGitBash() : '/bin/bash';
+  const shell = process.platform === 'win32' ? findGitBash() : '/bin/bash';
   if (!shell) {
     return Promise.resolve({ stdout: '', stderr: 'bash not found (git-bash not installed on Windows?)', exitCode: 127 });
   }
-  return spawnCommand(shell, ['-l', '-c', command], timeoutMs, 200_000, platform);
+  return spawnCommand(shell, ['-l', '-c', command], timeoutMs, 200_000);
 }
 
-export function execBashBackground(
-  command: string,
-  platform: NodeJS.Platform = process.platform,
-): { pid: number | undefined } {
-  const shell = platform === 'win32' ? findGitBash() : '/bin/bash';
+export function execBashBackground(command: string): { pid: number | undefined } {
+  const shell = process.platform === 'win32' ? findGitBash() : '/bin/bash';
   if (!shell) return { pid: undefined };
   const proc = spawn(shell, ['-l', '-c', command], {
     stdio: 'ignore',
@@ -128,7 +123,6 @@ function monitorCommand(
   stdout: OutputAccumulator,
   stderr: OutputAccumulator,
   timeoutMs: number,
-  platform: NodeJS.Platform,
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
     let settled = false;
@@ -139,7 +133,7 @@ function monitorCommand(
       resolve(result);
     };
     const timer = setTimeout(() => {
-      if (proc.pid) killCommandTree(proc.pid, platform);
+      if (proc.pid) killCommandTree(proc.pid);
       const message = `Command timed out after ${timeoutMs / 1000}s`;
       finish({ stdout: stdout.toString(), stderr: joinStderr(stderr.toString(), message), exitCode: 124 });
     }, timeoutMs);
