@@ -1,5 +1,4 @@
 import type { AgentResult } from '@core/types/agent-types.js';
-import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type { EngineRunOptions } from '../types.js';
@@ -71,7 +70,6 @@ export class ClaudeEngineSession implements EngineSession {
   /** The pool's reuse key: the spawn compatibility serialized by `claudeCompatibilityIdentity`, so
    *  SessionEngines can compare plain strings. */
   readonly identity: string;
-  readonly capabilities: ReadonlySet<Capability>;
   private readonly session: ClaudeEngineSessionHost;
   private readonly spec: EngineSpec;
   /** The run currently owning the session's single injection-ack slot (Claude serves one turn at a
@@ -87,10 +85,6 @@ export class ClaudeEngineSession implements EngineSession {
     this.session = session;
     this.spec = spec;
     this.identity = identity;
-    // D9 declares capabilities per EngineSession. Claude's set happens to be backend-wide today (no
-    // per-session narrowing exists), so this is a copy rather than a lookup: a future per-session
-    // gate can mutate it without touching the shared matrix.
-    this.capabilities = new Set(CAPABILITIES_BY_BACKEND.claude);
   }
 
   get backendSessionId(): string | null {

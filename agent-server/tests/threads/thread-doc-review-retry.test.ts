@@ -90,7 +90,6 @@ function attemptShell(input: any, backendSessionId: string | null, foreground: P
     engine: {
       backend: input?.request?.profile?.backend ?? 'claude',
       identity: 'test-engine',
-      capabilities: new Set<string>(),
       backendSessionId,
       run: () => ({}),
       steer: () => ({ accepted: false }),

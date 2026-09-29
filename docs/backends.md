@@ -11,8 +11,8 @@ implements the `EngineAdapter` interface defined in
 
 | Backend | Status | Engine | Requirement | Feature level |
 |---|---|---|---|---|
-| Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full (11/11 capabilities) |
-| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full (11/11 capabilities) |
+| Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full |
+| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full |
 
 ## How backends work
 
@@ -77,28 +77,21 @@ it finishes.
 
 ## Feature matrix
 
-Cortex defines eleven capabilities that a backend may support. The
+Cortex defines four capabilities that a backend may support. The
 orchestration layer checks capabilities before attempting backend-specific
 operations.
 
 | Capability | Claude Code | PI | Description |
 |---|---|---|---|
-| `hooks` | yes | yes | PreToolUse/PostToolUse/Stop hooks via hook-bridge |
-| `plugins` | yes | yes | Role-scoped skill plugins |
-| `mcp` | yes | yes | MCP tool server integration |
-| `plan-mode` | yes | yes | EnterPlanMode/ExitPlanMode tool support |
-| `ask-user-question` | yes | yes | AskUserQuestion tool support |
-| `system-prompt-override` | yes | yes | Custom system prompt injection |
-| `session-resume` | yes | yes | Resume an existing session |
-| `tool-allowlist` | yes | yes | Restrict available tools to a subset |
-| `streaming-deltas` | yes | yes | Publish token-level assistant text during generation |
 | `mid-turn-inject` | yes | yes | Accept user input into a turn already in flight |
+| `usage` | no | yes | Report scoped provider usage from a pull source or push cache |
+| `background-continuation` | yes | no | Open a continuation turn of its own after the foreground result |
 | `subagents` | yes | yes | Host a delegated subagent child, streamed and billed under its parent |
 
 ## Claude Code
 
-The reference backend. Supports all eleven capabilities. Two
-adapter modes are defined; TUI is deprecated:
+The reference backend. Two adapter modes are defined; TUI is
+deprecated:
 
 **Print mode** (`claudeBackend: "print"`, default). Uses a persistent
 `claude -p` process with stream-json input and output. Cortex pools the process

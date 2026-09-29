@@ -1,6 +1,5 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
-import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
@@ -265,10 +264,6 @@ export interface EngineSession {
    *  Produced by the BACKEND (`pi.specIdentity` / `claude.specIdentity`), whose identity covers the
    *  resolved env / MCP / args. */
   readonly identity: string;
-  /** Feature gates this *session* supports. Per session, not per backend (D9): a profile can
-   *  declare a backend-level capability the concrete session does not implement, so the run layer
-   *  consults this set rather than the backend capability matrix. */
-  readonly capabilities: ReadonlySet<Capability>;
   readonly backendSessionId: string | null;
   run(prompt: UserMessage, opts: EngineRunOptions): EngineRun;
   /**

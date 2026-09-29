@@ -1,5 +1,4 @@
 import type { AgentResult } from '@core/types/agent-types.js';
-import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase } from '../continuation-phase.js';
 import type { EngineRunOptions } from '../types.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
@@ -48,7 +47,6 @@ export class PIEngineSession implements EngineSession {
    *  covers the resolved env, MCP servers and gateway routing too. SessionEngines compares this
    *  exact string. */
   readonly identity: string;
-  readonly capabilities: ReadonlySet<Capability>;
   private readonly session: PISession;
   private readonly onEvict: ((session: PIEngineSession) => void) | undefined;
   private readonly resolveSessionPath: ((sessionId: string) => string | null) | undefined;
@@ -65,10 +63,6 @@ export class PIEngineSession implements EngineSession {
     this.identity = sessionIdentity(request);
     this.onEvict = hooks.onEvict;
     this.resolveSessionPath = hooks.resolveSessionPath;
-    // D9 declares capabilities per EngineSession. PI's set happens to be backend-wide today (no
-    // per-session narrowing exists), so this is a copy rather than a lookup: a future per-session
-    // gate can mutate it without touching the shared matrix.
-    this.capabilities = new Set(CAPABILITIES_BY_BACKEND.pi);
   }
 
   get backendSessionId(): string | null {

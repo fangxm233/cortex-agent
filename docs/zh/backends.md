@@ -7,8 +7,8 @@
 
 | 后端 | 状态 | 引擎 | 前置要求 | 功能级别 |
 |---|---|---|---|---|
-| Claude Code | 已支持 | `@anthropic-ai/claude-code` | `PATH` 上有 `claude` 可执行文件 | 完整（11/11 能力） |
-| PI | 已支持 | `@earendil-works/pi-coding-agent`，随服务器包一起打包 | 除已登录的 provider 外无需任何额外安装 | 完整（11/11 能力） |
+| Claude Code | 已支持 | `@anthropic-ai/claude-code` | `PATH` 上有 `claude` 可执行文件 | 完整 |
+| PI | 已支持 | `@earendil-works/pi-coding-agent`，随服务器包一起打包 | 除已登录的 provider 外无需任何额外安装 | 完整 |
 
 ## 后端如何工作 {#how-backends-work}
 
@@ -30,25 +30,18 @@
 
 ## 功能矩阵 {#feature-matrix}
 
-Cortex 定义了后端可能支持的十一种能力。编排层在尝试后端特定操作之前检查这些能力。
+Cortex 定义了后端可能支持的四种能力。编排层在尝试后端特定操作之前检查这些能力。
 
 | 能力 | Claude Code | PI | 描述 |
 |---|---|---|---|
-| `hooks` | 是 | 是 | 通过 hook-bridge 的 PreToolUse/PostToolUse/Stop 钩子 |
-| `plugins` | 是 | 是 | 角色限定的技能插件 |
-| `mcp` | 是 | 是 | MCP 工具服务器集成 |
-| `plan-mode` | 是 | 是 | EnterPlanMode/ExitPlanMode 工具支持 |
-| `ask-user-question` | 是 | 是 | AskUserQuestion 工具支持 |
-| `system-prompt-override` | 是 | 是 | 自定义系统提示注入 |
-| `session-resume` | 是 | 是 | 恢复已有会话 |
-| `tool-allowlist` | 是 | 是 | 将可用工具限制为子集 |
-| `streaming-deltas` | 是 | 是 | 生成期间发布 token 级 assistant 文本 |
 | `mid-turn-inject` | 是 | 是 | 向正在进行的回合注入用户输入 |
+| `usage` | 否 | 是 | 从拉取源或推送缓存报告限定范围的 provider 用量 |
+| `background-continuation` | 是 | 否 | 前台结果之后自行开启续跑回合 |
 | `subagents` | 是 | 是 | 承载被委派的子智能体，其事件与用量归入父回合 |
 
 ## Claude Code
 
-参考后端。支持所有十一种能力。定义了两种适配器模式；TUI 已废弃：
+参考后端。定义了两种适配器模式；TUI 已废弃：
 
 **Print 模式**（`claudeBackend: "print"`，默认）。使用持久化的 `claude -p` 进程以及 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
 

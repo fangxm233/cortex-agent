@@ -163,7 +163,7 @@ test('provider identity accepts arbitrary configured providers and generic backe
 function attemptOutcome(foreground: Promise<AgentResult>): RunAttempt {
   return {
     engine: {
-      backend: 'claude', capabilities: new Set(), backendSessionId: null,
+      backend: 'claude', backendSessionId: null,
       run: () => ({}), steer: () => ({ accepted: false }),
       ingestExternal: () => false, respondToDialog: () => false,
       compact: async () => ({}), close: async () => {}, kill: () => true,
