@@ -35,7 +35,6 @@ export interface DIntCopy {
   approvedBy: string;
   fileSub: string;
   readLink: string;
-  approveHint: string;
   requestChanges: string;
   approvePlan: string;
   feedbackHint: string;
@@ -43,7 +42,6 @@ export interface DIntCopy {
   cancel: string;
   confirmReturn: string;
   approvedFoot: string;
-  rejectedFoot: string;
   viewPlan: string;
   viewOriginalPlan: string;
   lineCount: (n: number) => string;
@@ -67,7 +65,6 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     approvedBy: '由你批准',
     fileSub: '已写入 · 批准前建议通读全文',
     readLink: '阅读 ›',
-    approveHint: '',
     requestChanges: '请求修改',
     approvePlan: '批准计划',
     feedbackHint: '反馈必填 · 确认后退回重新规划',
@@ -75,7 +72,6 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     cancel: '取消',
     confirmReturn: '确认退回',
     approvedFoot: '· Agent 继续执行',
-    rejectedFoot: '',
     viewPlan: '查看计划 ›',
     viewOriginalPlan: '查看原计划 ›',
     lineCount: (n) => `${n} 行`,
@@ -97,7 +93,6 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     approvedBy: 'approved by you',
     fileSub: 'written · read the full plan before approving',
     readLink: 'Read ›',
-    approveHint: '',
     requestChanges: 'Request changes',
     approvePlan: 'Approve plan',
     feedbackHint: 'Feedback required · confirming returns it for replanning',
@@ -105,7 +100,6 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     cancel: 'Cancel',
     confirmReturn: 'Confirm return',
     approvedFoot: '· agent continues',
-    rejectedFoot: '',
     viewPlan: 'View plan ›',
     viewOriginalPlan: 'View original plan ›',
     lineCount: (n) => `${n} lines`,
@@ -350,7 +344,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderTop: '1px solid var(--proto-line-2)', font: `400 11px ${mono}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
             {model.filePath && <span style={{ color: 'var(--proto-accent)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model.filePath}</span>}
-            <span>{approved ? copy.approvedFoot : rejected ? copy.rejectedFoot : ''}</span>
+            <span>{approved ? copy.approvedFoot : ''}</span>
             <button type="button" className={focusClass} onClick={onOpenRead} style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontWeight: 600, cursor: 'pointer', flex: 'none', borderRadius: 'var(--r-control)' }}>
               {rejected ? copy.viewOriginalPlan : copy.viewPlan}
             </button>
@@ -407,7 +401,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '11px 16px', borderTop: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1, lineHeight: 1.5 }}>
-          {feedbackOpen ? copy.feedbackHint : copy.approveHint}
+          {feedbackOpen ? copy.feedbackHint : ''}
         </span>
         {feedbackOpen ? (
           <>

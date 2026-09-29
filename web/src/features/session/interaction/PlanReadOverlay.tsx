@@ -106,7 +106,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
         <div style={{ flex: 'none', background: 'transparent', borderTop: '1px solid var(--proto-line-2)', padding: '12px 18px' }}>
           {pending ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, color: 'var(--proto-muted)', flex: 1 }}>{copy.approveHint}</span>
+              <span style={{ flex: 1 }} />
               <button
                 type="button"
                 className={focusClass}
