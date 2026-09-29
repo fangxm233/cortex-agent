@@ -43,6 +43,7 @@ from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import VENDOR_AGENTS, arm_backend, build_agent_config, require_pinned_image
 from .runtime_mounts import RUNTIME_TARGETS
 from .network_policy import (
+    METADATA_HOSTS,
     MODE_OPEN,
     DenylistEntry,
     NetworkAccess,
@@ -179,8 +180,7 @@ def _forbidden_network_hosts(seed: TrialSeed) -> set[str]:
         host for host in (
             upstream.lower() if upstream else None,
             route_identity,
-            "169.254.169.254",
-            "metadata.google.internal",
+            *METADATA_HOSTS,
         ) if host
     }
 

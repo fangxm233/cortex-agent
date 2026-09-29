@@ -37,7 +37,12 @@ from .launcher.arms import (
     VENDOR_THINKING_LEVELS,
 )
 from .launcher.comparison_report import DIFFERENCE_CLASSES
-from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
+from .launcher.network_policy import (
+    METADATA_HOSTS,
+    NetworkAccess,
+    NetworkAccessError,
+    parse_network_access,
+)
 from .launcher.runtime_mounts import (
     OFFLINE_ONLY_RUNTIMES,
     RuntimeMountError,
@@ -101,9 +106,6 @@ PROXY_ROUTE_SCHEME = "http"
 HOST_SUFFIX = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$")
 MAXIMUM_HOSTNAME_LENGTH = 253
-# The destinations admission refuses outright, restated from `_forbidden_network_hosts` so a
-# campaign that would compose one is refused while it is still a document.
-FORBIDDEN_ROUTE_HOSTS = frozenset({"169.254.169.254", "metadata.google.internal"})
 HOST_SCAN_POLICY_MAPPING_FIELDS = (
     "secret_environment", "forbidden_environment", "forbidden_argv_environment",
     "host_identity_environment",
@@ -463,7 +465,7 @@ def _validate_trial_routes(config: CampaignConfig) -> None:
     the trial's own id and must name no forbidden destination. Checking it here turns a failure
     on trial one into a refusal before any trial is armed.
     """
-    forbidden = {str(config.credential["route_identity_host"]).lower(), *FORBIDDEN_ROUTE_HOSTS}
+    forbidden = {str(config.credential["route_identity_host"]).lower(), *METADATA_HOSTS}
     upstream = urlsplit(str(config.credential["upstream_base_url"])).hostname
     if upstream:
         forbidden.add(upstream.lower())
