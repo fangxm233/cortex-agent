@@ -112,12 +112,6 @@ export function fileTabKey(item: FileItem): string | null {
   return url ? `url:${url}` : null;
 }
 
-/** The workspace path a docked tab can download, or null (a composer object URL has no workspace
- *  bytes yet, and a web page has none at all) — the pane hides its download action then. */
-export function dockDownloadPath(tab: DockTab): string | null {
-  return isFileTab(tab) ? tab.item.path ?? null : null;
-}
-
 export function dockTabLabel(tab: DockTab, blankLabel: string): string {
   return isFileTab(tab) ? tab.item.name : browserTabLabel(tab, blankLabel);
 }
