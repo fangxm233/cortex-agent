@@ -1,5 +1,6 @@
 import type { PlatformAdapter } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
+import { buildResumeReminder } from '@core/resume-reminder.js';
 import type { EventBus } from '@events/index.js';
 import type { ThreadRecord } from '@core/types/thread-types.js';
 import { recordResume, takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
@@ -24,11 +25,6 @@ const RESUME_STAGGER_MS = 30_000;
 export function isAutoResumeEnabled(): boolean {
   return getSettings().autoResume;
 }
-
-// Shared with the interrupted-thread-step rerun (domain/threads/prompt-builder); re-exported
-// so existing callers/tests keep importing it from here.
-import { buildResumeReminder } from '@core/resume-reminder.js';
-export { buildResumeReminder };
 
 export interface ResumeDeps {
   takeReady: (activeProviders: string[]) => ResumeEntry[];
@@ -139,7 +135,7 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
         // 2026-07-09: untracked resumed threads were SIGKILLed by a .restart-triggered restart
         // that fired while they were mid-stream.
         deps.track(+1);
-        void resumeThread(entry, deps.getThread(entry.threadId)!, adapter, deps)
+        void resumeThread(entry, deps.getThread(entry.threadId)!, deps)
           .catch(e => log.error(`Resume failed (${entryKey(entry)}): ${(e as Error).message}`))
           .finally(() => deps.track(-1));
       }
@@ -200,7 +196,7 @@ async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, ada
   }
 }
 
-async function resumeThread(entry: Extract<ResumeEntry, { kind: 'thread' }>, thread: ThreadRecord, _adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {
+async function resumeThread(entry: Extract<ResumeEntry, { kind: 'thread' }>, thread: ThreadRecord, deps: ResumeDeps): Promise<void> {
   // Rebuild destination and status options from persisted thread metadata. Lifecycle hooks are
   // selected by the HookBus when the thread emits events. Unlike a direct session, the thread
   // re-runs its interrupted step from the original prompt, so
