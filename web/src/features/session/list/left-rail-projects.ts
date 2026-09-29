@@ -1,16 +1,10 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { relTime, type TimeLang } from '@/lib/time-format';
 
 // The rail's ordering contract: projects sort by MOST RECENT ACTIVITY — the project whose newest
 // session activity is latest comes first (see sortProjectsByActivity). Activity derives from the
 // persistent session registry (SessionInfo.lastUsedAt), so the order survives server/app restarts and
 // never degrades to raw filesystem order. The rail's manual mode (rail-order.ts) layers a stored
 // order on top of this one; row assembly itself lives in rail-tree.ts.
-
-/** Compact age label in the UI language (`now / 5m / 3h / 2d / 2w` · `刚刚 / 5分钟前 / 昨天`). Never negative. */
-export function relativeAge(thenMs: number, nowMs: number, lang: TimeLang): string {
-  return relTime(thenMs, nowMs, lang);
-}
 
 /** Max effective timestamp (lastUsedAt, else createdAt) per project, from an UNSCOPED
  *  sessions.list. Unparseable timestamps are skipped — never fabricate an age. */
