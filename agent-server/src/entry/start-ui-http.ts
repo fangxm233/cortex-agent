@@ -8,7 +8,6 @@ import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
 import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
 import { createUiSessionStore, DEFAULT_SESSION_TTL_MS } from '@platform/ui-http/ui-session.js';
-import type { UiSessionStore } from '@platform/ui-http/ui-session.js';
 import {
   createUiAuthRoutes,
   createUiSessionProbeRoute,
@@ -24,7 +23,6 @@ import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
 import { openDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
-import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
@@ -105,19 +103,6 @@ export interface StartUiHttpOptions {
   spaDir?: string;
   /** Explicit static CORS allow-list override; production reads runtime settings per request. */
   corsOrigins?: string[];
-  /**
-   * Explicit Cloudflare Access JWT verifier forwarded to the transport-host (the browser auth path).
-   * When omitted, it is built from env via accessVerifierFromEnv (CORTEX_ACCESS_TEAM_DOMAIN +
-   * CORTEX_ACCESS_AUD, optional CORTEX_ACCESS_CERTS_URL). When those are unset the verifier is
-   * undefined and the gate degrades to token-only. Injectable for tests.
-   */
-  verifyAccessJwt?: AccessJwtVerifier;
-  /**
-   * Explicit session store for the browser token-login path. Production builds one backed by
-   * STORE_DIR/ui-sessions.json; tests inject a memory-only store so they never touch the real file.
-   * Ignored when CORTEX_UI_TOKEN_LOGIN is switched off.
-   */
-  sessionStore?: UiSessionStore;
 }
 
 // ── File upload route (15a attachments) ───────────────────────────────────────
@@ -402,7 +387,10 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   const corsOrigins = opts.corsOrigins ?? (() => getSettings().uiCorsOrigins);
   const initialCorsOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
   const spaDir = opts.spaDir ?? env.CORTEX_UI_SPA_DIR ?? defaultSpaDir();
-  const verifyAccessJwt = opts.verifyAccessJwt ?? accessVerifierFromEnv(env);
+  // Cloudflare Access JWT verifier (the browser auth path), built from CORTEX_ACCESS_TEAM_DOMAIN +
+  // CORTEX_ACCESS_AUD (optional CORTEX_ACCESS_CERTS_URL). Unset → undefined, and the gate degrades
+  // to token-only.
+  const verifyAccessJwt = accessVerifierFromEnv(env);
   const getToken = opts.getToken ?? getClientToken;
 
   // Token login: one session store, one authorizer. The authorizer is handed to BOTH the gate and
@@ -410,7 +398,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   // that decides the next request — two copies would eventually disagree.
   const tokenLogin = isTokenLoginEnabled(env);
   const sessionStore = tokenLogin
-    ? (opts.sessionStore ?? createUiSessionStore({ file: SESSIONS_FILE, ttlMs: sessionTtlMs(env) }))
+    ? createUiSessionStore({ file: SESSIONS_FILE, ttlMs: sessionTtlMs(env) })
     : undefined;
   const verifySession = sessionStore ? (sid: string | undefined) => sessionStore.verify(sid) : undefined;
   const authorize = createAuthorizer({ getToken, verifySession, verifyAccessJwt });
@@ -429,8 +417,6 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     host: '127.0.0.1',
     spaDir,
     corsOrigins,
-    verifyAccessJwt,
-    verifySession,
     authorize,
     // Reachable without a credential: the login endpoint and the boolean probe. Everything else,
     // including logout, goes through the gate.

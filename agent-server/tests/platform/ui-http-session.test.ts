@@ -102,7 +102,6 @@ async function bootWithTokenLogin(opts: { tokenLogin?: boolean } = {}) {
     getToken,
     port: 0,
     host: '127.0.0.1',
-    verifySession,
     authorize,
     publicRoutes: tokenLogin ? [UI_LOGIN_PATH, UI_SESSION_PATH] : [UI_SESSION_PATH],
     customRoutes: {

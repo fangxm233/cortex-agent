@@ -53,15 +53,6 @@ export interface UiHttpServerOptions {
    */
   verifyAccessJwt?: AccessJwtVerifier;
   /**
-   * Optional browser-session predicate. When present, a request that fails the x-cortex-token check
-   * is admitted if it carries a live session cookie (minted by POST /api/ui/login after the browser
-   * proved it holds the token once). Absent → the cookie leg is off and nothing changes.
-   *
-   * Authority is deliberately identical to the Access-JWT leg: tRPC and the custom API routes, and
-   * NOT the /forward upgrade. That exclusion is the whole point — see the upgrade handler below.
-   */
-  verifySession?: (sid: string | undefined) => boolean;
-  /**
    * Optional map of custom API route paths to handlers (for non-tRPC endpoints like
    * file upload). Auth-gated with the same dual-path check as tRPC paths.
    */
@@ -73,9 +64,10 @@ export interface UiHttpServerOptions {
    */
   publicRoutes?: string[];
   /**
-   * Optional pre-built authorizer. When omitted one is built from getToken / verifySession /
-   * verifyAccessJwt. The caller passes its own so that the public /api/ui/session probe can answer
-   * with the exact predicate the gate uses, instead of a second copy that could drift.
+   * Optional pre-built authorizer. When omitted one is built from getToken / verifyAccessJwt, with
+   * no session-cookie leg. A caller with browser token login builds its own via createAuthorizer, so
+   * the cookie leg is on and the public /api/ui/session probe can answer with the exact predicate
+   * the gate uses, instead of a second copy that could drift.
    */
   authorize?: Authorizer;
   /**

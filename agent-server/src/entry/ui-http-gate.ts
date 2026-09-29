@@ -21,11 +21,8 @@ function isEnabled(env: NodeJS.ProcessEnv): boolean {
  * The transport module (which pulls @trpc/server + jose) is loaded via a dynamic import that is
  * only reached inside the enabled branch, so an unset flag keeps those deps out of the runtime graph.
  */
-export async function startUiHttpIfEnabled(
-  uiService: UiService,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<UiHttpHandle | null> {
-  if (!isEnabled(env)) return null;
+export async function startUiHttpIfEnabled(uiService: UiService): Promise<UiHttpHandle | null> {
+  if (!isEnabled(process.env)) return null;
   const { startUiHttpServer } = await import('./start-ui-http.js');
   // start-ui-http re-reads CORTEX_UI_HTTP and returns null when off — always truthy here.
   return startUiHttpServer({ uiService }) ?? null;
