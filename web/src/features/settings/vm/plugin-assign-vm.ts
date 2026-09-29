@@ -100,13 +100,6 @@ export function createPluginDraft(target: PluginAssignmentTarget, targets: reado
   };
 }
 
-function syncPersistedInherit(
-  draft: PluginsPanelDraft,
-  fresh: PluginsPanelDraft,
-): PluginsPanelDraft {
-  return draft.sourceFingerprint === fresh.sourceFingerprint ? draft : fresh;
-}
-
 function syncCustomToInherit(
   target: PluginTemplateSlotTarget,
   targets: readonly PluginAssignmentTarget[],
@@ -135,7 +128,7 @@ function syncInheritedDraft(
   if (preservesCustomOverride(target, draft)) return draft;
   if (target.kind !== 'template-slot' || draft.mode !== 'inherit') return null;
   return target.mode === 'inherit'
-    ? syncPersistedInherit(draft, fresh)
+    ? syncSourceDraft(draft, fresh)
     : syncCustomToInherit(target, targets, draft);
 }
 
