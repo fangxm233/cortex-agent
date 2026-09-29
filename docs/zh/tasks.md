@@ -275,7 +275,6 @@ open ──claim──→ in-progress ──complete──→ done
 |---------|-------------|
 | `assign-ids` | 自动为缺少 ID 的任务分配 4 位十六进制 ID |
 | `validate` | 验证所有项目的所有任务 ID（检查重复、缺失引用） |
-| `stop --task-id <id>` | 终止已分发的任务进程 |
 
 修改命令（`add`、`edit`、`batch-edit`、`decompose`）要求调用者持有项目锁。
 

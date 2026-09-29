@@ -192,12 +192,6 @@ test('add accepts --depends-on with space-separated values', () => {
   }
 });
 
-test('stop returns error for unknown task ID', () => {
-  const result = runCli(['stop', '--task-id', 'zzzz']);
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stdout, /No running dispatched task found/);
-});
-
 test('complete returns task_id in result', () => {
   const proj = np();
   const tid = uid();
@@ -286,40 +280,6 @@ test('claim returns task_id, agent, and claimed_at', () => {
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
-});
-
-test('stale stop metadata cannot unclaim a newer dispatch generation', () => {
-  const proj = np();
-  const tid = uid();
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${tid}\n    text: "Reclaimed task"\n    why: ""\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n    claimed-by: task-dispatcher\n    claimed-at: "2026-03-13"\n    dispatch-generation: generation-b\n`,
-  });
-  const pendingPath = path.join(STORE_DIR, 'pending-tasks.json');
-  const backup = fs.existsSync(pendingPath) ? fs.readFileSync(pendingPath, 'utf8') : null;
-  try {
-    fs.mkdirSync(STORE_DIR, { recursive: true });
-    fs.writeFileSync(pendingPath, JSON.stringify({
-      'old-dispatch': {
-        taskHash: tid, project: proj, machine: 'test', dispatchGeneration: 'generation-a',
-      },
-    }));
-    const result = runCli(['stop', '--task-id', 'old-dispatch']);
-    assert.equal(result.exitCode, 0);
-    assert.match(result.stdout, /Stale task dispatch generation/);
-    const task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
-    assert.equal(task['claimed-by'], 'task-dispatcher');
-    assert.equal(task['dispatch-generation'], 'generation-b');
-  } finally {
-    if (backup === null) fs.rmSync(pendingPath, { force: true });
-    else fs.writeFileSync(pendingPath, backup);
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('stop --dry-run returns preview without executing', () => {
-  const result = runCli(['stop', '--task-id', 'zzzz', '--dry-run']);
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stdout, /No running dispatched task found/);
 });
 
 test('add rejects unknown flags', () => {

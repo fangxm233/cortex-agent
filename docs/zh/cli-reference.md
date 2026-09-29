@@ -362,10 +362,6 @@ cortex-task <command> [options]
 
 验证所有项目的所有任务 ID。检查重复 ID 和格式错误的条目。不修改文件。
 
-**`stop --task-id <id> [--dry-run]`**
-
-终止一个已分发的任务进程。`--task-id` 可以是分发 ID（如 `dispatch_abc123`）或任务哈希。`--dry-run` 显示将被终止的内容而不执行。终止命令通过守护进程 webhook 转发到远程客户端。
-
 ### 通用选项 {#common-options}
 
 | 标志 | 描述 |

@@ -278,7 +278,6 @@ CLI reference including every subcommand and flag, see
 |---------|-------------|
 | `assign-ids` | Auto-assign 4-hex IDs to tasks missing one |
 | `validate` | Validate all task IDs across projects (check for dupes, missing refs) |
-| `stop --task-id <id>` | Kill a dispatched task process |
 
 Mutation commands (`add`, `edit`, `batch-edit`, `decompose`) require the caller to hold the project lock.
 

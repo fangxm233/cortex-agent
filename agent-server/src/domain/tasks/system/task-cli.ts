@@ -39,7 +39,6 @@ import {
 import { completeTask, uncompleteTask } from './task-completion.js';
 import { addTask, batchEdit, bulkAddTasks, decomposeTask, type TaskOrigin } from './task-mutations.js';
 import { readTaskSpec } from './task-file-input.js';
-import { stopTask, stopTaskDryRun } from './task-process.js';
 import {
   acquireLock,
   assertLockHeld,
@@ -92,7 +91,7 @@ const WRITE_COMMANDS = new Set([
   'request-approval', 'approve', 'clear-approval',
   'block', 'unblock', 'verdict',
   'add', 'spawn', 'edit', 'batch-edit', 'bulk-add', 'decompose',
-  'assign-ids', 'validate', 'stop',
+  'assign-ids', 'validate',
   'lock-acquire', 'lock-release', 'lock-status', 'lock-force-release',
 ]);
 
@@ -153,7 +152,6 @@ const COMMAND_FLAG_ALLOWLIST: Record<string, Set<string>> = {
   'bulk-add': new Set([...COMMON_FLAGS, '--file', '--auto-lock']),
   'assign-ids': new Set([...COMMON_FLAGS, '--auto-lock']),
   validate: new Set([...COMMON_FLAGS]),
-  stop: new Set([...COMMON_FLAGS, '--dry-run']),
   'lock-acquire': new Set([...COMMON_FLAGS, '--force', '--note', '--json']),
   'lock-release': new Set([...COMMON_FLAGS, '--force', '--json']),
   'lock-status': new Set([...COMMON_FLAGS, '--json']),
@@ -231,7 +229,6 @@ const HELP_CONFIG = {
       commands: [
         { name: 'assign-ids', description: 'Auto-assign 4-hex IDs to tasks missing one' },
         { name: 'validate', description: 'Validate all task IDs across projects' },
-        { name: 'stop', description: 'Kill dispatched task process (--task-id <dispatch-id|hash>)' },
       ],
     },
   ],
@@ -265,7 +262,7 @@ const HELP_CONFIG = {
     { flag: '--all', description: 'Read-only: include completed tasks (with `list`)' },
     { flag: '--json', description: 'Output as JSON (read commands)' },
     { flag: '--base-dir <path>', description: 'Cortex root directory', default: '~/Cortex' },
-    { flag: '--dry-run', description: 'Preview without executing (stop, decompose)' },
+    { flag: '--dry-run', description: 'Preview without executing (decompose)' },
     { flag: '--keep-parent', description: 'decompose: keep the original task as a join/acceptance node depending on all subtasks (DR-0014 task tree)' },
     { flag: '--auto-lock', description: 'Auto-acquire project lock before write (does NOT auto-release)' },
     { flag: '--no-notify', description: 'add: do not capture origin session/channel (suppresses completion wake)' },
@@ -280,7 +277,6 @@ const HELP_CONFIG = {
     { description: 'Complete a task with note', command: 'task complete --project example-project --task-id ab12 --note "Verified: 85% accuracy"' },
     { description: 'Append a dependency', command: 'task edit --project example-project --task-id ab12 --add-depends-on cd34' },
     { description: 'Clear dependencies', command: 'task edit --project example-project --task-id ab12 --clear-depends-on' },
-    { description: 'Stop a dispatched task (preview)', command: 'task stop --task-id dispatch_abc123 --dry-run' },
     { description: 'Acquire project lock (20min)', command: 'task lock-acquire --project example-project --note "restructuring tasks"' },
     { description: 'Release project lock', command: 'task lock-release --project example-project' },
   ],
@@ -476,9 +472,6 @@ function validateCommand(command: string, values: ParsedValues): void {
   }
   if (COMMANDS_NEEDING_TASK.has(command) && !values.task && !values.taskId) {
     throw cliError('Either --task or --task-id is required');
-  }
-  if (command === 'stop' && !values.taskId) {
-    throw cliError('--task-id is required for stop');
   }
   if (COMMANDS_NEEDING_REASON.has(command) && !values.reason) {
     throw cliError(`--reason is required for ${command}`);
@@ -784,10 +777,6 @@ function handleDecompose(v: ParsedValues) {
   return decomposeTask(v.project!, v.task, subtasks, v.taskId, { keepParent: v.keepParent });
 }
 
-function handleStop(v: ParsedValues) {
-  return v.dryRun ? stopTaskDryRun(v.taskId!) : stopTask(v.taskId!);
-}
-
 /** Capture provenance from env so task.completed can wake the originating session (Problem 1).
  *  Suppressed by --no-notify. Returns null when no env context (e.g. a human at a raw shell).
  *  Inside a thread (CORTEX_THREAD_ID set) only the thread id is recorded: a thread's
@@ -971,7 +960,6 @@ const WRITE_HANDLERS: Record<string, WriteHandler> = {
     }
     return bulkAddTasks(v.project!, inputs);
   },
-  stop: handleStop,
   'assign-ids': (v) => assignIds(v.project),
   validate: () => validateIds(),
   'lock-acquire': handleLockAcquire,

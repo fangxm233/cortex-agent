@@ -460,13 +460,6 @@ Auto-assign 4-character hex IDs to tasks missing one. Requires project lock.
 Validate all task IDs across all projects. Checks for duplicate IDs and
 malformed entries. Does not modify files.
 
-**`stop --task-id <id> [--dry-run]`**
-
-Kill a dispatched task process. `--task-id` can be a dispatch ID (e.g.
-`dispatch_abc123`) or a task hash. `--dry-run` shows what would be killed
-without executing. The kill is forwarded to the remote client via the
-daemon webhook.
-
 ### Common options
 
 | Flag | Description |

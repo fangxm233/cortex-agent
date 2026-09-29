@@ -411,7 +411,7 @@ const editTask = (project: string, options: any = {}): TaskLineTransformResult =
 
 /** Async twin of `editTask` for the server's per-message edit path. */
 // Base of the TASKS.yaml write path: this module owns the file I/O and the line-level primitives;
-// task-state / task-completion / task-mutations / task-process build on top of it. There is no
+// task-state / task-completion / task-mutations build on top of it. There is no
 // barrel for this folder on purpose — task-store.ts and the CLI import each sub-module directly.
 export {
   VALID_PRIORITIES,

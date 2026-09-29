@@ -106,7 +106,6 @@ cortex-task decompose --project <p> --task-id <id> --subtasks-file <path|->
 # Maintenance
 cortex-task assign-ids [--project <p>]
 cortex-task validate
-cortex-task stop --task-id <dispatch-id-or-hash> [--dry-run]
 ```
 
 ### Flag semantics (set vs incremental)
@@ -126,11 +125,10 @@ For incremental edits (only on `edit` / `batch-edit`):
 
 ### Other notes
 
-- `--dry-run` previews `stop` and `decompose` without mutating.
+- `--dry-run` previews `decompose` without mutating.
 - `add` / `spawn --task-file -` and `decompose --subtasks-file -` read JSON from stdin.
 - Autonomous agents MUST stage add/spawn task JSON with the Write tool at a per-thread/session unique path, replace `<current-thread-or-session-id>` with the real ID, and pass only that path to Bash; shared filenames, shell heredocs, and inline task fields are forbidden.
 - All mutation commands return JSON (`task_id`, `agent`, `claimed_at`, …) on success.
-- `stop` accepts either the dispatch ID (`dispatch_xxx`) or the TASKS.yaml hash; project is auto-resolved from `pending-tasks.json`.
 
 ## Lock Rules
 
@@ -146,7 +144,7 @@ The following mutation commands **must** hold the project lock first, otherwise 
 - `decompose` — Decompose into subtasks
 - `assign-ids` — Assign task IDs
 
-Lifecycle commands (claim / complete / block / unblock / pause / resume / approval series / stop, etc.) **do not need** a lock — they are called routinely by the dispatcher on automated paths.
+Lifecycle commands (claim / complete / block / unblock / pause / resume / approval series, etc.) **do not need** a lock — they are called routinely by the dispatcher on automated paths.
 
 ### Lock semantics
 
@@ -200,7 +198,6 @@ Examples:
 - Set deps: `cortex-task edit --project <project> --task-id <id> --depends-on a111 a112` (replaces full list)
 - Append a dep: `cortex-task edit --project <project> --task-id <id> --add-depends-on a113`
 - Assign IDs: `cortex-task assign-ids --project <project>`
-- Stop preview: `cortex-task stop --task-id <id> --dry-run`
 
 **Step 3 — Report.** Summarize the result briefly and include the canonical CLI response
 when useful. If the CLI reports an error, surface it directly instead of inferring a
@@ -212,7 +209,7 @@ different outcome.
 
 - Prefer the canonical CLI over manual `TASKS.yaml` edits whenever a matching command exists.
 - Show / deps require `--task-id`.
-- All write commands except `assign-ids` / `validate` / `stop` require `--project`.
+- All write commands except `assign-ids` / `validate` require `--project`.
 - `assign-ids` is the canonical way to backfill missing task IDs.
 - **`add` required**: the task file must contain `text`; creation conventions also require `why`, `done-when`, `plan`, and `template`. Missing task-file `text` is rejected.
 - **Manual Task ID is prohibited**: New tasks must be created via the `add` command; directly editing TASKS.yaml to write IDs is forbidden.
