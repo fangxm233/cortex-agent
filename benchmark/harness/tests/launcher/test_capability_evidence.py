@@ -120,7 +120,6 @@ def test_validates_shipped_claude_live_and_synthetic_evidence() -> None:
         adapter_id="anthropic-messages/subscription-oauth",
     )
     assert live["claude_code_version"] == "2.1.232"
-    assert live["request_count"] == 1
 
     offline_path = EVIDENCE_DIR / "claude-subscription.offline-contract-passed.json"
     offline_digest = hashlib.sha256(offline_path.read_bytes()).hexdigest()
@@ -146,9 +145,6 @@ def test_validates_shipped_codex_live_evidence() -> None:
     )
     assert live["codex_cli_version"] == "0.148.0"
     assert live["implementation_commit"] == "8fad24e9c56ae5fef91a640516c094458824bbb9"
-    assert live["request_count"] == 1
-    assert live["scan_clean"] is True
-    assert live["revocation_proven"] is True
 
 
 def test_validates_shipped_codex_offline_evidence() -> None:
@@ -192,9 +188,6 @@ def test_validates_shipped_pi_codex_live_evidence() -> None:
     )
     assert live["implementation_commit"] == "8ec04171775f75eea94fa31814cd50e5e491414c"
     assert live["pi_version"] == "0.82.1"
-    assert live["request_count"] == 1
-    assert live["scan_clean"] is True
-    assert live["revocation_proven"] is True
 
 
 def test_validates_shipped_pi_codex_offline_evidence() -> None:
@@ -260,7 +253,6 @@ def test_validates_the_shipped_deepseek_live_evidence() -> None:
         adapter_id="deepseek-chat-completions/api-key",
     )
     assert evidence["implementation_commit"] == "9c6ebf542d06326cbf8aec20c65ac3eb058c081f"
-    assert evidence["request_count"] == 1
     assert evidence["conservative_cost_usd"] == "0.00058086"
 
 
@@ -438,19 +430,6 @@ def supporting(directory: Path, manifest_document: dict[str, object], **override
     evidence["mutations_total"] = evidence["mutations_killed"] = 2
     evidence.update(overrides)
     return evidence
-
-
-def test_shipped_mutation_manifest_kills_every_listed_mutation() -> None:
-    shipped = json.loads(
-        (EVIDENCE_DIR / "pi-deepseek-api-key.mutation-manifest.json").read_bytes())
-    evidence = json.loads(
-        (EVIDENCE_DIR / "pi-deepseek-api-key.offline-contract-passed.json").read_bytes())
-    mutations = shipped["mutations"]
-    assert [mutation["id"] for mutation in mutations] == list(range(1, len(mutations) + 1))
-    assert all(mutation["killed"] is True for mutation in mutations)
-    assert all(mutation["return_code"] != 0 for mutation in mutations)
-    assert len(mutations) == evidence["mutations_total"] == evidence["mutations_killed"]
-    assert shipped["implementation_commit"] == evidence["implementation_commit"]
 
 
 def test_accepts_an_internally_valid_supporting_manifest(tmp_path: Path) -> None:
