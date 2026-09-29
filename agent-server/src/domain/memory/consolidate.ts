@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROJECTS_DIR, isMainModule } from '@core/utils.js';
-import { parseFrontmatter, scanAtomicFiles } from './index-regen.js';
+import { scanAtomicFiles } from './index-regen.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('consolidate');
@@ -70,11 +70,6 @@ function isInactiveStatus(status: string | null | undefined): boolean {
   if (!status) return false;
   const s = String(status).toLowerCase();
   return INACTIVE_STATUSES.some(prefix => s.startsWith(prefix));
-}
-
-function getStatusTarget(status: string): string | null {
-  const m = String(status).match(/^(?:superseded|refined|invalidated|corrected|challenged):(.+)/i);
-  return m ? m[1].trim() : null;
 }
 
 function daysSince(dateStr: string | null | undefined): number | null {
@@ -478,10 +473,6 @@ export function consolidateAll(): ProjectReport[] {
   return projects.map(p => analyzeProject(p));
 }
 
-export function consolidateProject(projectName: string): ProjectReport {
-  return analyzeProject(projectName);
-}
-
 // --- CLI ---
 
 function printReport(reports: ProjectReport[]): void {
@@ -578,7 +569,7 @@ Options:
   if (filteredArgs.includes('--all') || filteredArgs.length === 0) {
     reports = consolidateAll();
   } else {
-    reports = filteredArgs.map(p => consolidateProject(p));
+    reports = filteredArgs.map(p => analyzeProject(p));
   }
 
   if (jsonMode) {

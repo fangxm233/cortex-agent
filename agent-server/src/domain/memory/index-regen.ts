@@ -434,4 +434,4 @@ Options:
   }
 }
 
-export { generateIndex, parseFrontmatter, serializeFrontmatter, scanAtomicFiles };
+export { generateIndex, scanAtomicFiles };
