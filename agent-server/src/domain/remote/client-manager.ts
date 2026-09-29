@@ -741,12 +741,9 @@ export {
   sendControlMessage,
   setClientUpdateHooks,
   startRemoteClient,
-  launchRemoteClient,
   startAllRemoteClients,
   buildRemoteSpawnCommand,
-  localClientEntryPath,
   clientPids,
-  sshExec,
   // Test-only hooks (prefixed with _ by convention).
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
