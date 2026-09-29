@@ -78,15 +78,6 @@ function rowStyle(divider: boolean): CSSProperties {
 const TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, color: MC.ink };
 const HINT: CSSProperties = { fontSize: 12, color: MC.muted, marginTop: 4, lineHeight: 1.45, paddingRight: 8 };
 
-function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
-  value: T;
-  options: readonly { id: T; label: string }[];
-  onChange: (value: T) => void;
-  ariaLabel: string;
-}) {
-  return <SSegmented value={value} options={[...options]} onChange={onChange} ariaLabel={ariaLabel} />;
-}
-
 /** Label on the left, segmented control on the right — the row shape shared by every simple choice. */
 function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
   title: string;
@@ -103,7 +94,7 @@ function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
         <div style={TITLE}>{title}</div>
         {hint ? <div style={HINT} data-choice-hint>{hint}</div> : null}
       </div>
-      <Segmented {...segment} />
+      <SSegmented {...segment} options={[...segment.options]} />
     </div>
   );
 }
