@@ -1,8 +1,8 @@
 import { t } from '@core/i18n.js';
 import * as path from 'node:path';
 import { HOOKS_DIR } from '@core/paths.js';
-import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
-import { loadMountedHooks, type MountedHook } from '@store/hook-registry.js';
+import { runHookProcess } from '@core/hook-exec.js';
+import { hookProcessOptions, loadMountedHooks } from '@store/hook-registry.js';
 import {
   createHookEntry,
   removeHookEntry,
@@ -117,37 +117,6 @@ export async function handleHooksRemove(
   }
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/** Mirrors the cortex-hook CLI's process options, with the timeout clamped for UI-triggered runs. */
-export function testProcessOptions(
-  hook: MountedHook,
-  hooksDir: string,
-  stdinPayload: string,
-): HookProcessOptions {
-  if (hook.kind === 'template') {
-    return {
-      command: hook.run.command,
-      args: hook.run.args,
-      timeoutMs: Math.min(hook.run.timeout ?? 30_000, TEST_TIMEOUT_CAP_MS),
-      stdinPayload,
-      label: hook.id,
-    };
-  }
-  const run = hook.entry.run;
-  const command = run.script === undefined
-    ? run.command
-    : `node ${shellQuote(path.join(hooksDir, run.script))}`;
-  return {
-    command,
-    timeoutMs: Math.min((run.timeout ?? 30) * 1_000, TEST_TIMEOUT_CAP_MS),
-    stdinPayload,
-    label: hook.id,
-  };
-}
-
 export async function handleHooksTest(
   _deps: UiServiceDeps,
   args: HooksTestArgs,
@@ -155,7 +124,7 @@ export async function handleHooksTest(
   const hook = loadMountedHooks().find((candidate) => candidate.id === args.id);
   if (!hook) return { ok: false, code: 'not-found', message: t('ui.hook.unknownId', { id: args.id }) };
   try {
-    const result = await runHookProcess(testProcessOptions(hook, HOOKS_DIR, args.payload));
+    const result = await runHookProcess(hookProcessOptions(hook, HOOKS_DIR, args.payload, TEST_TIMEOUT_CAP_MS));
     return {
       ok: true,
       data: {

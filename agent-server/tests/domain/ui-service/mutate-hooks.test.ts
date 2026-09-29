@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { hookDraftFromArgs, testProcessOptions } from '../../../src/domain/ui-service/mutate/hooks.js';
-import type { MountedHook } from '../../../src/store/hook-registry.js';
+import { hookDraftFromArgs } from '../../../src/domain/ui-service/mutate/hooks.js';
+import { hookProcessOptions, type MountedHook } from '../../../src/store/hook-registry.js';
 
 test('rebuilds the nested run shape from flat form fields', () => {
   const draft = hookDraftFromArgs({ event: 'agent:pre-tool', script: 'x.mjs', timeoutSec: 12 });
@@ -49,11 +49,11 @@ function registryHook(timeout?: number): MountedHook {
 }
 
 test('clamps a long declared timeout so a blocking hook cannot park the request', () => {
-  assert.equal(testProcessOptions(registryHook(1800), '/hooks', '{}').timeoutMs, 15_000);
+  assert.equal(hookProcessOptions(registryHook(1800), '/hooks', '{}', 15_000).timeoutMs, 15_000);
 });
 
 test('resolves a script against the hooks directory with quoting', () => {
-  assert.equal(testProcessOptions(registryHook(5), '/hooks', '{}').command, "node '/hooks/ask.mjs'");
+  assert.equal(hookProcessOptions(registryHook(5), '/hooks', '{}', 15_000).command, "node '/hooks/ask.mjs'");
 });
 
 test('clamps template hooks too, whose timeout is already in milliseconds', () => {
@@ -68,7 +68,7 @@ test('clamps template hooks too, whose timeout is already in milliseconds', () =
     phase: 'end',
   } as MountedHook;
 
-  const options = testProcessOptions(template, '/hooks', '{}');
+  const options = hookProcessOptions(template, '/hooks', '{}', 15_000);
   assert.equal(options.timeoutMs, 15_000);
   assert.deepEqual(options.args, ['reviewer']);
 });

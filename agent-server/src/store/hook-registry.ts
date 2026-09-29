@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { HookProcessOptions } from '../core/hook-exec.js';
 import { CONFIG_DIR } from '../core/paths.js';
 
 export type HookBackend = 'claude' | 'pi';
@@ -376,6 +377,41 @@ export function loadMountedHookSummaries(
   templateDir = path.join(CONFIG_DIR, 'thread-templates', 'templates'),
 ): MountedHookSummary[] {
   return loadMountedHooks(registryDir, templateDir).map(summarizeMountedHook);
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * How to spawn one mounted hook for a manual test run (the cortex-hook CLI and the Web UI).
+ * `maxTimeoutMs` lets a caller clamp the declared timeout.
+ */
+export function hookProcessOptions(
+  hook: MountedHook,
+  hooksDir: string,
+  stdinPayload: string,
+  maxTimeoutMs = Infinity,
+): HookProcessOptions {
+  if (hook.kind === 'template') {
+    return {
+      command: hook.run.command,
+      args: hook.run.args,
+      timeoutMs: Math.min(hook.run.timeout ?? 30_000, maxTimeoutMs),
+      stdinPayload,
+      label: hook.id,
+    };
+  }
+  const run = hook.entry.run;
+  const command = run.script === undefined
+    ? run.command
+    : `node ${shellQuote(path.join(hooksDir, run.script))}`;
+  return {
+    command,
+    timeoutMs: Math.min((run.timeout ?? 30) * 1_000, maxTimeoutMs),
+    stdinPayload,
+    label: hook.id,
+  };
 }
 
 function implicitBackends(event: HookEvent): HookBackend[] {

@@ -8,12 +8,13 @@ import {
   readStdinSync,
   type HelpSpec,
 } from '@core/cli-utils.js';
-import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
+import { runHookProcess } from '@core/hook-exec.js';
 import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
 import { isMainModule } from '@core/utils.js';
 import { normalizeAskLevel } from '../platform/interactive-builder.js';
 import { MANAGED_RESYNC_WARNING, setHookEnabled } from '@store/hook-writer.js';
 import {
+  hookProcessOptions,
   loadMountedHooks,
   summarizeMountedHook,
   type MountedHook,
@@ -349,35 +350,6 @@ function handleState(context: HandlerContext, enabled: boolean): HookCliResult {
   return success(statePayload(hook, enabled, changed, false));
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function processOptions(
-  hook: MountedHook,
-  hooksDir: string,
-  stdinPayload: string,
-): HookProcessOptions {
-  if (hook.kind === 'template') {
-    return {
-      command: hook.run.command,
-      args: hook.run.args,
-      timeoutMs: hook.run.timeout ?? 30_000,
-      stdinPayload,
-      label: hook.id,
-    };
-  }
-  const command = hook.entry.run.script === undefined
-    ? hook.entry.run.command
-    : `node ${shellQuote(path.join(hooksDir, hook.entry.run.script))}`;
-  return {
-    command,
-    timeoutMs: (hook.entry.run.timeout ?? 30) * 1_000,
-    stdinPayload,
-    label: hook.id,
-  };
-}
-
 function readPayload(payload: string, options: Required<HookCliOptions>): string {
   if (payload === '-') return options.readStdin();
   try {
@@ -394,7 +366,7 @@ function readPayload(payload: string, options: Required<HookCliOptions>): string
 async function handleTest(context: HandlerContext): Promise<HookCliResult> {
   const hook = findHook(context.parsed.id!, context.hooks);
   const payload = readPayload(context.parsed.payload!, context.options);
-  const result = await runHookProcess(processOptions(hook, context.options.hooksDir, payload));
+  const result = await runHookProcess(hookProcessOptions(hook, context.options.hooksDir, payload));
   const output: Record<string, unknown> = {
     ok: result.exitCode === 0 && !result.error,
     id: hook.id,
