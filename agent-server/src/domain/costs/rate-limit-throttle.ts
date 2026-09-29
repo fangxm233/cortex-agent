@@ -62,13 +62,6 @@ export interface ThrottlePersistence {
   load: () => Promise<PersistedThrottleState | null>;
 }
 
-export interface ThrottleStateView extends RateLimitThrottleState {
-  isThrottled: boolean;
-  resetsAt: number | null;
-  rateLimitedModes: string[];
-  rateLimitedTypes: string[];
-}
-
 export interface ClearedThrottleProvider {
   provider: string;
   displayName: string;
@@ -562,21 +555,8 @@ function isProviderModeRateLimited(provider: string, mode: string): boolean {
     || state.modes.includes(mode);
 }
 
-function isModeRateLimited(mode: string): boolean {
-  return snapshot().some((provider) => provider.modes.includes(mode));
-}
-
-function getThrottleState(): ThrottleStateView {
-  const providers = snapshot();
-  const windows = providers.flatMap((provider) => provider.windows);
-  const resetsAt = windows.length > 0 ? Math.max(...windows.map((window) => window.resetsAt)) : null;
-  return {
-    isThrottled: providers.length > 0,
-    resetsAt,
-    rateLimitedModes: uniqueSorted(providers.flatMap((provider) => provider.modes)),
-    rateLimitedTypes: uniqueSorted(windows.map((window) => window.type)),
-    providers,
-  };
+function getThrottleState(): RateLimitThrottleState {
+  return { providers: snapshot() };
 }
 
 function _testReset(): void {
@@ -597,7 +577,6 @@ export {
   isProviderRateLimited,
   isProviderUsageRateLimited,
   isProviderModeRateLimited,
-  isModeRateLimited,
   getThrottleState,
   _testReset,
 };

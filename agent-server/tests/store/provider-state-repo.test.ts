@@ -10,6 +10,7 @@ import { runMigrations } from '../../src/store/version-migrations.js';
 import {
   getThrottleState,
   initRateLimitThrottle,
+  isThrottled,
   _testReset as resetThrottle,
   type RateLimitThrottleState,
 } from '../../src/domain/costs/rate-limit-throttle.js';
@@ -128,7 +129,7 @@ test('active windows and resume entries hydrate from a fresh repository instance
   });
 
   assert.equal(getResumeCount(), 1);
-  assert.equal(getThrottleState().isThrottled, true);
+  assert.equal(isThrottled(), true);
   assert.deepEqual(getThrottleState().providers.map((entry) => entry.provider), ['provider-a']);
 });
 

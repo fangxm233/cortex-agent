@@ -37,7 +37,6 @@ function throttleQueries(mod: any, provider: string, mode: string) {
     provider: mod.isProviderRateLimited(provider),
     usage: mod.isProviderUsageRateLimited(provider),
     providerMode: mod.isProviderModeRateLimited(provider, mode),
-    mode: mod.isModeRateLimited(mode),
     providers: mod.getThrottleState().providers,
   };
 }
@@ -78,7 +77,7 @@ test('activates on seven_day with utilization ≥ 0.95', async (t) => {
   await mod.handleRateLimitEvent({ rateLimitType: 'seven_day', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 300 });
   assert.equal(mod.isThrottled(), true);
   const state = mod.getThrottleState();
-  assert.ok(state.rateLimitedTypes.includes('seven_day'));
+  assert.deepEqual(state.providers[0].windows.map((w) => w.type), ['seven_day']);
 });
 
 test('ignores seven_day below threshold (0.94)', async (t) => {
@@ -139,8 +138,8 @@ test('activates throttle and persists state', async (t) => {
   assert.equal(adapter.posted.length, 1);
 
   const state = mod.getThrottleState();
-  assert.equal(state.resetsAt, resetSec);
-  assert.deepEqual(state.rateLimitedModes, []);
+  assert.equal(state.providers[0].windows[0].resetsAt, resetSec);
+  assert.deepEqual(state.providers[0].modes, []);
 
   // Verify persistence saved the state
   const saved = persistence.getSaved();
@@ -162,7 +161,7 @@ test('extends timer on later resetsAt while already throttled', async (t) => {
 
   await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.97, resetsAt: baseReset + 600 });
   assert.equal(mod.isThrottled(), true);
-  assert.equal(mod.getThrottleState().resetsAt, baseReset + 600);
+  assert.equal(mod.getThrottleState().providers[0].windows[0].resetsAt, baseReset + 600);
 
   // Persisted provider window updated
   const saved = persistence.getSaved();
@@ -180,7 +179,7 @@ test('does not extend timer on earlier resetsAt', async (t) => {
   await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.95, resetsAt: baseReset });
 
   await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.96, resetsAt: baseReset - 300 });
-  assert.equal(mod.getThrottleState().resetsAt, baseReset);
+  assert.equal(mod.getThrottleState().providers[0].windows[0].resetsAt, baseReset);
 });
 
 test('initRateLimitThrottle recovers expired throttle on restart', async (t) => {
@@ -205,10 +204,11 @@ test('initRateLimitThrottle recovers active throttle on restart', async (t) => {
 
   // Throttle should be restored with modes
   assert.equal(mod.isThrottled(), true);
-  assert.equal(mod.getThrottleState().resetsAt, futureReset);
-  assert.deepEqual(mod.getThrottleState().rateLimitedModes.sort(), ['api', 'plan']);
-  assert.ok(mod.isModeRateLimited('plan'));
-  assert.ok(mod.isModeRateLimited('api'));
+  const provider = mod.getThrottleState().providers[0];
+  assert.equal(provider.windows[0].resetsAt, futureReset);
+  assert.deepEqual(provider.modes, ['api', 'plan']);
+  assert.ok(mod.isProviderModeRateLimited('anthropic', 'plan'));
+  assert.ok(mod.isProviderModeRateLimited('anthropic', 'api'));
 });
 
 test('onResume fires once when the resume timer clears the throttle', async (t) => {
@@ -279,11 +279,15 @@ test('persistence roundtrip with modes', async (t) => {
   await mod2.initRateLimitThrottle(adapter2, persistence2 as any);
 
   assert.equal(mod2.isThrottled(), true);
-  assert.equal(mod2.getThrottleState().resetsAt, resetSec + 600);
-  assert.deepEqual(mod2.getThrottleState().rateLimitedModes.sort(), ['api', 'plan']);
-  assert.deepEqual(mod2.getThrottleState().rateLimitedTypes.sort(), ['five_hour']);
-  assert.ok(mod2.isModeRateLimited('plan'));
-  assert.ok(mod2.isModeRateLimited('api'));
+  assert.deepEqual(
+    mod2.getThrottleState().providers.map((p) => [p.provider, p.modes, p.windows.map((w) => [w.type, w.resetsAt])]),
+    [
+      ['api', ['api'], [['five_hour', resetSec + 600]]],
+      ['plan', ['plan'], [['five_hour', resetSec]]],
+    ],
+  );
+  assert.ok(mod2.isProviderModeRateLimited('plan', 'plan'));
+  assert.ok(mod2.isProviderModeRateLimited('api', 'api'));
 });
 
 test('cross-type extension: seven_day extends five_hour resetsAt', async (t) => {
@@ -299,8 +303,10 @@ test('cross-type extension: seven_day extends five_hour resetsAt', async (t) => 
   // seven_day with later resetsAt should extend and track both types
   const sevenDayReset = fiveHourReset + 3600;
   await mod.handleRateLimitEvent({ rateLimitType: 'seven_day', utilization: 0.99, resetsAt: sevenDayReset });
-  assert.equal(mod.getThrottleState().resetsAt, sevenDayReset);
-  assert.deepEqual(mod.getThrottleState().rateLimitedTypes.sort(), ['five_hour', 'seven_day']);
+  assert.deepEqual(
+    mod.getThrottleState().providers[0].windows.map((w) => [w.type, w.resetsAt]),
+    [['five_hour', fiveHourReset], ['seven_day', sevenDayReset]],
+  );
 });
 
 test('tracks two providers with independent windows and persists provider records', async (t) => {
@@ -322,8 +328,8 @@ test('tracks two providers with independent windows and persists provider record
   assert.deepEqual(state.providers.map((p: any) => p.provider).sort(), ['anthropic', 'openai-codex']);
   assert.equal(state.providers.find((p: any) => p.provider === 'anthropic').windows[0].resetsAt, now + 600);
   assert.equal(state.providers.find((p: any) => p.provider === 'openai-codex').windows[0].resetsAt, now + 120);
-  assert.ok(mod.isModeRateLimited('plan'));
-  assert.ok(mod.isModeRateLimited('subscription'));
+  assert.ok(mod.isProviderModeRateLimited('anthropic', 'plan'));
+  assert.ok(mod.isProviderModeRateLimited('openai-codex', 'subscription'));
   assert.equal(persistence.getSaved().providers.length, 2);
 });
 
@@ -626,7 +632,6 @@ test('groups multiple active window identities under one provider and upserts mo
     ['model_scoped', 'Opus'],
     ['model_scoped', 'Sonnet'],
   ]);
-  assert.equal(mod.getThrottleState().resetsAt, now + 1_500);
 });
 
 test('legacy persisted throttle recovers as an Anthropic provider record', async (t) => {
