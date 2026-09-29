@@ -103,7 +103,7 @@ function collapsedRowStyle(hover: boolean, touch: boolean): CSSProperties {
 function ToolChip({ call }: { call: ToolCall }): JSX.Element {
   return (
     <span style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
-      {call.label}
+      {call.kind}
     </span>
   );
 }
@@ -120,7 +120,7 @@ function ToolCallsSummaryRow({ calls, text, expanded, hover, touch, onToggle, on
   onHover: (hovered: boolean) => void;
   buttonRef: Ref<HTMLButtonElement>;
 }): JSX.Element {
-  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.label), COLLAPSED_GAP);
+  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.kind), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div>

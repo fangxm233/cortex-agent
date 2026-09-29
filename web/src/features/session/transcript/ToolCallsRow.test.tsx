@@ -15,8 +15,8 @@ vi.mock('./DebugDetailsModal', () => ({
 }));
 
 const calls: ToolCall[] = [
-  { kind: 'read', label: 'read file.ts', input: 'file.ts', debug: { toolRef: 'tool-1' } },
-  { kind: 'bash', label: 'bash pwd', input: 'pwd' },
+  { kind: 'read', input: 'file.ts', debug: { toolRef: 'tool-1' } },
+  { kind: 'bash', input: 'pwd' },
 ];
 function mount(items = calls, touch = false): ReactTestRenderer {
   let renderer!: ReactTestRenderer;

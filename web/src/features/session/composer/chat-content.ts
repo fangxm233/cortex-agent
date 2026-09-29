@@ -1,5 +1,4 @@
 export interface ToolCall {
-  label: string;
   kind: string;
   input: string;
   debug?: {

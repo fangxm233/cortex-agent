@@ -402,7 +402,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       return (
         <div className="group">
           <ToolCallsRow
-            calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))}
+            calls={row.calls.map((c) => ({ kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))}
             sessionId={streamKey}
           />
           <TurnCopyAction text={assistantCopyText} copy={editCopy} />
