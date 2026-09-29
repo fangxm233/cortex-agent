@@ -54,16 +54,11 @@ function validateAuthOptions(options: string[]): AuthCliResult | null {
 export async function runAuthCli(
   args: string[],
   readStatus: () => Promise<AuthStatusSnapshot>,
-  stores?: CustomProviderStores,
+  stores: CustomProviderStores,
 ): Promise<AuthCliResult> {
   if (args[0] === 'login') return runAuthLoginCli(args.slice(1));
   // Custom providers are part of the account surface, so they hang off `cortex auth`.
-  if (args[0] === 'provider') {
-    if (!stores) {
-      return { exitCode: 1, stdout: '', stderr: t('provider.cli.writeFailed') };
-    }
-    return runProviderCli(args.slice(1), stores);
-  }
+  if (args[0] === 'provider') return runProviderCli(args.slice(1), stores);
   const parsed = parseAuthCommand(args);
   if (!Array.isArray(parsed)) return parsed;
   const invalid = validateAuthOptions(parsed);
