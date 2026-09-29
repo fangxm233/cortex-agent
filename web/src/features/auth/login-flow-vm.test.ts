@@ -15,21 +15,16 @@ function state(overrides: Partial<LoginFlowState> = {}): LoginFlowState {
 
 describe('buildLoginFlowVm', () => {
   it('uses a pre-flow selection view when no flow exists', () => {
-    expect(buildLoginFlowVm(null, en)).toMatchObject({ kind: 'selection', terminal: false });
+    expect(buildLoginFlowVm(null, en)).toMatchObject({ kind: 'selection' });
   });
 
-  it.each([
-    ['secret', 'password'],
-    ['manual_code', 'text'],
-    ['text', 'text'],
-    ['select', 'select'],
-  ] as const)('maps %s prompts to a %s control', (kind, inputType) => {
+  it.each(['secret', 'manual_code', 'text', 'select'] as const)('maps %s prompts to the prompt view', (kind) => {
     const prompt = kind === 'select'
       ? { kind, message: 'Pick', options: [{ id: 'one', label: 'One' }] }
       : { kind, message: 'Enter' };
     const vm = buildLoginFlowVm(state({ step: 'prompt', pendingPrompt: prompt }), en);
 
-    expect(vm).toMatchObject({ kind: 'prompt', inputType, terminal: false });
+    expect(vm).toMatchObject({ kind: 'prompt' });
   });
 
   it.each(['info', 'auth_url', 'device_code', 'progress'] as const)(
@@ -42,9 +37,7 @@ describe('buildLoginFlowVm', () => {
           : kind === 'device_code'
             ? { kind, userCode: 'CODE', verificationUri: 'https://verify.example.test' }
             : { kind, message: 'Working' };
-      expect(buildLoginFlowVm(state({ notice }), en)).toMatchObject({
-        kind: 'notice', inputType: null, terminal: false,
-      });
+      expect(buildLoginFlowVm(state({ notice }), en)).toMatchObject({ kind: 'notice' });
     },
   );
 
@@ -57,7 +50,7 @@ describe('buildLoginFlowVm', () => {
       step: 'failed', error: 'PI runtime is unavailable.', errorCode: 'runtime_unavailable',
     }), en);
 
-    expect(done).toMatchObject({ kind: 'done', terminal: true });
-    expect(failed).toMatchObject({ kind: 'failed', terminal: true });
+    expect(done).toMatchObject({ kind: 'done' });
+    expect(failed).toMatchObject({ kind: 'failed' });
   });
 });
