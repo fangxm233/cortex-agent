@@ -207,11 +207,10 @@ function OnlineCard({
 // ── inert action button (scheme L590-591): styled 38px button, no browser-safe backend op.
 // HONEST: retry-connect / view-logs need a daemon-side op with no tRPC surface here → wired as no-ops,
 // mirroring the desktop settings machines pattern (rendered, non-functional).
-function InertButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+function InertButton({ children }: { children: ReactNode }) {
   return (
     <button
       type="button"
-      onClick={onClick}
       style={{
         flex: 1,
         height: 38,
@@ -237,15 +236,11 @@ function OfflineCard({
   copy,
   expanded,
   onToggle,
-  onRetry,
-  onLogs,
 }: {
   card: MMachineCard;
   copy: MMachinesCopy;
   expanded: boolean;
   onToggle: (name: string) => void;
-  onRetry?: (name: string) => void;
-  onLogs?: (name: string) => void;
 }) {
   return (
     <MCard tone="fail" padding="11px 13px">
@@ -269,8 +264,8 @@ function OfflineCard({
         )}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <InertButton onClick={onRetry ? () => onRetry(card.name) : undefined}>{copy.retry}</InertButton>
-        <InertButton onClick={onLogs ? () => onLogs(card.name) : undefined}>{copy.logs}</InertButton>
+        <InertButton>{copy.retry}</InertButton>
+        <InertButton>{copy.logs}</InertButton>
       </div>
     </MCard>
   );
@@ -293,8 +288,6 @@ export function MMachinesView({
   expanded,
   onToggle,
   panel,
-  onRetry,
-  onLogs,
   onAdd,
   addDisabled,
 }: {
@@ -306,10 +299,8 @@ export function MMachinesView({
   onToggle: (name: string) => void;
   /** Probe state for the expanded card; null when nothing is expanded or it is offline. */
   panel: MMachineDetailPanel | null;
-  onRetry?: (name: string) => void;
-  onLogs?: (name: string) => void;
-  onAdd?: () => void;
-  addDisabled?: boolean;
+  onAdd: () => void;
+  addDisabled: boolean;
 }) {
   return (
     <MSettingsFrame label="Settings · Machines" header={<MDrillHeader onBack={onBack} trailing={<DaemonStatus vm={vm} copy={copy} />}>
@@ -336,16 +327,14 @@ export function MMachinesView({
               copy={copy}
               expanded={expanded === card.name}
               onToggle={onToggle}
-              onRetry={onRetry}
-              onLogs={onLogs}
             />
           ),
         )}
-        {onAdd && <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
+        <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
           style={{ border: `1px solid ${MC.runBorder}`, borderRadius: 'var(--r-chip)', padding: '9px 12px',
             background: MC.runBg, color: MC.run, fontSize: 11, fontWeight: 650 }}>
           {copy.add}
-        </button>}
+        </button>
         {vm.cards.length > 0 && <RegistryFooter vm={vm} copy={copy} />}
       </MScrollBody>
     </MSettingsFrame>
