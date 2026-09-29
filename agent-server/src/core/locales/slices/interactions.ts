@@ -51,12 +51,7 @@ export const interactionsEn = {
   'modal.feedbackLabel': 'Your feedback (Cortex will revise the plan)',
   'modal.feedbackPlaceholder': 'What should be changed?',
 
-  // --- manager-qa.ts (subtask escalated to a human at the top of the tree) ---
-  'subtask.fromTask': 'Subtask #${taskId}',
-  'subtask.fromUnknown': 'a subtask',
-  'subtask.escalateHeader': '[Subtask question — escalated to you] ${from} hit something unclear/contradictory while executing and has no manager above it, so it is checking with you:',
-  'subtask.questionLabel': 'Question: ${question}',
-  'subtask.escalateReply': 'Just reply in this channel — your next message will be returned to that subtask as the answer.',
+  // --- agent-runner.ts (a human's reply routed back to a subtask's question) ---
   'subtask.replyDelivered': 'Your reply has been delivered to the subtask that asked.',
 } as const;
 
@@ -111,11 +106,6 @@ export const interactionsZh: Record<keyof typeof interactionsEn, string> = {
   'modal.feedbackLabel': '你的反馈（Cortex 将修订计划）',
   'modal.feedbackPlaceholder': '应该修改什么？',
 
-  // --- manager-qa.ts (subtask escalated to a human at the top of the tree) ---
-  'subtask.fromTask': '子任务 #${taskId}',
-  'subtask.fromUnknown': '一个子任务',
-  'subtask.escalateHeader': '[子任务提问 — 已升级到你] ${from} 在执行中遇到不清楚/矛盾之处，没有上级 manager，转而向你确认：',
-  'subtask.questionLabel': '问题: ${question}',
-  'subtask.escalateReply': '直接在本频道回复即可——你的下一条消息会作为答复返回给该子任务。',
+  // --- agent-runner.ts (a human's reply routed back to a subtask's question) ---
   'subtask.replyDelivered': '已把你的回复作为答复返回给提问的子任务。',
 };
