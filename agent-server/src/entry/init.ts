@@ -653,7 +653,7 @@ export function generateSystemdUnit(
 }
 
 /** Generate launchd plist content for macOS. */
-export function generateLaunchdPlist(user: string, cortexBin: string, dataDir: string): string {
+export function generateLaunchdPlist(cortexBin: string, dataDir: string): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -715,7 +715,7 @@ function installService(dataDir: string): void {
 
   if (platform === 'darwin') {
     const plistName = 'cc.cortex.agent-server.plist';
-    const plistContent = generateLaunchdPlist(user, cortexBin, dataDir);
+    const plistContent = generateLaunchdPlist(cortexBin, dataDir);
     const plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', plistName);
 
     writeFileSync(plistPath, plistContent);
@@ -1389,8 +1389,7 @@ export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: b
   // customized it, and a fresh write here would shadow a home that has not migrated yet.
   const modeJsonPath = path.join(paths.STORE_DIR, 'agent-state.json');
   if ((!existsSync(modeJsonPath) && !existsSync(path.join(paths.STORE_DIR, 'mode.json'))) || force) {
-    const primaryBackend = answers.backends[0] || 'claude';
-    writeFileSync(modeJsonPath, generateDefaultModeJson(primaryBackend));
+    writeFileSync(modeJsonPath, generateDefaultModeJson(answers.backends[0]));
   }
 
   // preferences.json — operator UI language (read at startup by domain/system/preferences.ts).

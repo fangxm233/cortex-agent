@@ -439,7 +439,7 @@ test('a user unit is wanted by default.target — multi-user.target does not exi
 // ─── generateLaunchdPlist ───────────────────────────────────────
 
 test('generateLaunchdPlist contains correct ProgramArguments and env', () => {
-  const plist = generateLaunchdPlist('bob', '/opt/bin/cortex', '/Users/bob/.cortex');
+  const plist = generateLaunchdPlist('/opt/bin/cortex', '/Users/bob/.cortex');
   assert.match(plist, /cc\.cortex\.agent-server/);
   assert.match(plist, /<string>\/opt\/bin\/cortex<\/string>/);
   assert.match(plist, /<string>daemon<\/string>/);
