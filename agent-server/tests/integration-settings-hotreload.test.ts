@@ -102,8 +102,6 @@ interface ScenarioPaths {
   home: string;
   envFile: string;
   settingsFile: string;
-  schedulesFile: string;
-  evidenceFile: string;
   observerFile: string;
   binDir: string;
   originalEnv: string;
@@ -281,11 +279,9 @@ input.on('line', (line) => {
 `;
 }
 
-function observerPostHook(evidenceFile: string, mockUrl: string): string {
-  return `import { appendFileSync } from 'node:fs';
-const { MockAdapter } = await import(${JSON.stringify(mockUrl)});
+function observerPostHook(mockUrl: string): string {
+  return `const { MockAdapter } = await import(${JSON.stringify(mockUrl)});
 const append = (value) => {
-  appendFileSync(${JSON.stringify(evidenceFile)}, JSON.stringify(value) + '\\n');
   process.send?.({ type: 'integration-observer-record', record: value });
 };
 const originalPost = MockAdapter.prototype.postMessage;
@@ -321,9 +317,9 @@ MockAdapter.prototype.start = async function(...args) {
 };`;
 }
 
-function observerSource(evidenceFile: string): string {
+function observerSource(): string {
   return [
-    observerPostHook(evidenceFile, pathToFileURL(MOCK_ADAPTER_TS).href),
+    observerPostHook(pathToFileURL(MOCK_ADAPTER_TS).href),
     observerHandlers(
       pathToFileURL(EXECUTION_REGISTRY_TS).href,
       pathToFileURL(TASK_DISPATCH_TS).href,
@@ -343,7 +339,6 @@ function populateScenario(home: string): ScenarioPaths {
     '',
   ].join('\n');
   writeFileSync(envFile, originalEnv);
-  const schedulesFile = path.join(home, 'data', 'schedules.json');
   const settingsFile = path.join(home, 'config', 'settings.json');
   writeFileSync(settingsFile, JSON.stringify({ taskDispatchEnabled: false }));
   const binDir = path.join(home, 'test-bin');
@@ -351,17 +346,15 @@ function populateScenario(home: string): ScenarioPaths {
   const fakeClaude = path.join(binDir, 'claude');
   writeFileSync(fakeClaude, fakeClaudeSource());
   chmodSync(fakeClaude, 0o755);
-  const evidenceFile = path.join(home, 'observer.jsonl');
   const observerFile = path.join(home, 'observer.mjs');
-  writeFileSync(observerFile, observerSource(evidenceFile));
-  return { home, envFile, settingsFile, schedulesFile,
-    evidenceFile, observerFile, binDir, originalEnv };
+  writeFileSync(observerFile, observerSource());
+  return { home, envFile, settingsFile, observerFile, binDir, originalEnv };
 }
 
-async function prepareScenario(init = cortexInit): Promise<ScenarioPaths> {
+async function prepareScenario(): Promise<ScenarioPaths> {
   const home = mkdtempSync(path.join(os.tmpdir(), 'cortex-settings-int-'));
   try {
-    await init(home);
+    await cortexInit(home);
     return populateScenario(home);
   } catch (error) {
     rmSync(home, { recursive: true, force: true });

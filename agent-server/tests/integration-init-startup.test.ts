@@ -64,15 +64,11 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
 // ─── Helpers ──────────────────────────────────────────────────────
 
 function spawnWait(executable: string, args: string[], opts: {
-  cwd?: string;
-  env?: Record<string, string>;
   stdin?: string;
   timeoutMs?: number;
 }): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
     const child = trackedSpawn(executable, args, {
-      cwd: opts.cwd,
-      env: { ...process.env, ...opts.env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -104,8 +100,6 @@ function spawnWait(executable: string, args: string[], opts: {
   });
 }
 
-type TempDir = ReturnType<typeof mkdtempSync>;
-
 /**
  * Init a cortex data directory via `node --import tsx cli.ts init --home <dir>`.
  *
@@ -122,7 +116,6 @@ async function cortexInit(homeDir: string, stdinAnswers: string): Promise<void> 
     '--home', homeDir,
     '--gateway-config-dir', gatewayDir,
   ], {
-    env: {},  // inherit process.env
     stdin: stdinAnswers,
     timeoutMs: 120_000,
   });
