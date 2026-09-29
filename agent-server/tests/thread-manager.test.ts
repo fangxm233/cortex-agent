@@ -10,7 +10,6 @@ import {
   createThread,
   evaluateTransitions,
   getModifiedFilesFromSession,
-  getSessionKey,
   isAdHocThread,
   listAgents,
   loadConfig,
@@ -161,10 +160,6 @@ test('buildStepPrompt keeps the modified file list but drops obsolete inline cha
     removeSessionLog(sessionId);
   }
 });
-
-// --- thread predicates ---
-
-// --- getSessionKey ---
 
 // --- createThread / evaluateTransitions (P1 orchestration paths) ---
 //
