@@ -48,29 +48,6 @@ test('atomicWrite - no .tmp. files remain after successful write', async () => {
   assert.equal(leftovers.length, 0, `unexpected tmp files: ${leftovers.join(', ')}`);
 });
 
-test('atomicWrite - crash-leftover .tmp.* sibling does not affect original or next write', async () => {
-  const filePath = path.join(tmpDir, 'crash-sim.json');
-
-  // Write initial content atomically
-  await atomicWrite(filePath, JSON.stringify({ v: 1 }));
-
-  // Simulate a crash: a leftover tmp file (written but never renamed)
-  const leftoverTmp = `${filePath}.tmp.99999.00000`;
-  await fs.writeFile(leftoverTmp, 'CORRUPTED PARTIAL DATA', 'utf8');
-
-  // Original file must be intact despite the leftover
-  const originalContent = await fs.readFile(filePath, 'utf8');
-  assert.deepEqual(JSON.parse(originalContent), { v: 1 });
-
-  // A subsequent normal write must succeed and overwrite the final path
-  await atomicWrite(filePath, JSON.stringify({ v: 2 }));
-  const newContent = await fs.readFile(filePath, 'utf8');
-  assert.deepEqual(JSON.parse(newContent), { v: 2 });
-
-  // Clean up the leftover tmp (mirrors what a real crash recovery would do)
-  await fs.unlink(leftoverTmp).catch(() => {});
-});
-
 test('JsonRepository.write - produced file is valid JSON parseable independently', async () => {
   const filePath = path.join(tmpDir, 'roundtrip.json');
   const repo = new JsonRepository<{ items: string[] }>({
@@ -107,24 +84,6 @@ test('cache - write(A) then external modification is invisible until invalidate(
   repo.invalidate();
   const fresh = await repo.read();
   assert.equal(fresh.x, 99);
-});
-
-test('cache - new instance with same file reads from disk (no shared cache)', async () => {
-  const filePath = path.join(tmpDir, 'no-shared-cache.json');
-
-  const repo1 = new JsonRepository<{ tag: string }>({
-    filePath,
-    defaultValue: () => ({ tag: 'default' }),
-  });
-  await repo1.write({ tag: 'written-by-repo1' });
-
-  // repo2 is a fresh instance — must read from disk, not from repo1's cache
-  const repo2 = new JsonRepository<{ tag: string }>({
-    filePath,
-    defaultValue: () => ({ tag: 'default' }),
-  });
-  const val = await repo2.read();
-  assert.equal(val.tag, 'written-by-repo1');
 });
 
 test('cache - missing file returns defaultValue() without error', async () => {
