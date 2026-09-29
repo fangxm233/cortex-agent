@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Scheduler, parseDuration } from '../../scheduling/scheduler.js';
+import { Scheduler, parseDuration, DAY_MAP } from '../../scheduling/scheduler.js';
 import { scheduleRepo, channelToProjectId, type ScheduleTarget, type ScheduleTask } from '@store/schedule-repo.js';
 import { resolveCortexContext, type CortexContextInternal, type CortexToolContext } from './context.js';
 
@@ -48,9 +48,7 @@ export function resolveTargetShorthand(spec: TargetSpec, ctx: CortexContextInter
   throw new Error(`Unknown target spec: ${JSON.stringify(spec)}`);
 }
 
-// --- Day-of-week parsing (shared with schedule-cli) ---
-
-const DAY_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+// --- Day-of-week parsing ---
 
 function parseDayOfWeek(value: string | number): number {
   if (typeof value === 'number') return value;

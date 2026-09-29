@@ -2,7 +2,7 @@ import type { PlatformAdapter } from '@platform/adapter.js';
 import type { Destination } from '@platform/types.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
-import { formatDuration, formatTimeUntil, parseDuration } from './scheduler.js';
+import { DAY_MAP, formatDuration, formatTimeUntil, parseDuration } from './scheduler.js';
 import type { Scheduler, ScheduleTask } from './scheduler.js';
 import { channelToProjectId } from '@store/schedule-repo.js';
 import { listProfiles, resolveProfile, getDefaultProfileName } from '../agents/profile-manager.js';
@@ -27,8 +27,6 @@ function scheduleHelp(): string {
     t('schedule.help.availableProfiles', { profileNames }),
   ].join('\n');
 }
-
-const DAY_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
 
 const FMT_OPTS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
 const fmtTime = (ts: number): string => new Date(ts).toLocaleString('en-US', FMT_OPTS);

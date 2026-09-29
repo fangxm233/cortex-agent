@@ -7,9 +7,6 @@ import { t } from '../../../core/i18n.js';
 
 const MAX_SCHEDULE_BUTTONS = 10;
 
-const FMT_OPTS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
-const fmtTime = (ts: number): string => new Date(ts).toLocaleString('en-US', FMT_OPTS);
-
 function formatTimeUntilCompact(ms: number): string {
   if (ms <= 0) return t('cmd.schedule.now');
   const seconds = Math.floor(ms / 1000);

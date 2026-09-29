@@ -22,6 +22,9 @@ function parseDuration(str: string | null | undefined): number | null {
   return Math.round(value * ms[unit]);
 }
 
+// Lower-case day abbreviations → Date#getDay() index
+const DAY_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+
 // Format milliseconds as a human-readable duration string
 function formatDuration(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -545,4 +548,4 @@ class Scheduler {
   }
 }
 
-export { Scheduler, parseDuration, formatDuration, formatTimeUntil, SCHEDULES_FILE };
+export { Scheduler, parseDuration, DAY_MAP, formatDuration, formatTimeUntil, SCHEDULES_FILE };

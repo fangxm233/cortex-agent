@@ -1,10 +1,8 @@
-import { Scheduler, parseDuration } from './scheduler.js';
+import { Scheduler, parseDuration, DAY_MAP } from './scheduler.js';
 import type { ScheduleTask } from './scheduler.js';
 import { isValidDispatchPrompt } from '../tasks/dispatcher.js';
 import { isMainModule } from '@core/utils.js';
 import { formatHelp } from '@core/cli-utils.js';
-
-const DAY_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
 
 interface CliResult {
   exitCode: number;
