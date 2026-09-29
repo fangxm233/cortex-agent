@@ -715,7 +715,7 @@ function handleTree(v: ParsedValues): CliResult {
   }
 
   if (roots.length === 0) {
-    return { exitCode: 0, stdout: v.taskId ? `No task found: ${v.taskId}` : 'No open tasks', stderr: '' };
+    return { exitCode: 0, stdout: 'No open tasks', stderr: '' };
   }
 
   const visited = new Set<string>();
@@ -801,10 +801,7 @@ const MAX_SPAWN_DEPTH = 6;
  *  overridden. No origin is captured — an in-task agent resumes via the thread_wait path, not the
  *  session-wake path. A parent-chain depth cap bounds runaway recursion (replaces thread tree guard). */
 function handleSpawn(v: ParsedValues) {
-  const parentId = v.taskId || process.env.CORTEX_TASK_ID || null;
-  if (!parentId) {
-    return { success: false, message: 'spawn needs a current task (CORTEX_TASK_ID) or --task-id <parent>' };
-  }
+  const parentId = (v.taskId || process.env.CORTEX_TASK_ID)!;
   // Depth guard: walk the parent chain.
   const tasks = scanAllTasks(v.project!);
   const byId = new Map(tasks.filter((t) => t.id).map((t) => [t.id, t] as const));
@@ -964,7 +961,6 @@ const WRITE_HANDLERS: Record<string, WriteHandler> = {
   validate: () => validateIds(),
   'lock-acquire': handleLockAcquire,
   'lock-release': handleLockRelease,
-  'lock-status': handleLockStatus,
   'lock-force-release': handleLockForceRelease,
 };
 
