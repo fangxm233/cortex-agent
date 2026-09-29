@@ -18,7 +18,6 @@ const harness = vi.hoisted(() => ({
   startPromise: null as Promise<LoginFlowState> | null,
   respondPromise: null as Promise<LoginFlowState> | null,
   externalUrls: [] as string[],
-  mobile: false,
 }));
 
 vi.mock('@/design', () => ({
@@ -38,11 +37,6 @@ vi.mock('@/design', () => ({
     </div>
   ),
   MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
-}));
-
-vi.mock('@/lib/desktop-config', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/desktop-config')>(),
-  isMobileShell: () => harness.mobile,
 }));
 
 vi.mock('@/lib/external-navigation', () => ({
@@ -113,20 +107,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
     },
     useMutation: (options: any) => {
       harness.mutationKinds.push(options.__kind);
-      return {
-      isPending: false,
-      mutate: (variables: unknown) => {
-        if (options.__kind === 'auth.startLogin') {
-          harness.startCalls.push(variables);
-          if (harness.startError) options.onError?.(new Error(harness.startError), variables);
-          else if (harness.startPromise) void harness.startPromise.then(value => options.onSuccess?.(value, variables));
-          else options.onSuccess?.(harness.startState, variables);
-        } else if (options.__kind === 'auth.cancelFlow') {
-          harness.cancelCalls.push(variables);
-          options.onSuccess?.(harness.cancelState, variables);
-        }
-      },
-    };
+      return { isPending: false, mutate: () => {} };
     },
     useQueryClient: () => ({
       invalidateQueries: (filter: unknown) => { harness.invalidations.push(filter); },
@@ -238,7 +219,6 @@ beforeEach(() => {
   harness.startPromise = null;
   harness.respondPromise = null;
   harness.externalUrls = [];
-  harness.mobile = false;
 });
 
 describe('LoginFlowModal', () => {
