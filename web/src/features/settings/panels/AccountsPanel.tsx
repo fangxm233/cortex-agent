@@ -3,6 +3,7 @@ import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab, type Vocab } from '@/i18n';
 import {
+  authTypeLabelKey,
   buildAccountsVm,
   type AccountActionTarget,
   type AccountCredentialVm,
@@ -47,11 +48,6 @@ export interface AccountsPanelProps {
   onLogin: (target: AccountActionTarget) => void;
 }
 
-function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): string {
-  if (authType === 'api_key') return L.authLoginApiKey;
-  return backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth;
-}
-
 /** State, source and expiry for one stored credential — the description line of a Claude slot. */
 function CredentialLine({ value }: { value: AccountCredentialVm }) {
   const L = useVocab();
@@ -86,10 +82,10 @@ function AccountActions(props: ActionsProps) {
           key={`login:${authType}`} tone="accent" disabled={props.disabled}
           data-auth-action="login" data-backend={props.backend}
           data-provider={props.provider} data-auth-type={authType}
-          aria-label={`${L.accountsLogin} ${authTypeLabel(L, authType, props.backend)}`}
+          aria-label={`${L.accountsLogin} ${L[authTypeLabelKey(authType, props.backend)]}`}
           onClick={() => props.onLogin(target(authType))}
         >
-          {L.accountsLogin} {authTypeLabel(L, authType, props.backend)}
+          {L.accountsLogin} {L[authTypeLabelKey(authType, props.backend)]}
         </SButton>
       ))}
       {props.logoutTypes.map(authType => (
@@ -97,10 +93,10 @@ function AccountActions(props: ActionsProps) {
           key={`logout:${authType}`} tone="danger" disabled={props.disabled}
           data-auth-action="logout" data-backend={props.backend}
           data-provider={props.provider} data-auth-type={authType}
-          aria-label={`${L.accountsLogout} ${authTypeLabel(L, authType, props.backend)}`}
+          aria-label={`${L.accountsLogout} ${L[authTypeLabelKey(authType, props.backend)]}`}
           onClick={() => props.onLogout(target(authType))}
         >
-          {L.accountsLogout} {authTypeLabel(L, authType, props.backend)}
+          {L.accountsLogout} {L[authTypeLabelKey(authType, props.backend)]}
         </SButton>
       ))}
     </div>
@@ -115,7 +111,7 @@ function ClaudeSlotRow({ slot, provider, actions }: {
   const L = useVocab();
   return (
     <SRow
-      title={authTypeLabel(L, slot.authType, 'claude')}
+      title={L[authTypeLabelKey(slot.authType, 'claude')]}
       desc={(
         <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {slot.credentials.map((credential, index) => (
@@ -162,7 +158,7 @@ function ProviderName({ provider }: { provider: PiProviderVm }) {
       {provider.inUse ? <SPill tone="success">{L.accountsInUse}</SPill> : null}
       {provider.loginTypes.map(authType => (
         <SPill key={authType} tone="accent" mono>
-          {authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}
+          {L[authTypeLabelKey(authType, 'pi')]}
         </SPill>
       ))}
     </>

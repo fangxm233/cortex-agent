@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
   MPill,
   MC,
@@ -9,18 +9,14 @@ import {
 } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
-import type {
-  AccountActionTarget,
-  AccountCredentialVm,
-  ClaudeAccountVm,
-  MAccountsVm,
-  PiProviderVm,
+import {
+  authTypeLabelKey,
+  type AccountActionTarget,
+  type AccountCredentialVm,
+  type ClaudeAccountVm,
+  type MAccountsVm,
+  type PiProviderVm,
 } from '@/features/settings/vm/accounts-vm';
-
-function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): string {
-  if (authType === 'api_key') return L.authLoginApiKey;
-  return backend === 'claude' ? L.authLoginSubscription : L.authLoginOAuth;
-}
 
 function Metadata({ value }: { value: AccountCredentialVm }) {
   const L = useVocab();
@@ -78,7 +74,7 @@ function AccountActions({ backend, provider, loginTypes, logoutTypes, disabled, 
           key={`login:${authType}`} target={target(authType)} action="login"
           disabled={disabled} onClick={onLogin}
         >
-          {L.accountsLogin} {authTypeLabel(L, authType, backend)}
+          {L.accountsLogin} {L[authTypeLabelKey(authType, backend)]}
         </ActionButton>
       ))}
       {logoutTypes.map(authType => (
@@ -86,7 +82,7 @@ function AccountActions({ backend, provider, loginTypes, logoutTypes, disabled, 
           key={`logout:${authType}`} target={target(authType)} action="logout"
           disabled={disabled} onClick={onLogout}
         >
-          {L.accountsLogout} {authTypeLabel(L, authType, backend)}
+          {L.accountsLogout} {L[authTypeLabelKey(authType, backend)]}
         </ActionButton>
       ))}
     </div>
@@ -112,7 +108,7 @@ function ClaudeCard({ account, actionsDisabled, onLogin, onLogout }: ClaudeCardP
       {account.slots.map((slot, index) => (
         <div key={slot.authType} style={{ padding: '9px 0', borderTop: index > 0 ? `1px solid ${MC.divider}` : undefined }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: MC.ink, marginBottom: 7 }}>
-            {authTypeLabel(L, slot.authType, 'claude')}
+            {L[authTypeLabelKey(slot.authType, 'claude')]}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {slot.credentials.map((credential, credentialIndex) => <Metadata key={`${credential.source ?? 'none'}:${credentialIndex}`} value={credential} />)}
@@ -145,7 +141,7 @@ function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
         <ProviderIcon provider={provider.provider} label={provider.label} size={15} />
         <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.label}</span>
         <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.provider}</span>
-        {provider.loginTypes.map(authType => <MPill key={authType} tone="running">{authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}</MPill>)}
+        {provider.loginTypes.map(authType => <MPill key={authType} tone="running">{L[authTypeLabelKey(authType, 'pi')]}</MPill>)}
       </div>
       <div style={{ marginTop: 8 }}><Metadata value={metadata} /></div>
       <AccountActions

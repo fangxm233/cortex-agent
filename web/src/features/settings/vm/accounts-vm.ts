@@ -5,6 +5,7 @@ import type {
   AuthStatusSnapshot,
   AuthType,
 } from '@cortex-agent/ui-contract';
+import type { Vocab } from '@/i18n';
 
 export type AccountStatusKind = 'logged-in' | 'expiring' | 'logged-out' | 'invalid';
 export type AccountStatusTone = 'done' | 'waiting' | 'cancelled' | 'failed';
@@ -29,6 +30,12 @@ export interface AccountActionTarget {
   backend: 'claude' | 'pi';
   provider: string;
   authType: AuthType;
+}
+
+/** Vocab key naming an auth type; Claude's OAuth login is its subscription. */
+export function authTypeLabelKey(authType: AuthType, backend: 'claude' | 'pi'): keyof Vocab {
+  if (authType === 'api_key') return 'authLoginApiKey';
+  return backend === 'claude' ? 'authLoginSubscription' : 'authLoginOAuth';
 }
 
 export interface ClaudeCredentialSlotVm {
