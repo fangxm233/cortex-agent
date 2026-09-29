@@ -86,7 +86,6 @@ export interface CreateAgentRunArgs {
   request: RunRequest;
   observers: RunObserver[];
   executionId: string;
-  attemptConfig?: RunAttemptConfig;
   registry: RunRegistry;
   onTerminal: (info: RunTerminalInfo) => void;
   /** Unix ms the execution record was opened. */
@@ -154,7 +153,7 @@ export class AgentRunImpl implements AgentRun {
     this.request = args.request;
     this.executionId = args.executionId;
     this.id = args.request.runId;
-    this.plan = args.attemptConfig ? [args.attemptConfig] : planAttempts(args.request.profile);
+    this.plan = planAttempts(args.request.profile);
     this.attemptValue = { index: 0, config: this.plan[0] };
     this.notices = new AttemptNoticeTracker(
       {
@@ -574,7 +573,6 @@ export class AgentRunImpl implements AgentRun {
     this.absorbResultCounts(result);
     this.resultDeferred.resolve(result);
     this.fanOut({ type: 'foreground_result', result });
-    // A required observer may have sealed the run while the result was being fanned out.
     if (this.terminal) return;
     // The engine keeps its stream open exactly while the run still owes background work, and it is
     // the engine that ends the run (see ContinuationPhase). The run mirrors the phase onto its own
@@ -641,10 +639,10 @@ export class AgentRunImpl implements AgentRun {
       try {
         const pending = observer.onEvent(event);
         if (pending && typeof (pending as Promise<void>).then === 'function') {
-          void (pending as Promise<void>).catch((error) => this.onObserverError(observer, error));
+          void (pending as Promise<void>).catch((error) => this.onObserverError(error));
         }
       } catch (error) {
-        this.onObserverError(observer, error);
+        this.onObserverError(error);
       }
     }
   }
@@ -656,20 +654,16 @@ export class AgentRunImpl implements AgentRun {
       try {
         const pending = observer.onClose?.();
         if (pending && typeof (pending as Promise<void>).then === 'function') {
-          void (pending as Promise<void>).catch((error) => this.onObserverError(observer, error));
+          void (pending as Promise<void>).catch((error) => this.onObserverError(error));
         }
       } catch (error) {
-        this.onObserverError(observer, error);
+        this.onObserverError(error);
       }
     }
   }
 
-  private onObserverError(observer: RunObserver, error: unknown): void {
+  private onObserverError(error: unknown): void {
     log.warn('run observer failed:', asError(error).message);
-    if (observer.required === true && !this.terminal) {
-      try { this.current?.kill(); } catch (killError) { log.warn('run kill failed:', asError(killError).message); }
-      this.finishTerminal('failed', null, asError(error));
-    }
   }
 }
 

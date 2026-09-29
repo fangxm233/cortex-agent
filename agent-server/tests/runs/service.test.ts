@@ -148,12 +148,11 @@ interface Collected {
   isClosed(): boolean;
 }
 
-function collector(required = false): Collected {
+function collector(): Collected {
   const events: RunEvent[] = [];
   let closed = false;
   return {
     observer: {
-      required,
       onEvent: (event) => { events.push(event); },
       onClose: () => { closed = true; },
     },
@@ -509,7 +508,7 @@ test('cancel() kills the process, closes the record and reaches the cancelled te
 
 // ── observer safety ──────────────────────────────────────────────────────
 
-test('a throwing non-required observer is logged and the run still completes', async () => {
+test('a throwing observer is logged and the run still completes', async () => {
   const seen = collector();
   const throwing: RunObserver = { onEvent: () => { throw new Error('observer boom'); } };
   const { run, session } = startScriptedRun({}, [throwing, seen.observer]);
@@ -521,22 +520,6 @@ test('a throwing non-required observer is logged and the run still completes', a
   assert.equal(result.finalOutput, 'done');
   assert.equal(run.status, 'completed');
   assert.ok(seen.events.some((event) => event.type === 'foreground_result'));
-});
-
-test('a throwing required observer fails the run and kills the process', async () => {
-  const required: RunObserver = {
-    required: true,
-    onEvent: () => { throw new Error('required boom'); },
-  };
-  const { run, children } = startScriptedRun({}, [required]);
-  void run.result.catch(() => undefined);
-  // The required observer throws on the engine's first event; no foreground line is needed.
-  const outcome = await run.settled.then(() => 'resolved' as const, (error: unknown) => error);
-
-  assert.ok(outcome instanceof Error);
-  assert.equal(run.status, 'failed');
-  assert.equal(children[0].killed, true);
-  assert.equal(runRegistry.getById(run.executionId), null);
 });
 
 // ── steer owns the injection ack translation in the engine ───────────────

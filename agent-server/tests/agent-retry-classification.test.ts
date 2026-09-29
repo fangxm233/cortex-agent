@@ -114,11 +114,11 @@ interface Collected {
   closes(): number;
 }
 
-function collector(required = false): Collected {
+function collector(): Collected {
   const events: RunEvent[] = [];
   let closed = 0;
   return {
-    observer: { required, onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
+    observer: { onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
     events,
     closes: () => closed,
   };

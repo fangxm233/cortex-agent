@@ -100,9 +100,8 @@ export interface RunRequest {
   };
 }
 
-/** A run event consumer. `required` marks sinks whose write/close failure aborts the run. */
+/** A run event consumer. */
 export interface RunObserver {
   onEvent(event: RunEvent): void | Promise<void>;
   onClose?(): void | Promise<void>;
-  required?: boolean;
 }

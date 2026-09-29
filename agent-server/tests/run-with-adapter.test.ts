@@ -218,11 +218,11 @@ interface Collected {
   closes(): number;
 }
 
-function collector(required = false): Collected {
+function collector(): Collected {
   const events: RunEvent[] = [];
   let closed = 0;
   return {
-    observer: { required, onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
+    observer: { onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
     events,
     closes: () => closed,
   };
@@ -488,49 +488,22 @@ test('run: throwing diagnostics observers are logged without breaking other obse
     ['engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'foreground_result', 'phase']);
 });
 
-test('run: a required observer write failure kills the engine and rejects the run', async () => {
-  const scripts = [[
-    textLine('partial'),
-    resultLine({ session_id: 's-required' }),
-  ]];
-  const children: any[] = [];
+test('run: an observer close failure cannot resurrect a finished run', async () => {
+  // `onClose` runs after the run is terminal, so a failure in it is logged, not turned back into a
+  // failed run.
+  const scripts = [[textLine('done'), resultLine({ session_id: 's-observer-close' })]];
   const request = runRequestFixture({
-    sessionKey: 'required-write',
-    processSpawner: (() => { const child = scriptedClaudeChild(scripts); children.push(child); return { process: child }; }) as never,
-  }, CLAUDE);
-  const sink: RunObserver = {
-    required: true,
-    onEvent: () => { throw new Error('sink write failed'); },
-  };
-  const run = openRun(request, [sink]);
-  // `result`/`settled` are marked handled by the run; observe the settlement explicitly.
-  let completed = false;
-  const promise = run.settled.then((result) => { completed = true; return result; });
-
-  await assert.rejects(promise, /sink write failed/);
-  assert.equal(completed, false);
-  assert.equal(run.status, 'failed');
-  assert.equal(children[0].killed, true, 'the required-observer failure killed the engine');
-});
-
-test('run: a required observer close failure cannot resurrect a finished run', async () => {
-  // The observer contract changed here: `onClose` runs after the run is terminal, so a failure in
-  // it is logged, not turned back into a failed run. (The old facade treated a required sink's
-  // close failure as fatal; the run layer intentionally does not.)
-  const scripts = [[textLine('done'), resultLine({ session_id: 's-required-close' })]];
-  const request = runRequestFixture({
-    sessionKey: 'required-close',
+    sessionKey: 'observer-close',
     processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
   }, CLAUDE);
   const sink: RunObserver = {
-    required: true,
     onEvent: () => {},
     onClose: async () => { throw new Error('sink close failed'); },
   };
   const run = openRun(request, [sink]);
   const result = await run.settled;
 
-  assert.equal(result.sessionId, 's-required-close');
+  assert.equal(result.sessionId, 's-observer-close');
   assert.equal(run.status, 'completed');
 });
 
