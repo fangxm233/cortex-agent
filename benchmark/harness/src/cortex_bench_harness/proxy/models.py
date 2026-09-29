@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, get_args
 
 PROXY_SCHEMA_VERSION = "cortex-bench-trial-proxy/2"
 ProxyDiagnosticCode = Literal[
@@ -14,17 +14,7 @@ ProxyDiagnosticCode = Literal[
     "deepseek_usage_duplicate",
     "deepseek_usage_invalid",
 ]
-PROXY_DIAGNOSTIC_CODES = frozenset({
-    "deepseek_content_type_not_sse",
-    "deepseek_sse_malformed",
-    "deepseek_data_after_done",
-    "deepseek_error_event",
-    "deepseek_done_missing",
-    "deepseek_model_mismatch",
-    "deepseek_usage_missing",
-    "deepseek_usage_duplicate",
-    "deepseek_usage_invalid",
-})
+PROXY_DIAGNOSTIC_CODES = frozenset(get_args(ProxyDiagnosticCode))
 
 
 @dataclass(frozen=True)
