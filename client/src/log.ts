@@ -6,13 +6,12 @@ import { LOGS_DIR } from './paths.js';
 
 const RETENTION_DAYS = 14;
 
-type Level = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
+type Level = 'INFO' | 'WARN' | 'ERROR';
 
 export interface Logger {
   info(...args: unknown[]): void;
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
-  debug(...args: unknown[]): void;
 }
 
 let currentDate = '';
@@ -77,7 +76,6 @@ function write(level: Level, mod: string, args: unknown[]): void {
   switch (level) {
     case 'ERROR': console.error(prefix, ...args); break;
     case 'WARN':  console.warn(prefix, ...args);  break;
-    case 'DEBUG': console.debug(prefix, ...args);  break;
     default:      console.log(prefix, ...args);
   }
 
@@ -90,7 +88,6 @@ export function createLogger(mod: string): Logger {
     info:  (...args) => write('INFO', mod, args),
     warn:  (...args) => write('WARN', mod, args),
     error: (...args) => write('ERROR', mod, args),
-    debug: (...args) => { if (process.env.DEBUG) write('DEBUG', mod, args); },
   };
 }
 
