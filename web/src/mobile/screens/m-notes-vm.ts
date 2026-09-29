@@ -1,13 +1,7 @@
 import type { NoteInfo } from '@cortex-agent/ui-contract';
-import { buildNotesVm, type NoteRowVm } from '@/features/notes/notes-vm';
+import { buildNotesVm, type NotesVm } from '@/features/notes/notes-vm';
 
-export interface MNotesVm {
-  active: NoteRowVm[];
-  completed: NoteRowVm[];
-  previews: NoteRowVm[];
-  activeCount: number;
-  completedCount: number;
-}
+export type MNotesVm = NotesVm;
 
 export function buildMNotesVm(
   notes: NoteInfo[],
