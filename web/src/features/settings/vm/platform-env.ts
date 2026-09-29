@@ -7,12 +7,8 @@ export const MIN_PI_COMPACT_RESERVE_TOKENS = 1_024;
 export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
 
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
-// SECURITY: config.get NEVER returns a .env value — only { key, present, masked }. These helpers
-// therefore only ever surface the fixed mask or an em dash; no cleartext can be reconstructed.
+// SECURITY: config.get NEVER returns a .env value — only { key, present, masked }.
 // Framework-free; no JSX, no hex.
-
-/** The fixed redaction mask config.get uses for a present secret (mirrors the backend MASK). */
-export const ENV_MASK = '••••••••';
 
 export type EnvIndex = Record<string, ConfigEnvEntry>;
 
@@ -20,19 +16,6 @@ export function indexEnv(env: ConfigEnvEntry[]): EnvIndex {
   const out: EnvIndex = {};
   for (const e of env) out[e.key] = e;
   return out;
-}
-
-export interface EnvRow {
-  key: string;
-  present: boolean;
-  /** The mask when the key has a value, an em dash otherwise (absent or empty). Never cleartext. */
-  display: string;
-}
-
-export function envRow(index: EnvIndex, key: string): EnvRow {
-  const entry = index[key];
-  const present = entry?.present === true;
-  return { key, present, display: present ? ENV_MASK : '—' };
 }
 
 /** True if any *present* env key matches the prefix — used to reflect platform presence honestly. */
@@ -58,21 +41,6 @@ export function parseWholeNumber(input: string): number | null {
   const value = Number(input);
   return Number.isSafeInteger(value) ? value : null;
 }
-
-// ── Prototype key groups (Platform panel cards, L756–807) — used to render the design's exact
-// rows against real presence. The prototype showed cleartext mock values; the real contract
-// redacts them, so each present key renders as the mask, absent as a dash. ──────────────────────
-
-export const SLACK_KEYS = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET', 'SLACK_APP_TOKEN'];
-export const FEISHU_KEYS = ['FEISHU_APP_ID', 'FEISHU_APP_SECRET', 'FEISHU_DOMAIN'];
-export const API_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'];
-export const DAEMON_KEYS = [
-  'CORTEX_MACHINE',
-  'CORTEX_HOME',
-  'WEBHOOK_PORT',
-  'CORTEX_CLIENT_PORT',
-  'CORTEX_REPO',
-];
 
 export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'turnNotify',
