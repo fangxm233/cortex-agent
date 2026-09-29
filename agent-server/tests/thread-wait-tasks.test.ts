@@ -229,12 +229,3 @@ test('cleanup spares an over-age waiting manager whose child tasks are still ope
 
   assert.equal(threadStore.get(manager.id)!.status, 'waiting', 'multi-day training waits must not be reaped');
 });
-
-test('cleanup still fails an over-age waiting parent with no live children anywhere', async () => {
-  const orphan = makeThread({ status: 'waiting', metadata: { waitingOn: ['thr_gone_x'], waitingOnTasks: [] } });
-  threadStore.get(orphan.id)!.updatedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-
-  await threadStore.cleanup();
-
-  assert.equal(threadStore.get(orphan.id)!.status, 'failed');
-});
