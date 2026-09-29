@@ -46,7 +46,7 @@ async function harness(): Promise<Harness> {
   return {
     repo, service, sent, spoolDir,
     setNow: (t) => { clock = t; },
-    sweep: { service, notifier, ingest, now, spoolDir, remote: null },
+    sweep: { service, notifier, ingest, spoolDir, remote: null },
   };
 }
 

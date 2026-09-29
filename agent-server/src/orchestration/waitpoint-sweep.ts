@@ -22,7 +22,6 @@ export interface WaitpointSweepDeps {
   ingest: IngestDeps;
   /** Set to null to skip the device round trip entirely (tests, and hosts with no clients). */
   remote: RemoteDrainDeps | null;
-  now: () => number;
   /** Override the drained spool directory. Production leaves it unset (the default location). */
   spoolDir?: string;
 }
@@ -32,7 +31,6 @@ export const productionSweepDeps: WaitpointSweepDeps = {
   notifier: productionNotifierDeps,
   ingest: productionIngestDeps,
   remote: productionRemoteDrainDeps,
-  now: () => Date.now(),
 };
 
 export interface SweepResult {
@@ -103,8 +101,8 @@ export function stopWaitpointSweep(): void {
  * also hold signals written while the daemon was down. Returns what it recovered, and never throws
  * — a recovery failure must not block startup.
  */
-export async function recoverWaitpoints(deps: WaitpointSweepDeps = productionSweepDeps): Promise<SweepResult> {
-  return sweepWaitpoints(deps).catch((e) => {
+export async function recoverWaitpoints(): Promise<SweepResult> {
+  return sweepWaitpoints().catch((e) => {
     log.error(`recovery failed: ${(e as Error).message}`);
     return { spooled: 0, fromDevices: 0, expired: 0, delivered: 0, purged: 0 };
   });
