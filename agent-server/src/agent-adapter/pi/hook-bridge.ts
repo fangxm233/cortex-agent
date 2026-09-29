@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEFAULTS_DIR, HOOKS_DIR } from '../../core/utils.js';
+import { HOOKS_DIR } from '../../core/utils.js';
 import { createLogger } from '../../core/log.js';
 import { fromCanonical } from '../../core/tool-names.js';
 import {
@@ -101,7 +101,7 @@ export function normalizePiInput(
  * Falls back to the session env's CORTEX_SESSION_ID, then 'unknown'.
  * Guards for getSessionFile() returning undefined (in-memory or pre-session state).
  */
-export function getSessionId(ctx: HookContext, env: NodeJS.ProcessEnv = process.env): string {
+function getSessionId(ctx: HookContext, env: NodeJS.ProcessEnv): string {
   const f = ctx.sessionManager?.getSessionFile();
   if (f) return path.basename(f, '.jsonl');
   return env['CORTEX_SESSION_ID'] ?? 'unknown';
@@ -296,15 +296,6 @@ function asHookResult(value: unknown): HookResult {
   return value as HookResult;
 }
 
-export async function runHookScript(
-  scriptPath: string,
-  payload: ClaudeHookPayload,
-  timeoutMs = 30_000,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<HookResult> {
-  return asHookResult(await spawnHook(process.execPath, [scriptPath], payload, timeoutMs, env));
-}
-
 async function runHookEntry(
   entry: HookEntry,
   payload: ClaudeHookPayload | Record<string, unknown>,
@@ -340,15 +331,6 @@ function nativeEventFor(entry: HookEntry): string | null {
   return null;
 }
 
-function entriesForEvent(eventName: string): HookEntry[] {
-  const deployed = filterHookEntries(loadHookRegistry(), { backend: 'pi' });
-  const entries = deployed.length > 0 ? deployed : filterHookEntries(
-    loadHookRegistry(path.join(DEFAULTS_DIR, 'config', 'hooks')),
-    { backend: 'pi' },
-  );
-  return entries.filter((entry) => nativeEventFor(entry) === eventName);
-}
-
 function toolPayload(
   hookEventName: string,
   event: ToolCallEvent | ToolResultEvent,
@@ -379,7 +361,6 @@ function lifecyclePayload(
   ctx: HookContext,
   env: NodeJS.ProcessEnv,
 ): ClaudeHookPayload | Record<string, unknown> {
-  if (entry.event.startsWith('pi:')) return nativePayload(entry.event.slice(3), event, ctx, env);
   const source = typeof event === 'object' && event !== null
     ? event as Record<string, unknown>
     : { event };
@@ -411,17 +392,6 @@ function nativePayload(
   };
 }
 
-function payloadForToolEntry(
-  entry: HookEntry,
-  nativeEvent: string,
-  event: ToolCallEvent | ToolResultEvent,
-  ctx: HookContext,
-  env: NodeJS.ProcessEnv,
-): ClaudeHookPayload | Record<string, unknown> {
-  if (entry.event.startsWith('pi:')) return nativePayload(nativeEvent, event, ctx, env);
-  return toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx, env);
-}
-
 function applyUpdatedInput(event: ToolCallEvent, output: HookSpecificOutput | undefined): void {
   if (!output?.updatedInput || typeof output.updatedInput !== 'object') return;
   for (const key of Object.keys(event.input)) delete event.input[key];
@@ -440,19 +410,16 @@ function blockResult(result: HookResult): ToolCallReturn {
 export async function handlePreToolUse(
   event: ToolCallEvent,
   ctx: HookContext,
-  entries = entriesForEvent('tool_call'),
-  env: NodeJS.ProcessEnv = process.env,
+  entries: HookEntry[],
+  env: NodeJS.ProcessEnv,
 ): Promise<ToolCallReturn> {
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
-    const payload = payloadForToolEntry(entry, 'tool_call', event, ctx, env);
+    const payload = toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx, env);
     const result = asHookResult(await runHookEntry(entry, payload, env));
     applyUpdatedInput(event, result.hookSpecificOutput);
     const blocked = blockResult(result);
     if (blocked) return blocked;
-    if (entry.event.startsWith('pi:') && result.block === true) {
-      return { block: true, reason: typeof result.reason === 'string' ? result.reason : undefined };
-    }
   }
   return undefined;
 }
@@ -468,13 +435,13 @@ function appendContext(event: ToolResultEvent, context: string | undefined): boo
 export async function handlePostToolUse(
   event: ToolResultEvent,
   ctx: HookContext,
-  entries = entriesForEvent('tool_result'),
-  env: NodeJS.ProcessEnv = process.env,
+  entries: HookEntry[],
+  env: NodeJS.ProcessEnv,
 ): Promise<{ content?: unknown } | undefined> {
   let contentModified = false;
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
-    const payload = payloadForToolEntry(entry, 'tool_result', event, ctx, env);
+    const payload = toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx, env);
     const result = asHookResult(await runHookEntry(entry, payload, env));
     contentModified = appendContext(event, result.hookSpecificOutput?.additionalContext) || contentModified;
   }

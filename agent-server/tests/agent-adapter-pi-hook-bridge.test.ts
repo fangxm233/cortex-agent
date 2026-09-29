@@ -10,13 +10,14 @@ import {
   normalizePiInput,
   handlePreToolUse,
   handlePostToolUse,
-  runHookScript,
 } from '../src/agent-adapter/pi/hook-bridge.js';
 import type { HookContext } from '../src/agent-adapter/pi/hook-bridge.js';
+import type { HookEntry } from '../src/store/hook-registry.js';
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(_dirname, '../..');
 const SESSION_LOG_DIR = path.join(REPO_ROOT, 'tmp', 'test-logs', 'session-activity');
+const DEFAULT_HOOKS_DIR = path.resolve(_dirname, '../defaults/hooks');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +30,12 @@ function makeCtx(sessionFile?: string): HookContext {
       ? { getSessionFile: () => sessionFile }
       : { getSessionFile: () => undefined },
   };
+}
+
+/** A registry entry that runs one of the shipped hook scripts from the source tree. */
+function defaultHook(event: HookEntry['event'], matcher: string, script: string): HookEntry {
+  const scriptPath = path.join(DEFAULT_HOOKS_DIR, script);
+  return { id: script, event, matcher, run: { command: `"${process.execPath}" "${scriptPath}"` } };
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +78,11 @@ test('handlePreToolUse: non-.claude/ path exits 0 → returns undefined (no bloc
     toolCallId: 'tc-001',
     input: { path: '/tmp/hook-bridge-test-regular.ts', old_string: 'x', new_string: 'y' },
   };
-  const result = await handlePreToolUse(event, ctx);
+  const entries = [
+    defaultHook('agent:pre-tool', 'Edit|Write', 'tasks-yaml-guard.mjs'),
+    defaultHook('agent:pre-tool', 'Edit|Write', 'status-md-guard.mjs'),
+  ];
+  const result = await handlePreToolUse(event, ctx, entries, process.env);
   assert.equal(result, undefined);
 });
 
@@ -82,8 +93,7 @@ test('handlePreToolUse: non-.claude/ path exits 0 → returns undefined (no bloc
 test('handlePostToolUse integration: session-activity-tracker writes read_file to JSONL', async (t) => {
   const sessionId = `test-hook-bridge-${process.pid}-${Date.now()}`;
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-bridge-'));
-  process.env.CORTEX_HOME = cortexHome;
-  t.onTestFinished(() => { delete process.env.CORTEX_HOME; fs.rmSync(cortexHome, { recursive: true, force: true }); });
+  t.onTestFinished(() => { fs.rmSync(cortexHome, { recursive: true, force: true }); });
   const logFile = path.join(cortexHome, 'logs', 'session-activity', `${sessionId}.jsonl`);
 
   // Clean up any prior run
@@ -104,7 +114,8 @@ test('handlePostToolUse integration: session-activity-tracker writes read_file t
     isError: false,
   };
 
-  await handlePostToolUse(event, ctx);
+  const entry = defaultHook('agent:post-tool', 'Read|Edit|Write|Skill', 'session-activity-tracker.mjs');
+  await handlePostToolUse(event, ctx, [entry], { ...process.env, CORTEX_HOME: cortexHome });
 
   // The handler resolves once the hook script exited, so the file is already written.
   assert.ok(fs.existsSync(logFile), `expected log file at ${logFile}`);
@@ -129,11 +140,7 @@ test('handlePostToolUse integration: session-activity-tracker writes read_file t
 test('handlePostToolUse: Edit injects unseen AGENTS.md ancestor context', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-home-'));
-  const previousHome = process.env.CORTEX_HOME;
-  process.env.CORTEX_HOME = cortexHome;
   t.onTestFinished(() => {
-    if (previousHome === undefined) delete process.env.CORTEX_HOME;
-    else process.env.CORTEX_HOME = previousHome;
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(cortexHome, { recursive: true, force: true });
   });
@@ -149,7 +156,9 @@ test('handlePostToolUse: Edit injects unseen AGENTS.md ancestor context', async 
     content: [{ type: 'text', text: 'edited' }],
     details: undefined,
     isError: false,
-  }, makeCtx(`/fake/sessions/pi-edit-cortex-${process.pid}-${Date.now()}.jsonl`));
+  }, makeCtx(`/fake/sessions/pi-edit-cortex-${process.pid}-${Date.now()}.jsonl`), [
+    defaultHook('agent:post-tool', 'Read|Edit', 'agents-md-injector.mjs'),
+  ], { ...process.env, CORTEX_HOME: cortexHome });
 
   assert.ok(result, 'Edit should return augmented content');
   assert.ok(result.content, 'Edit should include content blocks');
@@ -160,20 +169,12 @@ test('handlePostToolUse: Edit injects unseen AGENTS.md ancestor context', async 
 // Test 7: PI child hook preserves the stable Cortex cache session identity
 // ---------------------------------------------------------------------------
 
-test('runHookScript keeps AGENTS.md cache on the parent stable session id', async (t) => {
+test('agents-md-injector keeps AGENTS.md cache on the parent stable session id', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-home-'));
-  const previousHome = process.env.CORTEX_HOME;
-  const previousSession = process.env.CORTEX_SESSION_ID;
   const stableSessionId = `pi-track-${process.pid}-${Date.now()}`;
   const backendSessionId = `${stableSessionId}-backend`;
-  process.env.CORTEX_HOME = cortexHome;
-  process.env.CORTEX_SESSION_ID = stableSessionId;
   t.onTestFinished(() => {
-    if (previousHome === undefined) delete process.env.CORTEX_HOME;
-    else process.env.CORTEX_HOME = previousHome;
-    if (previousSession === undefined) delete process.env.CORTEX_SESSION_ID;
-    else process.env.CORTEX_SESSION_ID = previousSession;
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(cortexHome, { recursive: true, force: true });
   });
@@ -181,73 +182,19 @@ test('runHookScript keeps AGENTS.md cache on the parent stable session id', asyn
   fs.writeFileSync(path.join(root, 'AGENTS.md'), 'pi-stable-cache-rule');
   const target = path.join(root, 'target.txt');
   fs.writeFileSync(target, 'dummy');
-  const hooksDir = path.resolve(_dirname, '../defaults/hooks');
 
-  await runHookScript(path.join(hooksDir, 'agents-md-injector.mjs'), {
-    hook_event_name: 'PostToolUse',
-    session_id: backendSessionId,
-    tool_name: 'Read',
-    tool_input: { file_path: target },
-    tool_use_id: 'tc-stable-cache',
-    cwd: root,
-  });
+  await handlePostToolUse({
+    toolName: 'read',
+    toolCallId: 'tc-stable-cache',
+    input: { path: target },
+    content: [{ type: 'text', text: 'dummy' }],
+    details: undefined,
+    isError: false,
+  }, { cwd: root, sessionManager: { getSessionFile: () => `/fake/sessions/${backendSessionId}.jsonl` } }, [
+    defaultHook('agent:post-tool', 'Read|Edit', 'agents-md-injector.mjs'),
+  ], { ...process.env, CORTEX_HOME: cortexHome, CORTEX_SESSION_ID: stableSessionId });
 
   const cacheDir = path.join(cortexHome, 'tmp', 'cortexmd-cache');
   assert.ok(fs.existsSync(path.join(cacheDir, `${stableSessionId}.json`)));
   assert.ok(!fs.existsSync(path.join(cacheDir, `${backendSessionId}.json`)));
-});
-
-// ---------------------------------------------------------------------------
-// Test 8: before_agent_start → agents-md-injector → event.systemPrompt mutation
-// ---------------------------------------------------------------------------
-
-test('before_agent_start: runHookScript with agents-md-injector appends AGENTS.local.md to event.systemPrompt', async (t) => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-before-agent-'));
-  t.onTestFinished(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
-
-  // Isolate cache directory via CORTEX_HOME so the hook subprocess writes to a temp dir
-  const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-bridge-hook-home-'));
-  const prevCortexHome = process.env.CORTEX_HOME;
-  process.env.CORTEX_HOME = cortexHome;
-  t.onTestFinished(() => {
-    process.env.CORTEX_HOME = prevCortexHome;
-    fs.rmSync(cortexHome, { recursive: true, force: true });
-  });
-
-  // AGENTS.md in cwd is loaded by the backend itself, so the hook only marks it seen. Use the
-  // .local variant — no backend reads it — to exercise the additionalContext path.
-  fs.writeFileSync(path.join(tmpDir, 'AGENTS.local.md'), 'pi-before-agent-content');
-
-  const sessionId = `pi-before-agent-${process.pid}-${Date.now()}`;
-  t.onTestFinished(() => {
-    try { fs.rmSync(path.join(cortexHome, 'tmp', 'cortexmd-cache', `${sessionId}.json`), { force: true }); } catch { /* ignore */ }
-  });
-
-  const HOOKS_DIR = path.resolve(_dirname, '../defaults/hooks');
-  const payload = {
-    hook_event_name: 'SessionStart' as const,
-    session_id: sessionId,
-    tool_name: '',
-    tool_input: {},
-    tool_use_id: '',
-    cwd: tmpDir,
-  };
-
-  const result = await runHookScript(path.join(HOOKS_DIR, 'agents-md-injector.mjs'), payload);
-  const ctxText = (result as any)?.hookSpecificOutput?.additionalContext;
-
-  assert.ok(ctxText, 'additionalContext should be present from before_agent_start call');
-  assert.ok(
-    typeof ctxText === 'string' && ctxText.includes('pi-before-agent-content'),
-    'additionalContext contains AGENTS.local.md content',
-  );
-
-  // Simulate the handler's actual mutation logic
-  const event: { systemPrompt: string } = { systemPrompt: 'base prompt' };
-  if (ctxText && typeof ctxText === 'string') {
-    event.systemPrompt = (event.systemPrompt ?? '') + '\n\n' + ctxText;
-  }
-
-  assert.ok(event.systemPrompt.includes('base prompt'), 'original systemPrompt preserved');
-  assert.ok(event.systemPrompt.includes('pi-before-agent-content'), 'systemPrompt now includes AGENTS.md content');
 });
