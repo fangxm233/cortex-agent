@@ -461,7 +461,7 @@ export class PISession {
       planFilePath: turn.planFilePath,
       enteredPlanMode: false,
       exitedPlanMode: turn.planFilePath !== null,
-      askUserQuestions: turn.askUserQuestions.length > 0 ? turn.askUserQuestions : undefined,
+      askUserQuestions: undefined,
       finalOutput: null,
     };
   }
@@ -637,7 +637,6 @@ export class PISession {
       resolve,
       reject,
       planFilePath: null,
-      askUserQuestions: [],
       numTurns: 0,
       totalCostUsd: null,
       promptDispatched: false,

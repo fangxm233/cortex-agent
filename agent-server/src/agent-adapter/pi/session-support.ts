@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import type { InjectionAckSink, UserMessage } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
@@ -17,7 +17,6 @@ export interface PendingPiTurn {
   resolve: (result: AgentResult) => void;
   reject: (error: Error) => void;
   planFilePath: string | null;
-  askUserQuestions: AskUserQuestionInfo[];
   numTurns: number;
   totalCostUsd: number | null;
   promptDispatched: boolean;
