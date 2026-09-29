@@ -510,7 +510,6 @@ export function App({
       <Box flexDirection="row" flexGrow={1} justifyContent="center">
         {sidePanelVisible ? (
           <SidePanel
-            visible={sidePanelVisible}
             active={focusZone === 'dashboard'}
             sendFrame={sendFrame}
             projectId={projectId}
@@ -552,7 +551,6 @@ export function App({
         <Box borderStyle="single" borderDimColor paddingX={1} marginTop={1}>
           {notificationsOpen ? (
             <NotificationsModal
-              open={notificationsOpen}
               notifications={notif.notifications}
               ids={notif.ids}
               onMarkRead={notif.markRead}
@@ -562,7 +560,6 @@ export function App({
           ) : null}
           {projectSwitcherOpen ? (
             <ProjectSwitcher
-              open={projectSwitcherOpen}
               projects={projects}
               loading={projectsLoading}
               error={projectsError}

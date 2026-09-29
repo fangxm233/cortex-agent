@@ -4,7 +4,6 @@ import type { NotificationEntry } from '../hooks/useNotifications.js';
 import { t } from '../../core/i18n.js';
 
 interface NotificationsProps {
-  open: boolean;
   notifications: Map<string, NotificationEntry>;
   ids: string[];
   onMarkRead: (id: string) => void;
@@ -14,27 +13,16 @@ interface NotificationsProps {
 }
 
 export function NotificationsModal({
-  open,
   notifications,
   ids,
   onMarkRead,
   onClose,
   onSelect,
-}: NotificationsProps): React.JSX.Element | null {
+}: NotificationsProps): React.JSX.Element {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
   const [focusedId, setFocusedId] = React.useState<string | null>(null);
 
-  // Reset selection when modal opens
-  React.useEffect(() => {
-    if (open) {
-      setSelectedIdx(0);
-      setFocusedId(null);
-    }
-  }, [open]);
-
   useInput((input, key) => {
-    if (!open) return;
-
     // Re-pressing the toggle hotkey (Ctrl+N) closes the panel, same as Esc.
     if (input === 'n' && key.ctrl) {
       onClose();
@@ -77,8 +65,6 @@ export function NotificationsModal({
       return;
     }
   });
-
-  if (!open) return null;
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>

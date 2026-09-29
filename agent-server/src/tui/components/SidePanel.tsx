@@ -5,7 +5,6 @@ import type { DashState } from '../hooks/useDashboardData.js';
 import type { MutateResult } from '../hooks/useMutate.js';
 
 interface SidePanelProps {
-  visible: boolean;
   /** Whether the dashboard currently owns the keyboard (focus zone === 'dashboard'). */
   active: boolean;
   sendFrame: (frame: any) => void;
@@ -21,7 +20,6 @@ interface SidePanelProps {
 }
 
 export function SidePanel({
-  visible,
   active,
   sendFrame,
   projectId,
@@ -32,9 +30,7 @@ export function SidePanel({
   onSetActiveTab,
   onMutate,
   onClose,
-}: SidePanelProps): React.JSX.Element | null {
-  if (!visible) return null;
-
+}: SidePanelProps): React.JSX.Element {
   // No marginLeft: the parent row centers this panel horizontally (App.tsx wraps the row in
   // justifyContent="center"). Width stays fixed so the dashboard reads as a centered card.
   return (

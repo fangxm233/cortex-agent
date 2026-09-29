@@ -19,7 +19,6 @@ test('ProjectSwitcher renders projects and calls onSelect on Enter', async (t) =
   let closeCalled = false;
 
   const app = React.createElement(ProjectSwitcher, {
-    open: true,
     projects,
     loading: false,
     error: null,

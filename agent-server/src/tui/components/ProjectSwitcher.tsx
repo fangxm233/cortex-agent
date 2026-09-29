@@ -10,7 +10,6 @@ export interface ProjectEntry {
 }
 
 interface ProjectSwitcherProps {
-  open: boolean;
   projects: ProjectEntry[];
   loading: boolean;
   error: string | null;
@@ -20,27 +19,22 @@ interface ProjectSwitcherProps {
 }
 
 export function ProjectSwitcher({
-  open,
   projects,
   loading,
   error,
   onSelect,
   onClose,
   onRequestRefresh,
-}: ProjectSwitcherProps): React.JSX.Element | null {
+}: ProjectSwitcherProps): React.JSX.Element {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  // Reset selection when modal opens
+  // Reset selection and refresh the list when the modal opens (it mounts only while open)
   useEffect(() => {
-    if (open) {
-      setSelectedIdx(0);
-      onRequestRefresh();
-    }
-  }, [open, onRequestRefresh]);
+    setSelectedIdx(0);
+    onRequestRefresh();
+  }, [onRequestRefresh]);
 
   useInput((input, key) => {
-    if (!open) return;
-
     // Re-pressing the toggle hotkey (Ctrl+P) closes the panel, same as Esc.
     if (input === 'p' && key.ctrl) {
       onClose();
@@ -71,8 +65,6 @@ export function ProjectSwitcher({
       return;
     }
   });
-
-  if (!open) return null;
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>

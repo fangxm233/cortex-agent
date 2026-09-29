@@ -23,7 +23,6 @@ test('NotificationsModal onSelect fires when Enter pressed in detail view', asyn
   let selectedNotif: NotificationEntry | null = null;
 
   const instance = render(React.createElement(NotificationsModal, {
-    open: true,
     notifications,
     ids: ['n1'],
     onMarkRead: () => {},
