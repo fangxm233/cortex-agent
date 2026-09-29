@@ -1175,9 +1175,10 @@ def test_trial_and_network_cleanup_failures_are_both_reported(
         lambda _network_id: (_ for _ in ()).throw(cleanup_error),
     )
     config = load_campaign_config(write_campaign(tmp_path))
+    plan = config.trials()[0]
 
     with pytest.raises(campaign.CampaignError) as caught:
-        asyncio.run(campaign._arm_trial(config, config.trials()[0], config.slot(0)))
+        asyncio.run(campaign._arm_trial(config, plan, config.slot(0), None, plan.task.path))
 
     assert f"container refused trial {trial_id}" in str(caught.value)
     assert "network cleanup failed" in str(caught.value)

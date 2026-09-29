@@ -224,7 +224,7 @@ class TrialPlan:
     task: CampaignTask
     # What the trial id would have been if 63 characters had been enough. Equal to `trial_id` for
     # every id that fits, which is every id a committed campaign has ever produced.
-    declared_trial_id: str = ""
+    declared_trial_id: str
 
     @property
     def arm_name(self) -> str:

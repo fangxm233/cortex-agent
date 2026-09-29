@@ -32,7 +32,6 @@ import sys
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from .campaign_config import (
@@ -42,7 +41,7 @@ from .campaign_config import (
     load_campaign_config,
     parse_campaign_config,
 )
-from .campaign_progress import PROGRESS_FILENAME, CampaignProgress
+from .campaign_progress import PROGRESS_FILENAME, CampaignProgress, _timestamp
 from .external_corpus import ExternalCorpusError, stage_task_input
 from .host_finalization import OUTER_ENVELOPE_FILENAME
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
@@ -56,6 +55,7 @@ from .launcher.trial_admission import create_harbor_trial
 from .launcher.trial_admission_io import cpuset_for_slot
 from .proxy.adapters.openai_codex_responses import extract_access_expiry_ms
 from .result_summary import (
+    PROXY_EXPORT_FILENAME,
     RESULT_SUMMARY_FILENAME,
     build_result_summary,
     render_result_summary,
@@ -71,7 +71,6 @@ from .outcome import (
 CAMPAIGN_RESULT_SCHEMA_VERSION = "cortex-bench-campaign-result/5"
 CAMPAIGN_RESULT_FILENAME = "campaign-result.json"
 COMPARISON_REPORT_FILENAME = "comparison-report.json"
-PROXY_EXPORT_FILENAME = "proxy-export.json"
 STATE_COMPLETED = "completed"
 STATE_HOST_FAULT = "stopped-after-host-fault"
 TRIAL_RAN = "ran"
@@ -159,10 +158,6 @@ class TrialOutcome:
             return {"admitted": False, "reason": "security_failed"}
         admission = (self.envelope or {}).get("grader_admission")
         return admission if isinstance(admission, Mapping) else None
-
-    @property
-    def admitted(self) -> bool:
-        return (self.admission or {}).get("admitted") is True
 
     def as_dict(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -484,7 +479,7 @@ def _codex_trial_refusal(
     if expires_at_ms is None or _codex_can_refresh(config) or not _codex_plans([plan]):
         return None
     now_ms = _now_ms()
-    required_ms = _codex_required_expiry_ms(config, [plan], now_ms)
+    required_ms = _codex_required_expiry_ms(config, plan, now_ms)
     if expires_at_ms >= required_ms:
         return None
     return (
@@ -558,13 +553,10 @@ def _validate_pi_openai_codex_plan(plan: TrialPlan) -> None:
             "PI OpenAI Codex arm differs from the exact registered capability key")
 
 
-def _codex_required_expiry_ms(
-    config: CampaignConfig, plans: Sequence[TrialPlan], now_ms: int,
-) -> int:
-    leases = (_declared_lease_ms(config, plan) for plan in plans)
+def _codex_required_expiry_ms(config: CampaignConfig, plan: TrialPlan, now_ms: int) -> int:
     return (
-        now_ms + len(plans) * NETWORK_CREATE_TIMEOUT_MS
-        + SETUP_TIMEOUT_MS + max(leases) + TEARDOWN_GRACE_MS
+        now_ms + NETWORK_CREATE_TIMEOUT_MS
+        + SETUP_TIMEOUT_MS + _declared_lease_ms(config, plan) + TEARDOWN_GRACE_MS
         + CODEX_CLOCK_SKEW_MARGIN_MS
     )
 
@@ -583,7 +575,7 @@ def _now_ms() -> int:
 
 async def _arm_trial(
     config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot,
-    access_expires_at_ms: int | None = None, task_path: Path | None = None,
+    access_expires_at_ms: int | None, task_path: Path,
 ) -> None:
     """One trial, through the production trial path and nothing else."""
     network_id = ""
@@ -591,7 +583,7 @@ async def _arm_trial(
     try:
         network_id = _create_trial_network(config, plan, slot)
         trial = await create_harbor_trial(
-            arm=dict(plan.arm), task_path=task_path or plan.task.path,
+            arm=dict(plan.arm), task_path=task_path,
             trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
@@ -857,10 +849,6 @@ def _write_delivery_artifacts(
 
 def _render_public_result(document: Mapping[str, object]) -> str:
     return json.dumps(document, sort_keys=True) + "\n"
-
-
-def _timestamp() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _parse(argv: Sequence[str] | None) -> argparse.Namespace:
