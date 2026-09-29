@@ -23,12 +23,11 @@ vi.mock('@/design', () => ({
   useToast: () => ({ toast: adapter.toast }),
 }));
 
+import type { WritableBooleanSettingKey } from '@/features/settings/vm/platform-env';
 import {
-  commitSettingToggle,
   commitSettingValue,
   useRuntimeSettingWrite,
   type RuntimeSettingWriter,
-  type WritableBooleanSettingKey,
 } from './runtime-settings-writer';
 
 function captureWriter(queryClient: QueryClient): RuntimeSettingWriter {
@@ -60,7 +59,7 @@ describe('runtime setting commits', () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     const onError = vi.fn();
 
-    await commitSettingToggle({ set, refresh, onError }, key, nextValue);
+    await commitSettingValue({ set, refresh, onError }, key, nextValue);
 
     expect(set).toHaveBeenCalledWith({ section: 'settings', value: { [key]: nextValue } });
     expect(refresh).toHaveBeenCalledOnce();
@@ -86,7 +85,7 @@ describe('runtime setting commits', () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     const onError = vi.fn();
 
-    await commitSettingToggle(
+    await commitSettingValue(
       { set: vi.fn().mockRejectedValue(new Error('denied')), refresh, onError },
       'eventLog',
       false,
@@ -100,7 +99,7 @@ describe('runtime setting commits', () => {
   it('reports a failed snapshot refresh instead of leaving an unhandled rejection', async () => {
     const onError = vi.fn();
 
-    await commitSettingToggle({
+    await commitSettingValue({
       set: vi.fn().mockResolvedValue({ written: true, section: 'settings' }),
       refresh: vi.fn().mockRejectedValue(new Error('refresh denied')),
       onError,
@@ -119,7 +118,7 @@ describe('runtime setting commits', () => {
       onPending,
     };
 
-    const commit = commitSettingToggle(deps, 'autoResume', false);
+    const commit = commitSettingValue(deps, 'autoResume', false);
     await Promise.resolve();
     expect(onPending.mock.calls).toEqual([[true]]);
 
