@@ -78,7 +78,6 @@ interface FreezeAttemptInput {
   resolvedProfile: ResolvedProfileConfig | undefined;
 }
 
-let initialized = false;
 let activeState: ActiveIdentityState | null = null;
 
 function identityInputError(detail: string): Error {
@@ -274,12 +273,6 @@ export class ProductionAttemptIdentityRepo {
     return this.byExecution.get(executionId) ?? null;
   }
 
-  read(executionId: string): ProductionAttemptIdentityRecord {
-    const record = this.get(requiredText(executionId, 'execution identity'));
-    if (!record) throw new Error(`Production attempt identity not found: ${executionId}`);
-    return record;
-  }
-
   list(scope: ProductionAttemptIdentityScope): readonly ProductionAttemptIdentityRecord[] {
     const trialId = requiredText(scope.trialId, 'trial identity');
     const rootRunId = requiredText(scope.rootRunId, 'root run identity');
@@ -333,7 +326,6 @@ function currentRevision(init: ProductionAttemptIdentityInit): ConfigurationRevi
 export function initializeProductionAttemptIdentity(
   init: ProductionAttemptIdentityInit = {},
 ): void {
-  initialized = false;
   activeState = null;
   resetProductionAttemptJournals();
   const identityStorePath = init.storePath ?? DEFAULT_STORE_PATH;
@@ -347,7 +339,6 @@ export function initializeProductionAttemptIdentity(
     activeState = {
       repo, revision: currentRevision(init), configurationRevision: init.configurationRevision,
     };
-    initialized = true;
   } catch (error) {
     resetProductionAttemptJournals();
     throw error;
@@ -355,7 +346,6 @@ export function initializeProductionAttemptIdentity(
 }
 
 export function resetProductionAttemptIdentity(): void {
-  initialized = false;
   activeState = null;
   resetProductionAttemptJournals();
 }
@@ -573,7 +563,7 @@ export function freezeProductionAttemptIdentity(
 ): ProductionAttemptIdentityRecord | null {
   const supplied = input.request.benchmark?.evidenceContext ?? null;
   if (supplied === undefined || supplied === null) return null;
-  if (!initialized || !activeState) {
+  if (!activeState) {
     throw new Error('Production benchmark identity store is not initialized');
   }
   assertStableState(activeState);
@@ -586,11 +576,6 @@ export function freezeProductionAttemptIdentity(
   return activeState.repo.append(candidate);
 }
 
-export function productionAttemptEvidenceEnabled(request: RunRequest): boolean {
-  return initialized && activeState !== null
-    && request.benchmark?.evidenceContext != null;
-}
-
 export function getProductionAttemptIdentity(
   executionId: string,
 ): ProductionAttemptIdentityRecord | null {
@@ -598,16 +583,10 @@ export function getProductionAttemptIdentity(
 }
 
 function activeRepo(): ProductionAttemptIdentityRepo {
-  if (!initialized || !activeState) {
+  if (!activeState) {
     throw new Error('Production benchmark identity store is not initialized');
   }
   return activeState.repo;
-}
-
-export function readProductionAttemptIdentity(
-  executionId: string,
-): ProductionAttemptIdentityRecord {
-  return activeRepo().read(executionId);
 }
 
 export function listProductionAttemptIdentities(

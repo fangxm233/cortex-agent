@@ -24,7 +24,6 @@ import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   listProductionAttemptIdentities,
-  readProductionAttemptIdentity,
   resetProductionAttemptIdentity,
 } from '../../../src/domain/benchmark/production-attempt-identity.js';
 import { computeRoleToolSurfaceHash } from '../../../src/domain/benchmark/identity.js';
@@ -294,7 +293,7 @@ test('coder, reviewer, and fixer form the exact same-thread spawn chain', async 
     }).settled;
   }
 
-  const records = ['coder', 'reviewer', 'fixer'].map(readProductionAttemptIdentity);
+  const records = ['coder', 'reviewer', 'fixer'].map(id => getProductionAttemptIdentity(id)!);
   assert.equal(records[0].spawn_parent_attempt_id, null);
   assert.equal(records[1].spawn_parent_attempt_id, records[0].attempt_id);
   assert.equal(records[2].spawn_parent_attempt_id, records[1].attempt_id);
@@ -333,7 +332,7 @@ test('retry, resumed, and nested executions cannot collide with the root attempt
   }).settled;
 
   const records = ['root-first', 'root-retry', 'root-resumed', 'nested-manager']
-    .map(readProductionAttemptIdentity);
+    .map(id => getProductionAttemptIdentity(id)!);
   assert.equal(new Set(records.map(row => row.attempt_id)).size, records.length);
   assert.ok(records.every(row => row.root_attempt_id === records[0].attempt_id));
   assert.equal(records[0].spawn_parent_attempt_id, null);
@@ -346,7 +345,7 @@ test('retry, resumed, and nested executions cannot collide with the root attempt
     executionId: 'root-retry', threadId: 'root-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
   }), /journal already exists/i);
-  assert.deepEqual(readProductionAttemptIdentity('root-retry'), retryBeforeReuse);
+  assert.deepEqual(getProductionAttemptIdentity('root-retry')!, retryBeforeReuse);
 });
 
 test('child and dispatcher-created task attempts use the latest causal parent attempt', async () => {
@@ -356,15 +355,15 @@ test('child and dispatcher-created task attempts use the latest causal parent at
     executionId: 'manager-first', threadId: 'manager-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
   }).settled;
-  const first = readProductionAttemptIdentity('manager-first');
+  const first = getProductionAttemptIdentity('manager-first')!;
 
   await Promise.all(['child-a', 'child-b'].map(async (executionId) => runAttempt('claude', spawns, {
     executionId, threadId: `${executionId}-thread`, rootThreadId: 'manager-thread',
     parentThreadId: 'manager-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
   }).settled));
-  assert.equal(readProductionAttemptIdentity('child-a').spawn_parent_attempt_id, first.attempt_id);
-  assert.equal(readProductionAttemptIdentity('child-b').spawn_parent_attempt_id, first.attempt_id);
+  assert.equal(getProductionAttemptIdentity('child-a')!.spawn_parent_attempt_id, first.attempt_id);
+  assert.equal(getProductionAttemptIdentity('child-b')!.spawn_parent_attempt_id, first.attempt_id);
 
   await runAttempt('claude', spawns, {
     executionId: 'child-a-review', threadId: 'child-a-thread', rootThreadId: 'manager-thread',
@@ -372,22 +371,22 @@ test('child and dispatcher-created task attempts use the latest causal parent at
     template: 'benchmark-coder-review', role: 'benchmark-reviewer',
   }).settled;
   assert.equal(
-    readProductionAttemptIdentity('child-a-review').spawn_parent_attempt_id,
-    readProductionAttemptIdentity('child-a').attempt_id,
+    getProductionAttemptIdentity('child-a-review')!.spawn_parent_attempt_id,
+    getProductionAttemptIdentity('child-a')!.attempt_id,
   );
 
   await runAttempt('claude', spawns, {
     executionId: 'manager-resumed', threadId: 'manager-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
   }).settled;
-  const resumed = readProductionAttemptIdentity('manager-resumed');
+  const resumed = getProductionAttemptIdentity('manager-resumed')!;
   await runAttempt('claude', spawns, {
     executionId: 'dispatch-child', threadId: 'dispatch-child-thread',
     rootThreadId: 'manager-thread', parentThreadId: 'manager-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
     taskId: 'b2c3', taskProject: 'atlas', taskGeneration: 'generation-child',
   }).settled;
-  const dispatched = readProductionAttemptIdentity('dispatch-child');
+  const dispatched = getProductionAttemptIdentity('dispatch-child')!;
   assert.equal(dispatched.spawn_parent_attempt_id, resumed.attempt_id);
   assert.equal(dispatched.task_id, 'b2c3');
   assert.equal(dispatched.dispatch_generation, 'generation-child');
@@ -425,9 +424,7 @@ test('fails closed when a child first execution cannot resolve its parent attemp
   assert.equal(spawns.length, 1);
 });
 
-test('strict reads refuse unknown executions and run scopes', () => {
-  assert.throws(() => readProductionAttemptIdentity('unknown-execution'),
-    /attempt identity.*not found/i);
+test('strict reads refuse unknown run scopes', () => {
   assert.throws(() => listProductionAttemptIdentities({
     trialId: 'unknown-trial', rootRunId: 'unknown-root',
   }), /attempt identity.*not found|no production attempts/i);
@@ -479,7 +476,7 @@ test('root baseline refuses drift and the attested spec is the launched spec', a
   // `startAttempt` builds the spec once and both attests and launches that same object, so the
   // identity hash must equal the hash of the launched spec's role surface. This replaces the old
   // `preparedSpec` object-identity check, an option the run request contract no longer has.
-  const identity = readProductionAttemptIdentity('baseline');
+  const identity = getProductionAttemptIdentity('baseline')!;
   assert.equal(
     identity.role_tool_surface_hash,
     computeRoleToolSurfaceHash(roleSurfaceFromSpec(handle.spec, 'Resolved directive')),
