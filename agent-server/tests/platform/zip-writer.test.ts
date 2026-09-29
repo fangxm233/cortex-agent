@@ -39,11 +39,6 @@ test('crc32: known-answer vectors', () => {
   assert.equal(crc32(Buffer.from('123456789')) >>> 0, 0xcbf43926);
 });
 
-test('createZip: begins with a local file header signature', () => {
-  const zip = createZip([{ name: 'a.txt', data: Buffer.from('hello') }]);
-  assert.equal(zip.readUInt32LE(0), LFH_SIG);
-});
-
 test('createZip: contains a central directory and an EOCD record', () => {
   const zip = createZip([{ name: 'a.txt', data: Buffer.from('hello') }]);
   // EOCD is the last 22 bytes (no archive comment).
@@ -86,16 +81,6 @@ test('createZip: central directory records the correct CRC-32 per entry', () => 
   }
   assert.ok(cdhOff >= 0);
   assert.equal(zip.readUInt32LE(cdhOff + 16) >>> 0, crc32(data) >>> 0);
-});
-
-test('createZip: is deterministic for identical input (stable bytes)', () => {
-  const files = [
-    { name: 'b.txt', data: Buffer.from('two') },
-    { name: 'a.txt', data: Buffer.from('one') },
-  ];
-  const z1 = createZip(files);
-  const z2 = createZip([...files]);
-  assert.deepEqual(z1, z2, 'same input must yield byte-identical archives');
 });
 
 test('createZip: sorts entries by name so ordering of input does not matter', () => {

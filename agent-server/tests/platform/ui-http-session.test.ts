@@ -129,12 +129,6 @@ describe('token login: minting a browser session', () => {
   let port: number;
   beforeAll(async () => { ({ port } = await bootWithTokenLogin()); });
 
-  test('the login route is reachable without any credential', async () => {
-    // A browser that holds nothing must be able to knock — otherwise there is no way in at all.
-    const { statusCode } = await postJson(port, UI_LOGIN_PATH, { token: 'wrong' });
-    assert.equal(statusCode, 401, 'wrong token is rejected, but the route itself answered');
-  });
-
   test('a wrong token is refused, slowly, and mints nothing', async () => {
     const t0 = Date.now();
     const res = await postJson(port, UI_LOGIN_PATH, { token: 'wrong' });

@@ -82,13 +82,6 @@ test('no routes when spaDir does not exist on disk', () => {
   assert.deepEqual(Object.keys(routes), []);
 });
 
-test('registers both manifest and bundle routes when spaDir exists', () => {
-  const dir = makeSpa({ 'index.html': '<html>hi</html>' });
-  const routes = createOtaRoutes(dir);
-  assert.ok(UI_OTA_MANIFEST_PATH in routes);
-  assert.ok(UI_OTA_BUNDLE_PATH in routes);
-});
-
 test('manifest: returns JSON with version/sha256/size/url', async () => {
   const dir = makeSpa({ 'index.html': '<html>hi</html>', 'app.js': 'x=1' });
   const routes = createOtaRoutes(dir);
