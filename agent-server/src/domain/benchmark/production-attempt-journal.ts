@@ -187,9 +187,8 @@ function journalFileName(identity: ProductionAttemptIdentityRecord): string {
   return `${digest}.ndjson`;
 }
 
-function valueSha256(value: unknown): string {
-  const text = typeof value === 'string' ? value : JSON.stringify(value);
-  return createHash('sha256').update(text, 'utf8').digest('hex');
+function valueSha256(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 function promptHashes(input: ProductionAttemptJournalInput) {

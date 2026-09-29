@@ -41,17 +41,11 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
-function comparePath(a: ContentEntry, b: ContentEntry): number {
-  if (a.path < b.path) return -1;
-  if (a.path > b.path) return 1;
-  return 0;
-}
-
 export function directoryContentSha256(directory: string): string {
   if (!fs.statSync(directory).isDirectory()) {
     throw new Error(`Plugin path is not a directory: ${directory}`);
   }
-  return canonicalJsonSha256(contentEntries(directory).sort(comparePath));
+  return canonicalJsonSha256(contentEntries(directory).sort((a, b) => compareText(a.path, b.path)));
 }
 
 function pluginIdentities(
