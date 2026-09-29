@@ -21,7 +21,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
 )
 from cortex_bench_harness.proxy.lease import LeaseTerms
 from current_vendor_cli import installed_cli, isolated_or_rerun
-from vendor_wire_capture import text_events, tool_events
+from vendor_wire_capture import sse, text_events, tool_events
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
@@ -67,14 +67,6 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
     assert codex["model"] == FROZEN_MODELS["codex"]
     assert claude_wire["observed_model_identifiers"]["opus"] == claude["model"]
     assert codex_wire["request"]["model"] == "gpt-5.3-codex"
-
-
-def sse(events: list[dict[str, object]]) -> bytes:
-    chunks = [
-        f"event: {event['type']}\ndata: {json.dumps(event, separators=(',', ':'))}\n\n"
-        for event in events
-    ]
-    return "".join(chunks).encode()
 
 
 def pi_response(model: str) -> bytes:
