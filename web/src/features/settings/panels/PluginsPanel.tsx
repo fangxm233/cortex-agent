@@ -6,11 +6,11 @@ import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import {
-  ROW_STYLE, SButton, SCard, SCardHeader, SFieldRow, SNotice, SPill, SRowGroup, SSegmented,
+  ROW_STYLE, SButton, SCard, SCardHeader, SFieldRow, SNotice, SPill, SRow, SRowGroup, SSection, SSegmented,
   S_CONTROL_STYLE,
 } from '@/features/settings/ui/settings-ui';
 import {
-  EmptyMessage, IssueList, MetaBlock, MetaSection,
+  EmptyMessage, IssueList,
   manifestSourceText, pluginKindText, pluginTitle, scopeNoticeText,
 } from '@/features/settings/ui/plugin-ui';
 import {
@@ -209,12 +209,12 @@ function OverviewTab({ plugin, usage }: { plugin: UiPluginCatalogEntry; usage: r
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {scopeNote ? <SNotice tone="muted" data-plugin-scope={plugin.scope}>{scopeNote}</SNotice> : null}
       <SRowGroup>
-        <MetaBlock label={L.plRootDirLabel} value={plugin.rootDir} />
-        <MetaBlock label={L.plManifestSourceLabel} value={manifestSourceText(plugin.manifest.source, L)} />
-        <MetaBlock label={L.plManifestDescLabel} value={plugin.manifest.description ?? L.plUnknownValue} />
+        <SRow title={L.plRootDirLabel} desc={plugin.rootDir} />
+        <SRow title={L.plManifestSourceLabel} desc={manifestSourceText(plugin.manifest.source, L)} />
+        <SRow title={L.plManifestDescLabel} desc={plugin.manifest.description ?? L.plUnknownValue} />
       </SRowGroup>
-      <MetaSection label={L.plUsedByLabel}><UsageList usage={usage} /></MetaSection>
-      <MetaSection label={L.plIssuesLabel}><IssueList plugin={plugin} /></MetaSection>
+      <SSection label={L.plUsedByLabel}><UsageList usage={usage} /></SSection>
+      <SSection label={L.plIssuesLabel}><IssueList plugin={plugin} /></SSection>
     </div>
   );
 }

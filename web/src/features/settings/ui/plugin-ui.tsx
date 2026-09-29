@@ -1,7 +1,7 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
-import { GROUP_STYLE, ROW_STYLE, SRow, SRowGroup, SSection } from './settings-ui';
+import { GROUP_STYLE, ROW_STYLE, SRowGroup } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -47,16 +47,6 @@ export function scopeNoticeText(plugin: UiPluginCatalogEntry, L: Vocab): string 
   if (plugin.scope === 'commission') return L.plScopeCommission;
   if (plugin.scope === 'channel') return L.plScopeChannel.replace('{prefix}', plugin.scopePrefix ?? '');
   return null;
-}
-
-/** One labelled fact, as a row of the meta card it sits in. */
-export function MetaBlock({ label, value }: { label: string; value: string }) {
-  return <SRow title={label} desc={value} />;
-}
-
-/** A named block of the detail pane: the sheet's uppercase heading over whatever follows. */
-export function MetaSection({ label, children }: { label: string; children: ReactNode }) {
-  return <SSection label={label}>{children}</SSection>;
 }
 
 export function EmptyMessage({ text, dataAttr }: { text: string; dataAttr: string }) {
