@@ -62,12 +62,11 @@ import {
 } from '@/features/session/interaction/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
-import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
+import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
   useSessionCommission,
 } from '@/features/commission/CommissionOptIn';
-import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
@@ -368,15 +367,7 @@ export function MChatScreen(): JSX.Element {
   // spawns, so a live session can report it but never change it.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
   const [browserSheetOpen, setBrowserSheetOpen] = useState(false);
-  const [browserDevices, setBrowserDevices] = useState<ForwardDevice[]>([]);
-  // Read when the sheet opens rather than held: devices come and go, and a stale list would offer a
-  // machine that is no longer connected.
-  useEffect(() => {
-    if (!browserSheetOpen) return;
-    let alive = true;
-    listForwardDevices().then((d) => { if (alive) setBrowserDevices(d); }).catch(() => { if (alive) setBrowserDevices([]); });
-    return () => { alive = false; };
-  }, [browserSheetOpen]);
+  const browserOptions = useBrowserDeviceOptions(browserSheetOpen);
   // Commission mode, same creation-time rule as the browser and for the same reason: it decides
   // which plan tools and which skill the process spawns with.
   const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
@@ -906,11 +897,7 @@ export function MChatScreen(): JSX.Element {
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
         onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
         browserSheet={browserSheetOpen ? {
-          items: [
-            { device: null, label: vocab.wbBrowserOffOption, sub: '' },
-            { device: DEFAULT_BROWSER_DEVICE, label: DEFAULT_BROWSER_DEVICE, sub: vocab.wbBrowserThisHost },
-            ...browserDevices.map((d) => ({ device: d.device, label: d.device, sub: d.platform })),
-          ],
+          items: browserOptions,
           title: vocab.wbBrowser,
           onClose: () => setBrowserSheetOpen(false),
           onPick: (device: string | null) => { setDraftBrowserDevice(device); setBrowserSheetOpen(false); },
