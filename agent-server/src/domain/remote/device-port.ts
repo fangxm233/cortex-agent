@@ -17,6 +17,9 @@ const log = createLogger('device-port');
 /** Only loopback: this port is a private handle for server-side processes, not a public relay. */
 const BIND_ADDRESS = '127.0.0.1';
 
+/** Host as resolved ON the device. Loopback only — enforced again by the client. */
+const REMOTE_HOST = '127.0.0.1';
+
 /** Bound so a leaking caller cannot exhaust file descriptors with listeners. */
 const MAX_PORTS = 32;
 
@@ -148,11 +151,6 @@ async function serveConnection(entry: Entry, tcp: net.Socket): Promise<void> {
   pipeStream(tcp, ws, `${device}:${remotePort} stream ${req.id.slice(0, 8)}`);
 }
 
-export interface OpenDevicePortOptions {
-  /** Host as resolved ON the device. Loopback only — enforced again by the client. */
-  remoteHost?: string;
-}
-
 /**
  * Map `remotePort` on `device` onto a fresh loopback port here.
  *
@@ -160,12 +158,8 @@ export interface OpenDevicePortOptions {
  * second listener, because callers (an agent turn, a UI panel) come and go independently and
  * neither can know whether the other already opened it.
  */
-export async function openDevicePort(
-  device: string,
-  remotePort: number,
-  opts: OpenDevicePortOptions = {},
-): Promise<DevicePort> {
-  const remoteHost = opts.remoteHost ?? '127.0.0.1';
+export async function openDevicePort(device: string, remotePort: number): Promise<DevicePort> {
+  const remoteHost = REMOTE_HOST;
   const k = key(device, remoteHost, remotePort);
   const existing = ports.get(k);
   if (existing) return existing.info;
@@ -207,7 +201,8 @@ export async function openDevicePort(
 }
 
 /** Tear down a mapping and every connection riding it. */
-export function closeDevicePort(device: string, remotePort: number, remoteHost = '127.0.0.1'): boolean {
+export function closeDevicePort(device: string, remotePort: number): boolean {
+  const remoteHost = REMOTE_HOST;
   const k = key(device, remoteHost, remotePort);
   const entry = ports.get(k);
   if (!entry) return false;
@@ -219,22 +214,12 @@ export function closeDevicePort(device: string, remotePort: number, remoteHost =
   return true;
 }
 
-/** Close every mapping for one device. */
-export function closeDevicePortsFor(device: string): number {
-  let closed = 0;
-  for (const entry of [...ports.values()]) {
-    if (entry.info.device !== device) continue;
-    if (closeDevicePort(entry.info.device, entry.info.remotePort, entry.info.remoteHost)) closed++;
-  }
-  return closed;
-}
-
 export function listDevicePorts(): DevicePort[] {
   return [...ports.values()].map((e) => ({ ...e.info }));
 }
 
 export function stopAllDevicePorts(): void {
   for (const entry of [...ports.values()]) {
-    closeDevicePort(entry.info.device, entry.info.remotePort, entry.info.remoteHost);
+    closeDevicePort(entry.info.device, entry.info.remotePort);
   }
 }

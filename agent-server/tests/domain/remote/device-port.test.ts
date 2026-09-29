@@ -4,7 +4,7 @@ import * as net from 'net';
 import type { WebSocket } from 'ws';
 import { claimStream } from '@domain/remote/reverse-stream.js';
 import {
-  _setControlSenderForTesting, closeDevicePort, closeDevicePortsFor, listDevicePorts,
+  _setControlSenderForTesting, closeDevicePort, listDevicePorts,
   openDevicePort, stopAllDevicePorts,
 } from '@domain/remote/device-port.js';
 
@@ -163,14 +163,5 @@ describe('teardown', () => {
     expect(closeDevicePort('desk', 9222)).toBe(true);
     expect(listDevicePorts()).toHaveLength(0);
     await expect(connect(info.localPort)).rejects.toThrow();
-  });
-
-  it('closes every mapping for one device only', async () => {
-    captureControl();
-    await openDevicePort('desk', 9222);
-    await openDevicePort('desk', 6006);
-    await openDevicePort('server', 6006);
-    expect(closeDevicePortsFor('desk')).toBe(2);
-    expect(listDevicePorts().map((p) => p.device)).toEqual(['server']);
   });
 });
