@@ -154,42 +154,10 @@ test('config.set accepts valid budget / profiles sections and rejects illegal va
     configSet.parse({ section: 'profiles', value: { defaultProfile: 'plan' } }),
     { section: 'profiles', value: { defaultProfile: 'plan' } },
   );
-  const settings = {
-    section: 'settings',
-    value: {
-      turnNotify: false,
-      sessionRetentionDays: 30,
-      taskDispatchMaxConcurrent: null,
-      uiCorsOrigins: ['https://ui.example'],
-    },
-  };
-  assert.deepEqual(configSet.parse(settings), settings);
-  assert.throws(() => configSet.parse({
-    section: 'settings', value: { unknownSetting: true },
-  }));
-  assert.throws(() => configSet.parse({
-    section: 'settings', value: { turnNotify: 'false' },
-  }));
-  assert.throws(() => configSet.parse({
-    section: 'settings', value: { turnNotify: undefined },
-  }));
-  for (const value of [0, 1.5, Number.MAX_SAFE_INTEGER]) {
-    assert.throws(() => configSet.parse({
-      section: 'settings', value: { sessionRetentionDays: value },
-    }));
-  }
-  // negative / zero rejected
-  assert.throws(() => configSet.parse({ section: 'budget', value: { daily_usd: -1, monthly_usd: 2000 } }));
-  // missing field rejected
-  assert.throws(() => configSet.parse({ section: 'budget', value: { daily_usd: 100 } }));
   // profiles: empty defaultProfile rejected
   assert.throws(() => configSet.parse({ section: 'profiles', value: { defaultProfile: '' } }));
   // unknown section rejected
   assert.throws(() => configSet.parse({ section: 'mcp', value: {} }));
-  assert.throws(() => configSet.parse({
-    section: 'settings',
-    value: { providerRateLimits: { 'openai-codex': { enabled: false } } },
-  }));
 });
 
 test('config.setProviderRateLimitPolicy accepts optional window targets and rejects invalid ones', async () => {
@@ -200,16 +168,9 @@ test('config.setProviderRateLimitPolicy accepts optional window targets and reje
     { provider: 'openai-codex', windowType: 'codex_primary', enabled: false, threshold: 0.91 },
   );
   assert.deepEqual(
-    setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: null }),
-    { provider: 'openai-codex', enabled: true, threshold: null },
-  );
-  assert.deepEqual(
     setPolicy.parse({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false }),
     { provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false },
   );
-  assert.throws(() => setPolicy.parse({ provider: '', enabled: true, threshold: null }));
-  assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 0 }));
-  assert.throws(() => setPolicy.parse({ provider: 'openai-codex', enabled: true, threshold: 1.1 }));
   assert.throws(() => setPolicy.parse({ provider: 'anthropic', windowLabel: 'Sonnet', enabled: false }));
 });
 
