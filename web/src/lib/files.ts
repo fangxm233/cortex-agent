@@ -81,11 +81,6 @@ export async function downloadFile(relPath: string, fileName?: string): Promise<
   return {};
 }
 
-/** Copy a file's path to the clipboard (hover action). */
-export async function copyFilePath(relPath: string): Promise<void> {
-  try { await navigator.clipboard.writeText(relPath); } catch { /* clipboard blocked — no-op */ }
-}
-
 /**
  * Open a saved file with the OS default application (desktop download-complete toast "Open file"
  * action). Native shell only — invokes the `open_path` Tauri command with the absolute path that
