@@ -158,15 +158,6 @@ async function syncPath(filePath: string, deps: FsLike): Promise<void> {
   }
 }
 
-async function syncParentDir(filePath: string, deps: FsLike): Promise<void> {
-  const handle = await deps.open(path.dirname(filePath), 'r');
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
 async function ensureConfigDir(configDir: string, deps: FsLike): Promise<void> {
   const existing = await statOrNull(configDir, deps);
   if (existing) return;
@@ -227,7 +218,7 @@ async function replaceSettingsFile(
     await writeTempFile(tempPath, result.mode ?? FILE_MODE, serializeSettings(next), deps);
     await assertUnchanged(result, deps);
     await deps.rename(tempPath, result.targetPath);
-    await syncParentDir(result.targetPath, deps);
+    await syncPath(path.dirname(result.targetPath), deps);
   } catch (error) {
     await removeIfExists(tempPath, deps);
     throw error;

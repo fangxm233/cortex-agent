@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { resolveRunConfig } from '../runs/config-resolver.js';
 import {
@@ -477,7 +478,7 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
     ?? path.join(home, '.claude');
   const claudePath = options.claudeCredentialsPath
     ?? path.join(claudeConfigDir, '.credentials.json');
-  const piAuthPath = options.piAuthPath ?? path.join(home, '.pi', 'agent', 'auth.json');
+  const piAuthPath = options.piAuthPath ?? piUserAuthPath();
   const usage = collectInUse(options);
   const apiEnv = { ...(options.getSavedApiEnv ?? readSavedApiEnv)() };
   const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;

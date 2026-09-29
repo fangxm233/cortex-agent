@@ -1,6 +1,5 @@
 import { t } from '@core/i18n.js';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { piUserAuthPath } from '@core/pi-sdk.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
   applyAuthEnv,
@@ -76,7 +75,7 @@ function succeeded(input: LogoutAccountInput): AuthLogoutSuccess {
 }
 
 function piAuthPath(dependencies: LogoutAccountDependencies): string {
-  return dependencies.piAuthPath ?? path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+  return dependencies.piAuthPath ?? piUserAuthPath();
 }
 
 async function readStatus(
