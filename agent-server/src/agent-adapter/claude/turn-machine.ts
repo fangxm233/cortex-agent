@@ -322,18 +322,9 @@ export class ClaudeTurnMachine {
     for (const delivery of pending) this.deliverContinuation(delivery);
   }
 
-  clearBackgroundTurnSink(): void {
-    this.backgroundTurnSink = null;
-    this.pendingContinuationDeliveries.length = 0;
-  }
-
   /** Register/replace the injection delivery-ack sink. Lifetime mirrors backgroundTurnSink. */
   setInjectionAckSink(sink: InjectionAckSink): void {
     this.injectionAck = sink;
-  }
-
-  clearInjectionAckSink(): void {
-    this.injectionAck = null;
   }
 
   /**

@@ -60,7 +60,6 @@ function engineRun(
 
 test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) => {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
@@ -260,7 +259,6 @@ test('integration: real captured line sequence becomes the background RunEvents 
 // tasks (undeliveredBackgroundTasks) so orchestration can arm a grace watchdog for the latter.
 test('handleLine: task completed without notification → undelivered, not pending, on result', (t) => {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
@@ -333,7 +331,6 @@ test('handleProcessClose: crash mid-continuation (spontaneous turn open) → bac
 // the user turn's resolved it empty in ~2s; the minutes of real work that followed were dropped.
 test('handleLine: notification-turn result on resume does not settle the user turn', (t) => {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
@@ -393,7 +390,6 @@ test('run: notification observed mid-turn without its own turn yet → result ow
 
 test('handleLine: notification folded into the active turn (replay echo) owes nothing at result', (t) => {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
@@ -409,7 +405,6 @@ test('handleLine: notification folded into the active turn (replay echo) owes no
 
 test('handleLine: compact_boundary fires onCompact with trigger + preTokens', (t) => {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};

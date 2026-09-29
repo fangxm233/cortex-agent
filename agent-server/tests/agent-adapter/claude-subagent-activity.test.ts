@@ -46,7 +46,6 @@ function turnFor(out: Seen) {
 
 function sessionWith(out: Seen, t: { onTestFinished: (fn: () => void) => void }) {
   const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
   s.currentTurn = turnFor(out);
   return s;

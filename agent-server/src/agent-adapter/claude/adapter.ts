@@ -594,18 +594,15 @@ class ClaudeSession implements TurnHost {
     return this.onRateLimit ? this.onRateLimit(info, origin) : Promise.resolve();
   }
 
-  // --- Turn delegation. Thin by design: `ClaudeAdapter.spawn` and the unit tests still reach the
-  //     turn through the session. ---
+  // --- Turn delegation. Thin by design: the engine and the unit tests reach the turn through the
+  //     session. ---
 
   handleLine(line: string): void { this.turns.handleLine(line); }
-
-  createTurnStreams(userMessage: string) { return this.turns.createTurnStreams(userMessage); }
 
   get currentTurn(): PendingTurn | null { return this.turns.currentTurn; }
   set currentTurn(turn: PendingTurn | null) { this.turns.currentTurn = turn; }
 
   get backgroundTurnSink(): BackgroundTurnSink | null { return this.turns.backgroundTurnSink; }
-  set backgroundTurnSink(sink: BackgroundTurnSink | null) { this.turns.backgroundTurnSink = sink; }
 
   get bgTracker(): BgTaskTracker { return this.turns.bgTracker; }
 
@@ -616,17 +613,9 @@ class ClaudeSession implements TurnHost {
 
   setBackgroundTurnSink(sink: BackgroundTurnSink): void { this.turns.setBackgroundTurnSink(sink); }
 
-  clearBackgroundTurnSink(): void { this.turns.clearBackgroundTurnSink(); }
-
   setInjectionAckSink(sink: InjectionAckSink): void { this.turns.setInjectionAckSink(sink); }
 
-  clearInjectionAckSink(): void { this.turns.clearInjectionAckSink(); }
-
   injectUserMessage(message: UserMessage): boolean { return this.turns.injectUserMessage(message); }
-
-  getSupervision(): AgentProcessSupervision | undefined {
-    return this.supervision;
-  }
 
   isAlive(): boolean {
     return this.alive;
@@ -895,8 +884,8 @@ export function recoverTuiOrphans(exec?: TmuxExec): { found: string[]; killed: s
 
 /** Construct a ClaudeSession WITHOUT spawning the `claude` child process, for unit
  *  testing handleLine / continuation routing. Initializes only the fields the line
- *  handlers touch. Callers should stub createTurnStreams to avoid log file I/O and
- *  register cleanup via t.after(() => session.close()) to clear the idle timer. */
+ *  handlers touch. Transcript capture stays off, so turn streams are no-op sinks.
+ *  Callers register cleanup via t.after(() => session.close()) to clear the idle timer. */
 function makeSessionForTest(
   modelName: string | null = null,
   autoCompactWindow: number | null = null,

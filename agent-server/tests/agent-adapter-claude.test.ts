@@ -1093,9 +1093,7 @@ test('setActivePlanFile / getCurrentPlanFilePath / clearActivePlanFile round-tri
 function compactTestSession(): { session: any; writes: string[]; cleanup: () => void } {
   const session = adapterTest.makeSessionForTest() as any;
   const writes: string[] = [];
-  const stream = { write: () => true, end: () => {} };
   session.proc = { stdin: { write: (line: string) => { writes.push(line); return true; } }, exitCode: null };
-  session.createTurnStreams = () => ({ rawStream: stream, txtStream: stream });
   return {
     session,
     writes,

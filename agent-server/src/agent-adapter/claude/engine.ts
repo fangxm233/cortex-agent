@@ -5,7 +5,7 @@ import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type { EngineRunOptions } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
-  AgentCompactResult, AgentProcessSupervision, Backend, BackgroundTurnSink,
+  AgentCompactResult, Backend, BackgroundTurnSink,
   EngineRun, EngineSession, EngineSpec, InjectionAckSink, UserMessage,
 } from '../types.js';
 import {
@@ -38,7 +38,6 @@ export interface ClaudeEngineSessionHost extends ClaudeTurnAccountingSource {
   injectUserMessage(message: UserMessage): boolean;
   setInjectionAckSink(sink: InjectionAckSink): void;
   setBackgroundTurnSink(sink: BackgroundTurnSink): void;
-  getSupervision(): AgentProcessSupervision | undefined;
   compact(): Promise<AgentCompactResult>;
   /** `ClaudeSession.close()` is synchronous (stdin end + grace timer); the engine wraps it. */
   close(): void;
