@@ -6,8 +6,6 @@ import { DATA_DIR } from '@core/utils.js';
 export const PI_AGENT_DIR = path.join(DATA_DIR, 'data', 'pi');
 export const PI_SESSIONS_DIR = path.join(DATA_DIR, 'logs', 'sessions-pi');
 
-export const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
-
 /** PI's models.json always lives beside auth.json inside the agent dir, so one parameter fixes
  *  both (design §13 P7 / A3): a trial agent dir implies a trial provider catalog. */
 export function piModelsPath(agentDir: string): string {

@@ -11,19 +11,19 @@ import {
 
 } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { createLogger } from '@core/log.js';
 import { ensureAgentRoles } from '@core/agents/roles.js';
+import { piUserAuthPath, piUserModelsPath } from '@core/pi-sdk.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 const log = createLogger('pi-agent-dir');
 
 /** Default location of the user's PI OAuth/API-key credentials. */
-const USER_PI_AUTH_PATH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+const USER_PI_AUTH_PATH = piUserAuthPath();
 
 /** The user's own PI provider catalog: where user-defined providers are declared, shared with the
  *  terminal `pi` CLI. Daemon-only — a trial never reads the host PI home (design §13 A1). */
-export const USER_PI_MODELS_PATH = path.join(os.homedir(), '.pi', 'agent', 'models.json');
+export const USER_PI_MODELS_PATH = piUserModelsPath();
 
 // ─── auth.json visibility (symlink / copy from user PI dir) ──────
 

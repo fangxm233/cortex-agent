@@ -29,7 +29,7 @@ import {
   buildSessionRequest, sessionIdentity, unsupportedExtraOptions, type PiSessionRequest,
 } from './session-options.js';
 import type { SwitchResult } from './session-support.js';
-import { DEFAULT_SESSION_DIR, PI_AGENT_DIR, piModelsPath } from './defaults.js';
+import { PI_AGENT_DIR, PI_SESSIONS_DIR, piModelsPath } from './defaults.js';
 
 /** The pool SessionEngines registers on the adapter so `switchSession` can reach the live
  *  engine without the adapter importing domain. */
@@ -138,7 +138,7 @@ export class PIAdapter implements EngineAdapter {
 
   constructor(
     runtimeFactory: PiRuntimeFactory = createPiRuntime,
-    sessionDir: string = DEFAULT_SESSION_DIR,
+    sessionDir: string = PI_SESSIONS_DIR,
     providerDiscovery: PIProviderDiscovery = NO_PROVIDER_DISCOVERY,
     hooks: PIAdapterHooks = {},
   ) {

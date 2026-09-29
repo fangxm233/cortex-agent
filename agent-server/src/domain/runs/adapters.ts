@@ -1,7 +1,7 @@
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
-import { DEFAULT_SESSION_DIR, PI_AGENT_DIR } from '../../agent-adapter/pi/defaults.js';
+import { PI_AGENT_DIR, PI_SESSIONS_DIR } from '../../agent-adapter/pi/defaults.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { handleRateLimitEvent } from '../costs/rate-limit-throttle.js';
 import { usageStore } from '../costs/usage-store.js';
@@ -21,7 +21,7 @@ import type {
 // store and a throttle, and ClaudeAdapter drops the CLI's rate-limit lines. That is the intended
 // behaviour off the daemon path, and this file is the only place the daemon path is assembled.
 
-const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDiscovery, {
+const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, piProviderDiscovery, {
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
   userModelsPath: USER_PI_MODELS_PATH,
