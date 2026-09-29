@@ -168,13 +168,13 @@ async function readEnv(file: string): Promise<ConfigEnvEntry[]> {
 
 /**
  * Read a config snapshot from the supplied directory. Files remain hermetically scoped to that
- * directory; settings are the caller-supplied live snapshot. A missing or malformed source affects
- * only its own field.
+ * directory; settings and the display language are the live values the caller supplies. A missing
+ * or malformed source affects only its own field.
  */
 export async function readConfigSnapshot(
   configDir: string,
   liveSettings: ConfigSettingEntry[],
-  lang?: ConfigLang,
+  lang: ConfigLang,
 ): Promise<ConfigSnapshot> {
   const tt = path.join(configDir, 'thread-templates');
   const hooks = loadMountedHookSummaries(path.join(configDir, 'hooks'), path.join(tt, 'templates'));
@@ -195,8 +195,7 @@ export async function readConfigSnapshot(
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
     mcp: parseMcp(mcp), threadTemplates,
     agents: await readAgentEntries(path.join(tt, 'agents'), agents),
-    hooks, env, settings: liveSettings,
-    ...(lang ? { lang } : {}),
+    hooks, env, settings: liveSettings, lang,
   };
 }
 
