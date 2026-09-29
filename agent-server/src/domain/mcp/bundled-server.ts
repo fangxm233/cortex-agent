@@ -71,12 +71,12 @@ const slackLoader: RegistrarLoader = async (ctx) => {
 };
 
 const feishuLoader: RegistrarLoader = async (ctx) => {
-  const [{ registerFeishuTools }, { buildFeishuClientFromEnv }] = await Promise.all([
-    import('./feishu/index.js'), import('./feishu/client.js'),
+  const [{ registerFileTools }, { buildFeishuClientFromEnv }] = await Promise.all([
+    import('./feishu/file.js'), import('./feishu/client.js'),
   ]);
   // App credentials stay process-wide (one Feishu app per daemon); only the channel is per session.
   const client = buildFeishuClientFromEnv();
-  return server => registerFeishuTools(server, { client, fallbackChannel: ctx.channel, ctx });
+  return server => registerFileTools(server, { client, fallbackChannel: ctx.channel, ctx });
 };
 
 const webLoader: RegistrarLoader = async (ctx) => {
