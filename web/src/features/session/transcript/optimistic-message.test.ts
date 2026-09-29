@@ -5,7 +5,6 @@ import { mergeRestoredDraft } from '@/features/session/composer/composer-draft';
 import {
   acceptOptimisticUserMessage,
   createOptimisticUserMessage,
-  hasAuthoritativeMatch,
   promoteOptimisticUserMessage,
   reconcileOptimisticUserMessages,
   resolveOptimisticRejection,
@@ -230,7 +229,7 @@ describe('optimistic user reconciliation', () => {
     const created = authority({ transcript: { ...transcript([user('first', T1)]), sessionId: 's-new' } });
 
     expect(promoted.ts).toBe(T0);
-    expect(hasAuthoritativeMatch(promoted, created)).toBe(true);
+    expect(reconcileOptimisticUserMessages([promoted], created).matchedClientIds).toEqual(['local-draft']);
   });
 
   it('does not let a recent older transcript response consume a send made while it was loading', () => {
@@ -314,10 +313,10 @@ describe('optimistic user reconciliation', () => {
     expect(shouldSelectCreatedSession(draft, 'atlas', true)).toBe(true);
     expect(shouldSelectCreatedSession(draft, 'orchard', true)).toBe(false);
     expect(shouldSelectCreatedSession(draft, 'atlas', false)).toBe(false);
-    expect(hasAuthoritativeMatch(promoted, authority({ liveTail: otherSessionLive }))).toBe(false);
-    expect(hasAuthoritativeMatch(promoted, authority({
+    expect(reconcileOptimisticUserMessages([promoted], authority({ liveTail: otherSessionLive })).matchedClientIds).toEqual([]);
+    expect(reconcileOptimisticUserMessages([promoted], authority({
       transcript: { ...transcript([user('first', T1)]), sessionId: 's-new' },
-    }))).toBe(true);
+    })).matchedClientIds).toEqual(['local-draft']);
   });
 
   it('preserves attachment-only payloads while replacing the local row', () => {

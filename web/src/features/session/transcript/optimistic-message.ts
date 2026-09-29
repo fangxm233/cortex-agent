@@ -290,13 +290,6 @@ function allocatedClientIds(
   return matched;
 }
 
-export function hasAuthoritativeMatch(
-  message: OptimisticUserMessage,
-  source: UserMessageAuthority,
-): boolean {
-  return allocatedClientIds([message], source, false).includes(message.clientId);
-}
-
 export function reconcileOptimisticUserMessages(
   messages: OptimisticUserMessage[],
   source: UserMessageAuthority,
