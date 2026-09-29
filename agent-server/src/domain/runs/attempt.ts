@@ -60,11 +60,6 @@ export interface RunAttempt {
   kill(): boolean;
 }
 
-/** How long the engine keeps this attempt open for background work the backend started. */
-function awaitBackgroundFor(request: RunRequest): AwaitBackground {
-  return request.policy.background;
-}
-
 /** The cost columns every row of this attempt carries. Frozen once: an attempt cannot change
  *  which thread/task/trial it belongs to halfway through. */
 function costAttribution(
@@ -216,7 +211,7 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
   const sinks: EventObserver[] = [...(journal ? [journal] : []), ...(input.requiredSinks ?? [])];
   const tap = normalizedTap(sinks);
 
-  const awaitBackground = awaitBackgroundFor(request);
+  const awaitBackground = request.policy.background;
   const earlyRelease = releasesAtForegroundResult(awaitBackground);
   let engine: EngineSession;
   let engineRun: EngineRun;
