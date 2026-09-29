@@ -2,31 +2,14 @@ import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from
 import * as path from 'path';
 import * as os from 'os';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
-import { parse as parseDotenv } from 'dotenv';
 import {
   anthropicModelDiscovery, anthropicModelIds, type DiscoveredAnthropicModel,
 } from './anthropic-model-discovery.js';
+import { resolveAnthropicApiKey } from './claude-credentials.js';
 import { createLogger } from './log.js';
 import { loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
-import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
 
 const log = createLogger('gateway-generator');
-
-/**
- * Resolve the real Anthropic API key for endpoint discovery: process.env first (ignoring the
- * gateway-managed placeholder), then CONFIG_DIR/.env — the canonical key location
- * (docs/configuration.md). CLI processes (cortex init / setup-gateway) never run
- * dotenv.config, so discovery must read the file itself.
- */
-function resolveAnthropicApiKey(): string | undefined {
-  const envKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (envKey && envKey !== GATEWAY_MANAGED_KEY_PLACEHOLDER) return envKey;
-  try {
-    const fileKey = parseDotenv(readFileSync(path.join(CONFIG_DIR, '.env'), 'utf8')).ANTHROPIC_API_KEY?.trim();
-    if (fileKey && fileKey !== GATEWAY_MANAGED_KEY_PLACEHOLDER) return fileKey;
-  } catch { /* no .env file — fall through */ }
-  return undefined;
-}
 
 // ─── Merge support types (DR: stop init clobbering hand-maintained gateway.yaml) ──
 

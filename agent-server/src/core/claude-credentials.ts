@@ -67,6 +67,17 @@ function dotenvValues(read: (p: string) => string): Record<string, string> {
   }
 }
 
+/**
+ * The real Anthropic API key: process.env first (ignoring the gateway-managed placeholder), then
+ * CONFIG_DIR/.env — the canonical key location (docs/configuration.md). CLI processes (cortex init /
+ * setup-gateway) never run dotenv.config, so the file is read directly.
+ */
+export function resolveAnthropicApiKey(deps: ClaudeCredentialDeps = {}): string | null {
+  const env = deps.env ?? process.env;
+  const read = deps.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
+  return realKey(env.ANTHROPIC_API_KEY) ?? realKey(dotenvValues(read).ANTHROPIC_API_KEY);
+}
+
 function apiKeyHeaders(key: string): Record<string, string> {
   return { 'x-api-key': key, 'anthropic-version': ANTHROPIC_VERSION };
 }
@@ -110,8 +121,8 @@ function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
 
 /**
  * The credential the daemon may authenticate an Anthropic call with, in the order the rest of the
- * server already resolves credentials (gateway-generator.resolveAnthropicApiKey, then Claude's own
- * store). null means "this host cannot make a server-side Anthropic call" — never an error: every
+ * server already resolves credentials (the API key as resolveAnthropicApiKey finds it, then OAuth
+ * tokens, then Claude's own store). null means "this host cannot make a server-side Anthropic call" — never an error: every
  * caller has a static fallback, and a host with no key is a supported configuration.
  */
 export function resolveClaudeCredential(deps: ClaudeCredentialDeps = {}): ClaudeCredential | null {
