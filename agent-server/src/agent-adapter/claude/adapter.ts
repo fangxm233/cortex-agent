@@ -79,7 +79,7 @@ interface ClaudeSessionOptions {
   /** Keys deleted from the child env after `extraEnv` is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
   cwd?: string;
-  mcpComposition?: McpComposition;
+  mcpComposition: McpComposition;
   mcpConfigPaths?: string[];
   mcpToolAllowlist?: string[];
   supplementalMcpConfigPath?: string | null;
@@ -182,7 +182,7 @@ function optionalTextArray(values: string[] | null | undefined): string[] | null
 }
 
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
-  const composition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
+  const composition = options.mcpComposition;
   return {
     cwd: resolveSpawnCwd(options.cwd),
     routeIdentity: claudeRouteIdentity(options),
@@ -321,7 +321,7 @@ class ClaudeSession implements TurnHost {
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
     this.unsetEnv = options.unsetEnv;
-    this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
+    this.mcpComposition = options.mcpComposition;
     this.mcpConfigPaths = options.mcpConfigPaths;
     this.mcpToolAllowlist = options.mcpToolAllowlist;
     this.supplementalMcpConfigPath = options.supplementalMcpConfigPath ?? null;
@@ -691,7 +691,7 @@ function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOpti
 function sessionRuntimeOptions(
   spec: EngineSpec,
   composition: McpComposition,
-): Partial<ClaudeSessionOptions> {
+): Partial<ClaudeSessionOptions> & Pick<ClaudeSessionOptions, 'mcpComposition'> {
   const supplemental = supplementalMcpConfig(spec, composition);
   // Only a direct session can carry browser tools — thread/dispatch workers run unattended, where a
   // shared browser would be a cross-run side channel rather than a feature.
@@ -756,7 +756,7 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
     thinking: opts.thinking ?? null,
     needsResume: opts.needsResume,
     sessionId: opts.sessionIdEffective,
-    mcpComposition: opts.mcpComposition ?? 'direct',
+    mcpComposition: opts.mcpComposition,
     mcpConfigPaths: opts.mcpConfigPaths,
     mcpToolAllowlist: opts.mcpToolAllowlist,
     supplementalMcpConfigPath: opts.supplementalMcpConfigPath,
