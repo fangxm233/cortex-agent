@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { SHARED_POOL_FILES } from './tests/_shared-pool-manifest.js';
+import { jsToTsResolver } from './tests/_vite-js-to-ts-resolver.js';
 
 // Sharding (opt-in, used by scripts/run-tests.sh):
 //   CORTEX_TEST_SHARD=shared    only the manifest files, isolate:false — one
@@ -12,22 +13,6 @@ import { SHARED_POOL_FILES } from './tests/_shared-pool-manifest.js';
 //   unset                       all files, full isolation — scoped dev runs
 //                               (`vitest run <file>`) behave exactly as before.
 const SHARD = process.env.CORTEX_TEST_SHARD;
-
-// The codebase uses NodeNext ESM: imports carry a `.js` extension but point at
-// `.ts` sources (e.g. `../src/foo.js` → `src/foo.ts`). tsx resolves this at
-// runtime; Vite does not. This pre-resolver strips a trailing `.js` and lets
-// Vite's extension inference find the `.ts`/`.tsx` source. It also covers the
-// `@core/*` … tsconfig path aliases (which likewise carry `.js`).
-const jsToTsResolver = {
-  name: 'cortex-js-to-ts',
-  enforce: 'pre' as const,
-  async resolveId(source: string, importer: string | undefined, options: any) {
-    if (!source.endsWith('.js')) return null;
-    const bare = source.slice(0, -3);
-    const resolved = await (this as any).resolve(bare, importer, { ...options, skipSelf: true });
-    return resolved ? resolved.id : null;
-  },
-};
 
 export default defineConfig({
   plugins: [jsToTsResolver, tsconfigPaths()],

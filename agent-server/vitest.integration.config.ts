@@ -1,18 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import { jsToTsResolver } from './tests/_vite-js-to-ts-resolver.js';
 
 // Standalone config (NOT mergeConfig — that concatenates include arrays and would
 // drag in the unit suite). Process-level tests run serially so their child trees do
 // not compete with the unit suite's parallel worker pool.
-const jsToTsResolver = {
-  name: 'cortex-js-to-ts',
-  enforce: 'pre' as const,
-  async resolveId(source: string, importer: string | undefined, options: any) {
-    if (!source.endsWith('.js')) return null;
-    const resolved = await (this as any).resolve(source.slice(0, -3), importer, { ...options, skipSelf: true });
-    return resolved ? resolved.id : null;
-  },
-};
 
 export default defineConfig({
   plugins: [jsToTsResolver, tsconfigPaths()],
