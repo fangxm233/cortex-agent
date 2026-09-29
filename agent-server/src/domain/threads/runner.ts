@@ -6,6 +6,7 @@ import {
   beginStepSession,
   recordStepResult,
   evaluateTransitions,
+  formatEndpoint,
   completeThread,
   failThread,
   markThreadRateLimited,
@@ -163,12 +164,6 @@ interface StepCallbacks {
 
 type StepInfo = Pick<StepContext, 'agentSlotId' | 'agentConfig' | 'isFirstStep' | 'multiAgent' | 'stage'>;
 
-/** Render `agent` or `agent:stage` for log/status display — matches the transition endpoint syntax
- *  used in thread-templates.json transitions. Falls back to bare agent name when stage is null. */
-function formatAgentStageLabel(agentSlotId: AgentSlotId, stage: string | null): string {
-  return stage ? `${agentSlotId}:${stage}` : agentSlotId;
-}
-
 /** Validate thread, load template/metadata, init the aggregating OutputStream. */
 function initThreadContext(threadId: string, opts: RunThreadOptions): ThreadContext {
   const thread = threadStore.get(threadId);
@@ -216,10 +211,10 @@ async function resolveAndNotifyStep(
   const { agentSlotId, agentConfig, isFirstStep, stage } = nextStep;
   const threadRecord = threadStore.get(threadId)!;
   const multiAgent = Object.keys(threadRecord.agents).length > 1;
-  const label = formatAgentStageLabel(agentSlotId, stage);
+  const label = formatEndpoint(agentSlotId, stage);
 
   const prevStep = threadRecord.steps[threadRecord.steps.length - 1];
-  const prevLabel = prevStep ? formatAgentStageLabel(prevStep.agentSlotId, prevStep.stage) : null;
+  const prevLabel = prevStep ? formatEndpoint(prevStep.agentSlotId, prevStep.stage) : null;
 
   // Post step boundary notification for multi-agent threads via OutputStream
   if (ctx.stream && multiAgent && !isFirstStep) {
@@ -367,7 +362,7 @@ function setupStepCallbacks(
   const threadRecord = threadStore.get(threadId)!;
   const slot = threadRecord.agents[agentSlotId];
   const stream = ctx.stream;
-  const label = formatAgentStageLabel(agentSlotId, stage);
+  const label = formatEndpoint(agentSlotId, stage);
 
   // Aggregate assistant output into the thread-runner's OutputStream; prefix only for multi-agent.
   const slotPrefix = multiAgent ? `*[${label}]*` : null;
@@ -731,8 +726,8 @@ async function evaluateAndTransition(
   // transition.nextAgent / nextStage are already set on the thread by evaluateTransitions
 
   const prevAgent = stepCtx.agentSlotId;
-  const fromLabel = formatAgentStageLabel(prevAgent, stepCtx.stage);
-  const toLabel = formatAgentStageLabel(transition.nextAgent!, transition.nextStage ?? null);
+  const fromLabel = formatEndpoint(prevAgent, stepCtx.stage);
+  const toLabel = formatEndpoint(transition.nextAgent!, transition.nextStage ?? null);
   await executeConfiguredLifecycleHooks(
     ctx,
     threadId,
@@ -891,7 +886,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
         await finalizeAbortedThread(threadId, ctx.meta, reason, opts);
         if (ctx.stream) {
           const reasonStr = reason ? `: ${reason}` : '';
-          const abortLabel = formatAgentStageLabel(stepCtx.agentSlotId, stepCtx.stage);
+          const abortLabel = formatEndpoint(stepCtx.agentSlotId, stepCtx.stage);
           ctx.stream.emitText(`${Icons.stopped} ${t('notice.thread.abortedBy', { label: `*${abortLabel}*` })}${reasonStr}`);
         }
         break;
@@ -902,7 +897,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       // dispatch path (processSplitOutcome) consumes control.subtasks to decompose keep-parent.
       if (control?.action === 'split') {
         if (ctx.stream) {
-          const splitLabel = formatAgentStageLabel(stepCtx.agentSlotId, stepCtx.stage);
+          const splitLabel = formatEndpoint(stepCtx.agentSlotId, stepCtx.stage);
           const n = Array.isArray(control.subtasks) ? control.subtasks.length : 0;
           ctx.stream.emitText(`${Icons.arrowRight} ${t('notice.thread.split', { label: `*${splitLabel}*`, n })}`);
         }
@@ -1094,7 +1089,7 @@ function buildThreadSummary(result: ThreadRunResult): string {
       const costStr = step.costUsd != null ? `$${step.costUsd.toFixed(4)}` : '?';
       const turnsStr = step.numTurns != null ? t('notice.thread.turns', { n: step.numTurns }) : '?';
       const durStr = step.durationS != null ? formatDurationCompact(step.durationS) : '?';
-      const label = formatAgentStageLabel(step.agentSlotId, step.stage);
+      const label = formatEndpoint(step.agentSlotId, step.stage);
       lines.push(`  ${label}: ${turnsStr} · ${costStr} · ${durStr}`);
     }
   }

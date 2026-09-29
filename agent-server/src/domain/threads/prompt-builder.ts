@@ -117,9 +117,9 @@ export function resolveTemplateProfiles(templateName: string, activeProfile: str
   return [...profiles];
 }
 
-/** Render an `(agent, stage)` pair as the canonical endpoint string used for iterationCounts keys
- *  and transition-rule matching. Stages that are null render as bare agent names. */
-export function formatEndpoint(agent: string, stage: string | null): string {
+/** Render an `(agent, stage)` pair as the canonical endpoint string used for iterationCounts keys,
+ *  transition-rule matching and step/status labels. Missing stages render as bare agent names. */
+export function formatEndpoint(agent: string, stage: string | null | undefined): string {
   return stage ? `${agent}:${stage}` : agent;
 }
 

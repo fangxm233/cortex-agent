@@ -11,10 +11,11 @@ import { threadStore } from '@store/thread-repo.js';
 const log = createLogger('state-machine');
 import { getTemplate, getAgent } from './template-loader.js';
 import {
-  resolveAgentSlotConfigByName, resolveTemplateAgents, resolveActiveAgentName,
+  formatEndpoint, resolveAgentSlotConfigByName, resolveTemplateAgents, resolveActiveAgentName,
 } from './prompt-builder.js';
 import { resolveStageName, parseTarget } from './utils.js';
 import { checkContractBudget } from './contract.js';
+import { isTerminalStatus } from './tree.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import { resolveThreadEvidenceMetadata } from './evidence-context.js';
 import type {
@@ -29,11 +30,6 @@ import type {
 
 function publishThreadEvent(e: Record<string, unknown>): void {
   jobCtx.bus?.publish(e as any);
-}
-
-/** `agent` or `agent:stage` — matches the transition endpoint syntax (runner's status label). */
-function stepLabel(agentSlotId: AgentSlotId, stage: string | null | undefined): string {
-  return stage ? `${agentSlotId}:${stage}` : agentSlotId;
 }
 
 // --- Agent slot helpers ---
@@ -312,7 +308,7 @@ export async function beginStepSession(
     track = slot.sessionId;
     resume = interrupted ?? (slot.persistSession ? (slot.backendSessionId ?? null) : null);
   });
-  publishThreadEvent({ type: 'thread.step.started', threadId, step: stepLabel(agentSlotId, stage) });
+  publishThreadEvent({ type: 'thread.step.started', threadId, step: formatEndpoint(agentSlotId, stage) });
   return { trackSessionId: track, resumeSessionId: resume };
 }
 
@@ -377,7 +373,7 @@ export async function recordStepResult(threadId: string, agentSlotId: AgentSlotI
   publishThreadEvent({
     type: 'thread.step.finished',
     threadId,
-    step: stepLabel(agentSlotId, result.stage ?? null),
+    step: formatEndpoint(agentSlotId, result.stage ?? null),
     result: (result.output ?? '').slice(0, 200),
   });
   return step;
@@ -507,8 +503,7 @@ export function evaluateTransitions(threadId: string): TransitionResult {
 export async function cancelThread(threadId: string): Promise<boolean> {
   const thread = threadStore.get(threadId);
   if (!thread) return false;
-  if (thread.status === 'completed' || thread.status === 'failed'
-      || thread.status === 'cancelled' || thread.status === 'aborted') return false;
+  if (isTerminalStatus(thread.status)) return false;
 
   await threadStore.mutate(threadId, (t) => {
     t.status = 'cancelled';
@@ -556,10 +551,6 @@ export function detectSplitFromControl(threadId: string): SplitDetection {
     return { split: true, subtasks: null, error: 'thread_split called with an empty subtasks array' };
   }
   return { split: true, subtasks, error: null };
-}
-
-function isTerminal(status: ThreadRecord['status']): boolean {
-  return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'aborted';
 }
 
 interface WaitTargets {
@@ -660,7 +651,7 @@ export async function tryEnterWaiting(threadId: string, targets?: WaitTargets): 
     const m = (t.metadata ??= {});
     liveThreads = waitSets.threads.filter((id) => {
       const child = threadStore.get(id);
-      return !!child && !isTerminal(child.status);
+      return !!child && !isTerminalStatus(child.status);
     });
     m.waitingOn = liveThreads;
     m.waitingOnTasks = waitSets.tasks;
@@ -686,8 +677,7 @@ export interface SplitDetection {
 export async function abortThread(threadId: string, reason: string | null): Promise<boolean> {
   const thread = threadStore.get(threadId);
   if (!thread) return false;
-  if (thread.status === 'completed' || thread.status === 'failed'
-      || thread.status === 'cancelled' || thread.status === 'aborted') return false;
+  if (isTerminalStatus(thread.status)) return false;
 
   await threadStore.mutate(threadId, (t) => {
     t.status = 'aborted';
