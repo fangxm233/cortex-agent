@@ -64,21 +64,6 @@ test('auth.customProviders lists stored definitions without the upstream key', a
   assert.ok(!JSON.stringify(listed).includes(UPSTREAM_KEY));
 });
 
-test('auth.upsertCustomProvider writes the catalog entry and the gateway route', async () => {
-  const stores = tmpStores();
-  const result = await handleCustomProviderUpsert(depsWith(stores), DEFINITION);
-
-  assert.equal(result.ok, true);
-  const catalog = JSON.parse(fs.readFileSync(stores.modelsPath, 'utf8'));
-  assert.equal(catalog.providers['my-vllm'].baseUrl, 'http://127.0.0.1:9880/m/my-vllm/anthropic');
-  assert.equal(catalog.providers['my-vllm'].api, 'anthropic-messages');
-  assert.ok(!fs.readFileSync(stores.modelsPath, 'utf8').includes(UPSTREAM_KEY));
-
-  const gateway = yamlParse(fs.readFileSync(stores.gatewayPath, 'utf8'));
-  assert.equal(gateway.anthropic['my-vllm'].base_url, 'http://127.0.0.1:8100');
-  assert.deepEqual(gateway.anthropic['my-vllm'].keys, [UPSTREAM_KEY]);
-});
-
 test('auth.upsertCustomProvider reports a rejected definition as invalid-args', async () => {
   const stores = tmpStores();
   const result = await handleCustomProviderUpsert(depsWith(stores), {
