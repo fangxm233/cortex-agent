@@ -33,13 +33,13 @@ export interface NotificationItem {
 }
 
 /** Max characters shown in the mono preview line before ellipsis (single-line bubble). */
-export const PREVIEW_MAX = 96;
+const PREVIEW_MAX = 96;
 
-/** Collapse whitespace and clip to `max` chars with a trailing ellipsis. */
-export function previewText(text: string, max = PREVIEW_MAX): string {
+/** Collapse whitespace and clip to `PREVIEW_MAX` chars with a trailing ellipsis. */
+function previewText(text: string): string {
   const collapsed = (text ?? '').replace(/\s+/g, ' ').trim();
-  if (collapsed.length <= max) return collapsed;
-  return collapsed.slice(0, max - 1).trimEnd() + '…';
+  if (collapsed.length <= PREVIEW_MAX) return collapsed;
+  return collapsed.slice(0, PREVIEW_MAX - 1).trimEnd() + '…';
 }
 
 export interface BuildNotificationInput {
@@ -50,24 +50,22 @@ export interface BuildNotificationInput {
   projectId: string | null;
   /** The assistant message body. */
   text: string;
-  ts?: string;
-  /** Explicit severity; DM chat replies are always 'info' (no severity guessing / fabrication). */
-  level?: NotificationLevel;
+  ts: string;
   /** UI language of the fallback title; defaults to English. */
   lang?: Lang;
 }
 
 /** Shape a session-message event into a NotificationItem. Title = conversation name, meta =
- *  a one-line preview of the message body. Level defaults to 'info' — the honest level for a
- *  chat reply; warning/error are reserved for future server-classified notification events. */
+ *  a one-line preview of the message body. Level is always 'info' — the honest level for a
+ *  chat reply (no severity guessing / fabrication). */
 export function buildNotification(input: BuildNotificationInput): NotificationItem {
   const name = (input.sessionName ?? '').trim();
   return {
     id: input.id,
-    level: input.level ?? 'info',
+    level: 'info',
     title: name || FALLBACK_TITLES[input.lang ?? 'en'].message,
     meta: previewText(input.text),
-    ts: input.ts ?? new Date().toISOString(),
+    ts: input.ts,
     sessionId: input.sessionId,
     projectId: input.projectId,
   };
@@ -77,8 +75,8 @@ export interface BuildSystemNoticeInput {
   id: string;
   /** The notice body (from the `system.notice` event `text`). */
   text: string;
-  /** Severity — server-classified; defaults to 'info'. */
-  level?: NotificationLevel;
+  /** Severity — server-classified. */
+  level: NotificationLevel;
   /** Optional short title (e.g. "Disk"); falls back to a generic label when blank. */
   title?: string;
   ts?: string;
@@ -93,7 +91,7 @@ export function buildSystemNotice(input: BuildSystemNoticeInput): NotificationIt
   const title = (input.title ?? '').trim();
   return {
     id: input.id,
-    level: input.level ?? 'info',
+    level: input.level,
     title: title || FALLBACK_TITLES[input.lang ?? 'en'].notice,
     meta: previewText(input.text),
     ts: input.ts ?? new Date().toISOString(),

@@ -68,7 +68,7 @@ function Probe(options: UseNotificationFeedOptions): null {
 }
 
 function emitAssistant(sessionId: string, text: string, ts = '2026-08-26T10:00:00.000Z'): void {
-  harness.dm?.onMessage({ sessionId, channel: null, text, ts });
+  harness.dm?.onMessage({ sessionId, text, ts });
 }
 
 function endTurn(sessionId: string): void {

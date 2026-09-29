@@ -12,7 +12,6 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
 /** The assistant `session.message` payload we surface as a DM notification. */
 export interface DmAssistantMessage {
   sessionId: string;
-  channel: string | null;
   text: string;
   ts: string | null;
 }
@@ -34,12 +33,12 @@ export function useDmNotifications({ onMessage, onTurnEnd }: DmNotificationHandl
   useLiveEvents(DM_EVENTS, (raw) => {
     if (raw.type === 'session.message') {
       const p = raw.payload as
-        | { sessionId?: string; channel?: string; role?: string; text?: string; ts?: string }
+        | { sessionId?: string; role?: string; text?: string; ts?: string }
         | undefined;
       if (!p || p.role !== 'assistant') return;
       const text = (p.text ?? '').trim();
       if (!text || !p.sessionId) return;
-      onMessage({ sessionId: p.sessionId, channel: p.channel ?? null, text, ts: p.ts ?? null });
+      onMessage({ sessionId: p.sessionId, text, ts: p.ts ?? null });
       return;
     }
     if (raw.type === 'session.status') {

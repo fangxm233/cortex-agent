@@ -13,7 +13,7 @@ import { useSystemNotices } from './useSystemNotices';
 // toast invalidates this query, so an open Settings panel stays current at zero idle cost.
 
 /** How many entries the Settings card asks for (the server ring holds up to `cap`). */
-export const NOTICE_HISTORY_LIMIT = 20;
+const NOTICE_HISTORY_LIMIT = 20;
 
 export interface NoticeHistory {
   entries: SystemNoticeEntry[];
@@ -23,10 +23,10 @@ export interface NoticeHistory {
   error: boolean;
 }
 
-export function useNoticeHistory(limit: number = NOTICE_HISTORY_LIMIT): NoticeHistory {
+export function useNoticeHistory(): NoticeHistory {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const options = trpc.system.notices.queryOptions({ limit });
+  const options = trpc.system.notices.queryOptions({ limit: NOTICE_HISTORY_LIMIT });
   const query = useQuery(options);
   const queryKey = options.queryKey;
 
