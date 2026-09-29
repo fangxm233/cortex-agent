@@ -117,10 +117,6 @@ function storeOption<T extends string>(key: string, value: T, fallback: T): void
   }
 }
 
-export function parseStoredAccentIntensity(stored: string | null): AccentIntensity {
-  return parseOption(stored, ACCENT_INTENSITIES, DEFAULT_ACCENT_INTENSITY);
-}
-
 export function readStoredAccentIntensity(): AccentIntensity {
   return readOption(ACCENT_INTENSITY_STORAGE_KEY, ACCENT_INTENSITIES, DEFAULT_ACCENT_INTENSITY);
 }
@@ -129,20 +125,12 @@ export function storeAccentIntensity(intensity: AccentIntensity): void {
   storeOption(ACCENT_INTENSITY_STORAGE_KEY, intensity, DEFAULT_ACCENT_INTENSITY);
 }
 
-export function parseStoredMotionMode(stored: string | null): MotionMode {
-  return parseOption(stored, MOTION_MODES, DEFAULT_MOTION_MODE);
-}
-
 export function readStoredMotionMode(): MotionMode {
   return readOption(MOTION_STORAGE_KEY, MOTION_MODES, DEFAULT_MOTION_MODE);
 }
 
 export function storeMotionMode(mode: MotionMode): void {
   storeOption(MOTION_STORAGE_KEY, mode, DEFAULT_MOTION_MODE);
-}
-
-export function parseStoredGlass(stored: string | null): GlassLevel {
-  return parseOption(stored, GLASS_LEVELS, DEFAULT_GLASS);
 }
 
 export function readStoredGlass(): GlassLevel {
