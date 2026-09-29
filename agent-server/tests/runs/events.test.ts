@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { toRunEvent, type RunEvent } from '../../src/domain/runs/events.js';
+import { toRunEvent } from '../../src/domain/runs/events.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult, TodoSnapshot } from '../../src/core/types/agent-types.js';
 
@@ -20,21 +20,6 @@ const snapshot: TodoSnapshot = {
   activeLabel: 'Running tests',
   updatedAt: 42,
 };
-
-function result(overrides: Partial<AgentResult> = {}): AgentResult {
-  return {
-    sessionId: 'sess-1',
-    total_cost_usd: 0.25,
-    num_turns: 3,
-    rateLimited: false,
-    rateLimitMessage: null,
-    planFilePath: null,
-    enteredPlanMode: false,
-    exitedPlanMode: false,
-    finalOutput: 'final',
-    ...overrides,
-  };
-}
 
 // Every NormalizedEvent member, with the RunEvent shape it must translate to under
 // `phase: 'foreground'`. `turn_complete` is asserted separately because its phase selects the
