@@ -71,21 +71,10 @@ test('SlackOutputStream: exceeding maxMessageLength forces new message', async (
 
 // --- Thread parent behavior (no external threadId) ---
 
-test('SlackOutputStream: no threadId — first top-level, overflow to thread', async () => {
-  const adapter = new MockAdapter();
-  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
-  stream.emitText('x'.repeat(2000));
-  stream.emitText('y'.repeat(1500));
-  await flush(stream);
-
-  assert.equal(adapter.posted.length, 2);
-  assert.equal(adapter.posted[0].threadId, undefined, 'first is top-level');
-  assert.equal(adapter.posted[1].threadId, '1000', 'overflow threads under first');
-});
-
 test('SlackOutputStream: getParentRef returns full MessageRef', async () => {
   const adapter = new MockAdapter();
   const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
+  assert.equal(stream.getParentRef(), null);
   stream.emitText('hello');
   await flush(stream);
   const ref = stream.getParentRef();

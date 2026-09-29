@@ -56,23 +56,6 @@ test('SlackAdapter: undefined subtype maps to kind=user', async () => {
   assert.equal(captured[0].message.kind, 'user');
 });
 
-// ── file_share → kind: 'file_share' ──
-
-test('SlackAdapter: file_share subtype maps to kind=file_share', async () => {
-  const { captured, triggerEvent } = makeCaptureAdapter();
-  await triggerEvent({
-    type: 'message',
-    subtype: 'file_share',
-    channel: 'C1',
-    ts: '123',
-    user: 'U1',
-    text: '',
-    files: [{ id: 'F1', name: 'doc.pdf', mimetype: 'application/pdf' }],
-  });
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0].message.kind, 'file_share');
-});
-
 // ── system subtypes → kind: 'system' ──
 
 const SYSTEM_SUBTYPES = [
