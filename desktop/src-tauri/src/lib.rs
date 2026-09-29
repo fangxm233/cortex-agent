@@ -126,9 +126,6 @@ pub struct ConnectionConfig {
     /// start the daemon without re-resolving it through a PATH the GUI may not have.
     #[serde(rename = "cortexBin", default, skip_serializing_if = "Option::is_none")]
     pub cortex_bin: Option<String>,
-    /// Version of the local install at setup time (diagnostics only).
-    #[serde(rename = "serverVersion", default, skip_serializing_if = "Option::is_none")]
-    pub server_version: Option<String>,
 }
 
 pub struct AppState {
@@ -160,7 +157,6 @@ fn get_connection_config(state: State<AppState>) -> ConnectionConfig {
 pub struct LocalInstall {
     /// Absolute path of the `cortex` executable that owns this install.
     pub cortex_bin: String,
-    pub server_version: Option<String>,
 }
 
 #[tauri::command]
@@ -177,8 +173,7 @@ async fn connect(
         server_url: Some(server_url),
         token: Some(token),
         mode: if local.is_some() { ConnectionMode::Local } else { ConnectionMode::Remote },
-        cortex_bin: local.as_ref().map(|l| l.cortex_bin.clone()),
-        server_version: local.and_then(|l| l.server_version),
+        cortex_bin: local.map(|l| l.cortex_bin),
     };
     if let Err(e) = creds::save(&app, &config) {
         shell_log!(
@@ -784,13 +779,11 @@ mod tests {
             token: Some("t".into()),
             mode: ConnectionMode::Local,
             cortex_bin: Some("/usr/local/bin/cortex".into()),
-            server_version: Some("2026.8.20".into()),
         };
         let restored: ConnectionConfig =
             serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
         assert_eq!(restored.mode, ConnectionMode::Local);
         assert_eq!(restored.cortex_bin.as_deref(), Some("/usr/local/bin/cortex"));
-        assert_eq!(restored.server_version.as_deref(), Some("2026.8.20"));
     }
 
     #[test]
@@ -800,7 +793,6 @@ mod tests {
             token: Some("t".into()),
             mode: ConnectionMode::Local,
             cortex_bin: None,
-            server_version: None,
         }, "native");
         assert!(script.contains("\"mode\":\"local\""));
     }

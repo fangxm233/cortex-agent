@@ -93,7 +93,7 @@
     async function connect() {
       mark('connect', 'running');
       await invoke('connect', { serverUrl: state.endpoint.url, token: state.endpoint.token,
-        local: { cortexBin: state.bin, serverVersion: state.version || null } });
+        local: { cortexBin: state.bin } });
       mark('connect', 'done');
       state.destination = state.newInstall ? 'index.html#/setup/providers' : 'index.html';
       state.stage = 'ready';
