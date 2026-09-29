@@ -5,9 +5,8 @@
 //   • client version (scheme `client v0.4.2`) → NO DTO source → omitted.
 //   • heartbeat → fmtConnected(lastHeartbeat) in the UI language; '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
-import { machineCardVm, fmtConnected } from '@/mobile/shared/mobile-machines-vm';
 import { formatSince } from '@/features/machines/machine-detail-vm';
-import type { TimeLang } from '@/lib/time-format';
+import { timeAgo, type TimeLang } from '@/lib/time-format';
 
 export interface MMachineCard {
   name: string;
@@ -35,23 +34,30 @@ export interface MMachinesVm {
   total: number;
 }
 
+/**
+ * A heartbeat/connect timestamp as time-ago in the UI language (`3m ago` / `3分钟前`).
+ * Returns '—' when the input is null/missing/unparseable or in the future.
+ */
+function fmtConnected(iso: string | null | undefined, now: number, lang: TimeLang): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t) || t > now) return '—';
+  return timeAgo(t, now, lang);
+}
+
 /** Map the real `machines.list` DTO array into the 1k screen view-model. */
 export function buildMMachinesVm(machines: MachineInfo[], lang: TimeLang, now: number = Date.now()): MMachinesVm {
-  const cards: MMachineCard[] = machines.map((m) => {
-    const base = machineCardVm(m);
-    return {
-      name: base.name,
-      online: base.online,
-      os: base.os,
-      gpuCount: base.gpuCount,
-      liveRuns: base.liveRuns,
-      heartbeat: fmtConnected(m.lastHeartbeat, now, lang),
-      connectedFor: formatSince(m.connectedAt, lang, now),
-      capabilities: m.capabilities,
-      cortexPath: m.cortexPath,
-      sshConfigured: m.sshConfigured,
-    };
-  });
+  const cards: MMachineCard[] = machines.map((m) => ({
+    name: m.name,
+    online: m.online,
+    os: m.os,
+    gpuCount: m.gpuCount,
+    liveRuns: m.liveRuns,
+    heartbeat: fmtConnected(m.lastHeartbeat, now, lang),
+    connectedFor: formatSince(m.connectedAt, lang, now),
+    capabilities: m.capabilities,
+    cortexPath: m.cortexPath,
+    sshConfigured: m.sshConfigured,
+  }));
   return {
     cards,
     onlineCount: cards.filter((c) => c.online).length,
