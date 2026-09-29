@@ -274,8 +274,6 @@ pub struct SetupProbe {
     /// Whether that install understands the flags this wizard drives it through.
     pub server_ok: bool,
     pub home_exists: bool,
-    pub min_node_major: u32,
-    pub min_server_version: String,
     /// This machine's name, offered as the default for the machine-name field.
     pub hostname: Option<String>,
     /// Which platform the wizard is running on, so the page does not have to sniff the user agent
@@ -314,8 +312,6 @@ fn probe_machine() -> SetupProbe {
         home_exists: cortex_home().is_some_and(|p| p.join("config").is_dir()),
         hostname: probe_output("hostname", &[]).map(|h| h.trim().to_string()),
         os: std::env::consts::OS,
-        min_node_major: MIN_NODE_MAJOR,
-        min_server_version: MIN_SERVER_VERSION.to_string(),
         path: login_path().map(str::to_string),
     }
 }
