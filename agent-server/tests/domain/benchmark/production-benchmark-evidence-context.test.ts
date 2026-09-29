@@ -3,11 +3,6 @@
 // subject is the run layer's evidence bookkeeping, so it now drives a REAL attempt through
 // `startAttempt`: a test-owned `SessionEngines` over a scripted Claude child and `pi-fake-runtime`.
 // The spec `startAttempt` builds is the one it attests; there is no prepared spec any more.
-//
-// `startAttempt` does not close the journal sink it creates internally (the deleted facade did).
-// That src gap is out of scope here, so the suite captures the sink and performs that close itself,
-// exactly where the run layer used to — otherwise a second attempt on one execution id could never
-// hit the journal's reuse guard.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -39,27 +34,6 @@ import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
 } from '../../agent-adapter/pi-fake-runtime.js';
 
-/** The internally-created journal sinks, so the suite can perform the close the run layer omits. */
-const journalCapture = vi.hoisted(() => ({
-  sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
-}));
-
-vi.mock('../../../src/domain/benchmark/production-attempt-journal.js', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../../src/domain/benchmark/production-attempt-journal.js')
-  >();
-  return {
-    ...actual,
-    createProductionAttemptJournalSink: (
-      input: Parameters<typeof actual.createProductionAttemptJournalSink>[0],
-    ) => {
-      const sink = actual.createProductionAttemptJournalSink(input);
-      journalCapture.sinks.push(sink);
-      return sink;
-    },
-  };
-});
-
 /** The Anthropic route one attempt resolved; only the host is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
 
@@ -74,7 +48,6 @@ beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-evidence-context-'));
   storePath = path.join(root, 'data', 'attempt-identities.jsonl');
   revision = { profiles: 1, threads: 1 };
-  journalCapture.sinks.length = 0;
   piFake = makeFakeRuntimeFactory();
   const piAdapter = new PIAdapter(
     piFake.factory,
@@ -92,19 +65,11 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  closeCapturedJournals();
   vi.restoreAllMocks();
   await Promise.all(pool.listKeys().map((key) => pool.close(key)));
   resetProductionAttemptIdentity();
   fs.rmSync(root, { recursive: true, force: true });
 });
-
-/** Append every journal opened so far, the close `startAttempt` omits. */
-function closeCapturedJournals(): void {
-  for (const sink of journalCapture.sinks.splice(0)) {
-    try { void sink.onClose?.(); } catch { /* the journal is not this suite's subject */ }
-  }
-}
 
 function evidence(
   backend: Backend,
@@ -317,8 +282,6 @@ test('retry, resumed, and nested executions cannot collide with the root attempt
     template: 'benchmark-coder-review', role: 'benchmark-coder',
   }).settled;
 
-  // The run layer omits the journal close; perform it, then reload so the reuse guard can see it.
-  closeCapturedJournals();
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({ storePath });
   await runAttempt('claude', spawns, {

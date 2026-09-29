@@ -37,27 +37,6 @@ import {
 import { getCostSummary } from '../../../src/domain/costs/cost-tracker.js';
 import { CostRepo, costRepo } from '../../../src/store/cost-repo.js';
 
-/** The internally-created journal sinks, so the suite can perform the close the run layer omits. */
-const journalCapture = vi.hoisted(() => ({
-  sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
-}));
-
-vi.mock('../../../src/domain/benchmark/production-attempt-journal.js', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../../src/domain/benchmark/production-attempt-journal.js')
-  >();
-  return {
-    ...actual,
-    createProductionAttemptJournalSink: (
-      input: Parameters<typeof actual.createProductionAttemptJournalSink>[0],
-    ) => {
-      const sink = actual.createProductionAttemptJournalSink(input);
-      journalCapture.sinks.push(sink);
-      return sink;
-    },
-  };
-});
-
 /** The Anthropic route one attempt resolved; only the host is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
 
@@ -74,7 +53,6 @@ beforeEach(() => {
   costsPath = path.join(root, 'data', 'costs.jsonl');
   process.env.CORTEX_COSTS_FILE = costsPath;
   costRepo._testReset();
-  journalCapture.sinks.length = 0;
   piFake = makeFakeRuntimeFactory();
   const piAdapter = new PIAdapter(
     piFake.factory,
@@ -88,9 +66,6 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  for (const sink of journalCapture.sinks.splice(0)) {
-    try { void sink.onClose?.(); } catch { /* the journal is not this suite's subject */ }
-  }
   vi.restoreAllMocks();
   await Promise.all(pool.listKeys().map((key) => pool.close(key)));
   await costRepo.flush();
