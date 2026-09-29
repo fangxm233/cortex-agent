@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useVocabOptional } from '@/i18n';
-import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
+import { statusTone } from '@/design/tone';
+import { MScreen, MMoreButton, MPill, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ThreadStepChat } from '@/features/thread/ThreadStepChat';
 import type { MThreadDetailVm, MThreadStepVm, MThreadArtifactVm } from './m-thread-detail-vm';
@@ -40,7 +41,7 @@ function Header({
   onBack: () => void;
   onMore: () => void;
 }) {
-  const tone = statusPillTone(vm.status);
+  const tone = statusTone(vm.status);
   const vocab = useVocabOptional();
   return (
     <div

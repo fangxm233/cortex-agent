@@ -2,7 +2,7 @@
 // Pure — no data, no tRPC. The full-bleed shell (MobileShell) owns the viewport + floating Tab bar;
 // a screen renders <MScreen> with its own header, scroll body, and optional footer.
 import { Children, Fragment, type CSSProperties, type ReactNode, type UIEvent, isValidElement, useLayoutEffect, useRef, useState } from 'react';
-import { statusTone, type Tone } from '@/design/tone';
+import type { Tone } from '@/design/tone';
 import { MC, M_GUTTER } from '@/design/mobile-tokens';
 import { useVocabOptional } from '@/i18n';
 
@@ -378,11 +378,6 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
       {children}
     </span>
   );
-}
-
-// Keep the mobile facade while delegating all status semantics to the canonical design model.
-export function statusPillTone(status: string): PillTone {
-  return statusTone(status);
 }
 
 // ── MDot — small status dot ──

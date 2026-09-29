@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { MTabHeader, MGroup, MGroupLabel, MPill, statusPillTone, MC, M_NUM } from '@/mobile/ui/kit';
+import { statusTone } from '@/design/tone';
+import { MTabHeader, MGroup, MGroupLabel, MPill, MC, M_NUM } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import type { TimeLang } from '@/lib/time-format';
 import type { ThreadGroup } from '@/features/session/composer/scope';
@@ -41,7 +42,7 @@ function threadPill(status: ThreadInfo['status'], copy: MThreadsCopy): { tone: '
     case 'cancelled':
       return { tone: 'cancelled', label: copy.cancelled };
     default:
-      return { tone: statusPillTone(status) as 'running', label: copy.running };
+      return { tone: statusTone(status) as 'running', label: copy.running };
   }
 }
 
