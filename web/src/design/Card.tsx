@@ -1,25 +1,20 @@
 import type { ReactNode } from 'react';
 
-// Repeated cards composite without backdrop-filter. Use opaque for reading/occlusion, not to
-// control blur; both variants are unfiltered and keep the same border, radius and padding.
-const MATERIAL_CLASS = {
-  glass: '[background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)]',
-  opaque: 'bg-surface-card shadow-card',
-};
+// Repeated cards composite without backdrop-filter.
+const MATERIAL_CLASS = '[background:var(--material-card-bg)] shadow-[shadow:var(--material-card-shadow)]';
 
 export interface CardProps {
   children: ReactNode;
   className?: string;
   padded?: boolean;
-  variant?: 'glass' | 'opaque';
 }
 
-export function Card({ children, className, padded, variant = 'glass' }: CardProps) {
+export function Card({ children, className, padded }: CardProps) {
   return (
     <div
       className={[
         'rounded-[var(--r-card)] border border-card',
-        MATERIAL_CLASS[variant],
+        MATERIAL_CLASS,
         padded ? 'p-2g' : '',
         className,
       ]
@@ -29,18 +24,4 @@ export function Card({ children, className, padded, variant = 'glass' }: CardPro
       {children}
     </div>
   );
-}
-
-export function CardHeader({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={['border-b border-card px-2g py-1.5g', className].filter(Boolean).join(' ')}
-    >
-      {children}
-    </div>
-  );
-}
-
-export function CardBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={['p-2g', className].filter(Boolean).join(' ')}>{children}</div>;
 }
