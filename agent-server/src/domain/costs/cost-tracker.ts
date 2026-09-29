@@ -95,7 +95,7 @@ export interface CostSummary {
   byBackend: Record<string, PeriodBucket>;
   tokens: { today: TokenBucket; month: TokenBucket; total: TokenBucket };
   entryCount: number;
-  // ── Additive real-data fields (task c489; ignored by Slack/TUI/MCP consumers) ──
+  // ── Additive real-data fields (task c489; ignored by Slack/TUI consumers) ──
   /** Daily budget denominator. Resolves to the project's own limit when the summary is
    *  project-scoped and that project has an override; otherwise the global `daily_usd`. */
   dailyBudget: number;
@@ -348,20 +348,19 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
 async function checkBudget(project?: string | null): Promise<BudgetStatus> {
   const scoped = project ?? null;
   const summary = await getCostSummary(scoped);
-  const budget = await costRepo.readBudget();
-  const resolved = pickBudget(budget, scoped);
+  const { dailyBudget, monthlyBudget } = summary;
 
   return {
-    withinBudget: summary.today < resolved.daily_usd && summary.month < resolved.monthly_usd,
-    dailyBudget: resolved.daily_usd,
+    withinBudget: summary.today < dailyBudget && summary.month < monthlyBudget,
+    dailyBudget,
     dailySpent: summary.today,
-    dailyRemaining: Math.max(0, resolved.daily_usd - summary.today),
-    monthlyBudget: resolved.monthly_usd,
+    dailyRemaining: Math.max(0, dailyBudget - summary.today),
+    monthlyBudget,
     monthlySpent: summary.month,
-    monthlyRemaining: Math.max(0, resolved.monthly_usd - summary.month),
+    monthlyRemaining: Math.max(0, monthlyBudget - summary.month),
     byMode: summary.byMode,
     project: scoped,
-    scope: resolved.scope,
+    scope: summary.budgetScope,
   };
 }
 
@@ -502,5 +501,5 @@ async function formatCostReport(project: string | null = null): Promise<string> 
 
 export {
   costRepo, recordCost, getCostSummary, checkBudget, setBudget,
-  clearProjectBudget, listProjectBudgets, formatCostReport,
+  clearProjectBudget, listProjectBudgets, formatCostReport, formatTokens,
 };

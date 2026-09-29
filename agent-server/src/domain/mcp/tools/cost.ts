@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getCostSummary, pickBudget } from '../../costs/cost-tracker.js';
-import { costRepo } from '@store/cost-repo.js';
+import { getCostSummary, formatTokens } from '../../costs/cost-tracker.js';
 
 export function registerCostTools(server: McpServer): void {
   server.tool(
@@ -14,9 +13,8 @@ export function registerCostTools(server: McpServer): void {
     async ({ projectId }: { projectId?: string }) => {
       try {
         const scope = projectId ?? null;
-        const budgetConfig = await costRepo.readBudget();
-        const budget = pickBudget(budgetConfig, scope);
         const summaryData = await getCostSummary(scope);
+        const { dailyBudget, monthlyBudget, budgetScope } = summaryData;
 
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
@@ -30,20 +28,20 @@ export function registerCostTools(server: McpServer): void {
         const monthApi = summaryData.byMode.month.api;
         const monthPlan = summaryData.byMode.month.plan;
 
-        const dailyPct = ((todayTotal / budget.daily_usd) * 100).toFixed(1);
-        const monthlyPct = ((monthTotal / budget.monthly_usd) * 100).toFixed(1);
+        const dailyPct = ((todayTotal / dailyBudget) * 100).toFixed(1);
+        const monthlyPct = ((monthTotal / monthlyBudget) * 100).toFixed(1);
 
-        const scopeLabel = budget.scope === 'project' ? 'per-project budget' : 'global budget';
+        const scopeLabel = budgetScope === 'project' ? 'per-project budget' : 'global budget';
         const lines = [
           scope
             ? `Project: ${scope} (${scopeLabel})`
             : 'Scope: all projects (global budget)',
-          `Today (${todayStr}): $${todayTotal.toFixed(2)} / $${budget.daily_usd} (${dailyPct}%, ${summaryData.entryCount} sessions in window)`,
+          `Today (${todayStr}): $${todayTotal.toFixed(2)} / $${dailyBudget} (${dailyPct}%, ${summaryData.entryCount} sessions in window)`,
           `  API: $${todayApi.toFixed(2)} | Plan: $${todayPlan.toFixed(2)}`,
-          `Month (${monthStr}): $${monthTotal.toFixed(2)} / $${budget.monthly_usd} (${monthlyPct}%)`,
+          `Month (${monthStr}): $${monthTotal.toFixed(2)} / $${monthlyBudget} (${monthlyPct}%)`,
           `  API: $${monthApi.toFixed(2)} | Plan: $${monthPlan.toFixed(2)}`,
-          `Remaining today: $${(budget.daily_usd - todayTotal).toFixed(2)}`,
-          `Remaining month: $${(budget.monthly_usd - monthTotal).toFixed(2)}`,
+          `Remaining today: $${(dailyBudget - todayTotal).toFixed(2)}`,
+          `Remaining month: $${(monthlyBudget - monthTotal).toFixed(2)}`,
         ];
 
         // Source breakdown
@@ -58,10 +56,9 @@ export function registerCostTools(server: McpServer): void {
         // Token usage
         const tok = summaryData.tokens;
         if (tok && (tok.total.input > 0 || tok.total.output > 0)) {
-          const fmtTok = (n: number) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);
           lines.push('');
-          lines.push(`Tokens today: ${fmtTok(tok.today.input)} in / ${fmtTok(tok.today.output)} out`);
-          lines.push(`Tokens month: ${fmtTok(tok.month.input)} in / ${fmtTok(tok.month.output)} out`);
+          lines.push(`Tokens today: ${formatTokens(tok.today.input)} in / ${formatTokens(tok.today.output)} out`);
+          lines.push(`Tokens month: ${formatTokens(tok.month.input)} in / ${formatTokens(tok.month.output)} out`);
         }
 
         return { content: [{ type: 'text', text: lines.join('\n') }] };
