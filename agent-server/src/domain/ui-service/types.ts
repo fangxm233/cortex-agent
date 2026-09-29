@@ -102,129 +102,13 @@ export type Result<T> = Ok<T> | Err;
 
 // ── Query scopes ──────────────────────────────────────────────────
 
-export type QueryScope =
-  | 'projects.list'
-  | 'sessions.list'
-  | 'sessions.transcript'
-  | 'sessions.subagentTranscript'
-  | 'sessions.debugDetails'
-  | 'sessions.pendingInteraction'
-  | 'threads.list'
-  | 'threads.get'
-  | 'tasks.list'
-  | 'tasks.verification'
-  | 'schedules.list'
-  | 'commissions.list'
-  | 'commissions.get'
-  | 'commissions.decisions'
-  | 'executions.list'
-  | 'executions.get'
-  | 'memory.tree'
-  | 'memory.file'
-  | 'approvals.list'
-  | 'issues.list'
-  | 'notes.list'
-  | 'cost.summary'
-  | 'config.get'
-  | 'auth.status'
-  | 'auth.flowState'
-  | 'auth.customProviders'
-  | 'models.catalog'
-  | 'hooks.list'
-  | 'machines.list'
-  | 'machines.detail'
-  | 'skills.list'
-  | 'plugins.list'
-  | 'plugins.skillFile'
-  | 'plugins.mcpRead'
-  | 'threadTemplates.get'
-  | 'threadTemplates.detail'
-  | 'system.daemonStatus'
-  | 'system.rateLimitStatus'
-  | 'system.usageStatus'
-  | 'system.notices'
-  | 'system.updateStatus'
-  | 'waitpoints.list';
+/** Every query scope — the keys of `QueryParamMap` (mirrored by `QueryReturnMap`). */
+export type QueryScope = keyof QueryParamMap;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
-export type MutateOp =
-  | 'projects.create'
-  | 'sessions.create'
-  | 'sessions.send'
-  | 'sessions.cancel'
-  | 'sessions.compact'
-  | 'sessions.setProfile'
-  | 'sessions.setAgent'
-  | 'sessions.setSelection'
-  | 'sessions.setCommission'
-  | 'sessions.createAndSend'
-  | 'sessions.markRead'
-  | 'sessions.markManyRead'
-  | 'sessions.answerQuestion'
-  | 'sessions.respondPlan'
-  | 'sessions.respondDecision'
-  | 'sessions.cancelResume'
-  | 'sessions.rewind'
-  | 'threads.cancel'
-  | 'executions.cancel'
-  | 'waitpoints.cancel'
-  | 'schedules.pause'
-  | 'schedules.resume'
-  | 'schedules.remove'
-  | 'schedules.add'
-  | 'schedules.update'
-  | 'commissions.close'
-  | 'tasks.claim'
-  | 'tasks.unclaim'
-  | 'tasks.complete'
-  | 'tasks.block'
-  | 'tasks.unblock'
-  | 'approvals.approve'
-  | 'approvals.reject'
-  | 'approvals.request'
-  | 'issues.handle'
-  | 'issues.delete'
-  | 'notes.add'
-  | 'notes.update'
-  | 'notes.setCompleted'
-  | 'notes.delete'
-  | 'notes.clearCompleted'
-  | 'config.set'
-  | 'config.setPlatform'
-  | 'config.setProviderRateLimitPolicy'
-  | 'auth.startLogin'
-  | 'auth.respondPrompt'
-  | 'auth.cancelFlow'
-  | 'auth.logout'
-  | 'auth.syncGateway'
-  | 'auth.upsertCustomProvider'
-  | 'auth.removeCustomProvider'
-  | 'hooks.create'
-  | 'hooks.update'
-  | 'hooks.setEnabled'
-  | 'hooks.remove'
-  | 'hooks.test'
-  | 'profiles.create'
-  | 'profiles.update'
-  | 'profiles.remove'
-  | 'plugins.assign'
-  | 'plugins.skillWrite'
-  | 'plugins.skillCreate'
-  | 'plugins.skillMove'
-  | 'plugins.skillRemove'
-  | 'plugins.create'
-  | 'plugins.remove'
-  | 'plugins.convertToPortable'
-  | 'plugins.mcpWrite'
-  | 'threadTemplates.validate'
-  | 'threadTemplates.save'
-  | 'threadTemplates.remove'
-  | 'system.restart'
-  | 'system.clearRateLimit'
-  | 'system.refreshUsage'
-  | 'system.applyUpdate'
-  | 'system.skipUpdate';
+/** Every mutate op — the keys of `MutateArgsMap` (mirrored by `MutateReturnMap`). */
+export type MutateOp = keyof MutateArgsMap;
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -2861,10 +2745,10 @@ export interface MutateReturnMap {
   'system.skipUpdate': SystemUpdateDecisionReturn;
 }
 
-export type QueryParams<S extends QueryScope> = S extends keyof QueryParamMap ? QueryParamMap[S] : never;
-export type QueryReturn<S extends QueryScope> = S extends keyof QueryReturnMap ? QueryReturnMap[S] : never;
-export type MutateArgs<O extends MutateOp> = O extends keyof MutateArgsMap ? MutateArgsMap[O] : never;
-export type MutateReturn<O extends MutateOp> = O extends keyof MutateReturnMap ? MutateReturnMap[O] : never;
+export type QueryParams<S extends QueryScope> = QueryParamMap[S];
+export type QueryReturn<S extends QueryScope> = QueryReturnMap[S];
+export type MutateArgs<O extends MutateOp> = MutateArgsMap[O];
+export type MutateReturn<O extends MutateOp> = MutateReturnMap[O];
 
 // ── UiService interface ───────────────────────────────────────────
 
