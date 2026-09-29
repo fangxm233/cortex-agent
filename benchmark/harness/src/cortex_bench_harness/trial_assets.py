@@ -61,12 +61,10 @@ def publish_trial_assets(
     root_template: str | None = None,
 ) -> PublishedAssets:
     roles = _production_home_roles(logs_dir, bundle_root, root_template)
-    files, trees = _asset_plan(roles, bundle_root)
+    trees = _asset_plan(roles, bundle_root)
     home_files, container_paths = _production_prompt_assets(
         logs_dir, roles, bundle_root)
-    extracted = {
-        **_extract(npm_artifact, files - home_files.keys(), trees), **home_files,
-    }
+    extracted = {**_extract(npm_artifact, trees), **home_files}
     written = _write(logs_dir, extracted)
     manifest = _manifest(
         roles, extracted, written, npm_artifact, bundle_root, container_paths,
@@ -149,20 +147,20 @@ def _production_prompt_assets(
 
 def _asset_plan(
     roles: Mapping[str, Mapping[str, object]], bundle_root: str,
-) -> tuple[frozenset[str], frozenset[str]]:
-    """Which bundle members this trial's composition names: prompt and directive files by path,
-    plugin directories as whole trees (their skills are what the Skill tool can reach).
+) -> frozenset[str]:
+    """Which bundle trees this trial's composition names: plugin directories as whole trees (their
+    skills are what the Skill tool can reach). Prompt and directive paths are only checked to lie
+    inside the bundle; their bytes come from the production home.
     """
-    files: set[str] = set()
     trees: set[str] = set()
     for role in roles.values():
         for key in ("system_prompt_path", "directive_path"):
-            files.add(_bundle_relative(role.get(key), bundle_root))
+            _bundle_relative(role.get(key), bundle_root)
         trees.update(
             _bundle_relative(directory, bundle_root)
             for directory in _string_sequence(role.get("plugin_dirs"))
         )
-    return frozenset(files), frozenset(trees)
+    return frozenset(trees)
 
 
 def _string_sequence(value: object) -> tuple[str, ...]:
@@ -187,9 +185,7 @@ def _bundle_relative(value: object, bundle_root: str) -> str:
     return relative.as_posix()
 
 
-def _extract(
-    npm_artifact: Path, files: frozenset[str], trees: frozenset[str],
-) -> dict[str, bytes]:
+def _extract(npm_artifact: Path, trees: frozenset[str]) -> dict[str, bytes]:
     prefixes = tuple(f"{tree}/" for tree in sorted(trees))
     extracted: dict[str, bytes] = {}
     try:
@@ -198,9 +194,7 @@ def _extract(
                 if not member.isfile():
                     continue
                 relative = _member_relative(member.name)
-                if relative is None or not (
-                    relative in files or relative.startswith(prefixes)
-                ):
+                if relative is None or not relative.startswith(prefixes):
                     continue
                 payload = tar.extractfile(member)
                 if payload is None:
@@ -208,9 +202,7 @@ def _extract(
                 extracted[relative] = payload.read()
     except (OSError, tarfile.TarError) as error:
         raise TrialAssetError("trial_asset_unreadable") from error
-    if files - set(extracted) or any(
-        not any(name.startswith(prefix) for name in extracted) for prefix in prefixes
-    ):
+    if any(not any(name.startswith(prefix) for name in extracted) for prefix in prefixes):
         raise TrialAssetError("trial_asset_missing")
     return extracted
 
@@ -248,7 +240,7 @@ def _write_manifest(logs_dir: Path, manifest: Mapping[str, object]) -> None:
 def _manifest(
     roles: Mapping[str, Mapping[str, object]], extracted: Mapping[str, bytes],
     written: Mapping[str, str], npm_artifact: Path, bundle_root: str,
-    container_paths: Mapping[str, str] | None = None,
+    container_paths: Mapping[str, str],
 ) -> dict[str, object]:
     return {
         "schema_version": ASSET_SCHEMA_VERSION,
@@ -262,8 +254,7 @@ def _manifest(
         },
         "files": [
             {"asset_path": written[relative],
-             "container_path": (container_paths or {}).get(
-                 relative, f"{bundle_root}/{relative}"),
+             "container_path": container_paths.get(relative, f"{bundle_root}/{relative}"),
              "size_bytes": len(extracted[relative]),
              "sha256": hashlib.sha256(extracted[relative]).hexdigest()}
             for relative in sorted(written)
