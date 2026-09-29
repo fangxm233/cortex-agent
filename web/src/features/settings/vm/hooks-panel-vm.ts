@@ -160,8 +160,6 @@ export function resolveSelectedHookId(
 export interface HookCapability {
   canToggle: boolean;
   canEdit: boolean;
-  canDelete: boolean;
-  canTest: boolean;
   /** Which persistent inline explanation the detail pane must show. */
   note: 'managed' | 'template-scoped' | null;
 }
@@ -174,13 +172,13 @@ export interface HookCapability {
  */
 export function hookCapability(hook: HookDetail): HookCapability {
   if (hook.source === 'template-scoped') {
-    return { canToggle: false, canEdit: false, canDelete: false, canTest: true, note: 'template-scoped' };
+    return { canToggle: false, canEdit: false, note: 'template-scoped' };
   }
   if (hook.source === 'managed') {
-    return { canToggle: true, canEdit: false, canDelete: false, canTest: true, note: 'managed' };
+    return { canToggle: true, canEdit: false, note: 'managed' };
   }
   const writable = hook.editable;
-  return { canToggle: true, canEdit: writable, canDelete: writable, canTest: true, note: null };
+  return { canToggle: true, canEdit: writable, note: null };
 }
 
 // ── mount gaps ────────────────────────────────────────────────────────────────────────────────

@@ -152,7 +152,7 @@ describe('hooks-panel-vm / capability by source', () => {
 
   it('template-scoped is read-only, with no toggle at all', () => {
     expect(hookCapability(hook({ source: 'template-scoped', editable: false, version: null }))).toEqual({
-      canToggle: false, canEdit: false, canDelete: false, canTest: true, note: 'template-scoped',
+      canToggle: false, canEdit: false, note: 'template-scoped',
     });
   });
 
