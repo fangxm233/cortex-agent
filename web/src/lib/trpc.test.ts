@@ -39,9 +39,4 @@ describe('buildBatchHeaders', () => {
   it('returns x-cortex-token header when config is provided (desktop mode)', () => {
     expect(buildBatchHeaders(REMOTE)).toEqual({ 'x-cortex-token': 'test-bearer-token-xyz' });
   });
-
-  it('carries the exact token from config', () => {
-    const headers = buildBatchHeaders({ serverUrl: 'https://x.example.com', token: 'my-secret-42' });
-    expect(headers['x-cortex-token']).toBe('my-secret-42');
-  });
 });
