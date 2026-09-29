@@ -14,12 +14,11 @@ const commissionBoardModal = defineModal<string>('commission-board');
 
 interface CommissionBoardContextValue {
   openCommission: (commissionId: string) => void;
-  closeCommission: () => void;
 }
 
 export function useCommissionBoard(): CommissionBoardContextValue {
-  const { open, close } = commissionBoardModal.useModalActions();
-  return useMemo(() => ({ openCommission: open, closeCommission: close }), [open, close]);
+  const { open } = commissionBoardModal.useModalActions();
+  return useMemo(() => ({ openCommission: open }), [open]);
 }
 
 /** Ledger and contract are plain project files, so they ride the existing `memory.file` query
