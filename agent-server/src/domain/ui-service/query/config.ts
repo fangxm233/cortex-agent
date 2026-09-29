@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { readPlatformSettings } from '../platform-settings.js';
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
-import { getSettingsSnapshot, resolveSettingsSnapshot } from '@core/settings.js';
+import { getSettingsSnapshot } from '@core/settings.js';
 import { getLocale } from '@core/i18n.js';
 import { langSource } from '@domain/system/preferences.js';
 import { loadMountedHookSummaries } from '@store/hook-registry.js';
@@ -166,26 +166,14 @@ async function readEnv(file: string): Promise<ConfigEnvEntry[]> {
   }
 }
 
-async function readSettings(configDir: string): Promise<ConfigSettingEntry[]> {
-  const raw = await readJson(path.join(configDir, 'settings.json'));
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return resolveSettingsSnapshot({});
-  }
-  try {
-    return resolveSettingsSnapshot(raw);
-  } catch {
-    return resolveSettingsSnapshot({});
-  }
-}
-
 /**
  * Read a config snapshot from the supplied directory. Files remain hermetically scoped to that
- * directory; settings use the process env fallback unless the caller supplies the live cached
- * snapshot. A missing or malformed source affects only its own field.
+ * directory; settings are the caller-supplied live snapshot. A missing or malformed source affects
+ * only its own field.
  */
 export async function readConfigSnapshot(
   configDir: string,
-  liveSettings?: ConfigSettingEntry[],
+  liveSettings: ConfigSettingEntry[],
   lang?: ConfigLang,
 ): Promise<ConfigSnapshot> {
   const tt = path.join(configDir, 'thread-templates');
@@ -199,16 +187,15 @@ export async function readConfigSnapshot(
     listJsonBasenames(path.join(tt, 'templates')),
     listJsonBasenames(path.join(tt, 'shells')),
     readEnv(path.join(configDir, '.env')),
-    liveSettings ?? readSettings(configDir),
   ]);
-  const [budget, profiles, machines, mcp, agents, templates, shells, env, settings] = parts;
+  const [budget, profiles, machines, mcp, agents, templates, shells, env] = parts;
   const threadTemplates: ConfigThreadTemplates = { agents, templates, shells };
   return {
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
     mcp: parseMcp(mcp), threadTemplates,
     agents: await readAgentEntries(path.join(tt, 'agents'), agents),
-    hooks, env, settings,
+    hooks, env, settings: liveSettings,
     ...(lang ? { lang } : {}),
   };
 }

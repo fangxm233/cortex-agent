@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { readConfigSnapshot } from '../../../src/domain/ui-service/query/config.js';
 import { SETTINGS_SPEC } from '../../../src/core/settings-spec.js';
+import { resolveSettingsSnapshot } from '../../../src/core/settings.js';
 
 const RAW_SECRET = 'sk-super-secret-value-123456';
 
@@ -66,19 +67,18 @@ test('readConfigSnapshot surfaces per-project budgets and drops half-pair entrie
       notAnObject: 3,
     },
   }));
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
   assert.deepEqual(snap.budget?.projects, { alpha: { daily_usd: 5, monthly_usd: 100 } });
 });
 
 test('readConfigSnapshot reports file, env, and default setting sources with plaintext values', async () => {
   const { configDir } = await makeFixture();
-  await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ turnNotify: false, sessionRetentionDays: 31 }));
   const previousShowToolCalls = process.env.CORTEX_SHOW_TOOL_CALLS;
   const previousManagerRotateSteps = process.env.CORTEX_MANAGER_ROTATE_STEPS;
   process.env.CORTEX_SHOW_TOOL_CALLS = 'yes';
   delete process.env.CORTEX_MANAGER_ROTATE_STEPS;
   try {
-    const snap = await readConfigSnapshot(configDir);
+    const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({ turnNotify: false, sessionRetentionDays: 31 }));
     assert.deepEqual(snap.settings.map((entry) => entry.key), Object.keys(SETTINGS_SPEC));
     assert.deepEqual(
       snap.settings.find((entry) => entry.key === 'turnNotify'),
@@ -106,7 +106,7 @@ test('readConfigSnapshot reports file, env, and default setting sources with pla
 
 test('readConfigSnapshot redacts .env secrets — raw value never appears in the DTO', async () => {
   const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
   const serialized = JSON.stringify(snap);
   assert.ok(!serialized.includes(RAW_SECRET), 'raw secret leaked into snapshot');
 
@@ -130,7 +130,7 @@ test('readConfigSnapshot redacts .env secrets — raw value never appears in the
 
 test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hooks', async () => {
   const { configDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
 
   assert.equal(snap.profiles!.defaultProfile, 'plan');
   assert.deepEqual(snap.profiles!.profiles, [
@@ -185,7 +185,7 @@ test('readConfigSnapshot carries the editable profile fields but never an extraE
     }),
   );
 
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
   const rich = snap.profiles!.profiles[0];
   assert.equal(rich.provider, 'deepseek');
   assert.equal(rich.claudeBackend, 'tui');
@@ -213,7 +213,7 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
     }),
   );
 
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
 
   assert.equal(snap.profiles!.defaultProfile, null);
   assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
@@ -223,7 +223,7 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
 test('readConfigSnapshot returns null / empty when files are absent', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-empty-'));
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-  const snap = await readConfigSnapshot(path.join(root, 'config'));
+  const snap = await readConfigSnapshot(path.join(root, 'config'), resolveSettingsSnapshot({}));
   error.mockRestore();
   assert.equal(snap.budget, null);
   assert.equal(snap.profiles, null);
@@ -241,7 +241,7 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
   await fs.writeFile(path.join(configDir, 'hooks', 'broken.json'), '{broken');
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-  const snap = await readConfigSnapshot(configDir);
+  const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({}));
 
   assert.deepEqual(snap.hooks, []);
   assert.match(error.mock.calls.flat().join('\n'), /broken\.json/);
