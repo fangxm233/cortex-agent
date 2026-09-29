@@ -68,7 +68,7 @@ function useZoom(report: ReportFailure) {
     const initial = readZoom();
     if (initial !== DEFAULT_ZOOM) void apply(initial);
   }, [apply]);
-  return { zoom, zoomIn: () => void apply(stepZoom(zoom, 1)),
+  return { zoomIn: () => void apply(stepZoom(zoom, 1)),
     zoomOut: () => void apply(stepZoom(zoom, -1)), zoomReset: () => void apply(DEFAULT_ZOOM) };
 }
 
@@ -98,9 +98,9 @@ function useFullscreen(isFullscreen: boolean, sync: () => Promise<void>, report:
 }
 
 export interface WindowActions {
-  minimize: () => void; toggleMaximize: () => void; close: () => void; startDragging: () => void;
+  minimize: () => void; toggleMaximize: () => void; close: () => void;
   isMaximized: boolean; isFullscreen: boolean; toggleFullscreen: () => void;
-  zoom: number; zoomIn: () => void; zoomOut: () => void; zoomReset: () => void;
+  zoomIn: () => void; zoomOut: () => void; zoomReset: () => void;
   toggleDevTools: () => void;
 }
 
@@ -112,14 +112,14 @@ export function useWindowActions(): WindowActions {
   const { sync, ...state } = useWindowState();
   const toggleFullscreen = useFullscreen(state.isFullscreen, sync, report);
   const zoom = useZoom(report);
-  type Action = 'minimize' | 'toggle_maximize' | 'close' | 'start_dragging';
+  type Action = 'minimize' | 'toggle_maximize' | 'close';
   const act = (command: Action) => {
     void safeInvoke(`plugin:window|${command}`, LABEL).then(checked).catch(report);
   };
   return {
     ...state, ...zoom, toggleFullscreen,
     minimize: () => act('minimize'), toggleMaximize: () => act('toggle_maximize'),
-    close: () => act('close'), startDragging: () => act('start_dragging'),
+    close: () => act('close'),
     toggleDevTools: () => { void safeInvoke('plugin:webview|internal_toggle_devtools', LABEL)
       .then(checked).catch(() => toast?.toast({ title: L.windowDevtoolsFailed,
         description: L.windowDevtoolsFailedHint, tone: 'failed' })); },

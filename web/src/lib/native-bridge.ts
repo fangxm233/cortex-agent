@@ -104,7 +104,6 @@ interface NativeCommandMap {
   // node_modules/@tauri-apps/api/window.js. Every one needs an explicit grant in
   // desktop/src-tauri/capabilities/default.json: `core:default` allows only read-only queries
   // plus `internal_toggle_maximize`, so an ungranted command fails silently.
-  'plugin:window|start_dragging': { args: { label: string }; result: unknown };
   'plugin:window|minimize': { args: { label: string }; result: unknown };
   'plugin:window|maximize': { args: { label: string }; result: unknown };
   'plugin:window|unmaximize': { args: { label: string }; result: unknown };
