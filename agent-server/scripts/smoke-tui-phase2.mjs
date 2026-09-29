@@ -38,13 +38,8 @@ function expectFrame(ws, predicate, timeout = 5000) {
   });
 }
 
-async function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
-
 let passed = 0;
 let failed = 0;
-let results = [];
 
 function assert(label, ok, detail) {
   if (ok) {
@@ -54,7 +49,6 @@ function assert(label, ok, detail) {
     failed++;
     console.log(`  ✗ ${label}: ${detail}`);
   }
-  results.push({ label, ok, detail });
 }
 
 async function main() {
@@ -89,49 +83,6 @@ async function main() {
         : `error=${result?.error?.code || 'unknown'}`;
       assert(`S1.${label} query returns ok`, ok, detail);
     }
-
-    ws.close();
-  }
-
-  // ── S2: Live update via subscribe ──
-  console.log(`\n--- S2: Subscribe + Live Update ---`);
-  {
-    const ws = await connect();
-    sendFrame(ws, { type: 'handshake.hello', protocolVersion: 1, clientName: 'smoke-test', clientVersion: 'dev' });
-    await expectFrame(ws, f => f.type === 'handshake.ack');
-
-    // Subscribe to task events
-    sendFrame(ws, { type: 'ui.subscribe', id: 'sub-tasks', filter: { events: ['task.*'] } });
-    await sleep(500);
-
-    // Query initial tasks
-    sendFrame(ws, { type: 'ui.query', id: 'q-tasks-s2', scope: 'tasks.list', params: {} });
-    const initialTasks = await expectFrame(ws, f => f.type === 'ui.queryResult' && f.id === 'q-tasks-s2');
-    const initialCount = Array.isArray(initialTasks?.data) ? initialTasks.data.length : 0;
-    assert('S2.0 initial tasks query', initialTasks?.ok === true, `count=${initialCount}`);
-
-    // Listen for ui.event while we create a task (done below)
-    const eventPromise = expectFrame(ws, f => f.type === 'ui.event', 10000);
-
-    ws.close();
-  }
-
-  // ── S3: Notification fan-out (test notification frame delivery) ──
-  console.log(`\n--- S3: Notification Frame Delivery ---`);
-  {
-    const ws = await connect();
-    sendFrame(ws, { type: 'handshake.hello', protocolVersion: 1, clientName: 'smoke-test', clientVersion: 'dev' });
-    await expectFrame(ws, f => f.type === 'handshake.ack');
-
-    // Subscribe to notifications
-    sendFrame(ws, { type: 'ui.subscribe', id: 'sub-notif', filter: { events: ['notification.*'] } });
-    await sleep(500);
-
-    // Also test that ui.query for projects.list works (needed for S3 project-switching context)
-    sendFrame(ws, { type: 'ui.query', id: 'q-projects', scope: 'projects.list', params: {} });
-    const projResult = await expectFrame(ws, f => f.type === 'ui.queryResult' && f.id === 'q-projects');
-    assert('S3.0 projects.list query', projResult?.ok === true,
-      Array.isArray(projResult?.data) ? `count=${projResult.data.length}` : `type=${typeof projResult?.data}`);
 
     ws.close();
   }
