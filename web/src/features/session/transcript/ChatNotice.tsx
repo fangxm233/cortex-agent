@@ -41,8 +41,6 @@ export interface ChatNoticeProps {
   level: ChatNoticeLevel;
   text: string;
   authAction?: AuthNoticeAction;
-  authActionLabel?: string;
-  onAuthAction?: (action: AuthNoticeAction) => void;
   /** A control the notice itself offers, persisted with the message. */
   noticeAction?: NoticeAction;
   onNoticeAction?: (action: NoticeAction) => void;
@@ -80,23 +78,16 @@ function NoticeActionButton({
   );
 }
 
-function AuthActionButton({
-  action, label, onAction,
-}: {
-  action: AuthNoticeAction;
-  label?: string;
-  onAction?: (action: AuthNoticeAction) => void;
-}) {
+function AuthActionButton({ action }: { action: AuthNoticeAction }) {
   const L = useVocab();
   const loginFlow = useOptionalLoginFlow();
-  const activate = onAction ?? loginFlow?.openLogin;
-  if (!activate) return null;
+  if (!loginFlow) return null;
   return (
     <button
-      type="button" className={MENU_FOCUS} data-auth-notice-action onClick={() => activate(action)}
+      type="button" className={MENU_FOCUS} data-auth-notice-action onClick={() => loginFlow.openLogin(action)}
       style={actionButtonStyle(TONES.error.fg, false)}
     >
-      {label ?? L.authLoginAgain}
+      {L.authLoginAgain}
     </button>
   );
 }
@@ -106,7 +97,7 @@ function localizedNoticeText(text: string, action: NoticeAction | undefined, voc
 }
 
 export function ChatNotice({
-  level, text, authAction, authActionLabel, onAuthAction,
+  level, text, authAction,
   noticeAction, onNoticeAction, noticeActionDone = false,
 }: ChatNoticeProps): JSX.Element {
   const tone = TONES[level];
@@ -131,7 +122,7 @@ export function ChatNotice({
       </span>
       <span style={{ flex: 1 }}>{localizedText}</span>
       {authAction ? (
-        <AuthActionButton action={authAction} label={authActionLabel} onAction={onAuthAction} />
+        <AuthActionButton action={authAction} />
       ) : null}
       {noticeAction ? (
         <NoticeActionButton
