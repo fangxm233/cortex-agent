@@ -5,6 +5,8 @@
 import type * as http from 'http';
 import { timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { json, readJsonBody } from './http-json.js';
+import type { CustomRouteHandler } from './ui-http-server.js';
 import { parseCookie, type UiSessionStore } from './ui-session.js';
 
 const log = createLogger('ui-http');
@@ -24,11 +26,6 @@ export const UI_SESSION_PATH = '/api/ui/session';
  */
 export const LOGIN_FAILURE_DELAY_MS = 250;
 
-/** Max login body we will read. The body is one short field. */
-const MAX_BODY_BYTES = 8192;
-
-export type RouteHandler = (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
-
 export interface UiAuthRouteDeps {
   /** Live session store. */
   store: UiSessionStore;
@@ -39,23 +36,6 @@ export interface UiAuthRouteDeps {
   authorize: (req: http.IncomingMessage) => Promise<boolean>;
   /** Session lifetime, mirrored into the cookie's Max-Age. */
   ttlMs: number;
-}
-
-function json(res: http.ServerResponse, status: number, body: unknown, headers: http.OutgoingHttpHeaders = {}): void {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
-  res.end(JSON.stringify(body));
-}
-
-async function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new Error('body too large');
-    chunks.push(chunk as Buffer);
-  }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
 }
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
@@ -117,7 +97,7 @@ export function sessionIdFrom(req: http.IncomingMessage): string | undefined {
  * routes on the server (a browser with no credential has to be able to reach them); `/api/ui/logout`
  * is an ordinary gated route.
  */
-export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, RouteHandler> {
+export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, CustomRouteHandler> {
   const maxAgeSec = Math.floor(deps.ttlMs / 1000);
 
   return {
@@ -130,7 +110,7 @@ export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, RouteH
 
       let body: Record<string, unknown>;
       try {
-        body = await readBody(req);
+        body = await readJsonBody(req);
       } catch (err) {
         return json(res, 400, { ok: false, error: (err as Error).message });
       }
@@ -174,7 +154,7 @@ export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, RouteH
  */
 export function createUiSessionProbeRoute(
   authorize: (req: http.IncomingMessage) => Promise<boolean>,
-): Record<string, RouteHandler> {
+): Record<string, CustomRouteHandler> {
   return {
     [UI_SESSION_PATH]: async (req, res) => {
       json(res, 200, { ok: true, data: { authenticated: await authorize(req), tokenLogin: false } });

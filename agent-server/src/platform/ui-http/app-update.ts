@@ -11,6 +11,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { compareCalVer } from '@core/calver.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { createLogger } from '@core/log.js';
+import { sendNoStoreJson } from './http-json.js';
 import type { CustomRouteHandler } from './ui-http-server.js';
 
 const log = createLogger('app-update');
@@ -208,24 +209,13 @@ export function createAppUpdateRoutes(
 
   const handler: CustomRouteHandler = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      sendJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
+      sendNoStoreJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
       return;
     }
     const m = await manifest();
     if (m) log.info(`manifest served: version=${m.version} assets=${m.assets.length}`);
-    sendJson(res, 200, m ?? {});
+    sendNoStoreJson(res, 200, m ?? {});
   };
 
   return { [APP_UPDATE_MANIFEST_PATH]: handler };
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const payload = Buffer.from(JSON.stringify(body), 'utf8');
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': String(payload.length),
-    // Never edge-cached: a stale manifest would advertise the wrong version to the shell.
-    'Cache-Control': 'no-store',
-  });
-  res.end(payload);
 }

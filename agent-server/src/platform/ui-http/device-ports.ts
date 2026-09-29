@@ -1,5 +1,6 @@
 import type * as http from 'http';
 import { createLogger } from '@core/log.js';
+import { json, readJsonBody } from './http-json.js';
 import { listenerProbes, type ListeningPort } from './listening-ports.js';
 
 const log = createLogger('device-ports');
@@ -48,24 +49,6 @@ async function listRemoteListeners(deps: DevicePortDeps, device: string): Promis
     }
   }
   return [];
-}
-
-function json(res: http.ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
-}
-
-async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    // A request body here is two small fields; anything larger is not ours.
-    if (size > 8192) throw new Error('body too large');
-    chunks.push(chunk as Buffer);
-  }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
 }
 
 export function createDevicePortRoutes(deps: DevicePortDeps): Record<

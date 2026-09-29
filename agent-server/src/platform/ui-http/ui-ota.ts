@@ -4,6 +4,7 @@ import * as crypto from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createZip, type ZipEntry } from './zip-writer.js';
 import { createLogger } from '@core/log.js';
+import { sendNoStoreJson } from './http-json.js';
 import type { CustomRouteHandler } from './ui-http-server.js';
 
 const log = createLogger('ui-ota');
@@ -83,18 +84,6 @@ function buildBundle(spaDir: string): OtaBundle {
   };
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const payload = Buffer.from(JSON.stringify(body), 'utf8');
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': String(payload.length),
-    // OTA manifest must never be cached by an intermediary (Cloudflare/proxy): a stale manifest would
-    // advertise the wrong version/sha and desync the client from the bundle.
-    'Cache-Control': 'no-store',
-  });
-  res.end(payload);
-}
-
 /**
  * Build the OTA custom-route map for the given SPA directory. Returns an empty map (OTA disabled)
  * when the SPA is not built. The bundle is built lazily on first request and cached for the process
@@ -108,19 +97,19 @@ export function createOtaRoutes(spaDir: string | undefined): Record<string, Cust
 
   const manifestHandler: CustomRouteHandler = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      sendJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
+      sendNoStoreJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
       return;
     }
     const m = bundle().manifest;
     // Positive server-side signal that a client reached (and passed auth on) the OTA endpoint —
     // success was previously silent, so "no log" was ambiguous between not-reached and reached-ok.
     log.info(`manifest served: version=${m.version.slice(0, 12)} size=${m.size} method=${req.method}`);
-    sendJson(res, 200, m);
+    sendNoStoreJson(res, 200, m);
   };
 
   const bundleHandler: CustomRouteHandler = async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      sendJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
+      sendNoStoreJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
       return;
     }
     const { zip } = bundle();
