@@ -21,13 +21,10 @@ function wp(overrides: Partial<WaitpointInfo> = {}): WaitpointInfo {
 describe('waitRailViewModel', () => {
   it('renders nothing when the session is waiting on nothing', () => {
     expect(waitRailViewModel([], T0, 'en')).toBeNull();
-    expect(waitRailViewModel(null, T0, 'en')).toBeNull();
-    expect(waitRailViewModel(undefined, T0, 'en')).toBeNull();
   });
 
   it('headlines the most urgent waitpoint (the server sends them expiry-first)', () => {
     const vm = waitRailViewModel([wp({ label: 'soon', expiresAt: T0 + 60_000 }), wp({ id: 'wp_2', label: 'later' })], T0, 'en');
-    expect(vm?.count).toBe(2);
     expect(vm?.headline).toBe('waiting on 2 signals · soon · expires in 1m');
   });
 

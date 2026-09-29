@@ -43,7 +43,6 @@ export interface WaitRailRow {
 }
 
 export interface WaitRailViewModel {
-  count: number;
   /** The one line shown while collapsed. */
   headline: string;
   rows: WaitRailRow[];
@@ -153,17 +152,17 @@ function toRow(wp: WaitpointInfo, now: number, lang: WaitRailLanguage): WaitRail
  * first); that order is preserved so the headline names the most urgent one.
  */
 export function waitRailViewModel(
-  waitpoints: WaitpointInfo[] | null | undefined,
+  waitpoints: WaitpointInfo[],
   now: number,
   lang: WaitRailLanguage,
 ): WaitRailViewModel | null {
-  if (!waitpoints || waitpoints.length === 0) return null;
+  if (waitpoints.length === 0) return null;
   const L = COPY[lang];
   const rows = waitpoints.map((wp) => toRow(wp, now, lang));
   const first = rows[0];
   const count = rows.length;
   const headline = `${count === 1 ? L.waitingOne : L.waitingN(count)} · ${first.label} · ${first.ttl}`;
-  return { count, headline, rows };
+  return { headline, rows };
 }
 
 export interface WaitRailChromeCopy {
