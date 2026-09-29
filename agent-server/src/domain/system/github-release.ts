@@ -12,12 +12,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_FILE = path.join(STORE_DIR, 'release-cache.json');
 
 export interface ReleaseInfo {
-  tagName: string;    // e.g., "server-v2026.6.11"
   version: string;    // e.g., "2026.6.11"
   name: string;       // Release title
   body: string;       // Markdown release notes
   htmlUrl: string;    // GitHub release page URL
-  publishedAt: string; // ISO timestamp
 }
 
 interface CacheEntry {
@@ -107,12 +105,10 @@ export async function fetchReleaseNote(version: string): Promise<ReleaseInfo | n
 
     const data = (await response.json()) as any;
     const releaseInfo: ReleaseInfo = {
-      tagName: data.tag_name,
       version,
       name: data.name || `Release ${version}`,
       body: data.body || '',
       htmlUrl: data.html_url,
-      publishedAt: data.published_at,
     };
 
     // Update cache
