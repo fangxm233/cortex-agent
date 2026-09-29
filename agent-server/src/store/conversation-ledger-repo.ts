@@ -296,11 +296,6 @@ export class ConversationLedgerRepo {
     });
   }
 
-  /** Drop the registry's in-memory cache so the next read fetches from disk. For testing. */
-  invalidate(): void {
-    this.registry.invalidate();
-  }
-
   /** Wait for any in-flight registry mutation to complete. For graceful SIGTERM drain. */
   flush(): Promise<void> {
     return this.registry.flush();

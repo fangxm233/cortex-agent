@@ -168,7 +168,7 @@ test('!status Refresh button click re-runs report and updates message', async ()
 // ============================================================
 
 // Note: !resume backward compat test omitted — the resume handler uses async file I/O
-// (sessionRegistryRepo) that hangs in the test environment without a real data dir.
+// (sessionStore) that hangs in the test environment without a real data dir.
 
 // ============================================================
 // Interactive !profile (Phase 3)

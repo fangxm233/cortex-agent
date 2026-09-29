@@ -411,13 +411,6 @@ export class SessionRegistryRepo {
     return this.withState(async (state) => readTurns(state, channel));
   }
 
-  async findTurn(channel: string, pred: (turn: TurnRecord) => boolean): Promise<TurnRecord | null> {
-    return this.withState(async (state) => {
-      const found = (state.turns.get(channel) ?? []).find(pred);
-      return found ? { ...found } : null;
-    });
-  }
-
   // --- Conversation headers (channel → session identity of the hosted conversation) -----------
 
   async getConversationHeader(channel: string): Promise<ConversationHeader | null> {
@@ -697,4 +690,3 @@ function* filterLive(
 }
 
 export const sessionStore = new SessionRegistryRepo();
-export const sessionRegistryRepo = sessionStore;
