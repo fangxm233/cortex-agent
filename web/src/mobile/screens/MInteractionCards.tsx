@@ -126,11 +126,9 @@ export interface MAskCardProps {
   onToggle: (label: string) => void;
   /** Commit the multi-select set of the CURRENT question. */
   onConfirmMulti: () => void;
-  /** 自定义… — routes the answer to the composer (5b `点选项，或直接输入回答`). */
-  onCustom: () => void;
 }
 
-export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti, onCustom }: MAskCardProps): JSX.Element {
+export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti }: MAskCardProps): JSX.Element {
   const pending = model.status === 'pending';
   const cur = currentQuestionIndex(model, state);
   const total = model.questions.length;
@@ -249,7 +247,6 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                 {/* 自定义… — free-text via the composer (scheme 5b L250) */}
                 <button
                   type="button"
-                  onClick={onCustom}
                   style={{ minHeight: 44, border: '1.5px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', display: 'flex', alignItems: 'center', padding: '8px 13px', boxSizing: 'border-box', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                 >
                   <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.sub }}>{copy.customOption}</span>

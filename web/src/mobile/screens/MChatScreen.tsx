@@ -790,7 +790,6 @@ export function MChatScreen(): JSX.Element {
     onAskPick,
     onAskToggle,
     onAskConfirmMulti,
-    onAskCustom: () => {}, // typed text already routes to the current question (5b placeholder)
     rejectingId: rejectArmed ? rejectingId : null,
     onApprove: (m) => interactionActions.approvePlan(m.requestId),
     onRejectStart: (m) => setRejectingId(m.requestId),

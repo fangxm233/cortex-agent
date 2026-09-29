@@ -63,7 +63,6 @@ export interface MChatInteractions {
   onAskPick: (model: AskCardModel, label: string) => void;
   onAskToggle: (model: AskCardModel, label: string) => void;
   onAskConfirmMulti: (model: AskCardModel) => void;
-  onAskCustom: (model: AskCardModel) => void;
   rejectingId: string | null;
   onApprove: (model: PlanCardModel) => void;
   onRejectStart: (model: PlanCardModel) => void;

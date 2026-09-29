@@ -219,7 +219,6 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
         onPick={(label) => interactions?.onAskPick(m, label)}
         onToggle={(label) => interactions?.onAskToggle(m, label)}
         onConfirmMulti={() => interactions?.onAskConfirmMulti(m)}
-        onCustom={() => interactions?.onAskCustom(m)}
       />
     );
   }
