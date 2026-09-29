@@ -42,7 +42,6 @@ export const statusEn = {
   'notify.authExpiry.state.expired': 'expired',
   'notify.authExpiry.state.loggedOut': 'logged out',
   'notify.authExpiry.expiresAt': 'Expires at `${expiresAt}`.',
-  'notify.authExpiry.refreshExpiresAt': 'Refresh credential expires at `${expiresAt}`.',
   'notify.authExpiry.guide.action': 'Use the one-click login action below to sign in again.',
   // --- Execution report ---
   'status.noRunningExecutions': 'No running executions.',
@@ -96,7 +95,6 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.authExpiry.state.expired': '已过期',
   'notify.authExpiry.state.loggedOut': '未登录',
   'notify.authExpiry.expiresAt': '过期时间：`${expiresAt}`。',
-  'notify.authExpiry.refreshExpiresAt': '刷新凭据过期时间：`${expiresAt}`。',
   'notify.authExpiry.guide.action': '请使用下方的一键登录操作重新认证。',
   // --- Execution report ---
   'status.noRunningExecutions': '没有正在运行的执行。',

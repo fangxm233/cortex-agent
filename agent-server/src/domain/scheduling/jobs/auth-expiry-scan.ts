@@ -55,16 +55,8 @@ function isWarningAccount(account: AuthAccountStatus): account is AuthAccountSta
 }
 
 function expirySuffix(account: AuthAccountStatus): string {
-  const parts: string[] = [];
-  if (account.expiresAt) {
-    parts.push(t('notify.authExpiry.expiresAt', { expiresAt: account.expiresAt }));
-  }
-  if (account.refreshExpiresAt) {
-    parts.push(t('notify.authExpiry.refreshExpiresAt', {
-      expiresAt: account.refreshExpiresAt,
-    }));
-  }
-  return parts.length === 0 ? '' : ` ${parts.join(' ')}`;
+  if (!account.expiresAt) return '';
+  return ` ${t('notify.authExpiry.expiresAt', { expiresAt: account.expiresAt })}`;
 }
 
 function noticeText(account: AuthAccountStatus & { state: WarningState }): string {

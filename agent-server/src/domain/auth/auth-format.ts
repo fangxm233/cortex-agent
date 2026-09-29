@@ -15,8 +15,8 @@ function authTypeLabel(authType: AuthType | null): string {
   return t(`cmd.auth.type.${authType ?? 'none'}`);
 }
 
-function expirySuffix(key: 'expires' | 'refreshExpires', value: string | null): string {
-  return value ? t(`cmd.auth.${key}`, { time: value }) : '';
+function expirySuffix(value: string | null): string {
+  return value ? t('cmd.auth.expires', { time: value }) : '';
 }
 
 function formatCredential(credential: AuthCredentialStatus): string {
@@ -24,8 +24,7 @@ function formatCredential(credential: AuthCredentialStatus): string {
     authType: authTypeLabel(credential.authType),
     state: authStateLabel(credential.state),
     source: credential.source ?? '—',
-    expires: expirySuffix('expires', credential.expiresAt),
-    refreshExpires: expirySuffix('refreshExpires', credential.refreshExpiresAt),
+    expires: expirySuffix(credential.expiresAt),
   });
 }
 
