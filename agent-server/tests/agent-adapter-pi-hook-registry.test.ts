@@ -10,16 +10,11 @@ type Handler = (event: any, ctx: HookContext) => any;
 
 class FakePi implements HookHost {
   readonly handlers = new Map<string, Handler[]>();
-  readonly tools = new Map<string, any>();
 
   on(event: string, handler: Handler): void {
     const handlers = this.handlers.get(event) ?? [];
     handlers.push(handler);
     this.handlers.set(event, handlers);
-  }
-
-  registerTool(definition: any): void {
-    this.tools.set(definition.name, definition);
   }
 
   private async emitDefault(event: string, payload: any, ctx: HookContext): Promise<unknown> {
