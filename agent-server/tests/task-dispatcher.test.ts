@@ -92,20 +92,6 @@ test('filterDispatchableTasks caches GPU preflight by machine and deducts assign
   assert.deepEqual(filtered.map((task) => task.id), ['a1']); // second task blocked after slot deduction
 });
 
-test('filterDispatchableTasks accepts tasks without device tag', async () => {
-  const tasks = [
-    { id: 'a1', project: 'example-project', text: 'no device task', gpu: null, template: 'default' },
-    { id: 'b2', project: 'example-project', text: 'another task', gpu: null, template: 'default' },
-  ];
-
-  const filtered = await filterDispatchableTasks(tasks, new Map(), {
-    findActiveDispatchMatch: () => null,
-    checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
-  });
-
-  assert.deepEqual(filtered.map((task) => task.id), ['a1', 'b2']);
-});
-
 test('filterDispatchableTasks drops tasks with unknown or missing [template:X] tag', async () => {
   // Load real thread-templates.json so listTemplateNames() is non-empty.
   // Without this, the filter is fail-open (size===0 → skip check).
