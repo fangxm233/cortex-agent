@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import '@/design/content-surfaces.css';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useLang, useVocab } from '@/i18n';
@@ -13,7 +12,6 @@ export interface ThreadDetailViewProps {
   onOpenThread: (threadId: string) => void;
   onCancel: () => void;
   cancelPending?: boolean;
-  renderStepChat?: (sessionId: string | null, live: boolean) => ReactNode;
 }
 
 function StatusPill({ vm }: { vm: ThreadDetailVm }) {
@@ -89,15 +87,14 @@ function DetailMeta({ vm }: { vm: ThreadDetailVm }) {
   );
 }
 
-function DetailContent({ vm, onOpenThread, renderStepChat }: {
+function DetailContent({ vm, onOpenThread }: {
   vm: ThreadDetailVm;
   onOpenThread: (threadId: string) => void;
-  renderStepChat?: (sessionId: string | null, live: boolean) => ReactNode;
 }) {
   const openSub = (sub: DetailStepSub) => onOpenThread(sub.id);
   return (
     <div className="thread-detail-content" style={{ flex: 1, display: 'flex', gap: 16, padding: '16px 20px', minHeight: 0, background: 'transparent', overflow: 'auto', scrollbarGutter: 'stable' }}>
-      <ThreadPipeline vm={vm} onOpenSub={openSub} renderStepChat={renderStepChat} />
+      <ThreadPipeline vm={vm} onOpenSub={openSub} />
       <ThreadArtifactPanel artifact={vm.artifact} />
     </div>
   );
@@ -110,7 +107,7 @@ export function ThreadDetailView(props: ThreadDetailViewProps): JSX.Element {
     <div className="content-surface" data-thread-detail={vm.tid} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <DetailHeader vm={vm} onClose={props.onClose} onCancel={props.onCancel} cancelPending={!!props.cancelPending} />
       <DetailMeta vm={vm} />
-      <DetailContent vm={vm} onOpenThread={props.onOpenThread} renderStepChat={props.renderStepChat} />
+      <DetailContent vm={vm} onOpenThread={props.onOpenThread} />
     </div>
   );
 }

@@ -174,12 +174,10 @@ function ExpandedStep({
   step,
   onCollapse,
   onOpenSub,
-  renderChat,
 }: {
   step: DetailStep;
   onCollapse: () => void;
   onOpenSub: (s: DetailStepSub) => void;
-  renderChat: (sessionId: string | null, live: boolean) => React.ReactNode;
 }) {
   const L = useVocab();
   const running = step.kind === 'running';
@@ -252,7 +250,7 @@ function ExpandedStep({
             />
           )}
         </div>
-        {renderChat(step.sessionId, running)}
+        <ThreadStepChat sessionId={step.sessionId} live={running} />
       </div>
 
       {/* sub-threads */}
@@ -275,30 +273,24 @@ function ExpandedStep({
 export interface ThreadPipelineProps {
   vm: ThreadDetailVm;
   onOpenSub: (sub: DetailStepSub) => void;
-  /** Injectable step-chat renderer (default = the live ThreadStepChat). Overridden in static-render
-   *  tests so the presentational pipeline can be asserted without tRPC/query providers. */
-  renderStepChat?: (sessionId: string | null, live: boolean) => React.ReactNode;
 }
 
-function PipelineStep({ step, index, selected, select, onOpenSub, renderChat }: {
+function PipelineStep({ step, index, selected, select, onOpenSub }: {
   step: DetailStep; index: number; selected: boolean; select: (index: number) => void;
   onOpenSub: (sub: DetailStepSub) => void;
-  renderChat: (sessionId: string | null, live: boolean) => React.ReactNode;
 }) {
   return (
     <div>
       {step.hasConnector && <div style={{ width: 1.5, height: 12, background: 'var(--proto-line)', marginLeft: 20 }} />}
       {selected ? (
-        <ExpandedStep step={step} onCollapse={() => select(-1)} onOpenSub={onOpenSub} renderChat={renderChat} />
+        <ExpandedStep step={step} onCollapse={() => select(-1)} onOpenSub={onOpenSub} />
       ) : <CompactStep step={step} onClick={() => select(index)} />}
     </div>
   );
 }
 
-export function ThreadPipeline({ vm, onOpenSub, renderStepChat }: ThreadPipelineProps): JSX.Element {
+export function ThreadPipeline({ vm, onOpenSub }: ThreadPipelineProps): JSX.Element {
   const L = useVocab();
-  const renderChat = renderStepChat
-    ?? ((sessionId, live) => <ThreadStepChat sessionId={sessionId} live={live} />);
   const runningIdx = vm.steps.findIndex((step) => step.kind === 'running');
   const defaultIdx = runningIdx >= 0 ? runningIdx : vm.steps.length - 1;
   const [manualIdx, setManualIdx] = useState<number | null>(null);
@@ -307,7 +299,7 @@ export function ThreadPipeline({ vm, onOpenSub, renderStepChat }: ThreadPipeline
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }} data-pipeline="true">
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}><SectionLabel>{L.thPipeline}</SectionLabel></div>
       {vm.steps.map((step, index) => <PipelineStep key={index} step={step} index={index}
-        selected={index === selectedIdx} select={setManualIdx} onOpenSub={onOpenSub} renderChat={renderChat} />)}
+        selected={index === selectedIdx} select={setManualIdx} onOpenSub={onOpenSub} />)}
     </div>
   );
 }
