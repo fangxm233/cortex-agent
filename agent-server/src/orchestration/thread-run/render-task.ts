@@ -80,13 +80,6 @@ export function taskStartText(render: TaskRender, startTime: number): string {
   });
 }
 
-/** Post the opening line. No action blocks: nobody clicks a background surface. */
-export function openTaskStatus(
-  adapter: PlatformAdapter, destination: Destination, text: string,
-): Promise<MessageRef | null> {
-  return adapter.postMessage(destination, { text });
-}
-
 /**
  * The in-step progress line.
  *

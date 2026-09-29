@@ -13,7 +13,7 @@ import { isTaskArtifactTemplate } from '@domain/threads/index.js';
 import {
   buildNotice, buildChildResultNotice, buildTaskResultNotice, buildTaskOriginNotice,
   buildThreadOriginTaskNotice, buildRehydrationNotice, buildDeadlockNotice, computeStuckWaitSet,
-  rotateStepsThreshold, matchesTaskGeneration, readTaskFromDisk, hasTaskWaitState,
+  matchesTaskGeneration, readTaskFromDisk, hasTaskWaitState,
 } from './thread-notices.js';
 import {
   wakeSession, postProjectNotice, postProjectNoticeTo, closeResumedTaskLoop,
@@ -132,7 +132,7 @@ export async function maybeRotateManager(threadId: string): Promise<boolean> {
   if (!isTaskArtifactTemplate(parent.templateName)) return false;
   const base = parent.metadata?.rotationBaseStepIndex ?? 0;
   const since = parent.steps.length - base;
-  const threshold = rotateStepsThreshold();
+  const threshold = getSettings().managerRotateSteps;
   if (since < threshold) return false;
   const notice = buildRehydrationNotice(parent, since);
   await threadStore.mutate(threadId, (t) => {

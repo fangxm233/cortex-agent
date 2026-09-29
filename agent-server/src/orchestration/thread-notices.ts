@@ -1,5 +1,4 @@
 import { threadStore } from '@store/thread-repo.js';
-import { getSettings } from '@core/settings.js';
 import {
   scanAllTasks, type Task, type TaskGenerationExpectation,
 } from '@core/task-parser.js';
@@ -42,11 +41,6 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, use the Write tool to stage child JSON at a per-task unique path, run cortex-task spawn --task-file <path>, and call thread_wait; otherwise call thread_abort.');
   lines.push('4. Cannot judge, or a directional question → thread_abort.');
   return lines.join('\n');
-}
-
-/** Configured steps per manager session before rotation. */
-export function rotateStepsThreshold(): number {
-  return getSettings().managerRotateSteps;
 }
 
 /** Rehydration notice for a freshly rotated manager incarnation: durable artifact first,

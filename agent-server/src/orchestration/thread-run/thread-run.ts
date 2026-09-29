@@ -11,7 +11,7 @@ import type { StatusBlocksTemplate } from '../status-helpers.js';
 import { createThreadSurface } from './thread-surface.js';
 import { openSummaryStatus, renderSummaryOutcome, renderSummaryProgress } from './render-summary.js';
 import {
-  makeTaskProgressRenderer, openTaskStatus, renderTaskOutcome, taskStartText,
+  makeTaskProgressRenderer, renderTaskOutcome, taskStartText,
   type TaskRender, type TaskVerdict,
 } from './render-task.js';
 import { settleThreadRun } from './settle.js';
@@ -205,7 +205,8 @@ class ThreadRun {
     const { render, adapter, destination, threadAnchorId } = this.input;
     try {
       if (render.kind === 'task') {
-        return await openTaskStatus(adapter, destination, taskStartText(render, this.startTime));
+        // No action blocks: nobody clicks a background surface.
+        return await adapter.postMessage(destination, { text: taskStartText(render, this.startTime) });
       }
       if (!render.startText) return null;
       return await openSummaryStatus(adapter, destination, threadAnchorId, render.startText, render.blocks);
