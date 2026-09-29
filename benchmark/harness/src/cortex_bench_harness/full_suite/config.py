@@ -33,9 +33,7 @@ class TaskPin:
 
 @dataclass(frozen=True)
 class SuiteSpec:
-    source: Path
     suite: str
-    dataset_commit: str
     task_tree_sha256: str
     tasks: tuple[TaskPin, ...]
     concurrency: int
@@ -57,7 +55,6 @@ class SuiteSpec:
     trace_progress_seconds: int
     subnet_pool: str
     subnet_prefix: int
-    network_mode: str
     outstanding_prerequisites: tuple[str, ...]
     digest: str
 
@@ -107,8 +104,10 @@ def _build_spec(
         "subnet_pool", "subnet_prefix"})
     _validate_dataset(dataset, inventory, inventory_path)
     _validate_schedule(schedule)
+    _sha(dataset, "commit", 40)
+    _network_mode(document["network"])
     return SuiteSpec(
-        source, _identifier(document, "suite"), _sha(dataset, "commit", 40),
+        _identifier(document, "suite"),
         _sha(dataset, "task_tree_sha256", 64), inventory,
         _positive(schedule, "concurrency"), _positive(schedule, "attempts_per_task"),
         _nonnegative(schedule, "harbor_max_retries"), _text(runtime, "harbor_version"),
@@ -119,8 +118,8 @@ def _build_spec(
         _text(proxy, "per_task_max_cost_usd"), _positive(proxy, "deadline_seconds"),
         _positive(proxy, "request_body_limit_bytes"), _positive(proxy, "response_body_limit_bytes"),
         _positive(proxy, "trace_progress_seconds"), _text(proxy, "subnet_pool"),
-        _positive(proxy, "subnet_prefix"), _network_mode(document["network"]),
-        _prerequisites(document), _digest(source, inventory_path),
+        _positive(proxy, "subnet_prefix"), _prerequisites(document),
+        _digest(source, inventory_path),
     )
 
 
@@ -179,13 +178,12 @@ def _validate_schedule(schedule: Mapping[str, Any]) -> None:
         raise SuiteSpecError(f"schedule must be concurrency/attempts/retries {expected}; got {observed}")
 
 
-def _network_mode(value: object) -> str:
+def _network_mode(value: object) -> None:
     network = _mapping(value, "network")
     _fields(network, {"mode"}, "network")
     mode = _text(network, "mode")
     if mode != "open":
         raise SuiteSpecError(f"network mode must be 'open'; got {mode!r}")
-    return mode
 
 
 def _prerequisites(document: Mapping[str, Any]) -> tuple[str, ...]:

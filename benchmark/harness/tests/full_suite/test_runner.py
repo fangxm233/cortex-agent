@@ -64,7 +64,7 @@ def test_runner_arms_each_task_once_and_keeps_results_ordered(
         return 0, f"dummy-{task_id}"
 
     def finalize(session):
-        paths = [session.proxy_dir / name for name in ("accounting.json", "lease.json", "trace.jsonl", "revoke.json")]
+        paths = [session.proxy_dir / name for name in ("accounting.json", "trace.jsonl", "revoke.json")]
         for path in paths:
             path.write_text("{}\n")
         return FinalizedProxy(*paths, True)

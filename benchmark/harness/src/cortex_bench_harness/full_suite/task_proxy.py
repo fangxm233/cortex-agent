@@ -20,7 +20,6 @@ REVOCATION_FILENAME = "proxy-revocation.json"
 @dataclass(frozen=True)
 class FinalizedProxy:
     accounting_path: Path
-    lease_echo_path: Path
     network_trace_path: Path
     revocation_path: Path
     trace_complete: bool
@@ -48,7 +47,7 @@ def finalize_task_proxy(session: TrialProxySession) -> FinalizedProxy:
     trace_path = session.proxy_dir / NETWORK_TRACE_FILENAME
     revocation_path = session.proxy_dir / REVOCATION_FILENAME
     try:
-        accounting_path, lease_path = session.write_accounting()
+        accounting_path, _lease_path = session.write_accounting()
     finally:
         session.handle.stop()
     revocation_path.write_text(
@@ -56,7 +55,7 @@ def finalize_task_proxy(session: TrialProxySession) -> FinalizedProxy:
         encoding="utf-8",
     )
     return FinalizedProxy(
-        accounting_path, lease_path, trace_path, revocation_path,
+        accounting_path, trace_path, revocation_path,
         session.handle.network_trace_complete,
     )
 

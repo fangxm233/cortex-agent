@@ -45,7 +45,7 @@ def _arm(_spec, _inputs, *, task_id, task_root, **_kwargs):
 
 
 def _finalize(session, outcomes: dict[str, int] | None = None):
-    names = ("accounting.json", "lease.json", "trace.jsonl", "revoke.json")
+    names = ("accounting.json", "trace.jsonl", "revoke.json")
     paths = [session.proxy_dir / name for name in names]
     for path in paths:
         path.write_text("{}\n")
