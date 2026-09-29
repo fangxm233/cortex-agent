@@ -411,9 +411,7 @@ function terminalBytes(
   attemptUsage: AttemptUsage, journalPath: string,
 ): Buffer {
   const terminal = buildTerminalManifest({
-    trajectoryRoot: '/', canonicalTrajectoryRoot: true,
-    rootRunId: source.identity.root_run_id, threadId: source.identity.thread_id,
-    state, startedAt: source.execution.runtime.startedAt,
+    trajectoryRoot: '/', state, startedAt: source.execution.runtime.startedAt,
     endedAt: source.execution.runtime.endedAt!, journalPath,
     journalSha256: source.journal.journal_sha256, eventCount: source.journal.event_count,
     steps: attemptUsage.steps, costUsd: attemptUsage.costUsd,

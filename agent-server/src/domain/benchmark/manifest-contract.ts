@@ -10,11 +10,6 @@ export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'deadline_exc
   | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
   | 'step_limit_exceeded' | 'cost_limit_exceeded' | 'provider_error' | 'aborted';
 
-export interface SupervisorEvidence {
-  quiescent: boolean;
-  descendants: number;
-}
-
 export interface TokenCounts {
   input: number | null;
   output: number | null;
@@ -22,20 +17,8 @@ export interface TokenCounts {
   cache_creation: number | null;
 }
 
-export interface StartedMarkerInput {
-  trajectoryRoot: string;
-  rootRunId: string;
-  threadId: string | null;
-  journalPath: string;
-  now?: () => Date;
-}
-
 export interface TerminalManifestInput {
   trajectoryRoot: string;
-  /** The pinned launcher already resolved this root and created its private subtree. */
-  canonicalTrajectoryRoot?: true;
-  rootRunId: string;
-  threadId: string | null;
   state: TerminalState;
   startedAt: string;
   endedAt: string;
