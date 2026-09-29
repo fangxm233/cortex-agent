@@ -8,7 +8,6 @@ import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
 
 const log = createLogger('task-dispatch');
-import * as pendingTaskTracker from '../../tasks/pending-tracker.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { selectAndClaimTask } from '../../tasks/dispatcher.js';
 import { taskMutator } from '../../tasks/mutator.js';
@@ -463,7 +462,6 @@ async function handleDispatchError(error: Error, selectedTask: Record<string, an
 export async function cancelDispatchedTask({ taskId, channel }: { taskId: string; channel: string }): Promise<{ ok: boolean; message: string }> {
   try {
     executionRegistry.cancelExecutionByTaskId(taskId);
-    pendingTaskTracker.clearTask(taskId);
     return { ok: true, message: `${Icons.stopped} ${t('notice.dispatch.cancelled', { id: taskId })}` };
   } catch (error) {
     return { ok: false, message: t('notice.dispatch.cancelFailed', { id: taskId, error: (error as Error).message }) };

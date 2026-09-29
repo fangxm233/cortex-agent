@@ -383,15 +383,14 @@ class ExecutionRepo {
     return staled;
   }
 
-  /** Reconcile stale dispatch executions: mark dispatches that are no longer pending and too old as stale.
+  /** Reconcile stale dispatch executions: mark dispatches that are too old as stale.
    *  Returns { count, staled } where count is reconciled count and staled is the list of affected IDs. */
-  async reconcileStaleDispatches({ isTaskPending, isLive, maxAgeMs, graceMs }: {
-    isTaskPending: (taskId: string) => boolean;
+  async reconcileStaleDispatches({ isLive, maxAgeMs, graceMs }: {
     /** True if the execution is still live in the in-memory registry (in-process dispatch). */
     isLive?: (executionId: string) => boolean;
     /** Hard ceiling: reap even a "live" dispatch once this old (wedged). */
     maxAgeMs: number;
-    /** Short grace for a not-pending, not-live dispatch (a crashed in-process orphan). */
+    /** Short grace for a not-live dispatch (a crashed in-process orphan). */
     graceMs?: number;
   }): Promise<{ count: number; staled: string[] }> {
     await this._pendingPersist;
@@ -406,14 +405,12 @@ class ExecutionRepo {
       for (const record of this.map.values()) {
         if (record.status !== 'running') continue;
         if (record.kind !== 'dispatch') continue;
-        const taskId = record.dispatch?.taskId;
-        if (taskId && isTaskPending(taskId)) continue;   // tracked remote dispatch — keep
         const startedAt = record.runtime?.startedAt ? new Date(record.runtime.startedAt).getTime() : 0;
         const age = now - startedAt;
         // Only LOCAL in-process dispatch is observable via the in-memory registry. A remote
         // dispatch (machine set) runs on another host and is never "live" here, so the short
-        // orphan grace must not apply to it — it stays on the hard ceiling and is governed by
-        // isTaskPending. The short grace targets a crashed local in-process orphan only.
+        // orphan grace must not apply to it — it stays on the hard ceiling. The short grace
+        // targets a crashed local in-process orphan only.
         const isLocal = !record.dispatch?.machine || record.dispatch.machine === 'local';
         const live = isLocal && isLive ? isLive(record.id) : false;
         const threshold = (isLocal && !live) ? orphanGraceMs : maxAgeMs;

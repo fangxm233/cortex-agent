@@ -1,6 +1,6 @@
 # Cortex Task System
 
-The task system is Cortex's structured work queue. Tasks live in `TASKS.yaml` files — one per project — and are managed through the `cortex-task` CLI. The system supports dispatching tasks to fleet workers, tracking execution on remote machines, and archiving completed work.
+The task system is Cortex's structured work queue. Tasks live in `TASKS.yaml` files — one per project — and are managed through the `cortex-task` CLI. The system supports dispatching tasks to fleet workers and archiving completed work.
 
 ## TASKS.yaml Format
 
@@ -157,11 +157,9 @@ The task dispatch system has an automatic quarantine mechanism: if a dispatched 
 
 ## Stale Claim Detection
 
-At startup, the server reconciles dispatcher claims against their owners. A task claimed by `task-dispatcher` whose execution did not survive the restart is automatically unclaimed and returns to the dispatch queue. Claims with a surviving owner are left in place: a suspended manager thread waiting on children, a rate-limit-paused thread awaiting auto-resume, and a remote dispatch tracked by the pending task tracker all legitimately hold their claim across restarts. Manual claims (any `claimed_by` other than `task-dispatcher`) are never touched.
+At startup, the server reconciles dispatcher claims against their owners. A task claimed by `task-dispatcher` whose execution did not survive the restart is automatically unclaimed and returns to the dispatch queue. Claims with a surviving owner are left in place: a suspended manager thread waiting on children and a rate-limit-paused thread awaiting auto-resume both legitimately hold their claim across restarts. Manual claims (any `claimed_by` other than `task-dispatcher`) are never touched.
 
 The 3-day rule: if a task has been `claimed_by` an agent for more than 3 days without completion, it is considered a stale/orphan claim and should be investigated. This manual convention covers the claims the automatic reconciliation deliberately respects, such as manual claims.
-
-Separately, the pending task tracker has a 4-hour timeout for dispatched tasks on remote machines — if a dispatched task hasn't reported back within 4 hours, its tracking state is cleared.
 
 ## Task Dispatch
 

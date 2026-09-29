@@ -4,7 +4,6 @@ import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
 
 const log = createLogger('scheduled-task');
-import * as pendingTaskTracker from '../../tasks/pending-tracker.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { threadStore } from '@store/thread-repo.js';
 import { getActiveProfile } from '../../agents/index.js';
@@ -36,11 +35,6 @@ function passScheduledGuards(schedKey: string, scheduleTaskId: string): boolean 
   const runningExecutions = executionRegistry.getRunningExecutions();
   if (scheduledTaskActive.has(schedKey) || hasRunningExecutionForSchedule(runningExecutions, scheduleTaskId)) {
     log.info(`Skipping — local agent still running for ${schedKey}`);
-    return false;
-  }
-  const pending = pendingTaskTracker.getPendingTasksForSchedule(scheduleTaskId);
-  if (pending.length > 0) {
-    log.info(`Skipping — ${pending.length} pending task(s): ${pending.map(t => `${t.machine}:${t.taskId}`).join(', ')}`);
     return false;
   }
   return true;

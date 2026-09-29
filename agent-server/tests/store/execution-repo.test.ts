@@ -358,7 +358,6 @@ test('reconcileStaleDispatches — marks orphaned dispatches stale', async () =>
   backdated.runtime.startedAt = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
 
   const reconciled = await repo.reconcileStaleDispatches({
-    isTaskPending: () => false,
     maxAgeMs: 3 * 60 * 60 * 1000, // 3h threshold
   });
 
@@ -366,39 +365,14 @@ test('reconcileStaleDispatches — marks orphaned dispatches stale', async () =>
   assert.equal(repo.getExecutionByTaskId('orphan')?.status, 'stale');
 });
 
-test('reconcileStaleDispatches — preserves dispatches still pending', async () => {
-  const repo = createRepo();
-
-  repo.registerDispatchExecution({ taskId: 'pending', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'still pending' });
-  repo.registerDispatchExecution({ taskId: 'orphan2', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'orphaned' });
-
-  await repo.flush();
-
-  // Backdate both via live reference — see note in previous test.
-  for (const taskId of ['pending', 'orphan2']) {
-    const r = repo.getExecutionByTaskId(taskId)!;
-    r.runtime.startedAt = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-  }
-
-  const reconciled = await repo.reconcileStaleDispatches({
-    isTaskPending: (id) => id === 'pending',
-    maxAgeMs: 3 * 60 * 60 * 1000,
-  });
-
-  assert.equal(reconciled.count, 1);
-  assert.equal(repo.getExecutionByTaskId('pending')?.status, 'running');
-  assert.equal(repo.getExecutionByTaskId('orphan2')?.status, 'stale');
-});
-
-test('reconcileStaleDispatches — reaps a not-live, not-pending in-process orphan after short grace', async () => {
+test('reconcileStaleDispatches — reaps a not-live in-process orphan after short grace', async () => {
   const repo = createRepo();
   const record = repo.registerDispatchExecution({ taskId: 'inproc-orphan', machine: 'local', channel: 'C1', project: 'proj', taskText: 'orphan' });
   await repo.flush();
-  // Only 5 minutes old — well under the 3h hard ceiling, but it is not live and not pending.
+  // Only 5 minutes old — well under the 3h hard ceiling, but it is not live.
   repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   const reconciled = await repo.reconcileStaleDispatches({
-    isTaskPending: () => false,
     isLive: () => false,        // not in the in-memory registry → crashed orphan
     graceMs: 2 * 60 * 1000,     // 2 min grace
     maxAgeMs: 3 * 60 * 60 * 1000,
@@ -417,7 +391,6 @@ test('reconcileStaleDispatches — a remote dispatch is NOT reaped at the short 
   repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   const reconciled = await repo.reconcileStaleDispatches({
-    isTaskPending: () => false,        // tracking lost, but it is remote
     isLive: () => false,
     graceMs: 2 * 60 * 1000,
     maxAgeMs: 3 * 60 * 60 * 1000,
@@ -434,7 +407,6 @@ test('reconcileStaleDispatches — keeps a live dispatch younger than the hard c
   repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   const reconciled = await repo.reconcileStaleDispatches({
-    isTaskPending: () => false,
     isLive: (id) => id === record!.id,   // still running in-process
     graceMs: 2 * 60 * 1000,
     maxAgeMs: 3 * 60 * 60 * 1000,
@@ -444,20 +416,15 @@ test('reconcileStaleDispatches — keeps a live dispatch younger than the hard c
   assert.equal(repo.getExecutionByTaskId('live-dispatch')?.status, 'running');
 });
 
-test('startup recovery — keepRunning predicate keeps remote dispatch, stales in-process orphan', async () => {
+test('startup recovery — stales an in-process dispatch orphan', async () => {
   const repo = createRepo();
-  // Remote dispatch carries a machine — survives a server restart.
-  repo.registerDispatchExecution({ taskId: 'remote', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'remote' });
   // In-process dispatch: startLocalExecution leaves dispatch=null — dies with the server.
   const inproc = repo.startLocalExecution({ kind: 'dispatch', channel: 'C1', project: 'proj', trigger: 'task-dispatch', backend: 'test' });
   await repo.flush();
 
-  // The exact predicate used at startup in app.ts.
-  await repo.markMissingRunningExecutionsStale(
-    (r) => r.kind === 'dispatch' && !!r.dispatch?.machine && r.dispatch.machine !== 'local',
-  );
+  // The startup call in app.ts.
+  await repo.markMissingRunningExecutionsStale();
 
-  assert.equal(repo.getExecutionByTaskId('remote')?.status, 'running', 'remote dispatch kept');
   assert.equal(repo.getExecution(inproc.id)!.status, 'stale', 'in-process orphan staled at startup');
 });
 

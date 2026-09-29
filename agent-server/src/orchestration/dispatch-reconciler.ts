@@ -1,9 +1,8 @@
 import * as executionRegistry from '@domain/executions/registry.js';
-import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
 import { runRegistry } from '@core/run-registry.js';
 
 const RECONCILE_INTERVAL_MS = 2 * 60 * 1000;
-// Crash-orphan grace: a dispatch that is neither pending-remote nor live-in-process for this long
+// Crash-orphan grace: a dispatch that is not live-in-process for this long
 // is treated as a crashed in-process orphan and reaped (frees a concurrency slot in minutes).
 const DISPATCH_ORPHAN_GRACE_MS = 2 * 60 * 1000;
 // Hard ceiling for a still-live but wedged dispatch.
@@ -13,7 +12,6 @@ export function startDispatchReconciler(enabled: boolean): void {
   if (!enabled) return;
   setInterval(() => {
     executionRegistry.reconcileStaleDispatches({
-      isTaskPending: (taskId) => pendingTaskTracker.getTask(taskId) !== null,
       isLive: (executionId) => runRegistry.getById(executionId) !== null,
       graceMs: DISPATCH_ORPHAN_GRACE_MS,
       maxAgeMs: DISPATCH_STALE_AGE_MS,

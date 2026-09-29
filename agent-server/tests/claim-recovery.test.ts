@@ -1,11 +1,8 @@
-import { test, afterAll, vi } from 'vitest';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { threadStore } from '../src/store/thread-repo.js';
 import { rawToTask } from '../src/core/task-parser.js';
 import { recoverOrphanedClaims } from '../src/domain/tasks/claim-recovery.js';
-import { STORE_DIR } from '../src/core/paths.js';
 import type { Task } from '../src/core/task-parser.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
@@ -40,11 +37,10 @@ function makeThread(
   return rec;
 }
 
-function run(tasks: Task[], over: { isTracked?: (task: Task) => boolean; failOn?: string[] } = {}) {
+function run(tasks: Task[], over: { failOn?: string[] } = {}) {
   const unclaimed: string[] = [];
   const result = recoverOrphanedClaims({
     scan: () => tasks,
-    isTracked: over.isTracked ?? (() => false),
     unclaim: async (id) => {
       if (over.failOn?.includes(id)) throw new Error('boom');
       unclaimed.push(id);
@@ -101,36 +97,6 @@ test('a failed thread does NOT protect its task claim (the crash orphan case)', 
   assert.deepEqual(ids, ['aa06']);
 });
 
-test('pending tracker retains dispatch generation for recovery and stop fencing', async () => {
-  const dispatchId = `dispatch-cr-${seq++}`;
-  const file = path.join(STORE_DIR, 'pending-tasks.json');
-  fs.mkdirSync(STORE_DIR, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({
-    [dispatchId]: {
-      channel: '', machine: 'test', launchedAt: Date.now(), scheduleTaskId: null,
-      taskText: null, taskHash: 'ab09', project: '_cr_proj', trackingTs: null,
-      sessionName: null, tmuxName: null, pid: null, dispatchGeneration: 'generation-a',
-    },
-  }));
-  vi.resetModules();
-  const pendingTaskTracker = await import('../src/domain/tasks/pending-tracker.js');
-  try {
-    assert.equal(pendingTaskTracker.getTask(dispatchId)?.dispatchGeneration, 'generation-a');
-    assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-a'), true);
-    assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-b'), false);
-  } finally {
-    pendingTaskTracker.clearTask(dispatchId);
-  }
-});
-
-test('remote-tracked tasks (pending-tracker) are left alone', async () => {
-  const { ids } = await run(
-    [makeTask('aa07', { 'claimed-by': 'task-dispatcher' })],
-    { isTracked: (task) => task.id === 'aa07' },
-  );
-  assert.deepEqual(ids, []);
-});
-
 test('passes the scanned generation to unclaim and does not report a stale rejection', async () => {
   const calls: Array<[string, string | null]> = [];
   const ids = await recoverOrphanedClaims({
@@ -138,7 +104,6 @@ test('passes the scanned generation to unclaim and does not report a stale rejec
       'claimed-by': 'task-dispatcher', 'dispatch-generation': 'generation-a',
     })],
     ownedByLiveThread: () => false,
-    isTracked: () => false,
     unclaim: async (id, generation) => {
       calls.push([id, generation]);
       return { success: false, stale: true };

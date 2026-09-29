@@ -507,13 +507,9 @@ process.on('SIGTERM', async () => {
     log.warn(`Startup: recoverTuiOrphans failed: ${(e as Error).message}`);
   }
   executionRepo.load();
-  // Keep only REMOTE dispatch running across restart (it runs on another machine/tmux and
-  // survives). An in-process dispatch (dispatch=null / machine 'local') dies with the server, so
-  // stale it immediately — otherwise its 'running' record poisons a dispatch concurrency slot
-  // until the reconciler's next tick.
-  await executionRegistry.markMissingRunningExecutionsStale(
-    (record) => record.kind === 'dispatch' && !!record.dispatch?.machine && record.dispatch.machine !== 'local',
-  );
+  // An in-process execution dies with the server, so stale it immediately — otherwise a
+  // 'running' dispatch record poisons a dispatch concurrency slot until the reconciler's next tick.
+  await executionRegistry.markMissingRunningExecutionsStale();
 
   // A server restart closes every in-process injection window. Commit any durable orphan before
   // the UI transport starts so the first transcript snapshot cannot expose a forever-pending row.
@@ -760,7 +756,7 @@ process.on('SIGTERM', async () => {
   // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
   // stranding it and any manager suspended on it. Runs after markRunningAsFailedOnStartup so
   // surviving waiting/rate_limited threads still protect their claims; tasks waiting on outside
-  // work (status pending / pending-tracker) and manual claims are respected. Before scheduler.start
+  // work (status pending) and manual claims are respected. Before scheduler.start
   // so recovered tasks are back in the queue for the first dispatch cycle.
   await recoverOrphanedClaims().catch((e) => log.error(`recoverOrphanedClaims failed: ${(e as Error).message}`));
 

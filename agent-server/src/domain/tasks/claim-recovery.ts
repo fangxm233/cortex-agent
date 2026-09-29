@@ -1,7 +1,6 @@
 import { scanAllTasks, type Task } from '@core/task-parser.js';
 import { threadStore } from '@store/thread-repo.js';
 import { createLogger } from '@core/log.js';
-import * as pendingTaskTracker from './pending-tracker.js';
 import { taskMutator } from './mutator.js';
 
 const log = createLogger('claim-recovery');
@@ -19,7 +18,6 @@ const CLAIM_HOLDING_THREAD_STATUSES = new Set(['running', 'waiting', 'rate_limit
 export interface ClaimRecoveryDeps {
   scan?: () => Task[];
   ownedByLiveThread?: (task: Task) => boolean;
-  isTracked?: (task: Task) => boolean;
   unclaim?: (taskId: string, generation: string | null) => Promise<unknown>;
 }
 
@@ -31,9 +29,6 @@ export async function recoverOrphanedClaims(deps: ClaimRecoveryDeps = {}): Promi
     threadStore.getAll().some((t) => CLAIM_HOLDING_THREAD_STATUSES.has(t.status)
       && t.metadata?.taskId === task.id
       && (t.metadata?.dispatchGeneration ?? null) === task.dispatch_generation));
-  const isTracked = deps.isTracked ?? ((task: Task) => pendingTaskTracker.isTaskTracked(
-    task.id!, task.project, task.dispatch_generation,
-  ));
   const unclaim = deps.unclaim ?? ((taskId: string, generation: string | null) =>
     taskMutator.unclaim(taskId, { ownership: { generation } }));
 
@@ -51,7 +46,6 @@ export async function recoverOrphanedClaims(deps: ClaimRecoveryDeps = {}): Promi
     if (task.status === 'done' || task.status === 'pending') continue; // pending → outside work owns it
     if (task.blocked_by) continue;              // blocked is already a terminal signal for the tree
     if (ownedByLiveThread(task)) continue;      // suspended manager / rate-limit-paused thread
-    if (isTracked(task)) continue;              // remote dispatch tracked in pending-tasks.json
     try {
       const result = await unclaim(task.id, task.dispatch_generation);
       if ((result as any)?.success === false) continue;
