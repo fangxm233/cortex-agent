@@ -414,6 +414,43 @@ test('SlackOutputStream: durable hooks called on postInteractive', async () => {
   assert.deepEqual(walOps, ['beforePost', 'afterSent']);
 });
 
+test('SlackOutputStream: rejected rich post falls back to plain text within one attempt', async () => {
+  _testSetRetryDelays([]); // single attempt: only the plain-text fallback can deliver
+  const adapter = new MockAdapter();
+  adapter.failPostMessageCount = 1;
+  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
+  stream.emitText('plain');
+  await flush(stream);
+
+  assert.equal(adapter.posted.length, 1);
+  assert.equal(adapter.posted[0].content.text, 'plain');
+  assert.equal(adapter.posted[0].content.richBlocks, undefined, 'fallback posts plain text');
+});
+
+test('SlackOutputStream: failed update marks its WAL entry sent after the fallback post', async () => {
+  const adapter = new MockAdapter();
+  const walOps: string[] = [];
+  let walCounter = 0;
+  const durable = {
+    async beforePost() { const id = `p${++walCounter}`; walOps.push(`beforePost:${id}`); return id; },
+    async beforeUpdate() { const id = `u${++walCounter}`; walOps.push(`beforeUpdate:${id}`); return id; },
+    async afterSent(walId: string) { walOps.push(`afterSent:${walId}`); },
+  };
+  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'), { durable });
+  stream.emitText('first');
+  await flush(stream);
+  adapter.failUpdateMessageCount = 99;
+  stream.emitText('second');
+  await flush(stream);
+
+  assert.deepEqual(walOps, [
+    'beforePost:p1', 'afterSent:p1',
+    'beforeUpdate:u2',
+    'beforePost:p3', 'afterSent:p3',
+    'afterSent:u2',
+  ]);
+});
+
 /**
  * Helper: reconstruct what Slack would actually display by applying all updates
  * (last update per messageId wins) to the posted content.

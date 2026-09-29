@@ -94,3 +94,51 @@ test('FeishuOutputStream: flush surfaces a captured post error', async () => {
   stream.emitText('will fail');
   await assert.rejects(() => stream.flush());
 });
+
+test('FeishuOutputStream: rejected rich post has no plain-text fallback', async () => {
+  _testSetRetryDelays([]); // single attempt
+  const adapter = new MockAdapter();
+  adapter.failPostMessageCount = 1;
+  const stream = makeStream(adapter);
+  stream.emitText('rich only');
+  await assert.rejects(() => stream.flush());
+  assert.equal(adapter.posted.length, 0);
+});
+
+function recordingDurable(walOps: string[]) {
+  let walCounter = 0;
+  return {
+    async beforePost() { const id = `p${++walCounter}`; walOps.push(`beforePost:${id}`); return id; },
+    async beforeUpdate() { const id = `u${++walCounter}`; walOps.push(`beforeUpdate:${id}`); return id; },
+    async afterSent(walId: string) { walOps.push(`afterSent:${walId}`); },
+  };
+}
+
+test('FeishuOutputStream: postInteractive bypasses the durable hooks', async () => {
+  const adapter = new MockAdapter();
+  const walOps: string[] = [];
+  const stream = new FeishuOutputStream(adapter as any, testDest('oc_1'), { durable: recordingDurable(walOps) });
+  await stream.postInteractive('standalone');
+  await stream.flush();
+
+  assert.equal(adapter.posted.length, 1);
+  assert.deepEqual(walOps, []);
+});
+
+test('FeishuOutputStream: failed update does not mark its WAL entry sent', async () => {
+  const adapter = new MockAdapter();
+  const walOps: string[] = [];
+  const stream = new FeishuOutputStream(adapter as any, testDest('oc_1'), { durable: recordingDurable(walOps) });
+  stream.emitText('first');
+  await stream.flush();
+  adapter.failUpdateMessageCount = 99;
+  stream.emitText('second');
+  await stream.flush();
+
+  assert.equal(adapter.posted.length, 2, 'failed update falls back to a new card');
+  assert.deepEqual(walOps, [
+    'beforePost:p1', 'afterSent:p1',
+    'beforeUpdate:u2',
+    'beforePost:p3', 'afterSent:p3',
+  ]);
+});
