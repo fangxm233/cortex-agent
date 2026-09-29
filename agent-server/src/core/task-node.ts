@@ -1,34 +1,24 @@
 // Task-node (composite/manager task) filesystem locations — DR-0017 W1.
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { PROJECTS_DIR } from './paths.js';
 
-const taskNodeProjectsRoot = new AsyncLocalStorage<string>();
-
-/** Repoints unchanged helper call sites (including proposal-seal) for one trial operation. */
-export function withTaskNodeProjectsRoot<T>(projectsRoot: string, action: () => T): T {
-  return taskNodeProjectsRoot.run(path.resolve(projectsRoot), action);
-}
-
-/** Durable home of a composite task node: context/projects/{project}/manager/{taskId}/.
- *  An explicit root wins, then the trial scope; unscoped daemon callers keep `PROJECTS_DIR`. */
-export function managerNodeDir(project: string, taskId: string, projectsRoot?: string): string {
-  const root = projectsRoot ?? taskNodeProjectsRoot.getStore() ?? PROJECTS_DIR;
-  return path.join(root, project, 'manager', taskId);
+/** Durable home of a composite task node: context/projects/{project}/manager/{taskId}/. */
+export function managerNodeDir(project: string, taskId: string): string {
+  return path.join(PROJECTS_DIR, project, 'manager', taskId);
 }
 
 /** The task-keyed manager artifact (truth layer for checkpoints — DR-0017 D2). */
-export function taskArtifactPath(project: string, taskId: string, projectsRoot?: string): string {
-  return path.join(managerNodeDir(project, taskId, projectsRoot), 'artifact.md');
+export function taskArtifactPath(project: string, taskId: string): string {
+  return path.join(managerNodeDir(project, taskId), 'artifact.md');
 }
 
 /** Create the node dir + artifact if missing. NEVER truncates an existing artifact —
  *  a new manager incarnation must inherit the previous checkpoint (rotation/rehydration). */
-export function ensureTaskArtifact(project: string, taskId: string, projectsRoot?: string): string {
-  mkdirSync(managerNodeDir(project, taskId, projectsRoot), { recursive: true });
-  const p = taskArtifactPath(project, taskId, projectsRoot);
+export function ensureTaskArtifact(project: string, taskId: string): string {
+  mkdirSync(managerNodeDir(project, taskId), { recursive: true });
+  const p = taskArtifactPath(project, taskId);
   if (!existsSync(p)) writeFileSync(p, '');
   return p;
 }
