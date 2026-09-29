@@ -4,9 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import {
-  compareCalVer,
-} from '../src/domain/system/server-update-check.js';
+import { compareCalVer } from '../src/core/calver.js';
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -14,7 +12,6 @@ function freshModule() {
   const url = new URL('../src/domain/system/server-update-check.js', import.meta.url);
   url.searchParams.set('ts', `${Date.now()}-${Math.random().toString(16).slice(2)}`);
   return import(url.href) as Promise<{
-    compareCalVer: typeof compareCalVer;
     isUpdateDevMode: () => boolean;
     checkServerUpdate: (deps: any) => Promise<any>;
   }>;

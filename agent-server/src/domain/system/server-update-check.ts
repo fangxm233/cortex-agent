@@ -1,19 +1,13 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
+import { compareCalVer } from '@core/calver.js';
 import { getSettings } from '@core/settings.js';
 import { runFile } from '@core/exec-async.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 import { reportServerUpdateFailed, reportServerUpdateInstalled } from './update-ui-state.js';
-
-// ── CalVer comparison ────────────────────────────────────────────
-// Lives in @core/calver.js (platform/ui-http/app-update.ts needs it too and the platform layer may
-// not depend on domain). Re-exported here so existing importers keep working.
-
-import { compareCalVer } from '@core/calver.js';
-export { compareCalVer };
 
 // ── Dev mode detection ──────────────────────────────────────────
 // In dev mode (CORTEX_REPO set), server auto-update is skipped entirely

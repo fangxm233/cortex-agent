@@ -1,7 +1,7 @@
 import { execSync, spawn } from 'node:child_process';
 import { CORTEX_VERSION } from '@core/version.js';
 import { withNpmPrefix } from '@core/utils.js';
-import { compareCalVer } from './server-update-check.js';
+import { compareCalVer } from '@core/calver.js';
 
 // ─── CLI Result type ──────────────────────────────────────────────
 
