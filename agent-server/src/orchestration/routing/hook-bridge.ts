@@ -114,24 +114,6 @@ function cleanupStale(now: number = Date.now()) {
 setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
 /**
- * Publish plan.submitted directly (non-blocking, no pendingRequest).
- * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
- */
-function publishPlanSubmitted(
-  requestId: string,
-  channel: string,
-  sessionId: string,
-  planContent: string,
-  planFilePath: string | null,
-  extensionUiId: string,
-  threadId?: string | null,
-): void {
-  if (!_bus) { log.error('bus not initialised; dropping PI plan.submitted'); return; }
-  const toolInput = planFilePath ? { plan_file_path: planFilePath } : {};
-  _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, threadId: threadId ?? null, planContent, toolInput, extensionUiId });
-}
-
-/**
  * Publish ask-user.requested directly (non-blocking, no pendingRequest).
  * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
  * @param extensionUiId — original PI extension_ui_request id; required for respondToDialog to unblock the PI subprocess.
@@ -141,4 +123,4 @@ function publishAskUserRequested(requestId: string, channel: string, sessionId: 
   _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, extensionUiId });
 }
 
-export { initHookBridge, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, publishPlanSubmitted, publishAskUserRequested };
+export { initHookBridge, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, publishAskUserRequested };

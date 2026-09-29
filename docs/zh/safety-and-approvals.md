@@ -113,7 +113,7 @@ HTTP 请求在卡片贴出的那一刻就返回，不等第 5 步；第 5 步收
 
 ### PI 后端的差异 {#pi-backend-difference}
 
-PI 后端解析这些对话的方式不同。PI 会话通过 PI 的扩展 UI 协议发起对话，该协议由 `agent-adapter/pi/ui-context.ts` 在服务器进程内承载：每个对话变成一条带自身 id 的 `extension_ui_request` 记录，答案经 `sendExtensionUiResponse()` 回传，而不是去解析一个挂起的 HTTP 请求。hook-bridge 为此路径提供非阻塞发布辅助函数（`publishPlanSubmitted`、`publishAskUserRequested`）。
+PI 后端解析这些对话的方式不同。PI 会话通过 PI 的扩展 UI 协议发起对话，该协议由 `agent-adapter/pi/ui-context.ts` 在服务器进程内承载：每个对话变成一条带自身 id 的 `extension_ui_request` 记录，答案经 `sendExtensionUiResponse()` 回传，而不是去解析一个挂起的 HTTP 请求。hook-bridge 为此路径提供非阻塞发布辅助函数（`publishAskUserRequested`）。
 
 ## 为什么不给智能体 root 权限 {#why-the-agent-isnt-given-root}
 

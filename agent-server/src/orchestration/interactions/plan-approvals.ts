@@ -2,15 +2,6 @@ import type { EventBus } from '@events/index.js';
 
 export interface PendingPlan {
   channel: string;
-  machine?: string;
-  localPlanPath?: string;
-  taskPlanPath?: string | null;
-  sessionName?: string | null;
-  executionId?: string | null;
-  sessionId?: string | null;
-  /** Legacy extension UI request id retained for pending approval compatibility. */
-  extensionUiId?: string | null;
-  threadId?: string | null;
 }
 
 export class PlanApprovals {
@@ -52,7 +43,7 @@ export class PlanApprovals {
       this._bus.publish({
         type: 'plan.approved',
         channel: plan.channel,
-        executionId: plan.executionId ?? '',
+        executionId: '',
       });
     }
     return plan;
@@ -68,14 +59,6 @@ export class PlanApprovals {
     if (!plan) return undefined;
     this._map.delete(requestId);
     return plan;
-  }
-
-  /** Return the first pending plan for a channel, or null. */
-  getByChannel(channel: string): { requestId: string; plan: PendingPlan } | null {
-    for (const [requestId, plan] of this._map) {
-      if (plan.channel === channel) return { requestId, plan };
-    }
-    return null;
   }
 
   /** Returns true if a pending plan is registered for the requestId. */

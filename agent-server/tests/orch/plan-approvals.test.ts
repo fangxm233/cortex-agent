@@ -13,7 +13,7 @@ function collectEvents(bus: EventBus): CortexEvent[] {
 test('register + lookup + resolve roundtrip publishes plan.approved', () => {
   const bus = new EventBus();
   const approvals = new PlanApprovals(bus);
-  approvals.register('req-1', { channel: 'C123', executionId: 'exec-9' });
+  approvals.register('req-1', { channel: 'C123' });
 
   assert.equal(approvals.has('req-1'), true);
   const looked = approvals.lookup('req-1');
@@ -29,34 +29,24 @@ test('register + lookup + resolve roundtrip publishes plan.approved', () => {
   assert.equal(events[0].type, 'plan.approved');
   if (events[0].type === 'plan.approved') {
     assert.equal(events[0].channel, 'C123');
-    assert.equal(events[0].executionId, 'exec-9');
   }
 });
 
-test('hook plan (channel-only payload) and full plan share one Map keyed by requestId', () => {
-  // The merge of pendingPlans + pendingHookPlans means both flavors live in the
-  // same Map.  Hook plans carry only { channel }; full plans carry richer fields.
-  // Both are addressable by requestId and resolved through the same API.
+test('pending plans are keyed by requestId; resolving one leaves the others', () => {
   const bus = new EventBus();
   const approvals = new PlanApprovals(bus);
 
-  approvals.register('hook-req', { channel: 'C-hook' });
-  approvals.register('full-req', {
-    channel: 'C-full', machine: 'testbox',
-    localPlanPath: '/tmp/plan.md', taskPlanPath: '/testbox/plan.md',
-    sessionName: 'cortex-1234', executionId: 'exec-full',
-  });
+  approvals.register('req-a', { channel: 'C-a' });
+  approvals.register('req-b', { channel: 'C-b' });
 
-  assert.equal(approvals.has('hook-req'), true);
-  assert.equal(approvals.has('full-req'), true);
-  assert.equal(approvals.lookup('hook-req')?.channel, 'C-hook');
-  assert.equal(approvals.lookup('full-req')?.machine, 'testbox');
+  assert.equal(approvals.lookup('req-a')?.channel, 'C-a');
+  assert.equal(approvals.lookup('req-b')?.channel, 'C-b');
 
-  // Resolve the hook one: only that requestId is removed.
+  // Resolve one: only that requestId is removed.
   const events = collectEvents(bus);
-  approvals.resolve('hook-req');
-  assert.equal(approvals.has('hook-req'), false);
-  assert.equal(approvals.has('full-req'), true);
+  approvals.resolve('req-a');
+  assert.equal(approvals.has('req-a'), false);
+  assert.equal(approvals.has('req-b'), true);
   assert.equal(events.filter(e => e.type === 'plan.approved').length, 1);
 });
 

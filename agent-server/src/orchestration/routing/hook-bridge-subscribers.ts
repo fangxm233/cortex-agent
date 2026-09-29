@@ -128,7 +128,7 @@ export function registerHookBridgeSubscribers(
       // Web UI: persist the interaction entity with a FULL plan-content snapshot (no
       // PlatformAdapter for web: conduits). planApprovals stays the live resolver map.
       if (ev.channel.startsWith('web:')) {
-        planApprovals.register(ev.requestId, { channel: ev.channel, sessionId: ev.sessionId, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
+        planApprovals.register(ev.requestId, { channel: ev.channel });
         await interactions.create({
           id: ev.requestId,
           sessionId: ev.sessionId,
@@ -150,7 +150,7 @@ export function registerHookBridgeSubscribers(
       } else {
         await sendPlanToSlack(ev.planContent || null, ev.channel, adapter);
       }
-      planApprovals.register(ev.requestId, { channel: ev.channel, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
+      planApprovals.register(ev.requestId, { channel: ev.channel });
       const planApproval = buildPlanApprovalContent(ev.requestId);
       // Route approval form through stream so it enqueues behind the plan content append,
       // ensuring Slack ordering (plan text first, then button card) and resetting stream

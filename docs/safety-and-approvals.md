@@ -171,8 +171,8 @@ through PI's extension UI protocol, which
 `agent-adapter/pi/ui-context.ts` hosts inside the server process: each dialog
 becomes an `extension_ui_request` record carrying its own id, and the answer
 travels back through `sendExtensionUiResponse()` instead of resolving a pending
-HTTP request. The hook-bridge provides non-blocking publish helpers
-(`publishPlanSubmitted`, `publishAskUserRequested`) for this path.
+HTTP request. The hook-bridge provides a non-blocking publish helper
+(`publishAskUserRequested`) for this path.
 
 ## Why the agent isn't given root
 
