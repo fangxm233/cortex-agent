@@ -1,5 +1,6 @@
 import asyncio
 import json
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,6 +11,7 @@ import yaml
 from docker_gate import docker_opt_in
 from cortex_bench_harness.launcher import deepseek_paid_smoke
 from cortex_bench_harness.launcher import deepseek_paid_smoke_launcher as launcher
+from cortex_bench_harness.scan import ScanPolicy
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN = HARNESS_DIR.parent / "campaigns" / "terminal-bench-2.1-deepseek-paid-smoke.yaml"
@@ -21,6 +23,13 @@ CORTEX_IMAGE = (
     "cortex-terminal-bench-2.1@"
     "sha256:002574fdff7d6c7fa3ae377253d36c86eebdbc05eb53a34995154944ea7420f1"
 )
+
+
+def synthetic_scan_policy(secret: str, checkout: Path) -> ScanPolicy:
+    return ScanPolicy(
+        secrets={"provider_credential": secret}, repository_checkout=str(checkout),
+        hostname=socket.gethostname(), home_path=str(Path.home()),
+    )
 
 
 def test_missing_prerequisite_refuses_before_credential_or_network(
@@ -215,8 +224,7 @@ def test_failed_terminal_outcomes_do_not_report_launcher_success(
     record = launcher.path_safe_evidence(
         trial_root=tmp_path, trial_id="smoke-trial", arm_name=launcher.SMOKE_ARM_NAME,
         image_digest=CORTEX_IMAGE.rsplit("@", 1)[1],
-        scan_policy=launcher.synthetic_scan_policy("secret", tmp_path),
-        network_removed=True,
+        scan_policy=synthetic_scan_policy("secret", tmp_path),
     )
 
     assert record["ok"] is False
@@ -227,7 +235,7 @@ def test_path_safe_evidence_omits_paths_credentials_and_raw_reasons(tmp_path: Pa
     record = launcher.path_safe_evidence(
         trial_root=_incomplete_trial(tmp_path, secret), trial_id="smoke-trial",
         arm_name=launcher.SMOKE_ARM_NAME, image_digest=CORTEX_IMAGE.rsplit("@", 1)[1],
-        scan_policy=launcher.synthetic_scan_policy(secret, tmp_path), network_removed=True,
+        scan_policy=synthetic_scan_policy(secret, tmp_path),
     )
     encoded = json.dumps(record, sort_keys=True)
     assert str(tmp_path) not in encoded

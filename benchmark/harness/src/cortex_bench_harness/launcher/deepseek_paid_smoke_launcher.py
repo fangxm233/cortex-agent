@@ -6,7 +6,7 @@ import secrets
 import socket
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -61,17 +61,15 @@ def _validate_smoke_plan(config: CampaignConfig, plan: TrialPlan) -> None:
         raise SmokeLaunchError("smoke config must use the committed Cortex-compatible image")
 
 
-def preflight_image(
-    image_ref: str, *, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> dict[str, object]:
+def preflight_image(image_ref: str) -> dict[str, object]:
     digest = image_ref.rsplit("@", 1)[-1]
-    inspected = runner(
+    inspected = subprocess.run(
         ["docker", "image", "inspect", image_ref, "--format", "{{.Id}}"],
         capture_output=True, text=True, timeout=30,
     )
     if inspected.returncode != 0 or inspected.stdout.strip() != digest:
         raise SmokeLaunchError(f"pinned smoke image is unavailable or mismatched: {digest}")
-    completed = runner(
+    completed = subprocess.run(
         _preflight_command(image_ref), capture_output=True, text=True, timeout=30,
     )
     if completed.returncode != 0:
@@ -104,13 +102,10 @@ def _parse_versions(stdout: str) -> dict[str, str]:
     return values
 
 
-def create_smoke_network(
-    config: CampaignConfig, plan: TrialPlan, *,
-    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> str:
+def create_smoke_network(config: CampaignConfig, plan: TrialPlan) -> str:
     slot = config.slot(0)
     name = f"{plan.trial_id}__env_default"
-    completed = runner([
+    completed = subprocess.run([
         "docker", "network", "create", "--driver", "bridge",
         "--subnet", slot.subnet, "--gateway", slot.gateway, name,
     ], capture_output=True, text=True, timeout=30)
@@ -119,10 +114,8 @@ def create_smoke_network(
     return completed.stdout.strip()
 
 
-def remove_smoke_network(
-    network_id: str, *, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> None:
-    completed = runner(
+def remove_smoke_network(network_id: str) -> None:
+    completed = subprocess.run(
         ["docker", "network", "rm", network_id],
         capture_output=True, text=True, timeout=30,
     )
@@ -151,7 +144,7 @@ async def launch_smoke(*, config_path: Path, gateway_path: Path) -> dict[str, ob
     record = path_safe_evidence(
         trial_root=config.trials_dir / plan.trial_id, trial_id=plan.trial_id,
         arm_name=plan.arm_name, image_digest=plan.task.image_digest,
-        scan_policy=scan_policy, network_removed=True,
+        scan_policy=scan_policy,
     )
     record["preflight"] = preflight
     if trial_error is not None:
@@ -210,22 +203,15 @@ def _temporary_environment(values: Mapping[str, str]) -> Iterator[None]:
                 os.environ[name] = value
 
 
-def synthetic_scan_policy(secret: str, checkout: Path) -> ScanPolicy:
-    return ScanPolicy(
-        secrets={"provider_credential": secret}, repository_checkout=str(checkout),
-        hostname=socket.gethostname(), home_path=str(Path.home()),
-    )
-
-
 def path_safe_evidence(
     *, trial_root: Path, trial_id: str, arm_name: str, image_digest: str,
-    scan_policy: ScanPolicy, network_removed: bool,
+    scan_policy: ScanPolicy,
 ) -> dict[str, Any]:
     outcome = TrialOutcomeReader(
         trial_id=trial_id, arm_name=arm_name, trial_root=trial_root,
     ).read()
     return {
-        "ok": outcome.outcome_state == TERMINAL_SUCCESS and network_removed,
+        "ok": outcome.outcome_state == TERMINAL_SUCCESS,
         "schema_version": EVIDENCE_SCHEMA_VERSION,
         "trial_id": trial_id, "image_digest": image_digest,
         "terminal": {
@@ -235,7 +221,7 @@ def path_safe_evidence(
         "counters": _proxy_counters(trial_root),
         "leak_scan": _path_safe_scan(trial_root, scan_policy, outcome.envelope),
         "revocation": _revocation_evidence(trial_root, outcome.envelope),
-        "network": {"created": True, "removed": network_removed},
+        "network": {"created": True, "removed": True},
     }
 
 
