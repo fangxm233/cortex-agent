@@ -165,7 +165,7 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
       {/* Media stage — touch target for zoom gestures covers full area; transform on inner wrapper. */}
       <div
         ref={containerRef}
-        onClick={(e) => { e.stopPropagation(); if (!isZoomed) return; }}
+        onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '94vw', maxHeight: '84vh', width: '94vw', height: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         {failed ? (

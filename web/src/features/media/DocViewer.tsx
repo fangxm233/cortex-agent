@@ -89,7 +89,6 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
   const { containerRef: zoomRef, style: zoomStyle, zoom, zoomIn, zoomOut, resetZoom } = useZoom({ mode: 'css-zoom', maxScale: 5 });
 
   useEffect(() => {
-    let alive = true;
     let cancelled = false;
     const container = containerRef.current;
     if (container) container.innerHTML = '';
@@ -109,7 +108,7 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
       const pdfjs = getPdfjs();
       const pdf = await pdfjs.getDocument({ data }).promise;
       if (cancelled) return;
-      if (alive) setNumPages(pdf.numPages);
+      setNumPages(pdf.numPages);
 
       const target = containerRef.current;
       if (!target) return;
@@ -138,10 +137,10 @@ export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode 
         pagesRef.current.push(wrapper);
         await page.render({ canvas, canvasContext: ctx, viewport }).promise;
       }
-      if (alive && !cancelled) setState('ok');
-    })().catch(() => { if (alive && !cancelled) setState('failed'); });
+      if (!cancelled) setState('ok');
+    })().catch(() => { if (!cancelled) setState('failed'); });
 
-    return () => { alive = false; cancelled = true; };
+    return () => { cancelled = true; };
   }, [item.path]);
 
   const pageBoxes = useCallback((): PageBox[] => {
