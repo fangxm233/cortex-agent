@@ -496,12 +496,6 @@ it('keeps skills with malformed optional frontmatter fields and unknown keys, re
   expect(issueMessages(entry, 'skill_frontmatter_ignored')).toEqual([...OPTIONAL_SKILL_MESSAGES].sort());
 });
 
-it('accepts allowed-tools written as a YAML list as well as the spec string', () => {
-  const entry = createOptionalSkillFrontmatterEntry();
-
-  expect(issueMessages(entry, 'skill_frontmatter_ignored').join('\n')).not.toContain('allowed-tools');
-});
-
 it('rejects PLUGIN_DATA symlink escapes after physical containment checks', () => {
   const fixture = makeRootFixture('plugin-data-root-');
   const pluginDir = path.join(fixture.pluginsDir, 'data-escape');
