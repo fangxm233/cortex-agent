@@ -230,6 +230,17 @@ def environment_digest(environment: Mapping[str, str]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def validate_admission_environment(
+    extra_env: Mapping[str, str] | None, expected_digest: str | None,
+) -> None:
+    if expected_digest is None:
+        return
+    if environment_digest(dict(extra_env or {})) != expected_digest:
+        raise HarborTrialAdmissionError(
+            "agent environment differs from the sealed trial environment"
+        )
+
+
 def isolated_command(command: str, environment: Mapping[str, str]) -> str:
     assignments = " ".join(
         f"{key}={shlex.quote(value)}" for key, value in sorted(environment.items())

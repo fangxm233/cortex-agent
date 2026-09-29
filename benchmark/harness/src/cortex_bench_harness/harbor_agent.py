@@ -30,10 +30,9 @@ from .launcher.production_session import (
 )
 from .launcher.trial_admission import (
     HarborTrialAdmissionError,
-    environment_digest,
     trial_scratch_command,
 )
-from .launcher.trial_admission_io import atomic_write_json
+from .launcher.trial_admission_io import atomic_write_json, validate_admission_environment
 from .launcher.runtime_mounts import (
     RuntimeMountError,
     arm_runtime_names,
@@ -186,7 +185,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         environment_hash: str | None, defer_proxy_arm: bool,
         extra_env: Mapping[str, str] | None,
     ) -> None:
-        self._validate_admission_environment(extra_env, environment_hash)
+        validate_admission_environment(extra_env, environment_hash)
         self._resolved_cwd: ResolvedCwd | None = None
         self._npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
@@ -212,17 +211,6 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._outer_publication: HostFinalizationResult | None = None
         self._post_stop_revocation: TrialRevocation | None = None
         self._post_stop_finalization_pending = False
-
-    @staticmethod
-    def _validate_admission_environment(
-        extra_env: Mapping[str, str] | None, expected_digest: str | None,
-    ) -> None:
-        if expected_digest is None:
-            return
-        if environment_digest(dict(extra_env or {})) != expected_digest:
-            raise HarborTrialAdmissionError(
-                "agent environment differs from the sealed trial environment"
-            )
 
     @staticmethod
     @override

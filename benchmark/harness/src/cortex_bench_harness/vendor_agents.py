@@ -22,7 +22,7 @@ from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .launcher.trial_admission_io import (
     HarborTrialAdmissionError,
     atomic_write_json,
-    environment_digest,
+    validate_admission_environment,
 )
 from .launcher.trial_proxy import (
     TrialProxySession,
@@ -148,7 +148,7 @@ class VendorLifecycleMixin:
         expected_environment_digest: str | None, defer_proxy_arm: bool,
         credential_handle: str | None, extra_env: Mapping[str, str] | None,
     ) -> None:
-        self._validate_environment(extra_env, expected_environment_digest)
+        validate_admission_environment(extra_env, expected_environment_digest)
         self._artifact_dir = Path(artifact_dir) if artifact_dir is not None else None
         self._manifest = dict(manifest or {})
         self._trial_seed = parse_trial_seed(trial_seed) if trial_seed is not None else None
@@ -173,17 +173,6 @@ class VendorLifecycleMixin:
         from .host_finalization import parse_host_scan_policy
 
         return parse_host_scan_policy(source)
-
-    @staticmethod
-    def _validate_environment(
-        extra_env: Mapping[str, str] | None, expected_digest: str | None,
-    ) -> None:
-        if expected_digest is None:
-            return
-        if environment_digest(dict(extra_env or {})) != expected_digest:
-            raise HarborTrialAdmissionError(
-                "agent environment differs from the sealed trial environment"
-            )
 
     def _consume_credential(self, credential_handle: str | None) -> str | None:
         if credential_handle is None:
