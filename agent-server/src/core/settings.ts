@@ -322,12 +322,8 @@ function sameDataValue(left: unknown, right: unknown): boolean {
   return Object.is(left, right);
 }
 
-function sameValue(left: Settings[SettingKey], right: Settings[SettingKey]): boolean {
-  return sameDataValue(left, right);
-}
-
 function changedKeys(previous: Settings, next: Settings): SettingKey[] {
-  return SETTING_KEYS.filter((key) => !sameValue(previous[key], next[key]));
+  return SETTING_KEYS.filter((key) => !sameDataValue(previous[key], next[key]));
 }
 
 function emitChanges(previous: Settings, next: Settings): void {
@@ -369,10 +365,6 @@ function acceptSnapshot(
   if (previous) emitChanges(previous, next);
 }
 
-function sameOverrides(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-  return sameDataValue(left, right);
-}
-
 function scheduleReload(): void {
   if (reloadTimer) clearTimeout(reloadTimer);
   reloadTimer = setTimeout(() => {
@@ -385,7 +377,7 @@ function reloadSettings(): void {
   if (selfWriting) return scheduleReload();
   try {
     const overrides = readOverrides();
-    if (sameOverrides(cachedOverrides, overrides)) return;
+    if (sameDataValue(cachedOverrides, overrides)) return;
     acceptSnapshot(overrides, resolveSettings(overrides));
     log.info('Hot-reload: settings.json reloaded');
   } catch (error) {
