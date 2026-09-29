@@ -101,10 +101,6 @@ export function buildBudgetDraft(daily: string, monthly: string): BudgetValue | 
   });
 }
 
-export function isChipActive(current: number | null, chip: number): boolean {
-  return current === chip;
-}
-
 /** `$10` (integer) / `$12.50` (fractional) / `—` for null. */
 export function formatBudgetUsd(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';

@@ -28,7 +28,6 @@ import {
   pickScopeBudget,
   buildBudgetValue,
   parseAmountInput,
-  isChipActive,
   formatBudgetUsd,
   budgetBarPct,
 } from '@/features/settings/vm/budget-vm';
@@ -109,7 +108,7 @@ function LimitChips(props: Pick<LimitRowProps, 'field' | 'chips' | 'current' | '
         <SChip
           key={value} role="button" data-budget-chip={`${props.field}-${value}`}
           aria-disabled={props.pending} disabled={props.pending}
-          active={!props.inherited && isChipActive(props.current, value)}
+          active={!props.inherited && props.current === value}
           onClick={props.pending ? undefined : () => props.onChip(value)}
         >
           {'$' + value}
