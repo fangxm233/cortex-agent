@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 
 export interface MarkdownSegment {
   type: 'text' | 'bold' | 'italic' | 'code' | 'link';

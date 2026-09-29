@@ -7,12 +7,11 @@ import { SidePanel } from './components/SidePanel.js';
 import { NotificationsModal } from './components/Notifications.js';
 import { ProjectSwitcher } from './components/ProjectSwitcher.js';
 import { useMutate } from './hooks/useMutate.js';
-import type { MutateResult } from './hooks/useMutate.js';
 import { useTranscript } from './hooks/useTranscript.js';
 import { useKeybindings } from './hooks/useKeybindings.js';
 import { useMouseHandler } from './hooks/useMouseHandler.js';
 import type { SelectionRange } from './hooks/useMouseHandler.js';
-import { osc52Copy, normalizeSelection, extractSelectionText } from './logic.js';
+import { osc52Copy } from './logic.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import type { NotificationEntry } from './hooks/useNotifications.js';
 import { useDashboardData } from './hooks/useDashboardData.js';
@@ -20,7 +19,7 @@ import { SessionPicker } from './components/SessionPicker.js';
 import { SLASH_COMMANDS } from './slash-commands.js';
 import { AskUserModal } from './components/AskUserModal.js';
 import type { ResumableSession } from './components/SessionPicker.js';
-import { isNotification, isUiQueryResult, isUiEvent, isModalOpen, isModalAck, isErrorFrame, isChatPost, isChatUpdate } from '../platform/tui/protocol.js';
+import { isNotification, isUiQueryResult, isUiEvent, isErrorFrame, isChatPost, isChatUpdate } from '../platform/tui/protocol.js';
 import { computeFocusZone, isAgentResponseFrame, matchResumeTarget } from './logic.js';
 import { parseTurnStatus, formatTurnStatus } from './turn-status.js';
 import type { WsState } from './ws-client.js';
@@ -143,7 +142,7 @@ export function App({
   // frames (identified by their `actions` rich-block) are routed here, NOT the transcript.
   const [turnStatus, setTurnStatus] = useState<string | null>(null);
 
-  const transcriptRef = useRef<{ scrollUp: (page?: boolean) => void; scrollDown: (page?: boolean) => void; scrollByLines: (delta: number) => void; scrollToEnd: () => void; getSelectedText: (range: SelectionRange) => string } | null>(null);
+  const transcriptRef = useRef<{ scrollUp: (page?: boolean) => void; scrollDown: (page?: boolean) => void; scrollByLines: (delta: number) => void; getSelectedText: (range: SelectionRange) => string } | null>(null);
 
   // Terminal size — drives the full-screen root box and updates on resize so the layout
   // always fills the alternate-screen buffer (see enterFullscreen in index.tsx).
@@ -463,8 +462,6 @@ export function App({
   }, [showToast]);
 
   const { selection } = useMouseHandler({
-    onScrollUp: handleScrollUp,
-    onScrollDown: handleScrollDown,
     onScrollByLines: handleScrollByLines,
     onSelectionComplete: handleSelectionComplete,
     onRightClick: handleRightClick,

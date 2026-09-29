@@ -27,7 +27,7 @@ test('makeRenderStdout wraps each string frame atomically', () => {
   assert.equal(writes[0], BSU + 'hello' + ESU);
 });
 
-test('makeRenderStdout records stats and exposes them', () => {
+test('makeRenderStdout records stats', () => {
   const { base } = fakeStdout();
   const stats = newRenderStats();
   let clock = 1000;
@@ -35,7 +35,6 @@ test('makeRenderStdout records stats and exposes them', () => {
   out.write('first');
   clock = 1050;
   out.write('\x1b[2Jsecond');
-  assert.equal(out.__renderStats, stats);
   assert.equal(stats.writes, 2);
   assert.equal(stats.clears, 1);
 });

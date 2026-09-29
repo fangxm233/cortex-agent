@@ -6,7 +6,7 @@ import { render } from 'ink';
 import { App } from './App.js';
 import { makeRenderStdout, newRenderStats, writesPerSecond, type RenderStats } from './render-output.js';
 import { WsClient } from './ws-client.js';
-import { isHandshakeAck, isSessionSwitched, isUiQueryResult, isUiEvent, isNotification } from '../platform/tui/protocol.js';
+import { isHandshakeAck, isSessionSwitched, isUiQueryResult } from '../platform/tui/protocol.js';
 import { CORTEX_VERSION } from '../core/version.js';
 import { t, setLocale, normalizeLocale } from '../core/i18n.js';
 import { loadLang } from '../domain/system/preferences.js';

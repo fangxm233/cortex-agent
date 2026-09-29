@@ -13,17 +13,11 @@ import { InlineMarkdown } from '../render/inline-markdown.js';
 import type { RenderedMessage } from '../hooks/useTranscript.js';
 import type { SelectionRange } from '../hooks/useMouseHandler.js';
 
-// Default rows reserved for the bottom UI (marginTop(1) + border(3) + StatusLine(1) = 5).
-// The actual count is now passed from App.tsx via the reservedRows prop, accounting for
-// optional turn-status and awaiting-response hint lines.
-const DEFAULT_RESERVED_ROWS = 5;
-
 export interface TranscriptHandle {
   scrollUp: (page?: boolean) => void;
   scrollDown: (page?: boolean) => void;
   /** Scroll by a signed line count in ONE state update (delta>0 = up into history, <0 = toward bottom). */
   scrollByLines: (delta: number) => void;
-  scrollToEnd: () => void;
   /** Extract the text under the given screen-coordinate selection range. */
   getSelectedText: (range: SelectionRange) => string;
 }
@@ -31,8 +25,8 @@ export interface TranscriptHandle {
 interface TranscriptProps {
   messages: Map<string, RenderedMessage>;
   ids: string[];
-  /** Rows reserved for the bottom UI (default 5). App.tsx computes the actual value. */
-  reservedRows?: number;
+  /** Rows reserved for the bottom UI (input, status and hint lines); App.tsx computes it. */
+  reservedRows: number;
   /** Active text selection range (screen coordinates, from useMouseHandler). */
   selection?: SelectionRange | null;
 }
@@ -52,7 +46,7 @@ function toFlattenable(m: RenderedMessage): FlattenableMessage {
 }
 
 export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(
-  function Transcript({ messages, ids, reservedRows = DEFAULT_RESERVED_ROWS, selection }: TranscriptProps, ref): React.JSX.Element {
+  function Transcript({ messages, ids, reservedRows, selection }: TranscriptProps, ref): React.JSX.Element {
     const { stdout } = useStdout();
     // scrollOffset counts LINES scrolled up from the bottom (0 = pinned to bottom).
     const [scrollOffset, setScrollOffset] = useState(0);
@@ -110,11 +104,6 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(
       });
     }, []);
 
-    const scrollToEnd = useCallback(() => {
-      userScrolledUpRef.current = false;
-      setScrollOffset(0);
-    }, []);
-
     // Keep a ref to the current visible lines for getSelectedText (avoids stale closure).
     const visibleRef = useRef<FlatLine[]>([]);
 
@@ -134,7 +123,7 @@ export const Transcript = forwardRef<TranscriptHandle, TranscriptProps>(
       return extractSelectionText(vis, norm);
     }, [lineBudget]);
 
-    useImperativeHandle(ref, () => ({ scrollUp, scrollDown, scrollByLines, scrollToEnd, getSelectedText }), [scrollUp, scrollDown, scrollByLines, scrollToEnd, getSelectedText]);
+    useImperativeHandle(ref, () => ({ scrollUp, scrollDown, scrollByLines, getSelectedText }), [scrollUp, scrollDown, scrollByLines, getSelectedText]);
 
     // Auto-stick to bottom on new content unless the user has scrolled up.
     useEffect(() => {

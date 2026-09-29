@@ -49,20 +49,6 @@ test('numeric batcher schedules only one flush per burst', () => {
   assert.equal(scheduleCount, 2);
 });
 
-test('flushNow applies immediately and cancels pending', () => {
-  const applied: number[] = [];
-  let cancelled = false;
-  const batcher = createNumericBatcher(
-    (s) => applied.push(s),
-    () => 1,
-    () => { cancelled = true; },
-  );
-  batcher.add(5);
-  batcher.flushNow();
-  assert.deepEqual(applied, [5]);
-  assert.ok(cancelled);
-});
-
 test('throttle coalesces a burst into one trailing call with latest args', () => {
   const calls: number[] = [];
   let clock = 1000;

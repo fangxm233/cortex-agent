@@ -15,10 +15,8 @@ export interface SelectionRange {
 }
 
 export interface UseMouseHandlerOpts {
-  onScrollUp: () => void;
-  onScrollDown: () => void;
-  /** Apply a coalesced wheel scroll in ONE update (delta>0 = up, <0 = down). Preferred over the unit callbacks. */
-  onScrollByLines?: (delta: number) => void;
+  /** Apply a coalesced wheel scroll in ONE update (delta>0 = up, <0 = down). */
+  onScrollByLines: (delta: number) => void;
   onSelectionComplete?: (range: SelectionRange) => void;
   onRightClick?: () => void;
 }
@@ -41,13 +39,7 @@ export function useMouseHandler(opts: UseMouseHandlerOpts): { selection: Selecti
   // scroll update instead of one re-render per notch. Lazily created once, reads opts via the ref.
   const scrollBatchRef = useRef<NumericBatcher | null>(null);
   if (scrollBatchRef.current === null) {
-    scrollBatchRef.current = createNumericBatcher((sum) => {
-      const o = optsRef.current;
-      if (o.onScrollByLines) { o.onScrollByLines(sum); return; }
-      // Fallback when no batched handler is wired: replay the unit callbacks.
-      const n = Math.abs(sum);
-      for (let i = 0; i < n; i++) (sum > 0 ? o.onScrollUp : o.onScrollDown)();
-    });
+    scrollBatchRef.current = createNumericBatcher((sum) => optsRef.current.onScrollByLines(sum));
   }
 
   // Throttle drag-selection re-renders (the dragRef itself is always updated synchronously so the

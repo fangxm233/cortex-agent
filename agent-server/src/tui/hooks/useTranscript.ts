@@ -176,18 +176,12 @@ export function useTranscript(opts?: {
     setState({ messages: new Map(), ids: [] });
   }, [flushBatch]);
 
-  // ── Message count (for status line) ──
-
-  const messageCount = state.ids.length;
-
   return {
     messages: state.messages,
     ids: state.ids,
-    messageCount,
     dispatch,
     clear,
     addUserMessage,
-    flushBatch,
   };
 }
 

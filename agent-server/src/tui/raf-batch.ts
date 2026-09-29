@@ -9,8 +9,6 @@
 export interface NumericBatcher {
   /** Add a signed delta; schedules a flush if one is not already pending. */
   add(delta: number): void;
-  /** Apply the accumulated sum immediately (if non-zero) and clear any pending flush. */
-  flushNow(): void;
   /** Drop any accumulated delta and pending flush without applying. */
   cancel(): void;
 }
@@ -42,10 +40,6 @@ export function createNumericBatcher(
     add(delta: number) {
       sum += delta;
       if (handle === null) handle = schedule(flush);
-    },
-    flushNow() {
-      if (handle !== null) { cancelSchedule(handle); handle = null; }
-      if (sum !== 0) { const s = sum; sum = 0; apply(s); }
     },
     cancel() {
       if (handle !== null) { cancelSchedule(handle); handle = null; }

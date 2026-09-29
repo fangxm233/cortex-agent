@@ -65,14 +65,11 @@ export function writesPerSecond(stats: RenderStats): number {
 export interface RenderStdoutOptions {
   /** Wrap frames in BSU/ESU (default true; disabled by CORTEX_TUI_NO_SYNC). */
   sync?: boolean;
-  /** Collect render stats; the returned object is exposed on `__renderStats`. */
+  /** Collect render stats into this object. */
   stats?: RenderStats | null;
   /** Clock injection for tests. */
   now?: () => number;
 }
-
-/** A stdout proxy that also surfaces the stats object it accumulates into. */
-export type RenderStdout = NodeJS.WriteStream & { __renderStats?: RenderStats | null };
 
 /**
  * Build a proxy over `base` (typically process.stdout) that intercepts only `write` — wrapping
@@ -81,7 +78,7 @@ export type RenderStdout = NodeJS.WriteStream & { __renderStats?: RenderStats | 
  * bound to the real stream so the getters report the real terminal geometry. Ink, log-update, and
  * App's useStdout all share this one object, so they stay consistent.
  */
-export function makeRenderStdout(base: NodeJS.WriteStream, options: RenderStdoutOptions = {}): RenderStdout {
+export function makeRenderStdout(base: NodeJS.WriteStream, options: RenderStdoutOptions = {}): NodeJS.WriteStream {
   const sync = options.sync ?? true;
   const stats = options.stats ?? null;
   const now = options.now ?? Date.now;
@@ -99,11 +96,10 @@ export function makeRenderStdout(base: NodeJS.WriteStream, options: RenderStdout
   return new Proxy(base, {
     get(target, prop, receiver) {
       if (prop === 'write') return wrappedWrite;
-      if (prop === '__renderStats') return stats;
       // Read the property off the REAL stream (so getters like `columns`/`rows` run with the
       // correct `this`), then bind methods to the real stream so calls like `.on(...)` work.
       const value = (target as unknown as Record<string | symbol, unknown>)[prop];
       return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
     },
-  }) as RenderStdout;
+  });
 }
