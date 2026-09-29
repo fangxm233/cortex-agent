@@ -56,17 +56,6 @@ export function parseIssueBody(body: string): IssueBody {
   return { fields, desc: descLines.length > 0 ? descLines.join('\n') : null };
 }
 
-export interface IssueListCard {
-  id: string;
-  title: string;
-  /** Real date from the entry's parens; null → omit (no fabricated relative age). */
-  date: string | null;
-}
-
-export function toIssueListCard(i: IssueInfo): IssueListCard {
-  return { id: i.id, title: i.title, date: i.date };
-}
-
 export interface IssueDetailVm {
   id: string;
   title: string;

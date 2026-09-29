@@ -11,7 +11,7 @@ import { useSelectedSession } from '@/features/session/state/SelectedSessionProv
 import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
 import { draftStorageKey, saveDraft } from '@/features/session/composer/composer-draft';
 import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
-import { toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
+import { toIssueDetail, buildIssuePrompt } from './issues-vm';
 
 // Issues modal (design sec-24 24b), isomorphic to the approval center 7a overlay: backdrop +
 // centered shell, left queue + right detail. Differences BY DESIGN: no amber anywhere (issues never
@@ -247,7 +247,6 @@ function IssueQueue({
       </div>
       <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {entries.map((e) => {
-          const card = toIssueListCard(e);
           const sel = e.id === selectedId;
           return (
             <div
@@ -275,12 +274,12 @@ function IssueQueue({
                   lineHeight: 1.35,
                 }}
               >
-                {card.title}
+                {e.title}
               </div>
-              {card.date && (
+              {e.date && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6 }}>
                   <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-                    {card.date}
+                    {e.date}
                   </span>
                 </div>
               )}
