@@ -39,12 +39,6 @@ export interface JournalHeaderInput {
   bundleManifestHash: string;
 }
 
-export interface JournalEventIdentity {
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
-}
-
 export interface JournalEventInput {
   threadId: string | null;
   step: number | null;
@@ -54,23 +48,18 @@ export interface JournalEventInput {
   requestedModel: string;
   reportedModel: string | null;
   event: NormalizedEvent;
-  identity?: JournalEventIdentity;
 }
 
 export interface Journal {
   readonly path: string;
-  readonly header: Readonly<Record<string, unknown>>;
   readonly eventCount: number;
   writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>>;
   sha256(): string;
   closeSync(): void;
-  close(): Promise<void>;
 }
 
 interface IdentityFields {
   rootRunId: string;
-  threadId: string | null;
-  agentSlot: AgentSlot;
   modelExecutionIdentityHash: string;
   roleToolSurfaceHash: string;
   bundleManifestHash: string;
@@ -172,7 +161,6 @@ function buildEvent(
   seq: number,
   ts: string,
 ): Record<string, unknown> {
-  const identity = input.identity ?? headerIdentity;
   return {
     schema_version: JOURNAL_SCHEMA,
     type: 'event',
@@ -186,9 +174,9 @@ function buildEvent(
     provider: input.provider,
     requested_model: input.requestedModel,
     reported_model: input.reportedModel,
-    model_execution_identity_hash: identity.modelExecutionIdentityHash,
-    role_tool_surface_hash: identity.roleToolSurfaceHash,
-    bundle_manifest_hash: identity.bundleManifestHash,
+    model_execution_identity_hash: headerIdentity.modelExecutionIdentityHash,
+    role_tool_surface_hash: headerIdentity.roleToolSurfaceHash,
+    bundle_manifest_hash: headerIdentity.bundleManifestHash,
     event: input.event,
   };
 }
@@ -200,7 +188,6 @@ class FileJournal implements Journal {
 
   constructor(
     readonly path: string,
-    readonly header: Readonly<Record<string, unknown>>,
     fd: number,
     private readonly identity: IdentityFields,
     private readonly now: () => Date,
@@ -242,10 +229,6 @@ class FileJournal implements Journal {
     if (failures.length > 0) throw trajectoryFailure('journal close', failures);
   }
 
-  async close(): Promise<void> {
-    this.closeSync();
-  }
-
   private requireOpenFd(): number {
     if (this.fd !== null) return this.fd;
     const cause = operationFailure('write', new Error('journal is closed'));
@@ -256,8 +239,6 @@ class FileJournal implements Journal {
 function identityFromHeader(header: JournalHeaderInput): IdentityFields {
   return {
     rootRunId: header.rootRunId,
-    threadId: header.threadId,
-    agentSlot: header.agentSlot,
     modelExecutionIdentityHash: header.modelExecutionIdentityHash,
     roleToolSurfaceHash: header.roleToolSurfaceHash,
     bundleManifestHash: header.bundleManifestHash,
@@ -298,7 +279,7 @@ export function openJournal(options: {
   } catch (error) {
     closeAfterOpenFailure(fd, error);
   }
-  return new FileJournal(options.path, header, fd, identityFromHeader(options.header), now);
+  return new FileJournal(options.path, fd, identityFromHeader(options.header), now);
 }
 
 function hashOpenFile(fd: number): string {
