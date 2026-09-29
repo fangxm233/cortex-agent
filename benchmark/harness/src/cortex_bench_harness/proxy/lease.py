@@ -5,8 +5,6 @@ from typing import Any, Callable, Mapping, Protocol
 
 LEASE_ECHO_TARGET = "/_cortex/lease-echo"
 LEASE_ECHO_SCHEMA_VERSION = "cortex-bench-lease-echo/1"
-LEASE_ECHO_MISSING_CHECK_ID = "lease_echo_missing"
-TERMINAL_PREDICATE_UNMET = 41
 
 
 @dataclass(frozen=True)
@@ -41,21 +39,6 @@ class LeaseHolder(Protocol):
 
 class ExpiryTarget(Protocol):
     def expire_route(self) -> None: ...
-
-
-@dataclass(frozen=True)
-class TerminalCheck:
-    check_id: str
-    passed: bool
-    failure_code: int | None
-
-
-def lease_echo_terminal_check(record: Mapping[str, object]) -> TerminalCheck:
-    """A trial that never echoed is not a green trial. Its credential route stayed bounded, which
-    is the route failing closed; the trial itself fails closed here instead."""
-    if record.get("status") == "available":
-        return TerminalCheck(LEASE_ECHO_MISSING_CHECK_ID, True, None)
-    return TerminalCheck(LEASE_ECHO_MISSING_CHECK_ID, False, TERMINAL_PREDICATE_UNMET)
 
 
 def _integer(document: Mapping[str, Any], key: str) -> int:

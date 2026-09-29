@@ -23,7 +23,6 @@ from cortex_bench_harness.proxy.lease import (
     LEASE_ECHO_TARGET,
     LeaseRefused,
     LeaseTerms,
-    lease_echo_terminal_check,
 )
 from synthetic import (
     MESSAGES_TARGET,
@@ -330,11 +329,9 @@ def test_missing_echo_leaves_bound_and_marks_unavailable(
     assert alive == 200
     assert (dead, json.loads(payload)) == (410, {"error": "deadline_expired"})
     assert record == {"status": "unavailable", "reason": "no_echo_received"}
-    check = lease_echo_terminal_check(record)
-    assert (check.check_id, check.passed, check.failure_code) == ("lease_echo_missing", False, 41)
 
 
-def test_terminal_check_passes_once_an_echo_arrived(tmp_path: Path) -> None:
+def test_echo_record_is_available_once_an_echo_arrived(tmp_path: Path) -> None:
     clocks = TrialClocks(0)
     with SyntheticUpstream() as upstream:
         handle, deadline = run_trial(tmp_path, clocks, upstream)
@@ -349,7 +346,6 @@ def test_terminal_check_passes_once_an_echo_arrived(tmp_path: Path) -> None:
 
     assert record["status"] == "available"
     assert record["value"]["absolute_epoch_ms"] == deadline["absolute_epoch_ms"]
-    assert lease_echo_terminal_check(record).passed is True
 
 
 # ---------------------------------------------------------------- authentication

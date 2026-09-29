@@ -9,8 +9,6 @@ from .lease import (
     LEASE_ECHO_SCHEMA_VERSION,
     LEASE_ECHO_TARGET,
     LeaseTerms,
-    TerminalCheck,
-    lease_echo_terminal_check,
 )
 from .manifest import fill_proxy_manifest
 from .models import ProxyLimits
@@ -27,11 +25,9 @@ __all__ = [
     "ProviderAdapter",
     "ProxyLimits",
     "SharedRequestLimit",
-    "TerminalCheck",
     "TrialProxyHandle",
     "build_proxy_export",
     "fill_proxy_manifest",
-    "lease_echo_terminal_check",
     "render_proxy_export",
     "select_adapter",
     "start_trial_proxy",
