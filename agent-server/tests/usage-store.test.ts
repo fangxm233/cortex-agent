@@ -70,7 +70,7 @@ test('all freshness states and arbitrary windows round-trip below the throttle t
     usage('unsupported-provider', 'unsupported', 0.5),
   ];
 
-  await first.replace(records);
+  await first.commit(records);
   const restarted = storeFor(new ProviderStateRepo(filePath));
 
   assert.deepEqual(
@@ -136,12 +136,12 @@ test('update accepts equal observations as complete metadata replacements', asyn
   assert.deepEqual(await store.get('alpha'), failureUpdate);
 });
 
-test('replace removes omitted providers and deterministically keeps the last duplicate', async () => {
+test('commit removes omitted providers and deterministically keeps the last duplicate', async () => {
   const store = storeFor(new ProviderStateRepo(nextFile()));
-  await store.replace([usage('beta'), usage('alpha')]);
+  await store.commit([usage('beta'), usage('alpha')]);
 
   const newestAlpha = usage('alpha', 'stale', 0.04);
-  await store.replace([usage('gamma'), usage('alpha', 'live', 0.01), newestAlpha]);
+  await store.commit([usage('gamma'), usage('alpha', 'live', 0.01), newestAlpha]);
 
   assert.deepEqual((await store.list()).map((record) => record.provider), ['alpha', 'gamma']);
   assert.deepEqual(await store.get('alpha'), newestAlpha);

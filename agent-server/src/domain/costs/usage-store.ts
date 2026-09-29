@@ -104,13 +104,9 @@ export class UsageStore {
     });
   }
 
-  async replace(records: ProviderUsage[]): Promise<void> {
-    await this.mutationMutex.run(() => this.persistence.save(canonicalRecords(records)));
-  }
-
   /**
-   * Write a freshly composed table, dropping rows it omits. Unlike `replace`, a row whose
-   * stored quota observation is newer than the incoming one keeps that observation: the
+   * Write a freshly composed table, dropping rows it omits. A row whose stored quota
+   * observation is newer than the incoming one keeps that observation: the
    * composed table is built from a snapshot read before the write, so a live quota push
    * landing mid-collection must not be rolled back. Spend and labels always take the
    * incoming values, which are authoritative for the cycle.
