@@ -42,7 +42,6 @@ function parentContextFor(data: Record<string, any>): SubagentParentContext {
     model: profile.model || null,
     channel,
     project: typeof data.project === 'string' ? data.project : undefined,
-    cwd: typeof data.cwd === 'string' ? data.cwd : undefined,
     env: process.env,
   };
 }

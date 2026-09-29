@@ -39,7 +39,6 @@ export interface SubagentParentContext {
   model?: string | null;
   channel?: string;
   project?: string;
-  cwd?: string;
   /** The delegating session's TRACK id (`CORTEX_SESSION_ID`). A child is not that session — its own
    *  `session.sessionId` stays null — but the money it spends belongs to that conversation, so this
    *  rides along as the execution record's `ownerSessionId` for the session-totals roll-up. Absent

@@ -26,7 +26,6 @@ export const runForeignSubagent: RunForeignSubagent = async (request) => {
       model: request.parent.model ?? null,
       provider: request.parent.provider ?? null,
       env: request.parent.env,
-      cwd: request.cwd,
       project: request.parent.env.CORTEX_PROJECT || undefined,
     },
   });
