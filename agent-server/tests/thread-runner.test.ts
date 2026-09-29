@@ -10,7 +10,6 @@ import {
   evaluateAndTransition,
   finalizeThread,
   consumeWaitControl,
-  cancelActiveThread,
   type ThreadRunResult,
   type ThreadContext,
 } from '../src/domain/threads/runner.js';

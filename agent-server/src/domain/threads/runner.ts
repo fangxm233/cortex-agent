@@ -1106,11 +1106,8 @@ function buildThreadSummary(result: ThreadRunResult): string {
   return lines.join('\n');
 }
 
-// Proxy functions to support existing callers that import cancelActiveThread / getActiveHandle from runner.ts.
-// These delegate to the unified run registry singleton.
-function cancelActiveThread(channel: string): boolean {
-  return runRegistry.killByChannel(channel) > 0;
-}
+// Proxy function to support existing callers that import getActiveHandle from runner.ts.
+// It delegates to the unified run registry singleton.
 function getActiveHandle(channel: string): RunningExecution | null {
   return runRegistry.getByChannel(channel)[0] ?? null;
 }
@@ -1121,7 +1118,6 @@ export {
   resumeThread,
   resumeRateLimitedThread,
   buildThreadSummary,
-  cancelActiveThread,
   getActiveHandle,
   // Internal helpers — exported to support focused unit tests from agent-server/tests/thread-runner.test.ts.
   // Not part of the public API; callers outside the test harness should continue to use runThread().
