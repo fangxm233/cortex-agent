@@ -166,6 +166,17 @@ export class SshTunnelSupervisor {
     await Promise.all([...this.records.values()].map((record) => this.stopRecord(record)));
   }
 
+  /**
+   * Stop one device's tunnel for good: kill the child, cancel the retry chain, and forget the
+   * frozen route so a machine registered again under that name starts from its new spec.
+   */
+  async release(device: string): Promise<void> {
+    const record = this.records.get(device);
+    if (!record) return;
+    this.records.delete(device);
+    await this.stopRecord(record);
+  }
+
   private getOrCreate(spec: SshTunnelSpec): TunnelRecord {
     const existing = this.records.get(spec.device);
     if (existing) return existing;

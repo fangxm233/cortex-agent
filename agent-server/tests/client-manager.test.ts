@@ -22,6 +22,7 @@ import {
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
   _setTunnelSupervisorForTesting,
+  releaseUnregisteredDevices,
   _getRestartTimerCount,
   _testReset,
 } from '../src/domain/remote/client-manager.js';
@@ -285,7 +286,7 @@ test('buildRemoteSpawnCommand falls back to the managed default when clientComma
 test('an already-online SSH-routed client still adopts its managed tunnel', async (t) => {
   const port = await findEphemeralPort();
   const ensure = vi.fn().mockResolvedValue(undefined);
-  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn(), release: vi.fn() });
   _setMachineRegistryProviderForTesting(() => ({
     adopted: {
       cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
@@ -326,7 +327,7 @@ test('SSH-routed startup does not spawn a duplicate when the client connects whi
     ws.send(JSON.stringify({ type: 'hello', device: 'managed-service', platform: 'linux', capabilities: [] }));
     await waitFor(() => isDeviceOnline('managed-service'));
   });
-  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn(), release: vi.fn() });
   _setMachineRegistryProviderForTesting(() => ({
     'managed-service': {
       cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
@@ -352,7 +353,7 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
   const port = await findEphemeralPort();
   const ensure = vi.fn().mockResolvedValue(undefined);
   const stopAll = vi.fn().mockResolvedValue(undefined);
-  _setTunnelSupervisorForTesting({ ensure, stopAll, resume: vi.fn() });
+  _setTunnelSupervisorForTesting({ ensure, stopAll, resume: vi.fn(), release: vi.fn() });
   _setMachineRegistryProviderForTesting(() => ({
     worker: {
       cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
@@ -382,7 +383,7 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
 test('a POSIX SSH-routed client marks its tunnel session so a stale one can be evicted', async (t) => {
   const port = await findEphemeralPort();
   const ensure = vi.fn().mockResolvedValue(undefined);
-  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn(), release: vi.fn() });
   _setMachineRegistryProviderForTesting(() => ({
     worker: {
       cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
@@ -417,7 +418,7 @@ test('a POSIX SSH-routed client marks its tunnel session so a stale one can be e
 test('a Windows SSH-routed client asks the tunnel to free its remote port first', async (t) => {
   const port = await findEphemeralPort();
   const ensure = vi.fn().mockResolvedValue(undefined);
-  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn(), release: vi.fn() });
   _setMachineRegistryProviderForTesting(() => ({
     worker: {
       cortexPath: 'C:\\Users\\worker', gpuCount: 0, win: true, ssh: 'user@worker',
@@ -485,6 +486,29 @@ test('startRemoteClient schedules a retry when SSH itself throws', async (t) => 
   assert.equal(_getRestartTimerCount(), 0);
   await startRemoteClient('fake-linux');
   assert.equal(_getRestartTimerCount(), 1, 'expected retry timer when SSH fails outright');
+});
+
+test('a device dropped from the registry loses its tunnel and its pending restart', async (t) => {
+  const port = await findEphemeralPort();
+  const release = vi.fn().mockResolvedValue(undefined);
+  _setTunnelSupervisorForTesting({
+    ensure: vi.fn().mockResolvedValue(undefined), stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn(), release,
+  });
+  const route = { cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker', clientConnection: 'ssh-reverse' as const };
+  let registry: Record<string, typeof route> = { retired: route, kept: route };
+  _setMachineRegistryProviderForTesting(() => registry);
+  _setSshExecForTesting(async () => { throw new Error('SSH error: host unreachable'); });
+  startClientManager(port);
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+  await startRemoteClient('retired');
+  await startRemoteClient('kept');
+  assert.equal(_getRestartTimerCount(), 2);
+
+  registry = { kept: route };
+  await releaseUnregisteredDevices();
+
+  assert.deepEqual(release.mock.calls, [['retired']]);
+  assert.equal(_getRestartTimerCount(), 1, 'the remaining device keeps its recovery');
 });
 
 test('sendCommand rejects pending commands when stopClientManager is called mid-flight', async (t) => {

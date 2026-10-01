@@ -56,7 +56,7 @@ const pendingCommands = new Map<string, PendingCommand>();
 let wss: WebSocketServer | null = null;
 let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
 let clientManagerPort: number | null = null;
-type TunnelController = Pick<SshTunnelSupervisor, 'ensure' | 'stopAll' | 'resume'>;
+type TunnelController = Pick<SshTunnelSupervisor, 'ensure' | 'stopAll' | 'resume' | 'release'>;
 let tunnelSupervisor: TunnelController = new SshTunnelSupervisor();
 const routeSnapshots = new Map<string, Pick<MachineEntry, 'ssh' | 'clientConnection' | 'clientReversePort'>>();
 
@@ -702,6 +702,26 @@ function scheduleRestart(device: string): void {
   restartTimers.set(device, timer);
 }
 
+async function releaseDevice(device: string): Promise<void> {
+  const timer = restartTimers.get(device);
+  if (timer) clearTimeout(timer);
+  restartTimers.delete(device);
+  routeSnapshots.delete(device);
+  await tunnelSupervisor.release(device);
+  log.info(`Released ${device}: no longer in machines.json`);
+}
+
+/**
+ * Drop what the manager still holds for machines that left the registry. A removed machine's
+ * tunnel would otherwise keep retrying its frozen route until the server restarts. Pids and route
+ * ownership stay on disk so a machine added back can adopt a client that is still running.
+ */
+async function releaseUnregisteredDevices(): Promise<void> {
+  const registry = _getRegistryImpl();
+  const held = new Set([...routeSnapshots.keys(), ...restartTimers.keys()]);
+  await Promise.all([...held].filter((device) => !registry[device]).map(releaseDevice));
+}
+
 /** Start clients on all registered devices and keep recovery armed until they connect. */
 async function startAllRemoteClients(): Promise<void> {
   for (const [device] of Object.entries(_getRegistryImpl())) {
@@ -742,6 +762,7 @@ export {
   setClientUpdateHooks,
   startRemoteClient,
   startAllRemoteClients,
+  releaseUnregisteredDevices,
   buildRemoteSpawnCommand,
   clientPids,
   // Test-only hooks (prefixed with _ by convention).

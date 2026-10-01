@@ -38,7 +38,7 @@ import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
-import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
+import { startClientManager, stopClientManager, startAllRemoteClients, releaseUnregisteredDevices, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
@@ -113,7 +113,7 @@ import {
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
@@ -358,6 +358,9 @@ const notifyAdmin = (text: string) => {
 setProfileNotifier(notifyAdmin);
 setConfigNotifier(notifyAdmin);
 setMachineNotifier(notifyAdmin);
+setMachineReloadListener(() => {
+  void releaseUnregisteredDevices().catch((e) => log.error(`Releasing removed machines failed: ${(e as Error).message}`));
+});
 
 // --- Init outbound message queue (WAL-based, survives restarts) ---
 const oq = initOutboundQueue(adapter);

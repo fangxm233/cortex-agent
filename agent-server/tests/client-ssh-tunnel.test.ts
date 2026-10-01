@@ -250,3 +250,37 @@ test('a failing tunnel keeps retrying after a rejection that never reached fail(
   assert.equal(supervisor.state('worker-a'), 'backoff');
   await supervisor.stopAll();
 });
+
+test('release kills a running tunnel and nothing respawns it', async () => {
+  vi.useFakeTimers();
+  const h = makeHarness();
+  await h.supervisor.ensure(SPEC);
+
+  await h.supervisor.release('worker-a');
+  await vi.advanceTimersByTimeAsync(100);
+  await vi.runAllTicks();
+
+  assert.deepEqual(h.children[0].killedWith, ['SIGTERM']);
+  assert.equal(h.spawnCalls.length, 1);
+  assert.equal(h.supervisor.state('worker-a'), 'stopped');
+});
+
+test('release ends a backing-off retry chain and forgets the frozen route', async () => {
+  vi.useFakeTimers();
+  const h = makeHarness();
+  await h.supervisor.ensure(SPEC);
+  h.children[0].emit('exit', 255, null);
+  assert.equal(h.supervisor.state('worker-a'), 'backoff');
+
+  await h.supervisor.release('worker-a');
+  await vi.advanceTimersByTimeAsync(100);
+  await vi.runAllTicks();
+  assert.equal(h.spawnCalls.length, 1);
+
+  // A machine registered again under the same name may point elsewhere; that is a new route,
+  // not a change under a live supervisor.
+  await h.supervisor.ensure({ ...SPEC, host: 'user@worker-b' });
+  assert.equal(h.spawnCalls.length, 2);
+  assert.equal(h.supervisor.state('worker-a'), 'running');
+  await h.supervisor.stopAll();
+});

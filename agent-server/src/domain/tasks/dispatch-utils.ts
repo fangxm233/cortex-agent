@@ -62,6 +62,21 @@ export function validateMachineEntry(name: string, entry: MachineEntry): void {
 let _adminNotifier: ((text: string) => void) | null = null;
 export function setAdminNotifier(fn: (text: string) => void): void { _adminNotifier = fn; }
 
+// --- Reload listener (lets runtime holders drop machines that left the file) ---
+let _reloadListener: (() => void) | null = null;
+export function setMachineReloadListener(fn: () => void): void { _reloadListener = fn; }
+
+function announceReload(oldKeys: string, newKeys: string, count: number): void {
+  if (oldKeys !== newKeys) {
+    log.info(`Hot-reload: machines changed [${oldKeys}] → [${newKeys}]`);
+    _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded: [${oldKeys}] → [${newKeys}]`);
+  } else {
+    log.info(`Hot-reload: ${count} machines reloaded`);
+    _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded (${count} machines)`);
+  }
+  _reloadListener?.();
+}
+
 /**
  * Load machines.json from disk into memory.
  * On first call (startup), throws if file is missing or malformed.
@@ -80,17 +95,8 @@ function loadMachinesFromFile(failOnError = true): void {
     _registry = parsed;
     _loaded = true;
 
-    if (isReload) {
-      if (oldKeys !== newKeys) {
-        log.info(`Hot-reload: machines changed [${oldKeys}] → [${newKeys}]`);
-        _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded: [${oldKeys}] → [${newKeys}]`);
-      } else {
-        log.info(`Hot-reload: ${Object.keys(parsed).length} machines reloaded`);
-        _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded (${Object.keys(parsed).length} machines)`);
-      }
-    } else {
-      log.info(`Loaded ${Object.keys(parsed).length} machines: ${Object.keys(parsed).join(', ')}`);
-    }
+    if (isReload) announceReload(oldKeys, newKeys, Object.keys(parsed).length);
+    else log.info(`Loaded ${Object.keys(parsed).length} machines: ${Object.keys(parsed).join(', ')}`);
   } catch (e) {
     const msg = `[machine-registry] Failed to load ${MACHINES_FILE}: ${(e as Error).message}`;
     if (failOnError) {
