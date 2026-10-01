@@ -51,6 +51,20 @@ cortex <command> [options]
 - `--home <path>` — 设置 `CORTEX_HOME`
 - `--json` — 以 JSON 打印端点、token、端口以及是否发生变更
 
+**`cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]`**
+
+下线一台远程机器。命令从 `config/machines.json` 删除该机器的条目，经 SSH 连到该机器，停止所有运行其 client bundle 的进程，并从 client 的 `CORTEX_HOME` 中删除 bundle（`client/`）、`config/cortex-client.json` 和 `logs/client-*.log`，最后从 `data/client-pids.json` 与 `data/client-routes.json` 中移除该机器。注册表条目最先删除，因此运行中的服务器在热加载时释放该机器的隧道和重启定时器，不会把正在停止的 client 再拉起来。
+
+client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是 `~/.cortex`（Windows 上为 `%USERPROFILE%\.cortex`）。若该目录同时含有 `config/machines.json`，说明那里也有一个 Cortex 服务器：此时只停止 client 进程，文件全部保留。无法连通的机器仍会在本地移除，结果中为 `remote.status: "unreachable"`，并在 stderr 给出警告。服务器本机（没有 `ssh` 的条目）会被拒绝。
+
+输出为 JSON，包含 `device`、`removed_at`、被删除的 `machine_entry`、被清掉的 `runtime` pid 与路由，以及 `remote`——`cleaned`（附被结束的 `killed` pid 与 `files: removed | kept-server-home`）、`unreachable` 或 `skipped`。`--dry-run` 把计划打印在 `would_remove` 下，不做任何改动。
+
+选项：
+- `--device <name>` — `machines.json` 中的机器名（必填）
+- `--keep-remote` — 只在本地注销，不动远端进程与文件
+- `--dry-run` — 打印将要删除的内容，不做任何改动
+- `--home <path>` — 设置 `CORTEX_HOME`
+
 **`cortex start`**
 
 Fork `dist/entry/app.js` 作为子进程，继承 stdio。这是在前台运行 Cortex 的主要方式。子进程运行 Slack 机器人、webhook 服务器和所有智能体编排。

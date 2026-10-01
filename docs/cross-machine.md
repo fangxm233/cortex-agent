@@ -197,6 +197,11 @@ The file is watched via `fs.watch()`. General registry readers see updates
 within a few hundred milliseconds. Managed client route fields are snapshotted
 when client startup begins, so changes to `clientConnection`,
 `clientReversePort`, or the associated `ssh` target require a server restart.
+Deleting an entry takes effect on the same reload: the server stops that
+machine's SSH reverse tunnel and cancels its pending client restart.
+`cortex client remove --device <name>` deletes the entry and also stops and
+uninstalls the client on the machine (see the
+[CLI reference](./cli-reference.md)).
 
 ## Network topology
 

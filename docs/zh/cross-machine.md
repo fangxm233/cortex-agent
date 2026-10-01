@@ -141,7 +141,7 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 
 `clientConnection` 选择连接路由。默认值 `direct` 使用 `cortex-client.json` 中的 URL；设为 `ssh-reverse` 时，服务器会维护 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。`clientReversePort` 可选，用于指定远程机器上的 loopback 端口；默认等于服务器 client 端口，取值必须在 1024 到 65535 之间。SSH 反向路由必须配置 `ssh`。
 
-文件通过 `fs.watch()` 监视，普通注册表读取方会在几百毫秒内看到更新。托管 client 的路由字段在启动时生成快照，因此修改 `clientConnection`、`clientReversePort` 或对应的 `ssh` 目标后需要重启服务器。
+文件通过 `fs.watch()` 监视，普通注册表读取方会在几百毫秒内看到更新。托管 client 的路由字段在启动时生成快照，因此修改 `clientConnection`、`clientReversePort` 或对应的 `ssh` 目标后需要重启服务器。删除条目在同一次重载中生效：服务器停止该机器的 SSH 反向隧道，并取消待执行的 client 重启。`cortex client remove --device <name>` 会删除条目，同时停止并卸载该机器上的 client（见 [CLI 参考](./cli-reference.md)）。
 
 ## 网络拓扑 {#network-topology}
 

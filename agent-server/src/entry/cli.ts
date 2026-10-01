@@ -28,6 +28,7 @@ import {
   getTuiHelp,
 } from './cli-help.js';
 import { runUiCli } from './ui-cli.js';
+import { runClientCli } from './client-cli.js';
 import { LoginCliError } from './auth-login-cli.js';
 import { t } from '@core/i18n.js';
 import type { CliResult } from '@core/cli-utils.js';
@@ -579,6 +580,7 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   restart: () => runRestartCli(),
   'setup-gateway': (args) => runSetupGatewayCli(args),
   ui: (args) => runUiCli(args),
+  client: (args) => runClientCli(args),
   task: (args) => runTaskCli(args),
   install: (args) => runInstallCli(args),
   start: () => ({ exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` }),

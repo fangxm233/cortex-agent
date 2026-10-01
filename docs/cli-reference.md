@@ -64,6 +64,36 @@ Options:
 - `--home <path>` — set `CORTEX_HOME`
 - `--json` — print the endpoint, token, port, and whether anything changed as JSON
 
+**`cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]`**
+
+Retire a remote machine. The command deletes the machine's entry from
+`config/machines.json`, connects to the machine over SSH, stops every process
+running its client bundle, and deletes the bundle (`client/`),
+`config/cortex-client.json`, and the `logs/client-*.log` files from the
+client's `CORTEX_HOME`. It then drops the machine from `data/client-pids.json`
+and `data/client-routes.json`. The registry entry goes first, so a running
+server releases the machine's tunnel and restart timer on hot-reload instead of
+relaunching the client that is being stopped.
+
+The client's `CORTEX_HOME` comes from the bundle path in `clientCommand` and
+defaults to `~/.cortex` (`%USERPROFILE%\.cortex` on Windows). A home that also
+contains `config/machines.json` belongs to a Cortex server; there the client
+process is stopped and every file stays in place. A machine that cannot be
+reached is still removed locally, with `remote.status: "unreachable"` in the
+result and a warning on stderr. The server's local machine (an entry without
+`ssh`) is refused.
+
+Output is JSON with the `device`, `removed_at`, the removed `machine_entry`,
+the `runtime` pid and route that were dropped, and `remote` — `cleaned` (with
+the `killed` pids and `files: removed | kept-server-home`), `unreachable`, or
+`skipped`. `--dry-run` prints the plan under `would_remove` and changes nothing.
+
+Options:
+- `--device <name>` — machine name in `machines.json` (required)
+- `--keep-remote` — only unregister locally; leave the remote process and files alone
+- `--dry-run` — print what would be removed and change nothing
+- `--home <path>` — set `CORTEX_HOME`
+
 **`cortex start`**
 
 Fork `dist/entry/app.js` as a child process, inherit stdio. This is the

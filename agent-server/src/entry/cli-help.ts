@@ -76,6 +76,33 @@ export function getUiHelp(): string {
   });
 }
 
+export function getClientHelp(): string {
+  return formatHelp({
+    name: 'cortex client',
+    description: 'Manage the cortex-client installs on remote machines',
+    usage: 'cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]',
+    commands: [
+      {
+        name: 'remove',
+        description: 'Unregister a machine from machines.json, stop and uninstall its client over SSH, '
+          + 'and drop its runtime state',
+      },
+    ],
+    options: [
+      { flag: '--device <name>', description: 'Machine name as registered in machines.json (required)' },
+      { flag: '--keep-remote', description: 'Only unregister locally; leave the remote process and files alone' },
+      { flag: '--dry-run', description: 'Print what would be removed as JSON and change nothing' },
+      { flag: '--home <path>', description: 'CORTEX_HOME of the server', default: '$CORTEX_HOME or ~/.cortex' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Preview the removal', command: 'cortex client remove --device trainer --dry-run' },
+      { description: 'Remove a machine and uninstall its client', command: 'cortex client remove --device trainer' },
+      { description: 'Unregister a machine that no longer exists', command: 'cortex client remove --device trainer --keep-remote' },
+    ],
+  });
+}
+
 function getCliCommands() {
   return [
     { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
@@ -96,6 +123,7 @@ function getCliCommands() {
     { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
     { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
+    { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
     { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
   ];
 }
@@ -111,6 +139,7 @@ function getCliExamples() {
     { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
     { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
     { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
+    { description: 'Remove a remote machine and its client', command: 'cortex client remove --device trainer' },
     { description: 'Start the server', command: 'cortex start' },
     { description: 'Stop the daemon', command: 'cortex daemon stop' },
     { description: 'Check daemon status', command: 'cortex daemon status' },
