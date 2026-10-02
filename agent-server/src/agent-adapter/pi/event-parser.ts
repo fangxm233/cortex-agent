@@ -2,7 +2,7 @@ import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '@core/tool-names.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
-import type { SubagentNotice } from '@core/agents/subagent/types.js';
+import type { SubagentEndStatus, SubagentNotice } from '@core/agents/subagent/types.js';
 export type { SubagentNotice } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import { parseTodoWrite } from '../normalize/todo.js';

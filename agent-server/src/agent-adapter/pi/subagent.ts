@@ -258,6 +258,25 @@ async function startInBackground(
   );
 }
 
+function subagentExecutor(deps: SubagentToolDeps): ToolDefinition<SubagentParametersSchema, SubagentDetails>['execute'] {
+  return async (toolCallId, params, signal, _update, ctx) => {
+    deps.ensureRoles();
+    const invocation = resolveInvocation(params);
+    const roles = loadRoles(deps.rolesDir);
+    // Fail before any child starts if a role is missing: a half-run fan-out is worse than none.
+    for (const task of invocation.tasks) findRole(roles, task.subagent_type);
+    const context = { cwd: ctx.cwd, model: fallbackModel(ctx) };
+    const bindRunChild = (bound: SubagentToolDeps): RunChildFn => buildRunChild(context, bound, roles, toolCallId);
+    if (params.run_in_background) {
+      return startInBackground(deps, invocation, bindRunChild, toolCallId);
+    }
+    return runInvocation(
+      invocation, bindRunChild(deps), signal,
+      subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
+    );
+  };
+}
+
 export function createSubagentTool(
   deps: SubagentToolDeps,
   catalog: SubagentCatalog = {},
@@ -268,24 +287,7 @@ export function createSubagentTool(
     label: 'Agent',
     description: SUBAGENT_DESCRIPTION,
     parameters: buildSubagentParameters(described),
-    async execute(toolCallId, params, signal, _update, ctx) {
-      deps.ensureRoles();
-      const invocation = resolveInvocation(params);
-      const roles = loadRoles(deps.rolesDir);
-      // Fail before any child starts if a role is missing: a half-run fan-out is worse than none.
-      for (const task of invocation.tasks) findRole(roles, task.subagent_type);
-      const context = { cwd: ctx.cwd, model: fallbackModel(ctx) };
-      const bindRunChild = (bound: SubagentToolDeps): RunChildFn => buildRunChild(context, bound, roles, toolCallId);
-      if (params.run_in_background) {
-        return startInBackground(deps, invocation, bindRunChild, toolCallId);
-      }
-      return runInvocation(
-        invocation,
-        bindRunChild(deps),
-        signal,
-        subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
-      );
-    },
+    execute: subagentExecutor(deps),
   };
 }
 

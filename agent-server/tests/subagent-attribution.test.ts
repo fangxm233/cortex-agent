@@ -5,7 +5,7 @@ import { runRegistry } from '../src/core/run-registry.js';
 import { EventBus } from '../src/events/event-bus.js';
 import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { conversationHistory } from '../src/store/conversation-history-repo.js';
-import { parentNoticeSink } from '../src/orchestration/subagent-attribution.js';
+import { backgroundNoticeSink, parentNoticeSink } from '../src/orchestration/subagent-attribution.js';
 import { createTranscriptSink } from '../src/orchestration/transcript-sink.js';
 import { isDebugMode } from '../src/core/debug-mode.js';
 import { _test } from '../src/domain/agents/subagent/runner.js';
@@ -99,6 +99,34 @@ afterEach(() => {
   setOrchestrationRuntime({ bus: null });
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+
+test('explicit background sinks bind session ownership once and never consult live runs', () => {
+  const t = captureTranscript();
+  const live = register('exec-parent', PARENT_SESSION);
+  const first = backgroundNoticeSink(PARENT_SESSION, CHANNEL);
+  const second = backgroundNoticeSink('second-session', CHANNEL);
+  const lookup = vi.spyOn(runRegistry, 'getBySessionId');
+  const channelLookup = vi.spyOn(runRegistry, 'getByChannel');
+  first(notice('first'));
+  second(notice('second'));
+  runRegistry.remove('exec-parent');
+  first(endNotice());
+  assert.deepEqual(t.appended.map(row => row.sessionId), [PARENT_SESSION, 'second-session', PARENT_SESSION]);
+  assert.equal(live.length, 0);
+  assert.equal(lookup.mock.calls.length, 0);
+  assert.equal(channelLookup.mock.calls.length, 0);
+});
+
+test('explicit background without session identity never guesses a same-channel transcript', () => {
+  const t = captureTranscript();
+  const live = register('exec-parent', PARENT_SESSION);
+  const sink = backgroundNoticeSink(null, CHANNEL);
+  sink(toolNotice('Bash', { command: 'ls' }));
+  sink(notice('no session')); sink(endNotice());
+  assert.deepEqual(t.appended, []);
+  assert.deepEqual(t.published, []);
+  assert.deepEqual(live, []);
 });
 
 test('the sink pushes into the execution it resolved, and follows it across a retry', () => {

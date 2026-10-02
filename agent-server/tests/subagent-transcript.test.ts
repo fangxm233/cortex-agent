@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, onTestFinished, test, vi } from 'vitest';
-import { CONFIG_DIR, HISTORY_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, STORE_DIR } from '../src/core/paths.js';
 import { EventBus } from '../src/events/event-bus.js';
 import { conversationHistory, ConversationHistoryRepo } from '../src/store/conversation-history-repo.js';
 import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
@@ -40,6 +40,8 @@ vi.mock('../src/orchestration/session-gateway.js', () => ({ deliverToSessionDeta
 const SESSION = 'background-transcript-fixture';
 const CHANNEL = 'web:background-transcript-fixture';
 const rolesDir = path.join(CONFIG_DIR, 'agents');
+// _vitest-setup gives this file its own temporary CORTEX_HOME; no private sessions are read.
+const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 let originalSend: typeof process.send;
 let bus: EventBus;
 let messages: any[];
@@ -100,20 +102,24 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-function installChild(child: Child) {
+function installChild(...children: Child[]) {
+  const pending = [...children];
   execution.create.mockImplementation(async request => {
+    const child = pending.shift()!;
     child.requests.push(request);
     return { session: child, dispose() {} };
   });
-  execution.start.mockImplementation((request, observers) => {
-    child.requests.push(request);
-    child.listener = event => {
-      const normalized = childRunEvent(event);
-      for (const observer of observers) observer.onEvent({ ...normalized, phase: 'foreground' });
-    };
-    const result = child.prompt(request.prompt.text).then(() => ({ finalOutput: 'child result', num_turns: 1 }));
-    return { result, settled: result, cancel: () => child.resolve() };
-  });
+  execution.start.mockImplementation((request, observers) => fakeChildRun(pending.shift()!, request, observers));
+}
+
+function fakeChildRun(child: Child, request: any, observers: any[]) {
+  child.requests.push(request);
+  child.listener = event => {
+    const normalized = childRunEvent(event);
+    for (const observer of observers) observer.onEvent({ ...normalized, phase: 'foreground' });
+  };
+  const result = child.prompt(request.prompt.text).then(() => ({ finalOutput: 'child result', num_turns: 1 }));
+  return { result, settled: result, cancel: () => child.resolve() };
 }
 
 function childRunEvent(event: any) {
@@ -273,7 +279,7 @@ test('actual HTTP/SSE: expanded transcript continues after Pi foreground closes,
   await conversationHistory.flush();
   await vi.waitFor(() => assert.equal(http.stream.events.length, 9, http.stream.wire));
   const events = http.stream.events;
-  assert.equal(events.filter(e => e.type === 'session.message').length, 5);
+  assert.deepEqual(events.filter(e => e.type === 'session.message').map(e => e.payload), messages);
   assert.equal(events.filter(e => e.type === 'session.debug.updated').length, 4);
   const compact = await http.query('sessions.transcript', { sessionId: SESSION, compactSubagents: true });
   assert.equal(compact.subagentSummaries[0].toolCount, 2);
@@ -282,4 +288,117 @@ test('actual HTTP/SSE: expanded transcript continues after Pi foreground closes,
   assert.deepEqual(detail.messages.filter((m: any) => m.type === 'assistant').map((m: any) => m.text), ['early prose', 'late prose']);
   const debug = await http.query('sessions.debugDetails', { sessionId: SESSION, ref: `${started.ref}:late` });
   assert.equal(debug.toolResult.content, 'late result');
+});
+
+const endings = routes.flatMap(route => (['startup', 'error', 'abort'] as const).map(ending => ({ ...route, ending })));
+
+test.each(endings)('$entry $parentBackend → $childBackend: $ending seals only the started child once', async route => {
+  const child = new Child();
+  const fixture = await parent(child);
+  onTestFinished(() => fixture.engine.close());
+  if (route.ending === 'startup') {
+    execution.create.mockRejectedValue(new Error('startup refused'));
+    execution.start.mockImplementation(() => { throw new Error('startup refused'); });
+  }
+  const active = await turn(fixture);
+  const started = await spawn(fixture, route);
+  await finishParent(fixture, active);
+  if (route.ending !== 'startup') {
+    await vi.waitFor(() => assert.ok(child.resolve));
+    child.tool('before-failure'); child.text('before failure');
+    if (route.ending === 'abort') stopSubagentRun(started.id);
+    else child.reject(new Error('execution failed'));
+  }
+  await waitForSubagentRun(started.id, 1000);
+  await conversationHistory.flush();
+  const status = route.ending === 'abort' ? 'killed' : 'failed';
+  assert.deepEqual([...getSubagentChildStatuses(SESSION)], [[started.ref, status]]);
+  assert.deepEqual(messages.filter(e => e.subagentEnded).map(e => [e.subagentId, e.subagentEnded]), [[started.ref, status]]);
+  const history = await new ConversationHistoryRepo(HISTORY_DIR).getHistory(SESSION);
+  assert.equal(history?.subagentEnds?.length, 1);
+  assert.equal(history?.subagentEnds?.[0].status, status);
+});
+
+function batchTasks(route: Route) {
+  return [task, { ...task, description: 'second', prompt: 'follow {previous}' }]
+    .map(item => ({ ...item, backend: route.childBackend }));
+}
+
+async function batchFixture(route: Route, mode: 'parallel' | 'chain', ctx?: any) {
+  const first = new Child(); const second = new Child();
+  const fixture = await parent(first);
+  onTestFinished(() => fixture.engine.close());
+  installChild(first, second);
+  const active = await turn(fixture);
+  const started = await spawn(fixture, route, { [mode]: batchTasks(route) }, ctx);
+  await vi.waitFor(() => assert.ok(first.resolve));
+  await finishParent(fixture, active);
+  return { fixture, first, second, started, ref2: started.ref.replace(/#0$/, '#1') };
+}
+
+test.each(routes)('$entry $parentBackend → $childBackend: parallel sibling status/content are independent', async route => {
+  const { first, second, started, ref2 } = await batchFixture(route, 'parallel');
+  await vi.waitFor(() => assert.ok(second.resolve));
+  second.tool('sibling'); second.text('sibling finished'); second.resolve();
+  await vi.waitFor(() => assert.equal(getSubagentChildStatuses(SESSION).get(ref2), 'completed'));
+  assert.equal(getSubagentChildStatuses(SESSION).get(started.ref), 'running');
+  await conversationHistory.appendUser(SESSION, { text: 'another user turn' });
+  first.tool('still-running'); first.text('first still working');
+  const { warm } = await assertQueries(started.ref, 1, ['first still working']);
+  assert.equal(warm.subagentSummaries?.find(s => s.id === started.ref)?.status, 'running');
+  first.resolve();
+  await waitForSubagentRun(started.id, 1000);
+  await assertQueries(ref2, 1, ['sibling finished']);
+  assert.deepEqual(messages.filter(e => e.subagentEnded).map(e => e.subagentId), [ref2, started.ref]);
+});
+
+test.each(routes)('$entry $parentBackend → $childBackend: chain starts after drain with substituted prompt and snapshotted context', async route => {
+  let contextAlive = true;
+  const ctx = {
+    get cwd() { assert.ok(contextAlive, 'do not retain parent SDK context'); return CONFIG_DIR; },
+    get model() { assert.ok(contextAlive, 'do not retain parent SDK context'); return { id: 'original-model', provider: 'fixture' }; },
+  };
+  const { fixture, first, second, started, ref2 } = await batchFixture(route, 'chain', ctx);
+  contextAlive = false;
+  await fixture.engine.close();
+  assert.equal(getSubagentChildStatuses(SESSION).has(ref2), false, 'unstarted link is not running');
+  first.text('child result'); first.resolve();
+  await vi.waitFor(() => assert.ok(second.resolve));
+  assert.match(second.prompts[0], /follow child result/);
+  assert.equal(second.requests[0].cwd, CONFIG_DIR);
+  if (route.entry === 'native' && route.childBackend === 'pi') assert.equal(second.requests[0].model, 'original-model');
+  second.tool('chain-late'); second.text('chain finished'); second.resolve();
+  await waitForSubagentRun(started.id, 1000);
+  await assertQueries(ref2, 1, ['chain finished']);
+  const history = await conversationHistory.getHistory(SESSION);
+  assert.match(JSON.stringify(history), /follow child result/, 'persist the substituted runtime prompt');
+  assert.deepEqual(messages.filter(e => e.subagentEnded).map(e => e.subagentId), [started.ref, ref2]);
+});
+
+test.each(routes)('$entry $parentBackend → $childBackend: stopping chain never starts or seals next link', async route => {
+  const { first, second, started, ref2 } = await batchFixture(route, 'chain');
+  first.text('partial');
+  stopSubagentRun(started.id);
+  await waitForSubagentRun(started.id, 1000);
+  await conversationHistory.flush();
+  assert.equal(second.prompts.length, 0);
+  assert.equal(getSubagentChildStatuses(SESSION).has(ref2), false);
+  assert.deepEqual(messages.filter(e => e.subagentEnded).map(e => [e.subagentId, e.subagentEnded]), [[started.ref, 'killed']]);
+});
+
+test.each(routes)('$entry $parentBackend → $childBackend: normal mode preserves rows without full tool payloads', async route => {
+  vi.stubEnv('DEBUG', '');
+  const child = new Child();
+  const fixture = await parent(child);
+  onTestFinished(() => fixture.engine.close());
+  const active = await turn(fixture);
+  const started = await spawn(fixture, route);
+  await vi.waitFor(() => assert.ok(child.resolve));
+  await finishParent(fixture, active);
+  child.tool('compact-only'); child.text('visible prose'); child.resolve();
+  await waitForSubagentRun(started.id, 1000);
+  await assertQueries(started.ref, 1, ['visible prose']);
+  const history = await conversationHistory.getHistory(SESSION);
+  assert.ok(history?.events.every(e => !e.debug));
+  assert.equal(await conversationHistory.getToolDebugDetails(SESSION, `${started.ref}:compact-only`), null);
 });

@@ -116,8 +116,8 @@ function detachedSinkFor(sessionId: string, channel: string | undefined): RunObs
  * persisted (`transcript-sink.ts` states that phases do not change the persisted shape), it only
  * keeps the child's prose out of the platform callback, which a detached sink does not have anyway.
  *
- * Built lazily and at most once per sink: while the parent's run is alive its observers are doing
- * the writing, so a sink standing by would be a second writer for every row.
+ * Built lazily and at most once per invocation. Explicit background calls use it for every
+ * notice; foreground adoption calls it only after live ingestion no longer accepts notices.
  *
  * ONLY the spawn-time `sessionId` / `channel` are used. Re-resolving the parent here would be the
  * 100% CPU accident described above: after the turn ends the one live execution left on the
