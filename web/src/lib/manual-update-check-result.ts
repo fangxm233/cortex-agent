@@ -22,6 +22,15 @@ export interface ManualCheckReport<TUi = unknown, TShell = unknown> {
 type ResultListener = (report: ManualCheckReport) => void;
 
 const listeners = new Set<ResultListener>();
+let serverApplyPending = false;
+
+/** Preserve accepted consent across batched renders and responsive shell remounts. */
+export function markServerUpdateApplied(): void { serverApplyPending = true; }
+export function takeServerUpdateApplied(): boolean {
+  const pending = serverApplyPending;
+  serverApplyPending = false;
+  return pending;
+}
 
 /**
  * Listen for manual check results. The type parameters are the payload shapes the caller expects

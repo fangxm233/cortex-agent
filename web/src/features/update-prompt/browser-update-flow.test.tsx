@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import type { ToastInput } from '@/design/Toast';
+import { markServerUpdateApplied, takeServerUpdateApplied } from '@/lib/manual-update-check-result';
 import { useManualUpdateCheck } from './useManualUpdateCheck';
 import { useUpdatePrompt, type UpdatePrompt } from './useUpdatePrompt';
 
@@ -40,6 +41,8 @@ function Probe() { manual = useManualUpdateCheck(); prompt = useUpdatePrompt(); 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
 beforeEach(async () => {
   vi.clearAllMocks();
+  api.apply.mockReset();
+  takeServerUpdateApplied();
   api.status = { state: 'prompting', available: '2026.10.1' };
   api.read.mockImplementation(async () => api.status);
   api.check.mockResolvedValue({ status: 'available', update: { version: '2026.10.1' } });
@@ -65,6 +68,62 @@ async function status(state: SystemUpdateStatus['state']) {
 }
 
 describe('browser/server update integration', () => {
+  it('follows accepted installation even when polling misses installing and restarting', async () => {
+    await act(async () => { await manual.check(); await tick(); });
+    api.apply.mockResolvedValue({ accepted: true, status: { state: 'installing', available: '2026.10.1' } });
+    api.status = { state: 'idle', available: null };
+    await act(async () => { if (prompt?.kind === 'server') prompt.apply(); await tick(); });
+    await act(async () => { await tick(); });
+    expect(api.page).toHaveBeenCalledTimes(2);
+    expect(api.check).toHaveBeenCalledOnce();
+    expect(prompt?.kind).toBe('page');
+    expect(location.reload).not.toHaveBeenCalled();
+  });
+
+  it.each(['rejected', 'failed'])('does not arm follow-up for %s consent', async (outcome) => {
+    await act(async () => { await manual.check(); await tick(); });
+    api.status = { state: 'idle', available: null };
+    if (outcome === 'failed') api.apply.mockRejectedValue(new Error('offline'));
+    else api.apply.mockResolvedValue({ accepted: false, status: api.status });
+    await act(async () => { if (prompt?.kind === 'server') prompt.apply(); await tick(); });
+    await act(async () => { await tick(); });
+    expect(api.page).toHaveBeenCalledOnce();
+  });
+
+  it('waits for real server status after remounting with an accepted update', async () => {
+    act(() => renderer.unmount());
+    queryClient.clear();
+    markServerUpdateApplied();
+    let resolve!: (value: SystemUpdateStatus) => void;
+    api.read.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    await act(async () => {
+      renderer = create(<QueryClientProvider client={queryClient}><Probe /></QueryClientProvider>);
+      await tick();
+    });
+    expect(api.page).not.toHaveBeenCalled();
+    await act(async () => { resolve({ state: 'idle', available: null }); await tick(); });
+    expect(api.page).toHaveBeenCalledOnce();
+  });
+
+  it('retains page availability and dismissal across responsive shell remounts', async () => {
+    await status('idle');
+    api.check.mockResolvedValue({ status: 'current' });
+    await act(async () => { await manual.check(); await tick(); });
+    expect(prompt?.kind).toBe('page');
+    act(() => renderer.unmount());
+    await act(async () => {
+      renderer = create(<QueryClientProvider client={queryClient}><Probe /></QueryClientProvider>);
+      await tick();
+    });
+    expect(prompt?.kind).toBe('page');
+    act(() => prompt?.dismiss());
+    act(() => renderer.unmount());
+    await act(async () => {
+      renderer = create(<QueryClientProvider client={queryClient}><Probe /></QueryClientProvider>);
+      await tick();
+    });
+    expect(prompt).toBeNull();
+  });
   it('reopens Later, refreshes status, keeps server first and applies nothing during discovery', async () => {
     expect(prompt?.kind).toBe('server');
     act(() => prompt?.dismiss());

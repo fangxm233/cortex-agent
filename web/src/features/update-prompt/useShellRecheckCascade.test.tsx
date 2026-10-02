@@ -1,8 +1,9 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const cascade = vi.hoisted(() => ({ check: vi.fn(() => Promise.resolve({} as never)) }));
+const cascade = vi.hoisted(() => ({ check: vi.fn(() => Promise.resolve({} as never)), connection: 'connected' }));
 vi.mock('./manual-update-check', () => ({ checkFrontendUpdates: cascade.check }));
+vi.mock('@/features/connection/ConnectionStatusProvider', () => ({ useConnectionStatus: () => cascade.connection }));
 
 import { useShellRecheckCascade } from './useShellRecheckCascade';
 
@@ -12,7 +13,22 @@ function Cascade({ state }: { state: 'idle' | 'prompting' | 'installing' | 'rest
 }
 
 describe('shell re-check cascade', () => {
-  beforeEach(() => { cascade.check.mockClear(); });
+  beforeEach(() => { cascade.check.mockClear(); cascade.connection = 'connected'; });
+
+  it('uses reconnection when polling missed both installation states', () => {
+    let renderer: ReactTestRenderer;
+    act(() => { renderer = create(<Cascade state="prompting" />); });
+    cascade.connection = 'reconnecting';
+    act(() => { renderer.update(<Cascade state="prompting" />); });
+    cascade.connection = 'connected';
+    act(() => { renderer.update(<Cascade state="prompting" />); });
+    expect(cascade.check).not.toHaveBeenCalled();
+    act(() => { renderer.update(<Cascade state="idle" />); });
+    expect(cascade.check).toHaveBeenCalledOnce();
+    act(() => { renderer.update(<Cascade state="idle" />); });
+    expect(cascade.check).toHaveBeenCalledOnce();
+    act(() => renderer.unmount());
+  });
 
   it('re-checks the shell the moment the server is back from restarting', () => {
     let renderer: ReactTestRenderer;

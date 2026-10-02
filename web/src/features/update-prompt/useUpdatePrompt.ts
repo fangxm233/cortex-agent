@@ -27,7 +27,7 @@ export type UpdatePrompt =
 export function useUpdatePrompt(): UpdatePrompt {
   const server = useServerUpdate();
   // The server's version is the ceiling for the other two, so its restart is the cue to re-ask them.
-  useShellRecheckCascade(server.status.state);
+  useShellRecheckCascade(server.status.state, server.hasStatus);
   const app = useAppUpdate();
   const hot = useHotUpdate();
   const browser = useBrowserUpdate();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
+import { markServerUpdateApplied, subscribeManualCheckResult } from '@/lib/manual-update-check-result';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -19,6 +19,7 @@ export function serverUpdateVisible(status: SystemUpdateStatus, dismissed: strin
 
 export interface ServerUpdate {
   status: SystemUpdateStatus;
+  hasStatus: boolean;
   visible: boolean;
   busy: boolean;
   apply: () => void;
@@ -43,7 +44,7 @@ function useManualServerResult(reopen: (value: null) => void) {
   }), [trpc, queryClient, reopen]);
 }
 
-function useServerStatus(): SystemUpdateStatus {
+function useServerStatus() {
   const trpc = useTRPC();
   const query = useQuery({
     ...trpc.system.updateStatus.queryOptions({}),
@@ -54,14 +55,20 @@ function useServerStatus(): SystemUpdateStatus {
     retry: true,
   });
 
-  return query.data ?? IDLE;
+  return { status: query.data ?? IDLE, hasStatus: query.data !== undefined };
 }
 
 function useServerActions() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries(trpc.system.updateStatus.queryFilter());
-  const applyMutation = useMutation(trpc.system.applyUpdate.mutationOptions({ onSettled: invalidate }));
+  const applyMutation = useMutation(trpc.system.applyUpdate.mutationOptions({
+    onSuccess: (result) => {
+      if (result.accepted) markServerUpdateApplied();
+      queryClient.setQueryData(trpc.system.updateStatus.queryKey({}), result.status);
+    },
+    onSettled: invalidate,
+  }));
   const skipMutation = useMutation(trpc.system.skipUpdate.mutationOptions({ onSettled: invalidate }));
   const { mutate: applyMutate } = applyMutation;
   const { mutate: skipMutate } = skipMutation;
@@ -72,10 +79,10 @@ function useServerActions() {
 }
 
 export function useServerUpdate(): ServerUpdate {
-  const status = useServerStatus();
+  const { status, hasStatus } = useServerStatus();
   const actions = useServerActions();
   const [dismissed, setDismissed] = useState<string | null>(null);
   useManualServerResult(setDismissed);
   const dismiss = useCallback(() => { setDismissed(status.available ?? ''); }, [status.available]);
-  return { status, visible: serverUpdateVisible(status, dismissed), ...actions, dismiss };
+  return { status, hasStatus, visible: serverUpdateVisible(status, dismissed), ...actions, dismiss };
 }
