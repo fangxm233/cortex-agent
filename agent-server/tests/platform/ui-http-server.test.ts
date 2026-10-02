@@ -262,6 +262,7 @@ function makeFakeUiService(): UiService {
     }) as UiService['query'],
     mutate: (async (op: string) => {
       if (op === 'threads.cancel') return { ok: true, data: { cancelled: true } };
+      if (op === 'system.checkUpdate') return { ok: true, data: { status: 'current' } };
       return { ok: false, code: 'not-found', message: `unexpected op ${op}` };
     }) as UiService['mutate'],
     subscribe: () => makeOneShotStream(),
@@ -453,6 +454,16 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
     );
     assert.equal(statusCode, 200);
     assert.deepEqual(JSON.parse(body).result.data, { cancelled: true });
+  });
+
+  test('system.checkUpdate is a token-gated mutation, not a public discovery endpoint', async () => {
+    const endpoint = '/trpc/system.checkUpdate';
+    const headers = { 'content-type': 'application/json' };
+    const denied = await req(w.port, 'POST', endpoint, headers, '{}');
+    assert.equal(denied.statusCode, 401);
+    const allowed = await req(w.port, 'POST', endpoint, { ...headers, 'x-cortex-token': TOKEN }, '{}');
+    assert.equal(allowed.statusCode, 200);
+    assert.deepEqual(JSON.parse(allowed.body).result.data, { status: 'current' });
   });
 
   test('subscription: SSE receives an event from the injected UiService', async () => {

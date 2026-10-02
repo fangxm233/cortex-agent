@@ -40,7 +40,7 @@ import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
 import { startClientManager, stopClientManager, startAllRemoteClients, releaseUnregisteredDevices, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
-import { checkServerUpdate } from '@domain/system/server-update-check.js';
+import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { threadStore } from '@store/thread-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -410,6 +410,7 @@ const dispatchCommand = registerCommands({
 // (Slack/Feishu/headless installs have no SPA open).
 const chatUpdatePrompt = createUpdatePrompt(adapter, commandRouter);
 const updatePrompt = createUiUpdatePrompt(chatUpdatePrompt);
+const serverUpdateCoordinator = createServerUpdateCoordinator({ prompt: updatePrompt });
 
 // Bind command action handlers (buttons, modals) to the platform adapter
 commandRouter.bindToAdapter(adapter);
@@ -534,6 +535,7 @@ process.on('SIGTERM', async () => {
   // UI service (M3) provides store-backed query/mutate/subscribe capabilities
   // to the TUI gateway via a transport-agnostic facade.
   const uiService = createUiService({
+    checkServerUpdate: () => serverUpdateCoordinator.check(),
     projectStore,
     sessionStore,
     threadStore,
@@ -833,22 +835,14 @@ process.on('SIGTERM', async () => {
   // DR-0013: server auto-update — first check after 60s, then every 24h.
   // Both timers are unref'd so they never hold the process open, and the default latest-version
   // probe is async (runFile), so neither blocks the event loop.
-  const bootUpdateCheck = setTimeout(async () => {
-    try {
-      await checkServerUpdate({ prompt: updatePrompt });
-    } catch (e) {
-      log.error(`Server auto-update check failed: ${(e as Error).message}`);
-    }
-  }, 60_000);
+  const runUpdateCheck = async (): Promise<void> => {
+    const result = await serverUpdateCoordinator.check();
+    if (result.status === 'error') log.error(`Server auto-update check failed: ${result.reason}`);
+  };
+  const bootUpdateCheck = setTimeout(() => { void runUpdateCheck(); }, 60_000);
   bootUpdateCheck.unref?.();
 
-  const dailyUpdateCheck = setInterval(async () => {
-    try {
-      await checkServerUpdate({ prompt: updatePrompt });
-    } catch (e) {
-      log.error(`Server auto-update check failed: ${(e as Error).message}`);
-    }
-  }, 24 * 60 * 60 * 1000);
+  const dailyUpdateCheck = setInterval(() => { void runUpdateCheck(); }, 24 * 60 * 60 * 1000);
   dailyUpdateCheck.unref?.();
 
   await scheduler.start();

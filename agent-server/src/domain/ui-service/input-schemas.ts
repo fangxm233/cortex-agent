@@ -773,6 +773,8 @@ export const systemClearRateLimitInput = z.object({
 
 export const systemRefreshUsageInput = z.object({});
 
+export const systemCheckUpdateInput = z.object({});
+
 // The pending prompt is process-global (one server, one npm self-update), so neither decision
 // carries a version: answering a prompt that is no longer pending returns accepted:false rather
 // than applying a stale choice.
@@ -917,6 +919,7 @@ export const mutateInputSchemas = {
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,
+  'system.checkUpdate': systemCheckUpdateInput,
   'system.applyUpdate': systemApplyUpdateInput,
   'system.skipUpdate': systemSkipUpdateInput,
 } satisfies Record<MutateOp, z.ZodType>;

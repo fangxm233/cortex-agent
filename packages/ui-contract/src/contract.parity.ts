@@ -92,6 +92,7 @@ import type {
   systemClearRateLimitInput,
   systemRefreshUsageInput,
   systemUpdateStatusInput,
+  systemCheckUpdateInput,
   systemApplyUpdateInput,
   systemSkipUpdateInput,
 } from './schemas.js';
@@ -209,5 +210,6 @@ const _authRemoveCustomProvider: MutateParity<'auth.removeCustomProvider', typeo
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 const _systemClearRateLimit: MutateParity<'system.clearRateLimit', typeof systemClearRateLimitInput> = true;
 const _systemRefreshUsage: MutateParity<'system.refreshUsage', typeof systemRefreshUsageInput> = true;
+const _systemCheckUpdate: MutateParity<'system.checkUpdate', typeof systemCheckUpdateInput> = true;
 const _systemApplyUpdate: MutateParity<'system.applyUpdate', typeof systemApplyUpdateInput> = true;
 const _systemSkipUpdate: MutateParity<'system.skipUpdate', typeof systemSkipUpdateInput> = true;

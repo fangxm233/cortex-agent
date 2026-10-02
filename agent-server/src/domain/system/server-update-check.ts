@@ -1,10 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
-import { compareCalVer } from '@core/calver.js';
-import { getSettings } from '@core/settings.js';
+import { ServerUpdateCoordinator } from './server-update-coordinator.js';
 import { runFile } from '@core/exec-async.js';
-import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 import { reportServerUpdateFailed, reportServerUpdateInstalled } from './update-ui-state.js';
@@ -103,76 +101,21 @@ export interface CheckServerUpdateResult {
   latestVersion: string | null;
 }
 
-// ── Main check-and-prompt flow ──────────────────────────────────
+// ── Shared runtime coordinator / legacy waiting wrapper ─────────
 
-export async function checkServerUpdate(
-  deps: CheckServerUpdateDeps,
-): Promise<CheckServerUpdateResult> {
-  // 1. Disable toggle: auto-update is on by default.
-  if (getSettings().serverUpdateDisable) {
-    return { action: null, latestVersion: null };
-  }
-
-  // 2. Dev mode: skip entirely
-  if (isUpdateDevMode()) {
-    return { action: null, latestVersion: null };
-  }
-
-  const getLatest = deps.getLatest ?? defaultGetLatest;
-  const spawnInstall = deps.spawnInstall ?? defaultSpawnInstall;
-  const loadState = deps.loadState ?? loadUpdateState;
-  const saveState = deps.saveState ?? saveUpdateState;
-  const now = deps.now ?? defaultNow;
-
-  // 2. Fetch latest version
-  const latestVersion = await getLatest();
-  if (latestVersion === null) {
-    return { action: null, latestVersion: null };
-  }
-
-  // 3. Latest <= local: no update needed
-  if (compareCalVer(latestVersion, CORTEX_VERSION) <= 0) {
-    return { action: null, latestVersion };
-  }
-
-  // 4. Check if this version was skipped
-  const state = loadState() ?? {};
-  if (state.skippedVersion === latestVersion) {
-    return { action: null, latestVersion };
-  }
-
-  // 5. Record check time and prompt
-  const timestamp = now();
-  saveState({
-    ...state,
-    lastCheckedAt: timestamp,
-    lastPromptedVersion: latestVersion,
+export function createServerUpdateCoordinator(deps: CheckServerUpdateDeps): ServerUpdateCoordinator {
+  return new ServerUpdateCoordinator({
+    prompt: deps.prompt,
+    getLatest: deps.getLatest ?? defaultGetLatest,
+    spawnInstall: deps.spawnInstall ?? defaultSpawnInstall,
+    loadState: deps.loadState ?? loadUpdateState,
+    saveState: deps.saveState ?? saveUpdateState,
+    now: deps.now ?? defaultNow,
+    isDevMode: isUpdateDevMode,
   });
+}
 
-  const choice = await deps.prompt.ask({ latestVersion });
-
-  // 6. Dispatch user choice
-  if (choice === 'apply') {
-    saveState({
-      ...state,
-      skippedVersion: undefined,
-      lastCheckedAt: timestamp,
-      lastPromptedVersion: latestVersion,
-    });
-    spawnInstall();
-    return { action: 'apply', latestVersion };
-  }
-
-  if (choice === 'skip') {
-    saveState({
-      ...state,
-      skippedVersion: latestVersion,
-      lastCheckedAt: timestamp,
-      lastPromptedVersion: latestVersion,
-    });
-    return { action: 'skip', latestVersion };
-  }
-
-  // cancel / null: no state mutation beyond what was already saved
-  return { action: choice, latestVersion };
+/** Compatibility for callers that need the final choice. App timers/API share a coordinator. */
+export function checkServerUpdate(deps: CheckServerUpdateDeps): Promise<CheckServerUpdateResult> {
+  return createServerUpdateCoordinator(deps).checkAndWait();
 }

@@ -6,6 +6,8 @@ import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type { ProviderUsage, UsageBilling, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { ServerUpdateStatus } from '@domain/system/update-ui-state.js';
+import type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
+export type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
 export type { ServerUpdateState, ServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type { EventBus } from '@events/index.js';
 import type { SessionStateReader } from '@core/session-state.js';
@@ -2337,6 +2339,7 @@ export type SystemUpdateStatusParams = Record<string, never>;
 
 export type SystemUpdateStatus = ServerUpdateStatus;
 
+export type SystemCheckUpdateArgs = Record<string, never>;
 export type SystemApplyUpdateArgs = Record<string, never>;
 export type SystemSkipUpdateArgs = Record<string, never>;
 
@@ -2661,6 +2664,7 @@ export interface MutateArgsMap {
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
   'system.refreshUsage': SystemRefreshUsageArgs;
+  'system.checkUpdate': SystemCheckUpdateArgs;
   'system.applyUpdate': SystemApplyUpdateArgs;
   'system.skipUpdate': SystemSkipUpdateArgs;
 }
@@ -2740,6 +2744,7 @@ export interface MutateReturnMap {
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
   'system.refreshUsage': SystemRefreshUsageReturn;
+  'system.checkUpdate': SystemUpdateCheckResult;
   'system.applyUpdate': SystemUpdateDecisionReturn;
   'system.skipUpdate': SystemUpdateDecisionReturn;
 }
@@ -2760,6 +2765,8 @@ export interface UiService {
 // ── Deps ──────────────────────────────────────────────────────────
 
 export interface UiServiceDeps {
+  /** Shared with background timers; bounded discovery, never waits for update consent. */
+  checkServerUpdate?: () => Promise<SystemUpdateCheckResult>;
   /** Optional seams for deterministic authentication dispatch tests. */
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;

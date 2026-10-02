@@ -90,6 +90,7 @@ export {
   systemClearRateLimitInput,
   systemRefreshUsageInput,
   systemUpdateStatusInput,
+  systemCheckUpdateInput,
   systemApplyUpdateInput,
   systemSkipUpdateInput,
   sessionsAnswerQuestionInput,

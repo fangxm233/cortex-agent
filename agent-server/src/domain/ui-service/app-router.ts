@@ -113,6 +113,7 @@ import {
   systemClearRateLimitInput,
   systemRefreshUsageInput,
   systemUpdateStatusInput,
+  systemCheckUpdateInput,
   systemApplyUpdateInput,
   systemSkipUpdateInput,
 } from './input-schemas.js';
@@ -375,6 +376,7 @@ function systemRouter(service: UiService) {
     clearRateLimit: makeMutation(service, 'system.clearRateLimit', systemClearRateLimitInput),
     refreshUsage: makeMutation(service, 'system.refreshUsage', systemRefreshUsageInput),
     updateStatus: makeQuery(service, 'system.updateStatus', systemUpdateStatusInput),
+    checkUpdate: makeMutation(service, 'system.checkUpdate', systemCheckUpdateInput),
     applyUpdate: makeMutation(service, 'system.applyUpdate', systemApplyUpdateInput),
     skipUpdate: makeMutation(service, 'system.skipUpdate', systemSkipUpdateInput),
   });

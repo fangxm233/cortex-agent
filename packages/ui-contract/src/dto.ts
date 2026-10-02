@@ -314,6 +314,8 @@ export type {
   ServerUpdateStatus,
   SystemUpdateStatusParams,
   SystemUpdateStatus,
+  SystemCheckUpdateArgs,
+  SystemUpdateCheckResult,
   SystemApplyUpdateArgs,
   SystemSkipUpdateArgs,
   SystemUpdateDecisionReturn,

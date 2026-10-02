@@ -108,6 +108,7 @@ import {
   handleSystemRestart,
   handleSystemClearRateLimit,
   handleSystemRefreshUsage,
+  handleSystemCheckUpdate,
   handleSystemApplyUpdate,
   handleSystemSkipUpdate,
 } from './mutate/system.js';
@@ -247,6 +248,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
   'system.refreshUsage': (_deps, args) => handleSystemRefreshUsage(args),
+  'system.checkUpdate': handleSystemCheckUpdate,
   'system.applyUpdate': (_deps, args) => handleSystemApplyUpdate(args),
   'system.skipUpdate': (_deps, args) => handleSystemSkipUpdate(args),
 };

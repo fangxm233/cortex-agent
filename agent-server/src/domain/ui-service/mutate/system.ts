@@ -13,6 +13,9 @@ import { isProcessAlive } from '@core/singleton-lock.js';
 import { readPidFile } from '../query/system.js';
 import type {
   Result,
+  UiServiceDeps,
+  SystemCheckUpdateArgs,
+  SystemUpdateCheckResult,
   SystemClearRateLimitArgs,
   SystemClearRateLimitReturn,
   SystemRefreshUsageArgs,
@@ -120,9 +123,21 @@ export async function handleSystemRestart(
   }
 }
 
+export async function handleSystemCheckUpdate(
+  deps: UiServiceDeps,
+  _args: SystemCheckUpdateArgs,
+): Promise<Result<SystemUpdateCheckResult>> {
+  const failed: SystemUpdateCheckResult = { status: 'error', reason: 'check_failed' };
+  try {
+    return { ok: true, data: await deps.checkServerUpdate?.() ?? failed };
+  } catch {
+    return { ok: true, data: failed };
+  }
+}
+
 // ── server self-update decisions ────────────────────────────────
 // Both resolve the `ask()` the dialog is waiting on (domain/system/update-ui-state.ts). The
-// install itself, and the skipped-version bookkeeping, stay in checkServerUpdate — these
+// install itself, and the skipped-version bookkeeping, stay in the shared coordinator — these
 // handlers only deliver the answer.
 
 export async function handleSystemApplyUpdate(
