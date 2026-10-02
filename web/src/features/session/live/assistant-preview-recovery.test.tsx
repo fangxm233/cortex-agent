@@ -29,7 +29,10 @@ vi.mock('@/lib/trpc', () => {
   return { useTRPC: () => trpc, useTRPCClient: () => client };
 });
 vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: h.invalidateQueries }),
+  useQueryClient: () => ({
+    invalidateQueries: h.invalidateQueries,
+    getQueryCache: () => ({ findAll: () => [] }),
+  }),
 }));
 vi.mock('@/features/live/LiveEventsProvider', () => ({
   useLiveConnection: () => ({ reconnectEpoch: 0 }),
