@@ -15,7 +15,7 @@ vi.mock('@/i18n', async (importOriginal) => {
       stNavAdvanced: 'Advanced', connConnected: 'Connected', connConnecting: 'Connecting',
       connReconnecting: 'Reconnecting', connDisconnected: 'Disconnected',
       accountsConnectedMark: 'connected', accountsDisconnected: 'disconnected',
-      accountsPiSummary: 'PI {count}',
+      accountsPiSummary: 'PI {count}', mHelpUpdates: 'Check for updates', updateCheckBusy: 'Checking for updates…',
     }),
   };
 });
@@ -33,12 +33,27 @@ function renderSettings(overrides: Partial<Parameters<typeof MSettingsView>[0]> 
     <MSettingsView
       vm={vm} copy={copy} onBack={() => {}} onOpenDaemon={() => {}}
       onlineMachines={2} connectionStatus="connected"
-      onOpenSection={() => {}} {...overrides}
+      onOpenSection={() => {}} checkingUpdates={false} onCheckUpdates={() => {}} {...overrides}
     />,
   );
 }
 
 describe('MSettingsView parity', () => {
+  it('exposes the shared manual check and disables it while checking', () => {
+    const onCheckUpdates = vi.fn();
+    const renderer = renderSettings({ onCheckUpdates });
+    const button = renderer.root.findByProps({ 'data-settings-updates': true });
+    expect(button.props.disabled).toBe(false);
+    expect(button.findAllByType('span')[0].children).toEqual(['Check for updates']);
+    act(() => button.props.onClick());
+    expect(onCheckUpdates).toHaveBeenCalledOnce();
+    renderer.unmount();
+    const busy = renderSettings({ checkingUpdates: true });
+    const busyButton = busy.root.findByProps({ 'data-settings-updates': true });
+    expect(busyButton.props.disabled).toBe(true);
+    expect(busyButton.findAllByType('span')[0].children).toEqual(['Checking for updates…']);
+    busy.unmount();
+  });
   it('routes real entries and leaves desktop-only authoring non-interactive', () => {
     const onOpenSection = vi.fn();
     const renderer = renderSettings({ onOpenSection });

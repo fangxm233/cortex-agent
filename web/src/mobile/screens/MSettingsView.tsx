@@ -26,6 +26,8 @@ interface MSettingsViewProps {
   onOpenDaemon: () => void;
   onlineMachines: number;
   connectionStatus: ConnectionStatus;
+  checkingUpdates: boolean;
+  onCheckUpdates: () => void;
   onOpenSection: (section: SettingsSectionKey) => void;
 }
 
@@ -135,6 +137,20 @@ function SettingsList(props: MSettingsViewProps) {
   );
 }
 
+function UpdateRow(props: Pick<MSettingsViewProps, 'checkingUpdates' | 'onCheckUpdates'>) {
+  const L = useVocab();
+  return (
+    <MCard padding={0}>
+      <button type="button" data-settings-updates disabled={props.checkingUpdates} onClick={props.onCheckUpdates}
+        style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
+          display: 'flex', alignItems: 'center', textAlign: 'left', opacity: props.checkingUpdates ? 0.6 : 1 }}>
+        <span style={TITLE}>{props.checkingUpdates ? L.updateCheckBusy : L.mHelpUpdates}</span>
+        <span style={{ marginLeft: 'auto', color: MC.faint }}>›</span>
+      </button>
+    </MCard>
+  );
+}
+
 function Footer({ copy }: { copy: MSettingsCopy }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 4px', font: `400 12px ${MONO}`, color: MC.faint }}>
@@ -155,6 +171,7 @@ export function MSettingsView(props: MSettingsViewProps) {
           onOpenDaemon={props.onOpenDaemon} /></MCard>
         <ProfileCard {...props} />
         <SettingsList {...props} />
+        <UpdateRow checkingUpdates={props.checkingUpdates} onCheckUpdates={props.onCheckUpdates} />
         <Footer copy={props.copy} />
       </MScrollBody>
     </MScreen>

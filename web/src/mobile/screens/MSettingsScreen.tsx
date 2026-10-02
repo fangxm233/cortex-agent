@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
+import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import type { SettingsSectionKey } from '@/features/settings/settings-nav';
 import { useLang } from '@/i18n';
@@ -39,9 +40,11 @@ export function MSettingsScreen() {
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const machines = useMachinesResource();
+  const updates = useManualUpdateCheck();
   const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT), [config.data]);
   return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
     onlineMachines={onlineMachineCount(machines.machines)}
+    checkingUpdates={updates.busy} onCheckUpdates={() => void updates.check()}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
     onOpenSection={(section) => navigate(SECTION_PATH[section])} />;
 }

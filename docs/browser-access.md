@@ -18,7 +18,7 @@ This page is the browser + deployment reference. For installing the native deskt
 
 ## Updates
 
-**Help → Check for updates** checks the connected server for a fresh release and compares the loaded page's production entry scripts and stylesheets with fresh, same-origin HTML fetched without using the browser cache. It does not call native app commands. Development pages and unsupported entry layouts report a skipped page check; network, authentication, and invalid-page responses report a failed check, not “up to date.”
+**Help → Check for updates** (or **Settings → Check for updates** in the mobile layout) checks the connected server for a fresh release and compares the loaded page's production entry scripts and stylesheets with fresh, same-origin HTML fetched without using the browser cache. It does not call native app commands. Development pages and unsupported entry layouts report a skipped page check; network, authentication, and invalid-page responses report a failed check, not “up to date.”
 
 Server prompts take priority and are visible on desktop and mobile browsers. **Update** authorizes server installation and a restart, which briefly interrupts the connection. **Later** hides the prompt; another manual check can reopen it. **Skip this version**, disabled server checks, and development-mode policies remain in effect.
 
