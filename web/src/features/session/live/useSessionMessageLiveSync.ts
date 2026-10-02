@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryFilters } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
@@ -113,18 +113,26 @@ export interface SessionLiveSyncOptions {
   todos?: TodoSnapshot | null;
 }
 
-async function invalidateSubagentTranscriptQuery(
+async function invalidateTranscriptQueryWithRecovery(
   queryClient: ReturnType<typeof useQueryClient>,
-  filter: ReturnType<ReturnType<typeof useTRPC>['sessions']['subagentTranscript']['queryFilter']>,
+  filter: QueryFilters,
 ): Promise<void> {
-  const state = queryClient.getQueryCache().find(filter)?.state;
-  const initialFetch = state?.status === 'pending' && state.fetchStatus === 'fetching';
+  const initialFetch = queryClient.getQueryCache().findAll(filter).some(({ state }) =>
+    state.status === 'pending' && state.fetchStatus === 'fetching');
   await queryClient.invalidateQueries(filter);
   // Query deduplicates invalidation against an in-flight FIRST fetch (no cached data).
   // That older response clears isInvalidated on success, swallowing the event. Follow it
-  // once with an authoritative read; concurrent hints share that read, and closed details
-  // remain inactive. Never combine query rows with the temporary live fallback.
+  // once with an authoritative read; concurrent hints share that read, and unmounted
+  // transcripts/closed details remain inactive. Never combine query rows with live fallback.
   if (initialFetch) await queryClient.invalidateQueries(filter, { cancelRefetch: false });
+}
+
+function invalidateTranscriptQuery(
+  queryClient: ReturnType<typeof useQueryClient>,
+  trpc: ReturnType<typeof useTRPC>,
+  sessionId: string,
+): void {
+  void invalidateTranscriptQueryWithRecovery(queryClient, trpc.sessions.transcript.queryFilter({ sessionId }));
 }
 
 export function invalidateActiveSubagentTranscriptQueries(
@@ -133,7 +141,7 @@ export function invalidateActiveSubagentTranscriptQueries(
   sessionId: string,
 ): void {
   for (const subagentId of activeSubagentTranscriptIds(sessionId)) {
-    void invalidateSubagentTranscriptQuery(queryClient, trpc.sessions.subagentTranscript.queryFilter({ sessionId, subagentId }));
+    void invalidateTranscriptQueryWithRecovery(queryClient, trpc.sessions.subagentTranscript.queryFilter({ sessionId, subagentId }));
   }
 }
 
@@ -238,7 +246,7 @@ export function useSessionMessageLiveSync(
   useEffect(() => {
     if (reconnectEpoch === 0 || !sessionId) return;
     queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-    queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+    invalidateTranscriptQuery(queryClient, trpc, sessionId);
     invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
   }, [reconnectEpoch, sessionId, queryClient, trpc]);
 
@@ -271,7 +279,7 @@ export function useSessionMessageLiveSync(
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         // Child lifecycle can change only in the runtime registry, with no transcript row.
         // Refetch its authority; parent running/idle must never stand in for child status.
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         // Same reasoning for the waitpoint rail: a waitpoint is armed mid-turn and emits no event
         // of its own, so the turn edge is the first moment we can know it exists. Without this the
         // rail stays invisible until something else happens to refetch.
@@ -306,7 +314,7 @@ export function useSessionMessageLiveSync(
         setLiveTail([]);
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, undefined));
         setPending([]);
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
@@ -314,7 +322,7 @@ export function useSessionMessageLiveSync(
       // Full prompt/tool results never ride SSE. This content-free hint fires only after the
       // DEBUG sidecar is durable, so the authoritative query can safely reveal the inspector data.
       if (raw.type === 'session.debug.updated') {
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
       }
@@ -322,7 +330,7 @@ export function useSessionMessageLiveSync(
       // events are hints, queries are truth — refetch the transcript; every connected
       // client converges on the entity's current status (cards appear, resolve, gray out).
       if (raw.type === 'session.interaction') {
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
         return;
       }
@@ -330,7 +338,7 @@ export function useSessionMessageLiveSync(
       // Events are hints, queries are truth — the refetched transcript carries the folded action
       // log, and its row replaces the live-tail original via msgKey dedup.
       if (raw.type === 'session.decision') {
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         return;
       }
       // A message that was only QUEUED inside the backend has now been read by the model (or its
@@ -351,7 +359,7 @@ export function useSessionMessageLiveSync(
         }
         // Always refetch: another device may receive the commit without ever mounting the chat that
         // saw its pending event. The durable transcript is the convergence source in that case.
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         return;
       }
       // Live agent-turn delta — the real turn count that grows as the agent works.
@@ -384,7 +392,7 @@ export function useSessionMessageLiveSync(
         if (!duplicate) setPending([...pendingRef.current, entry]);
         // Phase one was persisted before this event, so snapshot readers and later devices can now
         // converge even if this mounted client disappears before delivery.
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         return;
       }
       const compactAuthority = transcript?.sessionId === sessionId && transcript.subagentSummaries !== undefined;
@@ -424,12 +432,12 @@ export function useSessionMessageLiveSync(
       }
       setLiveTail((prev) => appendLiveTail(prev, msg, compactAuthority));
       if (compactAuthority && p.subagentId) {
-        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
         invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
       }
       // Reconcile the authoritative history (finalized turns) — the tail de-dups against it.
-      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+      invalidateTranscriptQuery(queryClient, trpc, sessionId);
     },
     { sessionId },
   );
