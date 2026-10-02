@@ -1,13 +1,16 @@
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
-import type { Invocation, RunChildFn } from '@core/agents/subagent/types.js';
+import type { Invocation, RunChildFn, SubagentNotice } from '@core/agents/subagent/types.js';
 
 export interface BackgroundSubagentRequest {
   invocation: Invocation;
-  runChild: RunChildFn;
+  /** The host supplies one session-bound sink before any child starts. All notice producers
+   *  (native events, foreign events and terminal seals) must bind to it, never the parent runtime. */
+  bindNoticeSink(onNotice: (notice: SubagentNotice) => void): {
+    runChild: RunChildFn;
+    channel?: SubagentChannel;
+  };
   /** Original tool-call identity used by the runner and attribution channel, not the registry ID. */
   toolCallId: string;
-  /** Attribution sink for the children, already bound to this `agent` call. */
-  channel?: SubagentChannel;
   /** Owning Cortex session and its conduit — where the answer is delivered. */
   sessionId: string | null;
   conduit: string | undefined;

@@ -7,7 +7,7 @@ import {
 } from '@domain/agents/subagent/registry.js';
 import { startDaemonSubagentRun } from '@domain/agents/subagent/service.js';
 import { adoptForegroundRun, settleAdoptedRun } from './subagent-adopt.js';
-import { parentNoticeSink } from './subagent-attribution.js';
+import { backgroundNoticeSink, parentNoticeSink } from './subagent-attribution.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
@@ -84,9 +84,11 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
         cwd: typeof data.cwd === 'string' && data.cwd ? data.cwd : process.cwd(),
         parent,
         sessionId,
-        // Resolved once per run, at the moment the parent is provably mid-turn. A background run
-        // that outlives the turn simply stops being able to push; delivery takes over from there.
-        onNotice: parentNoticeSink(sessionId, parent.channel),
+        // Explicit background work never belongs to the parent's active run. Foreground calls
+        // retain live ingestion and the detached fallback used by adoption.
+        onNotice: background
+          ? backgroundNoticeSink(sessionId, parent.channel)
+          : parentNoticeSink(sessionId, parent.channel),
       };
       // A foreground run needs no hold and no delivery while its caller is there: that caller is
       // blocked on `wait`, which holds the turn open by itself, and the answer comes back as that

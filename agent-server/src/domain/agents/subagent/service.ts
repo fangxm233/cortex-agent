@@ -1,7 +1,7 @@
-import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
+import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { findRole, loadRoles } from '@core/agents/roles.js';
 import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
-import { subagentEndNotice } from '../../../agent-adapter/pi/child-events.js';
+import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import type { SubagentEndStatus } from '@core/agents/subagent/types.js';
 import { resolveInvocation } from '@core/agents/subagent/schema.js';
 import { startSubagentRun, trackSubagentChildren, type SubagentRunView } from './registry.js';

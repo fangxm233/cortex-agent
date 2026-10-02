@@ -6,6 +6,28 @@ export type SubagentMode = 'single' | 'parallel' | 'chain';
  *  subagent tasks, so one `subagent_end` event shape covers both sources. */
 export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
 
+/** Backend-neutral transcript notice. Producers keep their own block identity (Pi tool call or
+ *  MCP run ID); only rendered rows and the terminal seal cross this boundary, not token deltas. */
+export interface SubagentNotice {
+  ref: string;
+  type: string;
+  description: string;
+  /** Exact runtime prompt, when supplied by the producer (including chain substitution). */
+  prompt?: string;
+  model: string | null;
+  /** Absent means Pi for compatibility with the original native producer. */
+  backend?: Backend;
+  kind: 'tool_use' | 'tool_result' | 'assistant_text' | 'end';
+  /** Namespaced `${ref}:${childToolCallId}`; siblings number their tools independently. */
+  toolUseId?: string;
+  name?: string;
+  input?: unknown;
+  ok?: boolean;
+  content?: string;
+  text?: string;
+  status?: SubagentEndStatus;
+}
+
 export interface SubagentTask {
   description: string;
   prompt: string;
