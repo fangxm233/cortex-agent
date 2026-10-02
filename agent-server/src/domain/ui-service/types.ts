@@ -802,6 +802,8 @@ export interface SessionInfo {
   label: string | null;
   /** Optional for older fixtures/clients; sessions.list always supplies a boolean. */
   starred?: boolean;
+  /** Explicitly renamed labels take precedence over generated scheduled-run titles. */
+  labelRenamed?: boolean;
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;

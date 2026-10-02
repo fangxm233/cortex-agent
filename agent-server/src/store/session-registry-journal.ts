@@ -41,6 +41,7 @@ export interface SessionRecord {
   lastUsedAt: string;
   label: string | null;
   starred?: boolean;
+  labelRenamed?: boolean;
   profileName: string | null;
   /** The agent template this session runs as — its execution environment (prompt, tools, skills,
    *  rules), the twin of `profileName` on the model axis. Absent/null means the session follows its
@@ -508,6 +509,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     lastUsedAt: toStringValue(row?.lastUsedAt),
     label: toNullableString(row?.label),
     starred: toOptionalBoolean(row?.starred),
+    labelRenamed: toOptionalBoolean(row?.labelRenamed),
     profileName: toNullableString(row?.profileName),
     agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
@@ -606,6 +608,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   lastUsedAt: toStringValue,
   label: toNullableString,
   starred: toOptionalBoolean,
+  labelRenamed: toOptionalBoolean,
   profileName: toNullableString,
   agentName: toOptionalNullableString,
   backendSessionId: toOptionalNullableString,

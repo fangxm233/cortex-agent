@@ -26,7 +26,7 @@ test('metadata uses stable IDs, preserves activity and identity, and replays pat
   const before = await repo.getById('stable-id');
   assert.equal(before?.starred, undefined);
   await Promise.all([repo.setStarred('stable-id', true), repo.rename('stable-id', 'Manual title')]);
-  const expected = { ...before, starred: true, label: 'Manual title' };
+  const expected = { ...before, starred: true, label: 'Manual title', labelRenamed: true };
   assert.deepEqual(await repo.getById('stable-id'), expected);
   const replay = new SessionRegistryRepo(file);
   assert.deepEqual(await replay.getById('stable-id'), expected);

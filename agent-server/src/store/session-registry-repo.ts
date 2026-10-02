@@ -304,7 +304,7 @@ export class SessionRegistryRepo {
   }
 
   async rename(sessionId: string, label: string): Promise<Session | null> {
-    return this.updateById(sessionId, record => ({ ...record, label }));
+    return this.updateById(sessionId, record => ({ ...record, label, labelRenamed: true }));
   }
 
   /** First-message titles may fill a blank label, but must not replace a concurrent manual rename. */
