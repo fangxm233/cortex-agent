@@ -1,60 +1,106 @@
+import { useId } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import {
-  WAIT_RAIL_COPY,
-  waitRailViewModel,
-  type WaitRailBadge,
-  type WaitRailChromeCopy,
-  type WaitRailLanguage,
-  type WaitRailRow,
+  WAIT_RAIL_COPY, formatWaitClock, waitRailViewModel,
+  type WaitRailBadge, type WaitRailChromeCopy, type WaitRailLanguage,
+  type WaitRailRow, type WaitRailSignalRow, type WaitRailViewModel,
 } from './wait-rail-vm';
-import { collapseOnKeyDown, railSurface, useExpanded } from './rail-surface';
-
-const MONO = "'IBM Plex Mono',monospace";
-/** Bounded so a long list can never push the composer off screen; the list scrolls instead. */
-const EXPANDED_MAX_HEIGHT = '40vh';
-
-/**
- * The marker for "something is pending, but not on you". A hollow ring, never the amber filled dot:
- * amber is reserved across the whole UI for `awaitingInput`, which means the session is blocked on
- * the USER. Waiting for a machine deserves to be visible without competing with that.
- */
-function WaitDot(): JSX.Element {
-  return (
-    <span
-      style={{
-        width: 12, height: 12, borderRadius: '50%', flex: 'none', boxSizing: 'border-box',
-        border: '1.5px solid var(--proto-muted-3)', background: 'transparent',
-      }}
-    />
-  );
-}
+import { railSurface, useExpanded } from './rail-surface';
+import './wait-rail.css';
 
 function Badge({ badge }: { badge: WaitRailBadge }): JSX.Element {
-  const danger = badge.tone === 'danger';
+  return <span className="wait-rail-badge" data-tone={badge.tone} data-wait-badge={badge.key} title={badge.title}>{badge.text}</span>;
+}
+
+function SummaryMetrics({ row }: { row: WaitRailRow }): JSX.Element {
   return (
-    <span
-      title={badge.title}
-      data-wait-badge={badge.key}
-      style={{
-        font: `600 11px ${MONO}`,
-        padding: '1px 6px',
-        borderRadius: 'var(--r-pill)',
-        whiteSpace: 'nowrap',
-        color: danger ? 'var(--proto-danger)' : 'var(--proto-amber)',
-        background: danger ? 'var(--proto-danger-bg, transparent)' : 'transparent',
-        border: `1px solid ${danger ? 'var(--proto-danger)' : 'var(--proto-amber)'}`,
-      }}
-    >
-      {badge.text}
+    <span className="wait-rail-metrics">
+      <span className="wait-rail-received">{row.progress}</span>
+      {row.mailbox && <span>{row.mailbox}</span>}
+      <span className="wait-rail-ttl" data-urgent={row.urgent}>{row.ttl}</span>
     </span>
   );
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  ok: 'var(--proto-success)',
-  fail: 'var(--proto-danger)',
-  progress: 'var(--proto-muted)',
-};
+interface HeaderProps {
+  vm: WaitRailViewModel;
+  copy: WaitRailChromeCopy;
+  open: boolean;
+  toggle: () => void;
+  contentId: string;
+}
+
+function RailHeader({ vm, copy, open, toggle, contentId }: HeaderProps): JSX.Element {
+  const first = vm.rows[0];
+  const metrics = vm.rows.length === 1 ? [first.progress, first.mailbox, first.ttl].filter(Boolean).join(' · ') : '';
+  const label = [`${copy.title}: ${vm.headline}`, metrics].filter(Boolean).join(' · ');
+  return (
+    <button type="button" className="wait-rail-toggle" onClick={toggle}
+      aria-expanded={open} aria-controls={contentId} aria-label={label}>
+      <span className="wait-rail-ring" aria-hidden="true" />
+      <span className="wait-rail-heading">
+        <span className="wait-rail-title">{vm.headline}</span>
+        {vm.rows.length === 1 && <SummaryMetrics row={vm.rows[0]} />}
+      </span>
+      <span className="wait-rail-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+    </button>
+  );
+}
+
+function ReportTime({ timestamp }: { timestamp: number | null }): JSX.Element {
+  if (timestamp === null) return <span className="wait-rail-time">—</span>;
+  const iso = new Date(timestamp).toISOString();
+  return <time className="wait-rail-time" dateTime={iso} title={iso}>{formatWaitClock(timestamp)}</time>;
+}
+
+function MemberReports({ row, copy }: { row: WaitRailRow; copy: WaitRailChromeCopy }): JSX.Element {
+  if (row.members.length === 0) return <p className="wait-rail-empty">{copy.noSignals}</p>;
+  return (
+    <table className="wait-rail-members">
+      <caption>{row.history ? copy.history : copy.reports}</caption>
+      <colgroup><col /><col className="wait-rail-status-col" /><col className="wait-rail-time-col" /></colgroup>
+      <thead><tr><th scope="col">{copy.member}</th><th scope="col">{copy.status}</th><th scope="col">{copy.time}</th></tr></thead>
+      <tbody>{row.members.map((member) => (
+        <tr key={member.key}>
+          <th scope="row">{member.who || copy.anonymous}</th>
+          <td data-wait-status={member.status}>{copy.signalStatus[member.status]}</td>
+          <td><ReportTime timestamp={member.timestamp} /></td>
+        </tr>
+      ))}</tbody>
+    </table>
+  );
+}
+
+function RawSignal({ signal, copy }: { signal: WaitRailSignalRow; copy: WaitRailChromeCopy }): JSX.Element {
+  return (
+    <li className="wait-rail-signal">
+      <div className="wait-rail-signal-meta">
+        <time dateTime={new Date(signal.timestamp).toISOString()}>{new Date(signal.timestamp).toISOString()}</time>
+        <span data-wait-status={signal.status}>{copy.signalStatus[signal.status]}</span>
+        <span className="wait-rail-verbatim">{signal.who ?? copy.anonymous}</span>
+        <span className="wait-rail-verbatim">{signal.source}</span>
+      </div>
+      {signal.message !== null && <pre className="wait-rail-verbatim">{signal.message}</pre>}
+    </li>
+  );
+}
+
+function WaitDetails({ row, copy }: { row: WaitRailRow; copy: WaitRailChromeCopy }): JSX.Element {
+  return (
+    <div className="wait-rail-details">
+      <details>
+        <summary>{copy.intent}</summary>
+        <p className="wait-rail-verbatim">{row.intent}</p>
+      </details>
+      <details>
+        <summary>{copy.rawSignals}<span className="wait-rail-log-count">{row.signals.length}</span></summary>
+        <p className="wait-rail-note">{copy.externalNote}</p>
+        {row.signals.length === 0 && <p className="wait-rail-empty">{copy.noSignals}</p>}
+        <ol className="wait-rail-signals">{row.signals.map((signal) => <RawSignal key={signal.key} signal={signal} copy={copy} />)}</ol>
+      </details>
+    </div>
+  );
+}
 
 interface RowProps {
   row: WaitRailRow;
@@ -63,158 +109,67 @@ interface RowProps {
   cancelling: boolean;
 }
 
-function WaitRow({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
+function WaitBody({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
   return (
-    <div style={{ padding: '7px 0', borderTop: '1px solid var(--proto-line)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-        <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-          {row.label}
-        </span>
-        {row.progress && (
-          <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>{row.progress}</span>
-        )}
-        {row.mailbox && (
-          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', flex: 'none' }}>{row.mailbox}</span>
-        )}
-        <span style={{ marginLeft: 'auto', flex: 'none', font: `400 11px ${MONO}`, color: row.urgent ? 'var(--proto-amber)' : 'var(--proto-muted)' }}>
-          {row.ttl}
-        </span>
-        <button
-          type="button"
-          data-waitpoint-cancel={row.id}
-          disabled={cancelling}
-          onClick={(e) => { e.stopPropagation(); onCancel(row); }}
-          style={{
-            flex: 'none', border: 'none', background: 'transparent', padding: '0 2px',
-            font: `500 11px ${MONO}`, color: 'var(--proto-danger)',
-            cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.5 : 1,
-          }}
-        >
-          {copy.cancel}
-        </button>
-      </div>
-
-      {/* Agent-written, so it is shown as the explanation of why the session is waiting. */}
-      <div style={{ fontSize: 11.5, color: 'var(--proto-muted)', marginTop: 3, lineHeight: 1.45, overflowWrap: 'anywhere' }}>{row.intent}</div>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: row.badges.length || row.device || row.failFast ? 5 : 0 }}>
-        {row.device && (
-          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{row.device}</span>
-        )}
-        {row.failFast && (
-          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.failFast}</span>
-        )}
-        {row.badges.map((b) => <Badge key={b.key} badge={b} />)}
-      </div>
-
-      {/* Signal log. Everything here was written by a process outside Cortex: rendered as plain
-          text, never linkified, never interpreted — the same framing the wake notice uses. */}
-      {row.signals.length === 0 && (
-        <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)', marginTop: 4 }}>{copy.noSignals}</div>
-      )}
-      {row.signals.length > 0 && (
-        <div style={{ marginTop: 5 }}>
-          <div style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.externalNote}</div>
-          {row.signals.map((s) => (
-            <div key={s.key} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', font: `400 11px ${MONO}`, color: 'var(--proto-muted)', lineHeight: 1.6, minWidth: 0 }}>
-              <span style={{ flex: 'none' }}>{s.at}</span>
-              <span style={{ flex: 'none', color: STATUS_COLOR[s.status] ?? 'var(--proto-muted)' }}>{copy.signalStatus[s.status] ?? s.status}</span>
-              {s.who && <span style={{ flex: 'none' }}>{s.who}</span>}
-              <span style={{ flex: 'none', color: 'var(--proto-muted)' }}>{s.source}</span>
-              {s.message && (
-                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.message}</span>
-              )}
-            </div>
-          ))}
+    <div className="wait-rail-body">
+      <MemberReports row={row} copy={copy} />
+      <WaitDetails row={row} copy={copy} />
+      <footer className="wait-rail-footer">
+        <div className="wait-rail-context">
+          {row.device && <span>{row.device}</span>}
+          {row.failFast && <span>{copy.failFast}</span>}
         </div>
-      )}
+        <button type="button" className="wait-rail-cancel" data-waitpoint-cancel={row.id}
+          disabled={cancelling} onClick={() => onCancel(row)}>{copy.cancel}</button>
+      </footer>
     </div>
   );
 }
 
+function WaitRow({ open, multiple, ...props }: RowProps & { open: boolean; multiple: boolean }): JSX.Element {
+  const { row } = props;
+  return (
+    <section className="wait-rail-item" aria-label={row.label}>
+      {multiple && <div className="wait-rail-item-heading">
+        <span className="wait-rail-title">{row.label}</span><SummaryMetrics row={row} />
+      </div>}
+      {row.badges.length > 0 && <div className="wait-rail-alerts">
+        {row.badges.map((badge) => <Badge key={badge.key} badge={badge} />)}
+      </div>}
+      {open && <WaitBody {...props} />}
+    </section>
+  );
+}
+
 export interface WaitRailProps {
-  /** Only used to key the persisted expand/collapse state. */
+  /** Keys the session's persisted expand/collapse state. */
   sessionId: string;
   lang: WaitRailLanguage;
-  /** Armed waitpoints for this session. Fetched by the host (useSessionWaitpoints), passed in like
-   *  TodoRail's `todos`: a rail that fetched for itself would drag a tRPC route into every test
-   *  that mounts a composer. */
+  /** Armed waitpoints, fetched by the host via useSessionWaitpoints. */
   waitpoints: WaitpointInfo[];
   onCancel: (waitpointId: string) => void;
   cancelling?: boolean;
-  /** Hung over the scrolling transcript (mobile), so it takes the composer's frosted chrome. */
+  /** Mobile's frosted surface over the scrolling transcript. */
   floating?: boolean;
 }
 
-/**
- * What this session is waiting on from outside Cortex — waitpoints, in the sense of
- * docs/waitpoints.md. Sits beside TodoRail above the composer and, like it, renders nothing at all
- * when there is nothing pending.
- *
- * Only armed waitpoints appear. A waitpoint that fires or expires posts its own notice into the
- * transcript, so keeping it here too would tell the same story twice.
- */
 export function WaitRail({ sessionId, lang, waitpoints, onCancel, cancelling = false, floating = false }: WaitRailProps): JSX.Element | null {
   const [open, toggle] = useExpanded(`cortex.waitRailOpen.${sessionId}`);
+  const contentId = useId();
   const vm = waitRailViewModel(waitpoints, Date.now(), lang);
   if (!vm) return null;
   const copy = WAIT_RAIL_COPY[lang];
-
   const confirmCancel = (row: WaitRailRow): void => {
     if (cancelling) return;
-    if (!globalThis.confirm(copy.confirm(row.label))) return;
-    onCancel(row.id);
+    if (globalThis.confirm(copy.confirm(row.label))) onCancel(row.id);
   };
-
   return (
-    <div
-      data-wait-rail={open ? 'expanded' : 'collapsed'}
-      style={railSurface(floating)}
-    >
-      {!open && (
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={false}
-          aria-label={copy.title}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 29,
-            padding: '0 10px', background: 'transparent', border: 'none', cursor: 'pointer',
-            textAlign: 'left', font: 'inherit', color: 'inherit',
-          }}
-        >
-          <WaitDot />
-          <span
-            style={{
-              fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap',
-              overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
-            }}
-          >
-            {vm.headline}
-          </span>
-          <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 9, color: 'var(--proto-muted-2)' }}>▸</span>
-        </button>
-      )}
-      {open && (
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded
-          aria-label={copy.title}
-          onClick={toggle}
-          onKeyDown={collapseOnKeyDown(toggle)}
-          style={{ maxHeight: EXPANDED_MAX_HEIGHT, overflowY: 'auto', scrollbarGutter: 'stable', padding: '9px 12px 10px', cursor: 'pointer' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4 }}>
-            <WaitDot />
-            <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)' }}>{copy.title}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--proto-muted-2)' }}>▾</span>
-          </div>
-          {vm.rows.map((row) => (
-            <WaitRow key={row.id} row={row} copy={copy} onCancel={confirmCancel} cancelling={cancelling} />
-          ))}
-        </div>
-      )}
+    <div className="wait-rail" data-wait-rail={open ? 'expanded' : 'collapsed'} style={railSurface(floating)}>
+      <RailHeader vm={vm} copy={copy} open={open} toggle={toggle} contentId={contentId} />
+      <div className="wait-rail-items" id={contentId}>
+        {vm.rows.map((row) => <WaitRow key={row.id} row={row} copy={copy} open={open}
+          multiple={vm.rows.length > 1} onCancel={confirmCancel} cancelling={cancelling} />)}
+      </div>
     </div>
   );
 }

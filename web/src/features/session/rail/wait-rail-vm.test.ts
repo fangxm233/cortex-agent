@@ -25,32 +25,34 @@ describe('waitRailViewModel', () => {
 
   it('headlines the most urgent waitpoint (the server sends them expiry-first)', () => {
     const vm = waitRailViewModel([wp({ label: 'soon', expiresAt: T0 + 60_000 }), wp({ id: 'wp_2', label: 'later' })], T0, 'en');
-    expect(vm?.headline).toBe('waiting on 2 signals · soon · expires in 1m');
+    expect(vm?.headline).toBe('2 waiting items');
+    expect(vm?.rows.map((row) => row.label)).toEqual(['soon', 'later']);
   });
 
   it('uses the singular for one waitpoint', () => {
-    expect(waitRailViewModel([wp()], T0, 'en')?.headline).toBe('waiting on 1 signal · train-arm2 · expires in 3h');
+    expect(waitRailViewModel([wp()], T0, 'en')?.headline).toBe('train-arm2');
   });
 
   it('speaks Chinese', () => {
-    expect(waitRailViewModel([wp()], T0, 'zh')?.headline).toBe('等 1 个信号 · train-arm2 · 3小时后过期');
+    expect(waitRailViewModel([wp(), wp({ id: 'wp_2' })], T0, 'zh')?.headline).toBe('2 个等待项');
+    expect(waitRailViewModel([wp()], T0, 'zh')?.rows[0].progress).toBe('0/1 已回报');
   });
 
   // ── progress: the quorum rules that are easy to render as a lie ──────────────
 
-  it('shows no fraction for a single-signal waitpoint', () => {
-    expect(waitRailViewModel([wp()], T0, 'en')?.rows[0].progress).toBeNull();
+  it('shows the received fraction even for a single-signal waitpoint', () => {
+    expect(waitRailViewModel([wp()], T0, 'en')?.rows[0].progress).toBe('0/1 received');
   });
 
   it('shows a fraction once more than one report is required', () => {
     const vm = waitRailViewModel([wp({ quorum: { need: 3, got: 2, members: ['a', 'b', 'c'] } })], T0, 'en');
-    expect(vm?.rows[0].progress).toBe('2/3 reported');
+    expect(vm?.rows[0].progress).toBe('2/3 received');
   });
 
   it('reports anonymous reporters that outnumber the declared members', () => {
     // got counts reporter KEYS: three anonymous signals with members[] empty.
     const vm = waitRailViewModel([wp({ quorum: { need: 3, got: 3, members: [] } })], T0, 'en');
-    expect(vm?.rows[0].progress).toBe('3/3 reported');
+    expect(vm?.rows[0].progress).toBe('3/3 received');
   });
 
   it('marks fail-fast only when a fraction could otherwise look wrong', () => {
@@ -118,6 +120,58 @@ describe('waitRailViewModel', () => {
     expect(s.who).toBe('arm2');
     expect(s.message).toBe('epoch 3');
     expect(s.source).toBe('device:cluster');
+  });
+
+  it('builds rows only from registered members and actual signals, not message text', () => {
+    const row = waitRailViewModel([wp({
+      quorum: { need: 5, got: 1, members: ['a', 'b', 'a'] },
+      signals: [
+        { at: T0, status: 'progress', member: 'a', message: 'b failed, c done', source: 'http' },
+        { at: T0 + 1, status: 'fail', member: 'extra', message: null, source: 'http' },
+        { at: T0 + 2, status: 'progress', member: null, message: null, source: 'http' },
+      ],
+    })], T0, 'en')!.rows[0];
+    expect(row.members.map(({ who, status }) => [who, status])).toEqual([
+      ['a', 'progress'], ['b', 'pending'], ['extra', 'fail'], [null, 'progress'],
+    ]);
+    expect(row.progress).toBe('1/5 received');
+  });
+
+  it('keeps the latest terminal report for repeated members, without counting progress as receipt', () => {
+    const row = waitRailViewModel([wp({
+      quorum: { need: 3, got: 1, members: ['a'] },
+      signals: [
+        { at: T0, status: 'fail', member: 'a', message: null, source: 'http' },
+        { at: T0 + 1, status: 'ok', member: 'a', message: null, source: 'http' },
+        { at: T0 + 2, status: 'progress', member: 'a', message: null, source: 'http' },
+      ],
+    })], T0, 'en')!.rows[0];
+    expect(row.members).toHaveLength(1);
+    expect(row.members[0]).toMatchObject({ who: 'a', status: 'ok', timestamp: T0 + 1 });
+    expect(row.signals).toHaveLength(3);
+    expect(row.badges.find((badge) => badge.key === 'failure')?.text).toBe('1 failure signal');
+    expect(row.progress).toBe('1/3 received');
+  });
+
+  it('keeps each anonymous signal separate and preserves full timestamps and raw whitespace', () => {
+    const signals: WaitpointInfo['signals'] = ['ok', 'fail', 'progress'].map((status, index) => ({
+      at: T0 + index, status: status as 'ok' | 'fail' | 'progress', member: null,
+      message: '  <script>no markup</script>\nline two  ', source: 'http',
+    }));
+    const row = waitRailViewModel([wp({ signals })], T0, 'en')!.rows[0];
+    expect(row.members.map((member) => member.status)).toEqual(['ok', 'fail', 'progress']);
+    expect(row.signals.map((signal) => signal.timestamp)).toEqual(signals.map((signal) => signal.at));
+    expect(row.signals[0].message).toBe(signals[0].message);
+  });
+
+  it('labels mailbox results as history while taking the reset fraction from the server', () => {
+    const row = waitRailViewModel([wp({ maxSignals: 5, fires: 2,
+      signals: [{ at: T0, status: 'ok', member: 'a', message: null, source: 'http' }],
+    })], T0, 'en')!.rows[0];
+    expect(row.history).toBe(true);
+    expect(row.progress).toBe('0/1 received');
+    expect(row.members[0].status).toBe('ok');
+    expect(waitRailViewModel([wp()], T0, 'en')!.rows[0].history).toBe(false);
   });
 
   it('names the device a remote signal is expected from', () => {
