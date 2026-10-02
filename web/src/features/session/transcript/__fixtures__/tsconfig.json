@@ -1,0 +1,10 @@
+{
+  "extends": "../../../../../tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "*.tsx",
+    "../SubagentTranscriptDetail.live.test.tsx",
+    "../../live/useSessionMessageLiveSync.test.tsx",
+    "../../../../vite-env.d.ts"
+  ]
+}
