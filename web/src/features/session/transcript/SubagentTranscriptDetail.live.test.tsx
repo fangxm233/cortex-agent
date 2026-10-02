@@ -46,6 +46,14 @@ function expectCount(count: number) {
   expect(text(header())).toContain(`${count} tool call`);
 }
 
+async function completeChild() {
+  act(() => {
+    fixture.append(childMessage(4, { text: 'Final child prose.' }));
+    fixture.append(childMessage(5, { text: '', subagentEnded: 'completed' }));
+  });
+  await eventually(() => { expect(card().props.status).toBe('done'); expect(text(detail())).toContain('Final child prose.'); });
+}
+
 beforeEach(async () => { fixture = new BackgroundSubagentFixture(); await mount(); });
 afterEach(async () => {
   await act(async () => { renderer.unmount(); });
@@ -56,15 +64,14 @@ afterEach(async () => {
 describe('background child query/render convergence (controlled RPC, real shared UI)', () => {
   it('refreshes runtime-only summary status on session.status, never deriving it from parent running', async () => {
     expectIdle();
-    expect(card().props.status).toBe('running');
+    act(() => fixture.emit('session.status', { running: false }));
+    await eventually(() => expect(card().props.status).toBe('running'));
     act(() => { fixture.setStatus('completed'); fixture.emit('session.status', { running: false }); });
     await eventually(() => {
       expect(cachedSummary()?.status).toBe('completed');
       expect(card().props.status).toBe('done');
       expect(header().findAllByProps({ 'aria-label': 'running' })).toHaveLength(0);
     });
-    act(() => { fixture.setStatus('running'); fixture.emit('session.status', { running: false }); });
-    await eventually(() => expect(card().props.status).toBe('running'));
     expectIdle();
     expect(fixture.detailReads()).toBe(0);
   });
@@ -82,11 +89,7 @@ describe('background child query/render convergence (controlled RPC, real shared
     });
     expectIdle();
     expect(header().props['aria-expanded']).toBe(true);
-    act(() => {
-      fixture.append(childMessage(4, { text: 'Final child prose.' }));
-      fixture.append(childMessage(5, { text: '', subagentEnded: 'completed' }));
-    });
-    await eventually(() => { expect(card().props.status).toBe('done'); expect(text(detail())).toContain('Final child prose.'); });
+    await completeChild();
     // Replayed SSE and the fetched snapshot coexist. Neither rows nor tool count may double.
     act(() => { fixture.messageEvent(tool); fixture.messageEvent(prose); });
     await eventually(() => {
@@ -152,6 +155,38 @@ describe('background child query/render convergence (controlled RPC, real shared
       expect(text(detail())).toContain('Arrived during first fetch.');
       expect(text(detail()).split('Arrived during first fetch.')).toHaveLength(2);
     });
+  });
+
+  it('coalesces hints during the first fetch into one follow-up read', async () => {
+    fixture.holdNextDetail();
+    await toggle();
+    act(() => {
+      fixture.append(childMessage(2, { type: 'tool', toolName: 'Grep', toolInput: 'pending-pattern' }));
+      fixture.append(childMessage(3, { text: 'Burst during first fetch.' }));
+      fixture.append(childMessage(4, { text: '', subagentEnded: 'completed' }));
+      fixture.emit('session.debug.updated');
+    });
+    await act(async () => { fixture.releaseFirstDetail(); });
+    await eventually(() => {
+      expect(cachedDetail()?.messages).toHaveLength(4);
+      expectCount(2);
+      expect(card().props.status).toBe('done');
+      expect(text(detail())).toContain('Burst during first fetch.');
+    });
+    expect(fixture.detailReads()).toBe(2);
+  });
+
+  it('does not refetch a detail closed before its pending fetch finishes', async () => {
+    fixture.holdNextDetail();
+    await toggle();
+    act(() => fixture.append(childMessage(2, { text: 'Close during first fetch.' })));
+    await toggle();
+    await act(async () => { fixture.releaseFirstDetail(); });
+    await eventually(() => expect(cachedDetail()?.messages).toHaveLength(1));
+    expect(fixture.detailReads()).toBe(1);
+    await toggle();
+    await eventually(() => expect(text(detail())).toContain('Close during first fetch.'));
+    expect(fixture.detailReads()).toBe(2);
   });
 
   it('refreshes DEBUG result data in the open detail on the content-free notification', async () => {

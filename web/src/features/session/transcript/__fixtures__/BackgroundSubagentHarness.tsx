@@ -109,13 +109,15 @@ export class BackgroundSubagentFixture {
   }
 }
 
-export function BackgroundTranscript(): JSX.Element {
-  const query = useTranscriptQuery(SESSION_ID);
-  const live = useSessionMessageLiveSync(SESSION_ID, false, false, { transcript: query.data });
-  const rows = buildTranscriptRows(query.data ?? { sessionId: SESSION_ID, turns: [] }, live.liveTail, { running: live.running });
+// For real-router verification, wrap this component with the normal QueryClient/TRPC/Live
+// providers and pass the synthetic backend sessionId. The fixture below replaces only RPC I/O.
+export function BackgroundTranscript({ sessionId = SESSION_ID }: { sessionId?: string }): JSX.Element {
+  const query = useTranscriptQuery(sessionId);
+  const live = useSessionMessageLiveSync(sessionId, false, false, { transcript: query.data });
+  const rows = buildTranscriptRows(query.data ?? { sessionId, turns: [] }, live.liveTail, { running: live.running });
   return <>
     <output data-testid="parent-running">{String(live.running)}</output>
-    <ChatRows rows={rows} streamKey={SESSION_ID} turnCopy={false} />
+    <ChatRows rows={rows} streamKey={sessionId} turnCopy={false} />
   </>;
 }
 
