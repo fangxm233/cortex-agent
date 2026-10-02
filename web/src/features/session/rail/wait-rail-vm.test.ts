@@ -25,7 +25,7 @@ describe('waitRailViewModel', () => {
 
   it('headlines the most urgent waitpoint (the server sends them expiry-first)', () => {
     const vm = waitRailViewModel([wp({ label: 'soon', expiresAt: T0 + 60_000 }), wp({ id: 'wp_2', label: 'later' })], T0, 'en');
-    expect(vm?.headline).toBe('2 waiting items');
+    expect(vm?.headline).toBe('2 waiting items · soon');
     expect(vm?.rows.map((row) => row.label)).toEqual(['soon', 'later']);
   });
 
@@ -34,7 +34,7 @@ describe('waitRailViewModel', () => {
   });
 
   it('speaks Chinese', () => {
-    expect(waitRailViewModel([wp(), wp({ id: 'wp_2' })], T0, 'zh')?.headline).toBe('2 个等待项');
+    expect(waitRailViewModel([wp(), wp({ id: 'wp_2' })], T0, 'zh')?.headline).toBe('2 个等待项 · train-arm2');
     expect(waitRailViewModel([wp()], T0, 'zh')?.rows[0].progress).toBe('0/1 已回报');
   });
 

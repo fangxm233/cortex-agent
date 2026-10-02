@@ -180,12 +180,24 @@ describe('WaitRail', () => {
   it('labels multiple waiting items and associates each visible exception with its item', () => {
     state.waitpoints = [wp(), wp({ id: 'wp_2', label: 'second', rateLimited: true })];
     const r = mount();
-    expect(r.root.findByType('button').props['aria-label']).toBe('Waiting on: 2 waiting items');
+    expect(r.root.findByType('button').props['aria-label']).toBe('Waiting on: 2 waiting items · train-arm2');
     const items = r.root.findAllByType('section');
-    expect(items.map((item) => item.props['aria-label'])).toEqual(['train-arm2', 'second']);
-    expect(items[0].findAllByProps({ 'data-wait-badge': 'rate-limit' })).toHaveLength(0);
-    expect(items[1].findByProps({ 'data-wait-badge': 'rate-limit' })).toBeTruthy();
+    expect(items.map((item) => item.props['aria-label'])).toEqual(['second']);
+    expect(items[0].findByProps({ 'data-wait-badge': 'rate-limit' })).toBeTruthy();
+    expect(r.root.findAllByProps({ className: 'wait-rail-metrics' })).toHaveLength(1);
+    act(() => r.root.findByType('button').props.onClick());
+    expect(r.root.findAllByType('section').map((item) => item.props['aria-label'])).toEqual(['train-arm2', 'second']);
     expect(r.root.findAllByProps({ className: 'wait-rail-metrics' })).toHaveLength(2);
+  });
+
+  it('keeps ordinary multiple waits in one collapsed summary', () => {
+    state.waitpoints = [wp(), wp({ id: 'wp_2', label: 'second' })];
+    const r = mount();
+    expect(r.root.findAllByType('section')).toHaveLength(0);
+    expect(r.root.findAllByType('button')).toHaveLength(1);
+    expect(r.root.findByProps({ className: 'wait-rail-title' }).props.title).toBe('2 waiting items · train-arm2');
+    act(() => r.root.findByType('button').props.onClick());
+    expect(r.root.findAllByType('section')).toHaveLength(2);
   });
 
   it('preserves raw text safely without interpreting markup or truncating messages', () => {

@@ -160,7 +160,7 @@ export function waitRailViewModel(
 ): WaitRailViewModel | null {
   if (waitpoints.length === 0) return null;
   const rows = waitpoints.map((wp) => toRow(wp, now, lang));
-  const headline = rows.length === 1 ? rows[0].label : COPY[lang].waitingN(rows.length);
+  const headline = rows.length === 1 ? rows[0].label : `${COPY[lang].waitingN(rows.length)} · ${rows[0].label}`;
   return { headline, rows };
 }
 

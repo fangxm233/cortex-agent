@@ -39,7 +39,7 @@ function RailHeader({ vm, copy, open, toggle, contentId }: HeaderProps): JSX.Ele
       aria-expanded={open} aria-controls={contentId} aria-label={label}>
       <span className="wait-rail-ring" aria-hidden="true" />
       <span className="wait-rail-heading">
-        <span className="wait-rail-title">{vm.headline}</span>
+        <span className="wait-rail-title" title={vm.headline}>{vm.headline}</span>
         {vm.rows.length === 1 && <SummaryMetrics row={vm.rows[0]} />}
       </span>
       <span className="wait-rail-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
@@ -126,12 +126,13 @@ function WaitBody({ row, copy, onCancel, cancelling }: RowProps): JSX.Element {
   );
 }
 
-function WaitRow({ open, multiple, ...props }: RowProps & { open: boolean; multiple: boolean }): JSX.Element {
+function WaitRow({ open, multiple, ...props }: RowProps & { open: boolean; multiple: boolean }): JSX.Element | null {
   const { row } = props;
+  if (!open && row.badges.length === 0) return null;
   return (
     <section className="wait-rail-item" aria-label={row.label}>
       {multiple && <div className="wait-rail-item-heading">
-        <span className="wait-rail-title">{row.label}</span><SummaryMetrics row={row} />
+        <span className="wait-rail-title" title={row.label}>{row.label}</span><SummaryMetrics row={row} />
       </div>}
       {row.badges.length > 0 && <div className="wait-rail-alerts">
         {row.badges.map((badge) => <Badge key={badge.key} badge={badge} />)}
