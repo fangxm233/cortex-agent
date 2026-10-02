@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AuthStatusSnapshot,
@@ -12,10 +12,10 @@ import { ThemeProvider } from '@/theme';
 
 vi.mock('@radix-ui/react-dialog', async importOriginal => ({
   ...await importOriginal<typeof import('@radix-ui/react-dialog')>(),
-  Root: ({ open, children }: any) => open ? <div data-settings-root>{children}</div> : null,
+  Root: ({ open, children, onOpenChange }: any) => open ? <div data-settings-root data-on-open-change={onOpenChange}>{children}</div> : null,
   Portal: ({ children }: any) => <>{children}</>,
   Overlay: () => <div />,
-  Content: ({ children }: any) => <div data-settings-dialog>{children}</div>,
+  Content: ({ children, ...props }: any) => <div data-settings-dialog {...props}>{children}</div>,
   Title: ({ children }: any) => <h1>{children}</h1>,
 }));
 
@@ -91,6 +91,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
 
 import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
 import { SettingsModal } from './SettingsModal';
+import { markSelectOutsideInteraction } from '@/design/select-outside-interaction';
 
 const snapshot: ConfigSnapshot = {
   budget: null,
@@ -146,6 +147,53 @@ function SettingsHarness() {
     </LangProvider>
   );
 }
+
+// Exercise Settings' actual Content callback; model only Radix's default-dismiss boundary.
+function dispatchSettingsOutside(renderer: ReactTestRenderer, originalEvent: Event): Event {
+  const outside = Object.assign(new Event('pointerDownOutside', { cancelable: true }), {
+    detail: { originalEvent },
+  });
+  act(() => {
+    renderer.root.findByProps({ 'data-settings-dialog': true }).props.onPointerDownOutside(outside);
+    if (!outside.defaultPrevented) {
+      renderer.root.findByProps({ 'data-settings-root': true }).props['data-on-open-change'](false);
+    }
+  });
+  return outside;
+}
+
+describe('Settings outside dismissal', () => {
+  it('guards the same Select gesture repeatedly but closes on the next independent one', () => {
+    const renderer = create(<SettingsHarness />);
+    const originalEvent = new Event('pointerdown', { cancelable: true });
+    markSelectOutsideInteraction({ detail: { originalEvent }, preventDefault: vi.fn() });
+    expect(dispatchSettingsOutside(renderer, originalEvent).defaultPrevented).toBe(true);
+    expect(dispatchSettingsOutside(renderer, originalEvent).defaultPrevented).toBe(true);
+    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(1);
+    expect(originalEvent.defaultPrevented).toBe(false);
+
+    expect(dispatchSettingsOutside(renderer, new Event('pointerdown')).defaultPrevented).toBe(false);
+    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('allows an ordinary outside gesture without a Select mark', () => {
+    const renderer = create(<SettingsHarness />);
+    expect(dispatchSettingsOutside(renderer, new Event('pointerdown')).defaultPrevented).toBe(false);
+    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('leaves Escape and right-click filtering to Radix', () => {
+    const renderer = create(<SettingsHarness />);
+    const content = renderer.root.findByProps({ 'data-settings-dialog': true });
+    expect(content.props.onEscapeKeyDown).toBeUndefined();
+    expect(content.props.onInteractOutside).toBeUndefined();
+    act(() => { renderer.root.findByProps({ 'data-settings-root': true }).props['data-on-open-change'](false); });
+    expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+});
 
 describe('desktop authentication settings entry', () => {
   it('closes Settings before opening the shared LoginFlow dialog', () => {

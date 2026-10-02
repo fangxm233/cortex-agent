@@ -6,6 +6,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
+import { preventSelectOutsideInteraction } from '@/design/select-outside-interaction';
 import { getSettingsNavGroups, getSectionTitle, type SettingsSectionKey } from './settings-nav';
 import { McpPanel } from '@/features/settings/panels/SettingsPanels';
 import { PlatformPanel } from '@/features/settings/panels/PlatformPanel';
@@ -132,7 +133,8 @@ export function SettingsModal({ open, onClose, initialSection = 'appearance' }: 
     <RadixDialog.Root open={open} onOpenChange={(next) => dialogOpenChanged(next, requestClose)}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay style={BACKDROP_STYLE} className="animate-cxfade motion-reduce:animate-none" />
-        <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="settings-surface settings-modal animate-cxmodal focus:outline-none motion-reduce:animate-none">
+        <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="settings-surface settings-modal animate-cxmodal focus:outline-none motion-reduce:animate-none"
+          onPointerDownOutside={preventSelectOutsideInteraction}>
           <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
           <OpenSettingsBody open={open} onClose={requestClose} panelDirty={dirty}
             onPanelDirtyChange={setDirty} initialSection={initialSection} />

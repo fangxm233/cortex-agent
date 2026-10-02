@@ -22,6 +22,7 @@ vi.mock('@radix-ui/react-select', () => {
 });
 
 import { Select, type SelectOption } from './Select';
+import { preventSelectOutsideInteraction } from './select-outside-interaction';
 
 function mount<T extends string | number>(
   value: T,
@@ -52,6 +53,26 @@ describe('Select', () => {
     expect(part(renderer, 'content').props.className).toContain('z-[100]');
     expect(part(renderer, 'content').props.className).toContain('[backdrop-filter:var(--glass-filter)]');
     expect(part(renderer, 'item').props.className).not.toContain('backdrop-filter');
+  });
+
+  it('marks outside pointerdown without preventing dropdown dismissal or native defaults', () => {
+    const renderer = mount('one', [{ value: 'one', label: 'One' }]);
+    const originalEvent = new Event('pointerdown', { cancelable: true });
+    const selectOutside = { detail: { originalEvent }, preventDefault: vi.fn() };
+    act(() => { part(renderer, 'content').props.onPointerDownOutside(selectOutside); });
+    expect(selectOutside.preventDefault).not.toHaveBeenCalled();
+    expect(originalEvent.defaultPrevented).toBe(false);
+    act(() => renderer.unmount());
+
+    const dialogOutside = { detail: { originalEvent }, preventDefault: vi.fn() };
+    preventSelectOutsideInteraction(dialogOutside);
+    expect(dialogOutside.preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it('leaves Escape and other outside-interaction callbacks to Radix', () => {
+    const renderer = mount('one', [{ value: 'one', label: 'One' }]);
+    expect(part(renderer, 'content').props.onEscapeKeyDown).toBeUndefined();
+    expect(part(renderer, 'content').props.onInteractOutside).toBeUndefined();
   });
 
   it('keeps bare triggers unstyled and caller inline styles authoritative', () => {

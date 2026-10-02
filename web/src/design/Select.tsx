@@ -1,5 +1,6 @@
 import * as RadixSelect from '@radix-ui/react-select';
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
+import { markSelectOutsideInteraction } from './select-outside-interaction';
 
 // Select 2.3.2 shares Dialog 1.1.18's dismissable-layer stack, so Escape closes only the top layer.
 // It also strips `className`/`style` off ItemText, so the popup row size lives on the Item instead —
@@ -125,7 +126,8 @@ function SelectPopup<T extends SelectValue>({ options, className = '' }: {
 }): JSX.Element {
   return (
     <RadixSelect.Portal>
-      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${CONTENT_CLASS} ${className}`} style={CONTENT_STYLE}>
+      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${CONTENT_CLASS} ${className}`} style={CONTENT_STYLE}
+        onPointerDownOutside={markSelectOutsideInteraction}>
         <RadixSelect.ScrollUpButton className="py-0.5g text-center text-proto-muted-3">▴</RadixSelect.ScrollUpButton>
         <RadixSelect.Viewport>
           {options.map((option, index) => (
