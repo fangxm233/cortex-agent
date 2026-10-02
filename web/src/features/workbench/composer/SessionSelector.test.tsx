@@ -166,23 +166,32 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
 
-  it.each(['model', 'thinking'])('replays directional motion entering and leaving %s', (pane) => {
+  it.each(['model', 'thinking', 'mode'])('animates only navigation entering and leaving %s', (pane) => {
     const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
     open(renderer);
     const shell = renderer.root.findByProps({ 'data-menu': 'selection' });
     const content = () => renderer.root.findByProps({ className: 'selection-pane' });
     const root = content();
     expect(root.props['data-pane']).toBe('root');
+    expect(root.props['data-motion']).toBeUndefined();
+    expect(shell.props.className).toBe('selection-menu');
+    expect(shell.props.style.minWidth).toBe(280);
+    expect(root.parent?.props.className).toBe('selection-pane-clip');
     drill(renderer, pane);
     const child = content();
     expect(child.props['data-pane']).toBe(pane);
+    expect(child.props['data-motion']).toBe('forward');
     expect(child).not.toBe(root);
     act(() => renderer.root.findByProps({ 'data-selection-back': 'true' }).props.onClick({ stopPropagation: vi.fn() }));
     expect(content().props['data-pane']).toBe('root');
+    expect(content().props['data-motion']).toBe('back');
     expect(content()).not.toBe(root);
     drill(renderer, pane);
     expect(content()).not.toBe(child);
     expect(renderer.root.findByProps({ 'data-menu': 'selection' })).toBe(shell);
+    open(renderer); // close, then reopen: initial content never slides
+    open(renderer);
+    expect(content().props['data-motion']).toBeUndefined();
     act(() => renderer.unmount());
   });
 

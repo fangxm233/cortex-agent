@@ -7,7 +7,7 @@ import type { SelectionSheetRow, SelectionSheetVM } from './m-chat-vm';
 // sheet DOES, so the chrome is stubbed exactly as MScheduleSheet's suite does.
 vi.mock('@/mobile/ui/kit', async () => ({
   ...(await vi.importActual<typeof import('@/mobile/ui/kit')>('@/mobile/ui/kit')),
-  MBottomSheet: ({ children }: any) => <div data-bottom-sheet>{children}</div>,
+  MBottomSheet: ({ children, animateHeight, onBack }: any) => <div data-bottom-sheet data-animate-height={animateHeight} data-back={onBack}>{children}</div>,
 }));
 
 const { AgentSheet, MoreMenu, SelectionSheet } = await import('./MChatSheets');
@@ -114,22 +114,30 @@ function renderSheet(pending = true) {
 }
 
 describe('SelectionSheet', () => {
-  it.each(['model', 'thinking'])('replays directional motion entering and leaving %s', (pane) => {
+  it.each(['model', 'thinking'])('animates only navigation entering and leaving %s', (pane) => {
     const { renderer, open } = renderSheet();
     const shell = renderer.root.findByProps({ 'data-bottom-sheet': true });
     const content = () => renderer.root.findByProps({ className: 'selection-pane' });
     const root = content();
     expect(root.props['data-pane']).toBe('root');
+    expect(root.props['data-motion']).toBeUndefined();
+    expect(shell.props['data-animate-height']).toBe(true);
+    expect(root.parent?.props.className).toBe('selection-pane-clip');
     open(pane);
     const child = content();
     expect(child.props['data-pane']).toBe(pane);
+    expect(child.props['data-motion']).toBe('forward');
     expect(child).not.toBe(root);
     act(() => renderer.root.findByProps({ 'data-selection-back': 'true' }).props.onClick());
     expect(content().props['data-pane']).toBe('root');
+    expect(content().props['data-motion']).toBe('back');
     expect(content()).not.toBe(root);
     open(pane);
     expect(content()).not.toBe(child);
     expect(renderer.root.findByProps({ 'data-bottom-sheet': true })).toBe(shell);
+    act(() => shell.props['data-back']());
+    expect(content().props['data-motion']).toBe('back');
+    expect(shell.props['data-back']).toBeUndefined();
     act(() => renderer.unmount());
   });
 
@@ -193,7 +201,8 @@ function renderAgentSheet() {
 
 describe('AgentSheet', () => {
   it('sends the agent that was tapped and closes behind it', () => {
-    const { onPick, onClose, tap } = renderAgentSheet();
+    const { renderer, onPick, onClose, tap } = renderAgentSheet();
+    expect(renderer.root.findByProps({ 'data-bottom-sheet': true }).props['data-animate-height']).toBeUndefined();
     tap('agent:nimbus');
     expect(onPick).toHaveBeenCalledWith(agentRows[1]);
     expect(onClose).toHaveBeenCalled();

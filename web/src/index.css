@@ -336,14 +336,40 @@ textarea::placeholder {
   outline-offset: -2px;
 }
 
-/* Keyed pane contents replay this on navigation; the glass shell stays still. */
-.selection-pane {
-  --selection-pane-offset: 12px;
-  animation: selection-pane-in 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+.selection-menu {
+  width: 280px;
 }
 
-.selection-pane[data-pane='root'] {
-  --selection-pane-offset: -12px;
+.selection-menu [data-menu-scroll] {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.selection-menu [data-selection-row] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-menu [data-selection-row][aria-pressed='true'] > span:last-child {
+  flex: none;
+}
+
+/* Natural bounds, not the translated child, define scrolling and height measurement. */
+.selection-pane-clip {
+  display: flow-root;
+  overflow: hidden;
+}
+
+/* Keyed content moves only on navigation; initial opening leaves the shell alone. */
+.selection-pane[data-motion] {
+  --selection-pane-offset: 8px;
+  animation: selection-pane-in 180ms ease-out backwards;
+}
+
+.selection-pane[data-motion='back'] {
+  --selection-pane-offset: -8px;
 }
 
 @keyframes selection-pane-in {

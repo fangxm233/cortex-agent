@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
+import { SelectionPane as PaneMotion } from '@/design/SelectionPane';
 import type {
   ModeOption, ModelOption, ProfileOption, SelectionRootRow, ThinkingOption,
 } from '@/features/session/list/selection-menu';
@@ -318,13 +319,13 @@ export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
   const { pane } = props;
 
   return (
-    <MenuCard kind="selection" level={pane}>
-      <div key={pane} className="selection-pane" data-pane={pane}>
+    <MenuCard kind="selection" level={pane} minWidth={280} className="selection-menu">
+      <PaneMotion pane={pane}>
         {pane === 'root' && <RootPane props={props} shared={shared} />}
         {pane === 'model' && <ModelPane props={props} shared={shared} />}
         {pane === 'thinking' && <ThinkingPane props={props} shared={shared} />}
         {pane === 'mode' && <ModePane props={props} shared={shared} />}
-      </div>
+      </PaneMotion>
     </MenuCard>
   );
 }

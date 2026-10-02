@@ -8,6 +8,7 @@ import type { SelectionRootRow } from '@/features/session/list/selection-menu';
 import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
+import { SelectionPane } from '@/design/SelectionPane';
 
 export function MoreMenu({ copy, onClose, onSessionId, onSessionStats, metadataItems }: {
   copy: MChatCopy;
@@ -195,54 +196,69 @@ function SectionRows({ section, copy, onPick }: {
  *  the wholesale move (it drops the overrides too), so that one closes the sheet.
  *  The rows come from `buildSelectionSheet`, which is the desktop menu's arithmetic; this file only
  *  draws them. */
-export function SelectionSheet({ vm, copy, pending, onClose, onPick }: {
+interface SelectionSheetProps {
   vm: SelectionSheetVM;
   copy: MChatCopy;
   /** PI is configured but has not reported its models yet. */
   pending?: boolean;
   onClose: () => void;
   onPick: (row: SelectionSheetRow) => void;
-}): JSX.Element {
-  const [pane, setPane] = useState<SelectionRootRow['key'] | null>(null);
-  const section = pane ? vm.sections.find((entry) => entry.key === pane) ?? null : null;
-  const back = (): void => setPane(null);
+}
 
+function SelectionSection({ section, copy, pending, back, onPick }: {
+  section: SelectionSheetSection;
+  back: () => void;
+} & Pick<SelectionSheetProps, 'copy' | 'pending' | 'onPick'>): JSX.Element {
   return (
-    <MBottomSheet onClose={onClose} onBack={section ? back : undefined}>
-      <div key={pane ?? 'root'} className="selection-pane" data-pane={pane ?? 'root'}>
-        {section ? (
-          <>
-            <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
-              <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
-              <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
-            </div>
-            <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
-            {section.key === 'model' && pending && <SheetNote text={copy.selectionPending} />}
-            {section.footer && <SheetNote text={section.footer} />}
-          </>
-        ) : (
-          <>
-            <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.profileSubtitle}</span></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-              {vm.sections[0] && (
-                <div>
-                  <SectionRows section={vm.sections[0]} copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
-                  {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
-                </div>
-              )}
-              <SheetCard>
-                {vm.rootRows.map((row, index) => (
-                  <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
-                ))}
-                {vm.clearRow && (
-                  <SelectionRow row={vm.clearRow} last copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
-                )}
-              </SheetCard>
-            </div>
-            <SheetNote text={copy.profileFooter} />
-          </>
-        )}
+    <>
+      <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
+        <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
       </div>
+      <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
+      {section.key === 'model' && pending && <SheetNote text={copy.selectionPending} />}
+      {section.footer && <SheetNote text={section.footer} />}
+    </>
+  );
+}
+
+function SelectionRoot({ vm, copy, onClose, onPick, setPane }: SelectionSheetProps & {
+  setPane: (pane: SelectionRootRow['key']) => void;
+}): JSX.Element {
+  const pick = (row: SelectionSheetRow): void => { onClose(); onPick(row); };
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted }}>{copy.profileSubtitle}</span></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+        {vm.sections[0] && (
+          <div>
+            <SectionRows section={vm.sections[0]} copy={copy} onPick={pick} />
+            {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
+          </div>
+        )}
+        <SheetCard>
+          {vm.rootRows.map((row, index) => (
+            <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
+          ))}
+          {vm.clearRow && <SelectionRow row={vm.clearRow} last copy={copy} onPick={pick} />}
+        </SheetCard>
+      </div>
+      <SheetNote text={copy.profileFooter} />
+    </>
+  );
+}
+
+export function SelectionSheet(props: SelectionSheetProps): JSX.Element {
+  const [pane, setPane] = useState<SelectionRootRow['key'] | null>(null);
+  const section = pane ? props.vm.sections.find((entry) => entry.key === pane) ?? null : null;
+  const back = (): void => setPane(null);
+  return (
+    <MBottomSheet onClose={props.onClose} onBack={section ? back : undefined} animateHeight>
+      <SelectionPane pane={pane ?? 'root'}>
+        {section
+          ? <SelectionSection section={section} back={back} {...props} />
+          : <SelectionRoot {...props} setPane={setPane} />}
+      </SelectionPane>
     </MBottomSheet>
   );
 }

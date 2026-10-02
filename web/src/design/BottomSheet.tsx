@@ -1,197 +1,181 @@
 // @ds-adherence-ignore -- sheet chrome extracted 1:1 from scheme-mobile.dc.html (raw px/hex by
 // design §8.3). Lives in design/ because both chromes use it: the mobile screens compose it through
 // mobile/ui/kit, and shared features (login, rate limit) render it on a narrow viewport.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useBackDismiss } from './use-back-dismiss';
 import { MobileOverlayPortal } from './mobile-overlay-host';
+import { useSheetHeight } from './use-sheet-height';
 
-// ── MBottomSheet — dimmed overlay + bottom sheet (scheme 1i/1p) ────────────────
-// Presents like a native iOS sheet: slides up on mount, fades the dim in, and the grab handle is a
-// live drag target — dragging down follows the finger and, past a distance/velocity threshold, flings
-// the sheet closed (otherwise it snaps back). Tapping the dim or flinging both run the same animated
-// close, so `onClose` fires only after the exit transition finishes (the parent unmounts us on that).
-const SHEET_MS = 300; // slide/fade duration (entrance, snap-back, and fling-out share it)
-const SHEET_EASE = 'cubic-bezier(.32,.72,0,1)'; // iOS-like decelerate
+const SHEET_MS = 300; // entrance, snap-back, and fling-out share this duration
+const SHEET_EASE = 'cubic-bezier(.32,.72,0,1)';
+type Phase = 'enter' | 'open' | 'exit';
+type Drag = { startY: number; lastY: number; lastT: number; v: number };
 
-/**
- * Should a released drag fling the sheet closed (vs snap back)? Pure so the dismiss threshold is
- * unit-testable without simulating pointer events. Closes when the sheet was dragged past ~28% of
- * its height, OR flicked down fast enough (velocity in px/ms) even if the distance is short.
- */
-export function shouldFlingClose(dragY: number, height: number, velocity: number): boolean {
-  return dragY > height * 0.28 || velocity > 0.55;
-}
-
-export function MBottomSheet({
-  onClose,
-  onBack,
-  children,
-  behind,
-  className,
-}: {
+interface BottomSheetProps {
   onClose: () => void;
   /** Hardware-back/Escape action for a nested level; dim/drag still close the whole sheet. */
   onBack?: () => void;
   children: ReactNode;
   /** The dimmed background screen shown behind the sheet. */
   behind?: ReactNode;
-  /** Scope classes for the sheet root: the sheet portals out of its screen, so ancestor classes
-   *  from where it was declared no longer reach it. */
+  /** Scope classes for the portaled sheet root. */
   className?: string;
-}) {
-  const sheetRef = useRef<HTMLDivElement | null>(null);
-  // Lifecycle: 'enter' (offscreen pre-paint) → 'open' (settled) → 'exit' (flung/tapped closed).
-  const [phase, setPhase] = useState<'enter' | 'open' | 'exit'>('enter');
-  const [dragY, setDragY] = useState(0); // px the sheet is dragged down (≥0), only while touching
-  const [dragging, setDragging] = useState(false);
-  const [hardwareBackEpoch, setHardwareBackEpoch] = useState(0);
-  const drag = useRef<{ startY: number; lastY: number; lastT: number; v: number } | null>(null);
-  const closed = useRef(false);
+  /** Opt in to natural content height transitions; other sheets keep their existing layout. */
+  animateHeight?: boolean;
+}
 
-  // Slide in: after the first paint at the offscreen position, flip to the settled position so the
-  // transition animates. Double rAF guarantees the browser painted the 'enter' frame first.
+/** Close past ~28% of the sheet height, or on a fast downward flick (px/ms). */
+export function shouldFlingClose(dragY: number, height: number, velocity: number): boolean {
+  return dragY > height * 0.28 || velocity > 0.55;
+}
+
+function useSheetEntrance(setPhase: (phase: Phase) => void): void {
   useEffect(() => {
+    // Double rAF paints the offscreen frame before starting the entrance transition.
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => setPhase('open'));
     });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  }, []);
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
+  }, [setPhase]);
+}
 
+function useSheetClose(onClose: () => void, setPhase: (phase: Phase) => void, setDragging: (value: boolean) => void) {
+  const closed = useRef(false);
   const close = useCallback(() => {
     if (closed.current) return;
     closed.current = true;
     setDragging(false);
     setPhase('exit');
     window.setTimeout(onClose, SHEET_MS);
-  }, [onClose]);
+  }, [onClose, setPhase, setDragging]);
+  return { close, closed };
+}
 
-  // Android/browser back retreats one nested level when supplied. That pop consumed this guard's
-  // sentinel without unmounting the sheet, so the epoch re-arms exactly then (ordinary in-sheet
-  // taps keep the existing sentinel and do not churn browser history).
+function useSheetBack(onBack: (() => void) | undefined, close: () => void): void {
+  const [hardwareBackEpoch, setHardwareBackEpoch] = useState(0);
+  // Only hardware back consumes the sentinel; ordinary in-sheet taps don't churn history.
   const onHardwareBack = useCallback(() => {
-    if (onBack) {
-      onBack();
-      setHardwareBackEpoch((value) => value + 1);
-    } else {
-      close();
-    }
+    if (!onBack) return close();
+    onBack();
+    setHardwareBackEpoch((value) => value + 1);
   }, [close, onBack]);
   useBackDismiss(onHardwareBack, hardwareBackEpoch);
-
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if (onBack) onBack();
-      else close();
+      (onBack ?? close)();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [close, onBack]);
+}
 
-  const onHandleDown = useCallback((e: React.PointerEvent) => {
+function moveDrag(drag: Drag | null, clientY: number, setDragY: (y: number) => void): void {
+  if (!drag) return;
+  const now = performance.now();
+  const dt = now - drag.lastT;
+  if (dt > 0) drag.v = (clientY - drag.lastY) / dt;
+  drag.lastY = clientY;
+  drag.lastT = now;
+  setDragY(Math.max(0, clientY - drag.startY));
+}
+
+function useSheetDrag(sheetRef: RefObject<HTMLDivElement>, closed: RefObject<boolean>, close: () => void, setDragging: (value: boolean) => void) {
+  const [dragY, setDragY] = useState(0);
+  const drag = useRef<Drag | null>(null);
+  const onPointerDown = useCallback((event: React.PointerEvent) => {
     if (closed.current) return;
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    const now = performance.now();
-    drag.current = { startY: e.clientY, lastY: e.clientY, lastT: now, v: 0 };
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    drag.current = { startY: event.clientY, lastY: event.clientY, lastT: performance.now(), v: 0 };
     setDragging(true);
-  }, []);
-
-  const onHandleMove = useCallback((e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    const now = performance.now();
-    const dy = Math.max(0, e.clientY - d.startY); // only downward drag moves the sheet
-    const dt = now - d.lastT;
-    if (dt > 0) d.v = (e.clientY - d.lastY) / dt; // px/ms, signed
-    d.lastY = e.clientY;
-    d.lastT = now;
-    setDragY(dy);
-  }, []);
-
-  const onHandleUp = useCallback(() => {
-    const d = drag.current;
+  }, [closed, setDragging]);
+  const onPointerMove = useCallback((event: React.PointerEvent) => moveDrag(drag.current, event.clientY, setDragY), []);
+  const onPointerUp = useCallback(() => {
+    const current = drag.current;
     drag.current = null;
     setDragging(false);
-    const height = sheetRef.current?.offsetHeight ?? 320;
-    if (shouldFlingClose(dragY, height, d?.v ?? 0)) close();
-    else setDragY(0); // snap back (transition re-enables since dragging is now false)
-  }, [dragY, close]);
+    if (shouldFlingClose(dragY, sheetRef.current?.offsetHeight ?? 320, current?.v ?? 0)) close();
+    else setDragY(0);
+  }, [dragY, sheetRef, close, setDragging]);
+  return { dragY, onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp };
+}
 
-  // Transform: fully offscreen while entering/exiting, else follow the drag (0 when settled).
+function useSheetMotion(props: BottomSheetProps, sheetRef: RefObject<HTMLDivElement>) {
+  const [phase, setPhase] = useState<Phase>('enter');
+  const [dragging, setDragging] = useState(false);
+  useSheetEntrance(setPhase);
+  const { close, closed } = useSheetClose(props.onClose, setPhase, setDragging);
+  useSheetBack(props.onBack, close);
+  const { dragY, ...handle } = useSheetDrag(sheetRef, closed, close, setDragging);
   const offscreen = phase === 'enter' || phase === 'exit';
   const translateY = offscreen ? '100%' : `${dragY}px`;
-  // Dim tracks the sheet: full while open, fades with drag distance and fully out on enter/exit.
-  const height = sheetRef.current?.offsetHeight ?? 1;
-  const dimOpacity = offscreen ? 0 : Math.max(0, 0.38 * (1 - dragY / height));
+  const dimOpacity = offscreen ? 0 : Math.max(0, 0.38 * (1 - dragY / (sheetRef.current?.offsetHeight ?? 1)));
+  return { close, handle, dragging, translateY, dimOpacity };
+}
 
+type SheetMotion = ReturnType<typeof useSheetMotion>;
+type SheetSize = ReturnType<typeof useSheetHeight>;
+
+const SHEET_STYLE: CSSProperties = {
+  position: 'absolute', left: 0, right: 0, bottom: 0,
+  // One backdrop sample for the settled sheet, never for its scrolling rows.
+  background: 'var(--material-overlay-bg)', backdropFilter: 'var(--glass-filter)', WebkitBackdropFilter: 'var(--glass-filter)',
+  borderRadius: 'var(--r-float) var(--r-float) 0 0', boxShadow: 'var(--material-overlay-shadow)',
+  padding: '8px 14px 36px', paddingBottom: 'calc(36px + env(safe-area-inset-bottom))', boxSizing: 'border-box',
+  maxHeight: 'calc(100% - max(12px, env(safe-area-inset-top)))',
+  display: 'flex', flexDirection: 'column', overflow: 'hidden', willChange: 'transform',
+};
+
+function SheetHandle({ motion, animateHeight }: { motion: SheetMotion; animateHeight?: boolean }): JSX.Element {
+  return (
+    <div {...motion.handle} style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none', flexShrink: animateHeight ? 0 : undefined }}>
+      <div style={{ width: 36, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
+    </div>
+  );
+}
+
+function SheetContent({ size, animateHeight, children }: { size: SheetSize; animateHeight?: boolean; children: ReactNode }): JSX.Element {
+  return (
+    <div ref={size.scrollRef} data-mobile-sheet-scroll="true" style={{
+      flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto',
+      scrollbarGutter: animateHeight ? 'stable' : undefined,
+      overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch',
+    }}>
+      {animateHeight ? <div ref={size.contentRef} data-mobile-sheet-content style={{ display: 'flow-root' }}>{children}</div> : children}
+    </div>
+  );
+}
+
+function SheetSurface({ size, motion, animateHeight, children }: { size: SheetSize; motion: SheetMotion; animateHeight?: boolean; children: ReactNode }): JSX.Element {
+  return (
+    <div ref={size.sheetRef} data-mobile-sheet style={{
+      ...SHEET_STYLE, height: size.height, transform: `translateY(${motion.translateY})`,
+      transition: motion.dragging ? 'none' : `transform ${SHEET_MS}ms ${SHEET_EASE}${animateHeight ? ', height 200ms ease-out' : ''}`,
+    }}>
+      <SheetHandle motion={motion} animateHeight={animateHeight} />
+      <SheetContent size={size} animateHeight={animateHeight}>{children}</SheetContent>
+    </div>
+  );
+}
+
+/** Dimmed overlay + bottom-anchored sheet. Dim and drag share the animated close. */
+export function MBottomSheet(props: BottomSheetProps): JSX.Element {
+  const { animateHeight = false, children, behind, className } = props;
+  const size = useSheetHeight(animateHeight, children);
+  const motion = useSheetMotion(props, size.sheetRef);
   return (
     <MobileOverlayPortal>
-      <div className={className} style={{ position: 'absolute', inset: 0, zIndex: 10, boxSizing: 'border-box', pointerEvents: 'auto' }}>
+      <div ref={size.hostRef} data-mobile-sheet-host className={className} style={{
+        position: 'absolute', inset: 0, zIndex: 10, boxSizing: 'border-box', pointerEvents: 'auto',
+        paddingTop: animateHeight ? 'max(12px, env(safe-area-inset-top))' : undefined,
+      }}>
         {behind && <div style={{ position: 'absolute', inset: 0 }}>{behind}</div>}
-        <div
-          onClick={close}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'var(--overlay-ink)',
-            opacity: dimOpacity,
-            transition: dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
-          }}
-        />
-        <div
-          ref={sheetRef}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // One backdrop sample for the settled sheet, never for its scrolling rows.
-            background: 'var(--material-overlay-bg)',
-            backdropFilter: 'var(--glass-filter)',
-            WebkitBackdropFilter: 'var(--glass-filter)',
-            borderRadius: 'var(--r-float) var(--r-float) 0 0',
-            boxShadow: 'var(--material-overlay-shadow)',
-            padding: '8px 14px 36px',
-            paddingBottom: 'calc(36px + env(safe-area-inset-bottom))',
-            boxSizing: 'border-box',
-            maxHeight: 'calc(100% - max(12px, env(safe-area-inset-top)))',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            transform: `translateY(${translateY})`,
-            transition: dragging ? 'none' : `transform ${SHEET_MS}ms ${SHEET_EASE}`,
-            willChange: 'transform',
-          }}
-        >
-          {/* grab handle — a live drag target (enlarged hit area) that flings the sheet closed */}
-          <div
-            onPointerDown={onHandleDown}
-            onPointerMove={onHandleMove}
-            onPointerUp={onHandleUp}
-            onPointerCancel={onHandleUp}
-            style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none' }}
-          >
-            <div style={{ width: 36, height: 5, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
-          </div>
-          <div
-            data-mobile-sheet-scroll="true"
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowX: 'hidden',
-              overflowY: 'auto',
-              overscrollBehavior: 'contain',
-              touchAction: 'pan-y',
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            {children}
-          </div>
-        </div>
+        <div onClick={motion.close} style={{
+          position: 'absolute', inset: 0, background: 'var(--overlay-ink)', opacity: motion.dimOpacity,
+          transition: motion.dragging ? 'none' : `opacity ${SHEET_MS}ms ${SHEET_EASE}`,
+        }} />
+        <SheetSurface size={size} motion={motion} animateHeight={animateHeight}>{children}</SheetSurface>
       </div>
     </MobileOverlayPortal>
   );

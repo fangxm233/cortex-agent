@@ -97,7 +97,7 @@ export function MenuRow({
 
 /** The card itself, anchored to its chip's `position: relative` box rather than to the viewport —
  *  the chip is inside a scrolling composer, and a fixed menu would part company with it. */
-export function MenuCard({ kind, level, minWidth = 244, placement = 'above', align = 'right', children }: {
+interface MenuCardProps {
   /** `data-menu` value — what tells one composer menu from another, in tests and in the DOM. */
   kind: string;
   /** `data-selection-level`, for a menu with levels. A flat list has none and draws no attribute. */
@@ -105,24 +105,20 @@ export function MenuCard({ kind, level, minWidth = 244, placement = 'above', ali
   minWidth?: number;
   placement?: 'above' | 'below';
   align?: 'left' | 'right';
+  className?: string;
   children: ReactNode;
-}): JSX.Element {
+}
+
+export function MenuCard({ kind, level, minWidth = 244, placement = 'above', align = 'right', className, children }: MenuCardProps): JSX.Element {
   return (
-    <div
-      data-menu={kind}
-      data-selection-level={level}
-      style={{
-        position: 'absolute',
-        ...(align === 'right' ? { right: 0 } : { left: 0 }),
-        ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
-        ...MENU_SURFACE,
-        border: '1px solid var(--proto-line)',
-        borderRadius: 'var(--r-card)',
-        zIndex: 59,
-        minWidth,
-        overflow: 'hidden',
-      }}
-    >
+    <div data-menu={kind} data-selection-level={level} className={className} style={{
+      position: 'absolute',
+      ...(align === 'right' ? { right: 0 } : { left: 0 }),
+      ...(placement === 'above' ? { bottom: 36 } : { top: 36 }),
+      ...MENU_SURFACE,
+      border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
+      zIndex: 59, minWidth, overflow: 'hidden',
+    }}>
       <div data-menu-scroll style={{ maxHeight: 420, overflowY: 'auto' }}>{children}</div>
     </div>
   );
