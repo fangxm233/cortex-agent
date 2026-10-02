@@ -211,7 +211,7 @@ export function Composer({
         ? { value: sessionCommission!.value, label: sessionCommission!.label }
         : { value: sessionCommission?.value ?? null, label: null, onChange: switchLiveCommission };
   const [composer, setComposer] = useState('');
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<Error | null>(null);
   const [slashErrorKey, setSlashErrorKey] = useState<ReturnType<typeof slashFeedbackKey>>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -407,7 +407,7 @@ export function Composer({
     if (restored.draftUploadId) draftUploadId.current = restored.draftUploadId;
     setComposer(restored.text);
     attachmentUploads.mergeRestored(sent.attachments);
-    setSendError(error.message);
+    setSendError(error);
   };
 
   const clearConsumedComposer = (): void => {

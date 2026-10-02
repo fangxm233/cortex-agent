@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
+import { TRPCClientError } from '@trpc/client';
+import { HttpTransportError } from '@/lib/http-transport';
+import { ComposerSendFailure } from '../composer/ComposerSendFailure';
+import { ComposerAttachmentChip } from '../composer/ComposerAttachmentChip';
+import { draftStorageKey, loadDraft, saveDraft } from '@/features/session/composer/composer-draft';
+import type { AttachmentMeta } from '@/features/attachments/types';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const harness = vi.hoisted(() => ({
@@ -266,6 +272,23 @@ function renderedUsers(renderer: ReactTestRenderer): string[] {
   return renderer.root.findAllByType('user-row' as any).map((row) => row.children.join(''));
 }
 
+const restoredAttachment: AttachmentMeta = {
+  name: 'notes.txt', path: 'attachments/upload-1/notes.txt', size: 10, mimeType: 'text/plain', type: 'file',
+};
+
+function seedAttachmentDraft(isDraft: boolean): string | null {
+  const values = new Map<string, string>();
+  vi.stubGlobal('window', { localStorage: {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  } });
+  harness.selection = selection(isDraft);
+  const key = draftStorageKey({ isDraft, sessionId: 's1', projectId: 'atlas' });
+  saveDraft(key, { text: 'saved text', attachments: [restoredAttachment], ...(isDraft ? { draftUploadId: 'upload-1' } : {}) });
+  return key;
+}
+
 let mounted: ReactTestRenderer | null = null;
 
 beforeEach(() => {
@@ -286,6 +309,7 @@ beforeEach(() => {
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+  vi.unstubAllGlobals();
 });
 
 describe('mounted optimistic sender wiring', () => {
@@ -343,7 +367,10 @@ describe('mounted optimistic sender wiring', () => {
     expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('');
   });
 
-  it('restores the mounted composer and shows failure after an unconfirmed rejection', async () => {
+  it.each([
+    new Error('offline'),
+    TRPCClientError.from(new HttpTransportError('connection', { status: 502 })),
+  ])('restores the mounted composer and retains an unconfirmed error: %s', async (error) => {
     const gate = deferred<{ accepted: boolean }>();
     harness.sendMutateAsync.mockReturnValue(gate.promise);
     mounted = mountCenterChat();
@@ -353,7 +380,7 @@ describe('mounted optimistic sender wiring', () => {
     expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('');
 
     await act(async () => {
-      gate.reject(new Error('offline'));
+      gate.reject(error);
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -361,7 +388,36 @@ describe('mounted optimistic sender wiring', () => {
     expect(renderedUsers(mounted)).toEqual([]);
     expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('restore this send');
     expect(JSON.stringify(mounted.toJSON())).toContain('data-send-error');
-    expect(JSON.stringify(mounted.toJSON())).toContain('offline');
+    expect(JSON.stringify(mounted.toJSON())).toContain(error.message);
+    expect(mounted.root.findByType(ComposerSendFailure).props.error).toBe(error);
+    expect(harness.sendMutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])('restores attachments and pending edits without resending (draft=%s)', async (isDraft) => {
+    const key = seedAttachmentDraft(isDraft);
+    const gate = deferred<never>();
+    const mutate = isDraft ? harness.createAndSendMutateAsync : harness.sendMutateAsync;
+    mutate.mockReturnValue(gate.promise);
+    const error = TRPCClientError.from(new HttpTransportError('connection', { status: 502 }));
+    mounted = mountCenterChat();
+    clickSend(mounted);
+    expect(mounted.root.findAllByType(ComposerAttachmentChip)).toHaveLength(0);
+    expect(loadDraft(key)).toBeNull();
+    typeComposer(mounted, 'pending edit');
+    await act(async () => { gate.reject(error); await Promise.resolve(); });
+    expect(renderedUsers(mounted)).toEqual([]);
+    expect(mounted.root.findByType(ComposerSendFailure).props.error).toBe(error);
+    expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('saved text\npending edit');
+    expect(mounted.root.findByType(ComposerAttachmentChip).props.attachment.meta).toEqual(restoredAttachment);
+    expect(loadDraft(key)).toEqual({
+      text: 'saved text\npending edit', attachments: [restoredAttachment], ...(isDraft ? { draftUploadId: 'upload-1' } : {}),
+    });
+    expect(mutate).toHaveBeenCalledOnce();
+    mutate.mockResolvedValue({ accepted: true, acceptedAt: new Date().toISOString(), ...(isDraft ? { sessionId: 's2' } : {}) });
+    await act(async () => { clickSend(mounted!); await Promise.resolve(); });
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(mutate.mock.calls[1][0]).toMatchObject({ text: 'saved text\npending edit', attachments: [restoredAttachment] });
+    expect(mounted.root.findAllByType(ComposerSendFailure)).toHaveLength(0);
   });
 
   it('keeps a create-and-send row through deferred promotion, ordinary live, and transcript authority', async () => {

@@ -1,7 +1,7 @@
 // Browser clients use same-origin /trpc; native apps use the configured server URL and
 // token. The subscription link supplies authentication through a fetch-based EventSource.
 
-import { credentialSafeFetch } from './sensitive-transport';
+import { httpTransportFetch } from './http-transport';
 import {
   createTRPCClient,
   httpBatchLink,
@@ -108,7 +108,7 @@ export function createTrpcClient(config?: RemoteConfig) {
         false: httpBatchLink({
           url,
           headers: () => headers,
-          fetch: credentialSafeFetch(config?.serverUrl),
+          fetch: httpTransportFetch(config?.serverUrl),
         }),
       }),
     ],
