@@ -4,7 +4,7 @@ import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../../../agent-adapter/capabilities.js';
 import type { Backend } from '../../../agent-adapter/types.js';
-import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
+import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';

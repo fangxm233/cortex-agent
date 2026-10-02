@@ -4,7 +4,7 @@ import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import { createTranscriptSink } from './transcript-sink.js';
 import { toRunEvent, type RunEvent, type RunPhase } from '../agent-adapter/run-events.js';
 import type { RunObserver } from '../domain/runs/request.js';
-import type { SubagentNotice } from '../agent-adapter/pi/event-parser.js';
+import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
 
 const log = createLogger('subagent-attribution');
@@ -58,7 +58,7 @@ function ingestTarget(exec: RunningExecution | null): IngestRun | null {
  * inside the parent's own `agent` call and the parent is therefore provably mid-turn; every notice
  * then re-resolves that same execution by key, so a process swapped in by a retry still receives
  * events. Once that turn is over the rows do not stop — they go straight to the transcript through
- * `detachedTranscriptWriter`, which writes the same shape the run's own sink would have.
+ * `backgroundNoticeSink`, which writes the same shape the run's own sink would have.
  *
  * Re-running `liveParent` per notice instead — what this did before — wedges the daemon. Once the
  * parent's turn ends, the channel fallback starts matching whatever single execution is still live
@@ -72,7 +72,7 @@ export function parentNoticeSink(
 ): ((notice: SubagentNotice) => void) | undefined {
   const parentKey = liveParent(sessionId, channel)?.registryKey;
   if (!parentKey || !ingestTarget(runRegistry.getById(parentKey))) return undefined;
-  const writeDetached = detachedTranscriptWriter(sessionId, channel);
+  const writeDetached = backgroundNoticeSink(sessionId, channel);
   return (notice: SubagentNotice): void => {
     const run = ingestTarget(runRegistry.getById(parentKey));
     if (!run) return writeDetached(notice);
@@ -105,10 +105,9 @@ function detachedSinkFor(sessionId: string, channel: string | undefined): RunObs
 }
 
 /**
- * Write a child's rows straight to the transcript, for the state where the live stream cannot
- * carry them: a backgrounded child outlives the turn that spawned it, so there is no run left to
- * push into — and the delivery turn, which would close its block at a user-turn boundary, does not
- * come until the child (or its slowest sibling) is done.
+ * The session-bound writer for both explicit background entry points, from spawn through end.
+ * Also used as the detached fallback for adopted foreground calls. It never looks up an active
+ * run: closing the parent runtime or opening another turn cannot redirect or drop these notices.
  *
  * It drives the SAME `createTranscriptSink` the live turn drives, fed by the same
  * `subagentNoticeEvents` → `toRunEvent` pair, so a row that lands after the turn closed is shaped
@@ -124,7 +123,7 @@ function detachedSinkFor(sessionId: string, channel: string | undefined): RunObs
  * 100% CPU accident described above: after the turn ends the one live execution left on the
  * channel is the background child itself, which would be handed its own events back forever.
  */
-function detachedTranscriptWriter(
+export function backgroundNoticeSink(
   sessionId: string | null, channel: string | undefined,
 ): (notice: SubagentNotice) => void {
   /** undefined = not built yet; null = nothing to write against (no session id). */

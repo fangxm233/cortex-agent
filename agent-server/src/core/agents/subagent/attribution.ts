@@ -1,6 +1,19 @@
 import type { NormalizedEvent, ToolUseSubagent } from '../../../agent-adapter/normalize/event-types.js';
 import { toCanonical } from '@core/tool-names.js';
-import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
+import type { Backend } from '@core/types/agent-types.js';
+import type { SubagentEndStatus, SubagentNotice, SubagentTask } from './types.js';
+
+/** The awaiting runner emits exactly one seal after the child's last row, including failures
+ *  before startup and cancellation. Parent turn boundaries are not child lifecycle signals. */
+export function subagentEndNotice(
+  ref: string,
+  task: Pick<SubagentTask, 'description' | 'subagent_type'>,
+  backend: Backend,
+  status: SubagentEndStatus,
+): SubagentNotice {
+  return { ref, type: task.subagent_type, description: task.description,
+    model: null, backend, kind: 'end', status };
+}
 
 /**
  * A child's tool name, spelled the way that child's own backend spells it.

@@ -2,7 +2,8 @@ import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '@core/tool-names.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
-import type { SubagentEndStatus } from '@core/agents/subagent/types.js';
+import type { SubagentNotice } from '@core/agents/subagent/types.js';
+export type { SubagentNotice } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 
@@ -23,38 +24,6 @@ interface PIAgentEndSummary extends PIPendingCompletion {
   outputReported: boolean;
   cacheReadReported: boolean;
   cacheWriteReported: boolean;
-}
-
-/** One event a PI subagent forwards for the parent's transcript. Only the kinds the transcript
- *  renders are carried; token deltas stay with the child. Three of them are rows the child
- *  produced; `end` is the child settling, which is a state correction rather than a row. */
-export interface SubagentNotice {
-  /** Block key — `${parentToolCallId}#${childIndex}`: one Agent call may run up to 8 children. */
-  ref: string;
-  /** Declared subagent type, from the task that spawned this child. */
-  type: string;
-  /** The task description, which reads far better than the prompt's opening fragment. */
-  description: string;
-  /** Exact runtime prompt, present only on the first forwarded event of a PI chain child. */
-  prompt?: string;
-  /** The model that answered, once the child has reported one; never guessed from the parent. */
-  model: string | null;
-  /** Which backend actually ran the child. Absent means `pi` — the only producer before children
-   *  could cross backends. Read when a name has to be spelled the way its own backend spells it. */
-  backend?: Backend;
-  kind: 'tool_use' | 'tool_result' | 'assistant_text' | 'end';
-  /** Namespaced `${ref}:${childToolCallId}`: parallel children number their calls independently. */
-  toolUseId?: string;
-  /** tool_use only. */
-  name?: string;
-  input?: unknown;
-  /** tool_result only. */
-  ok?: boolean;
-  content?: string;
-  /** assistant_text only. */
-  text?: string;
-  /** end only: how the child settled. */
-  status?: SubagentEndStatus;
 }
 
 export interface PIEventParserState {

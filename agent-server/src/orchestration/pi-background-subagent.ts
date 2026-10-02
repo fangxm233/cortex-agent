@@ -4,6 +4,7 @@ import type {
   BackgroundSubagentHandle, BackgroundSubagentRequest,
 } from '../agent-adapter/pi/background-subagent.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
+import { backgroundNoticeSink } from './subagent-attribution.js';
 
 /**
  * Start a PI `agent` call in the background.
@@ -19,6 +20,9 @@ import { startBackgroundSubagentRun } from './subagent-delivery.js';
 export async function startBackgroundSubagent(
   request: BackgroundSubagentRequest,
 ): Promise<BackgroundSubagentHandle> {
+  const { runChild, channel } = request.bindNoticeSink(
+    backgroundNoticeSink(request.sessionId, request.conduit),
+  );
   const view = startBackgroundSubagentRun(onSettled => startSubagentRun({
     invocation: request.invocation,
     sessionId: request.sessionId,
@@ -28,8 +32,8 @@ export async function startBackgroundSubagent(
     // registry's is the only one that can still stop these children.
     execute: async (signal, runId) => runInvocation(
       request.invocation,
-      trackSubagentChildren(runId, index => `${request.toolCallId}#${index}`, request.runChild),
-      signal, request.channel,
+      trackSubagentChildren(runId, index => `${request.toolCallId}#${index}`, runChild),
+      signal, channel,
     ),
   }), request.conduit);
   return { id: view.id };

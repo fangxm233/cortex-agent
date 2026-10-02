@@ -9,7 +9,7 @@ import {
 } from '@core/agents/subagent/catalog.js';
 import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
 import type {
-  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentEndStatus, SubagentResult,
+  Invocation, RunChildFn, SubagentDetails, SubagentEndStatus, SubagentResult,
   SubagentTask, SubagentUsage,
 } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
@@ -17,9 +17,10 @@ import type { ChildSessionFactory } from './child-session.js';
 import type {
   StartBackgroundSubagent, StopBackgroundSubagent,
 } from './background-subagent.js';
-import { subagentChannel, subagentEndNotice } from './child-events.js';
+import { subagentChannel } from './child-events.js';
+import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import { runPiChild } from './child-runner.js';
-import type { SubagentNotice } from './event-parser.js';
+import type { SubagentNotice } from '@core/agents/subagent/types.js';
 
 /** The field descriptions track the live catalog, so the schema is built per tool instead of being
  *  frozen at import time. */
@@ -149,50 +150,56 @@ function resolveBackend(task: SubagentTask, role: AgentRole): Backend {
   return task.backend ?? role.backend ?? 'pi';
 }
 
+/** Values needed by later chain links must survive SDK context disposal and model switches. */
+interface ChildContext {
+  cwd: string;
+  model: ReturnType<typeof fallbackModel>;
+}
+
 function buildRunChild(
-  ctx: ExtensionContext,
+  ctx: ChildContext,
   deps: SubagentToolDeps,
   roles: AgentRole[],
   parentToolCallId: string,
-) {
-  return async (
-    task: SubagentTask,
-    index: number,
-    signal: AbortSignal | undefined,
-    forward?: ChildEventForwarder,
-  ): Promise<SubagentResult> => {
+): RunChildFn {
+  return (task, index, signal, forward) => {
     const role = findRole(roles, task.subagent_type);
     const backend = resolveBackend(task, role);
     const ref = `${parentToolCallId}#${index}`;
-    // Seal the child's transcript block on settle — the only signal that a delegated child is
-    // over. Its own events say nothing about it (a PI child just stops forwarding), and the
-    // parent acting again proves nothing, so without this the block runs until the session idles.
-    const seal = (status: SubagentEndStatus): void => {
-      try { deps.onEvent?.(subagentEndNotice(ref, task, backend, status)); }
-      catch { /* attribution is best-effort; the run itself must not fail for it */ }
-    };
-    try {
-      const result = backend === 'pi'
-        ? await runPiChild({
-          task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
-          fallbackModel: fallbackModel(ctx), createSession: deps.createSession,
-          childExtensions: deps.childExtensions, signal, forward,
-        })
-        : await runForeignChild(ctx, deps, task, role, backend, ref, signal);
-      if (backend === 'pi') reportChildUsage(deps, result);
-      seal(signal?.aborted ? 'killed' : endStatusOf(result));
-      return result;
-    } catch (error) {
-      if (signal?.aborted) { seal('killed'); throw error; }
-      seal('failed');
-      return failedChildResult(task, error);
-    }
+    const execute = () => backend === 'pi'
+      ? runPiChild({
+        task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
+        fallbackModel: ctx.model, createSession: deps.createSession,
+        childExtensions: deps.childExtensions, signal, forward,
+      })
+      : runForeignChild(ctx, deps, task, role, backend, ref, signal);
+    return runAndSeal(deps, task, backend, ref, signal, execute);
   };
+}
+
+async function runAndSeal(
+  deps: SubagentToolDeps, task: SubagentTask, backend: Backend, ref: string,
+  signal: AbortSignal | undefined, execute: () => Promise<SubagentResult>,
+): Promise<SubagentResult> {
+  const seal = (status: SubagentEndStatus): void => {
+    try { deps.onEvent?.(subagentEndNotice(ref, task, backend, status)); }
+    catch { /* attribution is best-effort */ }
+  };
+  try {
+    const result = await execute();
+    if (backend === 'pi') reportChildUsage(deps, result);
+    seal(signal?.aborted ? 'killed' : endStatusOf(result));
+    return result;
+  } catch (error) {
+    seal(signal?.aborted ? 'killed' : 'failed');
+    if (signal?.aborted) throw error;
+    return failedChildResult(task, error);
+  }
 }
 
 /** A child on the other backend: same contract, run by the daemon rather than in this process. */
 function runForeignChild(
-  ctx: ExtensionContext,
+  ctx: ChildContext,
   deps: SubagentToolDeps,
   task: SubagentTask,
   role: AgentRole,
@@ -203,7 +210,7 @@ function runForeignChild(
   if (!deps.runForeignSubagent) {
     throw new Error(`Delegating to the ${backend} backend is unavailable in this session.`);
   }
-  const parent = fallbackModel(ctx);
+  const parent = ctx.model;
   return deps.runForeignSubagent({
     task, role, backend, cwd: ctx.cwd, ref,
     parent: {
@@ -223,13 +230,13 @@ function textResult(text: string): { content: Array<{ type: 'text'; text: string
  *
  * The tool call returns now, so nothing from this point on may depend on the call's own `signal`
  * (already aborting) or on `ctx` surviving — the child runner closes over the values it needs. The
- * attribution channel is still worth wiring: the parent's turn usually outlives the tool call, and
- * while it does the children's work streams into the transcript exactly as a foreground run's does.
+ * host binds a session-owned writer before constructing any runner/channel. Nothing is teed to
+ * the parent's runtime: all three notice producers use this invocation-local dependency copy.
  */
 async function startInBackground(
   deps: SubagentToolDeps,
   invocation: Invocation,
-  runChild: RunChildFn,
+  bindRunChild: (deps: SubagentToolDeps) => RunChildFn,
   toolCallId: string,
 ) {
   if (!deps.startBackgroundSubagent) {
@@ -237,9 +244,11 @@ async function startInBackground(
   }
   const { id } = await deps.startBackgroundSubagent({
     invocation,
-    runChild,
     toolCallId,
-    channel: subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
+    bindNoticeSink: onEvent => ({
+      runChild: bindRunChild({ ...deps, onEvent }),
+      channel: subagentChannel(toolCallId, onEvent, invocation.mode === 'chain'),
+    }),
     sessionId: deps.parentEnv.CORTEX_SESSION_ID || null,
     conduit: deps.parentEnv.SLACK_CHANNEL || deps.parentEnv.FEISHU_CHANNEL || undefined,
   });
@@ -265,13 +274,14 @@ export function createSubagentTool(
       const roles = loadRoles(deps.rolesDir);
       // Fail before any child starts if a role is missing: a half-run fan-out is worse than none.
       for (const task of invocation.tasks) findRole(roles, task.subagent_type);
-      const runChild = buildRunChild(ctx, deps, roles, toolCallId);
+      const context = { cwd: ctx.cwd, model: fallbackModel(ctx) };
+      const bindRunChild = (bound: SubagentToolDeps): RunChildFn => buildRunChild(context, bound, roles, toolCallId);
       if (params.run_in_background) {
-        return startInBackground(deps, invocation, runChild, toolCallId);
+        return startInBackground(deps, invocation, bindRunChild, toolCallId);
       }
       return runInvocation(
         invocation,
-        runChild,
+        bindRunChild(deps),
         signal,
         subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
       );
