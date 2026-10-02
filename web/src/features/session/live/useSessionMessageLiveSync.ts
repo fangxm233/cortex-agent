@@ -113,13 +113,27 @@ export interface SessionLiveSyncOptions {
   todos?: TodoSnapshot | null;
 }
 
+async function invalidateSubagentTranscriptQuery(
+  queryClient: ReturnType<typeof useQueryClient>,
+  filter: ReturnType<ReturnType<typeof useTRPC>['sessions']['subagentTranscript']['queryFilter']>,
+): Promise<void> {
+  const state = queryClient.getQueryCache().find(filter)?.state;
+  const initialFetch = state?.status === 'pending' && state.fetchStatus === 'fetching';
+  await queryClient.invalidateQueries(filter);
+  // Query deduplicates invalidation against an in-flight FIRST fetch (no cached data).
+  // That older response clears isInvalidated on success, swallowing the event. Follow it
+  // once with an authoritative read; concurrent hints share that read, and closed details
+  // remain inactive. Never combine query rows with the temporary live fallback.
+  if (initialFetch) await queryClient.invalidateQueries(filter, { cancelRefetch: false });
+}
+
 export function invalidateActiveSubagentTranscriptQueries(
   queryClient: ReturnType<typeof useQueryClient>,
   trpc: ReturnType<typeof useTRPC>,
   sessionId: string,
 ): void {
   for (const subagentId of activeSubagentTranscriptIds(sessionId)) {
-    queryClient.invalidateQueries(trpc.sessions.subagentTranscript.queryFilter({ sessionId, subagentId }));
+    void invalidateSubagentTranscriptQuery(queryClient, trpc.sessions.subagentTranscript.queryFilter({ sessionId, subagentId }));
   }
 }
 
@@ -255,6 +269,9 @@ export function useSessionMessageLiveSync(
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
         // edges so the left rail reflects the turn without waiting for a focus refetch.
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        // Child lifecycle can change only in the runtime registry, with no transcript row.
+        // Refetch its authority; parent running/idle must never stand in for child status.
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         // Same reasoning for the waitpoint rail: a waitpoint is armed mid-turn and emits no event
         // of its own, so the turn edge is the first moment we can know it exists. Without this the
         // rail stays invisible until something else happens to refetch.
