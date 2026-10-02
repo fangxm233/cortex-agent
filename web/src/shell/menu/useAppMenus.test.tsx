@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppMenus } from './useAppMenus';
 import type { MenuNode } from './menu-model';
 
+const server = vi.hoisted(() => ({ mutate: vi.fn().mockResolvedValue({ status: 'current' }) }));
+vi.mock('@/lib/trpc', () => ({ useTRPCClient: () => ({ system: { checkUpdate: server } }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('@/i18n', async () => {
   const { en } = await import('@/i18n/vocab');
@@ -47,15 +49,25 @@ describe('useAppMenus', () => {
     expect(updateItem().disabled).toBe(false);
     act(() => { staleAction(); staleAction(); });
     expect(updateItem().disabled).toBe(true);
+    await act(async () => {});
     expect(invoke).toHaveBeenCalledOnce();
     await act(async () => { finish({ ui: { status: 'current' }, shell: { status: 'current' } }); });
     expect(updateItem().disabled).toBe(false);
     expect(invoke.mock.calls).toEqual([['check_for_updates', undefined]]);
   });
 
-  it('keeps native update checks disabled in a browser', () => {
+  it('enables browser checks and disables stale actions while checking', async () => {
     vi.stubGlobal('__CORTEX_DESKTOP__', false);
     act(() => renderer.update(<Probe />));
+    expect(updateItem().disabled).toBe(false);
+    const invoke = vi.fn();
+    vi.stubGlobal('__TAURI__', { core: { invoke } });
+    const action = updateItem().run;
+    act(() => { action(); action(); });
     expect(updateItem().disabled).toBe(true);
+    expect(updateItem().label).toBe('Checking for updates…');
+    await act(async () => {});
+    expect(updateItem().disabled).toBe(false);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

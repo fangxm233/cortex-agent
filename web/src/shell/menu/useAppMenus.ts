@@ -171,7 +171,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         { kind: 'item', id: 'help.daemon', label: L.mHelpDaemon, run: modals.openDaemonStatus },
         {
           kind: 'item', id: 'help.updates', label: checkingUpdates ? L.updateCheckBusy : L.mHelpUpdates,
-          disabled: !native || checkingUpdates, run: () => void checkUpdates(),
+          disabled: checkingUpdates, run: () => void checkUpdates(),
         },
         { kind: 'item', id: 'help.devtools', label: L.mHelpDevTools, disabled: !native, run: windowActions.toggleDevTools },
         separator,

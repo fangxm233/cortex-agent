@@ -84,6 +84,18 @@ describe('useUpdatePrompt', () => {
     }));
   });
 
+  it('keeps downstream updates hidden after Later while the server still has priority', () => {
+    harness.server.status = { available: '2026.9.20', state: 'prompting' };
+    harness.server.visible = false;
+    harness.app.pending = { version: '2026.8.1', kind: 'apk', apply: 'prompt' };
+    harness.app.update = harness.app.pending;
+    harness.hot.staged = { version: 'frontend-b7e2' };
+    let renderer: ReturnType<typeof create>;
+    act(() => { renderer = create(<Probe />); });
+    expect(prompt).toBeNull();
+    act(() => renderer.unmount());
+  });
+
   it('keeps hot updates hidden while an app update is gated or dismissed', () => {
     harness.app.pending = { version: '2026.8.1', kind: 'apk', apply: 'prompt' };
     harness.hot.staged = { version: 'frontend-b7e2' };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useUpdateGating } from '@/lib/useUpdateGating';
+import { isNativeShell } from '@/lib/desktop-config';
 import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
 import {
   applyFrontendUpdate,
@@ -28,7 +29,7 @@ function useHotUpdateSource(dismissed: MutableRefObject<boolean>) {
     });
     void getStagedUpdate().then((update) => { if (update) accept(update); });
     const offManual = subscribeManualCheckResult<StagedUpdate>(({ ui }) => {
-      if (!ui.update) return;
+      if (!isNativeShell() || !ui.update) return;
       dismissed.current = false;
       setPending(ui.update);
     });

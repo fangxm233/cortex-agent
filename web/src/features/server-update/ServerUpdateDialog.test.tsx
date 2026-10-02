@@ -136,7 +136,7 @@ describe('localized update prompts', () => {
 
     expect(allText(renderer)).not.toMatch(/\p{Script=Han}/u);
     expect(allText(renderer)).toContain('Update available');
-    expect(allText(renderer)).toContain('Update to 2026.9.20?');
+    expect(allText(renderer)).toContain('Update the server to 2026.9.20?');
     expect(allText(renderer)).toContain('Restart to update');
     expect(allText(renderer)).toContain('Restart app');
     expect(allText(renderer)).toContain('Follow the system prompts to install.');

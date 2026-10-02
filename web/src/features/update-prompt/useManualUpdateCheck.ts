@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useToastOptional } from '@/design/Toast';
 import { useVocab } from '@/i18n';
+import { useTRPCClient } from '@/lib/trpc';
 import { checkForUpdates, getManualCheckBusy, subscribeManualCheck } from './manual-update-check';
 import { updateCheckFeedback } from './update-check-feedback';
 
 export function useManualUpdateCheck() {
   const L = useVocab();
+  const client = useTRPCClient();
   const toast = useToastOptional();
   const busy = useSyncExternalStore(subscribeManualCheck, getManualCheckBusy);
   const mounted = useRef(false);
@@ -21,11 +23,11 @@ export function useManualUpdateCheck() {
     if (getManualCheckBusy()) return;
     progress.current = toast?.toast({ title: L.updateCheckBusy,
       tone: 'running', duration: Infinity });
-    const report = await checkForUpdates();
+    const report = await checkForUpdates(() => client.system.checkUpdate.mutate({}));
     if (!mounted.current) return;
     if (progress.current) toast?.dismiss(progress.current);
     progress.current = undefined;
     updateCheckFeedback(report, L).forEach((feedback) => toast?.toast(feedback));
-  }, [L, toast]);
+  }, [L, toast, client]);
   return { busy, check };
 }

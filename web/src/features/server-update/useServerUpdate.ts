@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { subscribeManualCheckResult } from '@/lib/manual-update-check-result';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -25,11 +26,25 @@ export interface ServerUpdate {
   dismiss: () => void;
 }
 
-export function useServerUpdate(): ServerUpdate {
+function useManualServerResult(reopen: (value: null) => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  useEffect(() => subscribeManualCheckResult(({ server }) => {
+    if (!server) return;
+    if (server.status === 'available' && server.update) {
+      reopen(null);
+      const available = server.update.version;
+      queryClient.setQueryData(trpc.system.updateStatus.queryKey({}), (old) => {
+        if (old?.state === 'installing' || old?.state === 'restarting') return old;
+        return { available, state: 'prompting' as const };
+      });
+    }
+    void queryClient.invalidateQueries(trpc.system.updateStatus.queryFilter());
+  }), [trpc, queryClient, reopen]);
+}
 
+function useServerStatus(): SystemUpdateStatus {
+  const trpc = useTRPC();
   const query = useQuery({
     ...trpc.system.updateStatus.queryOptions({}),
     // The server restarts itself out from under this query; keep polling through the outage and
@@ -39,7 +54,12 @@ export function useServerUpdate(): ServerUpdate {
     retry: true,
   });
 
-  const status = query.data ?? IDLE;
+  return query.data ?? IDLE;
+}
+
+function useServerActions() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries(trpc.system.updateStatus.queryFilter());
   const applyMutation = useMutation(trpc.system.applyUpdate.mutationOptions({ onSettled: invalidate }));
   const skipMutation = useMutation(trpc.system.skipUpdate.mutationOptions({ onSettled: invalidate }));
@@ -48,14 +68,14 @@ export function useServerUpdate(): ServerUpdate {
 
   const apply = useCallback(() => { applyMutate({}); }, [applyMutate]);
   const skip = useCallback(() => { skipMutate({}); }, [skipMutate]);
-  const dismiss = useCallback(() => { setDismissed(status.available ?? ''); }, [status.available]);
+  return { apply, skip, busy: applyMutation.isPending || skipMutation.isPending };
+}
 
-  return {
-    status,
-    visible: serverUpdateVisible(status, dismissed),
-    busy: applyMutation.isPending || skipMutation.isPending,
-    apply,
-    skip,
-    dismiss,
-  };
+export function useServerUpdate(): ServerUpdate {
+  const status = useServerStatus();
+  const actions = useServerActions();
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  useManualServerResult(setDismissed);
+  const dismiss = useCallback(() => { setDismissed(status.available ?? ''); }, [status.available]);
+  return { status, visible: serverUpdateVisible(status, dismissed), ...actions, dismiss };
 }

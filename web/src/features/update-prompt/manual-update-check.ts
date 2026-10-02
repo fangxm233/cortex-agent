@@ -1,9 +1,12 @@
+import type { SystemUpdateCheckResult } from '@cortex-agent/ui-contract';
+import { isNativeShell } from '@/lib/desktop-config';
 import { isNativeCommandMissing, safeInvoke, type ChannelOutcome } from '@/lib/native-bridge';
+import { checkBrowserUpdate, type BrowserPageUpdate } from '@/features/hot-update/browser-update';
 import { publishManualCheckResult, type ManualCheckReport } from '@/lib/manual-update-check-result';
 import { parseAppUpdate, type AppUpdateInfo } from '@/features/app-update/app-update';
 import { parseStagedUpdate, type StagedUpdate } from '@/features/hot-update/frontend-update';
 
-export type UpdateCheckReport = ManualCheckReport<StagedUpdate, AppUpdateInfo>;
+export type UpdateCheckReport = ManualCheckReport<StagedUpdate | BrowserPageUpdate, AppUpdateInfo>;
 
 const listeners = new Set<() => void>();
 let inFlight: Promise<UpdateCheckReport> | null = null;
@@ -36,7 +39,7 @@ function parseChannel<T>(value: unknown, parse: (payload: unknown) => T | null):
     ...(channel.reason !== undefined ? { reason: channel.reason } : {}) };
 }
 
-async function requestReport(): Promise<UpdateCheckReport> {
+async function requestNativeReport(): Promise<UpdateCheckReport> {
   const result = await safeInvoke('check_for_updates');
   if (isNativeCommandMissing(result)) return failedReport('unsupported_shell');
   if (!result.ok) return failedReport('check_failed');
@@ -45,11 +48,34 @@ async function requestReport(): Promise<UpdateCheckReport> {
   return ui && shell ? { ui, shell } : failedReport('invalid_report');
 }
 
-/** One command across all menu consumers. Events may arrive before this report: the
- * existing prompt owner stays hidden until both channels have been reconciled. */
-export function checkForUpdates(): Promise<UpdateCheckReport> {
+async function requestFrontendReport(): Promise<UpdateCheckReport> {
+  return isNativeShell() ? requestNativeReport() : { ui: await checkBrowserUpdate() };
+}
+
+async function requestServer(check: () => Promise<SystemUpdateCheckResult>): Promise<SystemUpdateCheckResult> {
+  try { return await check(); }
+  catch { return { status: 'error', reason: 'check_failed' }; }
+}
+
+/** The provider injects its authenticated mutation; no client or credentials are stored globally. */
+export function checkForUpdates(checkServer: () => Promise<SystemUpdateCheckResult>): Promise<UpdateCheckReport> {
+  return runCheck(async () => {
+    const server = await requestServer(checkServer);
+    return { server, ...await requestFrontendReport() };
+  });
+}
+
+/** Reconnection never re-enters server discovery. Queue a fresh frontend pass if a manual check
+ * was already running against the old server version. */
+export function checkFrontendUpdates(): Promise<UpdateCheckReport> {
+  if (inFlight) return inFlight.then(() => checkFrontendUpdates());
+  return runCheck(requestFrontendReport);
+}
+
+/** One check across menu consumers. Early native events stay gated until reports reconcile. */
+function runCheck(request: () => Promise<UpdateCheckReport>): Promise<UpdateCheckReport> {
   if (inFlight) return inFlight;
-  inFlight = requestReport().then((report) => {
+  inFlight = request().then((report) => {
     // Re-open even previously dismissed prepared updates through the existing sources. The channels
     // hear this through @/lib/manual-update-check-result, so none of them imports this module.
     publishManualCheckResult(report);

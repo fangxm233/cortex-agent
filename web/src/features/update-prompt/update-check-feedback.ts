@@ -6,6 +6,9 @@ import type { UpdateCheckReport } from './manual-update-check';
 function reasonText(reason: string | undefined, L: Vocab): string | undefined {
   const reasons: Record<string, string> = {
     unsupported_shell: L.updateCheckUnsupported,
+    unsupported_page: L.updateCheckUnsupportedPage,
+    disabled: L.updateCheckDisabled,
+    dev_mode: L.updateCheckDev,
     invalid_report: L.updateCheckInvalid,
     no_credentials: L.updateCheckCredentials,
     'disabled by CORTEX_APP_UPDATE_DISABLE': L.updateCheckDisabled,
@@ -36,5 +39,9 @@ function channelFeedback(title: string, outcome: ChannelOutcome<unknown>, L: Voc
 }
 
 export function updateCheckFeedback(report: UpdateCheckReport, L: Vocab): ToastInput[] {
-  return [channelFeedback(L.updateCheckUi, report.ui, L), channelFeedback(L.updateCheckShell, report.shell, L)];
+  return [
+    ...(report.server ? [channelFeedback(L.updateCheckServer, report.server, L)] : []),
+    channelFeedback(L.updateCheckUi, report.ui, L),
+    ...(report.shell ? [channelFeedback(L.updateCheckShell, report.shell, L)] : []),
+  ];
 }

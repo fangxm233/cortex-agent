@@ -1,3 +1,4 @@
+import { BrowserUpdateDialog } from '@/features/hot-update/BrowserUpdateDialog';
 import { AppUpdateDialog } from '@/features/app-update/AppUpdateDialog';
 import { HotUpdateDialog } from '@/features/hot-update/HotUpdateDialog';
 import { ServerUpdateDialog } from '@/features/server-update/ServerUpdateDialog';
@@ -11,6 +12,7 @@ export function UpdateMount() {
   // Silent updates never reach `prompt`; a toast is their whole notification.
   useSilentUpdateNotice();
   if (!prompt) return null;
+  if (prompt.kind === 'page') return <BrowserUpdateDialog onApply={prompt.apply} onDismiss={prompt.dismiss} />;
   if (prompt.kind === 'server') {
     return (
       <ServerUpdateDialog

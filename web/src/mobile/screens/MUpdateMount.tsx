@@ -1,3 +1,5 @@
+import { ServerUpdateDialog } from '@/features/server-update/ServerUpdateDialog';
+import { BrowserUpdateDialog } from '@/features/hot-update/BrowserUpdateDialog';
 import { useUpdatePrompt } from '@/features/update-prompt/useUpdatePrompt';
 import { MAppUpdateDialog } from './MAppUpdateDialog';
 import { MHotUpdateDialog } from './MHotUpdateDialog';
@@ -6,9 +8,10 @@ import { MHotUpdateDialog } from './MHotUpdateDialog';
 export function MUpdateMount() {
   const prompt = useUpdatePrompt();
   if (!prompt) return null;
-  // The server self-update dialog is a desktop/web-shell surface; a phone that only ever opens
-  // the mobile SPA still gets asked through the chat-message fallback prompt.
-  if (prompt.kind === 'server') return null;
+  // These frames are width-constrained to the viewport and share the same consent actions.
+  if (prompt.kind === 'page') return <BrowserUpdateDialog onApply={prompt.apply} onDismiss={prompt.dismiss} />;
+  if (prompt.kind === 'server') return <ServerUpdateDialog status={prompt.status} busy={prompt.busy}
+    onApply={prompt.apply} onSkip={prompt.skip} onDismiss={prompt.dismiss} />;
   if (prompt.kind === 'hot') {
     return (
       <MHotUpdateDialog

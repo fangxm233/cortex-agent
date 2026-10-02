@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const cascade = vi.hoisted(() => ({ check: vi.fn(() => Promise.resolve({} as never)) }));
-vi.mock('./manual-update-check', () => ({ checkForUpdates: cascade.check }));
+vi.mock('./manual-update-check', () => ({ checkFrontendUpdates: cascade.check }));
 
 import { useShellRecheckCascade } from './useShellRecheckCascade';
 
@@ -30,6 +30,18 @@ describe('shell re-check cascade', () => {
     act(() => { renderer.update(<Cascade state="prompting" />); });
     act(() => { renderer.update(<Cascade state="idle" />); });
     expect(cascade.check).toHaveBeenCalledTimes(1);
+  });
+
+  it('rechecks when polling missed restarting, but not after a failed install', () => {
+    let renderer: ReactTestRenderer;
+    act(() => { renderer = create(<Cascade state="installing" />); });
+    act(() => { renderer.update(<Cascade state="idle" />); });
+    expect(cascade.check).toHaveBeenCalledOnce();
+    act(() => { renderer.update(<Cascade state="installing" />); });
+    act(() => { renderer.update(<Cascade state="failed" />); });
+    act(() => { renderer.update(<Cascade state="idle" />); });
+    expect(cascade.check).toHaveBeenCalledOnce();
+    act(() => renderer.unmount());
   });
 
   it('does not re-check when no install ever ran', () => {

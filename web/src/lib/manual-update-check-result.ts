@@ -1,4 +1,5 @@
 import type { ChannelOutcome } from '@/lib/native-bridge';
+import type { SystemUpdateCheckResult } from '@cortex-agent/ui-contract';
 
 /**
  * A manual "check for updates" spans three channels — server, app shell, SPA bundle — so the code
@@ -9,12 +10,13 @@ import type { ChannelOutcome } from '@/lib/native-bridge';
  *
  * This is the one-way hand-off that breaks it. The orchestrator publishes; the channels subscribe;
  * neither imports the other. The report's SHAPE is declared here, once, so the publisher and every
- * subscriber are checked against the same two keys; each channel names only its own payload type
- * (`useAppUpdate` reads `shell`, `useHotUpdate` reads `ui`) and leaves the other as `unknown`.
+ * subscriber share a shape. Each channel names only its own payload type and leaves the others
+ * as `unknown`. Browser reports omit `shell`; reconnect follow-ups omit `server`.
  */
 export interface ManualCheckReport<TUi = unknown, TShell = unknown> {
   ui: ChannelOutcome<TUi>;
-  shell: ChannelOutcome<TShell>;
+  shell?: ChannelOutcome<TShell>;
+  server?: SystemUpdateCheckResult;
 }
 
 type ResultListener = (report: ManualCheckReport) => void;

@@ -6,6 +6,8 @@ import { useManualUpdateCheck } from './useManualUpdateCheck';
 import type { NativeCheckReport } from '@/lib/native-bridge';
 
 const feedback = vi.hoisted(() => ({ toast: vi.fn(() => 'progress'), dismiss: vi.fn() }));
+const server = vi.hoisted(() => ({ mutate: vi.fn().mockResolvedValue({ status: 'current' }) }));
+vi.mock('@/lib/trpc', () => ({ useTRPCClient: () => ({ system: { checkUpdate: server } }) }));
 // The server channel is server-backed (tRPC) and orthogonal to the shell/UI channels this file
 // specifies; stub it idle so the priority assertions below are about app vs hot only.
 vi.mock('@/features/server-update/useServerUpdate', () => ({
@@ -66,6 +68,7 @@ function expectNoInstall() {
 }
 
 async function resolveCheck(report: NativeCheckReport) {
+  await act(async () => {}); // Server discovery finishes before native discovery begins.
   await act(async () => { finish(report); });
 }
 
@@ -81,6 +84,7 @@ describe('manual update menu integration', () => {
     expect(manual.busy).toBe(false);
     expect(prompt?.kind).toBe('app');
     expect(invoke.mock.calls.filter(([command]) => command === 'check_for_updates')).toHaveLength(1);
+    expect(server.mutate.mock.calls).toEqual([[{}]]);
     expect(feedback.dismiss).toHaveBeenCalledWith('progress');
     expectNoInstall();
   });

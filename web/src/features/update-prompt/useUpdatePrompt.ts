@@ -3,6 +3,7 @@ import { getManualCheckBusy, subscribeManualCheck } from './manual-update-check'
 import { useServerUpdate } from '@/features/server-update/useServerUpdate';
 import { useAppUpdate } from '@/features/app-update/useAppUpdate';
 import { useHotUpdate } from '@/features/hot-update/useHotUpdate';
+import { useBrowserUpdate } from '@/features/hot-update/useBrowserUpdate';
 import { useShellRecheckCascade } from './useShellRecheckCascade';
 import type { SystemUpdateStatus } from '@cortex-agent/ui-contract';
 import type { AppUpdateInfo } from '@/features/app-update/app-update';
@@ -20,6 +21,7 @@ export type UpdatePrompt =
   | {
     kind: 'hot'; update: StagedUpdate; apply: () => void; dismiss: () => void;
   }
+  | { kind: 'page'; apply: () => void; dismiss: () => void }
   | null;
 
 export function useUpdatePrompt(): UpdatePrompt {
@@ -28,19 +30,23 @@ export function useUpdatePrompt(): UpdatePrompt {
   useShellRecheckCascade(server.status.state);
   const app = useAppUpdate();
   const hot = useHotUpdate();
+  const browser = useBrowserUpdate();
   const checking = useSyncExternalStore(subscribeManualCheck, getManualCheckBusy);
-  // Server first, and ahead of the manual-check gate: the shell's version ceiling IS the server
-  // version, so a pending server update is what the app/hot prompts are downstream of. Two boxes
-  // at once would also be asking the same question twice.
+  // The shell's version ceiling is the server version: consent starts with the server.
   if (server.visible) {
     return {
       kind: 'server', status: server.status, busy: server.busy,
       apply: server.apply, skip: server.skip, dismiss: server.dismiss,
     };
   }
-  if (checking) return null;
-  // A silent update is not a prompt: the shell installs it on quit, and UpdateMount has already
-  // said so with a toast. Falling through lets the hot-update prompt keep its turn.
+  // Later hides the server dialog, not its priority. Do not offer an older frontend during install.
+  if (checking || ['prompting', 'installing', 'restarting'].includes(server.status.state)) return null;
+  if (browser.update) return { kind: 'page', apply: browser.apply, dismiss: browser.dismiss };
+  return nativePrompt(app, hot);
+}
+
+function nativePrompt(app: ReturnType<typeof useAppUpdate>, hot: ReturnType<typeof useHotUpdate>): UpdatePrompt {
+  // Silent updates have a toast, not a modal; they must not block the frontend prompt.
   if (app.update && app.update.apply !== 'silent') {
     return {
       kind: 'app', update: app.update, busy: app.busy, error: app.error,

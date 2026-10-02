@@ -63,7 +63,7 @@ export function useAppUpdate(): AppUpdateState {
   useAppUpdateBridge();
   // A manual check republishes whatever the shell channel found, dismissal and all.
   useEffect(() => subscribeManualCheckResult<unknown, AppUpdateInfo>(({ shell }) => {
-    if (!shell.update) return;
+    if (!shell?.update) return;
     setHiddenVersion(null);
     publishAppUpdate(shell.update);
   }), []);
