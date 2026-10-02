@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import { MENU_SURFACE } from '@/design/MenuChrome';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
+import { RailSessionMenu } from './RailSessionMenu';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import { NewProjectIcon, OverviewIcon, SortIcon } from './RailHeaderIcons';
 import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
@@ -338,9 +339,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         >
           {row.title}
         </span>
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-2)', flex: 'none' }}>
-          {row.age}
-        </span>
+        <RailSessionMenu row={row} hovered={isHover(key)} />
       </div>
     );
   };

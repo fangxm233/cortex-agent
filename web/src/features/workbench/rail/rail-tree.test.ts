@@ -120,7 +120,8 @@ describe('project-local stars', () => {
       schedules: [schedule('sch1', 'atlas')], selectedSessionId: run.sessionId });
     const node = buildRailTree(base).projects[0];
     expect(node.starredSessions.map(s => s.sessionId)).toEqual([direct[0].sessionId, direct[1].sessionId, run.sessionId]);
-    expect(node.starredSessions[2]).toMatchObject({ selected: true, title: run.label });
+    expect(node.starredSessions[2]).toMatchObject({ selected: true, title: run.label, starred: true });
+    expect(node.starredSessions.every(row => row.starred)).toBe(true);
     expect(node.sessions.map(s => s.sessionId)).toEqual([direct[2].sessionId]);
     expect(node.commissions[0].sessions).toEqual([]);
     expect(node.schedules[0].runs).toEqual([]);

@@ -27,6 +27,7 @@ export const FOLDER_SESSION_CAP = 8;
 
 export interface RailSessionRow {
   sessionId: string;
+  starred?: boolean;
   projectId: string;
   title: string;
   /** Compact relative age in the UI language ('now' / '5m' · '刚刚' / '5分钟前'); the exact stamp goes in the row tooltip. */
@@ -188,6 +189,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     sessionId: s.sessionId,
     projectId: s.projectId,
     title: sessionTitle(s),
+    starred: s.starred,
     age: relTime(effectiveMs(s), now, lang),
     stamp: sessionTooltipStamp(s),
     running: !!s.running,

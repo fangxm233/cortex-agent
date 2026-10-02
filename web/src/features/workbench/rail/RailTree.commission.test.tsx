@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import { RailTree, type RailTreeProps } from './RailTree';
+import { RailSessionMenu } from './RailSessionMenu';
 import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
 
 // The commission row's ＋ is the one-click "another session on this contract". Without it the only
@@ -141,7 +142,7 @@ describe('project Stars disclosure', () => {
     const nodes = [{ ...node([]), starredSessions: [star] },
       { ...node([]), id: 'p2', starredSessions: [{ ...star, sessionId: 'star-2', projectId: 'p2' }] }];
     const { renderer } = renderTree({ nodes, onToggleStars, onOpenSession });
-    const header = () => renderer.root.findByProps({ 'data-starred-project': 'p1' }).findByType('button');
+    const header = () => renderer.root.findByProps({ 'data-starred-project': 'p1' }).findByProps({ 'aria-label': 'Stars' });
     expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
     const selected = renderer.root.findByProps({ 'data-session-id': 'star-1' });
     expect(selected.props.style.background).toBe('var(--proto-accent-bg)');
@@ -159,6 +160,27 @@ describe('project Stars disclosure', () => {
     expect(renderer.root.findAllByProps({ 'data-session-id': 'star-2' })).toHaveLength(1);
     act(() => update(true));
     expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('wires the same hover menu to loose, starred and commission session rows', () => {
+    const loose = { ...star, sessionId: 'loose', selected: false };
+    const member = { ...loose, sessionId: 'member' };
+    const nodes = [{ ...node([commission({ expanded: true, sessions: [member] })]),
+      starredSessions: [{ ...star, starred: true }], sessions: [loose] }];
+    const onOpenSession = vi.fn();
+    const { renderer } = renderTree({ nodes, onOpenSession });
+    for (const sessionId of ['loose', 'star-1', 'member']) {
+      const session = renderer.root.findByProps({ 'data-session-id': sessionId });
+      const menu = session.findByType(RailSessionMenu);
+      expect(menu.props.hovered).toBe(false);
+      act(() => session.props.onMouseEnter());
+      expect(menu.props.hovered).toBe(true);
+      expect(menu.props.row.sessionId).toBe(sessionId);
+      act(() => session.props.onMouseLeave());
+      expect(menu.props.hovered).toBe(false);
+    }
+    expect(onOpenSession).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
