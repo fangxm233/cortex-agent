@@ -106,7 +106,13 @@ module.exports = {
         + 'without a tRPC client and the query keys live in one place. New violations are '
         + 'forbidden; the ~55 that exist today are in the known-violations baseline and are '
         + 'to be worked off — the baseline may only shrink.',
-      from: { path: '^src/(features|mobile|shell)/.*\\.tsx$', ...NOT_A_TEST },
+      from: {
+        path: '^src/(features|mobile|shell)/.*\\.tsx$',
+        pathNot: [
+          NOT_A_TEST.pathNot,
+          '^src/features/session/transcript/__fixtures__/(BackgroundSubagentHarness|background-subagent\\.browser)\\.tsx$',
+        ],
+      },
       to: { path: '^src/lib/trpc', ...COMMON_OPTS },
     },
     {
