@@ -40,6 +40,7 @@ import { usePaneState } from '@/shell/PaneStateProvider';
 import { useShellModals } from '@/shell/useShellModals';
 import { RailResizeHandle } from './RailResizeHandle';
 import { loadRailWidth, saveRailWidth } from './rail-width';
+import { useStarredGroups } from '@/features/session/list/useStarredGroups';
 
 const mono = "'IBM Plex Mono',monospace";
 // A 30px square of content inside 8px gutters — the buttons are the widest thing the collapsed
@@ -214,6 +215,7 @@ export function LeftRail(): JSX.Element {
   const [schedExpanded, setSchedExpanded] = useState<Set<string>>(() => loadIdSet(SCHED_EXPANDED_KEY));
   const [commExpanded, setCommExpanded] = useState<Set<string>>(() => loadIdSet(COMM_EXPANDED_KEY));
   const [openCommissions, setOpenCommissions] = useState<Set<string>>(() => loadIdSet(COMM_OPEN_KEY));
+  const { collapsed: starsCollapsed, toggle: toggleStars, reveal: revealStars } = useStarredGroups();
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -290,6 +292,7 @@ export function LeftRail(): JSX.Element {
         fallbackProjectId: currentProjectId,
         expanded,
         schedulesExpanded: schedExpanded,
+        starsCollapsed,
         commissionsExpanded: commExpanded,
         expandedCommissions: openCommissions,
         showAll,
@@ -304,9 +307,16 @@ export function LeftRail(): JSX.Element {
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
       threadsQuery.data, selectedSessionId, currentProjectId, expanded, schedExpanded,
-      commExpanded, openCommissions, showAll, filter, sort, manualOrder, dragged, lang,
+      commExpanded, openCommissions, starsCollapsed, showAll, filter, sort, manualOrder, dragged, lang,
     ],
   );
+
+  // Reveal a newly selected/starred row once; an explicit collapse can still hide it afterwards.
+  const selectedStarProject = [...directSessions, ...scheduledSessions]
+    .find((session) => session.sessionId === selectedSessionId && session.starred)?.projectId;
+  useEffect(() => {
+    if (selectedStarProject) revealStars(selectedStarProject);
+  }, [selectedSessionId, selectedStarProject, revealStars]);
 
   // Publish the exact visible project order for project pickers. A search temporarily filters the
   // tree, so it must not replace the full order shared with the new-session selector.
@@ -391,7 +401,7 @@ export function LeftRail(): JSX.Element {
       const node = treeRef.current.projects.filter((p) => !p.empty)[idx];
       if (!node) return;
       e.preventDefault();
-      const first = node.sessions[0];
+      const first = node.sessions[0] ?? node.starredSessions[0];
       if (first) openSessionRef.current(first.projectId, first.sessionId);
       else openProject(node.id);
     };
@@ -601,6 +611,7 @@ export function LeftRail(): JSX.Element {
             onNewProject={() => shellModals.openNewProject()}
             onToggleProject={toggleProject}
             onToggleSchedules={toggleSchedules}
+            onToggleStars={toggleStars}
             onToggleCommissions={toggleCommissions}
             onToggleCommission={toggleCommission}
             onOpenCommission={commissionBoard.openCommission}

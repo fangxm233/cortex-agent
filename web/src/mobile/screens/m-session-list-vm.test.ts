@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { buildSessionRows, sessionStatusLine } from './m-session-list-vm';
+import { buildProjectSessionList, buildSessionRows, sessionStatusLine } from './m-session-list-vm';
 
 // Neutral placeholder sessions (守则11 — no real project names / ids).
 function sess(over: Partial<SessionInfo>): SessionInfo {
@@ -28,6 +28,32 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     commissionId: over.commissionId ?? null,
   };
 }
+
+describe('project session list stars', () => {
+  it('scopes Stars to the project and excludes stars from flat and scheduled rows', () => {
+    const direct = [sess({ sessionId: 'legacy' }),
+      sess({ sessionId: 'commission', commissionId: 'c1', starred: true, label: 'Renamed' }),
+      sess({ sessionId: 'elsewhere', projectId: 'atlas', starred: true })];
+    const runs = [sess({ sessionId: 'run', origin: 'scheduled', scheduleId: 'sch', starred: true }),
+      sess({ sessionId: 'old-run', origin: 'scheduled', scheduleId: 'sch' })];
+    const list = buildProjectSessionList('nimbus', direct, runs, []);
+    expect(list.rows.map(r => r.id)).toEqual(['legacy']);
+    expect(list.starredRows.map(r => r.id)).toEqual(['commission', 'run']);
+    expect(list.starredRows[0].title).toBe('Renamed');
+    expect(list.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['old-run']);
+    const restored = buildProjectSessionList('nimbus', direct.map(s => ({ ...s, starred: false })),
+      runs.map(s => ({ ...s, starred: false })), []);
+    expect(restored.starredRows).toEqual([]);
+    expect(restored.rows.map(r => r.id)).toEqual(['legacy', 'commission']);
+    expect(restored.scheduleRows[0].runs.map(r => r.sessionId)).toEqual(['run', 'old-run']);
+  });
+
+  it('does not create a global Stars section without a selected project', () => {
+    const list = buildProjectSessionList(null, [sess({ starred: true })], [], []);
+    expect(list.starredRows).toEqual([]);
+    expect(list.rows.map(r => r.id)).toEqual(['s1']);
+  });
+});
 
 describe('sessionStatusLine', () => {
   it('classifies running, idle, background-held, and awaiting sessions', () => {

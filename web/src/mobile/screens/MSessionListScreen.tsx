@@ -4,14 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { buildScheduleRows, unreadScheduleCount } from '@/features/session/list/schedule-rail';
+import { unreadScheduleCount } from '@/features/session/list/schedule-rail';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
-import { buildSessionRows } from './m-session-list-vm';
+import { buildProjectSessionList } from './m-session-list-vm';
+import { useStarredGroups } from '@/features/session/list/useStarredGroups';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 
 const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
@@ -66,12 +67,12 @@ export function MSessionListScreen() {
   const schedulesQuery = useQuery(
     trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
   );
-  const sessions = sessionsQuery.data ?? [];
-  const rows = useMemo(() => buildSessionRows(sessions, Date.now(), lang), [sessions, lang]);
-  const scheduleRows = useMemo(
-    () => buildScheduleRows(schedulesQuery.data ?? [], scheduledQuery.data ?? []),
-    [schedulesQuery.data, scheduledQuery.data],
+  const { rows, starredRows, scheduleRows } = useMemo(
+    () => buildProjectSessionList(currentProjectId, sessionsQuery.data ?? [],
+      scheduledQuery.data ?? [], schedulesQuery.data ?? [], Date.now(), lang),
+    [currentProjectId, sessionsQuery.data, scheduledQuery.data, schedulesQuery.data, lang],
   );
+  const stars = useStarredGroups();
 
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -87,6 +88,9 @@ export function MSessionListScreen() {
     <>
       <MSessionListView
         rows={rows}
+        stars={currentProjectId ? { projectId: currentProjectId, rows: starredRows,
+          expanded: !stars.collapsed.has(currentProjectId),
+          onToggle: () => stars.toggle(currentProjectId) } : undefined}
         copy={copy}
         presence={presence}
         newLabel={L.wbNewSession}

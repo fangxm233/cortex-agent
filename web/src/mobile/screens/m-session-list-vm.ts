@@ -1,7 +1,9 @@
-// Pure view-model for the 1a 会话列表 screen. Maps real `sessions.list` (origin='direct', scoped to
-// the current project) into one flat row list, in the same order as a desktop rail folder (unread
-// first, then most recent). Each row carries its own relative time, so there are no day buckets.
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+// Pure view-model for the 1a 会话列表 screen: project-local Stars plus the existing direct
+// and scheduled lists. Session rows keep desktop rail order (unread first, then most recent)
+// and carry their own relative time, without day buckets.
+import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
+import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
+import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import { orderSessions } from '@/features/session/list/session-groups';
 import { relTime } from '@/mobile/ui/format';
 
@@ -67,6 +69,25 @@ function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
     time: relTime(s.lastUsedAt || s.createdAt, now, lang),
     unread: s.unread,
     status: sessionStatusLine(s, lang),
+  };
+}
+
+/** Scope before partitioning: Stars never aggregate sessions from different projects. */
+export function buildProjectSessionList(
+  projectId: string | null, direct: SessionInfo[], scheduled: SessionInfo[],
+  schedules: ScheduleInfo[], now: number = Date.now(), lang: Lang = 'en',
+) {
+  // While project selection is unresolved, retain the existing flat list, not a global Stars group.
+  if (projectId === null) return {
+    rows: buildSessionRows(direct, now, lang), starredRows: [],
+    scheduleRows: buildScheduleRows(schedules, scheduled),
+  };
+  const own = (session: SessionInfo) => session.projectId === projectId;
+  const partition = partitionStarredSessions(direct.filter(own), scheduled.filter(own));
+  return {
+    rows: buildSessionRows(partition.direct, now, lang),
+    starredRows: buildSessionRows(partition.starred, now, lang),
+    scheduleRows: buildScheduleRows(schedules.filter(s => s.projectId === projectId), partition.scheduled),
   };
 }
 

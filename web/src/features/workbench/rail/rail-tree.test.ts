@@ -110,6 +110,77 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   ...over,
 });
 
+describe('project-local stars', () => {
+  it('partitions all origins without duplicates and restores each original placement on unstar', () => {
+    const direct = [session('atlas', { starred: true }),
+      session('atlas', { starred: true, commissionId: 'c1' }), session('atlas')];
+    const run = session('atlas', { starred: true, origin: 'scheduled', scheduleId: 'sch1' });
+    const base = input({ projects: [project('atlas')], directSessions: direct,
+      scheduledSessions: [run], commissions: [commission('c1', 'atlas')],
+      schedules: [schedule('sch1', 'atlas')], selectedSessionId: run.sessionId });
+    const node = buildRailTree(base).projects[0];
+    expect(node.starredSessions.map(s => s.sessionId)).toEqual([direct[0].sessionId, direct[1].sessionId, run.sessionId]);
+    expect(node.starredSessions[2]).toMatchObject({ selected: true, title: run.label });
+    expect(node.sessions.map(s => s.sessionId)).toEqual([direct[2].sessionId]);
+    expect(node.commissions[0].sessions).toEqual([]);
+    expect(node.schedules[0].runs).toEqual([]);
+    expect(node.schedules[0].latest).toBeNull();
+    expect(node.totalSessions).toBe(1);
+    const restored = buildRailTree({ ...base,
+      directSessions: direct.map(s => ({ ...s, starred: false })),
+      scheduledSessions: [{ ...run, starred: false }],
+    }).projects[0];
+    expect(restored.starredSessions).toEqual([]);
+    expect(restored.sessions.map(s => s.sessionId)).toEqual([direct[0].sessionId, direct[2].sessionId]);
+    expect(restored.commissions[0].sessions[0].sessionId).toBe(direct[1].sessionId);
+    expect(restored.schedules[0].runs[0].sessionId).toBe(run.sessionId);
+  });
+
+  it('keeps projects isolated, independently collapsed, and star-only projects nonempty', () => {
+    const tree = buildRailTree(input({ projects: [project('atlas'), project('nimbus')],
+      directSessions: [session('atlas', { starred: true }), session('nimbus', { starred: true })],
+      starsCollapsed: new Set(['atlas']),
+    }));
+    expect(tree.projects.map(p => [p.id, p.empty, p.starsExpanded])).toEqual([
+      ['atlas', false, false], ['nimbus', false, true],
+    ]);
+    for (const node of tree.projects) {
+      expect(node.starredSessions).toHaveLength(1);
+      expect(node.starredSessions[0].projectId).toBe(node.id);
+      expect(node.sessions).toEqual([]);
+    }
+  });
+
+  it('searches renamed starred titles, opens hits, and counts each match once', () => {
+    const base = input({ projects: [project('atlas'), project('nimbus')],
+      directSessions: [session('atlas', { starred: true, commissionId: 'c1', label: 'Renamed ledger' }),
+        session('atlas', { label: 'ledger legacy' }), session('nimbus', { starred: true, label: 'other' })],
+      scheduledSessions: [session('atlas', { starred: true, origin: 'scheduled', label: 'ledger run' })],
+      commissions: [commission('c1', 'atlas')], starsCollapsed: new Set(['atlas']), filter: 'LEDGER',
+    });
+    const tree = buildRailTree(base);
+    expect(tree.projects).toHaveLength(1);
+    expect(tree.projects[0]).toMatchObject({ expanded: true, starsExpanded: true, matchCount: 3 });
+    expect(tree.projects[0].starredSessions).toHaveLength(2);
+    expect(tree.projects[0].commissions).toEqual([]);
+    expect(buildRailTree({ ...base, filter: '' }).projects[0].starsExpanded).toBe(false);
+  });
+
+  it('preserves legacy records, ordinary caps, and hides orphan schedule rows moved to Stars', () => {
+    const base = input({ projects: [project('atlas')],
+      directSessions: Array.from({ length: 10 }, () => session('atlas')),
+      scheduledSessions: [session('atlas', { starred: true, origin: 'scheduled', scheduleId: 'orphan' })],
+    });
+    const node = buildRailTree(base).projects[0];
+    expect(node.sessions).toHaveLength(8);
+    expect(node.hiddenSessions).toBe(2);
+    expect(node.totalSessions).toBe(10);
+    expect(node.starredSessions).toHaveLength(1);
+    expect(node.schedules).toEqual([]);
+    expect(buildRailTree({ ...base, filter: 'no match' }).projects).toEqual([]);
+  });
+});
+
 describe('buildRailTree bucketing', () => {
   it('hangs each session under its own project and keeps every project present', () => {
     const tree = buildRailTree(

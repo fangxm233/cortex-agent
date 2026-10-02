@@ -4,6 +4,7 @@ import type {
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { lastActivityByProject, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
+import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { effectiveMs, orderSessions } from '@/features/session/list/session-groups';
 import {
   awaitingInputCountByProject,
@@ -73,6 +74,8 @@ export interface RailProjectNode {
   hotkey: string | null;
   /** Last-activity age, only for quiet rows that show neither badge nor dot. */
   idleAge: string | null;
+  starredSessions: RailSessionRow[];
+  starsExpanded: boolean;
   sessions: RailSessionRow[];
   /** Sessions this project has beyond the ones in `sessions`. */
   hiddenSessions: number;
@@ -101,6 +104,8 @@ export interface RailTreeInput {
   fallbackProjectId: string | null;
   expanded: ReadonlySet<string>;
   schedulesExpanded: ReadonlySet<string>;
+  /** Project-local Stars sections are open unless explicitly collapsed. */
+  starsCollapsed?: ReadonlySet<string>;
   /** Projects whose COMMISSION group section is open — keyed by project id. */
   commissionsExpanded: ReadonlySet<string>;
   /** Individual commission folders that are open — keyed by commission id. */
@@ -219,7 +224,11 @@ export function buildRailTree(input: RailTreeInput): RailTree {
 
   let hotkeyIndex = 0;
   const nodes: RailProjectNode[] = orderedProjects.map((project) => {
-    const allOwn = sessionsByProject.get(project.id) ?? [];
+    const partition = partitionStarredSessions(
+      sessionsByProject.get(project.id) ?? [], scheduledByProject.get(project.id) ?? [],
+    );
+    const allOwn = partition.direct;
+    const matchingStars = partition.starred.filter((s) => sessionMatchesFilter(s, filter));
     // A commission owns its sessions outright: they hang under the commission folder and are gone
     // from the project's flat list, so no session renders in two places at once.
     const commissionRows = buildCommissionRows(commissionsByProject.get(project.id) ?? [], allOwn);
@@ -227,7 +236,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const own = claimed.size ? allOwn.filter((s) => !claimed.has(s.sessionId)) : allOwn;
     const scheduleRows = buildScheduleRows(
       schedulesByProject.get(project.id) ?? [],
-      scheduledByProject.get(project.id) ?? [],
+      partition.scheduled,
     );
     const running = runningCounts[project.id] ?? 0;
     // The badge counts both, but its COLOUR only ever means one thing: amber = something is waiting
@@ -236,7 +245,8 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const badge = projectAttentionBadge(unreadCounts[project.id] ?? 0, actionCounts[project.id] ?? 0);
     const attention = badge.count;
     const empty =
-      own.length === 0 && scheduleRows.length === 0 && commissionRows.length === 0 && running === 0;
+      partition.starred.length === 0 && own.length === 0 && scheduleRows.length === 0 &&
+      commissionRows.length === 0 && running === 0;
 
     const matching = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)) : own;
 
@@ -280,7 +290,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       id: project.id,
       current: project.id === currentProjectId,
       expanded: filtering
-        ? matching.length + commissionMatches > 0
+        ? matching.length + matchingStars.length + commissionMatches > 0
         : expanded.has(project.id),
       empty,
       running,
@@ -289,6 +299,8 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       hotkey,
       idleAge:
         !hasSignal && typeof activityMs === 'number' ? relTime(activityMs, now, lang) : null,
+      starredSessions: orderSessions(matchingStars).map(toSessionRow),
+      starsExpanded: filtering || !input.starsCollapsed?.has(project.id),
       sessions: visible.map(toSessionRow),
       hiddenSessions: Math.max(0, rows.length - visible.length),
       // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is
@@ -303,7 +315,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         ? commissionMatches > 0
         : commissionsExpanded.has(project.id),
       commissionUnread: unreadCommissionCount(commissionRows),
-      matchCount: filtering ? matching.length + commissionMatches : null,
+      matchCount: filtering ? matching.length + matchingStars.length + commissionMatches : null,
     };
   });
 

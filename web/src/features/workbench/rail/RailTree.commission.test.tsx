@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import { RailTree, type RailTreeProps } from './RailTree';
-import type { RailCommissionRow, RailProjectNode } from './rail-tree';
+import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
 
 // The commission row's ＋ is the one-click "another session on this contract". Without it the only
 // way in is a new draft plus a trip through the composer's ＋ menu to re-pick a commission the user
@@ -32,6 +32,8 @@ const node = (commissions: RailCommissionRow[]): RailProjectNode => ({
   attentionTone: 'unread',
   hotkey: null,
   idleAge: null,
+  starredSessions: [],
+  starsExpanded: true,
   sessions: [],
   hiddenSessions: 0,
   showingAll: false,
@@ -62,6 +64,7 @@ function renderTree(overrides: Partial<RailTreeProps> = {}): {
     onNewProject: vi.fn(),
     onToggleProject: vi.fn(),
     onToggleSchedules: vi.fn(),
+    onToggleStars: vi.fn(),
     onToggleCommissions: vi.fn(),
     onToggleCommission: vi.fn(),
     onOpenCommission: vi.fn(),
@@ -123,6 +126,45 @@ describe('flat project rail row', () => {
     expect(onOverview).toHaveBeenCalledWith('p1');
     expect(onNewSessionIn).toHaveBeenCalledWith('p1');
     expect(onToggleProject).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+});
+
+describe('project Stars disclosure', () => {
+  const star: RailSessionRow = { sessionId: 'star-1', projectId: 'p1', title: 'Renamed session',
+    age: '1h', stamp: '', running: false, awaitingInput: false, waitingOn: false,
+    unread: false, selected: true };
+
+  it('renders a selected star once and toggles only its own group', () => {
+    const onToggleStars = vi.fn();
+    const onOpenSession = vi.fn();
+    const nodes = [{ ...node([]), starredSessions: [star] },
+      { ...node([]), id: 'p2', starredSessions: [{ ...star, sessionId: 'star-2', projectId: 'p2' }] }];
+    const { renderer } = renderTree({ nodes, onToggleStars, onOpenSession });
+    const header = () => renderer.root.findByProps({ 'data-starred-project': 'p1' }).findByType('button');
+    expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
+    const selected = renderer.root.findByProps({ 'data-session-id': 'star-1' });
+    expect(selected.props.style.background).toBe('var(--proto-accent-bg)');
+    expect(selected.props.title).toBe('Renamed session');
+    act(() => selected.props.onClick());
+    expect(onOpenSession).toHaveBeenCalledWith(star);
+    act(() => header().props.onClick());
+    expect(onToggleStars).toHaveBeenCalledWith('p1');
+    const props = renderer.root.findByType(RailTree).props as RailTreeProps;
+    const update = (expanded: boolean) => renderer.update(<LangProvider><RailTree {...props}
+      nodes={[{ ...nodes[0], starsExpanded: expanded }, nodes[1]]} /></LangProvider>);
+    act(() => update(false));
+    expect(header().props['aria-expanded']).toBe(false);
+    expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-session-id': 'star-2' })).toHaveLength(1);
+    act(() => update(true));
+    expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('does not render an empty Stars header for legacy projects', () => {
+    const { renderer } = renderTree();
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Stars' })).toHaveLength(0);
     act(() => renderer.unmount());
   });
 });

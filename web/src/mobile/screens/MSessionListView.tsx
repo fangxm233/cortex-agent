@@ -1,5 +1,6 @@
 import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
+import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { MScreen, MTabHeader, MScrollBody, MGroup, MEmpty, MC, M_GUTTER, M_NUM, M_TABBAR_BOTTOM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { useLangOptional } from '@/i18n';
@@ -168,6 +169,7 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
   return (
     <div
       className="m-press"
+      data-session-id={row.id}
       onClick={() => onOpen(row.id)}
       style={{
         display: 'flex',
@@ -211,6 +213,7 @@ const FAB_STYLE: CSSProperties = {
 
 export function MSessionListView({
   rows,
+  stars,
   copy,
   presence,
   newLabel,
@@ -219,6 +222,7 @@ export function MSessionListView({
   onNew,
 }: {
   rows: MSessionRow[];
+  stars?: { projectId: string; rows: MSessionRow[]; expanded: boolean; onToggle: () => void };
   copy: MSessionListCopy;
   /** Live link state → the brand tile's presence dot. */
   presence: ConnectionStatus;
@@ -247,9 +251,12 @@ export function MSessionListView({
       }
     >
       <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
-        {rows.length === 0 ? (
-          <MEmpty>{copy.empty}</MEmpty>
-        ) : (
+        {stars && <StarredSessionGroup projectId={stars.projectId} count={stars.rows.length}
+          expanded={stars.expanded} onToggle={stars.onToggle} mobile>
+          <MGroup>{stars.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
+        </StarredSessionGroup>}
+        {rows.length === 0 && !stars?.rows.length && <MEmpty>{copy.empty}</MEmpty>}
+        {rows.length > 0 && (
           <MGroup>{rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
         )}
         {/* Room for the FAB, so the last row can scroll clear of it. */}
