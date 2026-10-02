@@ -84,10 +84,7 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
     ].join('\n'),
     {
       label: z.string().describe('Short human name, e.g. "arm2 training". Appears in the wake message.'),
-      intent: z.string().describe(
-        'What you are waiting for and what you will do when woken, in your own words. You will read '
-        + 'this hours later in a fresh turn with none of the current context, so write it for a stranger.',
-      ),
+      intent: z.string().describe('Briefly state what you are waiting for and what to do next.'),
       members: z.array(z.string()).optional().describe(
         'Names of the jobs you expect to report, e.g. ["arm2","arm6","arm8"]. Each one signals with its own name.',
       ),
