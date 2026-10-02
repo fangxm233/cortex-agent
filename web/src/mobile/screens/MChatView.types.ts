@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
@@ -128,6 +129,8 @@ export interface MChatViewProps {
   loading?: boolean;
   copy: MChatCopy;
   onBack: () => void;
+  /** Null for a draft; omitted in metadata-free presentation previews. */
+  metadataSession?: MetadataSession | null;
   moreOpen: boolean;
   onMoreToggle: () => void;
   onMoreClose: () => void;

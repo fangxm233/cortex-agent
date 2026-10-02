@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { ChatHeader } from './ChatHeader';
+import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
 import { InlineThreadCard } from './InlineThreadCard';
 import { Composer } from '@/features/workbench/composer/Composer';
@@ -158,7 +159,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const title = isDraft
     ? L.wbNewConversation
     : active
-      ? runTitle ?? active.label ?? active.name
+      ? sessionDisplayTitle(active, runTitle)
       : workbenchCopy(lang).noSession;
 
   const transcriptQuery = useTranscriptQuery(sessionId);
@@ -277,6 +278,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     >
       <ChatHeader
         title={title}
+        metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
         running={running}
         projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}

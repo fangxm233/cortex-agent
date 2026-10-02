@@ -177,7 +177,7 @@ vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInte
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
-vi.mock('./ChatHeader', () => ({ ChatHeader: () => null }));
+vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} /> }));
 vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
@@ -271,6 +271,23 @@ function typeAndSend(renderer: ReactTestRenderer, text: string): void {
 function renderedUsers(renderer: ReactTestRenderer): string[] {
   return renderer.root.findAllByType('user-row' as any).map((row) => row.children.join(''));
 }
+
+describe('desktop chat metadata target', () => {
+  it('passes the current stable ID and display title, then disables draft actions', () => {
+    harness.sessions = [{ ...SESSION, label: 'Renamed', starred: true }];
+    mounted = mountCenterChat();
+    const metadata = () => mounted!.root.findByProps({ 'data-chat-header': true }).props['data-metadata-session'];
+    expect(metadata()).toEqual({ sessionId: 's1', title: 'Renamed', starred: true });
+    harness.selection = selection(true);
+    act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
+    expect(metadata()).toBeNull();
+  });
+  it('does not offer metadata actions for an unresolved selection', () => {
+    harness.sessions = [];
+    mounted = mountCenterChat();
+    expect(mounted.root.findByProps({ 'data-chat-header': true }).props['data-metadata-session']).toBeNull();
+  });
+});
 
 const restoredAttachment: AttachmentMeta = {
   name: 'notes.txt', path: 'attachments/upload-1/notes.txt', size: 10, mimeType: 'text/plain', type: 'file',

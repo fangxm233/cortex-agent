@@ -173,6 +173,9 @@ vi.mock('./MChatView', async () => {
       'm-chat-view',
       {
         'data-composer-value': props.composerValue,
+        metadataSession: props.metadataSession,
+        moreOpen: props.moreOpen,
+        onMoreToggle: props.onMoreToggle,
         'data-system-lines': JSON.stringify(props.systemLines ?? []),
         onComposerChange: props.onComposerChange,
         onSend: props.onSend,
@@ -279,6 +282,25 @@ beforeEach(() => {
 afterEach(() => {
   if (mounted) act(() => mounted?.unmount());
   mounted = null;
+});
+
+describe('mobile chat metadata target', () => {
+  it('passes the current stable ID/title and clears the menu on a draft switch', () => {
+    harness.sessions = [{ ...SESSION, label: 'Renamed', starred: true }];
+    mounted = mountChat();
+    expect(view(mounted).props.metadataSession).toEqual({ sessionId: 's1', title: 'Renamed', starred: true });
+    act(() => view(mounted!).props.onMoreToggle());
+    expect(view(mounted).props.moreOpen).toBe(true);
+    harness.routeParam = 'new';
+    act(() => mounted!.update(<LangProvider><MChatScreen /></LangProvider>));
+    expect(view(mounted).props.metadataSession).toBeNull();
+    expect(view(mounted).props.moreOpen).toBe(false);
+  });
+  it('does not offer metadata actions for an unresolved route', () => {
+    harness.sessions = [];
+    mounted = mountChat();
+    expect(view(mounted).props.metadataSession).toBeNull();
+  });
 });
 
 describe('mobile chat project pinning', () => {

@@ -18,7 +18,8 @@ import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MCh
 import {
   AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
 } from './MChatComposerPresentation';
-import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+import { AgentSheet, BrowserSheet, CommissionSheet, ContextUsageSheet, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+import { MChatSessionMenu } from './MChatSessionMenu';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
@@ -611,22 +612,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
         )}
       </div>
-      {props.moreOpen && (
-        <MoreMenu
-          copy={copy}
-          onClose={props.onMoreClose}
-          onSessionId={() => {
-            props.onMoreClose();
-            props.onSessionIdOpen();
-          }}
-          onSessionStats={props.sessionStatsRows?.length
-            ? () => {
-              props.onMoreClose();
-              props.onSessionStatsOpen();
-            }
-            : undefined}
-        />
-      )}
+      <MChatSessionMenu metadataSession={props.metadataSession} copy={copy} moreOpen={props.moreOpen}
+        onMoreClose={props.onMoreClose} onSessionIdOpen={props.onSessionIdOpen}
+        sessionStatsRows={props.sessionStatsRows} onSessionStatsOpen={props.onSessionStatsOpen} />
       {props.sessionStatsOpen && props.sessionStatsRows?.length && (
         <SessionStatsSheet copy={copy} rows={props.sessionStatsRows} onClose={props.onSessionStatsClose} />
       )}

@@ -1,6 +1,8 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang, useVocab } from '@/i18n';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import { MENU_FOCUS } from '@/design/MenuChrome';
+import { useLang } from '@/i18n';
+import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
+import { ChatSessionMenu } from './ChatSessionMenu';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
@@ -101,6 +103,7 @@ export function ChatHeader({
   projectName,
   backendSessionId,
   sessionName,
+  metadataSession,
 }: {
   title: string;
   running: boolean;
@@ -108,29 +111,12 @@ export function ChatHeader({
   projectName: string | null;
   backendSessionId: string | null;
   sessionName: string | null;
+  metadataSession: MetadataSession | null;
 }): JSX.Element {
-  const L = useVocab();
-  const lang = useLang();
   const notes = useNotes();
-  const [moreHover, setMoreHover] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
   // the shell modal registry (shell/useShellModals). The modal itself stays here: it needs the ids from this subtree.
   const shellModals = useShellModals();
-
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMoreMenuOpen(false);
-    };
-    const close = () => setMoreMenuOpen(false);
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('click', close);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('click', close);
-    };
-  }, [moreMenuOpen]);
 
   return (
     <div
@@ -224,65 +210,7 @@ export function ChatHeader({
             </span>
           )}
         </span>
-        <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <button
-            type="button"
-            className={MENU_FOCUS}
-            data-chip="more"
-            aria-label={workbenchCopy(lang).sessionMenu}
-            aria-expanded={moreMenuOpen}
-            onMouseEnter={() => setMoreHover(true)}
-            onMouseLeave={() => setMoreHover(false)}
-            onClick={(event) => {
-              event.stopPropagation();
-              setMoreMenuOpen((open) => !open);
-            }}
-            style={{
-              ...iconButtonStyle(moreHover || moreMenuOpen, false),
-              fontSize: 15,
-              lineHeight: 1,
-              letterSpacing: 1,
-            }}
-          >
-            ⋯
-          </button>
-          {moreMenuOpen ? (
-            <span
-              onClick={(event) => event.stopPropagation()}
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 24,
-                minWidth: 132,
-                ...MENU_SURFACE,
-                border: '1px solid var(--proto-line)',
-                borderRadius: 'var(--r-card)',
-                overflow: 'hidden',
-                zIndex: 40,
-              }}
-            >
-              <button
-                type="button"
-                className={MENU_FOCUS}
-                onClick={() => {
-                  setMoreMenuOpen(false);
-                  shellModals.openSessionId();
-                }}
-                style={{
-                  ...MENU_BUTTON_STYLE,
-                  background: 'transparent',
-                  padding: '9px 13px',
-                  fontSize: 12.5,
-                  color: 'var(--proto-ink)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {L.wbSessionId}
-              </button>
-            </span>
-          ) : null}
-        </span>
+        <ChatSessionMenu session={metadataSession} onSessionId={shellModals.openSessionId} />
       </div>
       {shellModals.sessionIdOpen ? (
         <SessionIdModal

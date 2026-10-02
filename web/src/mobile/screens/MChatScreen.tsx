@@ -24,6 +24,7 @@ import { useSessionCompact } from '@/features/session/live/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
 import { sessionSpanMs, sessionStatsView } from '@/features/session/list/session-stats';
+import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import {
   agentChipParts, buildAgentOptions, buildProfileOptions, effectiveSelection, hasAgentChoice,
   profileChange, selectionChipParts,
@@ -459,6 +460,9 @@ export function MChatScreen(): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
   const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
+  useEffect(() => {
+    setMoreOpen(false); setSessionIdOpen(false); setSessionStatsOpen(false);
+  }, [sessionId]);
   // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
   const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
   // Where the held bubble was when the press fired — the 7a overlay floats its copy there.
@@ -809,7 +813,7 @@ export function MChatScreen(): JSX.Element {
       : undefined;
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
-    : (runTitle ?? active?.label ?? active?.name ?? routeParam ?? '');
+    : (active ? sessionDisplayTitle(active, runTitle) : routeParam ?? '');
   // 8d hint above the composer: replying extracts the run into a normal session.
   const schedHint = isScheduledRun
     ? (lang === 'zh'
@@ -842,6 +846,7 @@ export function MChatScreen(): JSX.Element {
       />
       <MChatView
         title={title}
+        metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
         status={status}
         project={currentProjectId ?? undefined}
         rows={rows}
