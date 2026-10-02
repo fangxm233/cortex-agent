@@ -3,7 +3,7 @@ import { getSettings } from '@core/settings.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import type { UpdateState } from './update-state.js';
-import { getServerUpdateStatus, reportServerUpdateFailed } from './update-ui-state.js';
+import { answerServerUpdatePrompt, getServerUpdateStatus, reportServerUpdateFailed } from './update-ui-state.js';
 
 export interface SystemUpdateCheckResult {
   status: 'available' | 'current' | 'skipped' | 'error';
@@ -19,6 +19,11 @@ export interface ServerUpdateCoordinatorDeps {
   saveState: (state: UpdateState) => void;
   now: () => string;
   isDevMode: () => boolean;
+}
+
+interface PendingPrompt {
+  version: string;
+  answer: Promise<UpdateChoice | null>;
 }
 
 const CHECK_FAILED: SystemUpdateCheckResult = { status: 'error', reason: 'check_failed' };
@@ -45,7 +50,7 @@ async function boundedLatest(getLatest: ServerUpdateCoordinatorDeps['getLatest']
 /** One instance per application: timers and the API share both discovery and prompt ownership. */
 export class ServerUpdateCoordinator {
   private inFlight: Promise<SystemUpdateCheckResult> | null = null;
-  private pendingVersion: string | null = null;
+  private pending: PendingPrompt | null = null;
   private latestVersion: string | null = null;
   private promptFailed = false;
   private decision: Promise<UpdateChoice | null> = Promise.resolve(null);
@@ -77,18 +82,34 @@ export class ServerUpdateCoordinator {
   private async discover(): Promise<SystemUpdateCheckResult> {
     const reason = this.skipReason();
     if (reason) return { status: 'skipped', reason };
-    if (this.pendingVersion) return available(this.pendingVersion);
     return this.lookup();
   }
 
   private async lookup(): Promise<SystemUpdateCheckResult> {
     const version = await boundedLatest(this.deps.getLatest);
     if (!version || !/^\d+\.\d+\.\d+(?:-\d+)?$/.test(version)) return CHECK_FAILED;
+    // Consent may have started installation while the registry request was in flight.
+    const reason = this.skipReason();
+    if (reason) return { status: 'skipped', reason };
     this.latestVersion = version;
-    if (compareCalVer(version, CORTEX_VERSION) <= 0) return { status: 'current' };
+    return this.resolveVersion(version);
+  }
+
+  private resolveVersion(version: string): Promise<SystemUpdateCheckResult> | SystemUpdateCheckResult {
+    if (compareCalVer(version, CORTEX_VERSION) <= 0) return this.current();
     const state = this.deps.loadState() ?? {};
     if (state.skippedVersion === version) return { status: 'skipped', reason: 'version_skipped' };
+    if (this.pending?.version === version) return available(version);
     return this.openPrompt(version, state);
+  }
+
+  private current(): SystemUpdateCheckResult {
+    if (this.pending) {
+      this.pending = null;
+      answerServerUpdatePrompt('cancel');
+      this.decision = Promise.resolve(null);
+    }
+    return { status: 'current' };
   }
 
   private async openPrompt(version: string, state: UpdateState): Promise<SystemUpdateCheckResult> {
@@ -96,25 +117,29 @@ export class ServerUpdateCoordinator {
     this.deps.saveState(prompted);
     // ask() synchronously publishes the existing UI prompt before discovery can return.
     const answer = this.deps.prompt.ask({ latestVersion: version });
-    this.pendingVersion = version;
+    this.pending = { version, answer };
     this.promptFailed = false;
-    this.decision = this.handleDecision(answer, version, prompted);
+    this.decision = this.handleDecision(this.pending, prompted);
     // Observe an immediately rejected prompt, without ever awaiting user consent.
     await Promise.resolve();
     return this.promptFailed ? CHECK_FAILED : available(version);
   }
 
   private async handleDecision(
-    answer: Promise<UpdateChoice | null>, version: string, state: UpdateState,
+    pending: PendingPrompt, state: UpdateState,
   ): Promise<UpdateChoice | null> {
     try {
-      return this.acceptChoice(await answer, version, state);
+      const choice = await pending.answer;
+      if (this.pending !== pending) return null;
+      return this.acceptChoice(choice, pending.version, state);
     } catch (error) {
+      if (this.pending !== pending) return null;
       this.promptFailed = true;
       reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
       return null;
     } finally {
-      this.pendingVersion = null;
+      // Superseding ask() null-settles the old promise after the new owner is installed.
+      if (this.pending === pending) this.pending = null;
     }
   }
 

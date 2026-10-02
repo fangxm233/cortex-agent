@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServerUpdateCoordinator } from '../src/domain/system/server-update-check.js';
 import { createUiUpdatePrompt } from '../src/orchestration/interactions/ui-update-prompt.js';
 import type { UpdateState } from '../src/domain/system/update-state.js';
+import type { UpdateChoice } from '../src/domain/system/update-prompt.js';
 import {
   _resetServerUpdateStatus, answerServerUpdatePrompt, getServerUpdateStatus,
   reportServerUpdateInstalled,
@@ -57,9 +58,96 @@ describe('shared server update discovery', () => {
     resolve('9999.1.1');
     expect(await background).toEqual(available);
     expect(await manual).toEqual(available);
-    expect(await f.coordinator.check()).toEqual(available);
     expect(f.getLatest).toHaveBeenCalledTimes(1);
+    f.getLatest.mockResolvedValue('9999.1.1');
+    expect(await f.coordinator.check()).toEqual(available);
+    expect(f.getLatest).toHaveBeenCalledTimes(2);
     expect(f.ask).toHaveBeenCalledTimes(1);
+    answerServerUpdatePrompt('apply');
+    expect(answerServerUpdatePrompt('apply')).toBe(false);
+    await tick();
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('supersedes changed releases without losing the new prompt ownership', async () => {
+    const f = fixture();
+    await f.coordinator.check();
+    const firstAnswer = f.ask.mock.results[0].value;
+    f.getLatest.mockResolvedValue('9999.1.2');
+    const next = { status: 'available', update: { version: '9999.1.2' } };
+    expect(await f.coordinator.check()).toEqual(next);
+    expect(await firstAnswer).toBeNull();
+    expect(getServerUpdateStatus()).toEqual({ state: 'prompting', available: '9999.1.2' });
+    expect(await f.coordinator.check()).toEqual(next);
+    expect(f.ask).toHaveBeenCalledTimes(2);
+    expect(f.getLatest).toHaveBeenCalledTimes(3);
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+    answerServerUpdatePrompt('apply');
+    await tick();
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(f.saveState).toHaveBeenLastCalledWith(expect.objectContaining({ lastPromptedVersion: '9999.1.2' }));
+  });
+
+  it.each(['apply', 'skip', 'reject'] as const)('ignores a superseded prompt late %s', async (choice) => {
+    const f = fixture();
+    let resolve!: (choice: UpdateChoice) => void;
+    let reject!: (error: Error) => void;
+    f.ask.mockImplementationOnce(() => new Promise((done, fail) => { resolve = done; reject = fail; }));
+    await f.coordinator.check();
+    f.getLatest.mockResolvedValue('9999.1.2');
+    await f.coordinator.check();
+    if (choice === 'reject') reject(new Error('stale failure'));
+    else resolve(choice);
+    await tick();
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(f.saveState).toHaveBeenCalledTimes(2);
+    expect(getServerUpdateStatus()).toEqual({ state: 'prompting', available: '9999.1.2' });
+    await f.coordinator.check();
+    expect(f.ask).toHaveBeenCalledTimes(2);
+    answerServerUpdatePrompt('apply');
+    await tick();
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['null', 'invalid', 'reject'])('reports a fresh %s lookup failure despite pending consent', async (failure) => {
+    const f = fixture();
+    await f.coordinator.check();
+    if (failure === 'reject') f.getLatest.mockRejectedValueOnce(new Error('registry down'));
+    else f.getLatest.mockResolvedValueOnce(failure === 'null' ? null : 'invalid');
+    expect(await f.coordinator.check()).toEqual(failed);
+    expect(f.getLatest).toHaveBeenCalledTimes(2);
+    expect(f.ask).toHaveBeenCalledTimes(1);
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(await f.coordinator.check()).toEqual(available);
+    expect(f.ask).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels pending consent when fresh discovery says current', async () => {
+    const f = fixture();
+    await f.coordinator.check();
+    const answer = f.ask.mock.results[0].value;
+    f.getLatest.mockResolvedValue('2020.1.1');
+    expect(await f.coordinator.check()).toEqual({ status: 'current' });
+    expect(getServerUpdateStatus()).toEqual({ state: 'idle', available: null });
+    expect(await answer).toBe('cancel');
+    expect(answerServerUpdatePrompt('apply')).toBe(false);
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen consent if installation starts during fresh discovery', async () => {
+    const f = fixture();
+    await f.coordinator.check();
+    let resolve!: (version: string) => void;
+    f.getLatest.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const check = f.coordinator.check();
+    await tick();
+    answerServerUpdatePrompt('apply');
+    await tick();
+    resolve('9999.1.2');
+    expect(await check).toEqual({ status: 'skipped', reason: 'update_in_progress' });
+    expect(f.ask).toHaveBeenCalledTimes(1);
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus().state).toBe('installing');
   });
 
   it('performs fresh discovery after current and after a cancelled prompt', async () => {
