@@ -125,6 +125,7 @@ import {
   handleCustomProviderUpsert,
 } from './mutate/custom-providers.js';
 import { createSubscription } from './subscribe.js';
+import { AssistantSnapshots } from './assistant-snapshots.js';
 
 type QueryHandler = (deps: UiServiceDeps, params: any) => Promise<any>;
 type MutateHandler = (deps: UiServiceDeps, args: any) => Promise<Result<any>>;
@@ -273,6 +274,7 @@ export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
 }
 
 export function createUiService(deps: UiServiceDeps): UiService {
+  const assistantSnapshots = new AssistantSnapshots(deps.bus);
   return {
     async query(scope, params) {
       const handler = queryHandlers[scope];
@@ -316,7 +318,7 @@ export function createUiService(deps: UiServiceDeps): UiService {
     },
 
     subscribe(filter) {
-      return createSubscription(deps.bus, filter);
+      return createSubscription(deps.bus, filter, assistantSnapshots);
     },
 
   };

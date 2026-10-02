@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
+import { EventBus } from '../../../src/events/event-bus.js';
 import { parse as yamlParse } from 'yaml';
 
 import { handleCustomProvidersList } from '../../../src/domain/ui-service/query/custom-providers.js';
@@ -41,7 +42,7 @@ function tmpStores(): CustomProviderStores {
 function depsWith(stores: CustomProviderStores, events: unknown[] = []): UiServiceDeps {
   return {
     customProviderStores: stores,
-    bus: { publish: (event: unknown) => events.push(event) },
+    bus: Object.assign(new EventBus(), { publish: (event: unknown) => events.push(event) }),
   } as unknown as UiServiceDeps;
 }
 

@@ -1,4 +1,5 @@
 import type { EventBus } from '@events/index.js';
+import type { AssistantSnapshots } from './assistant-snapshots.js';
 import type { SubscribeFilter, UiEvent } from './types.js';
 
 const QUEUE_CAP = 256;
@@ -80,13 +81,7 @@ function createAsyncQueue<T>(
   };
 }
 
-export function createSubscription(
-  bus: EventBus,
-  filter: SubscribeFilter,
-): AsyncIterable<UiEvent> & { close(): void } {
-  const eventTypes = filter.events;
-  const projectId = filter.projectId ?? null;
-  const sessionId = filter.sessionId ?? null;
+function createUiQueue(): AsyncQueue<UiEvent> {
   let droppedCount = 0;
 
   // Wire overflow handler: push a synthetic UiEvent onto the queue.
@@ -103,52 +98,43 @@ export function createSubscription(
     queue.push(synthetic);
   });
 
-  const subscriptions = eventTypes.map((type) => {
-    const sub = bus.subscribe(type as any, (event: any) => {
-      // Pre-filter the scope-required types BEFORE anything reaches the bounded queue, so one
-      // busy session can never shed another subscriber's events (see SESSION_SCOPED_ONLY).
-      if (SESSION_SCOPED_ONLY.has(event.type) && (!sessionId || event.sessionId !== sessionId)) {
-        return;
-      }
+  return queue;
+}
 
-      // Post-filter by projectId if specified
-      if (projectId && event.projectId && event.projectId !== projectId) {
-        return;
-      }
-      if (projectId && event.payload?.projectId && event.payload.projectId !== projectId) {
-        return;
-      }
+function matchesScope(event: any, { projectId, sessionId }: SubscribeFilter): boolean {
+  // Scope-required types must be filtered BEFORE reaching the bounded queue.
+  if (SESSION_SCOPED_ONLY.has(event.type) && (!sessionId || event.sessionId !== sessionId)) return false;
+  if (projectId && (
+    (event.projectId && event.projectId !== projectId)
+    || (event.payload?.projectId && event.payload.projectId !== projectId)
+  )) return false;
+  return !(sessionId && event.sessionId && event.sessionId !== sessionId);
+}
 
-      // Post-filter by sessionId — scopes session.message to a single session (S4 chat).
-      if (sessionId && event.sessionId && event.sessionId !== sessionId) {
-        return;
-      }
-
-      const uiEvent: UiEvent = {
-        type: event.type,
-        ts: event.ts,
-        payload: event,
-      };
-      queue.push(uiEvent);
-    });
-    return sub;
-  });
-
+export function createSubscription(
+  bus: EventBus,
+  filter: SubscribeFilter,
+  assistantSnapshots?: AssistantSnapshots,
+): AsyncIterable<UiEvent> & { close(): void } {
+  const queue = createUiQueue();
+  const subscriptions = filter.events.map((type) => bus.subscribe(type as any, (event: any) => {
+    if (matchesScope(event, filter)) queue.push({ type: event.type, ts: event.ts, payload: event });
+  }));
+  // Registration and seed enqueue are synchronous: no publish can fall between the snapshot
+  // and forwarding. Seeds are never published onto the bus or sent to unscoped subscribers.
+  if (filter.sessionId && filter.events.includes('session.message.delta') && assistantSnapshots) {
+    queue.push(assistantSnapshots.snapshot(filter.sessionId));
+  }
   let closed = false;
-
-  const close = (): void => {
-    if (closed) return;
-    closed = true;
-    for (const sub of subscriptions) {
-      sub.unsubscribe();
-    }
-    queue.close();
-  };
-
   return {
     [Symbol.asyncIterator](): AsyncIterator<UiEvent> {
       return queue[Symbol.asyncIterator]();
     },
-    close,
+    close(): void {
+      if (closed) return;
+      closed = true;
+      for (const sub of subscriptions) sub.unsubscribe();
+      queue.close();
+    },
   };
 }

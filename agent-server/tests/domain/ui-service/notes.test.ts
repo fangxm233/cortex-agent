@@ -1,4 +1,5 @@
 import { test } from 'vitest';
+import { EventBus } from '../../../src/events/event-bus.js';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -49,10 +50,9 @@ function makeDeps(contextDir: string | null, published: PublishedEvent[] = []): 
     approvalsPath: '/nonexistent/PENDING_APPROVALS.md',
     runningExecutions: { getAll: () => [] } as any,
     costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
-    bus: {
-      subscribe: () => ({ unsubscribe: () => {} }),
+    bus: Object.assign(new EventBus(), {
       publish: (event: PublishedEvent) => { published.push(event); },
-    } as any,
+    }),
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
     cancelSessionRun: async () => 0,
     switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
