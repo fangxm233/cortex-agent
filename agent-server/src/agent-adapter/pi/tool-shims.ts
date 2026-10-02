@@ -15,6 +15,7 @@ import {
 } from './mcp-bridge.js';
 import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
 import { createQuotaProbe } from './quota-probe.js';
+import { installImageFirst } from './image-first.js';
 import {
   createSubagentStopTool, createSubagentTool,
   type RunForeignSubagent, type SubagentToolDeps, type SubagentUsageReport,
@@ -109,7 +110,7 @@ function runtimeCatalog(
   }
 }
 
-/** The extensions a subagent session runs with: the Cortex MCP bridge and these shims, both closed
+/** Subagents run with image-first requests, the Cortex MCP bridge and these shims, closed
  *  over the child's own env. Its subagent marker keeps the Agent tool out of the child, and its
  *  stripped scope keeps the child's bridge to the core bundle. Exported because a `pi` child
  *  delegated from a Claude parent is built by the daemon runner, outside any PI session. */
@@ -118,6 +119,7 @@ export function childExtensions(
   openBundledMcpServer?: OpenBundledMcpServer,
 ): InlineExtension[] {
   return [
+    { name: 'cortex-image-first', factory: installImageFirst },
     {
       name: 'cortex-mcp-bridge',
       factory: (pi) => installMcpBridge(pi, createMcpBridgeDeps(env, [], openBundledMcpServer)),

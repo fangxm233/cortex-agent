@@ -10,6 +10,7 @@ import {
 import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
 import { createQuotaProbe } from './quota-probe.js';
+import { installImageFirst } from './image-first.js';
 
 export interface CortexExtensionHooks {
   /** Receives every provider quota reading, from this session and from its nested children alike. */
@@ -28,9 +29,9 @@ export interface CortexExtensionHooks {
 }
 
 /**
- * The four Cortex extensions a session runs with, each closed over the session's request rather
+ * The Cortex extensions a session runs with, each closed over the session's request rather
  * than `process.env`: the MCP bridge (Cortex bundles in-process, plugin servers as independent
- * connections), the tool shims, the hook bridge unless the role disabled hooks, and the quota
+ * connections), the tool shims, image-first requests, the optional hook bridge, and the quota
  * probe for gateway-routed runs that have somewhere to report to. The same quota reporter reaches
  * nested child sessions through the shims: a child's provider calls are the parent's spend, and
  * codex publishes quota only on real responses, so dropping the child's would starve the reading.
@@ -43,6 +44,7 @@ export function createCortexExtensions(
   // inheriting children — so "does this run report quota" is decided in exactly one place.
   const reportQuota = request.reportsProviderQuota ? hooks.onProviderQuota : undefined;
   const extensions: InlineExtension[] = [
+    { name: 'cortex-image-first', factory: installImageFirst },
     {
       name: 'cortex-mcp-bridge',
       factory: (pi) => installMcpBridge(

@@ -549,7 +549,7 @@ test('L: a child inheriting the session model carries the quota probe', async ()
   assert.equal(requests[0].provider, 'openai-codex');
   assert.deepEqual(
     requests[0].extensions.map((extension) => extension.name),
-    ['cortex-mcp-bridge', 'cortex-tool-shims', 'cortex-quota-probe'],
+    ['cortex-image-first', 'cortex-mcp-bridge', 'cortex-tool-shims', 'cortex-quota-probe'],
   );
 });
 
@@ -558,7 +558,7 @@ test('L2: a run that reports no quota builds its children without the probe', as
   assert.equal(requests.length, 1);
   assert.deepEqual(
     requests[0].extensions.map((extension) => extension.name),
-    ['cortex-mcp-bridge', 'cortex-tool-shims'],
+    ['cortex-image-first', 'cortex-mcp-bridge', 'cortex-tool-shims'],
   );
 });
 
@@ -568,7 +568,7 @@ test('L3: a child on a model of its own reports no quota, since its provider is 
   assert.equal(requests[0].provider, null, 'an explicit model carries no provider of its own');
   assert.deepEqual(
     requests[0].extensions.map((extension) => extension.name),
-    ['cortex-mcp-bridge', 'cortex-tool-shims'],
+    ['cortex-image-first', 'cortex-mcp-bridge', 'cortex-tool-shims'],
   );
 });
 
