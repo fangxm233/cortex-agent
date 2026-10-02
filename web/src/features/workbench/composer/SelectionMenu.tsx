@@ -51,10 +51,7 @@ function DrillRow({ row, onOpen, hover, setHover }: {
         background: rowBackground(id, hover, false),
       }}
     >
-      <span style={{
-        font: `600 11px ${mono}`, letterSpacing: '0.05em', textTransform: 'uppercase',
-        color: 'var(--proto-muted)', flex: 'none',
-      }}>
+      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-ink-2)', flex: 'none' }}>
         {row.label}
       </span>
       <span style={{
@@ -97,6 +94,108 @@ function BackRow({ title, onBack, hover, setHover }: {
         color: 'var(--proto-muted)',
       }}>
         {title}
+      </span>
+    </button>
+  );
+}
+
+/** A sub-heading inside a pane — a backend or an endpoint — drawn as a labelled rule so it reads as
+ *  a break between rows rather than as one more row. */
+function GroupLabel({ text }: { text: string }): JSX.Element {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px 2px',
+      font: `500 10px ${mono}`, color: 'var(--proto-muted-2)',
+    }}>
+      <span style={{ flex: 'none' }}>{text}</span>
+      <span style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+    </div>
+  );
+}
+
+/** Longest name a profile column will make room for before it starts eliding. */
+const PROFILE_NAME_MAX_CH = 16;
+
+/** Profiles read as a table — name, model, thinking — with every column starting at the same x, so
+ *  the eye runs down one column instead of re-finding each row's model. The backend is the group
+ *  heading rather than a word repeated on every row, and goes away when only one backend is left. */
+function ProfileRows({ options, onPick, shared }: {
+  options: ProfileOption[];
+  onPick: (name: string) => void;
+  shared: HoverProps;
+}): JSX.Element {
+  const nameCh = Math.min(PROFILE_NAME_MAX_CH, Math.max(0, ...options.map((o) => o.name.length)));
+  const thinkingCh = Math.max(0, ...options.map((o) => o.thinking?.length ?? 0));
+  const groups: Array<{ backend: string; options: ProfileOption[] }> = [];
+  for (const option of options) {
+    const group = groups.find((candidate) => candidate.backend === option.backend);
+    if (group) group.options.push(option);
+    else groups.push({ backend: option.backend, options: [option] });
+  }
+  return (
+    <>
+      {groups.map((group) => (
+        <div key={`profiles:${group.backend}`}>
+          {groups.length > 1 && <GroupLabel text={group.backend} />}
+          {group.options.map((option) => (
+            <ProfileRow
+              key={`profile:${option.name}`}
+              option={option}
+              nameCh={nameCh}
+              thinkingCh={thinkingCh}
+              onPick={() => onPick(option.name)}
+              {...shared}
+            />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ProfileRow({ option, nameCh, thinkingCh, onPick, hover, setHover }: {
+  option: ProfileOption;
+  nameCh: number;
+  thinkingCh: number;
+  onPick: () => void;
+} & HoverProps): JSX.Element {
+  const id = `profile:${option.name}`;
+  return (
+    <button
+      type="button"
+      aria-pressed={option.active}
+      className={MENU_FOCUS}
+      title={`${option.name} · ${option.sub}`}
+      onMouseEnter={() => setHover(id)}
+      onMouseLeave={() => setHover(hover === id ? null : hover)}
+      onClick={(event) => { event.stopPropagation(); onPick(); }}
+      data-selection-row={id}
+      style={{
+        ...MENU_BUTTON_STYLE,
+        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', cursor: 'pointer',
+        background: rowBackground(id, hover, option.active),
+      }}
+    >
+      <span style={{
+        font: `600 11px ${mono}`, color: 'var(--proto-ink)', width: `${nameCh}ch`, flex: 'none',
+      }}>
+        {option.name}
+      </span>
+      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-ink-2)', flex: 1 }}>
+        {option.model ?? '—'}
+      </span>
+      {thinkingCh > 0 && (
+        <span style={{
+          font: `400 11px ${mono}`, color: 'var(--proto-muted)', width: `${thinkingCh}ch`, flex: 'none',
+        }}>
+          {option.thinking ?? ''}
+        </span>
+      )}
+      <span style={{
+        width: 10, flex: 'none', textAlign: 'right',
+        color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700,
+      }}>
+        {option.active ? '✓' : ''}
       </span>
     </button>
   );
@@ -152,17 +251,7 @@ function RootPane({ props, shared }: { props: SelectionMenuProps; shared: HoverP
   return (
     <>
       <SectionTitle text={L.wbProfile} />
-      {props.profiles.map((option) => (
-        <MenuRow
-          key={`profile:${option.name}`}
-          id={`profile:${option.name}`}
-          label={option.name}
-          sub={option.sub}
-          active={option.active}
-          onPick={() => props.onPickProfile(option.name)}
-          {...shared}
-        />
-      ))}
+      <ProfileRows options={props.profiles} onPick={props.onPickProfile} shared={shared} />
       {note ? <Note text={note} /> : null}
       <Divider />
       {props.rootRows.map((row) => (
@@ -235,11 +324,7 @@ function ModelPane({ props, shared }: { props: SelectionMenuProps; shared: Hover
       />
       {groups.map((group) => (
         <div key={`group:${group.group}`}>
-          <div style={{
-            font: `500 11px ${mono}`, color: 'var(--proto-muted)', padding: '4px 8px 2px',
-          }}>
-            {group.group}
-          </div>
+          <GroupLabel text={group.group} />
           {group.options.map((option) => (
             <MenuRow
               key={`model:${option.backend}:${option.provider ?? ''}:${option.id}`}
@@ -319,7 +404,7 @@ export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
   const { pane } = props;
 
   return (
-    <MenuCard kind="selection" level={pane} minWidth={280} className="selection-menu">
+    <MenuCard kind="selection" level={pane} minWidth={336} className="selection-menu">
       <PaneMotion pane={pane}>
         {pane === 'root' && <RootPane props={props} shared={shared} />}
         {pane === 'model' && <ModelPane props={props} shared={shared} />}

@@ -175,7 +175,7 @@ describe('SessionSelector', () => {
     expect(root.props['data-pane']).toBe('root');
     expect(root.props['data-motion']).toBeUndefined();
     expect(shell.props.className).toBe('selection-menu');
-    expect(shell.props.style.minWidth).toBe(280);
+    expect(shell.props.style.minWidth).toBe(336);
     expect(root.parent?.props.className).toBe('selection-pane-clip');
     drill(renderer, pane);
     const child = content();

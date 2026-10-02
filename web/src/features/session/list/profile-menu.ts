@@ -10,6 +10,9 @@ export interface ProfileOption {
   name: string;
   /** Sub-label: the profile's model · thinking (when set) · backend. */
   sub: string;
+  /** The same parts unjoined, for a list that lays them out in columns. */
+  model: string | null;
+  thinking: string | null;
   active: boolean;
   /** The profile's backend (claude / pi). */
   backend: string;
@@ -48,6 +51,8 @@ export function buildProfileOptions(
     .map((p) => ({
       name: p.name,
       sub: profileSub(p),
+      model: p.model ?? null,
+      thinking: p.thinking ?? null,
       active: p.name === active,
       backend: backendOf(p),
       disabled: opts.hasHistory && opts.currentBackend !== null && backendOf(p) !== opts.currentBackend,

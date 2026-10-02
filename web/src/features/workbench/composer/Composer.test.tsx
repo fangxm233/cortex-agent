@@ -79,7 +79,7 @@ vi.mock('./SessionSelector', async () => {
         profileName: 'plan', backend: 'claude', model: 'claude-opus-5', provider: null,
         thinking: 'high', modelOverridden: false, thinkingOverridden: false,
       },
-      profileOptions: [{ name: 'execute', sub: 'sonnet', active: false, backend: 'claude', disabled: false }],
+      profileOptions: [{ name: 'execute', sub: 'sonnet', model: 'sonnet', thinking: null, active: false, backend: 'claude', disabled: false }],
       modelGroups: [], thinkingOptions: [], profileModel: 'claude-opus-5', profileThinking: 'high',
       modelsReady: true,
       pickProfile: harness.pickProfile, pickModel: vi.fn(), pickThinking: vi.fn(),
