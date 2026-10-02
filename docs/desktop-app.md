@@ -161,7 +161,11 @@ A tagged native release uses the same version as `@cortex-agent/server`. This sh
 
 ## Updates
 
-The app uses two update channels, both coordinated by the connected server.
+**Help → Check for updates** checks the connected server for a fresh release, then checks the frontend workbench and native app shell. Repeated clicks share the running check. Results distinguish available, current, skipped, and failed checks; disabled checks, development runs, and skipped versions are not reported as current.
+
+Update prompts are ordered: server first, native app next, then the frontend workbench. Checking does not authorize installation or a restart. **Update** on the server prompt authorizes its installation and restart; **Later** hides the prompt until another manual check, while **Skip this version** retains the skipped-version policy. Server checks respect `serverUpdateDisable` and development mode.
+
+After the server reconnects, the app checks only its frontend and native channels again. Each restart or installer keeps its own confirmation and platform permissions: this is an ordered flow, not an atomic installation of all components. Browsers use a [page refresh confirmation](browser-access.md#updates) rather than native installers.
 
 ### Frontend workbench
 

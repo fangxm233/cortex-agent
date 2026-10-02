@@ -16,6 +16,14 @@ There are three independent ways to reach the workbench, and they authenticate d
 This page is the browser + deployment reference. For installing the native desktop app, see
 [Desktop App](desktop-app.md).
 
+## Updates
+
+**Help → Check for updates** checks the connected server for a fresh release and compares the loaded page's production entry scripts and stylesheets with fresh, same-origin HTML fetched without using the browser cache. It does not call native app commands. Development pages and unsupported entry layouts report a skipped page check; network, authentication, and invalid-page responses report a failed check, not “up to date.”
+
+Server prompts take priority and are visible on desktop and mobile browsers. **Update** authorizes server installation and a restart, which briefly interrupts the connection. **Later** hides the prompt; another manual check can reopen it. **Skip this version**, disabled server checks, and development-mode policies remain in effect.
+
+After the server reconnects, the browser checks only the page assets again. Changed assets offer **Refresh page**; nothing reloads automatically. Refresh can lose unsaved page state but does not stop running server tasks. Choosing **Later** keeps the loaded page, and a later check can offer refresh again. The server update and page refresh have separate confirmations.
+
 ## The in-core Web UI transport
 
 The Web UI transport ships **in-core** with `@cortex-agent/server` and is **loaded on demand**
