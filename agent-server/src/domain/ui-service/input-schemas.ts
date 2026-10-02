@@ -2,6 +2,8 @@ import { platformSettingsInput } from '@core/platform-settings-spec.js';
 export { platformSettingsInput } from '@core/platform-settings-spec.js';
 
 import { z } from 'zod';
+import { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
+export { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 import { t } from '@core/i18n.js';
 import { SETTINGS_SPEC } from '@core/settings-spec.js';
 // Import the leaf model module, not the pi-providers barrel: this file is bundled for the browser
@@ -855,6 +857,8 @@ export const mutateInputSchemas = {
   'sessions.setSelection': sessionsSetSelectionInput,
   'sessions.setCommission': sessionsSetCommissionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
+  'sessions.setStarred': sessionsSetStarredInput,
+  'sessions.rename': sessionsRenameInput,
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.markManyRead': sessionsMarkManyReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,

@@ -1,6 +1,13 @@
 import type { PlatformSettingsPatch, PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
 export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
 
+import type {
+  SessionsSetStarredArgs, SessionsSetStarredReturn, SessionsRenameArgs, SessionsRenameReturn,
+} from './session-metadata-schemas.js';
+export type {
+  SessionsSetStarredArgs, SessionsSetStarredReturn, SessionsRenameArgs, SessionsRenameReturn,
+} from './session-metadata-schemas.js';
+
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
@@ -793,6 +800,8 @@ export interface SessionInfo {
   lastUsedAt: string;
   resumable: boolean;
   label: string | null;
+  /** Optional for older fixtures/clients; sessions.list always supplies a boolean. */
+  starred?: boolean;
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
@@ -2600,6 +2609,8 @@ export interface MutateArgsMap {
   'sessions.setSelection': SessionsSetSelectionArgs;
   'sessions.setCommission': SessionsSetCommissionArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
+  'sessions.setStarred': SessionsSetStarredArgs;
+  'sessions.rename': SessionsRenameArgs;
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.markManyRead': SessionsMarkManyReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
@@ -2680,6 +2691,8 @@ export interface MutateReturnMap {
   'sessions.setSelection': SessionsSetSelectionReturn;
   'sessions.setCommission': SessionsSetCommissionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
+  'sessions.setStarred': SessionsSetStarredReturn;
+  'sessions.rename': SessionsRenameReturn;
   'sessions.markRead': void;
   'sessions.markManyRead': SessionsMarkManyReadReturn;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
@@ -2793,6 +2806,9 @@ export interface UiServiceDeps {
     /** Stamp lastReadAt=now (unread tracking; backs `sessions.markRead`). Optional so existing
      *  facade/test fixtures need not provide it (the handler no-ops when absent). */
     markRead?(sessionId: string): Promise<void>;
+    /** Atomic metadata-only writes. Optional for read-only/legacy fixtures, not silent no-ops. */
+    setStarred?(sessionId: string, starred: boolean): Promise<Session | null>;
+    rename?(sessionId: string, label: string): Promise<Session | null>;
   };
   /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
    *  the two fields the answer depends on so the list can answer it once per distinct profile

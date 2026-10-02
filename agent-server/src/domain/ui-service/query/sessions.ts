@@ -168,6 +168,7 @@ export async function handleSessionsList(
       lastUsedAt: s.lastUsedAt,
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
+      starred: s.starred ?? false,
       profileName: s.profileName ?? null,
       // The environment half of the same question: which agent template the session runs as.
       agentName: s.agentName ?? null,

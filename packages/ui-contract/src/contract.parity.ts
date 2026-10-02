@@ -14,6 +14,8 @@ import type {
   sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsSetCommissionInput,
+  sessionsSetStarredInput,
+  sessionsRenameInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -158,6 +160,8 @@ const _sessionsSetProfile: MutateParity<'sessions.setProfile', typeof sessionsSe
 const _sessionsSetAgent: MutateParity<'sessions.setAgent', typeof sessionsSetAgentInput> = true;
 const _sessionsSetSelection: MutateParity<'sessions.setSelection', typeof sessionsSetSelectionInput> = true;
 const _sessionsSetCommission: MutateParity<'sessions.setCommission', typeof sessionsSetCommissionInput> = true;
+const _sessionsSetStarred: MutateParity<'sessions.setStarred', typeof sessionsSetStarredInput> = true;
+const _sessionsRename: MutateParity<'sessions.rename', typeof sessionsRenameInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
 const _waitpointsCancel: MutateParity<'waitpoints.cancel', typeof waitpointsCancelInput> = true;

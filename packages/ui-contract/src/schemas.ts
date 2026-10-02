@@ -12,6 +12,8 @@ export {
   sessionsSetAgentInput,
   sessionsSetSelectionInput,
   sessionsSetCommissionInput,
+  sessionsSetStarredInput,
+  sessionsRenameInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,

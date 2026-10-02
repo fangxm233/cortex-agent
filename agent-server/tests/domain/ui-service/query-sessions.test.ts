@@ -64,6 +64,17 @@ test('sessions.list with projectId returns filtered sessions', async () => {
   assert.equal(result[1].resumable, true);
 });
 
+test('sessions.list exposes stars and defaults legacy records to false', async () => {
+  const deps = makeDeps();
+  deps.sessionStore.listByProject = async () => [
+    { ...mockSessions[0], starred: true },
+    { ...mockSessions[1], starred: false },
+    mockSessions[2],
+  ];
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.deepEqual(result.map(session => session.starred), [true, false, false]);
+});
+
 test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
   const result = await handleSessionsList(makeDeps(), {});
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));

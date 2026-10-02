@@ -1,5 +1,6 @@
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
 import { handleProjectsList } from './query/projects.js';
+import { handleSetStarred, handleRenameSession } from './mutate/session-metadata.js';
 import {
   handleSessionsList,
   handleSessionsTranscript,
@@ -184,6 +185,8 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.setSelection': (deps, args) => handleSetSelection(deps, args),
   'sessions.setCommission': (deps, args) => handleSetCommission(deps, args),
   'sessions.createAndSend': (deps, args) => handleCreateAndSend(deps, args),
+  'sessions.setStarred': (deps, args) => handleSetStarred(deps, args),
+  'sessions.rename': (deps, args) => handleRenameSession(deps, args),
   'sessions.markRead': (deps, args) => handleMarkReadSession(deps, args),
   'sessions.markManyRead': (deps, args) => handleMarkManyReadSessions(deps, args),
   'sessions.answerQuestion': (deps, args) => handleAnswerQuestion(deps, args),
