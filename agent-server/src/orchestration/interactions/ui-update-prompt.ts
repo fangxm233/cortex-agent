@@ -21,38 +21,38 @@ export function createUiUpdatePrompt(
 ): UpdatePrompt {
   const fallbackMs = opts?.fallbackMs ?? DEFAULT_FALLBACK_MS;
 
-  return {
-    ask(spec) {
-      return new Promise<UpdateChoice | null>((resolve) => {
-        let settled = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
+  return { ask: (spec) => askWithFallback(fallback, spec, fallbackMs) };
+}
 
-        // The one place an answer becomes final, whichever side produced it. The loser's
-        // answer arrives later (a chat button click has no cancel API — `createUpdatePrompt`
-        // only clears its pending state on click or on its own 24h timeout) and is dropped here.
-        const finish = (choice: UpdateChoice | null): void => {
-          if (settled) return;
-          settled = true;
-          if (timer !== undefined) clearTimeout(timer);
-          settleServerUpdatePrompt(choice);
-          resolve(choice);
-        };
+function askWithFallback(
+  fallback: UpdatePrompt, spec: { latestVersion: string }, fallbackMs: number,
+): Promise<UpdateChoice | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // First answer wins; late chat answers/errors cannot affect a replacement prompt.
+    const finish = (choice: UpdateChoice | null): void => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      settleServerUpdatePrompt(choice);
+      resolve(choice);
+    };
+    openServerUpdatePrompt(spec.latestVersion, finish);
+    timer = setTimeout(() => {
+      if (settled) return;
+      askChat(fallback, spec, finish);
+    }, fallbackMs);
+    timer.unref?.();
+  });
+}
 
-        openServerUpdatePrompt(spec.latestVersion, finish);
-
-        timer = setTimeout(() => {
-          if (settled) return;
-          // Nobody has the SPA open (or nobody looked). Ask again over chat rather than let the
-          // update sit behind a dialog no one will ever see.
-          void fallback
-            .ask(spec)
-            .then(finish)
-            .catch((e: unknown) => {
-              log.error(`Chat-message update prompt failed: ${(e as Error).message}`);
-            });
-        }, fallbackMs);
-        timer.unref?.();
-      });
-    },
-  };
+function askChat(
+  fallback: UpdatePrompt, spec: { latestVersion: string }, finish: (choice: UpdateChoice | null) => void,
+): void {
+  void fallback.ask(spec).then(finish).catch((e: unknown) => {
+    log.error(`Chat-message update prompt failed: ${(e as Error).message}`);
+    // Release consent ownership so a later check can retry the chat prompt.
+    finish(null);
+  });
 }

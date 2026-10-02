@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createUiUpdatePrompt } from '../src/orchestration/interactions/ui-update-prompt.js';
 import type { UpdateChoice, UpdatePrompt } from '../src/domain/system/update-prompt.js';
 import {
   _resetServerUpdateStatus,
+  answerServerUpdatePrompt,
   getServerUpdateStatus,
   reportServerUpdateFailed,
   reportServerUpdateInstalled,
@@ -37,6 +38,7 @@ function stubChatPrompt() {
 beforeEach(() => {
   _resetServerUpdateStatus();
 });
+afterEach(() => { vi.useRealTimers(); });
 
 describe('createUiUpdatePrompt', () => {
   it('publishes a prompting status the SPA query can read', async () => {
@@ -114,6 +116,38 @@ describe('createUiUpdatePrompt', () => {
     expect(getServerUpdateStatus()).toEqual({ available: '2026.9.21', state: 'prompting' });
 
     await handleSystemApplyUpdate({});
+    expect(await second).toBe('apply');
+  });
+
+  it.each(['apply', 'skip'] as const)('keeps the SPA %s answer when fallback later rejects', async (choice) => {
+    vi.useFakeTimers();
+    let reject!: (error: Error) => void;
+    const fallback = { ask: vi.fn(() => new Promise<UpdateChoice | null>((_done, fail) => { reject = fail; })) };
+    const prompt = createUiUpdatePrompt(fallback, { fallbackMs: 5 });
+    const answer = prompt.ask({ latestVersion: '2026.9.20' });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(answerServerUpdatePrompt(choice)).toBe(true);
+    expect(await answer).toBe(choice);
+    const status = getServerUpdateStatus();
+    reject(new Error('late chat failure'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await answer).toBe(choice);
+    expect(getServerUpdateStatus()).toEqual(status);
+  });
+
+  it('does not clear a replacement prompt when the old fallback rejects', async () => {
+    vi.useFakeTimers();
+    let reject!: (error: Error) => void;
+    const fallback = { ask: vi.fn(() => new Promise<UpdateChoice | null>((_done, fail) => { reject = fail; })) };
+    const prompt = createUiUpdatePrompt(fallback, { fallbackMs: 5 });
+    const first = prompt.ask({ latestVersion: '2026.9.20' });
+    await vi.advanceTimersByTimeAsync(5);
+    const second = prompt.ask({ latestVersion: '2026.9.21' });
+    expect(await first).toBeNull();
+    reject(new Error('superseded chat failure'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getServerUpdateStatus()).toEqual({ state: 'prompting', available: '2026.9.21' });
+    expect(answerServerUpdatePrompt('apply')).toBe(true);
     expect(await second).toBe('apply');
   });
 

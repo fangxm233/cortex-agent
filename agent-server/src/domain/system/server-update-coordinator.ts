@@ -133,14 +133,18 @@ export class ServerUpdateCoordinator {
       if (this.pending !== pending) return null;
       return this.acceptChoice(choice, pending.version, state);
     } catch (error) {
-      if (this.pending !== pending) return null;
-      this.promptFailed = true;
-      reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
-      return null;
+      return this.failDecision(pending, error);
     } finally {
       // Superseding ask() null-settles the old promise after the new owner is installed.
       if (this.pending === pending) this.pending = null;
     }
+  }
+
+  private failDecision(pending: PendingPrompt, error: unknown): null {
+    if (this.pending !== pending) return null;
+    this.promptFailed = true;
+    reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
+    return null;
   }
 
   private acceptChoice(choice: UpdateChoice | null, version: string, state: UpdateState): UpdateChoice | null {

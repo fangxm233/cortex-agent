@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServerUpdateCoordinator } from '../src/domain/system/server-update-check.js';
 import { createUiUpdatePrompt } from '../src/orchestration/interactions/ui-update-prompt.js';
 import type { UpdateState } from '../src/domain/system/update-state.js';
-import type { UpdateChoice } from '../src/domain/system/update-prompt.js';
+import type { UpdateChoice, UpdatePrompt } from '../src/domain/system/update-prompt.js';
 import {
   _resetServerUpdateStatus, answerServerUpdatePrompt, getServerUpdateStatus,
   reportServerUpdateInstalled,
@@ -15,9 +15,9 @@ const available = { status: 'available', update: { version: '9999.1.1' } };
 const failed = { status: 'error', reason: 'check_failed' };
 const tick = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
-function fixture() {
+function fixture(fallback: UpdatePrompt = { ask: async () => null }, fallbackMs = 600_000) {
   let state: UpdateState = {};
-  const prompt = createUiUpdatePrompt({ ask: async () => null });
+  const prompt = createUiUpdatePrompt(fallback, { fallbackMs });
   const ask = vi.spyOn(prompt, 'ask');
   const getLatest = vi.fn(async () => '9999.1.1' as string | null);
   const spawnInstall = vi.fn();
@@ -229,6 +229,26 @@ describe('shared server update discovery', () => {
     f.saveState.mockImplementation(() => { throw new Error('disk full'); });
     expect(await f.coordinator.check()).toEqual(failed);
     expect(f.ask).not.toHaveBeenCalled();
+  });
+
+  it('settles a real wrapper fallback failure and retries chat on the next check', async () => {
+    vi.useFakeTimers();
+    const fallback = { ask: vi.fn().mockRejectedValueOnce(new Error('chat unavailable')).mockResolvedValueOnce('apply') };
+    const f = fixture(fallback, 5);
+    expect(await f.coordinator.check()).toEqual(available);
+    const settled = vi.fn();
+    void f.ask.mock.results[0].value.then(settled);
+    await vi.advanceTimersByTimeAsync(5);
+    expect(settled).toHaveBeenCalledWith(null);
+    expect(getServerUpdateStatus()).toEqual({ state: 'idle', available: null });
+    expect(f.spawnInstall).not.toHaveBeenCalled();
+    expect(await f.coordinator.check()).toEqual(available);
+    expect(f.ask).toHaveBeenCalledTimes(2);
+    expect(f.getLatest).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(5);
+    expect(fallback.ask).toHaveBeenCalledTimes(2);
+    expect(f.spawnInstall).toHaveBeenCalledTimes(1);
+    expect(getServerUpdateStatus().state).toBe('installing');
   });
 
   it('contains asynchronous prompt failures rather than leaking a rejection', async () => {
