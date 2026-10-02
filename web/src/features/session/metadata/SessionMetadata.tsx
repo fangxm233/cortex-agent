@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import { Button } from '@/design/Button';
 import { Modal } from '@/design/Modal';
 import { useLang } from '@/i18n';
@@ -7,6 +7,14 @@ import { useSessionMetadata, validSessionTitle, type MetadataSession, type Sessi
 
 export type { MetadataSession, SessionMetadataActions } from './useSessionMetadata';
 type Props = { session: MetadataSession | null; children: (actions: SessionMetadataActions) => ReactNode };
+
+const TITLE_INPUT_STYLE: CSSProperties = {
+  display: 'block', width: '100%', minWidth: 0, minHeight: 34, boxSizing: 'border-box',
+  fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, color: 'var(--proto-ink)',
+  background: 'var(--material-control-bg)', border: '1px solid var(--proto-line-3)',
+  borderRadius: 'var(--r-control)', boxShadow: 'var(--material-control-shadow)',
+  padding: '6px 10px', outlineOffset: -2,
+};
 
 function RenameDialog({ actions }: { actions: SessionMetadataActions }): JSX.Element {
   const copy = metadataCopy(useLang());
@@ -19,7 +27,7 @@ function RenameDialog({ actions }: { actions: SessionMetadataActions }): JSX.Ele
       <input id={id} autoFocus value={actions.draft} disabled={actions.pending}
         aria-invalid={!valid} aria-describedby={!valid ? `${id}-validation` : undefined}
         onChange={(event) => actions.setDraft(event.target.value)}
-        className="w-full rounded-[var(--r-control)] border border-proto-faint bg-surface-canvas px-1g py-1g text-state-ink" />
+        style={TITLE_INPUT_STYLE} />
       {!valid && <p id={`${id}-validation`} className="mt-1g text-state-fail">{copy.invalidTitle}</p>}
       {actions.error && <p role="alert" className="mt-1g text-state-fail">{actions.error}</p>}
       <div className="flex justify-end gap-1g mt-2g">
