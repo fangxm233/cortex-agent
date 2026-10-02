@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { beforeEach, test } from 'vitest';
+import { EventBus } from '../../../src/events/event-bus.js';
 import { CONFIG_DIR, PLUGINS_DIR } from '../../../src/core/paths.js';
 import {
   AGENT_PLUGIN_V1_MCP_SCHEMA_URL,
@@ -38,7 +39,7 @@ function deps(): UiServiceDeps {
   return {
     threadStore: { getAll: () => [], get: () => null },
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    bus: { publish: () => {}, subscribe: () => ({ unsubscribe: () => {} }) },
+    bus: new EventBus(),
   } as unknown as UiServiceDeps;
 }
 

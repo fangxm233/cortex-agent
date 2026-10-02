@@ -55,90 +55,12 @@ export interface LiveSessionMessage {
   subagentEnded?: 'completed' | 'failed' | 'killed';
 }
 
-// ── Token-level streaming (`session.message.delta`) ─────────────────────────────────────────────
-//
-// A block being generated arrives as a series of increments sharing one `blockId`, then as the
-// complete `session.message` carrying that same id. The preview is never truth: it exists to make
-// a 20-second wait visible, and is discarded the moment the authoritative text lands.
-
-/** The assistant text block currently being previewed. */
-export interface StreamingBlock {
-  blockId: string;
-  /** Everything received for this block so far. */
-  text: string;
-}
-
-/** A `session.message.delta` payload. `text` is the increment since this block's previous event. */
-export interface AssistantDeltaEvent {
-  blockId?: string;
-  text?: string;
-  seq?: number;
-}
-
-/**
- * Fold one delta into the preview. A different `blockId` starts a fresh block rather than
- * concatenating across blocks (the model wrote a second paragraph block, or a new message began);
- * a malformed event leaves the previous state untouched, so a dropped field can never blank the
- * bubble mid-stream.
- */
-export function applyAssistantDelta(
-  prev: StreamingBlock | null,
-  ev: AssistantDeltaEvent,
-): StreamingBlock | null {
-  const { blockId, text } = ev;
-  if (typeof blockId !== 'string' || !blockId) return prev;
-  if (typeof text !== 'string' || !text) return prev;
-  if (!prev || prev.blockId !== blockId) return { blockId, text };
-  return { blockId, text: prev.text + text };
-}
-
-/**
- * Retire the preview when a complete assistant message arrives. Cleared when it is the same block
- * (the normal handover) and also when the message carries no blockId at all — a backend that did
- * not stream must never leave a half-written bubble stranded on screen. A message for a DIFFERENT
- * block leaves the current preview alone.
- */
-export function endStreamingBlock(
-  prev: StreamingBlock | null,
-  messageBlockId: string | undefined,
-): StreamingBlock | null {
-  if (!prev) return null;
-  if (!messageBlockId) return null;
-  return messageBlockId === prev.blockId ? null : prev;
-}
-
-const FINALIZED_BLOCK_CAP = 32;
-
-/** Preview state spans both SSE connections: finalized ids stop a late delta from reopening a row. */
-export interface AssistantPreviewState {
-  active: StreamingBlock | null;
-  finalizedBlockIds: readonly string[];
-}
-
-export function initialAssistantPreviewState(): AssistantPreviewState {
-  return { active: null, finalizedBlockIds: [] };
-}
-
-export function applyAssistantPreviewDelta(
-  state: AssistantPreviewState,
-  ev: AssistantDeltaEvent,
-): AssistantPreviewState {
-  const blockId = ev.blockId;
-  if (!blockId || state.finalizedBlockIds.includes(blockId)) return state;
-  const active = applyAssistantDelta(state.active, ev);
-  return active === state.active ? state : { ...state, active };
-}
-
-export function finalizeAssistantPreview(
-  state: AssistantPreviewState,
-  messageBlockId: string | undefined,
-): AssistantPreviewState {
-  const finalizedId = messageBlockId ?? state.active?.blockId;
-  const active = endStreamingBlock(state.active, messageBlockId);
-  if (!finalizedId || state.finalizedBlockIds.includes(finalizedId)) return { ...state, active };
-  const finalizedBlockIds = [...state.finalizedBlockIds, finalizedId].slice(-FINALIZED_BLOCK_CAP);
-  return { active, finalizedBlockIds };
-}
+// Compatibility exports; preview state is kept separate from the transcript row model.
+export {
+  applyAssistantDelta, endStreamingBlock, initialAssistantPreviewState,
+  applyAssistantPreviewDelta, finalizeAssistantPreview,
+  type StreamingBlock, type AssistantDeltaEvent, type AssistantPreviewState,
+} from './assistant-preview';
 
 
 // ── A user message the model has not read yet (`pending` / `session.message.delivered`) ─────────

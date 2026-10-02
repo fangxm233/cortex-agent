@@ -45,9 +45,10 @@ export function useAssistantDeltaStream(
       { events: [...ASSISTANT_DELTA_EVENTS], sessionId },
       {
         onConnectionStateChange: (s: { state: string }) => {
-          if (s.state === 'pending') failuresRef.current = 0;
+          if (!disposed && s.state === 'pending') failuresRef.current = 0;
         },
         onData: (raw: unknown) => {
+          if (disposed) return;
           const ev = raw as { type?: string; payload?: AssistantDeltaEvent } | undefined;
           if (!ev || ev.type !== 'session.message.delta' || !ev.payload) return;
           handlerRef.current(ev.payload);

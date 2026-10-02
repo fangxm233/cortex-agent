@@ -7,6 +7,7 @@ import {
   handleAuthSyncGateway,
 } from '../../../src/domain/ui-service/mutate/auth.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
+import { EventBus } from '../../../src/events/event-bus.js';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { AuthLoginService } from '../../../src/domain/auth/login-service.js';
 import type { LoginFlowState } from '../../../src/domain/auth/login-flow.js';
@@ -160,7 +161,7 @@ test('auth.respondPrompt audit event strips the submitted value completely', asy
   const events: any[] = [];
   const deps = {
     authLogin: fixture.service,
-    bus: { publish: (event: unknown) => events.push(event) },
+    bus: Object.assign(new EventBus(), { publish: (event: unknown) => events.push(event) }),
   } as unknown as UiServiceDeps;
   const service = createUiService(deps);
   const secret = 'sentinel-secret-value';
@@ -184,7 +185,7 @@ function logoutDeps(result: unknown, calls: unknown[]): UiServiceDeps {
       calls.push(input);
       return result;
     },
-    bus: { publish: () => {} },
+    bus: new EventBus(),
   } as unknown as UiServiceDeps;
 }
 

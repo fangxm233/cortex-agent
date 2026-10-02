@@ -606,7 +606,7 @@ describe('applyAssistantDelta — accumulating a block still being written', () 
   const delta = (blockId: string, text: string, seq = 0) => ({ blockId, text, seq });
 
   it('starts a block from nothing', () => {
-    expect(applyAssistantDelta(null, delta('msg_A:1', 'Tea '))).toEqual({ blockId: 'msg_A:1', text: 'Tea ' });
+    expect(applyAssistantDelta(null, delta('msg_A:1', 'Tea '))).toEqual({ blockId: 'msg_A:1', text: 'Tea ', seq: 0 });
   });
 
   it('appends chunks of the same block in arrival order', () => {
@@ -614,12 +614,12 @@ describe('applyAssistantDelta — accumulating a block still being written', () 
     s = applyAssistantDelta(s, delta('msg_A:1', 'Tea ', 0));
     s = applyAssistantDelta(s, delta('msg_A:1', 'begins ', 1));
     s = applyAssistantDelta(s, delta('msg_A:1', 'as a leaf.', 2));
-    expect(s).toEqual({ blockId: 'msg_A:1', text: 'Tea begins as a leaf.' });
+    expect(s).toEqual({ blockId: 'msg_A:1', text: 'Tea begins as a leaf.', seq: 2 });
   });
 
   it('a new blockId replaces the previous block rather than concatenating across blocks', () => {
     const prev: StreamingBlock = { blockId: 'msg_A:1', text: 'first block' };
-    expect(applyAssistantDelta(prev, delta('msg_A:3', 'second'))).toEqual({ blockId: 'msg_A:3', text: 'second' });
+    expect(applyAssistantDelta(prev, delta('msg_A:3', 'second'))).toEqual({ blockId: 'msg_A:3', text: 'second', seq: 0 });
   });
 
   it('ignores malformed events instead of rendering a blank bubble', () => {
@@ -672,7 +672,7 @@ describe('assistant preview handoff — final messages seal their block', () => 
   it('still starts the next distinct assistant block', () => {
     let state = finalizeAssistantPreview(initialAssistantPreviewState(), 'msg_A:1');
     state = applyAssistantPreviewDelta(state, delta('msg_A:2', 'A new block', 0));
-    expect(state.active).toEqual({ blockId: 'msg_A:2', text: 'A new block' });
+    expect(state.active).toEqual({ blockId: 'msg_A:2', text: 'A new block', seq: 0 });
   });
 
   it('produces one assistant row for the reported cross-SSE arrival order', () => {

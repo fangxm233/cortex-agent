@@ -1,4 +1,5 @@
 import { test, expect } from 'vitest';
+import { EventBus } from '../src/events/event-bus.js';
 import { once } from 'node:events';
 import { createUiService } from '../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../src/domain/ui-service/app-router.js';
@@ -10,7 +11,7 @@ import { sanitizePluginEntry } from '../src/domain/ui-service/plugins-shared.js'
 
 test('authenticated API saves credentials, reads redacted status and keeps secrets out of audit/errors', async () => {
   const events: unknown[] = [];
-  const service = createUiService({ bus: { publish: (event: unknown) => events.push(event) } } as unknown as UiServiceDeps);
+  const service = createUiService({ bus: Object.assign(new EventBus(), { publish: (event: unknown) => events.push(event) }) } as unknown as UiServiceDeps);
   const host = createUiHttpServer({ router: createAppRouter(service), getToken: () => 'test-only-token', port: 0, portForward: false });
   if (!host.server.listening) await once(host.server, 'listening');
   const address = host.server.address() as { port: number };

@@ -1,4 +1,5 @@
 import { test, vi } from 'vitest';
+import { EventBus } from '../../../src/events/event-bus.js';
 import assert from 'node:assert/strict';
 import { TRPCError } from '@trpc/server';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
@@ -10,7 +11,7 @@ function setup(found = true) {
   const setStarred = vi.fn(async (sessionId: string, starred: boolean) => found ? { sessionId, starred } : null);
   const rename = vi.fn(async (sessionId: string, label: string) => found ? { sessionId, label } : null);
   const publish = vi.fn();
-  const deps = { sessionStore: { setStarred, rename }, bus: { publish } } as unknown as UiServiceDeps;
+  const deps = { sessionStore: { setStarred, rename }, bus: Object.assign(new EventBus(), { publish }) } as unknown as UiServiceDeps;
   const service = createUiService(deps);
   return { caller: createCallerFactory(createAppRouter(service))({}), service, setStarred, rename, publish };
 }
@@ -69,7 +70,7 @@ test('direct service calls also validate and trim metadata', async () => {
 });
 
 test('read-only fixtures cannot report successful metadata writes', async () => {
-  const service = createUiService({ sessionStore: {}, bus: { publish: () => {} } } as unknown as UiServiceDeps);
+  const service = createUiService({ sessionStore: {}, bus: new EventBus() } as unknown as UiServiceDeps);
   const rename = await service.mutate('sessions.rename', { sessionId: 'id', label: 'Title' });
   const star = await service.mutate('sessions.setStarred', { sessionId: 'id', starred: true });
   assert.equal(rename.ok, false);
