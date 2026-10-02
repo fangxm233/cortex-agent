@@ -15,7 +15,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   return {
     ...actual,
     useQuery: () => ({ data: undefined, isPending: false, isError: false, refetch: harness.refetch }),
-    useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
+    useQueryClient: () => ({
+      invalidateQueries: harness.invalidateQueries,
+      getQueryCache: () => ({ findAll: () => [] }),
+    }),
   };
 });
 
