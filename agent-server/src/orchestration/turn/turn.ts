@@ -538,14 +538,14 @@ export class Turn {
 export interface AcceptUserMessageDeps {
   appendUser: (sessionId: string, opts: Parameters<typeof conversationHistory.appendUser>[1]) => void;
   publishMessage: typeof publishSessionMessage;
-  ensureLabel: (sessionName: string, text: string) => void;
+  ensureLabel: (sessionId: string, text: string) => void;
   now: () => string;
 }
 
 const defaultAcceptUserMessageDeps: AcceptUserMessageDeps = {
   appendUser: (sessionId, opts) => recordHistory(conversationHistory.appendUser(sessionId, opts)),
   publishMessage: publishSessionMessage,
-  ensureLabel: (sessionName, text) => { void ensureSessionLabel(sessionName, text); },
+  ensureLabel: (sessionId, text) => { void ensureSessionLabel(sessionId, text); },
   now: () => new Date().toISOString(),
 };
 
@@ -570,21 +570,18 @@ export function acceptUserMessage(opts: {
   // A callback or a resume signal is not a title. Left to itself this would name a session woken by
   // a task callback "[Task done] The task you dispatched #…", which is neither what the user asked
   // for nor recognisable in the rail — so a system-authored turn never claims the label.
-  if (!opts.systemOrigin) deps.ensureLabel(opts.sessionName, opts.text);
+  if (!opts.systemOrigin) deps.ensureLabel(opts.sessionId, opts.text);
 }
 
 /** Set a session's display label from its first user message when it has none yet (best-effort,
  *  fire-and-forget). New Slack/inbound sessions already get a label at registration; web sessions are
  *  created label-less (before any message), so this titles them on the first turn — the LeftRail then
  *  shows the message text instead of the opaque `cortex-XXXX` name. */
-async function ensureSessionLabel(sessionName: string, userMessage: string): Promise<void> {
+async function ensureSessionLabel(sessionId: string, userMessage: string): Promise<void> {
   const text = userMessage.trim();
   if (!text) return;
   try {
-    const rec = await sessionStore.lookupSession(sessionName);
-    if (rec && (!rec.label || rec.label.trim() === '')) {
-      await sessionStore.updateSession(sessionName, { label: text.slice(0, 60) });
-    }
+    await sessionStore.fillLabelIfAbsent(sessionId, text);
   } catch { /* best-effort — the label is cosmetic */ }
 }
 

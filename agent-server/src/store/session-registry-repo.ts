@@ -298,6 +298,23 @@ export class SessionRegistryRepo {
     });
   }
 
+  /** Metadata-only mutations share the registry lock and never touch activity/read timestamps. */
+  async setStarred(sessionId: string, starred: boolean): Promise<Session | null> {
+    return this.updateById(sessionId, record => ({ ...record, starred }));
+  }
+
+  async rename(sessionId: string, label: string): Promise<Session | null> {
+    return this.updateById(sessionId, record => ({ ...record, label }));
+  }
+
+  /** First-message titles may fill a blank label, but must not replace a concurrent manual rename. */
+  async fillLabelIfAbsent(sessionId: string, text: string): Promise<Session | null> {
+    const label = trimLabel(text.trim());
+    return this.updateById(sessionId, record => (
+      record.label?.trim() || !label ? record : { ...record, label }
+    ));
+  }
+
   async markRead(sessionId: string): Promise<void> {
     await this.updateById(sessionId, (record) => ({
       ...record,

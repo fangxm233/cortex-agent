@@ -40,6 +40,7 @@ export interface SessionRecord {
   createdAt: string;
   lastUsedAt: string;
   label: string | null;
+  starred?: boolean;
   profileName: string | null;
   /** The agent template this session runs as — its execution environment (prompt, tools, skills,
    *  rules), the twin of `profileName` on the model axis. Absent/null means the session follows its
@@ -506,6 +507,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     createdAt: toStringValue(row?.createdAt),
     lastUsedAt: toStringValue(row?.lastUsedAt),
     label: toNullableString(row?.label),
+    starred: toOptionalBoolean(row?.starred),
     profileName: toNullableString(row?.profileName),
     agentName: toOptionalNullableString(row?.agentName),
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
@@ -533,6 +535,12 @@ function toStringValue(value: unknown): string {
 function toNullableString(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string') throw new Error('Invalid session registry nullable string');
+  return value;
+}
+
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') throw new Error('Invalid session registry boolean field');
   return value;
 }
 
@@ -597,6 +605,7 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   createdAt: toStringValue,
   lastUsedAt: toStringValue,
   label: toNullableString,
+  starred: toOptionalBoolean,
   profileName: toNullableString,
   agentName: toOptionalNullableString,
   backendSessionId: toOptionalNullableString,

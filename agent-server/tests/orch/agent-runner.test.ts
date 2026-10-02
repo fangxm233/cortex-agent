@@ -57,13 +57,13 @@ test('persistSessionContextUsage writes before publishing the same timestamped s
 function acceptRecorder() {
   const appended: any[] = [];
   const published: any[] = [];
-  const labelled: string[] = [];
+  const labelled: { sessionId: string; text: string }[] = [];
   return {
     appended, published, labelled,
     deps: {
       appendUser: (sessionId: string, opts: any) => appended.push({ sessionId, ...opts }),
       publishMessage: (event: any) => published.push(event),
-      ensureLabel: (_name: string, text: string) => labelled.push(text),
+      ensureLabel: (sessionId: string, text: string) => labelled.push({ sessionId, text }),
       now: () => '2026-09-14T00:00:00.000Z',
     },
   };
@@ -80,7 +80,7 @@ test('acceptUserMessage records a typed turn, publishes it and titles the sessio
   assert.equal('systemOrigin' in r.appended[0], false);
   assert.equal(r.published[0].role, 'user');
   assert.equal(r.published[0].systemOrigin, undefined);
-  assert.deepEqual(r.labelled, ['run the probe']);
+  assert.deepEqual(r.labelled, [{ sessionId: 's1', text: 'run the probe' }]);
   assert.equal(r.appended[0].ts, r.published[0].ts, 'one ts, so the live row and the record dedupe');
 });
 
