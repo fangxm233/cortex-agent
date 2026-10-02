@@ -50,6 +50,10 @@ export class BackgroundSubagentFixture {
     messages: [childMessage(1, { type: 'tool', toolName: 'Read', toolInput: 'early.ts' })],
   };
   readonly calls: string[] = [];
+  readonly transcriptInputs: unknown[] = [];
+  deltaResponses = false;
+  private holdTranscript = false;
+  private releaseTranscript: (() => void) | undefined;
   private listeners = new Set<(event: Delivery) => void>();
   private holdDetail = false;
   private releaseDetail: (() => void) | undefined;
@@ -64,21 +68,40 @@ export class BackgroundSubagentFixture {
         return () => { this.listeners.delete(observer.next); };
       }
       this.calls.push(op.path);
-      const data = this.response(op.path);
+      const data = this.response(op.path, op.input);
       const deliver = () => { observer.next({ result: { data } }); observer.complete(); };
       if (op.path === 'sessions.subagentTranscript' && this.holdDetail) {
         this.holdDetail = false;
         this.releaseDetail = deliver;
+      } else if (op.path === 'sessions.transcript' && this.holdTranscript) {
+        this.holdTranscript = false;
+        this.releaseTranscript = deliver;
       } else deliver();
       return () => {};
     });
   }
 
-  private response(path: string): unknown {
-    if (path === 'sessions.transcript') return structuredClone(this.transcript);
+  private response(path: string, input: unknown): unknown {
+    if (path === 'sessions.transcript') return this.transcriptResponse(input);
     if (path === 'sessions.subagentTranscript') return structuredClone(this.detail);
     throw new Error(`Unexpected fixture query: ${path}`);
   }
+
+  private transcriptResponse(input: unknown): SessionTranscript {
+    this.transcriptInputs.push(input);
+    const snapshot = structuredClone(this.transcript);
+    if (!this.deltaResponses) return snapshot;
+    snapshot.cursor = 'fixture:1';
+    // Child summaries change outside the compact row cursor; the spawn row stays unchanged.
+    if ((input as { since?: string }).since) {
+      return { ...snapshot, turns: [], delta: { total: 1, changed: [] } };
+    }
+    return snapshot;
+  }
+
+  holdNextTranscript(): void { this.holdTranscript = true; }
+  releaseFirstTranscript(): void { this.releaseTranscript?.(); this.releaseTranscript = undefined; }
+  transcriptReads(): number { return this.transcriptInputs.length; }
 
   holdNextDetail(): void { this.holdDetail = true; }
   releaseFirstDetail(): void { this.releaseDetail?.(); this.releaseDetail = undefined; }

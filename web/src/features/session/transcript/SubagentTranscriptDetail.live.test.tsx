@@ -54,7 +54,7 @@ async function completeChild() {
   await eventually(() => { expect(card().props.status).toBe('done'); expect(text(detail())).toContain('Final child prose.'); });
 }
 
-beforeEach(async () => { fixture = new BackgroundSubagentFixture(); await mount(); });
+beforeEach(() => { fixture = new BackgroundSubagentFixture(); });
 afterEach(async () => {
   await act(async () => { renderer.unmount(); });
   expect(activeSubagentTranscriptIds(SESSION_ID)).toEqual([]);
@@ -62,6 +62,7 @@ afterEach(async () => {
 });
 
 describe('background child query/render convergence (controlled RPC, real shared UI)', () => {
+  beforeEach(async () => { await mount(); });
   it('refreshes runtime-only summary status on session.status, never deriving it from parent running', async () => {
     expectIdle();
     act(() => fixture.emit('session.status', { running: false }));
@@ -201,5 +202,74 @@ describe('background child query/render convergence (controlled RPC, real shared
       expect(text(detail())).toContain('{ }');
     });
     expectIdle();
+  });
+});
+
+const initialTranscriptHints = {
+  status: () => fixture.emit('session.status', { running: false }),
+  message: () => fixture.messageEvent(fixture.detail.messages[1]),
+  end: () => fixture.messageEvent(fixture.detail.messages[2]),
+  reconnect: () => fixture.reconnect(),
+};
+function updateHeldTranscript() {
+  fixture.append(childMessage(2, { type: 'tool', toolName: 'Grep', toolInput: 'first-transcript-race' }), false);
+  fixture.append(childMessage(3, { text: '', subagentEnded: 'completed' }), false);
+}
+function expectTranscriptRecovered(delta: boolean) {
+  expectCount(2);
+  expect(cachedSummary()?.status).toBe('completed');
+  expect(card().props.status).toBe('done');
+  expectIdle();
+  expect(fixture.transcriptReads()).toBe(2);
+  expect(fixture.transcriptInputs[1]).toEqual({
+    sessionId: SESSION_ID, compactSubagents: true, ...(delta ? { since: 'fixture:1' } : {}),
+  });
+}
+
+describe.each([false, true])('first compact transcript response race (delta=%s)', (delta) => {
+  beforeEach(async () => {
+    fixture.deltaResponses = delta;
+    fixture.holdNextTranscript();
+    await act(async () => { renderer = create(<BackgroundSubagentHarness fixture={fixture} />); });
+    expect(fixture.transcriptReads()).toBe(1);
+    expect(cachedSummary()).toBeUndefined();
+  });
+
+  it.each(Object.keys(initialTranscriptHints) as (keyof typeof initialTranscriptHints)[])(
+    'recovers a %s hint before the first response, with no later events', async (hint) => {
+      act(() => { updateHeldTranscript(); initialTranscriptHints[hint](); });
+      expect(fixture.transcriptReads()).toBe(1);
+      await act(async () => { fixture.releaseFirstTranscript(); });
+      await eventually(() => expectTranscriptRecovered(delta));
+    },
+  );
+
+  it('coalesces a first-fetch burst into exactly one follow-up read', async () => {
+    act(() => {
+      updateHeldTranscript();
+      for (let index = 0; index < 10; index++) {
+        initialTranscriptHints.status();
+        initialTranscriptHints.message();
+        initialTranscriptHints.end();
+        fixture.emit('session.debug.updated');
+      }
+      initialTranscriptHints.reconnect();
+    });
+    expect(fixture.transcriptReads()).toBe(1);
+    await act(async () => { fixture.releaseFirstTranscript(); });
+    await eventually(() => expectTranscriptRecovered(delta));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(fixture.transcriptReads()).toBe(2);
+  });
+
+  it('does not refetch after unmount, then converges when mounted again', async () => {
+    act(() => { updateHeldTranscript(); initialTranscriptHints.status(); });
+    await act(async () => { renderer.unmount(); });
+    await act(async () => { fixture.releaseFirstTranscript(); });
+    await eventually(() => expect(cachedSummary()?.toolCount).toBe(1));
+    expect(fixture.transcriptReads()).toBe(1);
+    expect(fixture.queryClient.isFetching()).toBe(0);
+    await mount(2);
+    await eventually(() => expectTranscriptRecovered(delta));
   });
 });
