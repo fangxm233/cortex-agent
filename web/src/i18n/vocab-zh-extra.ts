@@ -278,6 +278,7 @@ export const zhExtra = {
   chatSystemOriginTeamLead: '来自主会话',
   chatSystemOriginWorkerResult: 'Worker 汇报',
   chatSystemOriginWorkerQuestion: 'Worker 请求',
+  chatSystemOriginScheduled: '定时任务',
   chatSystemOriginGeneric: '系统消息',
   wbTeamExpand: '展开 worker',
   wbTeamCollapse: '收起 worker',

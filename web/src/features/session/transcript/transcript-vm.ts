@@ -276,6 +276,7 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
     case 'team-lead': return L.chatSystemOriginTeamLead;
     case 'worker-result': return L.chatSystemOriginWorkerResult;
     case 'worker-question': return L.chatSystemOriginWorkerQuestion;
+    case 'scheduled': return L.chatSystemOriginScheduled;
     default: return unlabelledOrigin(origin, L);
   }
 }
@@ -299,7 +300,8 @@ export type SystemTurnDisplay = 'hint' | 'expandable' | 'bubble';
 
 export function systemOriginDisplay(origin: SystemTurnOrigin): SystemTurnDisplay {
   switch (origin) {
-    case 'team-lead': return 'bubble';
+    case 'team-lead':
+    case 'scheduled': return 'bubble';
     case 'worker-result':
     case 'worker-question': return 'expandable';
     default: return 'hint';

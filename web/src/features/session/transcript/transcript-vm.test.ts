@@ -1008,6 +1008,15 @@ describe('buildTranscriptRows stripScheduledPrefix', () => {
     expect(rows[1]).toEqual(expect.objectContaining({ kind: 'user', text: '[Scheduled Task] Scan arXiv for new papers' }));
   });
 
+  it('strips the prefix off a fired prompt and keeps its scheduled origin', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{ type: 'user', text: '[Scheduled Task] Scan arXiv', systemOrigin: 'scheduled', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
+      [],
+      { stripScheduledPrefix: true },
+    );
+    expect(rows[1]).toEqual({ kind: 'user', text: 'Scan arXiv', systemOrigin: 'scheduled', turnIndex: 0, ts: T });
+  });
+
   it('leaves a first user row without the prefix untouched', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [{ type: 'user', text: 'plain start', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
@@ -1610,9 +1619,17 @@ describe('systemOriginLabel team origins', () => {
   });
 });
 
+describe('systemOriginLabel scheduled origin', () => {
+  it('names a fired schedule prompt in both languages', () => {
+    expect(systemOriginLabel('scheduled', en)).toBe('Scheduled task');
+    expect(systemOriginLabel('scheduled', zh)).toBe('定时任务');
+  });
+});
+
 describe('team origin display', () => {
   it('bubbles a lead message, expands worker reports and requests, and hints the rest', () => {
     expect(systemOriginDisplay('team-lead')).toBe('bubble');
+    expect(systemOriginDisplay('scheduled')).toBe('bubble');
     expect(systemOriginDisplay('worker-result')).toBe('expandable');
     expect(systemOriginDisplay('worker-question')).toBe('expandable');
     expect(systemOriginDisplay('agent-result')).toBe('hint');

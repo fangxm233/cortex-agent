@@ -20,8 +20,7 @@ export type ChatNoticeLevel = 'info' | 'warning' | 'error';
  * mistaken for a system one.
  *
  * Deliberately NOT tagged: a non-blocking `cortex_ask_user` answer (the human typed that text, it
- * merely arrives out of band) and the `[Scheduled Task]` fire prompt (the user wrote that
- * instruction; the UI already has its own presentation for it).
+ * merely arrives out of band).
  */
 export type SystemTurnOrigin =
   /** Provider rate limit / outage cleared — continuation signal for the interrupted turn. */
@@ -41,7 +40,9 @@ export type SystemTurnOrigin =
   /** A worker reported the end of a turn to its lead. */
   | 'worker-result'
   /** A worker's pending question or plan was forwarded to its lead. */
-  | 'worker-question';
+  | 'worker-question'
+  /** A schedule fired and opened its run with the prompt the user wrote for it. */
+  | 'scheduled';
 
 export interface AuthNoticeAction {
   kind: 'auth-login';
