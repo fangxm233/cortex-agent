@@ -20,8 +20,6 @@ const TEST_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const CLI_TS = path.join(TEST_ROOT, 'src', 'entry', 'cli.ts');
 const APP_TS = path.join(TEST_ROOT, 'src', 'entry', 'app.ts');
 const MOCK_ADAPTER_TS = path.join(TEST_ROOT, 'src', 'platform', 'testing.ts');
-const EXECUTION_REGISTRY_TS = path.join(TEST_ROOT, 'src', 'domain', 'executions', 'registry.ts');
-const TASK_DISPATCH_TS = path.join(TEST_ROOT, 'src', 'domain', 'scheduling', 'jobs', 'task-dispatch.ts');
 const NODE = process.execPath;
 const TSX_FLAGS = ['--import', 'tsx'];
 const OLD_ORIGIN = 'https://old-settings.example';
@@ -44,12 +42,8 @@ const legacyLines = [
   'CORTEX_DISABLE_USER_CONTEXT=1',
   'CORTEX_SERVER_UPDATE_DISABLE=1',
   'CORTEX_HOOKS_LEGACY=1',
-  'CORTEX_MANAGER_ROTATE_STEPS=12steps',
-  'CORTEX_WAITING_SWEEP_MS=0',
+  'CORTEX_WAITPOINT_SWEEP_MS=0',
   'CORTEX_INJECT_WAIT_MAX_S=2.5',
-  'CORTEX_THREAD_MAX_DEPTH=7levels',
-  'CORTEX_TASK_ARTIFACT_TEMPLATES="manager, coder-review"',
-  'TASK_DISPATCH_MAX_CONCURRENT=1worker',
   `CORTEX_UI_CORS_ORIGINS=${OLD_ORIGIN}`,
   `CORTEX_ADMIN_CHANNEL=${OLD_ADMIN}`,
   'FEISHU_ADMIN_CHANNEL=oc_admin_old',
@@ -68,13 +62,9 @@ const migratedSettings = {
   disableUserContext: true,
   serverUpdateDisable: true,
   hooksLegacy: true,
-  managerRotateSteps: 12,
-  waitingSweepMs: 0,
+  waitpointSweepMs: 0,
   injectWaitMaxS: 2.5,
-  threadMaxDepth: 7,
-  taskArtifactTemplates: ['manager', 'coder-review'],
-  taskDispatchMaxConcurrent: 1,
-  taskDispatchEnabled: false,
+  memoryIndexRegenEnabled: false,
   uiCorsOrigins: [OLD_ORIGIN],
   adminChannel: OLD_ADMIN,
   feishuAdminChannel: 'oc_admin_old',
@@ -292,14 +282,9 @@ MockAdapter.prototype.postMessage = async function(destination, content, opts) {
 };`;
 }
 
-function observerHandlers(registryUrl: string, dispatchUrl: string): string {
+function observerHandlers(): string {
   return `const handlers = {
   'integration-simulate-message': (adapter, message) => adapter.simulateMessage(message.channel, message.text),
-  'integration-register-dispatch': async () => (await import(${JSON.stringify(registryUrl)}))
-    .registerDispatchExecution({ taskId: 'integration-remote', machine: 'remote-fixture',
-      channel: 'integration', project: 'general', taskText: 'integration fixture' }),
-  'integration-run-dispatch': async () => (await import(${JSON.stringify(dispatchUrl)}))
-    .taskDispatchRunner({ channel: 'general', profileName: 'plan' }),
 };`;
 }
 
@@ -320,10 +305,7 @@ MockAdapter.prototype.start = async function(...args) {
 function observerSource(): string {
   return [
     observerPostHook(pathToFileURL(MOCK_ADAPTER_TS).href),
-    observerHandlers(
-      pathToFileURL(EXECUTION_REGISTRY_TS).href,
-      pathToFileURL(TASK_DISPATCH_TS).href,
-    ),
+    observerHandlers(),
     observerStartHook(),
   ].join('\n');
 }
@@ -340,7 +322,7 @@ function populateScenario(home: string): ScenarioPaths {
   ].join('\n');
   writeFileSync(envFile, originalEnv);
   const settingsFile = path.join(home, 'config', 'settings.json');
-  writeFileSync(settingsFile, JSON.stringify({ taskDispatchEnabled: false }));
+  writeFileSync(settingsFile, JSON.stringify({ memoryIndexRegenEnabled: false }));
   const binDir = path.join(home, 'test-bin');
   mkdirSync(binDir, { recursive: true });
   const fakeClaude = path.join(binDir, 'claude');
@@ -523,11 +505,6 @@ async function proveInitialBehavior(
   const notice = await sendDaemonNotice(started.child, started.records, 'event-log-off-marker');
   assert.equal(notice.ref.conduit, OLD_ADMIN);
   assert.doesNotMatch(eventLogText(paths.home), /event-log-off-marker/);
-  await sendIntegrationRequest(started.child, 'integration-register-dispatch');
-  const limited = waitForOutput(started.child, started.logs, 'Skipping — at concurrency limit (1/1)',
-    'server exited before reporting the dispatch concurrency limit');
-  await sendIntegrationRequest(started.child, 'integration-run-dispatch');
-  await limited;
   const port = uiPort(started.logs);
   assert.equal(await corsHeader(port, OLD_ORIGIN), OLD_ORIGIN);
   return port;
@@ -538,7 +515,6 @@ function writeHotSettings(settingsFile: string): void {
     ...migratedSettings,
     showToolCalls: true,
     eventLog: true,
-    taskDispatchMaxConcurrent: 2,
     uiCorsOrigins: [NEW_ORIGIN],
     adminChannel: NEW_ADMIN,
   };
@@ -558,7 +534,7 @@ async function proveToolTrace(started: StartedServer): Promise<void> {
   await trace;
 }
 
-async function proveEventAdminAndDispatch(started: StartedServer, paths: ScenarioPaths): Promise<void> {
+async function proveEventAndAdmin(started: StartedServer, paths: ScenarioPaths): Promise<void> {
   const persisted = waitForFileState(
     started.child, paths.home,
     () => /event-log-on-marker/.test(eventLogText(paths.home)),
@@ -570,12 +546,6 @@ async function proveEventAdminAndDispatch(started: StartedServer, paths: Scenari
   const flushedEvents = eventLogText(paths.home);
   assert.match(flushedEvents, /event-log-on-marker/);
   assert.doesNotMatch(flushedEvents, /event-log-off-marker/);
-  const dispatched = waitForOutput(
-    started.child, started.logs, 'Cycle complete: No dispatchable tasks available',
-    'server exited before dispatch passed the raised concurrency limit',
-  );
-  await sendIntegrationRequest(started.child, 'integration-run-dispatch');
-  await dispatched;
 }
 
 function printEvidence(pid: number | undefined): void {
@@ -583,8 +553,6 @@ function printEvidence(pid: number | undefined): void {
     '[settings-hotreload-e2e]',
     `same-pid=${pid}`,
     'Hot-reload: settings.json reloaded',
-    'dispatch-before=Skipping — at concurrency limit (1/1)',
-    'dispatch-after=Cycle complete: No dispatchable tasks available',
     'tool-trace-after=Bash ×1',
     `admin-before=${OLD_ADMIN} admin-after=${NEW_ADMIN}`,
     `cors-before=${OLD_ORIGIN} cors-after=${NEW_ORIGIN}`,
@@ -606,7 +574,7 @@ async function proveReloadedBehavior(
   await reloaded;
   assert.equal(started.child.pid, pid);
   await proveToolTrace(started);
-  await proveEventAdminAndDispatch(started, paths);
+  await proveEventAndAdmin(started, paths);
   assert.equal(await corsHeader(port, OLD_ORIGIN), null);
   assert.equal(await corsHeader(port, NEW_ORIGIN), NEW_ORIGIN);
   printEvidence(pid);

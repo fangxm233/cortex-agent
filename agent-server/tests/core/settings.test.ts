@@ -28,12 +28,9 @@ const ENV_NAMES = [
   'CORTEX_DISABLE_USER_CONTEXT',
   'CORTEX_SERVER_UPDATE_DISABLE',
   'CORTEX_HOOKS_LEGACY',
-  'CORTEX_MANAGER_ROTATE_STEPS',
-  'CORTEX_WAITING_SWEEP_MS',
+  'CORTEX_WAITPOINT_SWEEP_MS',
+  'CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR',
   'CORTEX_INJECT_WAIT_MAX_S',
-  'CORTEX_THREAD_MAX_DEPTH',
-  'CORTEX_TASK_ARTIFACT_TEMPLATES',
-  'TASK_DISPATCH_MAX_CONCURRENT',
   'CORTEX_PI_COMPACT_RESERVE_TOKENS',
   'CORTEX_UI_CORS_ORIGINS',
   'SLACK_ADMIN_CHANNEL',
@@ -60,14 +57,14 @@ beforeAll(async () => {
   process.env.CORTEX_TURN_NOTIFY = '0';
   process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = '25';
   process.env.CORTEX_SHOW_TOOL_CALLS = ' yes ';
-  process.env.TASK_DISPATCH_MAX_CONCURRENT = '8';
+  process.env.FEISHU_ADMIN_CHANNEL = 'oc_env';
   process.env.CORTEX_UI_CORS_ORIGINS = 'https://env.example';
   process.env.SLACK_ADMIN_CHANNEL = 'slack-admin';
   process.env.CORTEX_ADMIN_CHANNEL = 'cortex-admin';
   await fs.writeFile(SETTINGS_FILE, JSON.stringify({
     turnNotify: true,
     turnNotifyThresholdS: 0,
-    taskDispatchMaxConcurrent: null,
+    feishuAdminChannel: null,
     uiCorsOrigins: [],
   }));
 });
@@ -111,25 +108,16 @@ describe.sequential('core settings', () => {
       ['serverUpdateDisable', 'on', false],
       ['hooksLegacy', '1', true],
       ['hooksLegacy', 'yes', false],
-      ['managerRotateSteps', '12steps', 12],
-      ['managerRotateSteps', '-1', 10],
-      ['managerRotateSteps', 'bad', 10],
-      ['waitingSweepMs', '250ms', 250],
-      ['waitingSweepMs', '0', 0],
-      ['waitingSweepMs', '-2', -2],
-      ['waitingSweepMs', 'bad', 60_000],
+      ['waitpointMaxWakesPerHour', '20wakes', 20],
+      ['waitpointMaxWakesPerHour', '-1', 12],
+      ['waitpointMaxWakesPerHour', 'bad', 12],
+      ['waitpointSweepMs', '250ms', 250],
+      ['waitpointSweepMs', '0', 0],
+      ['waitpointSweepMs', '-2', -2],
+      ['waitpointSweepMs', 'bad', 30_000],
       ['injectWaitMaxS', '2.5', 2.5],
       ['injectWaitMaxS', '', 0],
       ['injectWaitMaxS', 'bad', Number.NaN],
-      ['threadMaxDepth', '7levels', 7],
-      ['threadMaxDepth', '0', 5],
-      ['threadMaxDepth', '-2', -2],
-      ['threadMaxDepth', 'bad', 5],
-      ['taskArtifactTemplates', ' manager, coder-review, ,', ['manager', 'coder-review']],
-      ['taskArtifactTemplates', '', []],
-      ['taskDispatchMaxConcurrent', '8workers', 8],
-      ['taskDispatchMaxConcurrent', '0', null],
-      ['taskDispatchMaxConcurrent', ' ', null],
       ['uiCorsOrigins', ' https://a.example, ,https://b.example ', ['https://a.example', 'https://b.example']],
       ['uiCorsOrigins', '', []],
       ['adminChannel', 'C123', 'C123'],
@@ -151,11 +139,10 @@ describe.sequential('core settings', () => {
     assert.equal(settings.turnNotify, true, 'explicit file true must beat env false');
     assert.equal(settings.turnNotifyThresholdS, 0, 'explicit file 0 must beat env');
     assert.equal(settings.showToolCalls, true, 'absent file key must use env');
-    assert.equal(settings.managerRotateSteps, 10, 'absent file/env key must use default');
-    assert.equal(settings.taskDispatchMaxConcurrent, null, 'explicit file null must beat env');
+    assert.equal(settings.waitpointMaxWakesPerHour, 12, 'absent file/env key must use default');
+    assert.equal(settings.feishuAdminChannel, null, 'explicit file null must beat env');
     assert.deepEqual(settings.uiCorsOrigins, [], 'explicit file [] must beat env');
     assert.equal(settings.adminChannel, 'slack-admin', 'Slack legacy alias must have first priority');
-    assert.equal(settings.feishuAdminChannel, null);
     const snapshot = getSettingsSnapshot();
     assert.deepEqual(
       snapshot.find((entry) => entry.key === 'turnNotify'),
@@ -166,8 +153,8 @@ describe.sequential('core settings', () => {
       { key: 'showToolCalls', value: true, source: 'env' },
     );
     assert.deepEqual(
-      snapshot.find((entry) => entry.key === 'managerRotateSteps'),
-      { key: 'managerRotateSteps', value: 10, source: 'default' },
+      snapshot.find((entry) => entry.key === 'waitpointMaxWakesPerHour'),
+      { key: 'waitpointMaxWakesPerHour', value: 12, source: 'default' },
     );
     delete process.env.CORTEX_SHOW_TOOL_CALLS;
     try {
@@ -209,8 +196,8 @@ describe.sequential('core settings', () => {
       turnNotify: false,
       turnNotifyThresholdS: 0,
       showToolCalls: false,
-      managerRotateSteps: 7,
-      taskArtifactTemplates: [],
+      waitpointMaxWakesPerHour: 7,
+      anthropicSubscriptionModes: [],
       uiCorsOrigins: ['https://file.example'],
     }));
 
@@ -218,13 +205,13 @@ describe.sequential('core settings', () => {
     assert.deepEqual(batches[0], [
       'turnNotify',
       'showToolCalls',
-      'managerRotateSteps',
-      'taskArtifactTemplates',
-      'taskDispatchMaxConcurrent',
+      'waitpointMaxWakesPerHour',
+      'anthropicSubscriptionModes',
       'uiCorsOrigins',
+      'feishuAdminChannel',
     ]);
-    assert.equal(getSettings().taskDispatchMaxConcurrent, 8, 'removed file key must reveal env fallback');
-    assert.deepEqual(getSettings().taskArtifactTemplates, []);
+    assert.equal(getSettings().feishuAdminChannel, 'oc_env', 'removed file key must reveal env fallback');
+    assert.deepEqual(getSettings().anthropicSubscriptionModes, []);
   });
 
   test('admin env fallback uses CORTEX_ADMIN_CHANNEL when Slack is empty or absent', async (t) => {
@@ -311,14 +298,32 @@ describe.sequential('core settings', () => {
 
   test('built-in job intervals enforce integer Node timer bounds', () => {
     const valid = {
-      taskDispatchIntervalMs: 1_000,
-      providerUsageCollectionIntervalMs: 300_000,
+      providerUsageCollectionIntervalMs: 1_000,
       memoryIndexRegenIntervalMs: 2_147_483_647,
     };
     assert.doesNotThrow(() => resolveSettingsSnapshot(valid));
     for (const value of [999, 1_000.5, 2_147_483_648]) {
-      assert.throws(() => resolveSettingsSnapshot({ taskArchiveIntervalMs: value }));
+      assert.throws(() => resolveSettingsSnapshot({ memoryIndexRegenIntervalMs: value }));
     }
+  });
+
+  test('a settings file still carrying retired keys parses, and the keys are ignored', () => {
+    const snapshot = resolveSettingsSnapshot({
+      taskDispatchEnabled: false,
+      taskDispatchMaxConcurrent: 'not-a-number',
+      taskArchiveIntervalMs: 1,
+      managerRotateSteps: 7,
+      threadMaxDepth: 3,
+      taskArtifactTemplates: ['manager'],
+      dispatchReconcilerEnabled: false,
+      waitingSweepMs: 0,
+      turnNotify: false,
+    });
+    const keys = snapshot.map((entry) => entry.key as string);
+    for (const retired of ['taskDispatchEnabled', 'managerRotateSteps', 'threadMaxDepth', 'waitingSweepMs']) {
+      assert.equal(keys.includes(retired), false, retired);
+    }
+    assert.deepEqual(snapshot.find((entry) => entry.key === 'turnNotify'), { key: 'turnNotify', value: false, source: 'file' });
   });
 
   test('sessionRetentionDays defaults to 30 and enforces safe integer day bounds', () => {
@@ -377,12 +382,12 @@ describe.sequential('core settings', () => {
       futureSetting: { enabled: true },
     };
     await fs.writeFile(SETTINGS_FILE, JSON.stringify(external));
-    await updateSettings({ managerRotateSteps: 9 });
+    await updateSettings({ waitpointMaxWakesPerHour: 9 });
 
     const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
     assert.deepEqual(parsed.futureSetting, { enabled: true });
     assert.deepEqual(parsed.uiCorsOrigins, ['https://external.example']);
-    assert.equal(parsed.managerRotateSteps, 9);
+    assert.equal(parsed.waitpointMaxWakesPerHour, 9);
   });
 
   test('updateSettings logs and falls back to cached overrides when disk read fails', async () => {
@@ -395,14 +400,14 @@ describe.sequential('core settings', () => {
     const cached = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
 
     await fs.writeFile(SETTINGS_FILE, '{');
-    await updateSettings({ managerRotateSteps: 11 });
+    await updateSettings({ waitpointMaxWakesPerHour: 14 });
 
     const messages = errors.mock.calls.map((args) => args.join(' ')).join('\n');
     assert.match(messages, /Update settings\.json read failed/);
     assert.match(messages, /using previous settings/);
     assert.deepEqual(
       JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')),
-      { ...cached, managerRotateSteps: 11 },
+      { ...cached, waitpointMaxWakesPerHour: 14 },
     );
   });
 
@@ -413,16 +418,16 @@ describe.sequential('core settings', () => {
 
     const update = updateSettings({ turnNotify: true, adminChannel: null });
     await Promise.resolve();
-    delete process.env.TASK_DISPATCH_MAX_CONCURRENT;
+    delete process.env.FEISHU_ADMIN_CHANNEL;
     try {
       await update;
       assert.deepEqual(
-        getSettingsSnapshot().find((entry) => entry.key === 'taskDispatchMaxConcurrent'),
-        { key: 'taskDispatchMaxConcurrent', value: 8, source: 'env' },
+        getSettingsSnapshot().find((entry) => entry.key === 'feishuAdminChannel'),
+        { key: 'feishuAdminChannel', value: 'oc_env', source: 'env' },
         'snapshot values and provenance must use env captured at update start',
       );
     } finally {
-      process.env.TASK_DISPATCH_MAX_CONCURRENT = '8';
+      process.env.FEISHU_ADMIN_CHANNEL = 'oc_env';
     }
     assert.deepEqual(batches, [['turnNotify', 'adminChannel']]);
 
@@ -450,9 +455,9 @@ describe.sequential('core settings', () => {
 
     await updateSettings({ providerRateLimits: { 'openai-codex': { enabled: false, threshold: 0.91 } } });
     batches.length = 0;
-    await updateSettings({ managerRotateSteps: getSettings().managerRotateSteps + 1 });
+    await updateSettings({ waitpointMaxWakesPerHour: getSettings().waitpointMaxWakesPerHour + 1 });
 
-    assert.deepEqual(batches, [['managerRotateSteps']]);
+    assert.deepEqual(batches, [['waitpointMaxWakesPerHour']]);
   });
 
   test('concurrent partial updates serialize without losing fields', async () => {
@@ -564,7 +569,7 @@ describe.sequential('core settings', () => {
     t.onTestFinished(unsubscribe);
 
     await fs.unlink(SETTINGS_FILE);
-    await waitFor(() => getSettings().managerRotateSteps === 10);
+    await waitFor(() => getSettings().waitpointMaxWakesPerHour === 12);
     assert.equal(getSettings().showToolCalls, true);
     assert.deepEqual(getSettings().uiCorsOrigins, ['https://env.example']);
     assert.ok(batches.length >= 1);
@@ -587,7 +592,7 @@ describe.sequential('core settings', () => {
     const batches: string[][] = [];
     const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
     unsubscribe();
-    await updateSettings({ managerRotateSteps: 8 });
+    await updateSettings({ waitpointMaxWakesPerHour: 8 });
     assert.deepEqual(batches, []);
   });
 });

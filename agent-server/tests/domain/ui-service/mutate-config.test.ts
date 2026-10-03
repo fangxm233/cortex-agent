@@ -72,15 +72,16 @@ test('configSetInput accepts partial settings and rejects unknown or wrongly typ
   const value = {
     turnNotify: false,
     sessionRetentionDays: 14,
-    taskDispatchMaxConcurrent: null,
-    taskDispatchEnabled: true,
-    taskDispatchIntervalMs: 30_000,
+    maxContextTokens: null,
+    storeArchiveEnabled: true,
+    providerUsageCollectionIntervalMs: 30_000,
     uiCorsOrigins: ['https://ui.example'],
   };
   const parsed = configSetInput.parse({ section: 'settings', value });
   assert.equal(parsed.section, 'settings');
   assert.deepEqual(parsed.value, value);
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { unknownSetting: true } }));
+  assert.throws(() => configSetInput.parse({ section: 'settings', value: { taskDispatchEnabled: true } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: 'false' } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: undefined } }));
   assert.throws(() => configSetInput.parse({ section: 'settings', value: { uiCorsOrigins: [42] } }));
@@ -110,7 +111,7 @@ test('configSetProviderRateLimitPolicyInput accepts a provider patch and rejects
 
 test('configSetInput rejects built-in job intervals outside safe timer bounds', () => {
   assert.doesNotThrow(() => configSetInput.parse({
-    section: 'settings', value: { taskArchiveIntervalMs: 1_000 },
+    section: 'settings', value: { providerUsageCollectionIntervalMs: 1_000 },
   }));
   for (const value of [999, 1_000.5, 2_147_483_648]) {
     assert.throws(() => configSetInput.parse({
