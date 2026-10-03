@@ -35,6 +35,12 @@ export type CortexEvent =
   | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
+  // A conversation turn really ended (not a rate-limit pause that will auto-resume). `trigger` names
+  // how the turn's opening message arrived: a delivery origin (`web-user` is a human typing in the
+  // session's own chat), or `platform` for an inbound chat-platform message, or the surface trigger
+  // (`edit-retry`, `ask-user-question`). Internal: not written to the event log (the transcript has
+  // the text) and not offered to UI subscribers.
+  | { type: 'session.turn.completed'; ts: string; sessionId: string; channel: string; status: 'completed' | 'failed' | 'stopped'; finalOutput: string; trigger: string }
   // The agent's task list changed (a TodoWrite call). Replace-all: `snapshot` is the complete
   // list, so clients store rather than merge, and the newest event always wins. Delta half of
   // snapshot+delta — `SessionInfo.todos` is the queryable snapshot.

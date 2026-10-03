@@ -169,6 +169,13 @@ export function publishSessionTurn(p: { sessionId: string; channel: string; numT
   });
 }
 
+/** Emit `session.turn.completed` once a conversation turn has really ended (Turn owns the call). */
+export function publishSessionTurnCompleted(p: {
+  sessionId: string; channel: string; status: 'completed' | 'failed' | 'stopped'; finalOutput: string; trigger: string;
+}): void {
+  orchestrationBus()?.publish({ type: 'session.turn.completed', ...p });
+}
+
 /** Emit a `session.rewound` event (message edit + rewind): the session's transcript changed SHAPE —
  *  every turn from `turnIndex` onward was rolled back. Live web clients drop their buffered live
  *  tails (which may hold now-superseded messages) and refetch the transcript. Published by

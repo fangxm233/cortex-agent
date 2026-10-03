@@ -104,7 +104,12 @@ export function buildDeliveryMessage(opts: {
     isBot: false,
     kind: 'user',
     // `source` is the origin's and is not overridable; `tag` mirrors what the wake builder wrote.
-    raw: { ...opts.raw, source: spec.rawSource, ...(spec.prefix === 'cb' ? { tag: opts.tag } : {}) },
+    // `deliveryOrigin` lets the turn tell a human-typed message from the origins that share its
+    // sender and source (an ask-user answer looks identical otherwise).
+    raw: {
+      ...opts.raw, source: spec.rawSource, deliveryOrigin: opts.origin,
+      ...(spec.prefix === 'cb' ? { tag: opts.tag } : {}),
+    },
     // Only web-originated turns carry attachments; the callback shapes had no such field at all.
     ...(spec.prefix === 'web' ? { webAttachments: opts.attachments } : {}),
   };

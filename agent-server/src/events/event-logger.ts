@@ -33,6 +33,7 @@ const META_EVENTS = new Set<string>([
  */
 const TRANSIENT_EVENTS = new Set<string>([
   'session.message.delta',
+  'session.turn.completed',
 ]);
 
 // ── Types ────────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ test('team origins use the web sender so they can fold into a live turn, and kee
     const m = buildDeliveryMessage({ channel: 'web:s1', text: 'x', origin });
     assert.equal(m.senderId, WEB_UI_SENDER);
     assert.equal(m.systemOrigin, origin);
-    assert.deepEqual(m.raw, { source: 'web-ui' });
+    assert.deepEqual(m.raw, { source: 'web-ui', deliveryOrigin: origin });
   }
 });
 
@@ -32,9 +32,18 @@ test('raw carries the origin source, and the caller may add fields but not repla
     channel: 'C1', text: 'reminder', origin: 'resume',
     raw: { originalMessage: 'the first ask', source: 'nope' },
   });
-  assert.deepEqual(resume.raw, { source: 'rate-limit-resume', originalMessage: 'the first ask' });
+  assert.deepEqual(resume.raw, { source: 'rate-limit-resume', deliveryOrigin: 'resume', originalMessage: 'the first ask' });
   const wake = buildDeliveryMessage({ channel: 'C1', text: 'n', origin: 'thread-callback', tag: 'thr_1' });
-  assert.deepEqual(wake.raw, { source: 'task-callback', tag: 'thr_1' });
+  assert.deepEqual(wake.raw, { source: 'task-callback', deliveryOrigin: 'thread-callback', tag: 'thr_1' });
+});
+
+test('a human-typed message and an ask-user answer differ only by their recorded delivery origin', () => {
+  const typed = buildDeliveryMessage({ channel: 'web:s1', text: 'x', origin: 'web-user' });
+  const answer = buildDeliveryMessage({ channel: 'web:s1', text: 'x', origin: 'ask-user-answer' });
+  assert.equal(typed.senderId, answer.senderId);
+  assert.equal(typed.systemOrigin, answer.systemOrigin);
+  assert.equal((typed.raw as any).deliveryOrigin, 'web-user');
+  assert.equal((answer.raw as any).deliveryOrigin, 'ask-user-answer');
 });
 
 test('delivery routes a fully-formed turn ctx through the runtime adapter', async () => {

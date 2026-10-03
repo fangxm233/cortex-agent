@@ -30,7 +30,7 @@ import {
 import { publishAskUserRequested } from '../routing/hook-bridge.js';
 import {
   publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered,
-  publishSessionStatus, publishSessionTurn,
+  publishSessionStatus, publishSessionTurn, publishSessionTurnCompleted,
 } from '../session-events.js';
 import { createTranscriptSink, persistSessionContextUsage, recordHistory } from '../transcript-sink.js';
 import { createSessionDeltaStream } from '../delta-coalescer.js';
@@ -91,6 +91,9 @@ export interface TurnInput {
   ledger: TurnLedgerInput | null;
   /** Execution trigger: 'user' | 'edit-retry' | 'ask-user-question' | 'scheduled'. */
   trigger: string;
+  /** How the opening message arrived: its delivery origin (`web-user`, `team-lead`, ...) or
+   *  `platform`. Reported as `session.turn.completed`'s trigger; absent ⇒ `trigger` stands in. */
+  origin?: string;
   /** Prefix on every PROGRESS status line (edit-retry's "🔁 Retry (edited) | "). The terminal seal
    *  is rendered by the shared terminal path and carries no prefix, exactly as today. */
   statusPrefix?: string;
@@ -149,6 +152,10 @@ export class Turn {
    *  surface). The hold owns the terminal running:false publish, so the finally must NOT seal the
    *  session idle. */
   private bgHeld = false;
+  /** How the turn ended, once it has; null until then and for an end that is not one (superseded,
+   *  queued for rate-limit resume). Published from the finally, or by the hold once it seals. */
+  private ending: { status: 'completed' | 'failed' | 'stopped'; finalOutput: string } | null = null;
+  private endingPublished = false;
 
   constructor(input: TurnInput) {
     this.input = input;
@@ -417,7 +424,7 @@ export class Turn {
       // into the same reply; its renderer releases the slot when it seals. Everything else releases
       // now. Always scoped to THIS turn's callback: a slot someone else registered is not ours.
       if (holdKind !== 'platform') activeTurns.releaseStreamingCallback(channel, callbacks.onAssistantMsg);
-      await handleDefaultAgentResult({
+      const verdict = await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text, executionId: run.executionId,
         sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks,
@@ -440,6 +447,7 @@ export class Turn {
           })
           : null,
       });
+      if (verdict === 'completed') this.ending = { status: 'completed', finalOutput: result.finalOutput ?? '' };
       // The web hold: the same lifecycle, rendered as session events instead of a status message.
       // It installs AFTER the terminal render rather than in place of it — the turn's reply is
       // already published and the continuation streams as new messages.
@@ -473,13 +481,15 @@ export class Turn {
       }
     } catch (error) {
       activeTurns.releaseStreamingCallback(channel, callbacks.onAssistantMsg);
-      await handleAgentError({
+      const outcome = await handleAgentError({
         error: error as { message: string; cancelled?: boolean },
         channel, adapter, statusMsg, startTime: this.startTime,
         executionId: this.executionId,
         sessionName, sessionId, effectiveSessionId: this.backendSessionIdOfRun,
         threadAnchorId, userMessageTs, userMessage: this.input.user.text,
       });
+      if (outcome === 'cancelled') this.ending = { status: 'stopped', finalOutput: '' };
+      else if (outcome === 'failed') this.ending = { status: 'failed', finalOutput: (error as Error)?.message ?? '' };
     } finally {
       // 12. One exit: lease, tracking, delta stream, running:false.
       this.releaseLease();
@@ -491,7 +501,18 @@ export class Turn {
       // spontaneous continuation is untracked). True for BOTH surfaces since T2.2: the Slack hold
       // used to seal the session idle here while its own status message still said "waiting".
       if (sessionId && !this.bgHeld) publishSessionStatus({ sessionId, channel, running: false });
+      if (!this.bgHeld) this.publishEnding();
     }
+  }
+
+  /** `session.turn.completed`, at most once per turn. */
+  private publishEnding(): void {
+    if (!this.ending || this.endingPublished || !this.sessionId) return;
+    this.endingPublished = true;
+    publishSessionTurnCompleted({
+      sessionId: this.sessionId, channel: this.channel, ...this.ending,
+      trigger: this.input.origin ?? this.input.trigger,
+    });
   }
 
   /** The backend session id this turn's run reported, for the error path's DISPLAY id and the
@@ -524,10 +545,28 @@ export class Turn {
       // A run keeps its execution registered for the whole of its background phase, so the hold's
       // own run must not veto its own idle publish.
       executionId: args.run.executionId,
-      renderer: args.renderer,
+      renderer: this.reportingOnSeal(args.renderer, args.result),
     });
     if (hold) this.bgHeld = true;
     return !!hold;
+  }
+
+  /** A held turn ends when its hold seals: report it then, with the continuation's output after
+   *  the foreground's. A rate-limited seal that was queued for resume is not an end. */
+  private reportingOnSeal(renderer: HoldRenderer, base: AgentResult): HoldRenderer {
+    const onSealed = renderer.onSealed.bind(renderer);
+    renderer.onSealed = (kind, totals) => {
+      onSealed(kind, totals);
+      if (kind === 'rate-limited' && totals.resumable) return;
+      const finalOutput = [base.finalOutput, totals.continuation?.finalOutput]
+        .filter((text): text is string => !!text).join('\n\n');
+      this.ending = {
+        status: kind === 'interrupted' ? 'stopped' : kind === 'rate-limited' ? 'failed' : 'completed',
+        finalOutput,
+      };
+      this.publishEnding();
+    };
+    return renderer;
   }
 }
 

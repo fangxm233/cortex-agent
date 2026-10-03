@@ -247,6 +247,7 @@ export class AgentRunner {
         },
         ledger: { userMessageTs: message.ref.messageId },
         trigger: 'user',
+        origin: turnOrigin(message),
         startTime,
         mutationRelease,
         // The default agent's spec plus the first-turn ambient blocks — the assembly half of what
@@ -289,6 +290,13 @@ function mergeAttachments(
 ): IncomingMessage['webAttachments'] {
   const merged = [...(web ?? []), ...(platform ?? [])];
   return merged.length > 0 ? merged : undefined;
+}
+
+/** The delivery origin `session-gateway` stamped on the message, or `platform` for an inbound
+ *  chat-platform message that never went through it. */
+function turnOrigin(message: IncomingMessage): string {
+  const origin = (message.raw as { deliveryOrigin?: unknown } | null | undefined)?.deliveryOrigin;
+  return typeof origin === 'string' && origin ? origin : 'platform';
 }
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
