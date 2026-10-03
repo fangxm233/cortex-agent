@@ -42,6 +42,7 @@ import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
+import { teamOutboxRepo } from '@store/team-outbox-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
@@ -110,7 +111,7 @@ import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/eve
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
-import { installTeamDelivery } from '@orch/team-delivery.js';
+import { flushTeamOutbox, installTeamDelivery } from '@orch/team-delivery.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
@@ -459,7 +460,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), executionRepo.flush(), projectDirRepo.flush(), waitpointRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), teamOutboxRepo.flush(), executionRepo.flush(), projectDirRepo.flush(), waitpointRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), sessionStore.flush()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
@@ -797,6 +798,10 @@ process.on('SIGTERM', async () => {
   // S13: register hook-bridge event subscribers (bodies extracted to orch/routing/hook-bridge-subscribers.ts)
   registerHookBridgeSubscribers(bus, adapter, planApprovals);
   installTeamDelivery(bus);
+  // Worker reports a restart kept from their leads: delivered now that sessions and the adapter are up.
+  void flushTeamOutbox()
+    .then((n) => { if (n > 0) log.info(`Delivered ${n} worker report(s) kept across the restart`); })
+    .catch((error) => log.error(`Team outbox flush failed: ${(error as Error).message}`));
 
   // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
   // route above, so the adapter declares the port (D10) and the composition root fills it.

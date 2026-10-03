@@ -13,6 +13,7 @@ import {
 } from '@domain/agents/index.js';
 import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/agents/profile-manager.js';
 import { parseModelSpec } from '@domain/agents/subagent/runner.js';
+import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';
 import { interactionRecords, type InteractionRecords } from './interactions/interaction-records.js';
@@ -56,6 +57,8 @@ export interface TeamWebhookDeps {
   questionTexts: (requestId: string) => string[] | null;
   respondPlan: (requestId: string, approved: boolean, feedback: string) => Outcome;
   describeTeam: (leadSessionId: string) => Promise<WorkerView[]>;
+  /** True while the server refuses new turns ahead of a restart. */
+  held: () => boolean;
   now: () => number;
 }
 
@@ -84,6 +87,7 @@ const defaultDeps: TeamWebhookDeps = {
     { planApprovals, interactionRecords }, requestId, approved, feedback, 'agent',
   ),
   describeTeam: (leadSessionId) => describeTeam(leadSessionId),
+  held: () => isRebuildHeld(),
   now: () => Date.now(),
 };
 
@@ -115,6 +119,14 @@ async function findWorker(lead: Session, name: string, deps: TeamWebhookDeps): P
 
 function runningCount(team: WorkerView[]): number {
   return team.filter(v => !v.retired && isWorkerBusy(v)).length;
+}
+
+/** A worker cannot start a turn while the server is about to restart: say so instead of claiming
+ *  a delivery the runner is going to refuse. */
+function refuseWhileRestarting(deps: TeamWebhookDeps, what: string): void {
+  if (!deps.held()) return;
+  throw new TeamError(`the server is about to restart and is not starting new turns, so ${what}. `
+    + 'Tell the user, end your turn (the restart waits for it), and try again after the restart.');
 }
 
 function capError(): TeamError {
@@ -188,6 +200,7 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
       : `a worker named "${name}" already exists; continue it with worker_send, or pick another name`);
   }
   if (runningCount(await deps.describeTeam(lead.sessionId)) >= MAX_RUNNING_WORKERS) throw capError();
+  refuseWhileRestarting(deps, 'the worker was not created');
 
   const selection = resolveWorkerSelection(lead, data, deps);
   // The selection is written before the session exists, so its first turn already runs on it. A
@@ -223,6 +236,7 @@ async function send(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   const view = team.find(v => v.sessionId === worker.sessionId);
   const busy = !!view && isWorkerBusy(view);
   if (!busy && runningCount(team) >= MAX_RUNNING_WORKERS) throw capError();
+  refuseWhileRestarting(deps, 'the message was not delivered');
   if (worker.workerRetiredAt != null) await deps.sessions.setWorkerRetired(worker.sessionId, null);
   noteDispatch(worker.sessionId, null, deps.now());
   deps.deliver({ channel: worker.channel, text: message, origin: 'team-lead' });

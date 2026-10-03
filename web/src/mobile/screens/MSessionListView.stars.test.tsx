@@ -61,19 +61,16 @@ describe('mobile project Stars', () => {
   });
 });
 
-describe('mobile team worker rows', () => {
-  it('indents children under their lead and dims retired workers', () => {
-    const lead: MSessionRow = { ...row('lead'), children: [row('w1'), { ...row('w2'), retired: true }] };
+describe('mobile team lead rows', () => {
+  it('gives a lead its workers’ running state as a live row', () => {
+    const lead: MSessionRow = { ...row('lead'), status: { kind: 'running', text: '1 worker running' } };
     const tree = create(<MSessionListView rows={[lead, row('plain')]} copy={{ title: 'Sessions', empty: 'No sessions' }}
       presence="connected" newLabel="New" onNew={() => {}} onOpen={onOpen} />);
-    expect(sessionIds(tree)).toEqual(['lead', 'w1', 'w2', 'plain']);
+    expect(sessionIds(tree)).toEqual(['lead', 'plain']);
     const style = (id: string) => tree.root.findByProps({ 'data-session-id': id }).props.style;
-    expect(style('lead').padding).toBe('0 14px');
-    expect(style('w1').padding).toBe('0 14px 0 30px');
-    expect(style('w1').opacity).toBeUndefined();
-    expect(style('w2').opacity).toBe(0.55);
-    expect(tree.root.findAllByProps({ 'data-lead-group': 'lead' })).toHaveLength(1);
-    expect(tree.root.findAllByProps({ 'data-lead-group': 'plain' })).toHaveLength(0);
+    expect(style('lead').background).toContain('var(--proto-accent)');
+    expect(style('plain').background).toBeUndefined();
+    expect(JSON.stringify(tree.toJSON())).toContain('1 worker running');
     act(() => tree.unmount());
   });
 });

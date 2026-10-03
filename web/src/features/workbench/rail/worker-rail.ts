@@ -1,30 +1,12 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { isRetiredWorker } from '@/features/team/worker-groups';
+import { workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 
 // Team mode: a lead session's row expands in place to its workers, one indent deeper — the same
 // shape as a commission folder, except the folder IS a session the user can open.
 //
-// The lead's status dot rolls up its workers the way a commission row rolls up its members: live if
-// any worker is running, amber if any is blocked on the user, a hollow ring if any is waiting on a
-// machine. Unread only rolls up while the lead is collapsed — open, each worker shows its own.
-
-/** The status a lead rolls up from its workers. Rows are typed by this structural slice rather than
- *  the rail tree's row type, so the tree can use these helpers without an import cycle. */
-export interface WorkerRollup {
-  running: boolean;
-  awaitingInput: boolean;
-  waitingOn: boolean;
-  unread: boolean;
-}
-
-export function workerRollup(workers: WorkerRollup[]): WorkerRollup {
-  return {
-    running: workers.some((w) => w.running),
-    awaitingInput: workers.some((w) => w.awaitingInput),
-    waitingOn: workers.some((w) => w.waitingOn),
-    unread: workers.some((w) => w.unread),
-  };
-}
+// The lead's status dot rolls up its workers (features/team/worker-rollup). Unread only rolls up
+// while the lead is collapsed — open, each worker shows its own.
 
 /** A worker's rail row: the ordinary row, flagged when retired so the tree can dim it. */
 export function workerRow<R extends WorkerRollup>(s: SessionInfo, toRow: (s: SessionInfo) => R): R & { retired?: boolean } {

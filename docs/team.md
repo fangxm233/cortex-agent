@@ -40,12 +40,15 @@ you ─────────── open the worker and talk to it directly �
 
 **Dispatch never blocks.** `worker_spawn` and `worker_send` return at once. The lead ends its
 turn, and the worker's report wakes it later. A message sent to a running worker is folded into
-its current turn; to an idle worker it starts a new one.
+its current turn; to an idle worker it starts a new one. While the server is about to restart,
+both tools return an error instead of dispatching, and the lead tries again after the restart.
 
 **Reports.** When a worker turn ends, its final reply is delivered to the lead as a message headed
 `[Worker <name> · completed|failed|stopped]` with a one-line status. This includes turns woken by
 the worker's own background agents or waitpoints. Turns you start yourself by typing in a worker
-are not reported; the lead's roster marks that worker as one you have talked to.
+are not reported; the lead's roster marks that worker as one you have talked to. A server restart
+does not lose a report: one that ends while a restart is pending reaches the lead once the server
+is back.
 
 **Questions and plans.** When a worker calls `cortex_ask_user`, submits a plan with
 `cortex_plan_exit`, or submits a commission contract, the request shows up as a card in the
@@ -77,6 +80,10 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
   dot summarizes its workers, and retired workers are listed last and dimmed.
 - A lead's chat shows a compact strip of worker chips under its header. Each chip carries the
   worker's status dot and opens the worker.
+- On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
+  shows as running while any worker runs, and as unread while any worker has news. The worker
+  chips in the lead's chat open them. Retired workers are not on the strip and count toward
+  neither.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
 - A worker that is waiting for its lead to answer shows a hollow ring and *Waiting on lead*. The

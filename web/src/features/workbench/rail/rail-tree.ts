@@ -5,6 +5,7 @@ import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/feat
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { leadRow, workerRow } from './worker-rail';
 import { groupWorkers } from '@/features/team/worker-groups';
+import { sessionRollup } from '@/features/team/worker-rollup';
 import { lastActivityByProject, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { effectiveMs, orderSessions } from '@/features/session/list/session-groups';
@@ -192,23 +193,17 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     commissionsExpanded, expandedCommissions, showAll,
     sort, manualOrder, dragged, now, lang,
   } = input;
-  const toSessionRow = (s: SessionInfo): RailSessionRow => {
-    // A worker blocked on its lead is not progressing and not blocked on the user: hollow ring.
-    const onLead = (s.waitingOnLead ?? 0) > 0;
-    return {
-      sessionId: s.sessionId,
-      projectId: s.projectId,
-      title: sessionTitle(s),
-      starred: s.starred,
-      age: relTime(effectiveMs(s), now, lang),
-      stamp: sessionTooltipStamp(s),
-      running: !!s.running && !onLead,
-      awaitingInput: !!s.awaitingInput,
-      waitingOn: (s.waitingOn ?? 0) > 0 || onLead,
-      unread: !!s.unread,
-      selected: s.sessionId === selectedSessionId,
-    };
-  };
+  const toSessionRow = (s: SessionInfo): RailSessionRow => ({
+    sessionId: s.sessionId,
+    projectId: s.projectId,
+    title: sessionTitle(s),
+    starred: s.starred,
+    age: relTime(effectiveMs(s), now, lang),
+    stamp: sessionTooltipStamp(s),
+    // running / awaitingInput / waitingOn / unread, in the dot language the lead rolls up.
+    ...sessionRollup(s),
+    selected: s.sessionId === selectedSessionId,
+  });
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
 
