@@ -148,7 +148,7 @@ async function updateQuestionMessage(group: QuestionGroup & { responseMessageTs?
   ).catch(() => {});
 }
 
-function dispatchAskUserQuestionResume(group: QuestionGroup & { channel: string; sessionId: string; threadId?: string | null }): void {
+function dispatchAskUserQuestionResume(group: QuestionGroup & { channel: string; sessionId: string }): void {
   if (!_adapter) return;
   const adapter = _adapter;
   const responseText = askUserQuestion.formatGroupResponse(group);

@@ -111,7 +111,7 @@ async function resolveSessionChannel(sessionId: unknown): Promise<string | null>
 }
 
 async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promise<void> {
-  const { sessionId, questions, dryRun, threadId } = data;
+  const { sessionId, questions, dryRun } = data;
   // Opt-in only: every caller that omits `blocking` (native hooks, TUI, PI) keeps waiting.
   const blocking = data.blocking !== false;
   const level = data.level === undefined ? null : normalizeAskLevel(data.level);
@@ -128,7 +128,7 @@ async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promi
   }
   try {
     const requestId = crypto.randomUUID();
-    const result = await registerAskQuestion(requestId, channel, sessionId, questions, dryRun === true, threadId, level, blocking);
+    const result = await registerAskQuestion(requestId, channel, sessionId, questions, dryRun === true, level, blocking);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (e) {
@@ -381,7 +381,7 @@ function createWebhookHandler() {
     if (req.method === 'POST' && req.url === '/hook/exit-plan-mode') {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
-        const { sessionId, channel, planContent, toolInput, dryRun, threadId, commission } = data;
+        const { sessionId, channel, planContent, toolInput, dryRun, commission } = data;
         if (!channel) {
           res.writeHead(400); res.end(JSON.stringify({ error: 'channel required' }));
           return;
@@ -409,7 +409,7 @@ function createWebhookHandler() {
             }
           }
           const requestId = crypto.randomUUID();
-          const result = await registerPlanApproval(requestId, channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true, threadId);
+          const result = await registerPlanApproval(requestId, channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true);
           const approved = (result as { approved?: boolean } | undefined)?.approved === true;
           const finalized = commissionArgs && approved ? await finalizeCommission(commissionArgs) : null;
           if (finalized && finalized.ok === true) {
@@ -497,7 +497,6 @@ function createWebhookHandler() {
               owner: {
                 sessionId: String(data.sessionId || ''),
                 channel,
-                threadId: data.threadId || null,
                 project: data.project || null,
               },
               quorum: data.quorum,

@@ -282,9 +282,7 @@ export function subagentRowFields(ref?: SubagentRowRef):
   };
 }
 
-/** Compact, backend-agnostic one-line summary of a tool call's input for the history.
- *  Shared by the direct conversation path (agent-runner) and thread steps (thread-transcript)
- *  so both record identical tool-input summaries. */
+/** Compact, backend-agnostic one-line summary of a tool call's input for the history. */
 const REMOTE_TOOL_NAMES = new Set([
   'remote_bash', 'remote_read', 'remote_write',
   'remote_edit', 'remote_glob', 'remote_grep',

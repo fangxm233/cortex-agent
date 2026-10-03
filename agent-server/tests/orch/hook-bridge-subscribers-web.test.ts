@@ -55,7 +55,6 @@ test('plan.submitted on a web channel creates a plan-approval record with full p
     requestId: 'req-plan-1',
     channel: 'web:sess-9',
     sessionId: 'agent-sess',
-    threadId: null,
     planContent: '# Big Plan\n1. do things',
     toolInput: { plan_file_path: 'plan/big.md' },
   });
@@ -88,7 +87,6 @@ test('ask-user.requested on a web channel creates an ask-user record with normal
     requestId: 'req-ask-1',
     channel: 'web:sess-9',
     sessionId: 'agent-sess',
-    threadId: null,
     questions: [{ question: 'A or B?', header: 'Choice', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false }],
   });
   await flush();
@@ -113,7 +111,6 @@ test('ask-user.requested with a level persists it in the web interaction payload
     requestId: 'req-ask-lvl',
     channel: 'web:sess-lvl',
     sessionId: 'agent-sess',
-    threadId: null,
     level: 'warning',
     questions: [{ question: 'Proceed?', header: 'Risk', options: [], multiSelect: false }],
   });
@@ -131,7 +128,6 @@ test('non-web channels do not create interaction records', async () => {
     requestId: 'req-slack',
     channel: 'C_SLACK',
     sessionId: 'agent-sess',
-    threadId: null,
     planContent: 'x',
     toolInput: {},
   });
@@ -148,7 +144,6 @@ test('a non-blocking ask records blocking:false and delivers the answer as a use
     requestId: 'req-ask-nonblocking',
     channel: 'web:sess-nb',
     sessionId: 'agent-sess',
-    threadId: null,
     blocking: false,
     questions: [{ question: 'Which DB?', header: 'DB', options: [{ label: 'sqlite' }], multiSelect: false }],
   });
@@ -172,7 +167,6 @@ test('a blocking ask leaves the payload flag absent and never sends a user messa
     requestId: 'req-ask-blocking',
     channel: 'web:sess-b',
     sessionId: 'agent-sess',
-    threadId: null,
     questions: [{ question: 'Which DB?', header: 'DB', options: [{ label: 'sqlite' }], multiSelect: false }],
   });
   await flush();

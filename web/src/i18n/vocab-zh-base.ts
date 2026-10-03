@@ -330,7 +330,7 @@ export const zhBase = {
   ovAvg: '平均',
   ovGitBacked: 'Git 托管',
   ovOpenMemoryViewer: '打开记忆查看器',
-  ovMemoryDesc: '使命 · 路线图 · STATUS · TASKS + 实验 / 知识 / 模式 / 决策',
+  ovMemoryDesc: '使命 · 路线图 · STATUS + 实验 / 知识 / 模式 / 决策',
   ovWhereItGoes: '花在哪里',
   ovNoSpend: '本周暂无支出记录',
   ovNoSchedules: '本项目暂无调度',

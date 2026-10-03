@@ -41,7 +41,7 @@ test('registerAskQuestion publishes ask-user.requested with the severity level',
   const received: CortexEvent[] = [];
   bus.subscribe('ask-user.requested', (e) => { received.push(e); });
 
-  const resultPromise = hb.registerAskQuestion('req-lvl', 'C_LVL', 'sess-lvl', [{ q: 'Danger?' }], false, null, 'warning');
+  const resultPromise = hb.registerAskQuestion('req-lvl', 'C_LVL', 'sess-lvl', [{ q: 'Danger?' }], false, 'warning');
 
   assert.equal(received.length, 1);
   const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
@@ -107,7 +107,7 @@ test('registerAskQuestion with blocking=false resolves immediately and marks the
   const received: CortexEvent[] = [];
   bus.subscribe('ask-user.requested', (e) => { received.push(e); });
 
-  const result = await hb.registerAskQuestion('req-nb', 'web:sess-nb', 'sess-nb', [{ q: 'Which DB?' }], false, null, null, false);
+  const result = await hb.registerAskQuestion('req-nb', 'web:sess-nb', 'sess-nb', [{ q: 'Which DB?' }], false, null, false);
   assert.equal(result.posted, true);
   assert.equal(result.requestId, 'req-nb');
 
@@ -126,7 +126,7 @@ test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (
   const stale: string[] = [];
   hb.setOnStale((requestId) => { stale.push(requestId); });
 
-  await hb.registerAskQuestion('req-nb-ttl', 'web:sess-nb2', 'sess-nb2', [{ q: 'Which DB?' }], false, null, null, false);
+  await hb.registerAskQuestion('req-nb-ttl', 'web:sess-nb2', 'sess-nb2', [{ q: 'Which DB?' }], false, null, false);
   hb.cleanupStale(Date.now() + 31 * 60 * 1000);
   assert.deepEqual(stale, ['req-nb-ttl']);
 });
@@ -139,7 +139,7 @@ test('an answered non-blocking ask is removed from the pending set before the TT
   const stale: string[] = [];
   hb.setOnStale((requestId) => { stale.push(requestId); });
 
-  await hb.registerAskQuestion('req-nb-answered', 'web:sess-nb3', 'sess-nb3', [{ q: 'Which DB?' }], false, null, null, false);
+  await hb.registerAskQuestion('req-nb-answered', 'web:sess-nb3', 'sess-nb3', [{ q: 'Which DB?' }], false, null, false);
   assert.equal(hb.resolveRequest('req-nb-answered', { answers: { 'Which DB?': 'sqlite' } }), true);
   hb.cleanupStale(Date.now() + 31 * 60 * 1000);
   assert.deepEqual(stale, []);

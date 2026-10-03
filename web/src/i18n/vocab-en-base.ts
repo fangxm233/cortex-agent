@@ -334,7 +334,7 @@ export const enBase = {
   ovAvg: 'avg',
   ovGitBacked: 'git-backed',
   ovOpenMemoryViewer: 'Open memory viewer',
-  ovMemoryDesc: 'Mission · roadmap · STATUS · TASKS + experiments / knowledge / patterns / decisions.',
+  ovMemoryDesc: 'Mission · roadmap · STATUS + experiments / knowledge / patterns / decisions.',
   ovWhereItGoes: 'Where it goes',
   ovNoSpend: 'No spend recorded this week.',
   ovNoSchedules: 'No schedules for this project.',

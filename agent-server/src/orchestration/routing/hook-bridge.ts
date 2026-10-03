@@ -34,7 +34,7 @@ function initHookBridge(bus: EventBus): void {
  * A pending entry is still recorded so the shared TTL sweep expires the card and cleans the group
  * exactly as it does for a blocking ask — its resolve is a no-op because no caller is waiting.
  */
-function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, threadId?: string | null, level?: ChatNoticeLevel | null, blocking = true): Promise<any> {
+function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, level?: ChatNoticeLevel | null, blocking = true): Promise<any> {
   return new Promise((resolve) => {
     if (!_bus) {
       log.error('bus not initialised; failing ask-user request immediately');
@@ -44,22 +44,22 @@ function registerAskQuestion(requestId: string, channel: string, sessionId: stri
     const levelField = level ? { level } : {};
     if (dryRun) {
       // Smoke-test path: publish event for journal capture, skip Slack interaction, resolve synthetically.
-      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField, dryRun: true });
+      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, questions, ...levelField, dryRun: true });
       resolve({ dryRun: true, answers: {} });
       return;
     }
     if (!blocking) {
       pendingRequests.set(requestId, { resolve: () => { /* nobody is waiting on a non-blocking ask */ }, channel, sessionId, createdAt: Date.now() });
-      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField, blocking: false });
+      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, questions, ...levelField, blocking: false });
       resolve({ posted: true, requestId });
       return;
     }
     pendingRequests.set(requestId, { resolve, channel, sessionId, createdAt: Date.now() });
-    _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField });
+    _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, questions, ...levelField });
   });
 }
 
-function registerPlanApproval(requestId: string, channel: string, sessionId: string, planContent: string, toolInput: any, dryRun = false, threadId?: string | null): Promise<any> {
+function registerPlanApproval(requestId: string, channel: string, sessionId: string, planContent: string, toolInput: any, dryRun = false): Promise<any> {
   return new Promise((resolve) => {
     if (!_bus) {
       log.error('bus not initialised; failing plan-approval request immediately');
@@ -68,12 +68,12 @@ function registerPlanApproval(requestId: string, channel: string, sessionId: str
     }
     if (dryRun) {
       // Smoke-test path: publish event for journal capture, skip Slack post, resolve synthetically.
-      _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, threadId: threadId ?? null, planContent, toolInput, dryRun: true });
+      _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, planContent, toolInput, dryRun: true });
       resolve({ dryRun: true, approved: true, reason: '' });
       return;
     }
     pendingRequests.set(requestId, { resolve, channel, sessionId, createdAt: Date.now() });
-    _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, threadId: threadId ?? null, planContent, toolInput });
+    _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, planContent, toolInput });
   });
 }
 
@@ -118,9 +118,9 @@ setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
  * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
  * @param extensionUiId — original PI extension_ui_request id; required for respondToDialog to unblock the PI subprocess.
  */
-function publishAskUserRequested(requestId: string, channel: string, sessionId: string, questions: any[], extensionUiId?: string, threadId?: string | null): void {
+function publishAskUserRequested(requestId: string, channel: string, sessionId: string, questions: any[], extensionUiId?: string): void {
   if (!_bus) { log.error('bus not initialised; dropping PI ask-user.requested'); return; }
-  _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, extensionUiId });
+  _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, questions, extensionUiId });
 }
 
 export { initHookBridge, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, publishAskUserRequested };

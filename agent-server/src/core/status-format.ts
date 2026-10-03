@@ -8,7 +8,7 @@ export function computeElapsed(startTime: number): { elapsedStr: string; elapsed
 }
 
 export function formatMetricsSuffix({ costUsd, numTurns }: { costUsd: number | null; numTurns: number | null }): string {
-  const turnsStr = numTurns != null ? ` · ${t('notice.thread.turns', { n: numTurns })}` : '';
+  const turnsStr = numTurns != null ? ` · ${t('notice.turns', { n: numTurns })}` : '';
   const costStr = costUsd != null ? ` · $${costUsd.toFixed(4)}` : '';
   return `${turnsStr}${costStr}`;
 }
@@ -28,7 +28,7 @@ export function buildSessionTag(sessionName: string | null, sessionId: string | 
 export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_turns = null, profileName, sessionName = null, sessionId = null, todoProgress = null }: { startTime: number; elapsed_s?: number | null; num_turns?: number | null; profileName: string; sessionName?: string | null; sessionId?: string | null; todoProgress?: string | null }): string {
   const elapsed = elapsed_s ?? ((Date.now() - startTime) / 1000);
   const sessionTag = buildSessionTag(sessionName, sessionId);
-  const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${t('notice.thread.turns', { n: num_turns })}` : '';
+  const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${t('notice.turns', { n: num_turns })}` : '';
   const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
   return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
 }
@@ -92,37 +92,4 @@ export function renderTurnStatus(status: TurnStatus, ctx: TurnStatusContext): st
     case 'error':
       return `${Icons.error} ${tag}${t('status.error')} ${tail}`;
   }
-}
-
-const THREAD_STATUS_TASK_TEXT_MAX = 60;
-const THREAD_STATUS_THREAD_ID_LEN = 12;
-
-/** Build the multi-agent thread step status line. When task info is present (task-dispatch
- *  threads carry taskProject/taskId/taskText in metadata) the line leads with the task identity
- *  — "[proj] <text…> · `id`" — so a glance tells you what is running; the short thread id is kept
- *  at the tail for thread-op debugging. Without task info it falls back to the thread-only form. */
-export function buildThreadStatusMessage({ threadId, stepNumber, label, elapsedS, numTurns = null, taskProject = null, taskId = null, taskText = null }: {
-  threadId: string;
-  stepNumber: number;
-  label: string;
-  elapsedS: number;
-  numTurns?: number | null;
-  taskProject?: string | null;
-  taskId?: string | null;
-  taskText?: string | null;
-}): string {
-  const shortId = threadId.substring(0, THREAD_STATUS_THREAD_ID_LEN);
-  const turnsPart = numTurns != null ? ` (${t('notice.thread.turns', { n: numTurns })})` : '';
-  const stepPart = `${t('notice.thread.stepLabel', { n: stepNumber, label: `*${label}*` })}${turnsPart}`;
-  const timePart = `${Icons.stopwatch} ${formatDurationCompact(elapsedS)}`;
-  if (taskId) {
-    const projPart = taskProject ? `[${taskProject}] ` : '';
-    const raw = (taskText ?? '').trim();
-    const text = raw.length > THREAD_STATUS_TASK_TEXT_MAX
-      ? raw.slice(0, THREAD_STATUS_TASK_TEXT_MAX).trimEnd() + '…'
-      : raw;
-    const textPart = text ? `${text} ` : '';
-    return `${Icons.processing} ${projPart}${textPart}· \`${taskId}\` | ${stepPart} | ${shortId} | ${timePart}`;
-  }
-  return `${Icons.processing} ${t('notice.thread.idLabel', { id: shortId })} | ${stepPart} | ${timePart}`;
 }

@@ -232,8 +232,7 @@ export class Turn {
       onMessagePosted, prefix,
     );
     // 5b. PI interactive-event callbacks (plan approval / ask-user-question routing).
-    //     No threadId — plain user messages are no longer wrapped in a thread.
-    const interactiveCallbacks = buildInteractiveCallbacks(channel, sessionId, null);
+    const interactiveCallbacks = buildInteractiveCallbacks(channel, sessionId);
 
     // 4. Emit the REAL running state for the S4 chat indicator: true now, false in the finally
     //    below (unless a hold takes the session over).
@@ -744,7 +743,6 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
 export function buildInteractiveCallbacks(
   channel: string,
   sessionId: string | null,
-  threadId: string | null = null,
 ) {
   const onAskUserQuestion = (event: {
     toolUseId: string;
@@ -757,7 +755,7 @@ export function buildInteractiveCallbacks(
       header: question.question.substring(0, 12),
     }));
     publishAskUserRequested(
-      crypto.randomUUID(), channel, sessionId ?? '', questions, event.toolUseId, threadId,
+      crypto.randomUUID(), channel, sessionId ?? '', questions, event.toolUseId,
     );
   };
   return { onPlanWritten: () => undefined, onAskUserQuestion, onToolUse: () => undefined };

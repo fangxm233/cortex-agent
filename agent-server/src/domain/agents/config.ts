@@ -506,7 +506,7 @@ export function applyAuthEnv(): void {
 }
 
 // NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
-// processes (cortex init / setup-gateway via domain/threads), and an import-time write would
+// processes (cortex init / setup-gateway), and an import-time write would
 // rewrite ANTHROPIC_API_KEY before gateway-generator discovery runs, breaking api endpoint
 // generation. The server entry (app.ts) calls applyAuthEnv() explicitly after dotenv loads.
 

@@ -58,7 +58,7 @@ const pendingHookResolvers = new Map();
  *  @param extensionUiId — original PI extension_ui_request id; when set, tryResolveHook
  *         uses this for respondToDialog instead of the hookRequestId.
  *  @param level — optional severity ('info'|'warning'|'error') rendered by the block builders. */
-function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, threadId?: string | null, level?: 'info' | 'warning' | 'error' | null) {
+function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, level?: 'info' | 'warning' | 'error' | null) {
   const groupId = buildGroupId(sessionId, requestId);
   const group = {
     groupId,
@@ -69,7 +69,6 @@ function createHookGroup(requestId, channel, sessionId, questions, extensionUiId
     responseMessageTs: null,
     hookRequestId: requestId,
     extensionUiId: extensionUiId || null,
-    threadId: threadId ?? null,
     level: level ?? null,
     questions: questions.map((q, idx) => ({
       pendingId: buildPendingId(sessionId, requestId, idx),
@@ -149,7 +148,6 @@ async function sendMessages(result, channel, adapter: PlatformAdapter, messageTs
       channel,
       messageTs,
       responseMessageTs: null as string | null,
-      threadId: null,
       questions: payload.questions.map((q, idx) => ({
         pendingId: buildPendingId(payload.sessionId, payload.toolUseId, idx),
         header: q.header,

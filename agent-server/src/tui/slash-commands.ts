@@ -32,12 +32,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   // Cost / budget
   cmd('cost'),
   cmd('budget'),
-  // Tasks / threads / scheduling
-  cmd('tasks'),
-  cmd('thread'),
+  // Agent / scheduling
   cmd('agent'),
   cmd('schedule'),
-  cmd('dispatch'),
   // Mode / model / profile
   cmd('mode'),
   cmd('model'),

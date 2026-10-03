@@ -39,29 +39,3 @@ export function recordDirectResume(input: DirectResumeInput): boolean {
   });
   return true;
 }
-
-/** A thread-pipeline resume candidate. */
-export interface ThreadResumeInput {
-  provider: string | null;
-  threadId: string;
-  channel: string;
-  userMessage: string;
-}
-
-/**
- * Record an interrupted thread for auto-resume. Unconditional by design, unlike the direct path:
- * the thread callers have already committed to the pause (`markThreadRateLimited` moved the thread
- * to `rate_limited`, or boot found it already there), so a thread left out of the queue would be
- * stranded in a paused state with nothing able to restart it. The queue tolerates an entry whose
- * provider is not throttled — `takeReadyResumes` simply releases it on the next drain.
- */
-export function recordThreadResume(input: ThreadResumeInput): void {
-  recordResume({
-    kind: 'thread',
-    provider: input.provider,
-    threadId: input.threadId,
-    channel: input.channel,
-    userMessage: input.userMessage,
-    recordedAt: Date.now(),
-  });
-}

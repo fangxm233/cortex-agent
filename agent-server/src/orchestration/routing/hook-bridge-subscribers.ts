@@ -55,7 +55,7 @@ export function registerHookBridgeSubscribers(
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post
     try {
-      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null, ev.level ?? null);
+      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.level ?? null);
       const nonBlocking = ev.blocking === false;
       askUserQuestion.registerHookResolver(ev.requestId, (data) => {
         // Clearing the pending entry first keeps the TTL sweep off an answered non-blocking card;
@@ -175,13 +175,11 @@ export function registerHookBridgeSubscribers(
           actions: planApproval.actions,
         });
       } else {
-        // Fallback path (stream already finalized after the turn): pass threadId
-        // explicitly so the approval card lands inside the conversation topic via
-        // message.reply instead of being posted as a standalone message.
+        // Fallback path (stream already finalized after the turn).
         await adapter.postInteractive(planDest, {
           text: t('notice.plan.approvalCard'),
           ...planApproval,
-        }, { threadId: ev.threadId ?? undefined });
+        });
       }
     } catch (e) {
       log.error(`Failed to post plan: ${(e as Error).message}`);

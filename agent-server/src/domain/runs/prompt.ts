@@ -36,9 +36,7 @@ export function globalRuleBodies(load: boolean): string[] {
 
 // --- User prompt ---
 
-/** The user-prompt-bearing half of an {@link import('./request.js').AgentSpec}. A thread step
- *  passes the stage's template here rather than the agent-level one — stage selection is thread
- *  policy, and by the time composition runs the template has already been chosen. */
+/** The user-prompt-bearing half of an {@link import('./request.js').AgentSpec}. */
 export interface UserPromptSpec {
   /** Role/identity text prepended to the rendered body. */
   directive?: string | null;
@@ -116,9 +114,8 @@ export function composeUserPrompt(
 }
 
 /**
- * The user profile for plain, thread-free conversation turns — the ONLY path that injects USER.md.
- * Thread steps never do, which keeps multi-agent pipelines profile-agnostic. Callers gate it to a
- * session's FIRST turn; resume keeps the block in backend history thereafter.
+ * The user profile for conversation turns — the ONLY path that injects USER.md. Callers gate it
+ * to a session's FIRST turn; resume keeps the block in backend history thereafter.
  */
 export function userProfileBlock(include: boolean): string | null {
   return include ? loadUserContext() : null;

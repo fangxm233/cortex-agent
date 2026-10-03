@@ -18,7 +18,7 @@ function wp(overrides: Partial<Waitpoint> = {}): Waitpoint {
     secretHash: 'c0ffee'.repeat(10),
     label: 'train-arm2',
     intent: 'wait for the run',
-    owner: { sessionId: 's1', channel: 'web:s1', threadId: null, project: 'proj' },
+    owner: { sessionId: 's1', channel: 'web:s1', project: 'proj' },
     emitFrom: { kind: 'local' },
     quorum: { need: 1, members: [], got: [] },
     failFast: true,
@@ -81,13 +81,13 @@ test('a waitpoint belongs to the session that armed it', () => {
 });
 
 test('sessionId alone is enough — survives a channel rebind', () => {
-  const w = wp({ owner: { sessionId: 's1', channel: 'slack:C123', threadId: null, project: null } });
+  const w = wp({ owner: { sessionId: 's1', channel: 'slack:C123', project: null } });
   assert.equal(ownsWaitpoint(w, 's1', 'web:s1'), true);
 });
 
 test('channel alone is enough — the wake will land on whoever holds the channel now', () => {
   // Armed by a session that is gone; the current session owns the same conduit.
-  const w = wp({ owner: { sessionId: 'old-session', channel: 'sched:nightly', threadId: null, project: null } });
+  const w = wp({ owner: { sessionId: 'old-session', channel: 'sched:nightly', project: null } });
   assert.equal(ownsWaitpoint(w, 's2', 'sched:nightly'), true);
 });
 
@@ -157,7 +157,7 @@ test('the rate-limit latch and delivery retry state are surfaced', () => {
 test('lists only this session, soonest expiry first', async () => {
   const mine = wp({ id: 'wp_mine', expiresAt: T0 + 7200_000 });
   const urgent = wp({ id: 'wp_urgent', expiresAt: T0 + 60_000 });
-  const theirs = wp({ id: 'wp_theirs', owner: { sessionId: 'other', channel: 'web:other', threadId: null, project: null } });
+  const theirs = wp({ id: 'wp_theirs', owner: { sessionId: 'other', channel: 'web:other', project: null } });
   const deps = depsWith([mine, urgent, theirs], { sessionId: 's1', channel: 'web:s1' });
   const out = await handleWaitpointsList(deps, { sessionId: 's1' });
   assert.deepEqual(out.map((w) => w.id), ['wp_urgent', 'wp_mine']);
@@ -175,7 +175,7 @@ test('without the waitpoint dep the list is empty rather than broken', async () 
 });
 
 test('an unknown session resolves no channel and matches on sessionId only', async () => {
-  const byChannel = wp({ id: 'wp_ch', owner: { sessionId: 'gone', channel: 'web:s1', threadId: null, project: null } });
+  const byChannel = wp({ id: 'wp_ch', owner: { sessionId: 'gone', channel: 'web:s1', project: null } });
   const deps = depsWith([wp(), byChannel], null);
   const out = await handleWaitpointsList(deps, { sessionId: 's1' });
   assert.deepEqual(out.map((w) => w.id), ['wp_aaaaaaaaaaaa']);

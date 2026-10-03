@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { recordDirectResume, recordThreadResume } from '../../src/domain/runs/observers/resume-recorder.js';
+import { recordDirectResume } from '../../src/domain/runs/observers/resume-recorder.js';
 import {
   initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset,
 } from '../../src/domain/costs/rate-limit-throttle.js';
@@ -69,23 +69,4 @@ test('recordDirectResume: nothing throttled → no queue at all', async (t) => {
   assert.equal(recordDirectResume({ provider: 'provider-a', ...direct }), false);
   assert.equal(recordDirectResume({ provider: null, ...direct }), false);
   assert.equal(getResumeCount(), 0);
-});
-
-test('recordThreadResume: unconditional — a paused thread is never left unqueued', async (t) => {
-  t.onTestFinished(() => { throttleReset(); resumeReset(); });
-  const adapter = new MockAdapter({ adminChannel: 'admin' });
-  await initResumeRegistry({ save: async () => {}, load: async () => [] });
-  await initRateLimitThrottle(adapter as any, stub as any);
-
-  // No throttle armed at all: the thread caller has already moved the thread to `rate_limited`,
-  // so skipping the queue here would strand it with nothing able to restart it.
-  recordThreadResume({ provider: 'provider-a', threadId: 'thr_a1b2c3d4', channel: 'C1', userMessage: 'go' });
-  assert.equal(getResumeCount(), 1);
-
-  const [entry] = takeReadyResumes([]) as any[];
-  assert.equal(entry.kind, 'thread');
-  assert.equal(entry.threadId, 'thr_a1b2c3d4');
-  assert.equal(entry.provider, 'provider-a');
-  assert.equal(entry.channel, 'C1');
-  assert.equal(entry.userMessage, 'go');
 });
