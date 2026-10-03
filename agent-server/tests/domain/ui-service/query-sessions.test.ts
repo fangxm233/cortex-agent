@@ -550,6 +550,32 @@ test('sessions.list awaitingInput: a pending NON-blocking ask does not stall the
   assert.equal(byId['s1'], false, 'non-blocking ask → not awaiting');
 });
 
+test('sessions.list: a worker blocked on a question routed to its lead waits on the lead, not on the user', async () => {
+  const { resetSettingsForTests } = await import('../../../src/core/settings.js');
+  const worker = { ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout' };
+  const orphan = { ...mockSessions[2], channel: 'C1', sessionId: 's-orphan', teamLeadId: 'gone', workerName: 'old' };
+  const deps = makeDeps({
+    getPendingAskUser: (channel: string) =>
+      channel === 'C1' ? { requestId: 'r1', questions: [], blocking: true } : null,
+  });
+  deps.sessionStore.listByProject = async () => [worker, orphan];
+  deps.sessionStore.getById = async (id: string) => (id === 'lead-1' ? { sessionId: 'lead-1' } as any : null);
+  process.env.CORTEX_TEAM_ENABLED = '1';
+  resetSettingsForTests();
+  try {
+    const [w, o] = await handleSessionsList(deps, { projectId: 'proj1' });
+    assert.equal(w.awaitingInput, false);
+    assert.equal(w.waitingOn, 1, 'the routed question is a hollow-ring wait');
+    assert.equal(o.awaitingInput, true, 'a worker whose lead is gone asks the user as before');
+    assert.equal(o.waitingOn, 0);
+  } finally {
+    delete process.env.CORTEX_TEAM_ENABLED;
+    resetSettingsForTests();
+  }
+  const [off] = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(off.awaitingInput, true, 'team mode off: the worker is an ordinary session');
+});
+
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread

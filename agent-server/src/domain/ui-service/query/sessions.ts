@@ -24,6 +24,7 @@ import {
 } from '@store/session-totals.js';
 import type { HistoryEvent } from '@store/conversation-history-repo.js';
 import { isDebugMode } from '@core/debug-mode.js';
+import { isTeamWorker } from '@domain/sessions/team.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
@@ -129,6 +130,13 @@ export async function handleSessionsList(
     sessions.map((s: any) => ({ sessionId: s.sessionId, channel: s.channel ?? null })),
   );
 
+  // Team mode: a worker's questions and plans go to its lead, so a worker blocked on one is waiting
+  // on the lead (hollow ring), not on the user (amber). Only while the lead still exists.
+  const routedLeads = new Set<string>();
+  for (const leadId of new Set(sessions.filter((s: any) => isTeamWorker(s)).map((s: any) => s.teamLeadId as string))) {
+    if (await deps.sessionStore.getById(leadId).catch(() => null)) routedLeads.add(leadId);
+  }
+
   const infos = sessions.map((s: any): SessionInfo => {
     // Busy snapshot: the registry's single answer for this session. Snapshot + delta — this field
     // is the queryable snapshot, the `session.status` event stream is the delta.
@@ -148,8 +156,11 @@ export async function handleSessionsList(
     // (keyed by the session's channel). This is the ONLY signal that turns the rail dot amber —
     // running/background stay blue. A non-blocking ask does not stall the session, so it stays
     // blue too. Absent deps (fixtures/TUI) ⇒ false.
-    const awaitingInput =
-      deps.getPendingAskUser?.(s.channel)?.blocking === true || !!deps.getPendingPlan?.(s.channel);
+    const blockedAsk = deps.getPendingAskUser?.(s.channel)?.blocking === true;
+    const blockedPlan = !!deps.getPendingPlan?.(s.channel);
+    const routedToLead = isTeamWorker(s) && routedLeads.has(s.teamLeadId);
+    const awaitingInput = !routedToLead && (blockedAsk || blockedPlan);
+    const waitingOnLead = routedToLead ? Number(blockedAsk) + Number(blockedPlan) : 0;
     return {
       sessionId: s.sessionId,
       // Backend CLI resume target (the registry's `backendSessionId` snapshot, falling back to the
@@ -186,7 +197,7 @@ export async function handleSessionsList(
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
-      waitingOn: waitingOnBySession.get(s.sessionId) ?? 0,
+      waitingOn: (waitingOnBySession.get(s.sessionId) ?? 0) + waitingOnLead,
       numTurns: resolveNumTurns(s.sessionId, inTurn, state.numTurns),
       costUsd: resolveCost(s.sessionId, inTurn),
       // Cumulative over every finished run this session has had (plus its Agent-tool children's
