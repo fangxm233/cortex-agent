@@ -22,7 +22,7 @@ model, provider or thinking level picked in the composer. The lead can pass `bac
 in the same format as the `agent` tool (`provider/model[:thinking]` for PI, a bare model id for
 Claude): a model on the lead's own backend replaces only the parts it names, and another backend
 starts from that backend's default profile, so a Claude lead can run PI workers and the other way
-round. Spawning a worker leaves the model a new conversation opens on unchanged.
+round. A PI model whose provider has a profile of its own runs on that profile. Spawning a worker leaves the model a new conversation opens on unchanged.
 
 A lead chooses between a worker and the one-shot `agent` tool by what happens next. Work that may
 need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or

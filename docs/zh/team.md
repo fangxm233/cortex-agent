@@ -17,7 +17,7 @@ Claude 或 PI 上，拥有完整的工具面，包括一次性的 `agent` 工具
 一层。worker 继承主会话的项目，并运行主会话当前所用的模型，包括在输入框里选的模型、provider 和 thinking 级别。
 主会话可以传 `backend` 和 `model`，格式与 `agent` 工具相同（PI 用 `provider/model[:thinking]`，Claude 用
 裸模型 id）：同一后端上的 model 只替换它写出的部分；换到另一个后端时从该后端的默认 profile 起步，因此
-Claude 主会话可以带 PI worker，反之亦然。创建 worker 不会改变新对话默认打开的模型。
+Claude 主会话可以带 PI worker，反之亦然。PI 模型所属的 provider 若有自己的 profile，就在那个 profile 上运行。创建 worker 不会改变新对话默认打开的模型。
 
 主会话按后续需要来选 worker 还是一次性 `agent`：可能需要后续接续、运行时间长、或可能要来回沟通的工作
 交给 worker；有边界的侦察或验证、结果马上就用的，交给 `agent`。
