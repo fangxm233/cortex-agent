@@ -72,7 +72,7 @@ export interface StepMigration {
   version: string;
   /** Idempotent action. Resolves on success; throws to signal failure (the runner logs, does not
    *  bump the key, and continues with the next step — the step retries next boot). */
-  run(ctx: { dataDir: string; storeDir: string }): Promise<void>;
+  run(ctx: { dataDir: string; storeDir: string; defaultsDir: string }): Promise<void>;
 }
 
 // ── Marker-block helpers (text migrations) ─────────────────────
@@ -520,7 +520,74 @@ const stepMigrations: StepMigration[] = [
     version: '2026.9.15',
     run: async ({ dataDir }) => { await renameIndexRuleFile(dataDir); },
   },
+  // S5: execution environments live in config/environments/ rather than among the thread agents.
+  // An install without that directory gets one holding the two environments that are kept, `main`
+  // and `creative`: the install's own copies from config/thread-templates/agents/ where they
+  // exist, the shipped environments otherwise. Copy only — nothing under thread-templates moves.
+  {
+    key: 'config/environments',
+    version: '2026.10.2',
+    run: async ({ dataDir, defaultsDir }) => { await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir); },
+  },
 ];
+
+// ── Execution environments (S5) ────────────────────────────────
+
+const KEPT_ENVIRONMENTS = ['main', 'creative'] as const;
+
+async function readTextOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.lstat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
+ * Build config/environments/ from the thread agents an install already has. The user's own file is
+ * copied verbatim; one still byte-identical to the shipped thread agent is replaced by the shipped
+ * environment, which drops the thread-only artifact instruction from its prompt template. The
+ * directory is assembled beside its final name and renamed into place, so an interrupted run leaves
+ * nothing that would make the retry skip. A home whose config is sealed is left alone.
+ *
+ * @returns the environment names written (empty when the directory already existed).
+ */
+export async function seedEnvironmentsFromThreadAgents(dataDir: string, defaultsDir: string): Promise<string[]> {
+  if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return [];
+  const envDir = path.join(dataDir, 'config', 'environments');
+  if (await pathExists(envDir)) return [];
+  const agentsDir = path.join(dataDir, 'config', 'thread-templates', 'agents');
+  const shippedAgentsDir = path.join(defaultsDir, 'config', 'thread-templates', 'agents');
+  const shippedEnvDir = path.join(defaultsDir, 'config', 'environments');
+
+  const staging = `${envDir}.partial`;
+  await fs.rm(staging, { recursive: true, force: true });
+  await fs.mkdir(staging, { recursive: true });
+  const written: string[] = [];
+  for (const name of KEPT_ENVIRONMENTS) {
+    const file = `${name}.json`;
+    const own = await readTextOrNull(path.join(agentsDir, file));
+    const stock = own !== null && own === await readTextOrNull(path.join(shippedAgentsDir, file));
+    const content = own !== null && !stock ? own : await readTextOrNull(path.join(shippedEnvDir, file));
+    if (content === null) continue;
+    await fs.writeFile(path.join(staging, file), content, 'utf8');
+    written.push(name);
+  }
+  await fs.rename(staging, envDir);
+  log.info(`Created config/environments with ${written.join(', ') || 'no environments'}`);
+  return written;
+}
 
 // ── AGENTS.md rename (S3) ──────────────────────────────────────
 
@@ -840,7 +907,7 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
     const pending = compareCalVer(tracked, step.version) < 0 && compareCalVer(CORTEX_VERSION, step.version) >= 0;
     if (!pending) continue;
     try {
-      await step.run({ dataDir, storeDir });
+      await step.run({ dataDir, storeDir, defaultsDir });
       versions[step.key] = step.version;
       log.info(`Step migration ${step.version} applied for ${step.key}`);
     } catch (err) {
