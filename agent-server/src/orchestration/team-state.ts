@@ -2,7 +2,8 @@
 // What the daemon knows about a lead's workers beyond their session records: the last report each
 // one sent, its one-line brief, whether the user talked to it directly, and whether the lead has
 // just handed it work that has not started yet. In memory only — a restart forgets the reports and
-// the user-touched marks, and the brief is recovered from the worker's transcript.
+// the user-touched marks, and the brief is recovered from the worker's transcript. A report the
+// restart kept from its lead is re-recorded when it is delivered after the restart (team-delivery).
 
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -67,7 +68,10 @@ export function markUserTouched(workerId: string): void {
   userTouched.add(workerId);
 }
 
+/** Keeps the newest: a report delivered late (after a restart) does not replace a later one. */
 export function recordWorkerReport(workerId: string, report: WorkerReport): void {
+  const current = reports.get(workerId);
+  if (current && current.at > report.at) return;
   reports.set(workerId, report);
 }
 

@@ -46,6 +46,9 @@ export interface AgentRunnerCtx {
   userMessage: string;
   agentMessage: string;
   mutationRelease?: TurnMutationRelease;
+  /** Called instead of the refusal notice when a rebuild hold refuses this message: the sender has
+   *  kept it to deliver after the restart, so nothing was lost. A throw falls back to the notice. */
+  onRebuildHold?: () => Promise<void> | void;
 }
 
 export class AgentRunner {
@@ -86,6 +89,14 @@ export class AgentRunner {
     // message folded into a turn that is about to die is lost just as thoroughly.
     if (isRebuildHeld()) {
       log.info(`Refusing turn on ${channel}: supervisor rebuild in progress`);
+      if (ctx.onRebuildHold) {
+        try {
+          await ctx.onRebuildHold();
+          return false;
+        } catch (e) {
+          log.warn(`Keeping the refused message on ${channel} failed: ${(e as Error).message}`);
+        }
+      }
       await refuseTurnForRebuild({
         adapter,
         channel,

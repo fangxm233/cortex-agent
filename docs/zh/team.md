@@ -33,12 +33,13 @@ Claude 主会话可以带 PI worker，反之亦然。PI 模型所属的 provider
 ```
 
 **派活从不阻塞。** `worker_spawn` 和 `worker_send` 立即返回。主会话结束本轮，worker 的汇报稍后会唤醒
-它。发给正在运行的 worker 的消息会并入它当前这一轮；发给空闲的 worker 则开启新的一轮。
+它。发给正在运行的 worker 的消息会并入它当前这一轮；发给空闲的 worker 则开启新的一轮。服务器即将重启
+时，这两个工具会返回错误而不派活，主会话在重启后再试。
 
 **汇报。** worker 的一轮结束时，它的最终回复会作为一条消息投递给主会话，开头是
 `[Worker <名字> · completed|failed|stopped]` 加一行状态。由 worker 自己的后台 agent 或 waitpoint 唤醒
 的轮次也会汇报。你自己在 worker 里输入而开启的轮次不汇报；主会话的名单会把这个 worker 标记为你直接
-对话过。
+对话过。服务器重启不会丢失汇报：在重启等待期间结束的轮次，会在服务器恢复后送达主会话。
 
 **提问与计划。** worker 调用 `cortex_ask_user`、用 `cortex_plan_exit` 提交计划、或提交委托契约时，请求
 会同时以卡片出现在 worker 的会话里，并以通知出现在主会话的对话中。主会话用 `worker_answer` 作答，它可
