@@ -11,7 +11,6 @@ import { syncManagedHookEntries } from '../../src/store/hook-sync.js';
 interface Fixture {
   root: string;
   registryDir: string;
-  templateDir: string;
   hooksDir: string;
   options: HookCliOptions;
 }
@@ -19,13 +18,12 @@ interface Fixture {
 function makeFixture(t: { onTestFinished(callback: () => void): void }): Fixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-cli-'));
   const registryDir = path.join(root, 'config', 'hooks');
-  const templateDir = path.join(root, 'config', 'thread-templates', 'templates');
   const hooksDir = path.join(root, 'hooks');
-  for (const directory of [registryDir, templateDir, hooksDir]) {
+  for (const directory of [registryDir, hooksDir]) {
     fs.mkdirSync(directory, { recursive: true });
   }
   t.onTestFinished(() => fs.rmSync(root, { recursive: true, force: true }));
-  return { root, registryDir, templateDir, hooksDir, options: { registryDir, templateDir, hooksDir } };
+  return { root, registryDir, hooksDir, options: { registryDir, hooksDir } };
 }
 
 function writeJson(directory: string, filename: string, value: unknown): void {
@@ -49,12 +47,6 @@ function seedMountedHooks(fixture: Fixture): void {
   }));
   writeJson(fixture.registryDir, '02-user.json', registryEntry('user'));
   writeJson(fixture.registryDir, '03-disabled.json', registryEntry('disabled', { enabled: false }));
-  writeJson(fixture.templateDir, 'review.json', {
-    name: 'review',
-    hooks: {
-      onEnd: { command: 'node review.mjs', args: ['reviewer'], timeout: 1_500 },
-    },
-  });
 }
 
 function parseOutput(result: { stdout: string }): any {
@@ -78,7 +70,7 @@ function writePayloadHook(fixture: Fixture, filename: string, exitCode = 0): voi
   ].join('\n'));
 }
 
-test('list reports every registry and template hook with source and state', async (t) => {
+test('list reports every registry hook with source and state', async (t) => {
   const fixture = makeFixture(t);
   seedMountedHooks(fixture);
 
@@ -91,12 +83,11 @@ test('list reports every registry and template hook with source and state', asyn
       { id: 'managed', event: 'agent:pre-tool', enabled: true, source: 'managed' },
       { id: 'user', event: 'agent:pre-tool', enabled: true, source: 'user' },
       { id: 'disabled', event: 'agent:pre-tool', enabled: false, source: 'user' },
-      { id: 'template:review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
     ],
   });
 });
 
-test('show returns the full registry or normalized template declaration', async (t) => {
+test('show returns the full registry declaration', async (t) => {
   const fixture = makeFixture(t);
   seedMountedHooks(fixture);
 
@@ -105,15 +96,6 @@ test('show returns the full registry or normalized template declaration', async 
   assert.equal(managed.hook.version, '2026.7.30');
   assert.deepEqual(managed.hook.run, { command: 'true', timeout: 1 });
   assert.deepEqual(managed.hook.blocking, { mode: 'webhook', ttlMin: 17 });
-
-  const scoped = parseOutput(await runHookCli(
-    ['show', '--id', 'template:review:end'], fixture.options,
-  ));
-  assert.deepEqual(scoped.hook, {
-    id: 'template:review:end', event: 'cortex:thread.end',
-    run: { command: 'node review.mjs', args: ['reviewer'], timeout: 1_500 },
-    enabled: true, source: 'template-scoped', template: 'review', phase: 'end',
-  });
 });
 
 test('disable and enable are atomic idempotent transitions', async (t) => {
@@ -167,27 +149,6 @@ test('managed disable warns that a newer sync restores shipped state', async (t)
   ]);
   const deployed = JSON.parse(fs.readFileSync(path.join(fixture.registryDir, '01-managed.json'), 'utf8'));
   assert.equal(deployed.enabled, true);
-});
-
-test('template hooks are read-only and errors list registry ids', async (t) => {
-  const fixture = makeFixture(t);
-  seedMountedHooks(fixture);
-
-  const result = await runHookCli(['disable', '--id', 'template:review:end'], fixture.options);
-
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /template-scoped hooks are read-only/i);
-});
-
-test('duplicate registry and template ids fail instead of selecting silently', async (t) => {
-  const fixture = makeFixture(t);
-  seedMountedHooks(fixture);
-  writeJson(fixture.registryDir, '04-collision.json', registryEntry('template:review:end'));
-
-  const result = await runHookCli(['show', '--id', 'template:review:end'], fixture.options);
-
-  assert.equal(result.exitCode, 1);
-  assert.match(result.stderr, /Ambiguous hook id: 'template:review:end'/);
 });
 
 test('test executes a registry script with a file payload through the shared runner', async (t) => {
@@ -268,27 +229,6 @@ test('test preserves output and mirrors a non-zero hook exit', async (t) => {
     ok: false, id: 'failure', exit_code: 7,
     stdout: 'partial output', stderr: 'hook warning', error: 'exited with code 7',
   });
-});
-
-test('test executes a template command with positional args', async (t) => {
-  const fixture = makeFixture(t);
-  const script = path.join(fixture.root, 'template-hook.mjs');
-  fs.writeFileSync(script, [
-    "const chunks = []; process.stdin.on('data', chunk => chunks.push(chunk));",
-    "process.stdin.on('end', () => process.stdout.write(process.argv[2] + '|' + Buffer.concat(chunks)));",
-  ].join('\n'));
-  writeJson(fixture.templateDir, 'execute.json', {
-    hooks: { onStart: { command: `node ${JSON.stringify(script)}`, args: ['scoped arg'], timeout: 5_000 } },
-  });
-  const payloadPath = path.join(fixture.root, 'template-payload.txt');
-  fs.writeFileSync(payloadPath, 'template payload');
-
-  const result = await runHookCli(
-    ['test', '--id', 'template:execute:start', '--payload', payloadPath], fixture.options,
-  );
-
-  assert.equal(result.exitCode, 0);
-  assert.equal(parseOutput(result).stdout, 'scoped arg|template payload');
 });
 
 test('--payload - reads process stdin in the executable CLI', (t) => {

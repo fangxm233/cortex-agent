@@ -82,9 +82,6 @@ function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode 
     { k: L.hkFieldRequiresTool, v: hook.scope?.requiresTool ?? '—' },
     { k: L.hkFieldResult, v: hook.result ?? 'none' },
   ];
-  if (hook.template !== null) {
-    rows.push({ k: L.hkFieldTemplate, v: `${hook.template} · ${hook.phase ?? '—'}` });
-  }
   return rows;
 }
 
@@ -303,11 +300,6 @@ function CapabilityNotices({ hook, note }: { hook: HookDetail | null; note: Hook
     note === 'managed'
       ? <SNotice key="managed" data-hook-note="managed" tone="amber">{L.hkNoteManaged}</SNotice>
       : null,
-    note === 'template-scoped' ? (
-      <SNotice key="template" data-hook-note="template-scoped" tone="accent">
-        {L.hkNoteTemplate}{hook?.template ? <Mono> · {hook.template}</Mono> : null}
-      </SNotice>
-    ) : null,
     hook !== null && hasClaudeMountGap(hook) ? (
       <SNotice key="gap" data-hook-claude-gap="" tone="amber">
         {L.hkClaudeGap} {alternative ? <Mono>{alternative}</Mono> : null}

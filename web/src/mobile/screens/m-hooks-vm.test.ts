@@ -51,18 +51,6 @@ describe('buildMHooksVm grouping', () => {
     expect(vm.groups.map((g) => g.key)).toEqual(['agent', 'pi', 'cortex']);
   });
 
-  it('puts template-scoped hooks in their own group regardless of event namespace', () => {
-    const vm = buildMHooksVm(
-      overview([
-        mk({ id: 'template:review:end', event: 'cortex:session.messageEnd', source: 'template-scoped', order: 0 }),
-        mk({ id: 'registry-one', event: 'cortex:session.messageEnd', order: 1 }),
-      ]),
-    );
-    expect(vm.groups.map((g) => g.key)).toEqual(['cortex', 'template']);
-    expect(vm.groups[0].rows.map((r) => r.id)).toEqual(['registry-one']);
-    expect(vm.groups[1].rows.map((r) => r.id)).toEqual(['template:review:end']);
-  });
-
   it('keeps load order (= execution order) inside a group even when the input is shuffled', () => {
     const vm = buildMHooksVm(
       overview([

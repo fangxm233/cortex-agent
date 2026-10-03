@@ -170,8 +170,8 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
     { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
     { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user' },
     { id: 'disabled-hook', event: 'cc:Notification', enabled: false, source: 'user' },
-    { id: 'template:coder-review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
   ]);
+  // A thread template left on disk by an older install no longer contributes a hook.
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
 });
 

@@ -53,24 +53,18 @@ test('loads source-aware records with the owning registry file path', (t) => {
   assert.deepEqual(loadHookRegistry(directory), [entry]);
 });
 
-test('summarizes registry and template declarations through one mounted-hook loader', (t) => {
+test('summarizes registry declarations through the mounted-hook loader', (t) => {
   const root = makeRegistry(t);
   const registryDir = path.join(root, 'hooks');
-  const templateDir = path.join(root, 'templates');
   fs.mkdirSync(registryDir);
-  fs.mkdirSync(templateDir);
   writeEntry(registryDir, '01-managed.json', {
     ...VALID_SCHEMA_ENTRY, id: 'managed', enabled: false, version: '2026.7.29',
   });
   writeEntry(registryDir, '02-user.json', { ...VALID_SCHEMA_ENTRY, id: 'user' });
-  writeEntry(templateDir, 'review.json', {
-    hooks: { onEnd: { command: 'node review.mjs', timeout: 1_500 } },
-  });
 
-  assert.deepEqual(loadMountedHookSummaries(registryDir, templateDir), [
+  assert.deepEqual(loadMountedHookSummaries(registryDir), [
     { id: 'managed', event: 'agent:pre-tool', enabled: false, source: 'managed' },
     { id: 'user', event: 'agent:pre-tool', enabled: true, source: 'user' },
-    { id: 'template:review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
   ]);
 });
 

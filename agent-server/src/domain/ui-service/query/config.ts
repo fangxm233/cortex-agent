@@ -176,9 +176,7 @@ export async function readConfigSnapshot(
   liveSettings: ConfigSettingEntry[],
   lang: ConfigLang,
 ): Promise<ConfigSnapshot> {
-  const hooks = loadMountedHookSummaries(
-    path.join(configDir, 'hooks'), path.join(configDir, 'thread-templates', 'templates'),
-  );
+  const hooks = loadMountedHookSummaries(path.join(configDir, 'hooks'));
   const parts = await Promise.all([
     readJson(path.join(configDir, 'budget.json')),
     readJson(path.join(configDir, 'profiles.json')),

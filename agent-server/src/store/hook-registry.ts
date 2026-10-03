@@ -44,7 +44,7 @@ export interface HookFilterCriteria {
   availableTools?: ReadonlySet<string>;
 }
 
-export const HOOK_SOURCES = ['managed', 'user', 'template-scoped'] as const;
+export const HOOK_SOURCES = ['managed', 'user'] as const;
 export type HookSource = typeof HOOK_SOURCES[number];
 
 export interface HookRegistryRecord {
@@ -52,8 +52,6 @@ export interface HookRegistryRecord {
   filePath: string;
   source: HookSource;
 }
-
-export type HookPhase = 'start' | 'transition' | 'end';
 
 export interface MountedHookSummary {
   id: string;
@@ -68,30 +66,7 @@ export interface RegistryHook extends MountedHookSummary {
   filePath: string;
 }
 
-export interface TemplateRun {
-  command: string;
-  args?: string[];
-  timeout?: number;
-}
-
-export interface TemplateHook extends MountedHookSummary {
-  kind: 'template';
-  run: TemplateRun;
-  template: string;
-  phase: HookPhase;
-}
-
-export type MountedHook = RegistryHook | TemplateHook;
-
-const TEMPLATE_PHASES: Array<{
-  field: string;
-  phase: HookPhase;
-  event: HookEntry['event'];
-}> = [
-  { field: 'onStart', phase: 'start', event: 'cortex:thread.start' },
-  { field: 'onTransition', phase: 'transition', event: 'cortex:thread.transition' },
-  { field: 'onEnd', phase: 'end', event: 'cortex:thread.end' },
-];
+export type MountedHook = RegistryHook;
 
 const AGENT_EVENTS = new Set([
   'agent:pre-tool',
@@ -313,70 +288,16 @@ function optionalObject(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function templateHook(
-  template: string,
-  phase: typeof TEMPLATE_PHASES[number],
-  value: unknown,
-): TemplateHook | null {
-  const run = optionalObject(value);
-  if (!run || typeof run.command !== 'string' || run.command.trim() === '') return null;
-  return {
-    kind: 'template',
-    id: `template:${template}:${phase.phase}`,
-    event: phase.event,
-    enabled: true,
-    source: 'template-scoped',
-    run: run as unknown as TemplateRun,
-    template,
-    phase: phase.phase,
-  };
-}
-
-function hooksFromTemplate(filePath: string): TemplateHook[] {
-  const filename = path.basename(filePath, '.json');
-  const value = optionalObject(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-  if (!value) throw new Error('template must be an object');
-  if (value.name !== undefined && value.name !== filename) {
-    throw new Error(`name field "${String(value.name)}" does not match filename`);
-  }
-  const hooks = optionalObject(value.hooks);
-  if (!hooks) return [];
-  return TEMPLATE_PHASES
-    .map((phase) => templateHook(filename, phase, hooks[phase.field]))
-    .filter((hook): hook is TemplateHook => hook !== null);
-}
-
-function loadTemplateHooks(directory: string): TemplateHook[] {
-  const files = registryFiles(directory);
-  if (!files) return [];
-  const hooks: TemplateHook[] = [];
-  for (const file of files) {
-    try {
-      hooks.push(...hooksFromTemplate(path.join(directory, file)));
-    } catch (error) {
-      reportInvalid(file, error);
-    }
-  }
-  return hooks;
-}
-
-export function loadMountedHooks(
-  registryDir = path.join(CONFIG_DIR, 'hooks'),
-  templateDir = path.join(CONFIG_DIR, 'thread-templates', 'templates'),
-): MountedHook[] {
-  const registry = loadHookRegistryRecords(registryDir).map(registryHook);
-  return [...registry, ...loadTemplateHooks(templateDir)];
+export function loadMountedHooks(registryDir = path.join(CONFIG_DIR, 'hooks')): MountedHook[] {
+  return loadHookRegistryRecords(registryDir).map(registryHook);
 }
 
 export function summarizeMountedHook(hook: MountedHook): MountedHookSummary {
   return { id: hook.id, event: hook.event, enabled: hook.enabled, source: hook.source };
 }
 
-export function loadMountedHookSummaries(
-  registryDir = path.join(CONFIG_DIR, 'hooks'),
-  templateDir = path.join(CONFIG_DIR, 'thread-templates', 'templates'),
-): MountedHookSummary[] {
-  return loadMountedHooks(registryDir, templateDir).map(summarizeMountedHook);
+export function loadMountedHookSummaries(registryDir = path.join(CONFIG_DIR, 'hooks')): MountedHookSummary[] {
+  return loadMountedHooks(registryDir).map(summarizeMountedHook);
 }
 
 function shellQuote(value: string): string {
@@ -393,15 +314,6 @@ export function hookProcessOptions(
   stdinPayload: string,
   maxTimeoutMs = Infinity,
 ): HookProcessOptions {
-  if (hook.kind === 'template') {
-    return {
-      command: hook.run.command,
-      args: hook.run.args,
-      timeoutMs: Math.min(hook.run.timeout ?? 30_000, maxTimeoutMs),
-      stdinPayload,
-      label: hook.id,
-    };
-  }
   const run = hook.entry.run;
   const command = run.script === undefined
     ? run.command

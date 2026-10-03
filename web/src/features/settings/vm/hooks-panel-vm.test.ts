@@ -57,17 +57,7 @@ describe('hooks-panel-vm / filters + grouping', () => {
     hook({ id: 'cc-perm', event: 'cc:PermissionRequest', order: 2, mountsOn: ['claude'] }),
     hook({ id: 'pi-hdr', event: 'pi:before_provider_headers', order: 3, mountsOn: ['pi'] }),
     hook({ id: 'cx-end', event: 'cortex:session.messageEnd', order: 4, mountsOn: ['server'] }),
-    hook({
-      id: 'template:review:end',
-      event: 'cortex:session.messageEnd',
-      order: 5,
-      mountsOn: ['server'],
-      source: 'template-scoped',
-      version: null,
-      fileName: null,
-      template: 'review',
-      phase: 'end',
-    }),
+    hook({ id: 'cx-new', event: 'cortex:session.new', order: 5, mountsOn: ['server'], source: 'user' }),
   ];
 
   it('agent filters on the declaration namespace, not the mount target', () => {
@@ -77,15 +67,11 @@ describe('hooks-panel-vm / filters + grouping', () => {
   it('claude / pi / server filter on the real mount targets', () => {
     expect(filterHooks(hooks, 'claude', '').map((h) => h.id)).toEqual(['a-pre', 'cc-perm']);
     expect(filterHooks(hooks, 'pi', '').map((h) => h.id)).toEqual(['a-pre', 'a-turn', 'pi-hdr']);
-    expect(filterHooks(hooks, 'server', '').map((h) => h.id)).toEqual(['cx-end', 'template:review:end']);
-  });
-
-  it('template filters on source, not on the event', () => {
-    expect(filterHooks(hooks, 'template', '').map((h) => h.id)).toEqual(['template:review:end']);
+    expect(filterHooks(hooks, 'server', '').map((h) => h.id)).toEqual(['cx-end', 'cx-new']);
   });
 
   it('search matches id, event, filename, script and command, case-insensitively', () => {
-    expect(filterHooks(hooks, 'all', 'SESSION.MESSAGEEND').map((h) => h.id)).toEqual(['cx-end', 'template:review:end']);
+    expect(filterHooks(hooks, 'all', 'SESSION.MESSAGEEND').map((h) => h.id)).toEqual(['cx-end']);
     expect(filterHooks(hooks, 'all', 'pi-hdr').map((h) => h.id)).toEqual(['pi-hdr']);
     const withCommand = [hook({ id: 'cmd', run: { script: null, command: 'printf hello', timeoutSec: null } })];
     expect(filterHooks(withCommand, 'all', 'printf').map((h) => h.id)).toEqual(['cmd']);
@@ -98,24 +84,24 @@ describe('hooks-panel-vm / filters + grouping', () => {
 
   it('counts each chip against the search-filtered set', () => {
     expect(countHooksByFilter(hooks, '')).toEqual({
-      all: 6, agent: 2, claude: 2, pi: 3, server: 2, template: 1,
+      all: 6, agent: 2, claude: 2, pi: 3, server: 2,
     });
     expect(countHooksByFilter(hooks, 'messageend')).toEqual({
-      all: 2, agent: 0, claude: 0, pi: 0, server: 2, template: 1,
+      all: 1, agent: 0, claude: 0, pi: 0, server: 1,
     });
   });
 
-  it('namespaces a hook by event prefix, with template-scoped taking precedence', () => {
+  it('namespaces a hook by event prefix', () => {
     expect(hookNamespace(hooks[0])).toBe('agent');
     expect(hookNamespace(hooks[2])).toBe('cc');
     expect(hookNamespace(hooks[3])).toBe('pi');
     expect(hookNamespace(hooks[4])).toBe('cortex');
-    expect(hookNamespace(hooks[5])).toBe('template');
+    expect(hookNamespace(hooks[5])).toBe('cortex');
   });
 
   it('groups valid server namespaces in a fixed order, dropping empty groups, ordered by load order', () => {
     const groups = groupHooks(hooks);
-    expect(groups.map((g) => g.key)).toEqual(['agent', 'cc', 'pi', 'cortex', 'template']);
+    expect(groups.map((g) => g.key)).toEqual(['agent', 'cc', 'pi', 'cortex']);
     expect(groups[0].hooks.map((h) => h.id)).toEqual(['a-pre', 'a-turn']);
     expect(groupHooks(filterHooks(hooks, 'claude', '')).map((g) => g.key)).toEqual(['agent', 'cc']);
     expect(groupHooks([])).toEqual([]);
@@ -149,12 +135,6 @@ describe('hooks-panel-vm / filters + grouping', () => {
 });
 
 describe('hooks-panel-vm / capability by source', () => {
-
-  it('template-scoped is read-only, with no toggle at all', () => {
-    expect(hookCapability(hook({ source: 'template-scoped', editable: false, version: null }))).toEqual({
-      canToggle: false, canEdit: false, note: 'template-scoped',
-    });
-  });
 
   it('never grants editing to a source the server did not mark editable', () => {
     expect(hookCapability(hook({ source: 'user', editable: false })).canEdit).toBe(false);

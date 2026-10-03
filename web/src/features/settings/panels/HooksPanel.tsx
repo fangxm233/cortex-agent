@@ -36,8 +36,7 @@ import { useHooksController } from '@/features/settings/controllers/useHooksCont
 // surfaced on the surface itself rather than left in the debugging chapter of the docs.
 //
 // Capability is gated by `source`, never by hope: managed entries expose only the toggle (a later
-// hook sync restores the shipped enabled state, so editing the rest would be a lie), and
-// template-scoped entries are read-only because the writer rejects them outright.
+// hook sync restores the shipped enabled state, so editing the rest would be a lie).
 //
 // No optimistic updates: every mutation (in controllers/useHooksController) invalidates hooks.list
 // and reports through a toast.
@@ -51,7 +50,6 @@ const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
   claude: 'hkFilterClaude',
   pi: 'hkFilterPi',
   server: 'hkFilterServer',
-  template: 'hkFilterTemplate',
 };
 
 // ── left column: chips, search, grouped list ──────────────────────────────────────────────────
@@ -159,7 +157,7 @@ function HookGroups({ visible, selectedId, onSelect }: {
               color: 'var(--proto-muted-3)', padding: '8px 10px 4px',
             }}
           >
-            {group.key === 'template' ? 'template' : `${group.key}:`}
+            {`${group.key}:`}
           </div>
           {group.hooks.map((hook) => (
             <HookRow key={hook.id} hook={hook} selected={hook.id === selectedId} onSelect={onSelect} />

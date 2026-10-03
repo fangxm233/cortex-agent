@@ -49,7 +49,6 @@ import type {
   HookBackend,
   HookEvent,
   HookFilterValue,
-  HookPhase,
   HookResultMode,
   HookSource,
 } from '@store/hook-registry.js';
@@ -1313,7 +1312,7 @@ export interface ConfigHook {
 export interface HookRunInfo {
   script: string | null;
   command: string | null;
-  /** Registry timeout in SECONDS (template hooks use milliseconds and report null here). */
+  /** Registry timeout in SECONDS. */
   timeoutSec: number | null;
 }
 
@@ -1335,9 +1334,9 @@ export interface HookDetail {
   result: HookResultMode | null;
   enabled: boolean;
   source: HookSource;
-  /** CalVer stamp for managed entries; null for user and template-scoped. */
+  /** CalVer stamp for managed entries; null for user entries. */
   version: string | null;
-  /** Declaration filename; null for template-scoped hooks, which live in the template file. */
+  /** Declaration filename. Typed nullable for clients built against the older shape. */
   fileName: string | null;
   /** Position in load order — which is also execution order within one event. */
   order: number;
@@ -1348,10 +1347,11 @@ export interface HookDetail {
   appliesAt: HookApplyTime;
   /** Whether run.script resolves on disk; null when the hook is command-based. */
   scriptExists: boolean | null;
-  /** True only for user entries — managed gets resynced, template-scoped is owned elsewhere. */
+  /** True only for user entries — managed gets resynced. */
   editable: boolean;
-  template: string | null;
-  phase: HookPhase | null;
+  /** Always null. Kept so released mobile clients that still read them keep parsing the detail. */
+  template: null;
+  phase: null;
 }
 
 export interface HookScriptInfo {

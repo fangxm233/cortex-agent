@@ -12,8 +12,8 @@ export type MHookMatcher =
   | { kind: 'regex'; value: string }
   | { kind: 'filters'; entries: { key: string; value: string }[] };
 
-/** Exactly one of script/command is declared (the loader enforces it); `none` covers a template hook
- *  that reports neither, so the sheet shows a gap instead of an empty string. */
+/** Exactly one of script/command is declared (the loader enforces it); `none` covers an entry that
+ *  reports neither, so the sheet shows a gap instead of an empty string. */
 export type MHookRun =
   | { kind: 'script'; value: string; missing: boolean }
   | { kind: 'command'; value: string; missing: false }
@@ -25,7 +25,7 @@ export interface MHookDetailVm {
   event: string;
   matcher: MHookMatcher | null;
   run: MHookRun;
-  /** Registry timeout in SECONDS; null for template hooks (they declare milliseconds) and no-timeout entries. */
+  /** Registry timeout in SECONDS; null for no-timeout entries. */
   timeoutSec: number | null;
   /** `scope.backends`; null when the hook declares no scope at all. */
   backends: string[] | null;
@@ -40,9 +40,6 @@ export interface MHookDetailVm {
   order: number;
   mountsOn: HookDetail['mountsOn'];
   appliesAt: HookDetail['appliesAt'];
-  /** Owning thread template / phase — template-scoped hooks only. */
-  template: string | null;
-  phase: string | null;
 }
 
 export interface MHookRow {
@@ -108,8 +105,6 @@ function toDetail(hook: HookDetail): MHookDetailVm {
     order: hook.order,
     mountsOn: hook.mountsOn,
     appliesAt: hook.appliesAt,
-    template: hook.template,
-    phase: hook.phase,
   };
 }
 
