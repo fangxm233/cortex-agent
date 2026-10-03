@@ -21,6 +21,8 @@ import {
   reconcilePendingUserMessages,
   toolCallLabel,
   systemOriginLabel,
+  systemOriginDisplay,
+  systemOriginBody,
   type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
@@ -1605,5 +1607,31 @@ describe('systemOriginLabel team origins', () => {
     expect(systemOriginLabel('team-lead', zh)).toBe('来自主会话');
     expect(systemOriginLabel('worker-result', zh)).toBe('Worker 汇报');
     expect(systemOriginLabel('worker-question', zh)).toBe('Worker 请求');
+  });
+});
+
+describe('team origin display', () => {
+  it('bubbles a lead message, expands worker reports and requests, and hints the rest', () => {
+    expect(systemOriginDisplay('team-lead')).toBe('bubble');
+    expect(systemOriginDisplay('worker-result')).toBe('expandable');
+    expect(systemOriginDisplay('worker-question')).toBe('expandable');
+    expect(systemOriginDisplay('agent-result')).toBe('hint');
+    expect(systemOriginDisplay('resume')).toBe('hint');
+  });
+
+  it('strips the reminder envelope from the expandable body', () => {
+    expect(systemOriginBody('<system-reminder>\nline one\n\nline two\n</system-reminder>')).toBe('line one\n\nline two');
+    expect(systemOriginBody('<system-reminder>\n</system-reminder>')).toBe('');
+  });
+
+  it('starts a new copy turn at a lead message, but not at a worker report', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'go' },
+      { kind: 'assistant', text: 'first', streaming: false },
+      { kind: 'user', text: 'next step', systemOrigin: 'team-lead' },
+      { kind: 'assistant', text: 'second', streaming: false },
+      { kind: 'user', text: 'done', systemOrigin: 'worker-result' },
+    ];
+    expect([...assistantTurnCopyTargets(rows).entries()]).toEqual([[1, 'first'], [4, 'second']]);
   });
 });

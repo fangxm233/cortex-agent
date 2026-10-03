@@ -6,6 +6,7 @@ import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
+import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
@@ -56,6 +57,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
 
 function useSessionListData(currentProjectId: string | null, lang: 'en' | 'zh') {
   const trpc = useTRPC();
+  const team = useTeamEnabled();
   useSessionsLiveSync();
   const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
   const scheduledQuery = useProjectSessions(currentProjectId, 'scheduled');
@@ -64,8 +66,8 @@ function useSessionListData(currentProjectId: string | null, lang: 'en' | 'zh') 
   );
   const list = useMemo(
     () => buildProjectSessionList(currentProjectId, sessionsQuery.data ?? [],
-      scheduledQuery.data ?? [], schedulesQuery.data ?? [], Date.now(), lang),
-    [currentProjectId, sessionsQuery.data, scheduledQuery.data, schedulesQuery.data, lang],
+      scheduledQuery.data ?? [], schedulesQuery.data ?? [], Date.now(), lang, team),
+    [currentProjectId, sessionsQuery.data, scheduledQuery.data, schedulesQuery.data, lang, team],
   );
   return { loading: sessionsQuery.isLoading, ...list };
 }

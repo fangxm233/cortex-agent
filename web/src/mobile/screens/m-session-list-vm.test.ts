@@ -117,3 +117,32 @@ describe('buildSessionRows', () => {
     expect(buildSessionRows([row], now, 'zh')[0]).toMatchObject({ time: '4小时前', status: { text: '运行中 · 3 轮' } });
   });
 });
+
+describe('team workers in the session list', () => {
+  const lead = sess({ sessionId: 'lead', lastUsedAt: '2026-07-15T10:00:00Z' });
+  const active = sess({ sessionId: 'w-active', teamLeadId: 'lead', workerName: 'a', lastUsedAt: '2026-07-15T08:00:00Z' });
+  const retired = sess({ sessionId: 'w-retired', teamLeadId: 'lead', workerName: 'b',
+    lastUsedAt: '2026-07-15T11:00:00Z', workerRetiredAt: Date.parse('2026-07-15T11:00:00Z') });
+  const orphan = sess({ sessionId: 'orphan', teamLeadId: 'gone', workerName: 'c', lastUsedAt: '2026-07-15T09:30:00Z' });
+  const now = Date.parse('2026-07-15T12:00:00Z');
+
+  it('nests workers as children of a present lead, retired last, orphans flat', () => {
+    const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', true);
+    expect(rows.map(r => r.id)).toEqual(['lead', 'orphan']);
+    expect(rows[0].children?.map(r => r.id)).toEqual(['w-active', 'w-retired']);
+    expect(rows[0].children?.[1].retired).toBe(true);
+    expect(rows[0].children?.[0].retired).toBeUndefined();
+    expect(rows[1].children).toBeUndefined();
+  });
+
+  it('is the plain flat list when team mode is off', () => {
+    const sessions = [active, lead, retired, orphan];
+    const off = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', false);
+    const plain = buildProjectSessionList('nimbus',
+      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en');
+    expect(off).toEqual(plain);
+    expect(off.rows.every(r => r.children === undefined)).toBe(true);
+    const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true);
+    expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
+  });
+});

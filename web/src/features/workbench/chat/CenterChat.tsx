@@ -24,6 +24,8 @@ import { scheduledRunTitle } from '@/features/session/list/schedule-rail';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { CommissionBanner } from '@/features/commission/CommissionBanner';
 import { useSessionCommission } from '@/features/commission/CommissionOptIn';
+import { useTeamContext } from '@/features/team/useTeamContext';
+import { WorkerStrip } from '@/features/team/WorkerStrip';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -116,7 +118,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const trpc = useTRPC();
   const chatDropTargetRef = useRef<HTMLDivElement>(null);
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId, isDraft, draftSelection, draftReloadToken } = useSelectedSession();
+  const { selectedSessionId, isDraft, draftSelection, draftReloadToken, setSelectedSession } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
   // (design 27a-B puts both in the rail, so both must open here).
@@ -133,6 +135,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // Commission mode is invisible in the transcript, so the composer keeps a capsule saying which
   // commission this session serves — read-only, because the choice was made when it was created.
   const sessionCommission = useSessionCommission(active);
+  // Team mode: a worker's header names its lead; a lead gets its workers as a strip under the header.
+  const team = useTeamContext(isDraft ? null : active, sessionsQuery.data);
 
   // Schedule context (design 30c): the chat is identical to a normal conversation — the only
   // scheduled affordances left are the title annotation「schedule 名 · run #n」on an un-adopted
@@ -283,10 +287,12 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
+        parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => setSelectedSession(team.lead!.sessionId) } : null}
       />
       {/* Sits OUTSIDE the transcript grid so it never scrolls away: a commission's anchor has to
           survive the whole conversation, not just its first screen. */}
       {active?.commissionId && <CommissionBanner commissionId={active.commissionId} />}
+      <WorkerStrip workers={team.workers} onOpen={setSelectedSession} />
       <div
         data-chat-phase={preFirstMessage ? 'pre-start' : 'active'}
         style={{

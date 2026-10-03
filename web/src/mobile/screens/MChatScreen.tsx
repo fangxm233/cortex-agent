@@ -71,6 +71,7 @@ import {
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
+import { useTeamContext } from '@/features/team/useTeamContext';
 import {
   buildMobileChatRows,
   chatHeaderStatus,
@@ -213,6 +214,8 @@ export function MChatScreen(): JSX.Element {
     return list.find((s) => s.sessionId === routeParam) ?? null;
   }, [sessionsQuery.data, scheduledSessionsQuery.data, routeParam]);
   const activeProjectId = isDraft ? null : active?.projectId ?? null;
+  // Team mode: a worker's header names its lead; a lead shows its workers under the header.
+  const team = useTeamContext(isDraft ? null : active, sessionsQuery.data);
   useEffect(() => {
     if (activeProjectId && activeProjectId !== currentProjectId) setCurrentProject(activeProjectId);
   }, [activeProjectId, currentProjectId, setCurrentProject]);
@@ -846,6 +849,9 @@ export function MChatScreen(): JSX.Element {
       />
       <MChatView
         title={title}
+        parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => navigate(`/m/session/${team.lead!.sessionId}`) } : null}
+        workers={team.workers}
+        onOpenWorker={(id) => navigate(`/m/session/${id}`)}
         metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
         status={status}
         project={currentProjectId ?? undefined}
