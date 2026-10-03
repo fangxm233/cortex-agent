@@ -49,7 +49,7 @@ export function setAdminNotifier(fn: (text: string) => void): void { _adminNotif
 
 /**
  * Watch profiles.json for external edits and hot-reload the cache.
- * Mirrors the pattern used by startMachineRegistryWatcher() in dispatch-utils.ts.
+ * Mirrors the pattern used by startMachineRegistryWatcher() in remote/machine-registry.ts.
  *
  * Returns a stop function — call it to tear down the watcher (e.g. in tests or SIGTERM).
  *

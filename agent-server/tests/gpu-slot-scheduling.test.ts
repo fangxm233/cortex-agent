@@ -1,7 +1,7 @@
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { filterDispatchableTasks } from '../src/domain/tasks/dispatcher.js';
-import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
+import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });

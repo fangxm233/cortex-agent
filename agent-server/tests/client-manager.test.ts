@@ -544,7 +544,7 @@ test('a hello frame reconciles the reported GPU count into the machine registry'
   const { CONFIG_DIR } = await import('../src/core/paths.js');
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
-  const registry = await import('../src/domain/tasks/dispatch-utils.js');
+  const registry = await import('../src/domain/remote/machine-registry.js');
 
   const machinesFile = path.join(CONFIG_DIR, 'machines.json');
   await fs.mkdir(CONFIG_DIR, { recursive: true });

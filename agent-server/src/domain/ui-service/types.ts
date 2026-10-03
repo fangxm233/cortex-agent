@@ -3045,7 +3045,7 @@ export interface UiServiceDeps {
   costSummary: (projectId?: string | null) => Promise<CostSummary>;
   /**
    * Registry of connected cortex-client devices (from remote/client-manager) plus the
-   * static machine config (from tasks/dispatch-utils getMachineRegistry). Injected at the
+   * static machine config (from remote/machine-registry getMachineRegistry). Injected at the
    * entry layer so the ui-service domain never imports the remote layer directly.
    * SECURITY: the raw ssh user@host string is NOT surfaced — only sshConfigured:boolean.
    */

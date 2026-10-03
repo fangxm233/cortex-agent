@@ -4,7 +4,7 @@ import { isProjectLocked } from './system/task-lock.js';
 
 const log = createLogger('task-dispatch');
 const gpuLog = createLogger('gpu-preflight');
-import { getMachineRegistry, getLocalMachine, type MachineEntry } from './dispatch-utils.js';
+import { getMachineRegistry, getLocalMachine, type MachineEntry } from '../remote/machine-registry.js';
 import { isDeviceOnline } from '../remote/client-manager.js';  // still needed for online check before queryGpuSnapshot
 import { queryGpuSnapshot } from '../monitor/gpu-monitor.js';
 import * as executionRegistry from '../executions/registry.js';
@@ -17,7 +17,7 @@ import { allConfigsRateLimited } from '../runs/fallback.js';
 
 // --- Interfaces ---
 
-// MachineEntry type imported from dispatch-utils.ts
+// MachineEntry type imported from remote/machine-registry.ts
 
 interface OccupancyGpuInfo {
   index: number;

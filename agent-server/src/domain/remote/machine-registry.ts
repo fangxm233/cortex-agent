@@ -1,0 +1,227 @@
+import { readFileSync, existsSync } from 'fs';
+import * as path from 'path';
+import { CONFIG_DIR } from '@core/paths.js';
+import { atomicWriteSync } from '@core/atomic-write.js';
+import { createLogger } from '@core/log.js';
+import { createFileWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
+import { Icons } from '../../core/icons.js';
+
+const log = createLogger('machine-registry');
+
+// --- Machine Registry ---
+
+export interface MachineEntry {
+  cortexPath: string;
+  gpuCount: number;
+  ssh?: string;
+  win?: boolean;
+  /** Route used by cortex-client to reach the server. Defaults to direct. */
+  clientConnection?: 'direct' | 'ssh-reverse';
+  /** Remote loopback port for an SSH reverse route. Defaults to the server client port. */
+  clientReversePort?: number;
+  /**
+   * Command the server runs (over SSH) to launch cortex-client on this machine.
+   * Defaults to `node` on the managed bundle at ~/.cortex/client/current/client.mjs.
+   * Override for machines where `node` isn't on the non-login SSH PATH (absolute
+   * nvm bin path) or where CORTEX_HOME is relocated. The token-injection and
+   * nohup/echo-$! (Linux) / cmd.exe-wrap WMI (Windows) machinery wraps this command.
+   */
+  clientCommand?: string;
+}
+
+export type MachineRegistry = Record<string, MachineEntry>;
+
+const MACHINES_FILE = path.join(CONFIG_DIR, 'machines.json');
+
+let _registry: MachineRegistry = {};
+let _loaded = false;
+let _watchMonitor: WatchMonitor | null = null;
+let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function validateMachineEntry(name: string, entry: MachineEntry): void {
+  if (typeof entry.cortexPath !== 'string' || typeof entry.gpuCount !== 'number') {
+    throw new Error(`Invalid machine entry "${name}": requires cortexPath (string) and gpuCount (number)`);
+  }
+  const mode = entry.clientConnection ?? 'direct';
+  if (mode !== 'direct' && mode !== 'ssh-reverse') {
+    throw new Error(`Invalid machine entry "${name}": clientConnection must be direct or ssh-reverse`);
+  }
+  if (mode === 'ssh-reverse' && !entry.ssh?.trim()) {
+    throw new Error(`Invalid machine entry "${name}": ssh-reverse requires ssh`);
+  }
+  if (entry.clientReversePort !== undefined) {
+    if (mode !== 'ssh-reverse') throw new Error(`Invalid machine entry "${name}": clientReversePort requires ssh-reverse`);
+    if (!Number.isInteger(entry.clientReversePort) || entry.clientReversePort < 1024 || entry.clientReversePort > 65535) {
+      throw new Error(`Invalid machine entry "${name}": clientReversePort must be an integer in 1024..65535`);
+    }
+  }
+}
+
+// --- Admin notification (hot-reload → Slack) ---
+let _adminNotifier: ((text: string) => void) | null = null;
+export function setAdminNotifier(fn: (text: string) => void): void { _adminNotifier = fn; }
+
+// --- Reload listener (lets runtime holders drop machines that left the file) ---
+let _reloadListener: (() => void) | null = null;
+export function setMachineReloadListener(fn: () => void): void { _reloadListener = fn; }
+
+function announceReload(oldKeys: string, newKeys: string, count: number): void {
+  if (oldKeys !== newKeys) {
+    log.info(`Hot-reload: machines changed [${oldKeys}] → [${newKeys}]`);
+    _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded: [${oldKeys}] → [${newKeys}]`);
+  } else {
+    log.info(`Hot-reload: ${count} machines reloaded`);
+    _adminNotifier?.(`${Icons.refresh} \`machines.json\` hot-reloaded (${count} machines)`);
+  }
+  _reloadListener?.();
+}
+
+/**
+ * Load machines.json from disk into memory.
+ * On first call (startup), throws if file is missing or malformed.
+ * On subsequent calls (hot-reload), logs errors and keeps old config.
+ */
+function loadMachinesFromFile(failOnError = true): void {
+  try {
+    const raw = readFileSync(MACHINES_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as MachineRegistry;
+
+    for (const [name, entry] of Object.entries(parsed)) validateMachineEntry(name, entry);
+
+    const oldKeys = Object.keys(_registry).sort().join(',');
+    const newKeys = Object.keys(parsed).sort().join(',');
+    const isReload = _loaded;
+    _registry = parsed;
+    _loaded = true;
+
+    if (isReload) announceReload(oldKeys, newKeys, Object.keys(parsed).length);
+    else log.info(`Loaded ${Object.keys(parsed).length} machines: ${Object.keys(parsed).join(', ')}`);
+  } catch (e) {
+    const msg = `[machine-registry] Failed to load ${MACHINES_FILE}: ${(e as Error).message}`;
+    if (failOnError) {
+      throw new Error(msg);
+    }
+    log.error(msg + ' — keeping previous config');
+    _adminNotifier?.(`${Icons.warning} \`machines.json\` hot-reload FAILED — keeping previous config`);
+  }
+}
+
+/**
+ * Return the current in-memory machine registry.
+ */
+function getMachineRegistry(): MachineRegistry {
+  return _registry;
+}
+
+// --- Client-reported GPU count ---
+
+/** Above this a reported number is treated as garbage rather than a machine with that many GPUs. */
+const MAX_PLAUSIBLE_GPUS = 64;
+
+export type GpuCountUpdate = 'updated' | 'unchanged' | 'skipped';
+
+function isPlausibleGpuCount(value: number | null): value is number {
+  return typeof value === 'number' && Number.isInteger(value)
+    && value >= 0 && value <= MAX_PLAUSIBLE_GPUS;
+}
+
+/** Read-modify-write machines.json so every other field of every entry survives. Returns false —
+ *  leaving the file untouched — when it cannot be parsed or no longer holds the machine. */
+function persistGpuCount(machine: string, gpuCount: number): boolean {
+  try {
+    const parsed = JSON.parse(readFileSync(MACHINES_FILE, 'utf-8')) as MachineRegistry;
+    if (!parsed[machine]) return false;
+    parsed[machine].gpuCount = gpuCount;
+    atomicWriteSync(MACHINES_FILE, `${JSON.stringify(parsed, null, 2)}\n`);
+    return true;
+  } catch (e) {
+    log.error(`Failed to persist gpuCount for ${machine}: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * Reconcile a GPU count a client reported about itself into the registry and machines.json.
+ *
+ * `null` means the client could not probe (no nvidia-smi, driver down) — that is "unknown", not
+ * "zero GPUs", so the configured value stands and the machine is never silently dropped from GPU
+ * dispatch. Only machines already in the registry are touched: a client cannot register itself.
+ */
+function applyReportedGpuCount(machine: string, reported: number | null): GpuCountUpdate {
+  const entry = _registry[machine];
+  if (!entry || !isPlausibleGpuCount(reported)) return 'skipped';
+  if (entry.gpuCount === reported) return 'unchanged';
+  if (!persistGpuCount(machine, reported)) return 'skipped';
+  const previous = entry.gpuCount;
+  entry.gpuCount = reported;
+  log.info(`${machine}: gpuCount ${previous} → ${reported} (client-reported)`);
+  _adminNotifier?.(`${Icons.refresh} \`${machine}\` gpuCount ${previous} → ${reported} (reported by its client)`);
+  return 'updated';
+}
+
+/**
+ * Return the first machine key in the registry as the local/default machine.
+ * Falls back to 'local' if no machines are registered.
+ */
+function getLocalMachine(): string {
+  return Object.keys(_registry)[0] || 'local';
+}
+
+/**
+ * Start watching machines.json for changes. Reloads on file edit.
+ * Watches the parent directory so atomic file replacement keeps monitoring active.
+ */
+function scheduleMachineReload(): void {
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(() => {
+    _reloadTimer = null;
+    loadMachinesFromFile(false);
+  }, 300);
+}
+
+function startMachineRegistryWatcher(): void {
+  _watchMonitor?.close();
+  _watchMonitor = createFileWatchMonitor({
+    label: 'machines.json',
+    filePath: MACHINES_FILE,
+    onChange: scheduleMachineReload,
+    warn: (message) => log.error(message),
+  });
+}
+
+/**
+ * Stop watching machines.json (for tests / graceful shutdown).
+ */
+function stopMachineRegistryWatcher(): void {
+  _watchMonitor?.close();
+  _watchMonitor = null;
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = null;
+}
+
+// --- Auto-load at import time (equivalent to the old hardcoded constant) ---
+// This ensures getMachineRegistry() works immediately for all consumers.
+// app.ts also calls loadMachinesFromFile() explicitly + starts the watcher.
+if (existsSync(MACHINES_FILE)) {
+  try {
+    loadMachinesFromFile();
+  } catch (e) {
+    log.error(`Auto-load failed: ${(e as Error).message}`);
+  }
+}
+
+/** Test-only: directly set the in-memory machine registry. */
+function _testSetRegistry(registry: MachineRegistry): void {
+  _registry = { ...registry };
+  _loaded = true;
+}
+
+export {
+  getMachineRegistry,
+  getLocalMachine,
+  applyReportedGpuCount,
+  loadMachinesFromFile,
+  startMachineRegistryWatcher,
+  stopMachineRegistryWatcher,
+  _testSetRegistry,
+};

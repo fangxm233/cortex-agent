@@ -1,6 +1,6 @@
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import { queryGpuSnapshot, renderGpuSnapshot } from '@domain/monitor/gpu-monitor.js';
-import { getMachineRegistry, getLocalMachine } from '@domain/tasks/dispatch-utils.js';
+import { getMachineRegistry, getLocalMachine } from '@domain/remote/machine-registry.js';
 import { sendCommand, isDeviceOnline } from '@domain/remote/client-manager.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';

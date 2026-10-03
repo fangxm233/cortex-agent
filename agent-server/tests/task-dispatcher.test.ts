@@ -2,7 +2,7 @@ import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
+import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import { hasRunningExecutionForSchedule, findActiveDispatchMatch, filterDispatchableTasks, filterLockedProjects, isValidDispatchPrompt, isTemplateRateLimited } from '../src/domain/tasks/dispatcher.js';
 
 import { loadConfig, mergeThreadTemplates } from '../src/domain/threads/template-loader.js';

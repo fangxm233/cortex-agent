@@ -19,7 +19,7 @@ const UPDATED = { local: { cortexPath: '/workspace/updated', gpuCount: 2 } };
 afterEach(() => vi.useRealTimers());
 
 test('machine registry validates SSH reverse-route fields', async () => {
-  const registry = await import('../src/domain/tasks/dispatch-utils.js');
+  const registry = await import('../src/domain/remote/machine-registry.js');
   assert.doesNotThrow(() => registry.validateMachineEntry('worker', {
     cortexPath: '/workspace', gpuCount: 1, ssh: 'user@worker',
     clientConnection: 'ssh-reverse', clientReversePort: 13002,
@@ -41,7 +41,7 @@ test('machine registry polls after fs.watch creation fails', async () => {
   vi.useFakeTimers();
   await fs.mkdir(CONFIG_DIR, { recursive: true });
   await fs.writeFile(MACHINES_FILE, JSON.stringify(INITIAL));
-  const registry = await import('../src/domain/tasks/dispatch-utils.js');
+  const registry = await import('../src/domain/remote/machine-registry.js');
   registry.loadMachinesFromFile();
   assert.equal(registry.getMachineRegistry().local.cortexPath, '/workspace/initial');
 

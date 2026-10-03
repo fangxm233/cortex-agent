@@ -14,7 +14,7 @@ const BASE = {
 async function loadRegistry() {
   await fs.mkdir(CONFIG_DIR, { recursive: true });
   await fs.writeFile(MACHINES_FILE, JSON.stringify(BASE, null, 2));
-  const registry = await import('../src/domain/tasks/dispatch-utils.js');
+  const registry = await import('../src/domain/remote/machine-registry.js');
   registry.loadMachinesFromFile();
   return registry;
 }

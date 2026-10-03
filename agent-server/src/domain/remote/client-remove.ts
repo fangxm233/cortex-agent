@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '@core/atomic-write.js';
-import type { MachineEntry, MachineRegistry } from '../tasks/dispatch-utils.js';
+import type { MachineEntry, MachineRegistry } from './machine-registry.js';
 
 /** Runs a shell command on a remote host and resolves with its stdout. */
 export type RemoteExec = (host: string, command: string) => Promise<string>;

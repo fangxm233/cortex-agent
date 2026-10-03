@@ -114,7 +114,7 @@ import {
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { installTeamDelivery } from '@orch/team-delivery.js';
