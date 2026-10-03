@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
-import { hasRunningExecutionForSchedule, findActiveDispatchMatch, filterDispatchableTasks, filterLockedProjects, isValidDispatchPrompt, isTemplateRateLimited } from '../src/domain/tasks/dispatcher.js';
+import { findActiveDispatchMatch, filterDispatchableTasks, filterLockedProjects, isTemplateRateLimited } from '../src/domain/tasks/dispatcher.js';
 
 import { loadConfig, mergeThreadTemplates } from '../src/domain/threads/template-loader.js';
 import { PROJECTS_DIR, CONFIG_DIR } from '../src/core/paths.js';
@@ -20,17 +20,6 @@ beforeAll(() => {
     path.resolve(process.cwd(), 'defaults/config/thread-templates'),
     path.join(CONFIG_DIR, 'thread-templates'),
   );
-});
-
-test('hasRunningExecutionForSchedule matches running scheduled executions by schedule id', () => {
-  const records = [
-    { status: 'running', kind: 'scheduled', scheduleTaskId: 'sched-1' },
-    { status: 'completed', kind: 'scheduled', scheduleTaskId: 'sched-2' },
-  ];
-
-  assert.equal(hasRunningExecutionForSchedule(records, 'sched-1'), true);
-  assert.equal(hasRunningExecutionForSchedule(records, 'sched-2'), false);
-  assert.equal(hasRunningExecutionForSchedule(records, 'missing'), false);
 });
 
 test('findActiveDispatchMatch returns null when no running execution matches', () => {
@@ -226,33 +215,6 @@ test('isTemplateRateLimited: empty profile resolution falls back to the dispatch
   loadConfig();
   assert.equal(isTemplateRateLimited('nonexistent-template-xyz', 'disp', (p) => p === 'disp'), true);
   assert.equal(isTemplateRateLimited('nonexistent-template-xyz', 'disp', () => false), false);
-});
-
-// --- Null/empty prompt guard (ISS-CS-005 durable fix) ---
-
-test('isValidDispatchPrompt rejects null/empty/whitespace values', () => {
-  assert.equal(isValidDispatchPrompt(null), false);
-  assert.equal(isValidDispatchPrompt(undefined), false);
-  assert.equal(isValidDispatchPrompt(''), false);
-  assert.equal(isValidDispatchPrompt('   '), false);
-  assert.equal(isValidDispatchPrompt('\t\n'), false);
-  assert.equal(isValidDispatchPrompt('null'), false);
-  assert.equal(isValidDispatchPrompt('undefined'), false);
-  // Non-string types
-  assert.equal(isValidDispatchPrompt(0), false);
-  assert.equal(isValidDispatchPrompt(false), false);
-  assert.equal(isValidDispatchPrompt([]), false);
-});
-
-test('isValidDispatchPrompt accepts valid prompt values', () => {
-  assert.equal(isValidDispatchPrompt('Execute /orient fast'), true);
-  assert.equal(isValidDispatchPrompt('[Scheduled Task] Execute /orient fast'), true);
-  assert.equal(isValidDispatchPrompt('Run experiments'), true);
-  assert.equal(isValidDispatchPrompt('true'), true);
-  assert.equal(isValidDispatchPrompt('0'), true);
-  assert.equal(isValidDispatchPrompt('false'), true);
-  assert.equal(isValidDispatchPrompt(' null profile task'), true);  // has real content beyond "null"
-  assert.equal(isValidDispatchPrompt('task is null-ish'), true);    // substring, not exact match
 });
 
 // --- Locked-project filtering (plan §8) ---

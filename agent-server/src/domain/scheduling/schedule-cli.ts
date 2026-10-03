@@ -1,6 +1,6 @@
 import { Scheduler, parseDuration, DAY_MAP } from './scheduler.js';
 import type { ScheduleTask } from './scheduler.js';
-import { isValidDispatchPrompt } from '../tasks/dispatcher.js';
+import { isValidDispatchPrompt } from './run-guards.js';
 import { isMainModule } from '@core/utils.js';
 import { formatHelp } from '@core/cli-utils.js';
 

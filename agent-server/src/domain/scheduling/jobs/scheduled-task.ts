@@ -9,7 +9,7 @@ import { threadStore } from '@store/thread-repo.js';
 import { getActiveProfile } from '../../agents/index.js';
 import { projectStore } from '@domain/projects/index.js';
 import { normalizeSkillCommandPrefix } from '../../memory/skill-scanner.js';
-import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../../tasks/dispatcher.js';
+import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-guards.js';
 import { allConfigsRateLimited } from '../../runs/fallback.js';
 import { createThread } from '../../threads/index.js';
 import { registerThreadSession } from './register-thread-session.js';
