@@ -21,7 +21,7 @@ export interface MachineEntry {
   clientReversePort?: number;
   /**
    * Command the server runs (over SSH) to launch cortex-client on this machine.
-   * Defaults to `node` on the managed bundle at ~/.cortex/client/current/client.mjs.
+   * Defaults to `node` on the managed bundle at `<CORTEX_HOME>/client/current/client.mjs`.
    * Override for machines where `node` isn't on the non-login SSH PATH (absolute
    * nvm bin path) or where CORTEX_HOME is relocated. The token-injection and
    * nohup/echo-$! (Linux) / cmd.exe-wrap WMI (Windows) machinery wraps this command.
