@@ -109,8 +109,6 @@ function attemptFixture(root: string, input: {
     input_tokens: 10, output_tokens: 4, prompt_tokens: 12, cache_read_tokens: 2,
     cache_creation_tokens: input.cacheCreationTokens ?? null,
     provider_requests: 1, execution_id: input.executionId, session_id: sessionId,
-    thread_id: null, parent_thread_id: null, root_thread_id: null, task_id: null,
-    task_project: null, dispatch_generation: null,
     attempt_id: attemptId, root_attempt_id: input.rootAttemptId ?? attemptId,
     trial_id: 'trial-1', root_run_id: rootRunId,
   } satisfies CostEntry;

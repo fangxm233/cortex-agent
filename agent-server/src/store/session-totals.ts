@@ -68,9 +68,9 @@ export type ExecutionLike = Pick<ExecutionRecord, 'session' | 'thread' | 'runtim
  * - `subagent`: the run was spawned BY that session (`session.ownerSessionId`) and only its cost
  *   rolls up.
  *
- * Thread runs are excluded outright: a thread runs beside its parent and is accounted for in the
- * thread views, exactly as the last-run resolver already assumes. Unfinished runs are excluded so
- * a record can only ever be folded once, with final numbers.
+ * A legacy record from the retired thread runtime is excluded outright: that run went beside its
+ * parent and was never the session's own turn, as the last-run resolver also assumes. Unfinished
+ * runs are excluded so a record can only ever be folded once, with final numbers.
  */
 export function classifyForTotals(
   record: ExecutionLike,

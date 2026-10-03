@@ -54,9 +54,7 @@ function harness(persist: Promise<void>) {
   };
   // Register it the way `startRun` does, so the router selects it through the real channel index.
   runRegistry.register({
-    threadId: null,
     channel: CHANNEL,
-    agentSlotId: null,
     executionId: null,
     registryKey: FIXTURE_KEY,
     kind: 'local',

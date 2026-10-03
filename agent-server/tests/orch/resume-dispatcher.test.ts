@@ -142,7 +142,7 @@ test('direct entry on a busy channel is dropped', async () => {
  *  stubbed busy checks so the dispatcher's real ones read the live registry. */
 function withChildOnChannel(deps: any, channel: string): () => void {
   runRegistry.register({
-    threadId: null, channel, agentSlotId: null, executionId: null, registryKey: 'resume-child',
+    channel, executionId: null, registryKey: 'resume-child',
     kind: 'local', kill: () => true, backend: 'claude', trackSessionId: null, subagent: true,
   });
   delete deps.channelBusy;

@@ -10,10 +10,6 @@ export function getExecution(id: string) {
   return executionRepo.getExecution(id);
 }
 
-export function getExecutionByTaskId(taskId: string | null | undefined) {
-  return executionRepo.getExecutionByTaskId(taskId);
-}
-
 export function getAll() {
   return executionRepo.getAll();
 }
@@ -22,18 +18,10 @@ export function getRunningExecutions() {
   return executionRepo.getRunningExecutions();
 }
 
-export function findRunningDispatchMatch(opts: Parameters<typeof executionRepo.findRunningDispatchMatch>[0]) {
-  return executionRepo.findRunningDispatchMatch(opts);
-}
-
 // --- Sync create/mutate + fire-and-forget persist ---
 
 export function startLocalExecution(opts: Parameters<typeof executionRepo.startLocalExecution>[0]) {
   return executionRepo.startLocalExecution(opts);
-}
-
-export function registerDispatchExecution(opts: Parameters<typeof executionRepo.registerDispatchExecution>[0]) {
-  return executionRepo.registerDispatchExecution(opts);
 }
 
 export function touchExecution(id: string, patch?: Parameters<typeof executionRepo.touchExecution>[1]) {
@@ -55,23 +43,16 @@ export function cancelExecution(id: string, metrics?: Parameters<typeof executio
   return r;
 }
 
-export function cancelExecutionByTaskId(taskId: string, metrics?: Parameters<typeof executionRepo.cancelExecution>[1]) {
-  const record = executionRepo.getExecutionByTaskId(taskId);
-  if (!record) return null;
-  return cancelExecution(record.id, metrics);
-}
-
 /**
  * Close an execution across BOTH ledgers in one call: finalize the persistent record
  * (idempotent — terminal status is guarded in execution-repo) and tear down the in-memory
  * live registry while publishing the matching agent.* lifecycle event.
  *
  * This is the single teardown every execution path should funnel through so the persistent
- * status, the live registry, and the bus events never drift apart. In particular it gives
- * thread steps their agent.completed/failed events, which the old event-less remove() skipped.
+ * status, the live registry, and the bus events never drift apart.
  *
- * Does NOT touch the busy-tracker — trackPendingTask(±1) is per-enqueue (a thread spans many
- * steps under one +1), so it stays managed by the caller.
+ * Does NOT touch the busy-tracker — trackPendingTask(±1) is per-enqueue, so it stays managed by
+ * the caller.
  */
 export function teardownExecution({ executionId, status, result, error, durationS }: {
   executionId: string | null;
@@ -104,9 +85,4 @@ export function teardownExecution({ executionId, status, result, error, duration
 export async function markMissingRunningExecutionsStale(keepRunning?: Parameters<typeof executionRepo.markMissingRunningExecutionsStale>[0]) {
   const staled = await executionRepo.markMissingRunningExecutionsStale(keepRunning);
   return staled;
-}
-
-export async function reconcileStaleDispatches(opts: Parameters<typeof executionRepo.reconcileStaleDispatches>[0]) {
-  const { count, staled } = await executionRepo.reconcileStaleDispatches(opts);
-  return count;
 }

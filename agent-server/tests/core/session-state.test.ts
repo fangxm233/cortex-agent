@@ -18,9 +18,7 @@ beforeEach(reset);
 
 function register(overrides: Partial<RunningExecutionInput> = {}): void {
   runRegistry.register({
-    threadId: null,
     channel: 'web:s1',
-    agentSlotId: null,
     executionId: 'exec-1',
     kind: null,
     kill: () => true,
@@ -72,17 +70,6 @@ test('sessionState: foreground running + background held → both flags, foregro
   assert.equal(state.backgroundRunning, true);
   assert.equal(state.numTurns, 2);
   assert.equal(state.executionId, 'exec-1');
-});
-
-test('sessionState: a thread execution does not make the session itself busy', () => {
-  register({ executionId: 'exec-thread', threadId: 'thr_1', trackSessionId: 's1' });
-
-  assert.deepEqual(sessionState('s1'), {
-    running: false,
-    backgroundRunning: false,
-    numTurns: null,
-    executionId: null,
-  });
 });
 
 test('sessionState: also matches a run known only by its backend session id, and picks the newest foreground', () => {

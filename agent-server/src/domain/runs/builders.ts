@@ -13,9 +13,8 @@ import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import type { RunRequest } from './request.js';
 import { bareSpec } from './spec-loader.js';
 
-/** The policy every non-thread-step run opens under: the engine runs the turn and returns, with
- *  no inline wait for background work (`background: 'none'` is what a missing legacy
- *  `awaitBackground` + no threadId resolved to), cost recorded, hooks and ambient rules on, the
+/** The policy every direct run opens under: the engine runs the turn and returns, with no inline
+ *  wait for background work (`background: 'none'`), cost recorded, hooks and ambient rules on, the
  *  direct MCP surface, and no browser attached.
  *
  *  `captureTranscripts` must stay true: Claude writes a per-turn transcript file unless told not

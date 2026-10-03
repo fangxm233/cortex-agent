@@ -21,9 +21,7 @@ test('tryResolveHook native PI branch — multi-question joins answers with newl
   const mockProc = makeMockPIProcess();
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_ASK2',
-    agentSlotId: null,
     executionId: 'exec-pi-ask-2',
     kill: () => true,
     backend: 'pi',
@@ -51,9 +49,7 @@ test('tryResolveHook MCP-over-PI branch — resolves blocking webhook instead of
   const mockProc = makeMockPIProcess();
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_MCP_ASK',
-    agentSlotId: null,
     executionId: 'exec-pi-mcp-ask',
     kill: () => true,
     backend: 'pi',
@@ -79,9 +75,7 @@ test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', asyn
   const mockProc = makeMockPIProcess();
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_PARTIAL',
-    agentSlotId: null,
     executionId: 'exec-pi-partial',
     kill: () => true,
     backend: 'pi',
@@ -107,9 +101,7 @@ test('tryResolveHook — a run that declines the dialog does not delete the grou
   const mockProc = makeMockPIProcess(false);
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_DECLINED',
-    agentSlotId: null,
     executionId: 'exec-pi-declined',
     kill: () => true,
     backend: 'pi',
@@ -136,9 +128,7 @@ test('tryResolveHook — a run that declines the dialog falls through to the blo
   const mockProc = makeMockPIProcess(false);
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_DECLINED_HOOK',
-    agentSlotId: null,
     executionId: 'exec-pi-declined-hook',
     kill: () => true,
     backend: 'pi',
@@ -165,9 +155,7 @@ test('tryResolveHook — a run that accepts the dialog resolves and deletes the 
   const mockProc = makeMockPIProcess(true);
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_ACCEPTED',
-    agentSlotId: null,
     executionId: 'exec-pi-accepted',
     kill: () => true,
     backend: 'pi',
@@ -197,18 +185,14 @@ test('tryResolveHook — with two runs on a channel the first that returns true 
   const second = makeMockPIProcess(true);
 
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_ORDER',
-    agentSlotId: null,
     executionId: 'exec-pi-order-1',
     kill: () => true,
     backend: 'pi',
     run: first.run,
   });
   runRegistry.register({
-    threadId: null,
     channel: 'C_PI_ORDER',
-    agentSlotId: null,
     executionId: 'exec-pi-order-2',
     kill: () => true,
     backend: 'pi',

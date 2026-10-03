@@ -45,11 +45,11 @@ function registerTools(
 
 function ctx(overrides: Partial<CortexToolContext> = {}): CortexToolContext {
   return {
-    channel: 'web:42', sessionId: 'sess-1', sessionName: 'cortex-aaaa', threadId: null,
-    profile: 'main', project: 'proj', taskProject: null, backend: 'claude',
+    channel: 'web:42', sessionId: 'sess-1', sessionName: 'cortex-aaaa',
+    profile: 'main', project: 'proj', backend: 'claude',
     scheduleTaskId: null, callbackSource: null, branchMachine: null,
     webhookBaseUrl: 'http://127.0.0.1:3001', webhookToken: 'tok',
-    askManagerTimeoutMs: 1000, slackBotToken: null, toolAllowlist: null,
+    slackBotToken: null, toolAllowlist: null,
     subagentPiModels: [], subagentClaudeModels: [],
     ...overrides,
   } as CortexToolContext;

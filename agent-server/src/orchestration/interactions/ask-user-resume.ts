@@ -64,18 +64,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
           project: ids.projectId,
           trigger: 'ask-user-question',
         });
-        const request: RunRequest = {
-          ...base,
-          context: {
-            ...base.context,
-            // The pre-refactor resume passed an explicit null threadId and never waited for
-            // background work inline. Both are load-bearing: a threadId lands in CORTEX_THREAD_ID
-            // and switches the run's inline background wait on, which would make the resume turn
-            // block on background tasks. Spelled out here (rather than left off) to keep the field
-            // set byte-identical to the literal this replaced.
-            threadId: null,
-          },
-        };
+        const request: RunRequest = base;
         return { request, backendPrompt: request.prompt.text };
       },
     });

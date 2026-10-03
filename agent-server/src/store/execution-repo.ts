@@ -40,7 +40,9 @@ export interface ExecutionRecord {
      *  paid for it. Absent on every record written before this field existed. */
     ownerSessionId?: string | null;
   };
-  thread: { threadId: string | null; agentSlotId: string | null } | null;
+  /** Legacy: set on records written by the retired thread runtime; never written now. */
+  thread?: { threadId: string | null; agentSlotId: string | null } | null;
+  /** Legacy: set on records written by the retired task dispatcher; null on every new record. */
   dispatch: DispatchInfo | null;
   scheduleTaskId: string | null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
@@ -74,11 +76,10 @@ function buildExecutionId(kind: string): string {
   return `exec_${kind}_${stamp}_${rand}`;
 }
 
-function createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId, threadId, agentSlotId }: {
+function createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId }: {
   kind: string; channel?: string | null; project?: string; trigger?: string;
   backend?: string; billingMode?: string; sessionId?: string | null; ownerSessionId?: string | null;
   label?: string | null; scheduleTaskId?: string | null;
-  threadId?: string | null; agentSlotId?: string | null;
 }): ExecutionRecord {
   const timestamp = nowIso();
   return {
@@ -91,7 +92,6 @@ function createBaseRecord({ kind, channel, project, trigger, backend, billingMod
     backend: backend || 'claude',
     billingMode: billingMode || 'api',
     session: { sessionId: sessionId || null, ...(ownerSessionId ? { ownerSessionId } : {}) },
-    thread: (threadId || agentSlotId) ? { threadId: threadId || null, agentSlotId: agentSlotId || null } : null,
     dispatch: null,
     scheduleTaskId: scheduleTaskId || null,
     runtime: {
@@ -185,16 +185,6 @@ class ExecutionRepo {
     return this.map.get(id) || null;
   }
 
-  getExecutionByTaskId(taskId: string | null | undefined): ExecutionRecord | null {
-    if (!taskId) return null;
-    const matches: ExecutionRecord[] = [];
-    for (const record of this.map.values()) {
-      if (record.dispatch?.taskId === taskId) matches.push(record);
-    }
-    // Prefer non-terminal record (running) over terminal ones when a task is re-dispatched
-    return matches.find((r) => !TERMINAL_STATUSES.has(r.status)) || matches[0] || null;
-  }
-
   getRunningExecutions(): ExecutionRecord[] {
     const results: ExecutionRecord[] = [];
     for (const record of this.map.values()) {
@@ -205,18 +195,6 @@ class ExecutionRepo {
 
   getAllExecutions(): ExecutionRecord[] {
     return Array.from(this.map.values());
-  }
-
-  findRunningDispatchMatch({ scheduleTaskId, taskHash, project, taskText }: {
-    scheduleTaskId?: string | null; taskHash?: string | null; project?: string; taskText?: string;
-  }): ExecutionRecord | null {
-    const running = this.getRunningExecutions();
-    return running.find((record) => {
-      if (record.kind !== 'dispatch') return false;
-      if (scheduleTaskId && record.scheduleTaskId !== scheduleTaskId) return false;
-      if (taskHash && record.dispatch?.taskHash) return record.dispatch.taskHash === taskHash;
-      return record.project === project && record.text?.label === taskText;
-    }) || null;
   }
 
   getAll(): ExecutionRecord[] {
@@ -242,66 +220,12 @@ class ExecutionRepo {
     return next;
   }
 
-  startLocalExecution({ kind = 'local', channel, project, trigger, backend, billingMode, sessionId, ownerSessionId = null, label, scheduleTaskId, threadId = null, agentSlotId = null }: {
+  startLocalExecution({ kind = 'local', channel, project, trigger, backend, billingMode, sessionId, ownerSessionId = null, label, scheduleTaskId }: {
     kind?: string; channel?: string | null; project?: string; trigger?: string;
     backend?: string; billingMode?: string; sessionId?: string | null; ownerSessionId?: string | null;
     label?: string | null; scheduleTaskId?: string | null;
-    threadId?: string | null; agentSlotId?: string | null;
   }): ExecutionRecord {
-    const record = createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId, threadId, agentSlotId });
-    this.map.set(record.id, record);
-    this.queuePersist();
-    return record;
-  }
-
-  registerDispatchExecution({ taskId, machine, channel, project, scheduleTaskId, taskText, taskHash, sessionName, tmuxName, pid, backend, billingMode }: {
-    taskId: string; machine?: string | null; channel?: string | null; project?: string;
-    scheduleTaskId?: string | null; taskText?: string | null; taskHash?: string | null;
-    sessionName?: string | null; tmuxName?: string | null; pid?: string | null;
-    backend?: string; billingMode?: string;
-  }): ExecutionRecord | null {
-    const existing = this.getExecutionByTaskId(taskId);
-    if (existing && !TERMINAL_STATUSES.has(existing.status)) {
-      return this.updateRecordInternal(existing.id, (record) => ({
-        ...record,
-        status: 'running',
-        channel: channel || record.channel,
-        project: project || record.project,
-        backend: backend || record.backend,
-        billingMode: billingMode || record.billingMode,
-        scheduleTaskId: scheduleTaskId || record.scheduleTaskId,
-        text: { ...record.text, label: taskText || record.text.label },
-        dispatch: {
-          taskId,
-          taskHash: taskHash || record.dispatch?.taskHash || null,
-          machine: machine || record.dispatch?.machine || null,
-          scheduleTaskId: scheduleTaskId || record.dispatch?.scheduleTaskId || null,
-          sessionName: sessionName || record.dispatch?.sessionName || null,
-          tmuxName: tmuxName || record.dispatch?.tmuxName || null,
-          pid: pid || record.dispatch?.pid || null,
-        },
-      }));
-    }
-
-    const record = createBaseRecord({
-      kind: 'dispatch',
-      channel,
-      project,
-      trigger: 'dispatch',
-      backend,
-      billingMode,
-      label: taskText,
-      scheduleTaskId,
-    });
-    record.dispatch = {
-      taskId,
-      taskHash: taskHash || null,
-      machine: machine || null,
-      scheduleTaskId: scheduleTaskId || null,
-      sessionName: sessionName || null,
-      tmuxName: tmuxName || null,
-      pid: pid || null,
-    };
+    const record = createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId });
     this.map.set(record.id, record);
     this.queuePersist();
     return record;
@@ -310,7 +234,6 @@ class ExecutionRepo {
   touchExecution(id: string, patch: {
     metrics?: Partial<ExecutionRecord['metrics']>;
     text?: Partial<ExecutionRecord['text']>;
-    dispatch?: Partial<DispatchInfo>;
     session?: Partial<ExecutionRecord['session']>;
     [key: string]: unknown;
   } = {}): ExecutionRecord | null {
@@ -319,7 +242,6 @@ class ExecutionRepo {
       ...patch,
       metrics: { ...record.metrics, ...(patch.metrics || {}) },
       text: { ...record.text, ...(patch.text || {}) },
-      dispatch: patch.dispatch ? { ...(record.dispatch || {} as DispatchInfo), ...patch.dispatch } : record.dispatch,
       session: patch.session ? { ...record.session, ...patch.session } : record.session,
     }));
   }
@@ -363,53 +285,6 @@ class ExecutionRepo {
       if (staled.length > 0) await this.persist();
     });
     return staled;
-  }
-
-  /** Reconcile stale dispatch executions: mark dispatches that are too old as stale.
-   *  Returns { count, staled } where count is reconciled count and staled is the list of affected IDs. */
-  async reconcileStaleDispatches({ isLive, maxAgeMs, graceMs }: {
-    /** True if the execution is still live in the in-memory registry (in-process dispatch). */
-    isLive?: (executionId: string) => boolean;
-    /** Hard ceiling: reap even a "live" dispatch once this old (wedged). */
-    maxAgeMs: number;
-    /** Short grace for a not-live dispatch (a crashed in-process orphan). */
-    graceMs?: number;
-  }): Promise<{ count: number; staled: string[] }> {
-    await this._pendingPersist;
-    return this.mutex.run(async () => {
-      const now = Date.now();
-      const timestamp = nowIso();
-      // Without an isLive signal, fall back to the blunt hard-ceiling behavior.
-      const orphanGraceMs = graceMs ?? maxAgeMs;
-      let reconciled = 0;
-      const staled: string[] = [];
-
-      for (const record of this.map.values()) {
-        if (record.status !== 'running') continue;
-        if (record.kind !== 'dispatch') continue;
-        const startedAt = record.runtime?.startedAt ? new Date(record.runtime.startedAt).getTime() : 0;
-        const age = now - startedAt;
-        // Only LOCAL in-process dispatch is observable via the in-memory registry. A remote
-        // dispatch (machine set) runs on another host and is never "live" here, so the short
-        // orphan grace must not apply to it — it stays on the hard ceiling. The short grace
-        // targets a crashed local in-process orphan only.
-        const isLocal = !record.dispatch?.machine || record.dispatch.machine === 'local';
-        const live = isLocal && isLive ? isLive(record.id) : false;
-        const threshold = (isLocal && !live) ? orphanGraceMs : maxAgeMs;
-        if (age < threshold) continue;
-        record.status = 'stale';
-        record.runtime.updatedAt = timestamp;
-        record.runtime.endedAt = timestamp;
-        reconciled++;
-        staled.push(record.id);
-      }
-
-      if (reconciled > 0) {
-        await this.persist();
-        log.info(`Reconciled ${reconciled} stale dispatch execution(s)`);
-      }
-      return { count: reconciled, staled };
-    });
   }
 
   // --- Terminal-record archival ---

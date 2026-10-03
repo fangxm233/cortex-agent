@@ -20,12 +20,6 @@ export interface CostEntry {
   provider_requests?: number | null;
   session_id?: string | null;
   execution_id?: string | null;
-  thread_id?: string | null;
-  parent_thread_id?: string | null;
-  root_thread_id?: string | null;
-  task_id?: string | null;
-  task_project?: string | null;
-  dispatch_generation?: string | null;
   attempt_id?: string | null;
   root_attempt_id?: string | null;
   trial_id?: string | null;
@@ -35,9 +29,7 @@ export interface CostEntry {
 }
 
 export type CostAttribution = Pick<CostEntry,
-  'session_id' | 'execution_id' | 'thread_id' | 'parent_thread_id' | 'root_thread_id' |
-  'task_id' | 'task_project' | 'dispatch_generation' | 'attempt_id' | 'root_attempt_id' |
-  'trial_id' | 'root_run_id'>;
+  'session_id' | 'execution_id' | 'attempt_id' | 'root_attempt_id' | 'trial_id' | 'root_run_id'>;
 
 interface RecordCostInput extends Partial<CostAttribution> {
   project?: string;
@@ -194,10 +186,6 @@ async function recordCost(input: RecordCostInput): Promise<void> {
     provider_requests: Number.isSafeInteger(input.provider_requests)
       && Number(input.provider_requests) > 0 ? input.provider_requests! : null,
     session_id: input.session_id ?? null, execution_id: input.execution_id ?? null,
-    thread_id: input.thread_id ?? null, parent_thread_id: input.parent_thread_id ?? null,
-    root_thread_id: input.root_thread_id ?? null, task_id: input.task_id ?? null,
-    task_project: input.task_project ?? null,
-    dispatch_generation: input.dispatch_generation ?? null,
     attempt_id: input.attempt_id ?? null, root_attempt_id: input.root_attempt_id ?? null,
     trial_id: input.trial_id ?? null, root_run_id: input.root_run_id ?? null,
   };

@@ -7,9 +7,7 @@ import type { CortexEvent } from '../../src/events/index.js';
 
 function makeInput(overrides: Partial<RunningExecutionInput> = {}): RunningExecutionInput {
   return {
-    threadId: null,
     channel: null,
-    agentSlotId: null,
     executionId: 'E-default',
     kind: null,
     kill: () => true,
@@ -34,7 +32,7 @@ function collectEvents(bus: EventBus): CortexEvent[] {
 
 // ── Index consistency ─────────────────────────────────────────────────
 
-test('register by executionId: resolvable by id and channel; not by unknown thread', () => {
+test('register by executionId: resolvable by id and channel', () => {
   const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', channel: 'C123' }));
 
@@ -42,7 +40,6 @@ test('register by executionId: resolvable by id and channel; not by unknown thre
   assert.equal(exec.getById('E1')!.registryKey, 'E1');
   assert.equal(exec.getByChannel('C123').length, 1);
   assert.equal(exec.getByChannel('C123')[0]!.executionId, 'E1');
-  assert.equal(exec.getByThreadId('T1'), null);
 });
 
 // ── Live numTurns (S4 chat: real agent-turn snapshot on the running execution) ──
@@ -61,16 +58,14 @@ test('numTurns: defaults to null on register; setNumTurns updates the live entry
   assert.equal(exec.getById('E1')!.numTurns, 5);
 });
 
-test('register with threadId: appears in byThreadId and byChannel; remove(id) cleans all', () => {
+test('remove(id) cleans the primary and channel indices', () => {
   const exec = new RunRegistry();
-  exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C123' }));
+  exec.register(makeInput({ executionId: 'E1', channel: 'C123' }));
 
-  assert.equal(exec.getByThreadId('T1')!.executionId, 'E1');
   assert.equal(exec.getByChannel('C123').length, 1);
 
   exec.remove('E1');
   assert.equal(exec.hasId('E1'), false);
-  assert.equal(exec.getByThreadId('T1'), null);
   assert.equal(exec.getByChannel('C123').length, 0);
   assert.equal(exec.hasChannel('C123'), false);
 });
@@ -122,28 +117,14 @@ test('killByChannel kills every execution on the channel and returns the count',
 test('killById: calls kill(), removes from all indices, returns true; second call false', () => {
   const exec = new RunRegistry();
   const handle = makeKillTracker();
-  exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C1', kill: () => handle.kill() }));
+  exec.register(makeInput({ executionId: 'E1', channel: 'C1', kill: () => handle.kill() }));
 
   assert.equal(exec.killById('E1'), true);
   assert.equal(handle.killed, true);
   assert.equal(exec.hasId('E1'), false);
-  assert.equal(exec.getByThreadId('T1'), null);
   assert.equal(exec.getByChannel('C1').length, 0);
 
   assert.equal(exec.killById('E1'), false);
-});
-
-test('killByThreadId: resolves via byThreadId, kills, cleans all indices', () => {
-  const exec = new RunRegistry();
-  const handle = makeKillTracker();
-  exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C1', kill: () => handle.kill() }));
-
-  assert.equal(exec.killByThreadId('T1'), true);
-  assert.equal(handle.killed, true);
-  assert.equal(exec.hasId('E1'), false);
-  assert.equal(exec.getByThreadId('T1'), null);
-
-  assert.equal(exec.killByThreadId('T1'), false);
 });
 
 // ── Event publishing ──────────────────────────────────────────────────
@@ -244,19 +225,6 @@ test('supersedeByChannel kills+supersedes every entry on the channel (edit flow)
 });
 
 // ── kind field (Stage 4 dispatch accounting) ──────────────────────────
-
-// ── Identity-guarded index cleanup ─────────────────────────────────────
-
-test('removing an entry with a shared threadId must not corrupt byThreadId for the active entry', () => {
-  const exec = new RunRegistry();
-  exec.register(makeInput({ executionId: 'EA', threadId: 'T', channel: 'C1' }));
-  exec.register(makeInput({ executionId: 'EB', threadId: 'T', channel: 'C2' }));
-  // byThreadId['T'] = EB (second registration wins)
-
-  exec.remove('EA');
-  // byThreadId['T'] must still point to EB
-  assert.equal(exec.getByThreadId('T')!.executionId, 'EB');
-});
 
 test('ad-hoc registryKey (no executionId) is supported and keyed by registryKey', () => {
   const exec = new RunRegistry();

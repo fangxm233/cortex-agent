@@ -224,7 +224,7 @@ async function assertQueries(ref: string, toolCount: number, texts: string[]) {
 function registerUnrelatedRun() {
   const ingest = vi.fn(() => true);
   runRegistry.register({
-    executionId: 'unrelated', threadId: null, channel: CHANNEL, agentSlotId: null,
+    executionId: 'unrelated', channel: CHANNEL,
     kind: 'local', kill: () => true, backend: 'pi', trackSessionId: 'other-session',
     run: { phase: 'foreground', ingestExternal: ingest } as any,
   });

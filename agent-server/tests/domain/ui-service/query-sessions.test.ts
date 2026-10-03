@@ -2,8 +2,6 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-import { runRegistry } from '../../../src/core/run-registry.js';
-import { sessionStates } from '../../../src/core/session-state.js';
 
 const mockSessions = [
   { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
@@ -158,23 +156,6 @@ test('sessions.list running snapshot: true when a live interactive turn is on th
   assert.equal(byId['s1'], true);
   assert.equal(byId['s2'], false);
   assert.equal(byId['s3'], false);
-});
-
-test('sessions.list running snapshot: a thread execution does NOT mark the session running', async () => {
-  // Driven through the REAL registry + the real reader, not a stub: the `!threadId` rule lives in
-  // sessionState (pinned directly in tests/core/session-state.test.ts), and this asserts the whole
-  // join still holds — a thread step running for s1 leaves the session's own row idle.
-  runRegistry.register({
-    threadId: 'thr_x', channel: 'C1', executionId: 'exec_t', agentSlotId: null,
-    kill: () => true, backend: 'pi', trackSessionId: 's1',
-  });
-  try {
-    const deps = makeDeps({ runningExecutions: sessionStates });
-    const result = await handleSessionsList(deps, { projectId: 'proj1' });
-    assert.ok(result.every(s => s.running === false));
-  } finally {
-    runRegistry.remove('exec_t');
-  }
 });
 
 test('sessions.list running snapshot: a session is NOT running just because a DIFFERENT session on its channel is', async () => {

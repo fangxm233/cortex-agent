@@ -217,9 +217,7 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
   const backend = resolveRunBackend({ channel: 'slack:C-keep' });
   await setSessionAsync('slack:C-keep', 'TRACK-3');
   runRegistry.register({
-    threadId: null,
     channel: 'slack:C-keep',
-    agentSlotId: null,
     executionId: null,
     registryKey: 'rk-cancel-test',
     kind: 'local',

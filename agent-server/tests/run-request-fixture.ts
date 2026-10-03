@@ -24,11 +24,6 @@ export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'to
   profileName?: string | null;
   project?: string;
   trigger?: string;
-  threadId?: string | null;
-  threadDepth?: number | null;
-  taskId?: string | null;
-  taskProject?: string | null;
-  taskGeneration?: string | null;
   executionId?: string | null;
   loadCortexRules?: boolean;
   recordCost?: boolean;
@@ -128,11 +123,6 @@ export function runRequestFixture(
       // attests it) for every fixture that never had a project.
       project: partial.project as string,
       trigger: partial.trigger ?? '',
-      threadId: partial.threadId ?? null,
-      threadDepth: partial.threadDepth ?? null,
-      taskId: partial.taskId ?? null,
-      taskProject: partial.taskProject ?? null,
-      taskGeneration: partial.taskGeneration ?? null,
       scheduleTaskId: partial.scheduleTaskId ?? null,
       callbackSource: partial.callbackSource ?? null,
       executionKind: 'local',

@@ -47,11 +47,11 @@ test('!cancel with 2+ executions shows interactive list with cancel buttons', as
   router.bindToAdapter(adapter);
 
   runRegistry.register({
-    threadId: 'thr_a1b2c3d4', channel: 'C123', agentSlotId: null, executionId: 'exec-1',
+    channel: 'C123', executionId: 'exec-1',
     kill: () => true, backend: 'plan',
   });
   runRegistry.register({
-    threadId: 'thr_e5f6g7h8', channel: 'C123', agentSlotId: null, executionId: 'exec-2',
+    channel: 'C123', executionId: 'exec-2',
     kill: () => true, backend: 'claudeCode',
   });
 
@@ -81,12 +81,12 @@ test('!cancel with 2+ executions: clicking cancel button kills execution', async
   router.bindToAdapter(adapter);
 
   runRegistry.register({
-    threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-cancel-test',
+    channel: 'C123', executionId: 'exec-cancel-test',
     kill: () => true, backend: 'plan',
   });
 
   await adapter.simulateAction('cmd:cancel:exec-0',
-    JSON.stringify({ threadId: null, executionId: 'exec-cancel-test' }),
+    JSON.stringify({ executionId: 'exec-cancel-test' }),
     { channelId: 'C123', messageRef: { conduit: 'C123', messageId: 'msg-1' } },
   );
 
@@ -110,7 +110,7 @@ test('!cancel with 1 execution falls back to direct cancel', async () => {
   router.bindToAdapter(adapter);
 
   runRegistry.register({
-    threadId: null, channel: 'C456', agentSlotId: null, executionId: 'exec-single',
+    channel: 'C456', executionId: 'exec-single',
     kill: () => true, backend: 'plan',
   });
 

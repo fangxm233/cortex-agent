@@ -26,13 +26,11 @@ export interface SteerableRun {
 }
 
 export interface RunningExecution {
-  threadId: string | null;
   channel: string | null;
   /** Primary key — the executionId when present, otherwise the ad-hoc registryKey. */
   registryKey: string;
-  agentSlotId: string | null;
   executionId: string | null;
-  /** Execution kind ('local' | 'dispatch' | 'scheduled' | null) — used for dispatch concurrency accounting. */
+  /** Execution kind ('local' | 'scheduled' | null). */
   kind: string | null;
   kill: () => boolean;
   startTime: number;
@@ -61,8 +59,6 @@ export class RunRegistry {
   // ── running executions ─────────────────────────────────────────────────
   /** Primary index: key is executionId (or ad-hoc registryKey when executionId is null). */
   private byKey = new Map<string, RunningExecution>();
-  /** Secondary index: threadId → RunningExecution, only if threadId is non-null. */
-  private byThreadId = new Map<string, RunningExecution>();
   /** Secondary index: channel → set of live RunningExecution entries on that channel. */
   private byChannel = new Map<string, Set<RunningExecution>>();
   /** EventBus for publishing agent.* lifecycle events. May be set after construction. */
@@ -80,7 +76,7 @@ export class RunRegistry {
 
   /**
    * Register a live execution, keyed by its executionId (or an ad-hoc registryKey).
-   * Returns the primary key. Secondary indices (byThreadId / byChannel) are kept in sync.
+   * Returns the primary key. The byChannel index is kept in sync.
    * Publishes agent.started if executionId is non-null and a bus is wired.
    */
   register(exec: RunningExecutionInput): string {
@@ -92,10 +88,8 @@ export class RunRegistry {
     if (existing) this._removeFromIndices(existing);
 
     const entry: RunningExecution = {
-      threadId: exec.threadId,
       channel: exec.channel,
       registryKey: key,
-      agentSlotId: exec.agentSlotId,
       executionId: exec.executionId,
       kind: exec.kind ?? null,
       kill: exec.kill,
@@ -109,7 +103,6 @@ export class RunRegistry {
     };
 
     this.byKey.set(key, entry);
-    if (entry.threadId) this.byThreadId.set(entry.threadId, entry);
     if (entry.channel) {
       let set = this.byChannel.get(entry.channel);
       if (!set) { set = new Set(); this.byChannel.set(entry.channel, set); }
@@ -146,37 +139,18 @@ export class RunRegistry {
     return this.byKey.has(id);
   }
 
-  /** Look up an execution by threadId. Returns null if not found. */
-  getByThreadId(threadId: string): RunningExecution | null {
-    return this.byThreadId.get(threadId) ?? null;
-  }
-
   /**
    * Look up the live execution belonging to a Cortex session id.
    *
    * There is no index for this: session id is not a primary key, and a session can legitimately
-   * have several executions live at once (a thread step beside its parent). The stable track id is
-   * preferred over the backend's own resume id, which a resumed session shares with its past runs.
-   * The newest match wins, which is the one a caller reaching in from inside a turn means.
+   * have several executions live at once. The stable track id is preferred over the backend's own
+   * resume id, which a resumed session shares with its past runs. The newest match wins, which is
+   * the one a caller reaching in from inside a turn means. sessions.list delegates its running
+   * snapshot to `sessionState` (core/session-state.ts), which calls this.
    */
   getBySessionId(sessionId: string): RunningExecution | null {
     let best: RunningExecution | null = null;
     for (const entry of this.byKey.values()) {
-      if (entry.trackSessionId !== sessionId && entry.backendSessionId !== sessionId) continue;
-      if (!best || entry.startTime >= best.startTime) best = entry;
-    }
-    return best;
-  }
-
-  /**
-   * The newest non-thread (interactive) execution for a session. Thread steps run alongside their
-   * parent on the same channel and must not make the session itself read as busy — sessions.list
-   * delegates its running snapshot to `sessionState` (core/session-state.ts), which calls this.
-   */
-  getForegroundBySessionId(sessionId: string): RunningExecution | null {
-    let best: RunningExecution | null = null;
-    for (const entry of this.byKey.values()) {
-      if (entry.threadId) continue;
       if (entry.trackSessionId !== sessionId && entry.backendSessionId !== sessionId) continue;
       if (!best || entry.startTime >= best.startTime) best = entry;
     }
@@ -229,18 +203,6 @@ export class RunRegistry {
     const killed = entry.kill();
     this._delete(entry);
     return killed;
-  }
-
-  /**
-   * Kill the execution for a threadId, remove it from all indices, and return true.
-   * Returns false if no entry has that threadId.
-   */
-  killByThreadId(threadId: string): boolean {
-    const entry = this.byThreadId.get(threadId);
-    if (!entry) return false;
-    entry.kill();
-    this._delete(entry);
-    return true;
   }
 
   /** Kill every execution on a channel; returns the number killed. */
@@ -338,15 +300,8 @@ export class RunRegistry {
     this._removeFromIndices(entry);
   }
 
-  /**
-   * Remove an entry from secondary indices (byThreadId / byChannel).
-   * Guards each delete with an identity check: only clears the index if it still points
-   * to this entry, preventing corruption when a stale entry (whose threadId has been
-   * claimed by a newer entry) is removed.
-   */
+  /** Remove an entry from the byChannel index. */
   private _removeFromIndices(entry: RunningExecution): void {
-    if (entry.threadId && this.byThreadId.get(entry.threadId) === entry)
-      this.byThreadId.delete(entry.threadId);
     if (entry.channel) {
       const set = this.byChannel.get(entry.channel);
       if (set) {

@@ -13,22 +13,17 @@ function formatRecord(r: ExecutionRecord, now: number, detail = false): string {
   const elapsed = r.status === 'running' ? formatDuration(now - startMs) : (r.metrics?.durationS ? formatDuration(r.metrics.durationS * 1000) : '—');
   const cost = r.metrics?.costUsd != null ? `$${r.metrics.costUsd.toFixed(4)}` : '—';
   const turns = r.metrics?.numTurns ?? '—';
-  const machine = r.dispatch?.machine || '—';
-  const taskId = r.dispatch?.taskId || '—';
-  const taskHash = r.dispatch?.taskHash || '—';
 
   const lines = [
     `[${r.id}] ${r.status} (${r.kind})`,
-    `  Project: ${r.project || '—'} | Machine: ${machine}`,
-    `  Task ID: ${taskId} | Hash: ${taskHash}`,
+    `  Project: ${r.project || '—'}`,
     `  Elapsed: ${elapsed} | Cost: ${cost} | Turns: ${turns}`,
   ];
   if (r.text?.label) lines.push(`  Label: ${r.text.label}`);
   if (detail) {
     if (r.runtime?.startedAt) lines.push(`  Started: ${r.runtime.startedAt}`);
     if (r.runtime?.endedAt) lines.push(`  Ended: ${r.runtime.endedAt}`);
-    if (r.dispatch?.sessionName) lines.push(`  Session: ${r.dispatch.sessionName}`);
-    if (r.dispatch?.tmuxName) lines.push(`  Tmux: ${r.dispatch.tmuxName}`);
+    if (r.session?.sessionId) lines.push(`  Session: ${r.session.sessionId}`);
     if (r.text?.error) lines.push(`  Error: ${r.text.error}`);
     if (r.text?.finalOutput) lines.push(`  Output: ${r.text.finalOutput.slice(0, 500)}`);
   }
@@ -38,17 +33,16 @@ function formatRecord(r: ExecutionRecord, now: number, detail = false): string {
 export function registerExecutionTools(server: McpServer): void {
   server.tool(
     'query_executions',
-    'Query execution status. List filtered executions, or look up a specific one by execution ID or dispatch task ID.',
+    'Query execution status. List filtered executions, or look up a specific one by execution ID.',
     {
-      execution_id: z.string().optional().describe('Look up by execution ID (exec_dispatch_xxx)'),
-      task_id: z.string().optional().describe('Look up by dispatch task ID or TASKS.yaml hash'),
+      execution_id: z.string().optional().describe('Look up by execution ID (exec_local_xxx)'),
       status: z.enum(['running', 'completed', 'failed', 'cancelled', 'stale', 'all']).optional().describe('Filter by status (default: running)'),
       project: z.string().optional().describe('Filter by project'),
       limit: z.number().optional().describe('Max results (default: 10)'),
     },
     { readOnlyHint: true },
-    async ({ execution_id, task_id, status, project, limit }: {
-      execution_id?: string; task_id?: string; status?: string; project?: string; limit?: number;
+    async ({ execution_id, status, project, limit }: {
+      execution_id?: string; status?: string; project?: string; limit?: number;
     }) => {
       try {
         const records = executionRepo.getAllExecutions();
@@ -58,11 +52,6 @@ export function registerExecutionTools(server: McpServer): void {
         if (execution_id) {
           const r = executionRepo.getExecution(execution_id);
           if (!r) return { content: [{ type: 'text', text: `No execution found: ${execution_id}` }], isError: true };
-          return { content: [{ type: 'text', text: formatRecord(r, now, true) }] };
-        }
-        if (task_id) {
-          const r = executionRepo.getExecutionByTaskId(task_id) || records.find(r => r.dispatch?.taskHash === task_id);
-          if (!r) return { content: [{ type: 'text', text: `No execution found for task: ${task_id}` }], isError: true };
           return { content: [{ type: 'text', text: formatRecord(r, now, true) }] };
         }
 

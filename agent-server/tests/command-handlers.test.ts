@@ -549,7 +549,7 @@ test('!schedule pause/resume/remove accepts backtick-wrapped 8-char hex schedule
 test('!cancel <executionId> cancels that execution, and says so when nothing matches', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runRegistry.register({ threadId: null, channel: 'C1', agentSlotId: null, executionId: 'exec-by-id', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ channel: 'C1', executionId: 'exec-by-id', kill: () => { killed = true; return true; }, backend: 'test' });
   t.onTestFinished(() => { runRegistry.remove('exec-by-id'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
@@ -566,7 +566,7 @@ test('!cancel <executionId> cancels that execution, and says so when nothing mat
 test('plain !cancel still cancels the current active process', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ channel: 'C123', executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
   // Simulate a running queue entry so cancel can clear it
   conduitQueues.set('C123', Promise.resolve());
   t.onTestFinished(() => { runRegistry.remove('exec-conv1'); conduitQueues.delete('C123'); });
@@ -584,7 +584,7 @@ test('plain !cancel still cancels the current active process', async (t) => {
 test('!cancel marks the execution record cancelled (not failed), idempotently', async (t) => {
   const adapter = new MockAdapter();
   const rec = executionRegistry.startLocalExecution({ channel: 'Ccancel', project: 'general', trigger: 'user', backend: 'test' });
-  runRegistry.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
+  runRegistry.register({ channel: 'Ccancel', executionId: rec.id, kill: () => true, backend: 'test' });
   t.onTestFinished(() => { runRegistry.remove(rec.id); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
@@ -604,8 +604,8 @@ test('!cancel --all kills all running executions for current channel, spares oth
   let killedC1 = false;
   let killedC2 = false;
 
-  runRegistry.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
-  runRegistry.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
+  runRegistry.register({ channel: 'C1', executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
+  runRegistry.register({ channel: 'C2', executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
   conduitQueues.set('C1', Promise.resolve());
   t.onTestFinished(() => { runRegistry.remove('exec-1'); runRegistry.remove('exec-2'); conduitQueues.delete('C1'); });
 

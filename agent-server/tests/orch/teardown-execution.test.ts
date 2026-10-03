@@ -9,7 +9,7 @@ import type { CortexEvent } from '../../src/events/index.js';
 function register(executionId: string, bus: EventBus): void {
   runRegistry.setBus(bus);
   runRegistry.register({
-    threadId: null, channel: 'C-teardown', agentSlotId: null,
+    channel: 'C-teardown',
     executionId, kind: 'local', kill: () => true, backend: 'test',
   });
 }
@@ -70,7 +70,7 @@ test('teardownExecution(cancelled) sets record cancelled, kills the handle, and 
   const rec = executionRegistry.startLocalExecution({ channel: 'C-teardown', project: 'general', trigger: 'user', backend: 'test' });
   let killed = false;
   runRegistry.setBus(bus);
-  runRegistry.register({ threadId: null, channel: 'C-teardown', agentSlotId: null, executionId: rec.id, kind: 'local', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ channel: 'C-teardown', executionId: rec.id, kind: 'local', kill: () => { killed = true; return true; }, backend: 'test' });
 
   const events: CortexEvent[] = [];
   bus.subscribe('*', (e) => { events.push(e); });
