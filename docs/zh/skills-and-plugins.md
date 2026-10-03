@@ -1,6 +1,6 @@
 # Cortex 技能与插件 {#cortex-skills-and-plugins}
 
-Cortex 用技能封装可复用的智能体指令，用插件封装可安装的能力集合。插件可以只提供技能；符合 portable Agent Plugins 格式时，也可以同时提供技能与 Model Context Protocol（MCP）服务器。插件分配作用于具体 agent 或 template slot，因此每次生成的 backend 只获得所选能力面。
+Cortex 用技能封装可复用的智能体指令，用插件封装可安装的能力集合。插件可以只提供技能；符合 portable Agent Plugins 格式时，也可以同时提供技能与 Model Context Protocol（MCP）服务器。插件分配给[执行环境](./configuration.md#execution-environments)，因此每次生成的 backend 只获得其执行环境所选的能力面。
 
 ## 技能 {#skills}
 
@@ -103,7 +103,7 @@ Remote server 除 loopback HTTP 外必须使用 HTTPS。包含 credentials 或 f
 
 桌面与浏览器工作台通过 **Settings → Plugins** 提供 catalog。页面读取当前连接的 Cortex server，因此清单属于该 server，而不是本机 desktop 安装。页面列出全部已安装 package，每个 package 有三个 tab。
 
-Overview 给出身份与健康状态：格式、manifest 来源与 metadata、磁盘位置、validation issues，以及 spawn 时的 scope 限制。它同时列出当前引用该插件的 agent 与 template slot，让这层关系从 package 一侧可见，但不由本页面负责编辑。
+Overview 给出身份与健康状态：格式、manifest 来源与 metadata、磁盘位置、validation issues，以及 spawn 时的 scope 限制。它同时列出当前引用该插件的执行环境，让这层关系从 package 一侧可见，但不由本页面负责编辑。
 
 ## 管理插件内容 {#managing-plugin-contents}
 
@@ -111,24 +111,25 @@ Skills tab 列出 package 携带的 skill，包含描述与路径，并可直接
 
 MCP tab 以表单方式编辑 `mcp.json`。命令、参数、工作目录和 URL 会正常往返，但环境变量的值和请求头不会：这个页面从来不会收到它们。每个已存储的键显示为“保持不变”，替换是一个明确动作；未被改动的键由服务端从磁盘上已有的内容合并回去。Legacy package 根本无法声明 MCP server，因此它的 MCP tab 提供的是转换动作 —— 写入根目录 `plugin.json`，同时保留 `.claude-plugin/plugin.json`，让更新机制继续工作。
 
-编辑前有两件事值得先看清。随 Cortex 发布的 package 会被标注，其中随发布的每个 skill 也会被标注：更新机制会在下一次版本号提升时重写所有随发布的文件，因此那里的修改只维持到那时为止，而你自己新增的 skill 不会被触碰。随发布的 package 也不能删除，因为下次更新会把它重新部署回来。本机 package 在没有任何 agent 或 template slot 引用它之后可以删除。
+编辑前有两件事值得先看清。随 Cortex 发布的 package 会被标注，其中随发布的每个 skill 也会被标注：更新机制会在下一次版本号提升时重写所有随发布的文件，因此那里的修改只维持到那时为止，而你自己新增的 skill 不会被触碰。随发布的 package 也不能删除，因为下次更新会把它重新部署回来。本机 package 在没有任何执行环境引用它之后可以删除。
 
 ## 分配插件 {#assigning-plugins}
 
-Assignment 是 agent 或 template slot 的字段，而不是插件自身的属性，因此在拥有该字段的实体上编辑：**Settings → Templates**，选中 agent 或 template，再切到 Plugins tab。Agent 实体只有一个 plugin set。Template 实体按 `agents[]` 的每个 slot 提供一个 target，通过 slot 选择器切换，覆盖普通 slot、shell binding 与 `__active__` slot。Agent target 保存完整 managed plugin set。普通 template slot 可以使用所引用 agent 的 defaults，也可以自定义一个完整 snapshot。Custom snapshot 不会追踪 agent 后续变化；切回 agent defaults 会删除 slot-level `pluginDirs` override。Shell binding 与 `__active__` slot 没有稳定可写的 assignment location，因此是只读的。
+Assignment 是执行环境的字段，而不是插件自身的属性，因此在执行环境上编辑：**Settings → Environments**，选中一个执行环境，再切到 Plugins tab。每个执行环境只有一个 plugin set，保存时作为完整 managed set 写入。
 
-保存时使用 entity content hash 做 optimistic concurrency guard。如果 agent 或 template 已在磁盘上变化，Cortex 会刷新 target，而不是覆盖新内容。Managed catalog 之外的既有 plugin path 会被保留，并显示为 unmanaged。已经选中的无效 catalog entry 可以移除，但不能新分配无效 entry。
+保存时使用执行环境文件的 content hash 做 optimistic concurrency guard。如果执行环境已在磁盘上变化，Cortex 会刷新 target，而不是覆盖新内容。Managed catalog 之外的既有 plugin path 会被保留，并显示为 unmanaged。已经选中的无效 catalog entry 可以移除，但不能新分配无效 entry。
 
 加入至少含一个有效 root `mcp.json` server 的 portable plugin 时，会弹出确认，说明本地代码执行与网络访问的信任面。该 portable MCP assignment 必须确认，但确认不是 sandbox，也不是独立 authorization boundary。Reset 会丢弃本地草稿，Save 则通过 `plugins.assign` 持久化。Assignment 草稿为 dirty 时，Settings modal 会阻止切换分区或关闭。如果后台 refetch 返回不同的 assignment hash，页面会保留用户草稿、标记 stale、禁用 Save，并要求 Reset，而不是静默替换编辑（`web/src/features/settings/vm/plugin-assign-vm.ts:143-164,199-210`）。
 
 Assignment tab 与 JSON 正文编辑器写的是同一个文件，因此同一时刻只能有一个持有草稿：正文有未保存修改时，该 tab 会被冻结。另外，assignment 并不等于最终会加载：scoped plugin 在 spawn 时还会被再次过滤，因此 commission-scoped 或 channel-scoped 的 package 会内联提示——无论怎么分配，超出该 scope 都不会加载。
 
-Assignment 继续写入 agent 和 template JSON 的 `pluginDirs`，不引入第二套字段。Agent 可直接配置为：
+Assignment 以 `pluginDirs` 的形式保存在 `$CORTEX_HOME/config/environments/` 下该执行环境的 JSON 文件中，也可以直接在文件里写：
 
 ```json
 {
   "name": "researcher",
   "profile": "claude-sonnet",
+  "persistSession": true,
   "pluginDirs": [
     "plugins/cortex-system",
     "plugins/my-plugin"
@@ -136,22 +137,7 @@ Assignment 继续写入 agent 和 template JSON 的 `pluginDirs`，不引入第�
 }
 ```
 
-没有 `pluginDirs` 的 template slot 继承所引用 agent。带 `pluginDirs` 的 slot object 表示完整 custom set：
-
-```json
-{
-  "name": "special-review",
-  "agents": [
-    {
-      "ref": "researcher",
-      "pluginDirs": ["plugins/my-plugin"]
-    }
-  ],
-  "transitions": [],
-  "entryAgent": "researcher",
-  "maxTotalSteps": 4
-}
-```
+这个列表就是该执行环境下会话加载的完整插件集合；执行环境之间没有继承关系。
 
 相对路径基于 `$CORTEX_HOME` 解析；absolute path 继续作为 unmanaged legacy configuration 受到支持。Settings UI 会把 managed entry 规范化为 `plugins/<plugin-id>`，同时保留 unmanaged entries。
 
@@ -169,7 +155,7 @@ Capability fingerprint 覆盖 effective plugin paths、portable skill content、
 
 `$CORTEX_HOME/plugins/` 下的所有内容都属于 administrator-installed code。只应分配来源与内容可信的 package：stdio MCP server 可以用 backend process account 执行本地代码，remote MCP server 可以通过网络接收 tool data。Portable skills 会复制到 private snapshot，但 stdio commands、arguments、working directories 与 package data 仍是 administrator-controlled trusted runtime inputs，而不是 sandbox boundary。Manifest validation、path containment、private runtime files、redirect rejection 与 assignment confirmation 可以减少配置错误和 secret 暴露，但不会 sandbox plugin behavior。
 
-Plugins 页面只管理 inventory 与 assignment。其 MCP inventory 与 acknowledgment 只适用于 portable root `mcp.json`；legacy Claude-native `.mcp.json` 不在该 managed view 中。安装、marketplace search、update、removal、OAuth、credential entry、per-tool permission policy 与 live MCP health check 不属于该页面。安装 package 需要通过 administrator-controlled workflow 把其目录放入 `$CORTEX_HOME/plugins/`。
+Plugins 页面管理 inventory 与 package 内容，assignment 则由执行环境的 Plugins tab 管理。其 MCP inventory 与 acknowledgment 只适用于 portable root `mcp.json`；legacy Claude-native `.mcp.json` 不在该 managed view 中。安装、marketplace search、update、OAuth、credential entry、per-tool permission policy 与 live MCP health check 不属于该页面。安装 package 需要通过 administrator-controlled workflow 把其目录放入 `$CORTEX_HOME/plugins/`。
 
 ## 技能发现与调用 {#skill-discovery-and-invocation}
 
@@ -184,8 +170,8 @@ Plugins 页面只管理 inventory 与 assignment。其 MCP inventory 与 acknowl
 | Catalog precedence、fixed locations 与窄故障隔离 | `agent-server/src/domain/plugins/catalog.ts:224-390` |
 | Portable MCP validation 与 sanitized summaries | `agent-server/src/domain/plugins/mcp.ts:102-323` |
 | Spawn-time projection、normalization 与 fingerprint | `agent-server/src/domain/plugins/runtime.ts:143-688` |
-| Agent 与 template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
-| Connected-server catalog 与 target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
+| 执行环境的 plugin assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts` |
+| Connected-server catalog 与执行环境 inventory | `agent-server/src/domain/ui-service/query/plugins.ts` |
 | Settings 插件包管理页 | `web/src/features/settings/panels/PluginsPanel.tsx` |
 | Skill 与插件写入（路径包含校验） | `agent-server/src/domain/plugins/authoring.ts` |
 | 编辑类操作与 MCP 密钥合并 | `agent-server/src/domain/ui-service/mutate/plugin-packages.ts` |

@@ -22,8 +22,7 @@ Operations the agent can perform without asking. These are read-only
 information gathering, local state updates, and low-risk maintenance.
 
 - Read files, check GPU status, read logs, small test scripts
-- Update context files (STATUS.md, experiments/, knowledge/, OVERVIEW.md,
-  TASKS.yaml)
+- Update context files (STATUS.md, experiments/, knowledge/, OVERVIEW.md)
 - Web search, knowledge scans
 - Start training runs within budget (GPU preflight required)
 - Run analysis scripts

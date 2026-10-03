@@ -101,7 +101,7 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 | `users:read`           | 在记录中将用户 ID 映射为姓名                                                          |
 | `files:read/write`     | 接收上传的文件并发布生成的产物（图表、PDF、日志）                                      |
 | `emoji:read`           | 自定义表情状态指示器                                                                  |
-| `pins:read/write`      | 置顶/取消置顶关键线程产物                                                             |
+| `pins:read/write`      | 置顶/取消置顶关键消息                                                                 |
 | `commands`             | 为未来的斜杠命令预留                                                                  |
 
 ### 每个事件的用途 {#what-each-event-is-for}

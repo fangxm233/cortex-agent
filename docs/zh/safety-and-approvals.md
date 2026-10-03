@@ -12,7 +12,7 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 AGENTS.md
 智能体无需询问即可执行的操作。这些是只读信息收集、本地状态更新和低风险维护。
 
 - 读取文件、检查 GPU 状态、读取日志、小型测试脚本
-- 更新上下文文件（STATUS.md、experiments/、knowledge/、OVERVIEW.md、TASKS.yaml）
+- 更新上下文文件（STATUS.md、experiments/、knowledge/、OVERVIEW.md）
 - 网络搜索、知识扫描
 - 在预算内启动训练运行（需要 GPU preflight）
 - 运行分析脚本

@@ -1,7 +1,7 @@
 # Hooks
 
 A hook is a command Cortex runs when something happens — a tool is about to
-execute, a session starts, a thread ends, a task is completed. Every hook is a
+execute, a session starts, a schedule fires, an assistant turn ends. Every hook is a
 **declaration**: one JSON file in `$CORTEX_HOME/config/hooks/` that names an
 event, an optional matcher, and the command to run. The server loads those
 declarations at startup, and each consumer compiles the subset it cares about:
@@ -22,9 +22,8 @@ overall system, see [architecture.md](./architecture.md).
  agent:* + cc:*        agent:* + pi:*            cortex:*
         │                   │                        │
         ▼                   ▼                        ▼
- --settings JSON at    pi.on(<native event>)    server-side dispatch,
- Claude spawn time     at extension load        plus template-scoped
-                                                thread hooks
+ --settings JSON at    pi.on(<native event>)    server-side dispatch
+ Claude spawn time     at extension load
         └───────────────────┴────────────────────────┘
                             │
                             ▼
@@ -53,9 +52,7 @@ takes effect on the next agent spawn or only after a server restart, and flags a
 follows the entry's source. A **user** entry is fully editable and can be created
 or deleted. A **managed** entry offers only the enabled switch, with a standing
 note that the next hook sync restores the shipped value — every other field
-would be overwritten, so the panel does not pretend otherwise. A
-**template-scoped** entry is read-only and points at the thread template that
-owns it. The `result` choice is constrained to the modes the event can actually
+would be overwritten, so the panel does not pretend otherwise. The `result` choice is constrained to the modes the event can actually
 carry, and `version` is never writable: an entry created from the UI is always a
 user entry. Each entry can also be run against an editable sample payload, with
 the exit code, stdout and stderr shown inline.
@@ -68,12 +65,12 @@ test run. Change hooks from a desktop session.
 
 ```json
 {
-  "id": "tasks-yaml-guard",
+  "id": "status-md-guard",
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
-  "run": { "script": "tasks-yaml-guard.mjs", "timeout": 10 },
+  "run": { "script": "status-md-guard.mjs", "timeout": 10 },
   "enabled": true,
-  "version": "2026.7.29-2"
+  "version": "2026.8.2"
 }
 ```
 
@@ -88,7 +85,7 @@ test run. Change hooks from a desktop session.
 | `scope.backends` | array | Narrows which of `claude` / `pi` an `agent:*` hook compiles to |
 | `scope.requiresTool` | string | Mounts the hook only when the agent's tool list contains that tool |
 | `blocking` | object | `{ "mode": "webhook", "ttlMin": <positive number> }`, validated by the loader for hooks that block on a webhook round trip |
-| `result` | string | `hook-result`, `stdout-as-prompt`, or `none`. Governs how a `cortex:*` hook's stdout is interpreted |
+| `result` | string | `stdout-as-prompt` or `none`. Governs how a `cortex:*` hook's stdout is interpreted |
 | `enabled` | boolean | `false` removes the hook from every consumer without deleting the file. Defaults to `true` |
 | `version` | string | CalVer stamp (`2026.7.29`, optionally `-1`) marking the entry as managed |
 
@@ -148,22 +145,11 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 |---|---|---|
 | `cortex:server.start` | The server finishes wiring and starts serving | `version`, `pid` |
 | `cortex:server.shutdown` | The server receives `SIGTERM` | `version`, `pid`, `reason` |
-| `cortex:thread.start` | Before a thread's first agent step | full thread context (below) |
-| `cortex:thread.transition` | Between agent steps, after transitions are evaluated | full thread context |
-| `cortex:thread.end` | After the thread's main loop finishes | full thread context |
-| `cortex:dispatch.started` | A task is dispatched into a thread | `taskId`, `project`, `source`, `templateName` |
-| `cortex:schedule.fired` | A scheduled task fires | `scheduleId`, `name`, `project` |
-| `cortex:task.completed` | A task is marked complete | `taskId`, `project` |
-| `cortex:task.blocked` | A task is blocked | `taskId`, `project`, `reason` |
+| `cortex:schedule.fired` | A schedule fires | `scheduleId`, `name`, `project` |
 | `cortex:client.connected` | A remote device client registers | `device` |
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
 | `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
-
-The thread context carried by the three `cortex:thread.*` events is:
-`threadId`, `templateName`, `phase`, `source`, `project`, `projectId`, `taskId`,
-`taskProject`, `currentStepIndex`, `steps`, `activeAgent`, `previousAgent`,
-`artifactContent`, `userMessage`, `totalCostUsd`, `pendingControlAction`.
 
 ### Matchers
 
@@ -178,9 +164,9 @@ tests a `SessionStart` matcher against the start reason
 tool events, ignoring them on lifecycle events.
 
 For `cortex:*` events the matcher is an object of equality filters, and every
-key must be present in the payload with exactly that value. The shipped dispatch
-hook uses `{"source": "task-dispatch"}` so it only fires for threads started by
-task dispatch, not for every thread that ends.
+key must be present in the payload with exactly that value. A
+`cortex:client.disconnected` hook with `{"device": "gpu-box"}` fires only when
+that one device drops, not for every client.
 
 ## Compiling to the agent backends
 
@@ -200,7 +186,7 @@ matcher group:
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
+        { "type": "command", "command": "node $CORTEX_HOME/hooks/status-md-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
@@ -255,65 +241,12 @@ says otherwise.
 
 What the bus does with stdout depends on `result`:
 
-- `hook-result` — stdout is parsed as JSON and handed back to the caller. Thread
-  lifecycle hooks use this to request a follow-up agent turn.
 - `stdout-as-prompt` — trimmed stdout is used as a prompt. Session events use
   this to inject a turn.
 - `none`, or omitted — output is discarded; the hook is fire-and-forget.
 
 A hook that times out, exits non-zero, or writes unparseable output is logged
 and skipped. It never fails the surrounding operation.
-
-## Thread-template-scoped hooks
-
-Some hooks belong to one thread template rather than to the whole system, so
-templates keep their own hook block in
-`$CORTEX_HOME/config/thread-templates/templates/<name>.json`:
-
-```json
-{
-  "name": "example",
-  "hooks": {
-    "onEnd": {
-      "command": "node $CORTEX_HOME/hooks/post-task-hook.mjs",
-      "args": ["reviewer"],
-      "timeout": 10000
-    }
-  }
-}
-```
-
-`onStart`, `onTransition`, and `onEnd` correspond to `cortex:thread.start`,
-`cortex:thread.transition`, and `cortex:thread.end`. They are dispatched through
-the same bus as registry hooks, in the same emission, under the synthetic id
-`template:<template>:<phase>`, and always with `hook-result` semantics. Two
-details differ from registry entries: `timeout` here is in **milliseconds**
-(default 30000), and `args` are passed as positional `$1`, `$2` to the command.
-A caller that starts a thread programmatically can supply the same shape as
-extra hooks for that run alone; those appear as `extra:<threadId>:<phase>`.
-
-A thread hook controls what happens next by writing JSON to stdout:
-
-```json
-{
-  "insertAgent": true,
-  "profile": "__active__",
-  "prompt": "Review the thread output and suggest next steps."
-}
-```
-
-`insertAgent` spawns a temporary agent for the prompt. To route the prompt to an
-agent already in the thread instead, name it:
-
-```json
-{
-  "targetAgent": "reviewer",
-  "prompt": "The planner finished. Here is additional context..."
-}
-```
-
-`targetAgent` sends the prompt to that agent's persistent session; an optional
-`directive` is prepended to the prompt in either mode.
 
 ## Session events and prompt injection
 
@@ -361,17 +294,14 @@ plain text) to stdout. The scripts shipped with Cortex are:
 
 | Script | Used by | Purpose |
 |---|---|---|
-| `tasks-yaml-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Denies edits to `TASKS.yaml` unless the current process holds the project lock |
+| `status-md-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Keeps a project's `STATUS.md` and `ISSUES.md` and the memory tree's `AGENTS.md` indexes within their size caps: warns as an edit nears the cap and denies one that would exceed it |
 | `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records memory-file accesses to `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects scoped rules from `$CORTEX_HOME/rules/` when a matching path is read, once per session per rule |
 | `session-activity-tracker.mjs` | `agent:post-tool`, `Read\|Edit\|Write\|Skill` | Appends activity records to `logs/session-activity/<session_id>.jsonl` |
 | `agents-md-injector.mjs` | `agent:post-tool` (`Read\|Edit`) and `agent:session-start` | Injects the AGENTS.md ancestor chain into agent context, deduplicated per session |
-| `task-status-check.mjs` | `cortex:thread.end`, `{"source": "task-dispatch"}` | Checks whether a dispatched task was left in an unresolved state and asks the thread to close it out |
 | `new-session-hook.mjs` | `cortex:session.new` | Recalls valuable information from the closing session and writes it to the context files |
-| `post-task-hook.mjs` | Template `onEnd` hooks | Prompts the target agent to compound what it learned and commit |
 
-A declaration may run an inline `run.command` instead of a script; access control
-for `Edit|Write` is enforced by the pre-tool guards above.
+A declaration may run an inline `run.command` instead of a script.
 
 `cortex-hook-api.mjs` in the same directory is not a hook entry — it is a helper
 library that hook scripts import (see below).
@@ -418,8 +348,9 @@ they share one routing and blocking contract:
   back to the hook environment: `CORTEX_HOOK_CHANNEL` (session hooks), then
   `SLACK_CHANNEL` (agent-side hooks). When only a `sessionId` is available
   (`CORTEX_HOOK_SESSION_ID`, or passed explicitly), the server resolves the
-  session's channel from the session registry. `cortex:thread.*` payloads carry
-  no channel, so thread hooks must pass `channel` or `sessionId` themselves.
+  session's channel from the session registry. Server events such as
+  `cortex:schedule.fired` carry no channel, so their hooks must pass `channel`
+  or `sessionId` themselves.
 - **Blocking.** The server holds the request in the hook-bridge with a
   30-minute TTL. The response is `{ answers }`, or `{ error: "timeout",
   answers: {} }` when the TTL expires. `cortex-hook ask` exits `0` on answers,
@@ -444,7 +375,7 @@ JSON.
 
 | Command | Flags | What it does |
 |---|---|---|
-| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`managed`, `user`, or `template-scoped`) |
+| `cortex-hook list` | — | Lists every mounted hook as `id`, `event`, `enabled`, `source` (`managed` or `user`) |
 | `cortex-hook show` | `--id <id>` | Prints one complete declaration, including `source` |
 | `cortex-hook enable` | `--id <id>`, `--dry-run` | Sets `enabled: true` in the declaration file, idempotently |
 | `cortex-hook disable` | `--id <id>`, `--dry-run` | Sets `enabled: false` the same way |
@@ -455,18 +386,16 @@ JSON.
 
 ```bash
 cortex-hook list
-cortex-hook show --id task-status-check
+cortex-hook show --id session-new-hook
 cortex-hook disable --id rules-loader --dry-run
-cortex-hook test --id tasks-yaml-guard --payload payload.json
-cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
+cortex-hook test --id status-md-guard --payload payload.json
+cat payload.json | cortex-hook test --id status-md-guard --payload -
 ```
 
 `enable` and `disable` report `changed` so you can tell a real state change from
 a no-op, and `--dry-run` adds a `would_set` block instead of writing. Disabling
 a managed hook returns a warning: a later sync that ships a newer version of
-that entry restores its shipped `enabled` state. Template-scoped hooks are
-read-only — `enable` and `disable` reject them and list the registry ids you can
-act on instead.
+that entry restores its shipped `enabled` state.
 
 `test` returns `ok`, `id`, `exit_code`, `stdout`, `stderr`, and `error` when the
 process failed, and exits with the hook's own exit code.
@@ -525,9 +454,9 @@ An `agent:*`, `cc:*`, or `pi:*` hook applies to the next agent that spawns. A
 snapshots the registry at startup.
 
 The same three steps cover server-side events — declare
-`"event": "cortex:task.completed"` with a `matcher` such as
-`{"project": "my-project"}` to run something whenever that project completes a
-task.
+`"event": "cortex:schedule.fired"` with a `matcher` such as
+`{"project": "my-project"}` to run something whenever one of that project's
+schedules fires.
 
 ## Reference tracking
 
@@ -568,7 +497,7 @@ there too.
   startup; restart the server.
 - **JSON parse error** — stdout wasn't valid JSON. Make sure nothing but the
   result is written to stdout; diagnostics belong on stderr.
-- **Timeout** — raise `run.timeout` (seconds for registry entries, milliseconds
-  for template hooks). The default is 30 seconds, or 60 for session events.
+- **Timeout** — raise `run.timeout` (in seconds). The default is 30 seconds,
+  or 60 for session events.
 - **Script not found** — `run.script` resolves relative to `$CORTEX_HOME/hooks/`;
   absolute paths and `..` segments are rejected by the loader.

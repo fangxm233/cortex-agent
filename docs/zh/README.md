@@ -2,21 +2,19 @@
 
 [English documentation](../../README.md) | [文档](https://fangxm233.github.io/cortex-agent/)
 
-Cortex 是一个面向长期项目的自主智能体系统。你给它一个带有成功标准的使命，它会规划工作、调度智能体管道来执行、在你的仓库中保留结构化的进度日志，并在每次提交前自我审查——跨越数天或数周的无人值守工作。
+Cortex 是一个面向长期项目的自主智能体系统。你给它一个带有成功标准的使命，它会规划工作、把聚焦的部分交给子智能体、在你的仓库中保留结构化的进度日志，并对照你们约定的内容检查结果——跨越数天或数周的无人值守工作。
 
-Cortex 围绕长智能体运行的四种失败模式而设计。
+Cortex 围绕长智能体运行的三种失败模式而设计。
 **上下文腐化** —— 持久的项目状态以纯文件形式存在于你的仓库中，而非积累和衰减的聊天记录。
-**执行漂移** —— 每个任务带有可验证的成功标准，在完成时检查。
-**上下文窗口限制** —— 工作被划分到智能体管道中，每个管道具有受限的范围和全新的上下文。
-**单一视角偏差** —— 对抗性审查是内置的管道阶段，而不是一个礼貌的建议。
+**执行漂移** —— 长期工作对照一份你在开工前批准的契约推进，每一项完成声明都指向它的证据。
+**上下文窗口限制** —— 有边界的工作交给子智能体，它们以全新的上下文开始，只带回结果。
 
 ## 特性
 
-- **使命驱动的任务系统** —— 交出一个目标；Cortex 将其分解为带优先级、依赖关系和可验证完成条件的追踪任务，自主完成它们，仅在受阻时停下来询问。你不再需要维护待办列表。
-  参见 [tasks.md](https://fangxm233.github.io/cortex-agent/zh/tasks/)。
+- **用委托（commission）承载长期工作** —— 交出一个目标，Cortex 先起草一份契约：意图、计划，以及"完成"的含义。你批准之后才开始工作。项目里的台账记录进展及其证据，检查点对比计划与实际完成的内容，关卡（gate）停下来等你决定。任何对话在工作超出它的范围时都可以转为委托。
 
-- **多智能体线程管道** —— 长时间作业以聚焦智能体的接力方式运行，而非一个过载的会话。每一步以上干净的上下文和狭窄的范围开始，因此模型不会在中途丢失主线。交接仅携带下一阶段所需的内容。
-  参见 [threads.md](https://fangxm233.github.io/cortex-agent/zh/threads/)。
+- **子智能体与团队模式** —— 会话把探索、规划、验证等有边界的工作交给子智能体，它们在任一后端上以干净的上下文运行，并把结果汇报回转录。开启团队模式（实验性）后，一个会话还可以带领持久的 worker 会话：继续它们的工作、回答它们的问题，并向你汇报结果。
+  参见 [backends.md](https://fangxm233.github.io/cortex-agent/zh/backends/#subagents) 与 [team.md](https://fangxm233.github.io/cortex-agent/zh/team/)。
 
 - **结构化的项目日志** —— 每个项目将 mission、roadmap、status、experiments、knowledge、patterns 和 decisions 作为纯文件保存在你的仓库中。一个全新的智能体（或数周后全新的你）可以从上一个中断的地方继续——无需滚动聊天记录，无需查询向量存储。
   参见 [memory.md](https://fangxm233.github.io/cortex-agent/zh/memory/)。
@@ -32,7 +30,7 @@ Cortex 围绕长智能体运行的四种失败模式而设计。
 
 - **后端无关** —— 当前运行在 Claude Code 或 PI 上，具有适配器抽象以支持额外的编程智能体。使用你已经付费的 LLM 订阅——无需额外的 API 密钥，无需第二份账单。
 
-- **通过 Web、原生应用、聊天平台或终端使用 Cortex** —— 打开浏览器工作台，安装 Linux/macOS/Windows 桌面应用或 Android 应用，通过 Slack 或飞书发送消息，或使用 TUI。所有界面访问同一组项目、会话、任务和记忆。参见[浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/)和[桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)。
+- **通过 Web、原生应用、聊天平台或终端使用 Cortex** —— 打开浏览器工作台，安装 Linux/macOS/Windows 桌面应用或 Android 应用，通过 Slack 或飞书发送消息，或使用 TUI。所有界面访问同一组项目、会话、定时任务和记忆。参见[浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/)和[桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)。
 
 ## 快速入门
 
@@ -64,12 +62,11 @@ projects/my-project/
 ├── roadmap.md           # 里程碑和时间线
 ├── STATUS.md            # 当前状态（覆盖式）
 ├── ISSUES.md            # 开放摩擦点（追加式）
-├── TASKS.yaml           # 机器可读的任务队列
+├── commissions/         # 委托的契约与台账
 ├── decisions/           # DR-NNNN.md 设计决策（追加式）
 ├── experiments/         # EXP-NNN.md 原子实验记录
 ├── knowledge/           # K-NNN.md 原子知识条目
-├── patterns/            # PAT-NNN.md 跨实验模式
-└── tasks-archive.md     # 已完成的任务（自动归档）
+└── patterns/            # PAT-NNN.md 跨实验模式
 ```
 
 这就是项目日志。它在会话、重启和模型升级后依然存在。一个全新的智能体可以从这里恢复工作，无需之前的对话。
@@ -98,15 +95,14 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | [桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/) | 原生应用安装、连接、下载与更新 |
 | [浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/) | Web 工作台认证与部署 |
 | [Slack Setup](https://fangxm233.github.io/cortex-agent/zh/slack-setup/) | 应用创建、令牌收集、Socket Mode、作用域 |
-| [Configuration](https://fangxm233.github.io/cortex-agent/zh/configuration/) | 完整 `.env` 与 `config/settings.json` 参考、`profiles.json`、文件布局、热重载 |
-| [CLI Reference](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-task`、`cortex-signal` — 每个子命令和标志 |
+| [Configuration](https://fangxm233.github.io/cortex-agent/zh/configuration/) | 完整 `.env` 与 `config/settings.json` 参考、`profiles.json`、执行环境、文件布局、热重载 |
+| [CLI Reference](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-signal` — 每个子命令和标志 |
 | [Backends](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code vs PI，功能矩阵，回退，费用报告 |
 | [Architecture](https://fangxm233.github.io/cortex-agent/zh/architecture/) | 服务器层、WS 协议、事件总线 |
-| [Threads](https://fangxm233.github.io/cortex-agent/zh/threads/) | 多智能体管道、模板、转换、钩子 |
-| [Tasks](https://fangxm233.github.io/cortex-agent/zh/tasks/) | TASKS.yaml 格式、生命周期、分发、验收账本 |
+| [Team Mode](https://fangxm233.github.io/cortex-agent/zh/team/) | lead 与 worker 会话、汇报、提问与 roster |
 | [Memory](https://fangxm233.github.io/cortex-agent/zh/memory/) | EXP/K/PAT 原子化知识、项目日志治理 |
 | [Skills & Plugins](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/) | 技能编写、插件布局、第三方插件 |
-| [Scheduling](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | Interval/daily/weekly/once 调度、preCheck、回退 |
+| [Scheduling](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | Interval/daily/weekly/once 调度、目标、preCheck |
 | [Safety & Approvals](https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/) | 影响范围等级、审批工作流、审计追踪 |
 | [Hooks](https://fangxm233.github.io/cortex-agent/zh/hooks/) | 钩子生命周期、hook-bridge、settings.json 中的自定义钩子 |
 | [Waitpoints](https://fangxm233.github.io/cortex-agent/zh/waitpoints/) | 不靠轮询地等待外部任务：登记、发信号、quorum、过期 |
@@ -136,13 +132,13 @@ Cortex 的核心 workspace 与 plugin 包如下：
 
 | 包 | 目录 | 角色 |
 |---------|------|------|
-| `@cortex-agent/server` | `agent-server/` | 控制面、聊天适配器、任务分发、调度与线程编排 |
+| `@cortex-agent/server` | `agent-server/` | 控制面、聊天适配器、会话编排与调度 |
 | `@cortex-agent/client` | `client/` | 通过客户端 WebSocket 执行工具的远程工作器 |
 | `@cortex-agent/web` | `web/` | 浏览器、桌面与移动端共用的工作台 SPA |
 | `@cortex-agent/desktop` | `desktop/` | 面向 Linux、macOS、Windows 与 Android 的 Tauri 壳 |
 | `@cortex-agent/ui-contract` | `packages/ui-contract/` | 服务器与工作台之间的共享类型契约 |
 | `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | 用于 DeepSeek API 出站访问的鉴权 Cloudflare Worker |
-| Plugins | `plugins/` | 由线程智能体在运行时加载的角色限定技能 |
+| Plugins | `plugins/` | 由智能体在运行时加载的技能插件 |
 
 服务器在六层（`src/`）中组织：core utilities → persistence → event bus → domain logic → orchestration → entry points。所有代码更改必须有测试覆盖。完整架构见 [architecture.md](https://fangxm233.github.io/cortex-agent/zh/architecture/)。
 

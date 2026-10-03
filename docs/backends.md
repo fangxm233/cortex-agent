@@ -19,8 +19,8 @@ implements the `EngineAdapter` interface defined in
 Three nouns cover the path from a message to a backend process: a **run**, a
 **session**, and an **engine**.
 
-A **run** is one execution of one user request: a conversation turn, a thread
-step, a hook agent, an edit retry, an ask-user resume, or a subagent child.
+A **run** is one execution of one user request: a conversation turn, a
+hook-injected turn, an edit retry, an ask-user resume, or a subagent child.
 `startRun` (`domain/runs/service.ts`) opens one from a fully resolved
 `RunRequest` — profile, prompt, policy, and context, with no callbacks — and
 returns the `AgentRun` (`domain/runs/run.ts`) that owns the run's event stream,
@@ -29,8 +29,8 @@ its cancel and steer handles, its fallback chain, and its result.
 A **session** is the conversation identity a run continues: the stable Cortex
 session id, the backend's own resume id, the profile it runs, and the channel
 it is bound to. A session owns the engine it resumes into. A run reuses its
-session's pooled engine; separate engine keys (a thread step's slot, a
-hook-injected turn) get their own.
+session's pooled engine; a hook-injected turn gets an engine key, and an
+engine, of its own.
 
 The **engine** is the backend process itself — a pooled `claude` subprocess or
 an in-process PI SDK session. `SessionEngines` (`domain/runs/engines.ts`) is
@@ -63,9 +63,9 @@ the reply is rendered and the status message can go into its waiting state
 while the run is still alive. The *settled result* is the whole run with every
 continuation folded in; it is what the terminal tally, the execution record and
 the cost attribution read. A policy picks which one the caller waits for
-(`RunRequest.policy.background`): an interactive turn holds (`hold`), a thread
-step or dispatched job waits for the merged result (`inline`), and a run that
-cannot produce a continuation ends at the first result (`none`).
+(`RunRequest.policy.background`): an interactive turn holds (`hold`), a caller
+that needs the merged result waits for it (`inline`), and a run that cannot
+produce a continuation ends at the first result (`none`).
 
 The wait itself is bounded, the work is not. `ContinuationPhase`
 (`agent-adapter/continuation-phase.ts`) arms a grace timer for work the backend
@@ -264,7 +264,7 @@ wording, so the tool never fails over a missing catalog.
 transcript and runs headless. A `claude` child is a frozen one-shot `claude`
 run: no session to resume, no hooks, no ambient rules, no transcript log. Either
 way the child's MCP surface is the `cortex-core` bundle with the delegation
-tools removed, so it can neither fan out further nor reach thread control.
+tools removed, so it cannot fan out further.
 
 **What the parent sees.** A child's tool calls, results, and text are streamed
 into the parent's live transcript attributed to the subagent, and its token
@@ -415,10 +415,6 @@ Backends are selected per profile in `$CORTEX_HOME/config/profiles.json`
 The `backend` field accepts `"claude"` or `"pi"`. If omitted, it defaults
 to `"claude"`.
 
-Thread templates can also specify a profile per agent, allowing different
-agents in the same pipeline to use different backends. See
-[threads.md](./threads.md) for template configuration.
-
 ## Per-session model, thinking level and route
 
 In a direct conversation the profile is the **base**, not the whole answer.
@@ -426,7 +422,7 @@ The Web composer's engine chip opens a picker whose sections are profile,
 model, thinking level and — where the endpoint bills more than one way —
 route. (Its `agent` row is the other axis entirely — the session's execution
 environment rather than its engine; see
-[configuration.md](./configuration.md#choosing-an-agent-per-conversation).)
+[configuration.md](./configuration.md#choosing-an-environment-per-conversation).)
 Everything below the profile is stored as a per-session override on top of
 whatever profile the session runs. The override is applied in one
 place (`effectiveProfile`), so the profile still supplies the backend,
@@ -537,18 +533,14 @@ stream would drop the observation that matters most. `RunEvent` therefore carrie
 the throttle itself is fed by the injected reporter. Quota observations take the
 same path.
 
-Interrupted direct conversations and threads are stored with the provider
-that limited them. When one provider fully recovers, Cortex resumes only that
-provider's work; entries belonging to other active providers remain queued.
-A direct conversation resumes in its own channel with the prior context
-intact. A thread whose interrupted step had already streamed real work
-resumes that step's backend session with a short continuation reminder, so
-partial progress is kept; a step that never produced any activity is rerun
-from its original prompt. Resume starts are staggered so a freshly opened
-window is not immediately exhausted.
+Interrupted conversations are stored with the provider that limited them.
+When one provider fully recovers, Cortex resumes only that provider's work;
+entries belonging to other active providers remain queued. A conversation
+resumes in its own channel with the prior context intact. Resume starts are
+staggered so a freshly opened window is not immediately exhausted.
 
-The active rate-limit details show the waiting direct-session and thread
-counts for each provider and preserve labels for simultaneous model-scoped
+The active rate-limit details show the number of waiting conversations for
+each provider and preserve labels for simultaneous model-scoped
 windows. The provider key is the isolation boundary: multiple accounts or
 quota pools reported under the same provider key share one provider record,
 and windows with the same type and label retain the later reset time. Timed
@@ -567,9 +559,9 @@ Throttle windows and provider-attributed resume entries persist in
 `data/provider-state.json`. On startup Cortex re-arms active timers and
 immediately resumes entries whose provider window expired during downtime,
 even when a different provider remains limited. Provider-less entries from
-older data wait until every active provider clears. A busy direct channel or
-a thread that has since finished is skipped; elapsed age alone does not
-discard work.
+older data wait until every active provider clears. A channel that already
+has an active conversation is skipped; elapsed age alone does not discard
+work.
 
 Auto-resume is on by default. Set `"autoResume": false` in
 [`config/settings.json`](./configuration.md#configsettingsjson) to drop ready

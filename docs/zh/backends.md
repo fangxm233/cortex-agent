@@ -14,9 +14,9 @@
 
 从一条消息到一个后端进程，只需要三个名词：**运行（run）**、**会话（session）**和**引擎（engine）**。
 
-**运行**是一次用户请求的一次执行：一个对话回合、一个线程步骤、一个钩子智能体、一次编辑重试、一次 ask-user 续跑，或一个子智能体。`startRun`（`domain/runs/service.ts`）从一个完全解析好的 `RunRequest`（配置、提示、策略与上下文，不含回调）打开运行，并返回 `AgentRun`（`domain/runs/run.ts`）；后者持有这次运行的事件流、取消与 steer 句柄、回退链和结果。
+**运行**是一次用户请求的一次执行：一个对话回合、一个钩子注入的回合、一次编辑重试、一次 ask-user 续跑，或一个子智能体。`startRun`（`domain/runs/service.ts`）从一个完全解析好的 `RunRequest`（配置、提示、策略与上下文，不含回调）打开运行，并返回 `AgentRun`（`domain/runs/run.ts`）；后者持有这次运行的事件流、取消与 steer 句柄、回退链和结果。
 
-**会话**是这次运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它运行的 profile，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；不同的 engine key（线程步骤的 slot、钩子注入的回合）各有自己的引擎。
+**会话**是这次运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它运行的 profile，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；钩子注入的回合有自己的 engine key 与引擎。
 
 **引擎**就是后端进程本身——池化的 `claude` 子进程，或进程内的 PI SDK 会话。`SessionEngines`（`domain/runs/engines.ts`）是池化引擎的唯一持有者：`acquire(spec)` 在该 engine key 对应的会话仍存活、且由同一 session identity 打开时复用它，否则将其退休并新开一个。适配器是无状态的；它依据 `EngineSpec` 打开一个会话，并翻译该会话发出的事件。
 
@@ -24,7 +24,7 @@
 
 此后引擎只发出一条 `RunEvent` 流（`domain/runs/events.ts`）。标准化层（`agent-adapter/normalize/`）把每个后端的原生事件格式翻译成 `NormalizedEvent`，`toRunEvent` 再为它标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。
 
-**一次运行比它的回合活得更久。** Claude 会在后台任务完成时自己开一个回合，所以一次运行有两个结束，而且都在同一条流上。**前台结果**是对这次请求的回答：后端一把回合跑完它就落定，`await run.result` 拿到的就是它——回复可以立刻渲染，状态消息可以进入"等待中"，而此时运行仍然活着。**settled 结果**是把每一次续跑都合并进来的整次运行，终态记账、执行记录和成本归属读的是它。等哪一个由策略决定（`RunRequest.policy.background`）：交互式回合用 `hold`，线程步骤与派发任务等合并结果（`inline`），不可能产生续跑的运行在第一个结果就结束（`none`）。
+**一次运行比它的回合活得更久。** Claude 会在后台任务完成时自己开一个回合，所以一次运行有两个结束，而且都在同一条流上。**前台结果**是对这次请求的回答：后端一把回合跑完它就落定，`await run.result` 拿到的就是它——回复可以立刻渲染，状态消息可以进入"等待中"，而此时运行仍然活着。**settled 结果**是把每一次续跑都合并进来的整次运行，终态记账、执行记录和成本归属读的是它。等哪一个由策略决定（`RunRequest.policy.background`）：交互式回合用 `hold`，需要合并结果的调用方等它（`inline`），不可能产生续跑的运行在第一个结果就结束（`none`）。
 
 有界的是**等待**，不是工作本身。`ContinuationPhase`（`agent-adapter/continuation-phase.ts`）为"已完成但未通知"的工作武装 一个宽限计时器（`CORTEX_BG_GRACE_S`，90 秒），为"仍在运行"的工作武装 一个上限（`CORTEX_BG_WAIT_MAX_S`，30 分钟）。宽限到期会结束这次运行；上限到期只结束**等待**——一个跑了一小时的隧道或监控任务，完成时它的续跑仍然会流进同一个会话。
 
@@ -101,7 +101,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 **调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述不再写死，而是在注册工具时按本机实际拥有的内容生成。角色取自实时的 `$CORTEX_HOME/config/agents/` 角色表，新增的角色下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父会话直接读自己进程内的模型注册表；Claude 父会话读不到——它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以由守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时列不出 PI 模型——不会为了给一次 Claude spawn 装饰而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们只是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
-**隔离。** `pi` 子智能体是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子智能体则是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、不写 transcript 日志。两种情况下子智能体的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此既不能继续向下扇出，也够不到线程控制。
+**隔离。** `pi` 子智能体是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子智能体则是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、不写 transcript 日志。两种情况下子智能体的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此不能继续向下扇出。
 
 **父会话看到什么。** 子智能体的工具调用、结果与文本会实时流入父会话的 transcript 并标注归属，token 用量并入父会话。归属是 best-effort：父回合已经结束的运行只是不再推送事件，答案照样返回。
 
@@ -217,11 +217,9 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 `backend` 字段只接受 `"claude"` 或 `"pi"`。如果省略，默认为 `"claude"`。
 
-线程模板也可以为每个智能体指定配置，允许同一管道中的不同智能体使用不同的后端。模板配置参见 [threads.md](./threads.md)。
-
 ## 按会话选择模型、思考档位与计费路由 {#per-session-model-thinking-level-and-route}
 
-在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该 endpoint 有不止一种计费方式时——计费路由。（其中的 `agent` 一行属于另一条轴——会话的执行环境而非引擎，见 [configuration.md](./configuration.md#choosing-an-agent-per-conversation)。）profile 以下的选择都作为**按会话生效的覆盖值**叠在该会话所用的 profile 之上。覆盖只在一个地方生效（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 决定，能被替换的只有 `model`、`provider`、`thinking` 和 `mode`。每一段都带一行「跟随 profile」，用来把该字段交还给 profile。
+在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该 endpoint 有不止一种计费方式时——计费路由。（其中的 `agent` 一行属于另一条轴——会话的执行环境而非引擎，见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。）profile 以下的选择都作为**按会话生效的覆盖值**叠在该会话所用的 profile 之上。覆盖只在一个地方生效（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 决定，能被替换的只有 `model`、`provider`、`thinking` 和 `mode`。每一段都带一行「跟随 profile」，用来把该字段交还给 profile。
 
 选择器受两条规则约束，两条都由服务端强制执行，客户端只是提前把结果画出来：
 
@@ -266,13 +264,13 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 这套策略通过 [`config/settings.json`](./configuration.md#configsettingsjson) 里的 `providerRateLimits` 配置。它按 provider id 建立对象，每个 provider 可用 `windows` 数组保存 `{ type, label?, enabled, threshold? }`，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口及带名称的模型窗口都能独立配置。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，已知 weekly 窗口使用 `0.95`，其他窗口使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端 Usage 都编辑这些行；只显示花费的 provider 不显示额度控件。
 
-被中断的直接会话和线程会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。直接会话在原频道恢复并保留上下文；线程若被中断的 step 已经产生过实际工作，则复用该 step 的后端会话并发送一段简短的续跑提醒，保留已完成的部分进度；未产生任何活动的 step 仍从原始 prompt 重新执行。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
+被中断的对话会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。对话在原频道恢复并保留上下文。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
 
-限流详情会显示每个 provider 正在等待的直接会话数和线程数，并保留同时激活的模型窗口名称。Provider key 是当前隔离边界：多个账户或额度池若使用同一个 provider key，就共享同一条 provider 记录；类型与名称都相同的窗口保留较晚的重置时间。定时限流要求观测中带有重置时间。Claude 的 live 账户用量拉取会把所有窗口提交给每个已配置的 Anthropic mode，而 stale PI 缓存不会被重放；PI 的响应头额度仍通过原有 push 链路进入。
+限流详情会显示每个 provider 正在等待的对话数，并保留同时激活的模型窗口名称。Provider key 是当前隔离边界：多个账户或额度池若使用同一个 provider key，就共享同一条 provider 记录；类型与名称都相同的窗口保留较晚的重置时间。定时限流要求观测中带有重置时间。Claude 的 live 账户用量拉取会把所有窗口提交给每个已配置的 Anthropic mode，而 stale PI 缓存不会被重放；PI 的响应头额度仍通过原有 push 链路进入。
 
 策略改动只作用于未来收到的额度观测，不会回写已经处于激活状态的窗口。已经激活的额度窗口或 outage 重试窗口会保持生效，直到窗口自然重置，或被手动 **Resume now** 清除。Outage 重试行为使用自己独立的 outage 窗口，不受额度阈值策略改动影响。
 
-限流窗口与带 provider 归属的恢复队列持久化在 `data/provider-state.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃直接会话的频道或此后已结束的线程会被跳过；等待时长本身不会导致条目被丢弃。
+限流窗口与带 provider 归属的恢复队列持久化在 `data/provider-state.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃对话的频道会被跳过；等待时长本身不会导致条目被丢弃。
 
 自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 

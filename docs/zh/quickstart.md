@@ -68,7 +68,7 @@ npm --version    # 应输出 10.x.y 或更高
 npm install -g @cortex-agent/server
 ```
 
-这会在你的 PATH 中放置三个命令：`cortex`、`cortex-task`、`cortex-signal`。
+这会在你的 PATH 中放置 `cortex` 命令，以及三个辅助命令：`cortex-signal`、`cortex-hook` 和 `cortex-evidence-export`。
 
 如果 `npm install -g` 因权限错误而失败（Linux 上常见），请加 `sudo`，或更好的做法是配置 npm 使用用户本地前缀：
 
@@ -321,20 +321,16 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── machines.json           # 本机能力（gpuCount、路径）
 │   ├── mcp-config.json         # 直接会话 MCP 服务器
 │   ├── mcp-config-core.json    # 远程执行/时间分层
-│   ├── mcp-config-tasks.json   # 只读任务监控分层
-│   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
-│   ├── mcp-config-thread.json  # 线程控制分层
 │   ├── mcp-config-interaction.json # 共享交互分层
 │   ├── profiles.json           # 命名的（后端、模型）配置
-│   ├── thread-templates/       # 多智能体线程定义
-│   │   └── agents/、templates/、shells/   # 每个实体一个 JSON 文件
+│   ├── environments/           # 执行环境：main.json、creative.json
 │   └── hooks/                  # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── mode.json               # 当前模式 + 活跃配置
-│   └── schedules.json          # 初始化的周期性任务
+│   └── schedules.json          # 初始化的内置定时任务
 ├── context/                    # 项目日志存放在这里
 │   ├── AGENTS.md、projects/、decisions/、scans/、ideas/、retrospectives/、user/
-├── plugins/                    # 8 个角色限定技能插件（默认值的完整副本）
+├── plugins/                    # 技能插件（默认值的完整副本）
 ├── prompts/                    # 指令、系统提示、模板
 ├── rules/                      # 智能体自动加载的规则文件
 ├── hooks/                      # 钩子脚本（.mjs）
@@ -391,29 +387,18 @@ hello
 创建一个叫"天气看板"的项目，我想做一个显示我所在城市天气的简单网页看板
 ```
 
-Cortex 会回复它创建的项目结构、分解的初始任务，并询问是否要开始执行。
+Cortex 会回复它创建的项目结构，以及它对使命的理解。
 
 
-### 4.3 在已有项目中创建任务 {#43-create-a-task-in-an-existing-project}
-
-有了项目后，可以直接从 Slack 添加任务：
-
-```
-在天气看板项目中添加一个任务：用 Chart.js 做一个5天天气预报的图表
-```
-
-Cortex 会将任务添加到项目的 `TASKS.yaml` 中，分配 hex ID、设置优先级和依赖关系，并回复确认。
-
-
-### 4.4 查看项目状态 {#44-check-project-status}
+### 4.3 查看项目状态 {#43-check-project-status}
 
 ```
 天气看板项目进展如何
 ```
 
-Cortex 会读取项目的 `STATUS.md`、`TASKS.yaml` 和最近的实验记录，然后给你一个当前状况的摘要。
+Cortex 会读取项目的 `STATUS.md`、使命和最近的实验记录，然后给你一个当前状况的摘要。
 
-一旦项目任务队列中有任务，Cortex 会自动挑选并派发优先级最高且就绪的任务——你不需要告诉它"开始执行"。只需持续添加任务，Cortex 会自主推进。
+如果一项工作要跨越多个会话，可以让 Cortex 开启一个委托（commission）。它会起草一份契约，写明目标、计划以及"完成"的含义，你批准后才开始。
 
 ## 接下来读什么 {#what-to-read-next}
 
@@ -421,6 +406,6 @@ Cortex 会读取项目的 `STATUS.md`、`TASKS.yaml` 和最近的实验记录，
 - 想了解 Cortex 识别的每个配置文件和环境变量，或覆盖某个自动生成的路径 — 阅读 [configuration.md](./configuration.md)。
 - 想了解每个 CLI 子命令和标志 — 阅读 [cli-reference.md](./cli-reference.md)。
 - 想切换后端或添加其他提供商 — 阅读 [backends.md](./backends.md)。
-- 想了解多智能体线程管道的工作原理 — 阅读 [threads.md](./threads.md)。
+- 想让 Cortex 把工作交给子智能体，或带领持久的 worker 会话 — 阅读 [backends.md](./backends.md#subagents) 和 [team.md](./team.md)。
 - 想将远程机器连接到 Cortex — 阅读 [cross-machine.md](./cross-machine.md)。
 - 想了解项目日志结构（实验、知识、模式）— 阅读 [memory.md](./memory.md)。

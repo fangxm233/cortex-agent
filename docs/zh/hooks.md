@@ -1,6 +1,6 @@
 # 钩子 {#hooks}
 
-钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、线程结束、任务完成。每个钩子都是一份**声明**：`$CORTEX_HOME/config/hooks/` 下的一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 [architecture.md](./architecture.md)。
+钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、定时任务触发、助手回合结束。每个钩子都是一份**声明**：`$CORTEX_HOME/config/hooks/` 下的一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 [architecture.md](./architecture.md)。
 
 ## 架构概览 {#architecture-overview}
 
@@ -15,9 +15,8 @@
  agent:* + cc:*        agent:* + pi:*            cortex:*
         │                   │                        │
         ▼                   ▼                        ▼
- Claude 生成时注入      扩展加载时调用            服务器端派发，
- --settings JSON       pi.on(<原生事件>)         外加模板作用域的
-                                                 线程钩子
+ Claude 生成时注入      扩展加载时调用            服务器端派发
+ --settings JSON       pi.on(<原生事件>)
         └───────────────────┴────────────────────────┘
                             │
                             ▼
@@ -30,7 +29,7 @@
 
 加载是容错且高声报错的。JSON 非法、schema 校验失败，或 `id` 与更早的文件重复的文件会被跳过，并在 stderr 打印 `[hook-registry] skipped <file>: <reason>`；注册表的其余部分照常挂载。服务器启动时会记录挂载数量，形如 `Startup: mounted 12 hooks (1 cc / 2 cortex)`。Web UI 的设置面板读取同一份列表。
 
-桌面端的 **设置 → 钩子** 面板不只是一份清单，而是这份注册表的完整视图：它按事件命名空间分组、按加载顺序排列，显示每条声明真正挂载到哪里（`claude` / `pi` / `server`）、改动是下次智能体启动生效还是必须重启服务端，并对 `run.script` 在钩子目录中缺失的条目打上标记。可改的范围取决于条目来源。**user** 条目完全可编辑，也可以新建与删除。**managed** 条目只开放启用开关，并常驻一条提示：下一次 hook sync 会把启用状态恢复为随附值——其余字段同样会被覆盖，因此面板不会假装它们可改。**template-scoped** 条目只读，并指向拥有它的线程模板。`result` 的选项收敛为该事件真正支持的模式；`version` 永不可写——从 UI 创建的条目始终是 user 条目。每个条目还可以针对一份可编辑的样例负载试跑，退出码、stdout 与 stderr 就地展示。
+桌面端的 **设置 → 钩子** 面板不只是一份清单，而是这份注册表的完整视图：它按事件命名空间分组、按加载顺序排列，显示每条声明真正挂载到哪里（`claude` / `pi` / `server`）、改动是下次智能体启动生效还是必须重启服务端，并对 `run.script` 在钩子目录中缺失的条目打上标记。可改的范围取决于条目来源。**user** 条目完全可编辑，也可以新建与删除。**managed** 条目只开放启用开关，并常驻一条提示：下一次 hook sync 会把启用状态恢复为随附值——其余字段同样会被覆盖，因此面板不会假装它们可改。`result` 的选项收敛为该事件真正支持的模式；`version` 永不可写——从 UI 创建的条目始终是 user 条目。每个条目还可以针对一份可编辑的样例负载试跑，退出码、stdout 与 stderr 就地展示。
 
 移动端对同一份注册表只读：钩子页展示分组后的清单以及每行背后的完整声明，但不提供编辑、新建与试跑。要改钩子请使用桌面端会话。
 
@@ -38,12 +37,12 @@
 
 ```json
 {
-  "id": "tasks-yaml-guard",
+  "id": "status-md-guard",
   "event": "agent:pre-tool",
   "matcher": "Edit|Write",
-  "run": { "script": "tasks-yaml-guard.mjs", "timeout": 10 },
+  "run": { "script": "status-md-guard.mjs", "timeout": 10 },
   "enabled": true,
-  "version": "2026.7.29-2"
+  "version": "2026.8.2"
 }
 ```
 
@@ -58,7 +57,7 @@
 | `scope.backends` | array | 收窄 `agent:*` 钩子编译到 `claude` / `pi` 中的哪些后端 |
 | `scope.requiresTool` | string | 仅当智能体的工具列表包含该工具时才挂载此钩子 |
 | `blocking` | object | `{ "mode": "webhook", "ttlMin": <正数> }`，由加载器校验，用于需要 webhook 往返阻塞的钩子 |
-| `result` | string | `hook-result`、`stdout-as-prompt` 或 `none`。决定 `cortex:*` 钩子的 stdout 如何被解释 |
+| `result` | string | `stdout-as-prompt` 或 `none`。决定 `cortex:*` 钩子的 stdout 如何被解释 |
 | `enabled` | boolean | `false` 时从所有消费方移除该钩子而不删除文件。默认 `true` |
 | `version` | string | CalVer 版本戳（`2026.7.29`，可带 `-1`），标记该条目为 managed |
 
@@ -100,25 +99,17 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 |---|---|---|
 | `cortex:server.start` | 服务器完成接线并开始服务 | `version`、`pid` |
 | `cortex:server.shutdown` | 服务器收到 `SIGTERM` | `version`、`pid`、`reason` |
-| `cortex:thread.start` | 线程第一个智能体步骤之前 | 完整线程上下文（见下） |
-| `cortex:thread.transition` | 智能体步骤之间、转换评估之后 | 完整线程上下文 |
-| `cortex:thread.end` | 线程主循环结束之后 | 完整线程上下文 |
-| `cortex:dispatch.started` | 一个任务被分发进线程 | `taskId`、`project`、`source`、`templateName` |
-| `cortex:schedule.fired` | 一个计划任务触发 | `scheduleId`、`name`、`project` |
-| `cortex:task.completed` | 任务被标记为完成 | `taskId`、`project` |
-| `cortex:task.blocked` | 任务被阻塞 | `taskId`、`project`、`reason` |
+| `cortex:schedule.fired` | 一个定时任务触发 | `scheduleId`、`name`、`project` |
 | `cortex:client.connected` | 远程设备客户端注册 | `device` |
 | `cortex:client.disconnected` | 远程设备客户端掉线 | `device`，已知时带 `reason` |
 | `cortex:session.new` | 会话因 `!new` 或“New”状态按钮而关闭 | `channel`、`sessionId`、`sessionName`、`executionId`、`profile`、`trigger`（`new`）、`timestampIso` |
 | `cortex:session.messageEnd` | 一次助手回合完成 | 同样的形状，`trigger` 为 `messageEnd` |
 
-三个 `cortex:thread.*` 事件携带的线程上下文为：`threadId`、`templateName`、`phase`、`source`、`project`、`projectId`、`taskId`、`taskProject`、`currentStepIndex`、`steps`、`activeAgent`、`previousAgent`、`artifactContent`、`userMessage`、`totalCostUsd`、`pendingControlAction`。
-
 ### 匹配器 {#matchers}
 
 对 `agent:*`、`cc:*`、`pi:*` 事件，匹配器是对工具名求值的正则。`agent:*` 与 `cc:*` 的匹配器使用 Claude 的 PascalCase 名称（`Edit|Write`、`Read|Grep`）；在 PI 侧，桥接会先把 PI 的 `edit` / `read` / `web_fetch` 这类名称映射为上述规范名再做匹配，因此一个匹配器覆盖两个后端。`pi:*` 的匹配器则直接对 PI 的原生工具名求值。非工具事件的匹配对象不同：Claude 用 `SessionStart` 匹配器去匹配启动原因（`startup|resume|clear|compact`），而 PI 桥接只对工具事件应用匹配器，生命周期事件上忽略它。
 
-对 `cortex:*` 事件，匹配器是一个等值过滤对象，其中每个键都必须出现在 payload 中且值完全相等。随发布的分发钩子使用 `{"source": "task-dispatch"}`，因此它只对由任务分发启动的线程触发，而不是每个结束的线程都触发。
+对 `cortex:*` 事件，匹配器是一个等值过滤对象，其中每个键都必须出现在 payload 中且值完全相等。例如带 `{"device": "gpu-box"}` 的 `cortex:client.disconnected` 钩子只在那一台设备掉线时触发，而不是每个客户端掉线都触发。
 
 ## 编译到智能体后端 {#compiling-to-the-agent-backends}
 
@@ -130,7 +121,7 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 {
   "PreToolUse": [
     { "matcher": "Edit|Write", "hooks": [
-        { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
+        { "type": "command", "command": "node $CORTEX_HOME/hooks/status-md-guard.mjs", "timeout": 10 }
     ]},
     { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
@@ -157,51 +148,10 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 
 bus 如何处理 stdout 取决于 `result`：
 
-- `hook-result` — stdout 按 JSON 解析并交回调用方。线程生命周期钩子用它请求一次后续智能体回合。
 - `stdout-as-prompt` — 去掉首尾空白的 stdout 作为提示使用。会话事件用它注入一个回合。
 - `none` 或省略 — 输出被丢弃；钩子是即发即忘的。
 
 超时、非零退出或输出无法解析的钩子会被记录并跳过，绝不会让其所处的主流程失败。
-
-## 线程模板作用域的钩子 {#thread-template-scoped-hooks}
-
-有些钩子属于某一个线程模板而非整个系统，因此模板在 `$CORTEX_HOME/config/thread-templates/templates/<name>.json` 里保留自己的钩子块：
-
-```json
-{
-  "name": "example",
-  "hooks": {
-    "onEnd": {
-      "command": "node $CORTEX_HOME/hooks/post-task-hook.mjs",
-      "args": ["reviewer"],
-      "timeout": 10000
-    }
-  }
-}
-```
-
-`onStart`、`onTransition`、`onEnd` 分别对应 `cortex:thread.start`、`cortex:thread.transition`、`cortex:thread.end`。它们与注册表钩子经由同一个 bus、在同一次触发中派发，使用合成 id `template:<template>:<phase>`，且始终按 `hook-result` 语义处理。与注册表条目有两点不同：这里的 `timeout` 单位是**毫秒**（默认 30000），且 `args` 以位置参数 `$1`、`$2` 传给命令。以编程方式启动线程的调用方可以为该次运行单独提供同样形状的额外钩子；它们以 `extra:<threadId>:<phase>` 出现。
-
-线程钩子通过向 stdout 写 JSON 来控制接下来发生什么：
-
-```json
-{
-  "insertAgent": true,
-  "profile": "__active__",
-  "prompt": "审查线程输出并建议下一步。"
-}
-```
-
-`insertAgent` 会为该提示生成一个临时智能体。若要把提示路由给线程中已有的智能体，指名即可：
-
-```json
-{
-  "targetAgent": "reviewer",
-  "prompt": "规划器已完成。这里是额外的上下文……"
-}
-```
-
-`targetAgent` 把提示发送到该智能体的持久会话；两种模式下都可用可选的 `directive` 前置到提示之前。
 
 ## 会话事件与提示注入 {#session-events-and-prompt-injection}
 
@@ -223,16 +173,14 @@ bus 如何处理 stdout 取决于 `result`：
 
 | 脚本 | 使用方 | 用途 |
 |---|---|---|
-| `tasks-yaml-guard.mjs` | `agent:pre-tool`，`Edit\|Write` | 当前进程不持有项目锁时，拒绝对 `TASKS.yaml` 的编辑 |
+| `status-md-guard.mjs` | `agent:pre-tool`，`Edit\|Write` | 让项目的 `STATUS.md`、`ISSUES.md` 与记忆树中的 `AGENTS.md` 索引保持在各自的体积上限内：编辑接近上限时警告，超出上限时拒绝 |
 | `memory-ref-tracker.mjs` | `agent:post-tool`，`Read\|Grep` | 把内存文件访问记录到 `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`，`Read\|Grep` | 读到匹配路径时注入 `$CORTEX_HOME/rules/` 下的限定规则，每条规则每会话一次 |
 | `session-activity-tracker.mjs` | `agent:post-tool`，`Read\|Edit\|Write\|Skill` | 把活动记录追加到 `logs/session-activity/<session_id>.jsonl` |
 | `agents-md-injector.mjs` | `agent:post-tool`（`Read\|Edit`）与 `agent:session-start` | 把 AGENTS.md 祖先链注入智能体上下文，并按会话去重 |
-| `task-status-check.mjs` | `cortex:thread.end`，`{"source": "task-dispatch"}` | 检查被分发的任务是否停留在未决状态，并要求线程收尾 |
 | `new-session-hook.mjs` | `cortex:session.new` | 从即将关闭的会话中回忆有价值的信息并写入上下文文件 |
-| `post-task-hook.mjs` | 模板的 `onEnd` 钩子 | 提示目标智能体沉淀所学并提交 |
 
-声明可以用内联的 `run.command` 代替脚本；`Edit|Write` 的访问控制由上面的 pre-tool 守卫负责。
+声明可以用内联的 `run.command` 代替脚本。
 
 同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。
 
@@ -266,7 +214,7 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 两个入口都 POST 到服务器的 `/hook/ask-user-question` webhook，共享同一套路由与阻塞契约：
 
-- **路由。** 显式 `channel` 优先。否则辅助库与 CLI 回退到钩子环境变量：`CORTEX_HOOK_CHANNEL`（会话钩子），然后 `SLACK_CHANNEL`（智能体侧钩子）。只有 `sessionId` 时（`CORTEX_HOOK_SESSION_ID` 或显式传入），服务器会经 session registry 反解出该会话的 channel。`cortex:thread.*` 的 payload 不含 channel，线程钩子须自行传 `channel` 或 `sessionId`。
+- **路由。** 显式 `channel` 优先。否则辅助库与 CLI 回退到钩子环境变量：`CORTEX_HOOK_CHANNEL`（会话钩子），然后 `SLACK_CHANNEL`（智能体侧钩子）。只有 `sessionId` 时（`CORTEX_HOOK_SESSION_ID` 或显式传入），服务器会经 session registry 反解出该会话的 channel。`cortex:schedule.fired` 这类服务器事件的 payload 不含 channel，它们的钩子须自行传 `channel` 或 `sessionId`。
 - **阻塞。** 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 `{ answers }`，TTL 到期则是 `{ error: "timeout", answers: {} }`。`cortex-hook ask` 有答案时退出码为 `0`，超时为 `2`，其他错误为 `1`，shell 钩子可按 `$?` 分支。发起提问的钩子应把 `run.timeout` 设得高于预期等待时长，并声明 `blocking: { "mode": "webhook", "ttlMin": 30 }`。
 - **多问题。** `askUser` 接受任意非空问题数组；`cortex-hook ask --payload <file|->` 接受同样的 JSON 数组，例如 `cat questions.json | cortex-hook ask --payload - --session-id <id>`。Cortex 不限制问题数量，但目标平台仍可能拒绝超过其自身限制的 payload。
 - **冒烟测试。** `--dry-run`（CLI）或 `dryRun: true`（辅助库）只记录事件并合成返回，不真正发卡片。
@@ -279,7 +227,7 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 | 命令 | 标志 | 作用 |
 |---|---|---|
-| `cortex-hook list` | — | 列出每个已挂载钩子的 `id`、`event`、`enabled`、`source`（`managed`、`user` 或 `template-scoped`） |
+| `cortex-hook list` | — | 列出每个已挂载钩子的 `id`、`event`、`enabled`、`source`（`managed` 或 `user`） |
 | `cortex-hook show` | `--id <id>` | 打印一条完整声明，含 `source` |
 | `cortex-hook enable` | `--id <id>`、`--dry-run` | 幂等地把声明文件中的 `enabled` 设为 `true` |
 | `cortex-hook disable` | `--id <id>`、`--dry-run` | 以同样方式设为 `false` |
@@ -290,13 +238,13 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 ```bash
 cortex-hook list
-cortex-hook show --id task-status-check
+cortex-hook show --id session-new-hook
 cortex-hook disable --id rules-loader --dry-run
-cortex-hook test --id tasks-yaml-guard --payload payload.json
-cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
+cortex-hook test --id status-md-guard --payload payload.json
+cat payload.json | cortex-hook test --id status-md-guard --payload -
 ```
 
-`enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 `enabled` 状态。模板作用域的钩子是只读的——`enable` 与 `disable` 会拒绝它们，并列出你可以操作的注册表 id。
+`enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 `enabled` 状态。
 
 `test` 返回 `ok`、`id`、`exit_code`、`stdout`、`stderr`，进程失败时还有 `error`，并以钩子自身的退出码退出。
 
@@ -347,7 +295,7 @@ cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
 
 `agent:*`、`cc:*`、`pi:*` 钩子在下一个生成的智能体上生效。`cortex:*` 钩子在服务器下次启动时被拾取，因为 bus 在启动时快照注册表。
 
-同样的三步也适用于服务器端事件——声明 `"event": "cortex:task.completed"` 并配上 `{"project": "my-project"}` 这样的 `matcher`，即可在该项目每次完成任务时运行某个动作。
+同样的三步也适用于服务器端事件——声明 `"event": "cortex:schedule.fired"` 并配上 `{"project": "my-project"}` 这样的 `matcher`，即可在该项目的定时任务每次触发时运行某个动作。
 
 ## 引用追踪 {#reference-tracking}
 
@@ -368,5 +316,5 @@ cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -
 - **`agent:session-end`、`agent:pre-compact`、`agent:user-prompt` 或 `agent:turn-end` 在 Claude 上没效果** — 这四个只编译到 PI。要挂 Claude 挂载点，请用 `cc:` 形式。
 - **新的 `cortex:*` 钩子毫无动静** — bus 在启动时快照注册表；重启服务器。
 - **JSON 解析错误** — stdout 不是合法 JSON。确保除结果外没有别的内容写到 stdout；诊断信息应走 stderr。
-- **超时** — 调大 `run.timeout`（注册表条目为秒，模板钩子为毫秒）。默认 30 秒，会话事件为 60 秒。
+- **超时** — 调大 `run.timeout`（单位为秒）。默认 30 秒，会话事件为 60 秒。
 - **找不到脚本** — `run.script` 相对 `$CORTEX_HOME/hooks/` 解析；绝对路径与 `..` 片段会被加载器拒绝。

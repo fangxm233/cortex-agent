@@ -566,9 +566,9 @@ device to target in each tool call via the `device` parameter. The agent
 learns about available devices from the `machines.json` registry (visible
 through context injection) and from tool descriptions.
 
-For GPU-aware workloads (training), the dispatch system consults `gpuCount`
-and can check GPU utilization before assigning work. See [tasks.md](./tasks.md)
-for the task dispatch model.
+For GPU-aware workloads (training), the agent can read each machine's
+`gpuCount` from the registry and check GPU utilization on the device before
+choosing where to run.
 
 ## The client-manage skill
 

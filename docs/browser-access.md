@@ -116,7 +116,7 @@ cortex daemon   # or: systemctl --user restart cortex (if you registered a servi
 ```
 
 !!! warning "Restarting is disruptive"
-    Restarting the daemon interrupts any in-flight agents, threads, and scheduled work.
+    Restarting the daemon interrupts any in-flight agents and scheduled work.
     Treat it as a deliberate, controlled action — schedule it when the system is idle, and
     if your Cortex instance runs under an approval policy, route the restart through that
     approval step rather than restarting ad hoc.

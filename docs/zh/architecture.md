@@ -1,7 +1,7 @@
 # Cortex 架构 {#cortex-architecture}
 
 
-Cortex 是一个用于机器人学和 AI/ML 的自主研究智能体系统。它采用服务器-客户端架构运行：**agent-server** 编排工作——任务调度、线程执行、定时任务、Slack 集成和 MCP 工具——而远程 **agent clients** 通过 WebSocket 连接在远程机器上执行命令。关于这些子系统的深入探讨，参见 [threads.md](./threads.md)、[tasks.md](./tasks.md) 和 [memory.md](./memory.md)。
+Cortex 是一个用于机器人学和 AI/ML 的自主研究智能体系统。它采用服务器-客户端架构运行：**agent-server** 编排工作——对话及其智能体运行、定时任务、聊天平台集成和 MCP 工具——而远程 **agent clients** 通过 WebSocket 连接在远程机器上执行命令。关于这些子系统的深入探讨，参见 [memory.md](./memory.md)、[scheduling.md](./scheduling.md) 和 [mcp.md](./mcp.md)。
 
 ## 两个软件包 {#two-packages}
 
@@ -9,9 +9,9 @@ Cortex 由两个 npm 包和一组插件组成：
 
 | 包 | 路径 | 用途 |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 机器人、LLM 编排、定时任务、任务系统、MCP 工具。提供五个 CLI 可执行文件：`cortex`、`cortex-task`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。 |
+| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 机器人、LLM 编排、定时任务、MCP 工具。提供四个 CLI 可执行文件：`cortex`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。 |
 | `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程。通过 WebSocket 连接，在本地执行 shell/文件命令。 |
-| 插件 | `plugins/cortex-*` | 8 个角色限定的插件包，包含技能。不是 npm 包——在运行时作为目录加载。 |
+| 插件 | `plugins/cortex-*` | 包含技能的插件包。不是 npm 包——在运行时作为目录加载。 |
 
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 
@@ -44,10 +44,9 @@ L5  entry/         → 所有层（组合根）
 | `cli-utils.ts` | `formatHelp`、`formatError`、`readStdinSync`、`cliError` — 共享 CLI 格式化 |
 | `status-format.ts` | 纯格式化：`computeElapsed`、`formatMetricsSuffix`、`buildSessionTag`、`buildUserProcessingMessage` |
 | `rebuild-progress.ts` | 监督器发布到 `daemon-rebuild.json` 的热重建进度记录：纯步骤状态迁移（`planRebuildProgress`、`startRebuildStep`、`finishRebuildStep`、`settleRebuildProgress`），以及一个永不抛异常的读取 |
-| `task-parser.ts` | 任务接口定义，带 kebab↔snake_case 键映射的 YAML 解析/序列化，`scanAllTasks`、`scanAvailableTasks`、`filterTasks`、`getTaskStats` |
 | `run-registry.ts` | `RunRegistry` — 活跃运行与后台 hold 的唯一内存索引。回答 `sessionState(sessionId)`，并向 EventBus 发布 `agent.*` 生命周期事件 |
 | `types/agent-types.ts` | `AgentResult`、`AgentHandle`、`AgentProgress`、`AskUserQuestionInfo` |
-| `types/thread-types.ts` | 完整线程类型系列：`ThreadRecord`、`AgentDefinition`、`ThreadTemplate`、`TransitionRule`、`HookConfig`、`RunThreadOptions`、`ThreadSurface`、`AgentStep` 等 |
+| `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件）、按次使用的覆盖字段，以及一次运行所用的解析结果 `AgentSlotConfig` |
 | `config-generator.ts` | 新安装的配置文件初始化 |
 | `gateway-generator.ts` | API 网关 YAML 生成 |
 | `profile-generator.ts` | 配置 JSON 生成 |
@@ -57,14 +56,13 @@ L5  entry/         → 所有层（组合根）
 所有写操作通过 `AsyncMutex` 序列化以防止并发写入损坏。该层使用两种仓库模式：
 
 - **模式 A（JsonRepository 委托）**：`JsonRepository<T>` 的简单 CRUD 包装器。用于 schedule-repo、session-repo、channel-repo、session-registry-repo、cost-repo。所有写入通过 `atomicWrite()`（写入 `.tmp.<pid>.<ts>` 然后 `fs.rename`）。
-- **模式 B（内存 Map + 即发即忘持久化）**：同步内存 `Map` 用于读，异步持久化链用于写。用于 execution-repo 和 thread-repo，其中读延迟很重要，崩溃时数据陈旧是可接受的。
+- **模式 B（内存 Map + 即发即忘持久化）**：同步内存 `Map` 用于读，异步持久化链用于写。用于 execution-repo，其中读延迟很重要，崩溃时数据陈旧是可接受的。
 
 | 文件 | 用途 |
 |------|---------|
 | `json-repository.ts` | 通用 `JsonRepository<T>` 基类：`read()`、`write()`、`mutate(fn)`、`flush()`。首次 I/O 时惰性清理孤立的 `.tmp.*` 文件。损坏 JSON 备份机制 |
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
-| `thread-repo.ts` | `ThreadRepo` — 内存 `Map<string, ThreadRecord>` + 异步持久化。查询：`findByChannel`、`findActive`、`findByPlatformThread`。启动恢复：`markRunningAsFailedOnStartup`。清理：7 天前的线程（auto-records 为 24 小时） |
 | `conversation-ledger-repo.ts` | `session-registry-repo.ts` 的外观层——提供相同的每频道轮次 API（`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo`），自身不再持有文件 |
 | `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。回放仅追加日志（`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`）、接纳会话，并在日志膨胀后压缩快照 |
 | `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
@@ -73,7 +71,6 @@ L5  entry/         → 所有层（组合根）
 | `schedule-repo.ts` | 调度持久化。`ScheduleTask` 接口，`ScheduleTarget` 联合类型 |
 | `cost-repo.ts` | JSONL 格式费用（仅追加），JSON 格式预算。启动时 90 天修剪 |
 | `profile-repo.ts` | 混合同步/异步读取器。`startProfileWatcher()` 用于热重载 |
-| `task-repo.ts` | 读取 TASKS.yaml 文件。纯 I/O + 互斥锁 + git 同步（`commitAndPush`）。修改操作在 `domain/tasks/mutator.ts` 中 |
 
 ### 第 2 层：`events/` — 事件总线 {#layer-2-events-event-bus}
 
@@ -81,7 +78,7 @@ L5  entry/         → 所有层（组合根）
 
 | 文件 | 用途 |
 |------|---------|
-| `event-types.ts` | 22 个用户事件类型 + 2 个元事件，在 `CortexEvent` 可区分联合中。类别：message/interaction、agent lifecycle、thread lifecycle、task、system |
+| `event-types.ts` | `CortexEvent` 可区分联合：用户事件加两个元事件（`event-bus.handler-failed`、`event-logger.dropped`）。类别：message/interaction、agent lifecycle、session、system |
 | `event-bus.ts` | `EventBus` 类 — `subscribe(type, handler)` / `publish(event)`。同步扇出。异步处理器即发即忘。`event-bus.handler-failed` 的重入保护。SIGTERM 排放的关闭钩子 |
 | `event-logger.ts` | 订阅 `'*'`，1024 条环形缓冲区，100ms 刷新间隔，按日滚动 JSONL，14 天保留。由 [`config/settings.json`](./configuration.md#configsettingsjson) 中的 `eventLog` 设置控制（设为 `false` 即关闭；旧变量 `CORTEX_EVENT_LOG=off` 仍作为已弃用的回退可用） |
 
@@ -89,29 +86,25 @@ L5  entry/         → 所有层（组合根）
 
 - **Message/interaction**：`message.received`、`message.edited`、`plan.submitted`、`plan.approved`、`ask-user.requested`、`ask-user.answered`
 - **Agent lifecycle**：`agent.started`、`agent.completed`、`agent.failed`、`agent.superseded`
-- **Thread lifecycle**：`thread.created`、`thread.step.started`、`thread.step.finished`、`thread.transitioned`、`thread.completed`、`thread.failed`
-- **Task**：`task.claimed`、`task.completed`、`task.dispatched`
 - **System**：`llm.active-count-delta`、`scheduler.tick`、`rate-limit.breach`
 
 ### 第 3 层：`domain/` — 业务逻辑 {#layer-3-domain-business-logic}
 
-最厚的层。包含 23 个子目录，每个封装一个领域关注点；下表覆盖其中主要的几个。
+最厚的层。每个领域关注点一个子目录；下表覆盖其中主要的几个。
 
 | 子目录 | 用途 |
 |-------------|---------|
-| `agents/` | profile、子代理角色与凭据：一次运行可以被配置成什么。启动运行属于 `runs/` |
+| `agents/` | profile、执行环境（`agents/environments/`）、子代理角色与凭据：一次运行可以被配置成什么。启动运行属于 `runs/` |
 | `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的 profile/spec/提示解析、后端中立的 `RunEvent` 事件流，以及 `SessionEngines` 池 |
 | `sessions/` | 会话生命周期。钩子管道（onNew、onMessageEnd），带 VirtualMessage 显示和可选的智能体注入 |
-| `tasks/` | 完整任务系统：YAML 解析、调度、归档、等待追踪、锁管理、CLI（`cortex-task`）、验证 |
-| `executions/` | `store/execution-repo.ts` 的薄重导出，带锁释放副作用：每个终止转换自动释放任务锁 |
+| `executions/` | `store/execution-repo.ts` 的薄重导出 |
 | `costs/` | 费用追踪、网关管理、按提供商感知的速率限制 |
-| `scheduling/` | 持久化调度引擎与 settings-backed 内置任务控制器。`Scheduler` 热重载用户调度；内置任务派发、归档和记忆索引任务拥有 daemon 计时器 |
+| `scheduling/` | 持久化调度引擎与 settings-backed 内置作业控制器。`Scheduler` 热重载用户调度，每次触发都新开一个会话；记忆索引重建等内置作业拥有 daemon 计时器 |
 | `memory/` | 内存/索引管理。`memory-index-regen.ts` 从 YAML frontmatter 重建 index.md。上下文更改的文件监视器。AGENTS.md 扫描和注入 |
 | `monitor/` | GPU 和磁盘资源监控 |
 | `system/` | 主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 `rebuild-hold.ts` —— 由监督器下推、供准入判断读取的"拒绝新 turn"状态 |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端部署，通过 npm update 的热重载 |
-| `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O |
-| `mcp/` | MCP 服务器实现。16 个 Cortex MCP 工具，分布在 8 个工具模块中（参见 [mcp.md](./mcp.md)） |
+| `mcp/` | 内置的 Cortex MCP 服务器及其工具模块（参见 [mcp.md](./mcp.md)） |
 
 ### 第 4 层：`orchestration/` — 消息路由和执行 {#layer-4-orchestration-message-routing-and-execution}
 
@@ -120,26 +113,14 @@ L5  entry/         → 所有层（组合根）
 | 文件 | 用途 |
 |------|---------|
 | `channel-queue.ts` | 每频道串行 Promise 队列。确保每个频道一次只能运行一个智能体 |
-| `orchestrator.ts` | 两分支决策树：如果是 `!thread` 命令 → `ThreadExecutor`，否则 → `AgentRunner`（默认单智能体路径） |
-| `agent-runner.ts` | 默认智能体执行路径。在执行前创建 `default` 线程，运行它，管理流式和交互式回调 |
-| `thread-executor.ts` | 路由 `!thread <template\|agent> <msg>`、`!thread add`、线程继续，以及运行步骤期间的用户消息缓冲；把每次运行交给 `ThreadRun` |
-| `thread-input.ts` | `ThreadExecCtx` 结构，以及 `thread-executor` 交接的文件下载与用户消息缓冲辅助函数 |
-| `thread-run/thread-run.ts` | `ThreadRun` / `openThreadRun()` / `openThreadRunDetached()` —— 一次线程运行的唯一 owner：状态消息、输出流、`ThreadSurface`、verdict、终态渲染、statusMsgRef 持久化、settle，以及 detached 运行的 busy 括号 |
-| `thread-run/render-summary.ts` | `!thread` / webhook / resume 的渲染：带按钮的开场行、多 agent 步骤行、封存摘要 |
-| `thread-run/render-task.ts` | 任务派发 / 调度的渲染："Dispatching…"/"Processing…" 行、Done/Paused/Suspended/Error，与旧 job 字符串逐字一致 |
-| `thread-run/thread-surface.ts` | 由进度渲染器 + 交互式回调构建的 `ThreadSurface` |
-| `thread-run/settle.ts` | statusMsgRef 持久化 + 注入的 settle |
-| `thread-run/verdict.ts` | `classifyThreadVerdict` |
-| `thread-callback.ts` | 唤醒/settle 协议：`settleThread`、父级唤醒、manager 轮换、任务树对账、waiting 巡检、`fireThreadCallback` |
-| `thread-notices.ts` | 通知文案 + 协议用于提问的只读判定 |
-| `thread-delivery.ts` | 终态投递边界：项目通知、`wakeSession`、`closeResumedTaskLoop` |
-| `resume-dispatcher.ts` | 限流恢复队列；通过 `resumeThreadRunInput` 构建 `ThreadRunInput` |
+| `orchestrator.ts` | 把每条入站消息交给 `AgentRunner` |
+| `agent-runner.ts` | 默认智能体路径的准入：路由、轮中注入、排队，以及一个回合所需的会话、租约与浏览器解析。回合本体属于 `turn/turn.ts` |
+| `resume-dispatcher.ts` | 限流恢复队列：窗口重置后继续被用量限制中断的会话 |
 | `busy-tracker.ts` | 追踪活跃 LLM 数量，向父守护进程发送 IPC `busy`/`idle` |
 | `lifecycle.ts` | 智能体成功/错误处理、编辑重试、AskUserQuestion 恢复、轮次追踪 |
 | `superseded-edits.ts` | 消息编辑废弃标记 |
-| `dispatch-reconciler.ts` | 陈旧调度清理的后台定时器 |
-| `routing/message-router.ts` | Slack 消息入口点。解析 `!thread` 命令，标准化技能命令，委托给 orchestrator |
-| `routing/commands/` | 14 个 `!command` 处理器：`cancel`、`channel`、`cost`、`device`、`dispatch`、`mode`、`nvtop`、`orient`、`schedule`、`sendfile`、`session`、`status`、`tail`、`task`、`thread` |
+| `routing/message-router.ts` | Slack 消息入口点。标准化技能命令并委托给 orchestrator |
+| `routing/commands/` | `!command` 处理器：`cancel`、`channel`、`compact`、`cost`、`device`、`lang`、`login`、`mode`、`nvtop`、`orient`、`restart`、`schedule`、`sendfile`、`session`、`status`、`tail`、`usage` |
 | `routing/hook-bridge.ts` | PreToolUse 钩子 → EventBus 桥接。发布 `plan.submitted` 和 `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | 创建 Slack 模态框用于问题、将计划发送到 Slack 的订阅者 |
 | `interactions/` | AskUserQuestion 模态流程、计划审批状态机、按钮/模态动作路由 |
@@ -151,7 +132,7 @@ L5  entry/         → 所有层（组合根）
 | `app.ts` | **组合根**。连接 EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher。处理 SIGTERM 优雅关闭 |
 | `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大）。发布逐步骤的重建进度，在 install/restart 之前等 app 空闲，并在这个窗口内拒绝新 turn（见下文） |
 | `daemon-notice.ts` | 下行 IPC 的 app 侧：把 `rebuild-aborted` 变成系统通知、把 `rebuild-hold` 变成准入侧的 hold，并在监督器断开连接时解除 hold |
-| `cli.ts` | `cortex` CLI 入口点。调度到：`init`、`start`、`daemon`、`restart`、`task`、`config`、`setup-gateway` |
+| `cli.ts` | `cortex` CLI 入口点。调度到：`init`、`start`、`daemon`、`restart`、`tui`、`config`、`setup-gateway` |
 | `init.ts` | 交互式首次初始化 |
 | `startup-helpers.ts` | 清理日志、确保 MCP 配置 |
 | `startup-notify.ts` | 向管理频道发送启动私信 |
@@ -179,7 +160,7 @@ L5  entry/         → 所有层（组合根）
 的结果会直接丢失）。
 
 **只在进程被替换的那几秒里不开新 turn。** 进入 `install` 或 `restart`（以及有排队中的重启）时，
-监督器会通过 fork IPC 下发 `rebuild-hold`，准入侧（`agent-runner.ts`、`thread-executor.ts`）会在
+监督器会通过 fork IPC 下发 `rebuild-hold`，准入侧（`agent-runner.ts`）会在
 tracking、入队、turn 中注入之前就拒绝：此刻启动的 turn 会被片刻之后的 SIGTERM 变成孤儿，它拉起的
 后端 CLI 还在往没人读的管道里写。覆盖范围是刻意收窄的 —— 绝不包含构建阶段 —— 所以它能拦到的只有
 落在"idle 检查与 SIGTERM 之间那一个 tick"里的消息。人如果正在打字，会在原频道收到一条说明当前阶段的
@@ -257,15 +238,13 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 |------|---------|
 | `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
-| `schedules.json` | 持久化调度任务列表 |
+| `schedules.json` | 持久化定时任务列表 |
 | `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次（阈值 `max(512, live×4)` 个事件，16 MB 上限）。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
 | `executions.json` | 统一执行注册表 |
 | `daemon-rebuild.json` | 监督器发布的热重建记录：计划、逐步骤状态与耗时，以及上次重建的终态结果 |
-| `config/thread-templates/` | 智能体定义和编排模板——`agents/`、`templates/`、`shells/` 下每个实体一个 JSON 文件 |
-| `threads.json` | 活跃和历史线程状态 |
-| `tasks/` | 项目任务队列（每项目 TASKS.yaml） |
+| `config/environments/` | 执行环境——每个环境一个 JSON 文件 |
 | `costs.jsonl` | 每次调用的费用记录（90 天滚动） |
 | `logs/sessions/` | 保留保护/清理使用的 Claude capture 日志 |
 | `logs/sessions-pi/` | 以 backend session id 归组的 PI transcript bundle |
@@ -277,9 +256,7 @@ session retention 与 registry mutation 分开协调。`session-retention.ts` �
 
 ## 命名约定 {#naming-conventions}
 
-- **线程 ID**：`thr_<8 位十六进制字符>`（如 `thr_a1b2c3d4`）
 - **执行 ID**：`exec_<kind>_<base36-timestamp>_<4 位随机字符>`（如 `exec_local_1a2b3c_xyzw`）
-- **调度任务 ID**：8 位十六进制字符（来自 `randomBytes(4)`）
+- **定时任务 ID**：8 位十六进制字符（来自 `randomBytes(4)`）
 - **会话名称**：`cortex-<6 位十六进制字符>`（如 `cortex-a1b2c3`）
-- **任务 ID**：4 位十六进制字符（如 `f7cf`）
 - **文件格式**：所有 TypeScript 使用 `.ts` 扩展名和 ESM 导入风格（`import { X } from './foo.js'`）

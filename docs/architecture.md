@@ -1,6 +1,6 @@
 # Cortex Architecture
 
-Cortex is an autonomous research agent system for robotics and AI/ML. It runs as a server-client architecture: the **agent-server** orchestrates work — task dispatch, thread execution, scheduling, Slack integration, and MCP tools — while remote **agent clients** connect via WebSocket to execute commands on remote machines. For deeper dives into these subsystems, see [threads.md](./threads.md), [tasks.md](./tasks.md), and [memory.md](./memory.md).
+Cortex is an autonomous research agent system for robotics and AI/ML. It runs as a server-client architecture: the **agent-server** orchestrates work — conversations and their agent runs, scheduling, chat integrations, and MCP tools — while remote **agent clients** connect via WebSocket to execute commands on remote machines. For deeper dives into these subsystems, see [memory.md](./memory.md), [scheduling.md](./scheduling.md), and [mcp.md](./mcp.md).
 
 ## Two Packages
 
@@ -8,9 +8,9 @@ Cortex consists of two npm packages plus a set of plugins:
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | Main server: Slack bot, LLM orchestration, scheduling, task system, MCP tools. Provides five CLI binaries: `cortex`, `cortex-task`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. |
+| `@cortex-agent/server` | `agent-server/` | Main server: Slack bot, LLM orchestration, scheduling, MCP tools. Provides four CLI binaries: `cortex`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. |
 | `@cortex-agent/client` | `client/` | Lightweight remote agent daemon. Connects via WebSocket and executes shell/file commands locally. |
-| Plugins | `plugins/cortex-*` | 8 role-scoped plugin bundles containing skills. Not npm packages — loaded as directories at runtime. |
+| Plugins | `plugins/cortex-*` | Plugin bundles containing skills. Not npm packages — loaded as directories at runtime. |
 
 ## Agent-Server Architecture: Six Layers
 
@@ -43,12 +43,11 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |
 | `status-format.ts` | Pure formatting: `computeElapsed`, `formatMetricsSuffix`, `buildSessionTag`, `buildUserProcessingMessage` |
 | `rebuild-progress.ts` | The hot-rebuild progress record the supervisor publishes to `daemon-rebuild.json`: pure step transitions (`planRebuildProgress`, `startRebuildStep`, `finishRebuildStep`, `settleRebuildProgress`) plus a read that never throws |
-| `task-parser.ts` | Task interface definition, YAML parsing/serialization with kebab↔snake_case key mapping, `scanAllTasks`, `scanAvailableTasks`, `filterTasks`, `getTaskStats` |
-| `run-registry.ts` | `RunRegistry` — the single in-memory index of the executions that are live right now, keyed by executionId and indexed by thread and channel. Publishes the `agent.*` lifecycle events to the EventBus |
+| `run-registry.ts` | `RunRegistry` — the single in-memory index of the executions that are live right now, keyed by executionId and indexed by channel. Publishes the `agent.*` lifecycle events to the EventBus |
 | `session-holds.ts` | `SessionHolds` — the other half of "is this session busy": a turn that ended while background work continues, with per-owner handles, supersede and stop |
 | `session-state.ts` | `sessionState(sessionId)` / `channelEngineBusy()` — the one join of live executions and holds, and the only place that answers whether a session is busy |
 | `types/agent-types.ts` | `AgentResult`, `AgentHandle`, `AgentProgress`, `AskUserQuestionInfo` |
-| `types/thread-types.ts` | Full thread type family: `ThreadRecord`, `AgentDefinition`, `ThreadTemplate`, `TransitionRule`, `HookConfig`, `RunThreadOptions`, `ThreadSurface`, `AgentStep`, and more |
+| `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file), its per-use overrides, and the resolved `AgentSlotConfig` a run opens with |
 | `config-generator.ts` | Config file initialization for new installs |
 | `gateway-generator.ts` | API gateway YAML generation |
 | `profile-generator.ts` | Profile JSON generation |
@@ -58,14 +57,13 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 All write operations are serialized through `AsyncMutex` to prevent corruption from concurrent writes. The layer uses two repository patterns:
 
 - **Pattern A (JsonRepository delegation)**: Simple CRUD wrappers around `JsonRepository<T>`. Used for schedule-repo, session-repo, channel-repo, session-registry-repo, cost-repo. All writes go through `atomicWrite()` (write to `.tmp.<pid>.<ts>` then `fs.rename`).
-- **Pattern B (in-memory Map + fire-and-forget persist)**: Synchronous in-memory `Map` for reads, with async persist chain for writes. Used for execution-repo and thread-repo where read latency matters and stale-on-crash is acceptable.
+- **Pattern B (in-memory Map + fire-and-forget persist)**: Synchronous in-memory `Map` for reads, with async persist chain for writes. Used for execution-repo where read latency matters and stale-on-crash is acceptable.
 
 | File | Purpose |
 |------|---------|
 | `json-repository.ts` | Generic `JsonRepository<T>` base class: `read()`, `write()`, `mutate(fn)`, `flush()`. Lazy orphan `.tmp.*` sweep on first I/O. Corrupt-JSON backup mechanism |
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — write to `.tmp.<pid>.<ts>` then `fs.rename` |
 | `outbound-queue.ts` | WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message |
-| `thread-repo.ts` | `ThreadRepo` — in-memory `Map<string, ThreadRecord>` + async persist. Queries: `findByChannel`, `findActive`, `findByPlatformThread`. Startup recovery: `markRunningAsFailedOnStartup`. Cleanup: 7-day old threads (24h for auto-records) |
 | `conversation-ledger-repo.ts` | Façade over `session-registry-repo.ts` — same per-channel turn API (`initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo`) with no file of its own |
 | `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Replays an append-only journal (`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`), admits sessions, and compacts snapshots when the log grows |
 | `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
@@ -74,7 +72,6 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `schedule-repo.ts` | Schedule persistence. `ScheduleTask` interface, `ScheduleTarget` union type |
 | `cost-repo.ts` | Costs in JSONL (append-only), budget in JSON. 90-day pruning at startup |
 | `profile-repo.ts` | Hybrid sync/async reader. `startProfileWatcher()` for hot-reload |
-| `task-repo.ts` | Reads TASKS.yaml files. Pure I/O + mutex + git sync (`commitAndPush`). Mutations live in `domain/tasks/mutator.ts` |
 
 ### Layer 2: `events/` — Event Bus
 
@@ -82,7 +79,7 @@ A synchronous, type-safe event bus with JSONL logging.
 
 | File | Purpose |
 |------|---------|
-| `event-types.ts` | 22 user event types + 2 meta events in a `CortexEvent` discriminated union. Categories: message/interaction, agent lifecycle, thread lifecycle, task, system |
+| `event-types.ts` | The `CortexEvent` discriminated union: user events plus two meta events (`event-bus.handler-failed`, `event-logger.dropped`). Categories: message/interaction, agent lifecycle, session, system |
 | `event-bus.ts` | `EventBus` class — `subscribe(type, handler)` / `publish(event)`. Synchronous fan-out. Async handlers fire-and-forget. Re-entrant guard for `event-bus.handler-failed`. Close hooks for SIGTERM drain |
 | `event-logger.ts` | Subscribes to `'*'`, ring buffer of 1024 entries, 100ms flush interval, daily rolling JSONL, 14-day retention. Gated by the `eventLog` setting in [`config/settings.json`](./configuration.md#configsettingsjson) (set it to `false` to disable; legacy env `CORTEX_EVENT_LOG=off` still works as a deprecated fallback) |
 
@@ -90,29 +87,25 @@ A synchronous, type-safe event bus with JSONL logging.
 
 - **Message/interaction**: `message.received`, `message.edited`, `plan.submitted`, `plan.approved`, `ask-user.requested`, `ask-user.answered`
 - **Agent lifecycle**: `agent.started`, `agent.completed`, `agent.failed`, `agent.superseded`
-- **Thread lifecycle**: `thread.created`, `thread.step.started`, `thread.step.finished`, `thread.transitioned`, `thread.completed`, `thread.failed`
-- **Task**: `task.claimed`, `task.completed`, `task.dispatched`
 - **System**: `llm.active-count-delta`, `scheduler.tick`, `rate-limit.breach`
 
 ### Layer 3: `domain/` — Business Logic
 
-The thickest layer. Contains 23 subdirectories, each encapsulating a domain concern; the table below covers the main ones.
+The thickest layer. Contains one subdirectory per domain concern; the table below covers the main ones.
 
 | Subdirectory | Purpose |
 |-------------|---------|
-| `agents/` | Profiles, subagent roles and credentials: what a run may be configured as. Starting one belongs to `runs/` |
+| `agents/` | Profiles, execution environments (`agents/environments/`), subagent roles and credentials: what a run may be configured as. Starting one belongs to `runs/` |
 | `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution and its shared builders (`builders.ts`), the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle. Hook pipeline (onNew, onMessageEnd) with VirtualMessage display and optional agent injection |
-| `tasks/` | Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (`cortex-task`), verification |
-| `executions/` | Thin re-export over `store/execution-repo.ts` with lock-release side effect: every terminal transition auto-releases task locks |
+| `executions/` | Thin re-export over `store/execution-repo.ts` |
 | `costs/` | Cost tracking, gateway management, rate limiting with per-provider awareness |
-| `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules; built-in task dispatch, archive, and memory-index jobs own daemon timers |
+| `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules and opens a new session for each fire; built-in jobs such as the memory-index rebuild own daemon timers |
 | `memory/` | Memory/index management. `memory-index-regen.ts` rebuilds index.md from YAML frontmatter. File watcher for context changes. AGENTS.md scanning and injection |
 | `monitor/` | GPU and disk resource monitoring |
 | `system/` | Host-level concerns: doctor checks, update state and prompts, system notices and their history, and `rebuild-hold.ts` — the supervisor-pushed "no new turns" state consulted by admission |
 | `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |
-| `threads/` | Full thread system: state machine, runner, template loading, prompt building, hook execution, artifact I/O |
-| `mcp/` | MCP server implementation. 16 Cortex MCP tools across 8 tool modules (see [mcp.md](./mcp.md)) |
+| `mcp/` | The bundled Cortex MCP server and its tool modules (see [mcp.md](./mcp.md)) |
 
 ### Layer 4: `orchestration/` — Message Routing and Execution
 
@@ -122,9 +115,9 @@ layer) is detailed in [hooks.md](./hooks.md).
 | File | Purpose |
 |------|---------|
 | `channel-queue.ts` | Per-channel serial Promise queue. Ensures only one agent runs per channel at a time |
-| `orchestrator.ts` | Two-branch decision tree: if `!thread` command → `ThreadExecutor`, else → `AgentRunner` (default single-agent path) |
+| `orchestrator.ts` | Hands each inbound message to `AgentRunner` |
 | `agent-runner.ts` | Admission for the default-agent path: routing, mid-turn injection, queueing, and the session/lease/browser resolution a turn needs. The turn body itself belongs to `turn/turn.ts` |
-| `session-gateway.ts` | `deliverToSession()` — the one door into a conversation turn for everything that is not an inbound platform message (web sends, agent results, resumes, thread/task callbacks) |
+| `session-gateway.ts` | `deliverToSession()` — the one door into a conversation turn for everything that is not an inbound platform message (web sends, scheduled fires, agent results, resumes, waitpoint wakes) |
 | `runtime.ts` | The `PlatformAdapter` + `EventBus` orchestration holds, injected once by the composition root |
 | `conversation-request.ts` | `prepareConversationRequest()` — assembles a plain chat turn's `RunRequest`: agent spec plus the first-turn ambient blocks |
 | `turn/turn.ts` | `Turn` / `openTurn()` — the single owner of one conversation turn: status message, ledger turn tracking, session lease, `startRun`, observer fan-out, terminal render, the `running:true/false` bracket |
@@ -135,23 +128,11 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `turn/background-hold.ts` | One hold lifecycle for "the turn is over but the session is not": busy bracket, `SessionHolds` registration, run subscription, six terminal verdicts |
 | `turn/hold-render-platform.ts` | The Slack/Feishu rendering of a held turn — the status line while the background phase runs, and its seal |
 | `turn/hold-render-web.ts` | The web rendering of a held turn — the continuation's prose, tools and notices on the session event stream |
-| `thread-executor.ts` | Routing for `!thread <template\|agent> <msg>`, `!thread add`, thread continuation, and user-message buffering during a running step; hands each run to `ThreadRun` |
-| `thread-input.ts` | The `ThreadExecCtx` shape plus the file-download and user-message buffering helpers `thread-executor` hands off to |
-| `thread-run/thread-run.ts` | `ThreadRun` / `openThreadRun()` / `openThreadRunDetached()` — the single owner of one thread run: status message, output stream, `ThreadSurface`, verdict, terminal render, statusMsgRef persistence, settle, busy bracket for detached runs |
-| `thread-run/render-summary.ts` | The `!thread` / webhook / resume rendering: opening line with buttons, multi-agent step line, sealed summary |
-| `thread-run/render-task.ts` | The task-dispatch / scheduled rendering: "Dispatching…"/"Processing…" lines, Done/Paused/Suspended/Error, byte-identical to the old job strings |
-| `thread-run/thread-surface.ts` | `ThreadSurface` built from a progress renderer + interactive callbacks |
-| `thread-run/settle.ts` | statusMsgRef persistence + the injected settle |
-| `thread-run/verdict.ts` | `classifyThreadVerdict` |
-| `thread-callback.ts` | The wake/settle protocol: `settleThread`, parent wake, manager rotation, task-tree reconciliation, waiting sweeps, `fireThreadCallback` |
-| `thread-notices.ts` | Notice text + read-only predicates the protocol asks its questions with |
-| `thread-delivery.ts` | Terminal delivery edges: project notices, `wakeSession`, `closeResumedTaskLoop` |
-| `resume-dispatcher.ts` | Rate-limit resume queue; builds a `ThreadRunInput` via `resumeThreadRunInput` |
+| `resume-dispatcher.ts` | Rate-limit resume queue: continues the sessions a usage limit interrupted once the window resets |
 | `busy-tracker.ts` | Tracks active LLM count, sends IPC `busy`/`idle` to parent daemon process |
 | `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
-| `dispatch-reconciler.ts` | Background timer for stale dispatch cleanup |
-| `routing/message-router.ts` | Slack message entry point. Parses `!thread` commands, normalizes skill commands, delegates to orchestrator |
-| `routing/commands/` | 14 `!command` handlers: `cancel`, `channel`, `cost`, `device`, `dispatch`, `mode`, `nvtop`, `orient`, `schedule`, `sendfile`, `session`, `status`, `tail`, `task`, `thread` |
+| `routing/message-router.ts` | Slack message entry point. Normalizes skill commands and delegates to the orchestrator |
+| `routing/commands/` | `!command` handlers: `cancel`, `channel`, `compact`, `cost`, `device`, `lang`, `login`, `mode`, `nvtop`, `orient`, `restart`, `schedule`, `sendfile`, `session`, `status`, `tail`, `usage` |
 | `routing/hook-bridge.ts` | PreToolUse hook → EventBus bridge. Publishes `plan.submitted` and `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | Subscribers that create Slack modals for questions and send plans to Slack |
 | `interactions/` | AskUserQuestion modal flow, plan approval state machine, button/modal action routing |
@@ -163,7 +144,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `app.ts` | **Composition root**. Wires EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown |
 | `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress, waits for an idle app before install/restart, and holds new turns across that window (see below) |
 | `daemon-notice.ts` | The app side of the downward IPC: turns `rebuild-aborted` into a system notice and `rebuild-hold` into the admission hold, and lifts the hold if the supervisor disconnects |
-| `cli.ts` | `cortex` CLI entry point. Dispatches to: `init`, `start`, `daemon`, `restart`, `task`, `config`, `setup-gateway` |
+| `cli.ts` | `cortex` CLI entry point. Dispatches to: `init`, `start`, `daemon`, `restart`, `tui`, `config`, `setup-gateway` |
 | `init.ts` | Interactive first-time initialization |
 | `startup-helpers.ts` | Cleanup logs, ensure MCP config |
 | `startup-notify.ts` | Send startup DM to admin channel |
@@ -196,7 +177,7 @@ outright).
 
 **No new turns in the seconds the process is being replaced.** Entering `install` or `restart` — or
 queueing a restart — makes the supervisor send `rebuild-hold` down the fork IPC, and admission
-(`agent-runner.ts`, `thread-executor.ts`) refuses before tracking, queueing, or mid-turn injection:
+(`agent-runner.ts`) refuses before tracking, queueing, or mid-turn injection:
 a turn started now is orphaned by the SIGTERM a moment later, with its backend CLI left writing into
 a pipe no one reads. The scope is deliberately narrow — never the build — so the only messages it
 can catch are those landing in the tick-level race between the idle check and the SIGTERM. A person
@@ -275,15 +256,13 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 |------|---------|
 | `agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
 | `profiles.json` | Named agent profile list |
-| `schedules.json` | Persistent scheduled task list |
+| `schedules.json` | Persistent schedule list |
 | `session-registry.jsonl` | Append-only JSONL journal and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Events: `put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`; startup replays the stream to rebuild live and pending state. Compaction keeps live records + bindings + live turns (threshold `max(512, live×4)` events, 16 MB cap). Replaces the retired `sessions.json` and `conversation-ledger.json`, which a one-time upgrade migration renames to `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
 | `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |
 | `executions.json` | Unified execution registry |
 | `daemon-rebuild.json` | The supervisor's published hot-rebuild record: plan, per-step status and timings, and the terminal outcome of the last rebuild |
-| `config/thread-templates/` | Agent definitions and orchestration templates — one JSON file per entity under `agents/`, `templates/`, `shells/` |
-| `threads.json` | Active and historical thread state |
-| `tasks/` | Project task queues (TASKS.yaml per project) |
+| `config/environments/` | Execution environments — one JSON file per environment |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
 | `logs/sessions/` | Claude capture logs used for retention protection/cleanup |
 | `logs/sessions-pi/` | PI transcript bundles keyed by backend session id |
@@ -295,9 +274,7 @@ Session retention is coordinated separately from registry mutation. `session-ret
 
 ## Naming Conventions
 
-- **Thread IDs**: `thr_<8-hex-chars>` (e.g., `thr_a1b2c3d4`)
 - **Execution IDs**: `exec_<kind>_<base36-ts>_<4-rand>` (e.g., `exec_local_1a2b3c_xyzw`)
-- **Schedule task IDs**: 8 hex characters (from `randomBytes(4)`)
+- **Schedule IDs**: 8 hex characters (from `randomBytes(4)`)
 - **Session names**: `cortex-<6-hex-chars>` (e.g., `cortex-a1b2c3`)
-- **Task IDs**: 4 hex characters (e.g., `f7cf`)
 - **File format**: All TypeScript uses `.ts` with ESM import style (`import { X } from './foo.js'`)

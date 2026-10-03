@@ -1,6 +1,6 @@
 # Cortex Scheduling System
 
-The scheduling system lets you set up recurring or one-time agent invocations. Schedules persist to disk, survive restarts, and hot-reload when changed externally. Daemon infrastructure loops such as task dispatch, task archiving, and memory-index rebuild use the built-in job controller described below rather than schedule records.
+The scheduling system lets you set up recurring or one-time agent invocations. Schedules persist to disk, survive restarts, and hot-reload when changed externally. Each fire opens a new session that runs the schedule's prompt. Daemon infrastructure loops such as provider-usage collection and memory-index rebuild use the built-in job controller described below rather than schedule records.
 
 !!! tip "Waiting for something to finish? Do not schedule a poll"
     A schedule that fires only to check whether a job is done costs a full agent
@@ -39,8 +39,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
       "createdAt": 1747680000000,
       "nextRun": 1747683600000,
       "lastRun": 1747680000000,
-      "target": { "kind": "fresh" },
-      "fallback": "fresh"
+      "target": { "kind": "fresh" }
     }
   ]
 }
@@ -53,7 +52,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `id` | 8-character hex identifier (auto-generated) |
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
-| `projectId` | Project associated with the schedule and its fallback destination |
+| `projectId` | Project the schedule belongs to; each fire's session opens in it |
 | `profile` | Agent profile name (defaults to the active profile) |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
@@ -68,44 +67,39 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `pausedBy` | `"user"` or `"rate-limit"` — who paused it |
 | `dispatchType` | Reserved internal handler key; ordinary user schedules omit it |
 | `preCheck` | Optional shell command; non-zero exit → skip this fire |
-| `target` | Where the fired task should land (see Target Resolution below) |
-| `fallback` | What to do if target is unavailable: `"fresh"` (default), `"skip"`, or `"wait"` |
+| `target` | How the schedule's project was chosen (see [Where a fire lands](#where-a-fire-lands)) |
 
 ## Built-in periodic jobs
 
-Task dispatch, completed-task archival, and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, the schedule CLI, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `taskDispatchEnabled` / `taskDispatchIntervalMs`, `taskArchiveEnabled` / `taskArchiveIntervalMs`, and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
+Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, the schedule CLI, or the Web schedule list. Their switches and intervals are configured under **Settings → Advanced → Built-in jobs** or with these `config/settings.json` pairs: `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`.
 
 Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabling a job clears its next timer, enabling it runs immediately, and changing an interval reschedules the next idle run. See [configuration.md](./configuration.md#configsettingsjson) for defaults and bounds.
 
-## Target Resolution
+## Where a fire lands
 
-The `target` field controls **where** the scheduled task lands when it fires:
+Every fire opens a new, ordinary session — the same kind you start from the Web
+UI or the desktop app — and sends the schedule's message, with a
+`[Scheduled Task]` prefix, as its first turn. The session is recorded as that
+schedule's run and labeled with the start of the message; open it to read the
+result or reply as in any other conversation. A fire never reuses an earlier
+run's session, so the runs of a recurring schedule stay in separate transcripts.
 
-| Target Shorthand | Behavior |
-|-----------------|----------|
-| `fresh` | Always create a new thread (default). The schedule's channel is used as fallback |
-| `current-channel` | Reuse the channel's active thread if one exists; otherwise create a default thread with the channel's session |
-| `current-session` | Resume a specific named session (`cortex-XXXX`). If the session is gone, apply fallback |
-| `current-thread` | Continue a specific thread by ID. If the thread is gone or not running/waiting, apply fallback |
+The `target` field only decides which project the schedule belongs to, and is
+settled when the schedule is created:
 
-The `current-channel`, `current-session`, and `current-thread` shorthands are resolved to concrete IDs at **create time** from the current execution context. Explicit target objects can also be used:
+| Target | Behavior |
+|--------|----------|
+| `fresh` | Default. The project comes from `projectId`, else from the creating channel's registered project, else `general` |
+| `current-project` | Shorthand, resolved at create time to the project of the conversation creating the schedule |
+
+The stored form is always explicit:
 
 ```json
 { "kind": "fresh" }
-{ "kind": "channel", "channel": "C07ABCDEF" }
-{ "kind": "session", "sessionName": "cortex-a1b2c3", "sessionId": "sess_xyz", "channel": "C07ABCDEF" }
-{ "kind": "thread", "threadId": "thr_a1b2c3d4", "channel": "C07ABCDEF" }
+{ "kind": "project", "projectId": "my-project" }
 ```
 
-## Fallback Behavior
-
-When a `session` or `thread` target is no longer available at fire time, the `fallback` field determines what happens:
-
-| Fallback | Behavior |
-|----------|----------|
-| `fresh` | Silently fall back to creating a new thread in the schedule's channel (default) |
-| `skip` | Record `lastSkipped`, post a one-line Slack note, do not run the task |
-| `wait` | Not yet implemented — currently treated as `fresh` |
+A stored target of any other kind is read as `fresh`.
 
 ## PreCheck
 
@@ -139,7 +133,7 @@ Each task's scheduling-relevant fields are hashed: `type`, type-specific key (in
 
 ## In-Flight Protection
 
-Each task has an `_inFlight` flag. If a task's timer fires while a previous invocation is still running (detected because the task ID is in `_inFlight`), the new invocation is skipped. This prevents overlapping executions of the same schedule.
+If a schedule fires while its previous run is still going, the new fire is skipped. This prevents overlapping runs of the same schedule.
 
 ## Pause and Resume
 
@@ -180,14 +174,14 @@ Schedules can be managed through MCP tools (used by the agent in Slack conversat
 
 | Tool | Description |
 |------|-------------|
-| `cortex_schedule_add` | Create a new schedule. Accepts `type`, `message`, `interval`/`time`/`dayOfWeek`/`delay`, `target`, `fallback`, `profile`, `preCheck` |
+| `cortex_schedule_add` | Create a new schedule. Accepts `type`, `message`, `interval`/`time`/`dayOfWeek`/`delay`, `target`, `profile`, `preCheck`, `channel`, `projectId` |
 | `cortex_schedule_list` | List all schedules (default: 50) |
 | `cortex_schedule_get` | Get a schedule by ID |
 | `cortex_schedule_remove` | Delete a schedule by ID (idempotent) |
 | `cortex_schedule_pause` | Pause a recurring schedule |
 | `cortex_schedule_resume` | Resume a paused schedule |
 
-The `cortex_context` MCP tool provides the current execution context (channel, sessionId, sessionName, threadId, profile, project, backend) that `cortex_schedule_add` uses for `current-channel`/`current-session`/`current-thread` target resolution.
+The `cortex_context` MCP tool returns the current execution context (sessionId, sessionName, profile, project, backend); `cortex_schedule_add` resolves `current-project` against the same context.
 
 ### Creating a Schedule via MCP
 
@@ -196,8 +190,7 @@ The `cortex_context` MCP tool provides the current execution context (channel, s
   "type": "interval",
   "message": "Check GPU status and report",
   "interval": "10m",
-  "target": "current-channel",
-  "fallback": "fresh"
+  "target": "current-project"
 }
 ```
 
@@ -225,7 +218,7 @@ For the underlying CLI tools, see [cli-reference.md](./cli-reference.md).
 
 ## Execution routing
 
-Ordinary schedule records use the `scheduled-task` runner and send their message to an agent with the `[Scheduled Task]` prefix. A small set of shipped schedules may use reserved internal handler keys, but unregistered `dispatchType` values are skipped rather than interpreted as agent prompts. Daemon-owned periodic infrastructure uses `builtin-jobs.ts` and is not routed through schedule persistence.
+Ordinary schedule records use the `scheduled-task` runner, which opens a new session for each fire and sends the message with the `[Scheduled Task]` prefix. A small set of shipped schedules may use reserved internal handler keys, but unregistered `dispatchType` values are skipped rather than interpreted as agent prompts. Daemon-owned periodic infrastructure uses `builtin-jobs.ts` and is not routed through schedule persistence.
 
 ## Rate-Limit Integration
 

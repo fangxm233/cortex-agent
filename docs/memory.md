@@ -28,8 +28,7 @@ context/
         ├── roadmap.md           # Milestones with testable checklist conditions
         ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
         ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines / 6KB)
-        ├── TASKS.yaml           # Structured task queue (machine-readable YAML)
-        ├── tasks-archive.md     # Completed tasks archived by the built-in archiver
+        ├── commissions/         # Commission contracts and ledgers, one directory per commission
         ├── experiments/
         │   ├── index.md         # Auto-generated — do not edit manually
         │   └── EXP-NNN.md       # One file per experiment, YAML frontmatter
@@ -193,11 +192,11 @@ Layered phases, each containing milestones with testable checklist conditions. C
 
 ### STATUS.md — Current Snapshot
 
-An overwriting (not append-only) state register capturing the project's present tense — the minimal state a fresh session needs to continue correctly. Hard-capped at 80 lines and 6KB, with each bullet at most 2 lines. Required sections: current situation, in-flight work & new variables, blockers & pending decisions, next step. Facts that have a durable home elsewhere (experiments, knowledge entries, decision records, task archive) appear only as pointers; the file grows with state complexity, never with project age. Updated when the situation changes — not on every task completion. This is the first file to read when resuming work on a project after a gap.
+An overwriting (not append-only) state register capturing the project's present tense — the minimal state a fresh session needs to continue correctly. Hard-capped at 80 lines and 6KB, with each bullet at most 2 lines. Required sections: current situation, in-flight work & new variables, blockers & pending decisions, next step. Facts that have a durable home elsewhere (experiments, knowledge entries, decision records, commits) appear only as pointers; the file grows with state complexity, never with project age. Updated when the situation changes — not on every task completion. This is the first file to read when resuming work on a project after a gap.
 
 ### ISSUES.md — Execution Friction
 
-An append-only log of problems that slow work, capped at 80 lines and 6KB with each entry at most 4 lines. An entry is a dated title, a one-line symptom, and a one-line root cause with a pointer to the detailed investigation (knowledge entry, task artifact, or experiment record). Resolved issues are deleted from the file (not archived).
+An append-only log of problems that slow work, capped at 80 lines and 6KB with each entry at most 4 lines. An entry is a dated title, a one-line symptom, and a one-line root cause with a pointer to the detailed investigation (knowledge entry, report, or experiment record). Resolved issues are deleted from the file (not archived).
 
 ### decisions/ — Decision Records
 
