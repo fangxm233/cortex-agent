@@ -120,6 +120,8 @@ export interface RailTreeProps {
   onToggleCommissions: (id: string) => void;
   /** Opens/closes one commission folder's session list. */
   onToggleCommission: (commissionId: string) => void;
+  /** Opens/closes a lead session's worker list (team mode). */
+  onToggleWorkers?: (sessionId: string) => void;
   /** Opens the commission board — the row is a board entry point, not a route. */
   onOpenCommission: (commissionId: string) => void;
   /** Starts another session on this commission, from the row that already names it. Absent when the
@@ -268,9 +270,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
   // `indent` is the title's left edge; the selection spine and the status dot ride 19px and 11px
   // to its left, so a session nested under a commission keeps the same internal geometry one level
   // deeper rather than re-deriving three magic numbers.
-  const renderSession = (row: RailSessionRow, indent = 32) => {
+  const renderSession = (row: RailSessionRow, indent = 32): JSX.Element => {
     const key = 'sess:' + row.sessionId;
-    return (
+    const workers = row.workers ?? [];
+    const body = (
       <div
         key={row.sessionId}
         {...hp(key)}
@@ -294,6 +297,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             : isHover(key)
               ? 'var(--proto-gray)'
               : 'transparent',
+          opacity: row.retired && !row.selected ? 0.55 : undefined,
         }}
       >
         {row.selected && (
@@ -339,7 +343,42 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         >
           {row.title}
         </span>
+        {workers.length > 0 && (
+          // Lead row (team mode): this trailing caret unfolds the workers in place; the row body
+          // still opens the lead itself, like any session.
+          <span
+            role="button"
+            aria-label={row.workersExpanded ? L.wbTeamCollapse : L.wbTeamExpand}
+            aria-expanded={!!row.workersExpanded}
+            data-lead-caret={row.sessionId}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onToggleWorkers?.(row.sessionId);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              flex: 'none',
+              padding: '2px 3px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              font: `500 11px ${mono}`,
+              color: 'var(--proto-muted)',
+            }}
+          >
+            {workers.length}
+            <CaretIcon open={!!row.workersExpanded} size={8} />
+          </span>
+        )}
         <RailSessionMenu row={row} hovered={isHover(key)} />
+      </div>
+    );
+    if (workers.length === 0) return body;
+    return (
+      <div key={row.sessionId} data-lead-group={row.sessionId}>
+        {body}
+        {row.workersExpanded && workers.map((w) => renderSession(w, indent + 24))}
       </div>
     );
   };

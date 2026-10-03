@@ -222,3 +222,42 @@ describe('commission rail row', () => {
     act(() => renderer.unmount());
   });
 });
+
+describe('team lead rail row', () => {
+  const base: RailSessionRow = { sessionId: 'lead', projectId: 'p1', title: 'Lead', age: '1h', stamp: '',
+    running: false, awaitingInput: false, waitingOn: false, unread: false, selected: false };
+  const w = (id: string, over: Partial<RailSessionRow> = {}): RailSessionRow =>
+    ({ ...base, sessionId: id, title: id, ...over });
+
+  it('renders a plain session row with no caret when the session has no workers', () => {
+    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [base] }] });
+    expect(renderer.root.findAllByProps({ 'data-lead-caret': 'lead' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-lead-group': 'lead' })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('toggles workers from the caret without opening the lead, and dims retired workers', () => {
+    const onToggleWorkers = vi.fn();
+    const onOpenSession = vi.fn();
+    const lead = { ...base, workers: [w('w1'), w('w2', { retired: true })], workersExpanded: false };
+    const { renderer } = renderTree({ nodes: [{ ...node([]), sessions: [lead] }], onToggleWorkers, onOpenSession });
+    expect(renderer.root.findAllByProps({ 'data-session-id': 'w1' })).toHaveLength(0);
+    const caret = renderer.root.findByProps({ 'data-lead-caret': 'lead' });
+    expect(caret.props['aria-label']).toBe('Show workers');
+    const stopPropagation = vi.fn();
+    act(() => caret.props.onClick({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onToggleWorkers).toHaveBeenCalledWith('lead');
+    expect(onOpenSession).not.toHaveBeenCalled();
+
+    const props = renderer.root.findByType(RailTree).props as RailTreeProps;
+    act(() => renderer.update(<LangProvider><RailTree {...props}
+      nodes={[{ ...node([]), sessions: [{ ...lead, workersExpanded: true }] }]} /></LangProvider>));
+    const w1 = renderer.root.findByProps({ 'data-session-id': 'w1' });
+    const w2 = renderer.root.findByProps({ 'data-session-id': 'w2' });
+    expect(w1.props.style).toMatchObject({ padding: '0 10px 0 56px' });
+    expect(w1.props.style.opacity).toBeUndefined();
+    expect(w2.props.style.opacity).toBe(0.55);
+    act(() => renderer.unmount());
+  });
+});

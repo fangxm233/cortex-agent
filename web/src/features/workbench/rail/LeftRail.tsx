@@ -27,6 +27,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/useCommissionBoard';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useCommissionEnabled } from '@/features/commission/CommissionOptIn';
+import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useLang, useVocab } from '@/i18n';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
@@ -50,6 +51,7 @@ const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
 const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
 const COMM_OPEN_KEY = 'cortex.railCommOpen';
+const LEADS_OPEN_KEY = 'cortex.railLeadsOpen';
 
 function loadIdSet(key: string): Set<string> {
   try {
@@ -194,6 +196,7 @@ export function LeftRail(): JSX.Element {
   const commissionBoard = useCommissionBoard();
   // With the feature switched off a create silently drops the binding, so the row offers no ＋.
   const commissionEnabled = useCommissionEnabled();
+  const teamEnabled = useTeamEnabled();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
   // Keep commission rows current: approval landings, decision projections and closes.
@@ -215,6 +218,7 @@ export function LeftRail(): JSX.Element {
   const [schedExpanded, setSchedExpanded] = useState<Set<string>>(() => loadIdSet(SCHED_EXPANDED_KEY));
   const [commExpanded, setCommExpanded] = useState<Set<string>>(() => loadIdSet(COMM_EXPANDED_KEY));
   const [openCommissions, setOpenCommissions] = useState<Set<string>>(() => loadIdSet(COMM_OPEN_KEY));
+  const [openLeads, setOpenLeads] = useState<Set<string>>(() => loadIdSet(LEADS_OPEN_KEY));
   const { collapsed: starsCollapsed, toggle: toggleStars, reveal: revealStars } = useStarredGroups();
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
@@ -262,6 +266,7 @@ export function LeftRail(): JSX.Element {
   const toggleSchedules = toggleId(setSchedExpanded, SCHED_EXPANDED_KEY);
   const toggleCommissions = toggleId(setCommExpanded, COMM_EXPANDED_KEY);
   const toggleCommission = toggleId(setOpenCommissions, COMM_OPEN_KEY);
+  const toggleWorkers = toggleId(setOpenLeads, LEADS_OPEN_KEY);
   const toggleProjectExpansion = toggleId(setExpanded, EXPANDED_KEY);
   const toggleProject = (id: string) => {
     if (expanded.has(id)) showFewer(id);
@@ -296,6 +301,8 @@ export function LeftRail(): JSX.Element {
         commissionsExpanded: commExpanded,
         expandedCommissions: openCommissions,
         showAll,
+        teamEnabled,
+        expandedLeads: openLeads,
         filter,
         sort,
         manualOrder,
@@ -307,7 +314,7 @@ export function LeftRail(): JSX.Element {
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
       threadsQuery.data, selectedSessionId, currentProjectId, expanded, schedExpanded,
-      commExpanded, openCommissions, starsCollapsed, showAll, filter, sort, manualOrder, dragged, lang,
+      commExpanded, openCommissions, starsCollapsed, showAll, teamEnabled, openLeads, filter, sort, manualOrder, dragged, lang,
     ],
   );
 
@@ -614,6 +621,7 @@ export function LeftRail(): JSX.Element {
             onToggleStars={toggleStars}
             onToggleCommissions={toggleCommissions}
             onToggleCommission={toggleCommission}
+            onToggleWorkers={toggleWorkers}
             onOpenCommission={commissionBoard.openCommission}
             onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
             onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
