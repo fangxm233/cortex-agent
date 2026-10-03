@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
@@ -9,7 +9,7 @@ import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { useLangOptional, useVocab, useVocabOptional } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
@@ -264,24 +264,46 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
  */
 function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): JSX.Element {
   const L = useVocab();
+  const [open, setOpen] = useState(false);
   const summary = systemOriginSummary(row.text);
-  return (
+  // A worker's report or request opens to its full text (systemOriginDisplay); other hints stay one line.
+  const body = systemOriginDisplay(row.systemOrigin!) === 'expandable' ? systemOriginBody(row.text) : '';
+  const canOpen = body.length > 0;
+  const line = (
     <div
       data-system-origin={row.systemOrigin}
+      role={canOpen ? 'button' : undefined}
+      aria-expanded={canOpen ? open : undefined}
+      aria-label={canOpen ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined}
+      onClick={canOpen ? () => setOpen((v) => !v) : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 7, padding: '2px 0',
         opacity: row.pending ? 0.55 : 1,
+        cursor: canOpen ? 'pointer' : undefined,
       }}
     >
       <span aria-hidden="true" style={{ width: 3, alignSelf: 'stretch', minHeight: 13, borderRadius: 2, background: MC.divider, flexShrink: 0 }} />
       <span style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted, flexShrink: 0 }}>
         {systemOriginLabel(row.systemOrigin!, L)}
       </span>
-      {summary && (
+      {summary && !open && (
         <span style={{ fontSize: 11, color: MC.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {summary}
         </span>
       )}
+      {canOpen && (
+        <span aria-hidden="true" style={{ font: `400 11px ${MONO}`, color: MC.muted, flexShrink: 0, transform: open ? 'rotate(90deg)' : 'none' }}>›</span>
+      )}
+    </div>
+  );
+  if (!canOpen || !open) return line;
+  return (
+    <div>
+      {line}
+      <div data-system-origin-body="" style={{ margin: '4px 0 2px 10px', padding: '2px 0 2px 10px', borderLeft: `1px solid ${MC.divider}`,
+        fontSize: 13, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+        <ChatMarkdown text={body} dropTrailingHr />
+      </div>
     </div>
   );
 }
@@ -308,6 +330,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
   const regenIdx = editCopy ? regenNoteIndexes(rows) : null;
   const assistantCopies = assistantTurnCopyTargets(rows);
   const editingIdx = editing?.rowIndex ?? null;
+  const L = useVocabOptional();
   return (
     <>
       {rows.slice(start).map((row, j) => {
@@ -326,7 +349,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
           )}
-          {row.kind === 'user' && row.systemOrigin && (
+          {row.kind === 'user' && row.systemOrigin && systemOriginDisplay(row.systemOrigin) !== 'bubble' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <MSystemHintRow row={row} />
               {/* The hint line is the machine steering itself INSIDE the turn, so it can be the
@@ -335,13 +358,16 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
-          {row.kind === 'user' && !row.systemOrigin && (
+          {row.kind === 'user' && (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') && (
             <>
               {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
               <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
                 {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
                 {isEditingRow && editCopy && (
                   <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.editingBadge}</span>
+                )}
+                {row.systemOrigin && (
+                  <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
                 )}
                 <div
                   {...(hold ?? {})}

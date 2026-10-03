@@ -16,7 +16,7 @@ import { DeskAskCard, DeskPlanCard, D_INT_COPY } from '@/features/session/intera
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginLabel, systemOriginSummary } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
@@ -73,8 +73,10 @@ function Divider({ text }: { text: string }): JSX.Element {
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug, anchor }: {
+function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug, anchor, label }: {
   text: string;
+  /** Who sent it when it was not the human at this keyboard (a lead session, in team mode). */
+  label?: string;
   attachments?: AttachmentMeta[];
   ts?: string;
   /** Row index this bubble sits at, published to the DOM so the nav rail can scroll back to it.
@@ -111,6 +113,11 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
       }}
     >
+      {label && (
+        <span data-bubble-label="" style={{ font: `600 11px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)' }}>
+          {label}
+        </span>
+      )}
       {/* Attachments above the bubble */}
       {hasAttachments && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -189,8 +196,10 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
  * (Its caller may hang the whole-TURN copy action under it when the row ends a turn — that button
  * copies the assistant's reply, not this row.)
  */
-function SystemHintRow({ origin, text, ts, pending, debug }: {
+function SystemHintRow({ origin, text, ts, pending, debug, expandable = false }: {
   origin: SystemTurnOrigin;
+  /** The row opens to the full text (a worker's report or request — see systemOriginDisplay). */
+  expandable?: boolean;
   text: string;
   ts?: string;
   /** Injected into the running turn but not read by the model yet — dims, like a pending bubble. */
@@ -199,16 +208,26 @@ function SystemHintRow({ origin, text, ts, pending, debug }: {
 }): JSX.Element {
   const L = useVocab();
   const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
+  const [open, setOpen] = useState(false);
   const summary = systemOriginSummary(text);
   const timeLabel = messageTimeLabel(ts);
-  return (
+  const body = expandable ? systemOriginBody(text) : '';
+  const canOpen = body.length > 0;
+  const row = (
     <div
       className="group"
       data-system-origin={origin}
+      role={canOpen ? 'button' : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      aria-expanded={canOpen ? open : undefined}
+      title={canOpen ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined}
+      onClick={canOpen ? () => setOpen((v) => !v) : undefined}
+      onKeyDown={canOpen ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen((v) => !v); } } : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 8, width: '100%',
         padding: '4px 2px', opacity: pending ? 0.55 : 1,
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
+        cursor: canOpen ? 'pointer' : undefined,
       }}
     >
       <span
@@ -218,13 +237,16 @@ function SystemHintRow({ origin, text, ts, pending, debug }: {
       <span style={{ font: `600 11px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
         {systemOriginLabel(origin, L)}
       </span>
-      {summary && (
+      {summary && !open && (
         <span
-          title={summary}
+          title={canOpen ? undefined : summary}
           style={{ fontSize: 11.5, color: 'var(--proto-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {summary}
         </span>
+      )}
+      {canOpen && (
+        <span aria-hidden="true" style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }}>›</span>
       )}
       <span style={{ flex: 1 }} />
       {timeLabel && (
@@ -237,6 +259,25 @@ function SystemHintRow({ origin, text, ts, pending, debug }: {
           compact
           onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
         />
+      )}
+      {!expandable && <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />}
+    </div>
+  );
+  if (!expandable) return row;
+  // The modal sits outside the clickable row: portal events still bubble through the React tree.
+  return (
+    <div>
+      {row}
+      {open && (
+        <div
+          data-system-origin-body=""
+          style={{
+            margin: '2px 0 4px 11px', padding: '8px 12px', borderLeft: '1px solid var(--proto-line)',
+            fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
+          }}
+        >
+          <ChatMarkdown text={body} wideTables />
+        </div>
       )}
       <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
     </div>
@@ -383,16 +424,23 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
   /** Nav-rail anchor for a user row — see UserBubble. */
   anchor?: number;
 }): JSX.Element | null {
+  const L = useVocab();
   switch (row.kind) {
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
+      if (row.systemOrigin && systemOriginDisplay(row.systemOrigin) === 'bubble') {
+        // A lead's message to its worker: the bubble it is, labelled with its sender; copyable but
+        // not editable — there is no human turn here to rewind to.
+        return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} editCopy={editCopy} pending={row.pending} debug={row.debug} label={systemOriginLabel(row.systemOrigin, L)} />;
+      }
       if (row.systemOrigin) {
         // No affordance of its own (see SystemHintRow) — but it can be the last row of a running
         // turn, and the whole-turn copy action belongs under the last row, not above the hints.
         return (
           <div className="group">
-            <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug} />
+            <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug}
+              expandable={systemOriginDisplay(row.systemOrigin) === 'expandable'} />
             <TurnCopyAction text={assistantCopyText} copy={editCopy} />
           </div>
         );
