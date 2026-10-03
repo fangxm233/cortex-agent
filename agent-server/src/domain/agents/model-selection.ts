@@ -36,6 +36,9 @@ export interface ApplySelectionRequest extends SelectionPatch {
   /** Switch the channel to this profile first. Doing both in one call is what "pick a model that
    *  belongs to another profile" compiles down to. */
   profileName?: string;
+  /** Whether a `web:` channel's pick also becomes what the next new conversation opens on.
+   *  Default true; false for a selection no user made (a lead spawning a worker). */
+  seedDefault?: boolean;
 }
 
 export type SelectionFailure =
@@ -233,7 +236,7 @@ export async function applyChannelSelection(request: ApplySelectionRequest): Pro
   //
   // Only direct (`web:`) channels seed it. A platform channel's profile is chosen for that channel;
   // an `!thinking` in Slack has no business deciding what the desktop composer opens on.
-  if (channel.startsWith('web:')) {
+  if (channel.startsWith('web:') && request.seedDefault !== false) {
     setSelectionDefault({ profileName: selection.profileName, ...(selection.override ?? {}) });
   }
   return { ok: true, backendChanged, ...selection };
