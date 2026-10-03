@@ -1,6 +1,0 @@
-{
-  "shell": "worker-review",
-  "worker": "doc-writer",
-  "reviewer": "doc-reviewer",
-  "description": "Generic produce-then-audit for documents (status / digest / decision / report / knowledge entry). Stages: doc-writer(write) → doc-reviewer → (if not [APPROVED]) doc-writer(retry, write [REVISED] at end) → END"
-}

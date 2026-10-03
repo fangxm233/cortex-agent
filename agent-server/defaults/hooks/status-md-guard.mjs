@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.15
+// @cortex-hook-version 2026.10.2
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, sep } from 'path';
@@ -28,7 +28,7 @@ const LIMIT_RULES = [
     capLabel: '80 lines AND 6KB',
     trimAdvice: [
       'STATUS is a state register, not a changelog. Trim before writing:',
-      '- delete entries that no longer affect decisions (their content already lives in tasks-archive / git / EXP records),',
+      '- delete entries that no longer affect decisions (their content already lives in git / EXP records),',
       '- compress each bullet to one line + pointer (task-id / EXP-NNN / K-NNN / DR-NNNN / commit SHA),',
       '- move completion reports to the task note, durable facts to knowledge entries, verdict analysis to the gate artifact.',
     ],

@@ -27,7 +27,6 @@ function makeDeps(overrides: Partial<InteractionToolDeps> = {}): InteractionTool
   return {
     channel: 'C-test',
     sessionId: 'sid-interaction-1',
-    threadId: null,
     webhookBaseUrl: 'http://127.0.0.1:3001',
     httpPost: async () => ({ status: 200, body: {} }),
     ...overrides,
@@ -133,16 +132,6 @@ test('cortex_plan_exit returns isError when no channel is configured', async (t)
     makeDeps({ channel: null as any }),
   );
   assert.equal(result.isError, true);
-});
-
-test('cortex_plan_exit forwards threadId when present in deps', async (t) => {
-  const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
-  fs.writeFileSync(planPath, 'plan');
-  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
-
-  const { post, calls } = makeMockHttp([{ status: 200, body: { approved: true, reason: '' } }]);
-  await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post, threadId: 'thr_xyz' }));
-  assert.equal(calls[0].body.threadId, 'thr_xyz');
 });
 
 // =====================================================================================

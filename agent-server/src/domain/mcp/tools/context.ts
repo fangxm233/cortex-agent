@@ -15,11 +15,8 @@ export interface CortexToolContext {
   channel: string | null;
   sessionId: string | null;
   sessionName: string | null;
-  threadId: string | null;
   profile: string | null;
   project: string | null;
-  /** Task-scoped project override for in-task agents (takes precedence over `project`). */
-  taskProject: string | null;
   backend: string | null;
   /** Daemon's current Claude model (CORTEX_CLAUDE_MODEL), null when the host did not set one. */
   claudeModel: string | null;
@@ -35,8 +32,6 @@ export interface CortexToolContext {
   webhookBaseUrl: string;
   /** Shared secret for the daemon webhook gate (`x-cortex-token`). Empty when unavailable. */
   webhookToken: string;
-  /** How long `ask_manager` blocks before giving up. */
-  askManagerTimeoutMs: number;
   /** Bot token for direct Slack uploads; null when the session has no Slack surface. */
   slackBotToken: string | null;
   /** Parsed tool gate: null ⇒ every selected tool registers (fail-open, see mcp-tool-gate). */
@@ -44,7 +39,6 @@ export interface CortexToolContext {
 }
 
 export const DEFAULT_WEBHOOK_PORT = 3001;
-export const DEFAULT_ASK_MANAGER_TIMEOUT_MS = 1_800_000;
 
 function optional(value: string | undefined): string | null {
   return value === undefined || value === '' ? null : value;
@@ -64,10 +58,8 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     channel: optional(env.SLACK_CHANNEL) ?? optional(env.FEISHU_CHANNEL),
     sessionId: optional(env.CORTEX_SESSION_ID),
     sessionName: optional(env.CORTEX_SESSION_NAME),
-    threadId: optional(env.CORTEX_THREAD_ID),
     profile: optional(env.CORTEX_PROFILE),
     project: optional(env.CORTEX_PROJECT),
-    taskProject: optional(env.CORTEX_TASK_PROJECT),
     backend: optional(env.CORTEX_BACKEND),
     claudeModel: optional(env.CORTEX_CLAUDE_MODEL),
     subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
@@ -77,7 +69,6 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     branchMachine: optional(env.CORTEX_BRANCH_MACHINE),
     webhookBaseUrl: `http://127.0.0.1:${positiveInt(env.WEBHOOK_PORT, DEFAULT_WEBHOOK_PORT)}`,
     webhookToken: env.CORTEX_WEBHOOK_TOKEN || '',
-    askManagerTimeoutMs: positiveInt(env.CORTEX_ASK_MANAGER_TIMEOUT_MS, DEFAULT_ASK_MANAGER_TIMEOUT_MS),
     slackBotToken: optional(env.SLACK_BOT_TOKEN),
     toolAllowlist: parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]),
   };
@@ -96,13 +87,12 @@ export function webSessionId(ctx: CortexToolContext): string | null {
   return null;
 }
 
-/** Internal context — includes channel for downstream consumers (schedule.ts session/thread
- *  target resolution). Not exposed via MCP. */
+/** Internal context — includes channel for downstream consumers (schedule.ts session target
+ *  resolution). Not exposed via MCP. */
 export interface CortexContextInternal {
   channel: string | null;
   sessionId: string | null;
   sessionName: string | null;
-  threadId: string | null;
   profile: string | null;
   project: string | null;
   backend: string | null;
@@ -121,7 +111,6 @@ export async function resolveCortexContext(ctx: CortexToolContext): Promise<Cort
     channel: ctx.channel,
     sessionId: ctx.sessionId,
     sessionName,
-    threadId: ctx.threadId,
     profile: ctx.profile,
     project: ctx.project,
     backend: ctx.backend,
@@ -133,13 +122,13 @@ export async function resolveCortexContext(ctx: CortexToolContext): Promise<Cort
 export function registerContextTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_context',
-    'Return the current Cortex execution context: sessionId, sessionName (cortex-XXXX), threadId, profile, project, backend. Use this to discover the current scope before calling cortex_schedule_add with target=current-project/current-thread.',
+    'Return the current Cortex execution context: sessionId, sessionName (cortex-XXXX), profile, project, backend. Use this to discover the current scope before calling cortex_schedule_add.',
     {},
     { readOnlyHint: true },
     async () => {
       try {
         const ctxInternal = await resolveCortexContext(ctx);
-        // Strip channel from public response — consumers address by project/sessionId/threadId.
+        // Strip channel from public response — consumers address by project/sessionId.
         const { channel: _channel, ...ctxResponse } = ctxInternal;
         return { content: [{ type: 'text', text: JSON.stringify(ctxResponse, null, 2) }] };
       } catch (e) {

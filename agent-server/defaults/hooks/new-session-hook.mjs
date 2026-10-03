@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.9.25
+// @cortex-hook-version 2026.10.2
 
 import { execSync } from 'child_process';
 
@@ -49,13 +49,12 @@ Examples of what to record:
 - A new project dependency or constraint was discovered → update STATUS.md
 
 File update rules you MUST respect:
-- **STATUS.md** — state register (hard cap 80 lines AND 6KB): replace stale lines with the latest state, never append; one line + pointer per change, details live in EXP/K/tasks-archive; adding a line requires checking which old lines expired
+- **STATUS.md** — state register (hard cap 80 lines AND 6KB): replace stale lines with the latest state, never append; one line + pointer per change, details live in EXP/K entries; adding a line requires checking which old lines expired
 - **ISSUES.md** — append mode: add new entries at the end, keep history
 - **knowledge/K-NNN.md** — atomic: one file per knowledge entry, with YAML frontmatter
 - **knowledge/index.md, experiments/index.md, patterns/index.md** — AUTO-GENERATED, do NOT edit manually
 - **mission.md** — requires user approval to modify
 - **roadmap.md** — stable, only update checklist items that were verified this session
-- **TASKS.yaml** — use cortex-task CLI, do not hand-edit
 
 Do NOT create files for trivial observations. Only persist what a fresh session would genuinely need.
 

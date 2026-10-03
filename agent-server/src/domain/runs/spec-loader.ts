@@ -67,8 +67,7 @@ export function bareSpec(): AgentSpec {
  * with any per-use overrides (`agents/environments` `buildSlotConfig`), which both callers hold.
  *
  * `mcpComposition` is the surface's default, which the agent may override: the caller passes what
- * the surface would otherwise run on (thread-control for a thread step, direct for a plain
- * conversation) and resolves `config.mcpComposition` over it before calling, so an agent that
+ * the surface would otherwise run on (direct for a plain conversation) and resolves `config.mcpComposition` over it before calling, so an agent that
  * declares a narrower surface keeps it on every path.
  */
 export function fromAgentSlot(

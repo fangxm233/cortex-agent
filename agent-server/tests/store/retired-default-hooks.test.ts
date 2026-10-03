@@ -88,6 +88,29 @@ test('is a no-op on an install that never had them', async (t) => {
   assert.deepEqual(await fs.readdir(path.join(dataDir, 'config', 'hooks')), []);
 });
 
+test('removes the task-queue guard and status-check hooks with their scripts', async (t) => {
+  const dataDir = await setup(t);
+  await fs.writeFile(entryPath(dataDir, '02-tasks-yaml-guard.json'), JSON.stringify({
+    id: 'tasks-yaml-guard', event: 'agent:pre-tool', matcher: 'Edit|Write',
+    run: { script: 'tasks-yaml-guard.mjs', timeout: 10 }, enabled: true,
+  }));
+  await fs.writeFile(entryPath(dataDir, '11-task-status-check.json'), JSON.stringify({
+    id: 'task-status-check', event: 'cortex:thread.end',
+    run: { script: 'task-status-check.mjs', timeout: 10 }, enabled: false,
+  }));
+  await fs.writeFile(scriptPath(dataDir, 'tasks-yaml-guard.mjs'), '// retired\n');
+  await fs.writeFile(scriptPath(dataDir, 'task-status-check.mjs'), '// retired\n');
+
+  await removeRetiredDefaultHooks(dataDir);
+
+  for (const file of ['02-tasks-yaml-guard.json', '11-task-status-check.json']) {
+    assert.equal(await exists(entryPath(dataDir, file)), false, file);
+  }
+  for (const file of ['tasks-yaml-guard.mjs', 'task-status-check.mjs']) {
+    assert.equal(await exists(scriptPath(dataDir, file)), false, file);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // The CORTEX.md → AGENTS.md injector rename
 // ---------------------------------------------------------------------------

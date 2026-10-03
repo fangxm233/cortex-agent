@@ -22,23 +22,6 @@ const coreLoader: RegistrarLoader = async (ctx) => {
   };
 };
 
-const tasksLoader: RegistrarLoader = async (ctx) => {
-  const { registerTaskMonitorTools } = await import('./tools/task-monitor.js');
-  return server => registerTaskMonitorTools(server, ctx);
-};
-
-const managerQaLoader: RegistrarLoader = async (ctx) => {
-  const { registerAnswerSubtaskTool } = await import('./tools/manager-qa.js');
-  return server => registerAnswerSubtaskTool(server, ctx);
-};
-
-const threadLoader: RegistrarLoader = async (ctx) => {
-  const [{ registerAskManagerTool }, { registerThreadTools }] = await Promise.all([
-    import('./tools/manager-qa.js'), import('./tools/thread-ops.js'),
-  ]);
-  return server => { registerThreadTools(server, ctx); registerAskManagerTool(server, ctx); };
-};
-
 const extLoader: RegistrarLoader = async (ctx) => {
   const [{ registerCostTools }, { registerExecutionTools }, { registerContextTools },
     { registerScheduleTools }, { registerWaitpointTools }] = await Promise.all([
@@ -95,9 +78,6 @@ const workersLoader: RegistrarLoader = async (ctx) => {
 
 const LOADERS: Record<McpBundleName, RegistrarLoader> = {
   'cortex-core': coreLoader,
-  'cortex-tasks': tasksLoader,
-  'cortex-manager-qa': managerQaLoader,
-  'cortex-thread': threadLoader,
   'cortex-ext': extLoader,
   'cortex-interaction-bridge': interactionLoader,
   'cortex-slack': slackLoader,

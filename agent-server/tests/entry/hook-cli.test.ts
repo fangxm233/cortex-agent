@@ -316,7 +316,7 @@ test('--payload - reads process stdin in the executable CLI', (t) => {
 
 // ── cortex-hook ask — hook-facing ask-user API ─────────────────────────────────
 
-const ASK_ENV_KEYS = ['CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID', 'CORTEX_THREAD_ID'];
+const ASK_ENV_KEYS = ['CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID'];
 
 function clearAskEnv(t: { onTestFinished(callback: () => void): void }): void {
   const saved = Object.fromEntries(ASK_ENV_KEYS.map((k) => [k, process.env[k]]));

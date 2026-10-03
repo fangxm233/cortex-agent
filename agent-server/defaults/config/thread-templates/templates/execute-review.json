@@ -1,6 +1,0 @@
-{
-  "shell": "worker-review",
-  "worker": "executor",
-  "reviewer": "executor-reviewer",
-  "description": "Execute-then-review: executor executes task → executor-reviewer audits → at most 1 retry. Suitable for any verifiable task (code changes, config changes, file edits, script execution, etc.)"
-}

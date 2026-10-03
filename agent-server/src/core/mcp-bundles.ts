@@ -3,9 +3,6 @@ export const BUNDLED_MCP_SERVER_NAME = 'cortex-core';
 
 export const MCP_BUNDLE_NAMES = [
   'cortex-core',
-  'cortex-tasks',
-  'cortex-manager-qa',
-  'cortex-thread',
   'cortex-ext',
   'cortex-interaction-bridge',
   'cortex-slack',
@@ -17,6 +14,9 @@ export const MCP_BUNDLE_NAMES = [
 export type McpBundleName = typeof MCP_BUNDLE_NAMES[number];
 
 const MCP_BUNDLE_SET = new Set<string>(MCP_BUNDLE_NAMES);
+/** Bundles an older release composed. A config written before their removal still names them;
+ *  they are dropped rather than failing the whole server. */
+const RETIRED_MCP_BUNDLES = new Set(['cortex-tasks', 'cortex-manager-qa', 'cortex-thread']);
 const MCP_BUNDLE_ORDER = new Map(MCP_BUNDLE_NAMES.map((name, index) => [name, index]));
 
 export function isMcpBundleName(value: string): value is McpBundleName {
@@ -44,7 +44,8 @@ export function parseMcpBundles(raw: string | undefined): McpBundleName[] {
   if (!Array.isArray(parsed) || parsed.some(value => typeof value !== 'string')) {
     throw new Error(`${MCP_BUNDLES_ENV} must be a JSON string array`);
   }
-  const unknown = parsed.filter(value => !isMcpBundleName(value));
+  const current = (parsed as string[]).filter(value => !RETIRED_MCP_BUNDLES.has(value));
+  const unknown = current.filter(value => !isMcpBundleName(value));
   if (unknown.length > 0) throw new Error(`Unknown Cortex MCP bundle(s): ${unknown.join(', ')}`);
-  return canonicalizeMcpBundles(parsed as McpBundleName[]);
+  return canonicalizeMcpBundles(current as McpBundleName[]);
 }

@@ -16,9 +16,6 @@ const log = createLogger('config-generator');
 
 const MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config.json');
 const CORE_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-core.json');
-const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
-const MANAGER_QA_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
-const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 const EMPTY_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-empty.json');
 const INTERACTION_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-interaction.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
@@ -164,9 +161,7 @@ export function materializeMcpToolAllowlistConfigs(
 export function buildFullConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-core': bundledServerEntry([
-        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-      ], serverRoot),
+      'cortex-core': bundledServerEntry(['cortex-core', 'cortex-ext'], serverRoot),
     },
   };
 }
@@ -176,35 +171,6 @@ export function buildCoreConfig(serverRoot: string): object {
   return {
     mcpServers: {
       'cortex-core': bundledServerEntry(['cortex-core'], serverRoot),
-    },
-  };
-}
-
-/** Read-only task monitoring for top-level direct and thread sessions. */
-export function buildTasksConfig(serverRoot: string): object {
-  return {
-    mcpServers: {
-      'cortex-tasks': bundledServerEntry(['cortex-tasks'], serverRoot),
-    },
-  };
-}
-
-/** Manager answer channel, loaded for top-level direct and thread sessions. */
-export function buildManagerQaConfig(serverRoot: string): object {
-  return {
-    mcpServers: {
-      'cortex-manager-qa': bundledServerEntry(['cortex-manager-qa'], serverRoot),
-    },
-  };
-}
-
-/** Complete built-in surface for thread/template sessions. */
-export function buildThreadConfig(serverRoot: string): object {
-  return {
-    mcpServers: {
-      'cortex-core': bundledServerEntry([
-        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread',
-      ], serverRoot),
     },
   };
 }
@@ -254,9 +220,6 @@ export function generateMcpConfig(): void {
   const configs: Array<[string, string, object]> = [
     ['full', MCP_CONFIG_PATH, buildFullConfig(SERVER_ROOT)],
     ['core', CORE_MCP_CONFIG_PATH, buildCoreConfig(SERVER_ROOT)],
-    ['tasks', TASKS_MCP_CONFIG_PATH, buildTasksConfig(SERVER_ROOT)],
-    ['manager-Q&A', MANAGER_QA_MCP_CONFIG_PATH, buildManagerQaConfig(SERVER_ROOT)],
-    ['thread', THREAD_MCP_CONFIG_PATH, buildThreadConfig(SERVER_ROOT)],
     ['empty', EMPTY_MCP_CONFIG_PATH, buildEmptyConfig()],
     ['interaction', INTERACTION_MCP_CONFIG_PATH, buildInteractionConfig(SERVER_ROOT)],
     ['Slack', SLACK_MCP_CONFIG_PATH, buildSlackConfig(SERVER_ROOT)],

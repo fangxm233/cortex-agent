@@ -66,10 +66,8 @@ export const hooksSchema = z.object({
   onEnd: hookConfigSchema.optional(),
 });
 
-/** A thread agent is an environment plus the stage map, and may also run on the thread-control
- *  MCP surface. */
+/** A thread agent is an environment plus the stage map. */
 export const agentSchema = environmentSchema.extend({
-  mcpComposition: z.enum(['direct', 'thread-control', 'none']).optional(),
   stages: z.record(z.string(), stageSchema).optional(),
   entryStage: z.string().optional(),
 });

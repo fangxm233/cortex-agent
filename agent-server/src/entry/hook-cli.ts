@@ -70,8 +70,8 @@ const ROOT_HELP: HelpSpec = {
   options: [{ flag: '--help, -h', description: 'Show this help' }],
   examples: [
     { description: 'List mounted declarations', command: 'cortex-hook list' },
-    { description: 'Inspect one declaration', command: 'cortex-hook show --id tasks-yaml-guard' },
-    { description: 'Execute with a payload file', command: 'cortex-hook test --id tasks-yaml-guard --payload payload.json' },
+    { description: 'Inspect one declaration', command: 'cortex-hook show --id status-md-guard' },
+    { description: 'Execute with a payload file', command: 'cortex-hook test --id status-md-guard --payload payload.json' },
     { description: 'Ask the user from a hook', command: 'cortex-hook ask --question "Clean old checkpoints?" --options "Clean|Keep" --level warning' },
   ],
 };
@@ -92,7 +92,7 @@ const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
       { flag: '--id <id>', description: 'Hook id from cortex-hook list' },
       { flag: '--help, -h', description: 'Show this help' },
     ],
-    examples: [{ description: 'Show a hook', command: 'cortex-hook show --id tasks-yaml-guard' }],
+    examples: [{ description: 'Show a hook', command: 'cortex-hook show --id status-md-guard' }],
   },
   enable: {
     name: 'cortex-hook enable',
@@ -104,8 +104,8 @@ const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
       { flag: '--help, -h', description: 'Show this help' },
     ],
     examples: [
-      { description: 'Preview enabling a hook', command: 'cortex-hook enable --id tasks-yaml-guard --dry-run' },
-      { description: 'Enable a hook', command: 'cortex-hook enable --id tasks-yaml-guard' },
+      { description: 'Preview enabling a hook', command: 'cortex-hook enable --id status-md-guard --dry-run' },
+      { description: 'Enable a hook', command: 'cortex-hook enable --id status-md-guard' },
     ],
   },
   disable: {
@@ -118,8 +118,8 @@ const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
       { flag: '--help, -h', description: 'Show this help' },
     ],
     examples: [
-      { description: 'Preview disabling a hook', command: 'cortex-hook disable --id tasks-yaml-guard --dry-run' },
-      { description: 'Disable a hook', command: 'cortex-hook disable --id tasks-yaml-guard' },
+      { description: 'Preview disabling a hook', command: 'cortex-hook disable --id status-md-guard --dry-run' },
+      { description: 'Disable a hook', command: 'cortex-hook disable --id status-md-guard' },
     ],
   },
   test: {
@@ -132,8 +132,8 @@ const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
       { flag: '--help, -h', description: 'Show this help' },
     ],
     examples: [
-      { description: 'Execute with a file', command: 'cortex-hook test --id tasks-yaml-guard --payload payload.json' },
-      { description: 'Execute from stdin', command: 'cat payload.json | cortex-hook test --id tasks-yaml-guard --payload -' },
+      { description: 'Execute with a file', command: 'cortex-hook test --id status-md-guard --payload payload.json' },
+      { description: 'Execute from stdin', command: 'cat payload.json | cortex-hook test --id status-md-guard --payload -' },
     ],
   },
   ask: {
@@ -433,7 +433,6 @@ function buildAskBody(parsed: ParsedArgs, questions: any[]): Record<string, unkn
   return {
     ...(channel ? { channel } : {}),
     ...(sessionId ? { sessionId } : {}),
-    threadId: process.env.CORTEX_THREAD_ID ?? null,
     questions,
     ...(level ? { level } : {}),
     ...(parsed.dryRun ? { dryRun: true } : {}),

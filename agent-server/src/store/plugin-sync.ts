@@ -27,6 +27,10 @@ export const RETIRED_PLUGIN_PATHS: ReadonlyArray<readonly [string, string]> = [
   // Moved to cortex-system in 2026.9.8. Left in place it shadows the maintained copy: an install
   // that still loads cortex-stage-gate would offer two skills named `task` with diverged content.
   ['cortex-stage-gate', 'skills/task'],
+  // The task queue and the thread runtime were removed; their skills describe tools that no longer
+  // exist.
+  ['cortex-system', 'skills/task'],
+  ['cortex-system', 'skills/thread'],
 ];
 
 /** Remove retired paths from the deployed tree. Returns the plugin-relative ids actually removed. */

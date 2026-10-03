@@ -456,7 +456,7 @@ export function buildThreadRunRequest(
   const meta = ctx.meta;
   const thread = threadStore.get(threadId);
   const mcpComposition = agentConfig.mcpComposition;
-  const resolvedComposition = mcpComposition === undefined ? 'thread-control' : mcpComposition;
+  const resolvedComposition = mcpComposition ?? 'direct';
   const executionKind = meta?.trigger === 'task-dispatch' ? 'dispatch'
     : meta?.trigger === 'scheduled' ? 'scheduled'
     : 'local';
@@ -512,8 +512,6 @@ export function buildThreadRunRequest(
       skills: agentConfig.skills,
       settingSources: agentConfig.settingSources,
       mcpComposition: resolvedComposition,
-      // Legacy thread surface selector: true only when the agent declared no explicit composition.
-      useCoreMcp: mcpComposition === undefined,
       mcpToolAllowlist: agentConfig.mcpToolAllowlist,
       browserCdpEndpoint: null,
       // Claude writes a per-turn transcript file unless told not to; only a frozen subagent

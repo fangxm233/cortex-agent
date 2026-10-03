@@ -19,7 +19,7 @@ test('Claude: a lead gets cortex-workers beside the interaction bridge; a worker
   const worker = resolveClaudeMcpBundles({ ...WEB });
   assert.ok(!worker.includes('cortex-workers'));
   assert.ok(worker.includes('cortex-interaction-bridge'));
-  assert.ok(!resolveClaudeMcpBundles({ ...WEB, teamLead: true, mcpComposition: 'thread-control' })
+  assert.ok(!resolveClaudeMcpBundles({ ...WEB, teamLead: true, mcpComposition: 'none' })
     .includes('cortex-workers'));
 });
 
@@ -61,7 +61,7 @@ test('Pi: the lead env flag selects cortex-workers; a worker keeps the interacti
   assert.ok(!bundlesOf(worker.env).includes('cortex-workers'));
   assert.ok(bundlesOf(worker.env).includes('cortex-interaction-bridge'));
 
-  assert.equal(piRequest(true, 'thread-control').env[PI_TEAM_LEAD_ENV], undefined);
+  assert.equal(piRequest(true, 'none').env[PI_TEAM_LEAD_ENV], undefined);
   assert.notEqual(sessionIdentity(lead), sessionIdentity(worker), 'a changed flag is a fresh pooled session');
 });
 

@@ -227,7 +227,6 @@ export async function runCommissionSubmit(
     channel: deps.channel,
     planContent: contract,
     toolInput: { summary: args.summary ?? '', plan_file_path: args.contract_file_path },
-    threadId: deps.threadId,
     commission: { name: args.name, title: args.title ?? args.name, contractPath: args.contract_file_path },
   };
 

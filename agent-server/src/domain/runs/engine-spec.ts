@@ -84,7 +84,6 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 
 function spawnContext(request: RunRequest, executionId: string | null): CortexContextEnv {
   return {
-    threadId: request.context.threadId ?? null,
     // `|| null`, not `?? null`: a synthesized profile (a subagent child, a fixture) carries an
     // empty name because it was never looked up by name, and the child env must stay as it was
     // before the run model — CORTEX_PROFILE absent, not set to an invented profile name.
@@ -93,18 +92,11 @@ function spawnContext(request: RunRequest, executionId: string | null): CortexCo
     sessionName: request.session.sessionName ?? null,
     trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,
     executionId: executionId ?? null,
-    useCoreMcp: request.policy.useCoreMcp ?? undefined,
-    threadDepth: request.context.threadDepth ?? null,
-    taskId: request.context.taskId ?? null,
-    taskProject: request.context.taskProject ?? null,
-    taskGeneration: request.context.taskGeneration ?? null,
   };
 }
 
 function hasSpawnContext(context: CortexContextEnv): boolean {
-  return Object.entries(context).some(([key, value]) => {
-    return key === 'threadDepth' ? value != null : Boolean(value);
-  });
+  return Object.values(context).some(Boolean);
 }
 
 /** A spec's tool surface is either a canonical list or Claude's raw `--tools` string. */
@@ -233,7 +225,7 @@ export function buildEngineSpec(
   opts: { route?: ModeEnv; executionId?: string | null } = {},
 ): EngineSpec {
   const { route, executionId = null } = opts;
-  const mcpComposition = resolveMcpComposition(request.policy.mcpComposition, request.policy.useCoreMcp);
+  const mcpComposition = resolveMcpComposition(request.policy.mcpComposition);
   const context = spawnContext(request, executionId);
   const appendSystemPrompt = composeSystemPrompt(request.spec, {
     rules: globalRuleBodies(request.policy.loadRules !== false),

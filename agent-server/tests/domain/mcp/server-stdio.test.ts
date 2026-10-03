@@ -22,7 +22,7 @@ function subprocessEnv(overrides: Record<string, string> = {}): Record<string, s
       return typeof entry[1] === 'string';
     }),
   );
-  return { ...env, CORTEX_THREAD_ID: '', ...overrides };
+  return { ...env, ...overrides };
 }
 
 async function withServer(
@@ -135,8 +135,7 @@ test('two bundled servers in one process keep their session contexts apart', asy
 
 test('bundled server exposes one exact direct Web composition', async () => {
   const bundles: McpBundleName[] = [
-    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
-    'cortex-interaction-bridge', 'cortex-web',
+    'cortex-core', 'cortex-ext', 'cortex-interaction-bridge', 'cortex-web',
   ];
   await withServer('bundled-server.js', async (client) => {
     assert.deepEqual(await toolNames(client), expectedBundleTools(bundles));
@@ -144,77 +143,27 @@ test('bundled server exposes one exact direct Web composition', async () => {
 });
 
 test('bundled server applies one allowlist across logical surfaces', async () => {
-  const bundles: McpBundleName[] = [
-    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread',
-  ];
+  const bundles: McpBundleName[] = ['cortex-core', 'cortex-ext'];
   await withServer('bundled-server.js', async (client) => {
-    assert.deepEqual(await toolNames(client), ['task_status', 'thread_wait']);
+    assert.deepEqual(await toolNames(client), ['cost_query', 'current_time']);
   }, {
     [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles),
-    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['task_status', 'thread_wait']),
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['cost_query', 'current_time']),
   });
-});
-
-test('built cortex-tasks exposes task monitoring and handles an empty project', async () => {
-  await withBundles(['cortex-tasks'], async (client) => {
-    assert.deepEqual(await toolNames(client), ['task_list', 'task_result', 'task_status']);
-    const result = await client.callTool({
-      name: 'task_list',
-      arguments: { project: 'stdio-empty-project' },
-    });
-    assert.equal(result.isError ?? false, false);
-    assert.deepEqual(JSON.parse((result.content as any[])[0].text), { count: 0, tasks: [] });
-  });
-});
-
-test('built cortex-thread exposes lifecycle control and upward ask only', async () => {
-  await withBundles(['cortex-thread'], async (client) => {
-    assert.deepEqual(await toolNames(client), [
-      'ask_manager',
-      'thread_abort',
-      'thread_split',
-      'thread_wait',
-    ]);
-    const result = await client.callTool({
-      name: 'thread_abort',
-      arguments: { kind: 'mis-scoped', diagnosis: 'stdio boundary probe' },
-    });
-    assert.equal(result.isError, true);
-    assert.match((result.content as any[])[0].text, /CORTEX_THREAD_ID unset/);
-  });
-});
-
-test('tool gate removes ask_manager without removing thread_wait or task monitoring', async () => {
-  const gate = JSON.stringify(['task_status', 'thread_wait']);
-  const env = { [MCP_TOOL_ALLOWLIST_ENV]: gate };
-  await withBundles(['cortex-thread'], async (client) => {
-    assert.deepEqual(await toolNames(client), ['thread_wait']);
-  }, env);
-  await withBundles(['cortex-tasks'], async (client) => {
-    assert.deepEqual(await toolNames(client), ['task_status']);
-  }, env);
 });
 
 test('an unknown tool gate name refuses MCP server startup', async () => {
-  await assert.rejects(withBundles(['cortex-thread'], async () => {}, {
-    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'thread_wiat']),
+  await assert.rejects(withBundles(['cortex-core'], async () => {}, {
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['current_time', 'curent_time']),
   }));
 });
 
-test('built cortex-manager-qa answers without a thread context', async () => {
-  await withQaWebhook(async (port, received) => {
-    await withBundles(['cortex-manager-qa'], async (client) => {
-      assert.deepEqual(await toolNames(client), ['answer_subtask']);
-      const result = await client.callTool({
-        name: 'answer_subtask',
-        arguments: { question_id: 'q-direct', answer: 'Use approach A.' },
-      });
-      assert.equal(result.isError ?? false, false);
-      assert.deepEqual(received, [{
-        action: 'answer', question_id: 'q-direct', answer: 'Use approach A.',
-        answererThreadId: null,
-      }]);
-    }, { WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'stdio-token' });
+test('a config naming retired bundles and tools still starts with the current surface', async () => {
+  await withServer('bundled-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), ['current_time']);
+  }, {
+    [MCP_BUNDLES_ENV]: JSON.stringify(['cortex-core', 'cortex-tasks', 'cortex-thread']),
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['current_time', 'task_status', 'thread_wait']),
   });
 });
 

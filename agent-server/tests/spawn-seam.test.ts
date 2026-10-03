@@ -66,7 +66,6 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // coverage model when the variable is absent, so a Claude spawn has to say so explicitly.
 // Everything else in the goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
-const THREAD_GOLDEN = path.join(TEST_DIR, 'spawn-seam-thread.golden.json');
 const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
 const originalEnv = { ...process.env };
 
@@ -155,25 +154,6 @@ function directSpawnConfig(): EngineSpec {
   return spec;
 }
 
-function threadSpawnConfig(): EngineSpec {
-  const spec = specFromFixture({
-    channel: 'thread-fixture',
-    sessionId: '22222222-2222-4222-8222-222222222222',
-    sessionKey: 'thread-fixture:1',
-    profileName: 'fixture-profile',
-    trackSessionId: 'tracked-thread',
-    executionId: 'exec-thread',
-    threadId: 'thr_fixture',
-    sessionName: 'cortex-fixture',
-    useCoreMcp: true,
-    threadDepth: 1,
-    taskId: 'abcd',
-    taskProject: 'atlas',
-  }, FIXTURE_CONFIG);
-  spec.resume.resume = false;
-  return spec;
-}
-
 /**
  * Drive ONE attempt the way production does — the step inside `startRun` — with a flat literal.
  * This is the seam the spawn-seam suite uses wherever it used to call `facade._test.runWithAdapter`:
@@ -218,26 +198,15 @@ function declaredServers(composition: McpComposition): string[] {
   return [...new Set(names)].sort();
 }
 
-test('resolveMcpComposition gives explicit values precedence over the legacy boolean', () => {
-  const explicit: McpComposition[] = [
-    'direct',
-    'thread-control',
-    'none',
-  ];
-  for (const composition of explicit) {
-    assert.equal(resolveMcpComposition(composition, false), composition);
-    assert.equal(resolveMcpComposition(composition, true), composition);
-  }
-  assert.equal(resolveMcpComposition(undefined, true), 'thread-control');
-  assert.equal(resolveMcpComposition(undefined, false), 'direct');
-  assert.equal(resolveMcpComposition(undefined, undefined), 'direct');
+test('resolveMcpComposition defaults to the direct surface', () => {
+  assert.equal(resolveMcpComposition(undefined), 'direct');
+  assert.equal(resolveMcpComposition('none'), 'none');
 });
 
-test('buildEngineSpec carries isolated one-shot values and resolves legacy composition', () => {
+test('buildEngineSpec carries isolated one-shot values', () => {
   const explicit = specFromFixture({
     cwd: '/fixture/task',
     mcpComposition: 'none',
-    useCoreMcp: true,
     mcpConfigPaths: ['/fixture/mcp-empty.json'],
     disableHooks: true,
     streamDeltas: false,
@@ -245,7 +214,6 @@ test('buildEngineSpec carries isolated one-shot values and resolves legacy compo
     loadCortexRules: false,
     recordCost: false,
   }, FIXTURE_CONFIG);
-  const legacy = specFromFixture({ useCoreMcp: true }, FIXTURE_CONFIG);
 
   assert.equal(explicit.cwd, '/fixture/task');
   assert.equal(explicit.mcp.composition, 'none');
@@ -254,47 +222,13 @@ test('buildEngineSpec carries isolated one-shot values and resolves legacy compo
   assert.equal(explicit.flags.streamDeltas, false);
   assert.equal(explicit.flags.captureTranscripts, false);
   assert.equal(explicit.prompt.append, undefined);
-  assert.equal(explicit.env.context?.useCoreMcp, true);
-  assert.equal(legacy.mcp.composition, 'thread-control');
 });
 
 test('buildEngineSpec canonicalizes a declared MCP tool allowlist', () => {
   const spec = specFromFixture({
-    mcpToolAllowlist: ['thread_wait', 'ask_manager', 'thread_wait'],
+    mcpToolAllowlist: ['current_time', 'cost_query', 'current_time'],
   }, FIXTURE_CONFIG);
-  assert.deepEqual(spec.mcp.allowlist, ['ask_manager', 'thread_wait']);
-});
-
-test('task dispatch generation reaches both backend environments without inheriting stale state', () => {
-  const spec = specFromFixture({
-    channel: 'thread-fixture',
-    sessionId: '33333333-3333-4333-8333-333333333333',
-    sessionKey: 'thread-fixture:2',
-    threadId: 'thr_generation',
-    taskId: 'abcd',
-    taskProject: 'atlas',
-    taskGeneration: 'generation-b',
-  }, FIXTURE_CONFIG);
-  assert.equal(spec.env.context?.taskGeneration, 'generation-b');
-
-  const claudeEnv = buildClaudeEnv(
-    'thread-fixture', spec.resume.backendSessionId!, null, null, undefined,
-    { CORTEX_TASK_GENERATION: 'forged-generation' }, spec.env.context,
-  );
-  assert.equal(claudeEnv.CORTEX_TASK_GENERATION, 'generation-b');
-
-  const piEnv = buildPiEnv({
-    sessionId: spec.resume.backendSessionId,
-    channel: 'thread-fixture',
-    context: spec.env.context,
-    piAgentDir: '/fixture/pi-agent',
-  }, { CORTEX_TASK_GENERATION: 'stale-generation' });
-  assert.equal(piEnv.CORTEX_TASK_GENERATION, 'generation-b');
-
-  const cleanPiEnv = buildPiEnv({ piAgentDir: '/fixture/pi-agent' }, {
-    CORTEX_TASK_GENERATION: 'stale-generation',
-  });
-  assert.equal(cleanPiEnv.CORTEX_TASK_GENERATION, undefined);
+  assert.deepEqual(spec.mcp.allowlist, ['cost_query', 'current_time']);
 });
 
 test('restricted one-shot options override MCP paths and disable hooks', () => {
@@ -464,11 +398,10 @@ test(
   assertMalformedPluginDirsIgnored,
 );
 
-test('ordinary direct and thread spawn argv and environment match base goldens byte-for-byte', () => {
+test('ordinary direct spawn argv and environment match the base golden byte-for-byte', () => {
   deterministicEnvironment();
   try {
     assert.equal(resolvedGolden(directSpawnConfig()), readFileSync(DIRECT_GOLDEN, 'utf8'));
-    assert.equal(resolvedGolden(threadSpawnConfig()), readFileSync(THREAD_GOLDEN, 'utf8'));
   } finally {
     replaceEnvironment(originalEnv);
     resetSettingsForTests();
@@ -788,7 +721,7 @@ const replacementCases: ReplacementCase[] = [
   { label: 'cwd', initial: { cwdSuffix: 'first', composition: 'direct' },
     replacement: { cwdSuffix: 'second', composition: 'direct' } },
   { label: 'composition', initial: { cwdSuffix: 'same', composition: 'direct' },
-    replacement: { cwdSuffix: 'same', composition: 'thread-control' } },
+    replacement: { cwdSuffix: 'same', composition: 'none' } },
 ];
 
 interface ReplacementFixture {

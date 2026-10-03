@@ -151,3 +151,13 @@ test('a retired skill path is removed from an existing install', async () => {
     await cleanup();
   }
 });
+
+test('the task and thread skills are retired from cortex-system and no longer ship', () => {
+  for (const rel of ['skills/task', 'skills/thread']) {
+    assert.ok(
+      RETIRED_PLUGIN_PATHS.some(([plugin, retired]) => plugin === 'cortex-system' && retired === rel),
+      `${rel} must be pruned from deployed installs`,
+    );
+    assert.equal(existsSync(`defaults/plugins/cortex-system/${rel}`), false, `${rel} must not ship`);
+  }
+});

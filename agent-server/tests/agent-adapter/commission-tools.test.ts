@@ -39,7 +39,7 @@ describe('commission tools — Claude --tools', () => {
   });
 
   it('refuses them outside a direct composition', () => {
-    const tools = toolsOf({ isUserInitiated: true, mcpComposition: 'thread-control' });
+    const tools = toolsOf({ isUserInitiated: true, mcpComposition: 'none' });
     for (const tool of [...PLAN, ...COMMISSION]) expect(tools).not.toContain(tool);
   });
 
@@ -92,7 +92,6 @@ describe('cortex_commission_start', () => {
     return {
       channel: 'web:x',
       sessionId: over.sessionId === undefined ? 's-1' : over.sessionId,
-      threadId: null,
       webhookBaseUrl: 'http://127.0.0.1:1',
       httpPost: async (url, body) => {
         over.posted?.push({ url, body });

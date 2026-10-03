@@ -92,8 +92,8 @@ function switchCalls(runtime: FakeRuntime): string[] {
   return runtime.calls.flatMap((call) => (call.kind === 'switch' ? [call.path] : []));
 }
 
-test('open accepts explicit direct and thread-control MCP compositions', () => {
-  for (const composition of ['direct', 'thread-control'] as const) {
+test('open accepts explicit direct and none MCP compositions', () => {
+  for (const composition of ['direct', 'none'] as const) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
     const engine = piPool(adapter).open(engineSpecFixture({
@@ -181,30 +181,22 @@ test('open forwards authoritative Cortex thread context to the session env', () 
     resume: false,
     callbackSource: 'thread',
     scheduleTaskId: 'schedule-1',
-    env: { CORTEX_THREAD_ID: 'spoofed', CUSTOM_ENV: 'kept' },
+    env: { CORTEX_PROFILE: 'spoofed', CUSTOM_ENV: 'kept' },
     cortexContext: {
-      threadId: 'thr_test',
       profile: 'deepseek-pro',
       project: 'vr-security',
       sessionName: 'cortex-test',
       trackSessionId: 'tracked-session',
       executionId: 'exec-test',
-      threadDepth: 2,
-      taskId: 'ab1a',
-      taskProject: 'vr-security',
     },
   }));
 
   const env = fake.requests[0].env;
-  assert.equal(env.CORTEX_THREAD_ID, 'thr_test');
   assert.equal(env.CORTEX_PROFILE, 'deepseek-pro');
   assert.equal(env.CORTEX_PROJECT, 'vr-security');
   assert.equal(env.CORTEX_SESSION_NAME, 'cortex-test');
   assert.equal(env.CORTEX_SESSION_ID, 'tracked-session');
   assert.equal(env.CORTEX_EXECUTION_ID, 'exec-test');
-  assert.equal(env.CORTEX_THREAD_DEPTH, '2');
-  assert.equal(env.CORTEX_TASK_ID, 'ab1a');
-  assert.equal(env.CORTEX_TASK_PROJECT, 'vr-security');
   assert.equal(env.CORTEX_CALLBACK_SOURCE, 'thread');
   assert.equal(env.CORTEX_SCHEDULE_TASK_ID, 'schedule-1');
   assert.equal(env.CORTEX_BACKEND, 'pi');
@@ -242,14 +234,10 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   const stale = {
     SLACK_CHANNEL: 'stale-channel',
     FEISHU_CHANNEL: 'stale-feishu',
-    CORTEX_THREAD_ID: 'stale-thread',
     CORTEX_PROFILE: 'stale-profile',
     CORTEX_PROJECT: 'stale-project',
     CORTEX_SESSION_NAME: 'stale-name',
     CORTEX_EXECUTION_ID: 'stale-execution',
-    CORTEX_THREAD_DEPTH: '9',
-    CORTEX_TASK_ID: 'stale-task',
-    CORTEX_TASK_PROJECT: 'stale-task-project',
     CORTEX_CALLBACK_SOURCE: 'stale-callback',
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
     CORTEX_CONFIG_IMMUTABLE: '1',
@@ -281,7 +269,7 @@ test('PIAdapter enables the shared interaction bridge only for direct user sessi
   for (const entry of [
     { key: 'pi-user-direct', isUserInitiated: true, mcpComposition: 'direct' as const, expected: '1' },
     { key: 'pi-nonuser-direct', isUserInitiated: false, mcpComposition: 'direct' as const, expected: undefined },
-    { key: 'pi-user-thread', isUserInitiated: true, mcpComposition: 'thread-control' as const, expected: undefined },
+    { key: 'pi-user-none', isUserInitiated: true, mcpComposition: 'none' as const, expected: undefined },
   ]) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
@@ -373,12 +361,6 @@ test('PIAdapter hands plugin MCP servers to the session only for compositions th
   for (const entry of [
     { key: 'pi-direct', mcpComposition: 'direct' as const, expected: [server] },
     { key: 'pi-none', mcpComposition: 'none' as const, expected: [] },
-    {
-      key: 'pi-subagent',
-      mcpComposition: 'thread-control' as const,
-      env: { CORTEX_PI_SUBAGENT: '1' },
-      expected: [],
-    },
   ]) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
@@ -387,12 +369,10 @@ test('PIAdapter hands plugin MCP servers to the session only for compositions th
       sessionKey: entry.key,
       resume: false,
       mcpComposition: entry.mcpComposition,
-      env: entry.env,
       mcpServers: [server],
     }));
 
     assert.deepEqual(fake.requests[0].pluginMcpServers, entry.expected, entry.key);
-    if (entry.env?.CORTEX_PI_SUBAGENT === '1') assert.equal(fake.requests[0].env.CORTEX_PI_SUBAGENT, '1');
     engine.kill();
   }
 });

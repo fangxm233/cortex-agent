@@ -63,7 +63,7 @@ test('generateConfigs preserves an existing preferences.json without --force', (
   assert.equal(JSON.parse(fs.readFileSync(prefsPath, 'utf8')).lang, 'en');
 });
 
-test('generateConfigs writes isolated task, manager-Q&A, and thread MCP configs', () => {
+test('generateConfigs writes the direct MCP config and no retired task/thread layers', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-init-mcp-'));
   const paths = getResolvedPaths(home);
   fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
@@ -71,18 +71,14 @@ test('generateConfigs writes isolated task, manager-Q&A, and thread MCP configs'
 
   try {
     generateConfigs(paths, baseAnswers('en'), false);
-    const tasks = JSON.parse(
-      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-tasks.json'), 'utf8'),
+    const full = JSON.parse(
+      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config.json'), 'utf8'),
     );
-    const managerQa = JSON.parse(
-      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-manager-qa.json'), 'utf8'),
-    );
-    const thread = JSON.parse(
-      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-thread.json'), 'utf8'),
-    );
-    assert.deepEqual(Object.keys(tasks.mcpServers), ['cortex-tasks']);
-    assert.deepEqual(Object.keys(managerQa.mcpServers), ['cortex-manager-qa']);
-    assert.deepEqual(Object.keys(thread.mcpServers), ['cortex-core']);
+    assert.deepEqual(Object.keys(full.mcpServers), ['cortex-core']);
+    assert.equal(full.mcpServers['cortex-core'].args[1], JSON.stringify(['cortex-core', 'cortex-ext']));
+    for (const retired of ['mcp-config-tasks.json', 'mcp-config-manager-qa.json', 'mcp-config-thread.json']) {
+      assert.equal(fs.existsSync(path.join(paths.CONFIG_DIR, retired)), false, retired);
+    }
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

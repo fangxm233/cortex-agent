@@ -27,7 +27,6 @@ import {
   mapMcpContent,
   shouldLoadFeishu,
   shouldLoadSlack,
-  shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
 import {
@@ -148,7 +147,6 @@ function createState(name: string, source: McpServerSource): ServerState {
 function optionalBundles(env: NodeJS.ProcessEnv): McpBundleName[] {
   const channel = env.SLACK_CHANNEL;
   const optional: Array<[boolean, McpBundleName]> = [
-    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), 'cortex-thread'],
     [true, 'cortex-ext'],
     [shouldLoadSlack(channel), 'cortex-slack'],
     [shouldLoadFeishu(channel), 'cortex-feishu'],
@@ -193,7 +191,6 @@ export function buildServerStates(
   }
   const bundles: McpBundleName[] = ['cortex-core'];
   if (env.CORTEX_PI_SUBAGENT !== '1') {
-    bundles.push('cortex-tasks', 'cortex-manager-qa');
     if (composition === 'direct' && env[PI_INTERACTION_BRIDGE_ENV] === '1') {
       bundles.push('cortex-interaction-bridge');
     }

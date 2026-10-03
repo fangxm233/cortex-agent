@@ -12,14 +12,10 @@ import {
   buildCoreConfig,
   buildEmptyConfig,
   buildFullConfig,
-  buildManagerQaConfig,
-  buildTasksConfig,
-  buildThreadConfig,
   buildInteractionConfig,
 } from '@core/config-generator.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-generator.js';
-import { mergeThreadTemplates } from '@domain/threads/index.js';
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
@@ -1331,21 +1327,16 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
   safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'AGENTS.md'), false);
   safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'AGENTS.md'), path.join(paths.CONTEXT_DIR, 'user', 'AGENTS.md'), false);
 
-  // Config defaults — budget overwrites only with --force;
-  // thread-templates are merged per-file (new agents/templates/shells added, existing preserved)
+  // Config defaults — budget overwrites only with --force.
   safeCopy(path.join(DEFAULTS_DIR, 'config', 'budget.json'), path.join(paths.CONFIG_DIR, 'budget.json'), force);
-  mergeThreadTemplates(
-    path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
-    path.join(paths.CONFIG_DIR, 'thread-templates'),
-  );
-  // Execution environments are merged the same way: shipped ones added, existing ones preserved.
+  // Execution environments are merged per-file: shipped ones added, existing ones preserved.
   mergeDefaultEnvironments(
     path.join(DEFAULTS_DIR, 'config', ENVIRONMENTS_DIRNAME),
     path.join(paths.CONFIG_DIR, ENVIRONMENTS_DIRNAME),
   );
   // Seed asset trees — per-file safeCopy semantics: new files always added, existing files
   // preserved unless force=true. These directories are referenced at runtime; without them
-  // thread-manager / skill-scanner / rules-loader can't find their inputs.
+  // skill-scanner / rules-loader can't find their inputs.
   safeCopyDir(path.join(DEFAULTS_DIR, 'prompts'), path.join(paths.DATA_DIR, 'prompts'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'rules'), path.join(paths.DATA_DIR, 'rules'), force);
   safeCopyDir(path.join(DEFAULTS_DIR, 'plugins'), path.join(paths.DATA_DIR, 'plugins'), force);
@@ -1376,9 +1367,6 @@ function writeMcpConfigs(configDir: string): void {
   const configs: Array<[string, object]> = [
     ['mcp-config.json', buildFullConfig(INSTALL_ROOT)],
     ['mcp-config-core.json', buildCoreConfig(INSTALL_ROOT)],
-    ['mcp-config-tasks.json', buildTasksConfig(INSTALL_ROOT)],
-    ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
-    ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
     ['mcp-config-empty.json', buildEmptyConfig()],
     ['mcp-config-interaction.json', buildInteractionConfig(INSTALL_ROOT)],
   ];

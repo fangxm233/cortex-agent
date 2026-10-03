@@ -33,7 +33,7 @@ describe('browser MCP on the PI backend', () => {
   it('refuses the browser outside a direct session', () => {
     // An unattended worker sharing one browser is a cross-run side channel, not a feature — the
     // same reason the Claude path gates on `direct`.
-    const servers = request({ browserCdpEndpoint: ENDPOINT }, 'thread-control').pluginMcpServers;
+    const servers = request({ browserCdpEndpoint: ENDPOINT }, 'none').pluginMcpServers;
     expect(servers.some((s) => s.name === BROWSER_MCP_SERVER_NAME)).toBe(false);
   });
 

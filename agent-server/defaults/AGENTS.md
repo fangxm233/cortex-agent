@@ -15,7 +15,7 @@ This is your Cortex data directory. Cortex is an autonomous agent system for lon
 
 Run `cortex start` to launch the server, or `cortex daemon` for daemon mode.
 
-<!-- cortex:docs v1 -->
+<!-- cortex:docs v2 -->
 # Cortex documentation
-For how to use Cortex — tasks, threads, scheduling, memory, skills, safety & approvals — consult the docs: https://fangxm233.github.io/cortex-agent/
+For how to use Cortex — sessions, scheduling, memory, skills, safety & approvals — consult the docs: https://fangxm233.github.io/cortex-agent/
 <!-- /cortex:docs -->

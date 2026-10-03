@@ -28,7 +28,7 @@ import type {
 const log = createLogger('subagent-runner');
 
 /** Which MCP surface a one-shot child is allowed. `direct` is what an ordinary turn gets. */
-const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext'];
+const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-ext'];
 
 /** What the delegating turn already resolved. A child inherits routing from here — never a profile. */
 export interface SubagentParentContext {

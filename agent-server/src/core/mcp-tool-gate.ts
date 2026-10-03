@@ -8,9 +8,6 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
     'remote_glob', 'remote_grep', 'current_time',
     'agent', 'agent_stop',
   ],
-  'cortex-tasks': ['task_status', 'task_result', 'task_list'],
-  'cortex-manager-qa': ['answer_subtask'],
-  'cortex-thread': ['thread_abort', 'thread_split', 'thread_wait', 'ask_manager'],
   'cortex-ext': [
     'cost_query', 'query_executions', 'cortex_context', 'cortex_schedule_add',
     'cortex_schedule_list', 'cortex_schedule_get', 'cortex_schedule_remove',
@@ -26,10 +23,16 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   'cortex-feishu': ['feishu_send_file'],
   'cortex-web': ['send_file', 'send_view', 'send_decision'],
   'cortex-workers': ['worker_spawn', 'worker_send', 'worker_list', 'worker_stop', 'worker_answer'],
-  'cortex-benchmark-thread': ['thread_run'],
 };
 
 const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());
+
+/** Tools an older release served. An allowlist written before their removal may still name them;
+ *  they are dropped silently instead of being rejected as typos. */
+const RETIRED_MCP_TOOLS = new Set([
+  'task_status', 'task_result', 'task_list', 'answer_subtask',
+  'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
+]);
 
 /**
  * The delegation tools. A subagent is a leaf: it never gets these, on either backend, which is what
@@ -56,7 +59,7 @@ type MutableMcpServer = {
 };
 
 export function canonicalizeMcpToolAllowlist(values: readonly string[]): string[] {
-  return [...new Set(values)].sort();
+  return [...new Set(values)].filter(name => !RETIRED_MCP_TOOLS.has(name)).sort();
 }
 
 export function validateMcpToolAllowlist(

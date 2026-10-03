@@ -28,19 +28,6 @@ function nodeHook(script: string, timeout?: number): ClaudeCommandHook {
   return hook;
 }
 
-/** No interaction entries here: headless `-p` drops AskUserQuestion / EnterPlanMode / ExitPlanMode
- *  from the tool surface whatever `--tools` says, so a PreToolUse matcher on them could never fire.
- *  Human-in-the-loop plan approval and questions run through the interaction-bridge MCP tools
- *  (cortex_plan_exit / cortex_ask_user), which post to the same webhook endpoints. */
-export function buildPreToolUseHooks() {
-  const hooks: ClaudeMatcherGroup[] = [
-    { matcher: 'Edit|Write', hooks: [
-      nodeHook('tasks-yaml-guard.mjs', 10),
-    ]},
-  ];
-  return hooks;
-}
-
 export const POST_TOOL_USE_HOOKS = [
   { matcher: 'Read|Grep', hooks: [
     nodeHook('memory-ref-tracker.mjs'),
@@ -56,7 +43,6 @@ export const SESSION_START_HOOKS = [
 
 function buildLegacyHooksSettings(): ClaudeHooksSettings {
   return {
-    PreToolUse: buildPreToolUseHooks(),
     PostToolUse: POST_TOOL_USE_HOOKS,
     SessionStart: SESSION_START_HOOKS,
   };

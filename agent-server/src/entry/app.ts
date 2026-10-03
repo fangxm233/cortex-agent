@@ -46,7 +46,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
-import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
+import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
@@ -94,7 +94,6 @@ import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
-import { retireTemplatePluginRefs } from '@store/plugin-retirement.js';
 import { costRepo } from '@store/cost-repo.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -486,16 +485,6 @@ process.on('SIGTERM', async () => {
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
   // A sealed production trial declares no plugins and keeps its attested config immutable.
   if (syncManagedAssets) await syncManagedPlugins();
-  // Deploying a plugin is only half of shipping it: config/thread-templates/ is written by
-  // `cortex init` and never by an upgrade, so an install created before a plugin was added or
-  // retired keeps referencing the old set. One-shot rewrite, guarded by its own versions.json key.
-  if (syncManagedAssets) {
-    try {
-      await retireTemplatePluginRefs();
-    } catch (e) {
-      log.warn(`Startup: retireTemplatePluginRefs failed: ${(e as Error).message}`);
-    }
-  }
   // DR-0012 §3.6: clean up orphan TUI tmux sessions from a previous agent-server lifetime.
   // We can't re-adopt them (sessionKey↔tmux mapping was never persisted) so the honest move
   // is to kill any leftovers — otherwise a later session that reuses the same sessionId will
@@ -711,17 +700,6 @@ process.on('SIGTERM', async () => {
 
   taskStore.load();
 
-  // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
-  // then per-file copy-if-missing the shipped defaults dir (so new agents/templates/shells — e.g.
-  // a new shell definition — reach existing installs). Sealed trial homes supply their complete
-  // template surface and must remain unchanged after launch attestation.
-  if (syncManagedAssets) {
-    migrateThreadTemplatesToDir();
-    mergeThreadTemplates(
-      path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
-      path.join(CONFIG_DIR, 'thread-templates'),
-    );
-  }
   loadThreadConfig();
   // Execution environments: copy-if-missing the shipped defaults (a sealed trial home brings its
   // own), then load and watch config/environments/.
