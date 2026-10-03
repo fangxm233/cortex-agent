@@ -11,7 +11,7 @@ import {
   applyChannelSelection, readChannelSelection, resolveBackendForChannel,
   type ApplySelectionRequest, type ApplySelectionResult, type ChannelSelection,
 } from '@domain/agents/index.js';
-import { getDefaultProfileForBackend } from '@domain/agents/profile-manager.js';
+import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/agents/profile-manager.js';
 import { parseModelSpec } from '@domain/agents/subagent/runner.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';
@@ -47,6 +47,8 @@ export interface TeamWebhookDeps {
   cancel: (channel: string) => Promise<number>;
   readSelection: (channel: string) => ChannelSelection;
   defaultProfile: (backend: Backend) => string | null;
+  /** The PI profile configured for a provider, if any. */
+  providerProfile: (provider: string) => string | null;
   applySelection: (request: ApplySelectionRequest) => Promise<ApplySelectionResult>;
   interactions: Pick<InteractionRecords, 'get'>;
   answerQuestion: (requestId: string, answers: Record<string, string>) => Outcome;
@@ -70,6 +72,7 @@ const defaultDeps: TeamWebhookDeps = {
   cancel: (channel) => cancelChannelRuns(channel),
   readSelection: (channel) => readChannelSelection(channel),
   defaultProfile: (backend) => getDefaultProfileForBackend(backend),
+  providerProfile: (provider) => findProfileForProvider('pi', provider)?.name ?? null,
   applySelection: (request) => applyChannelSelection(request),
   interactions: interactionRecords,
   answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'agent'),
@@ -139,6 +142,14 @@ function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: 
   const spec = parseModelSpec(str(data.model) || undefined);
   // A bare Claude model id has no provider segment; one written for PI is dropped, not smuggled in.
   if (backend === 'claude') delete spec.provider;
+
+  // A PI provider with a profile of its own runs on that profile, as a pick in the composer does,
+  // so its route and settings are the ones configured for it.
+  const leavesProvider = spec.provider !== undefined && !(backend === own.backend && spec.provider === own.provider);
+  const sibling = backend === 'pi' && leavesProvider ? deps.providerProfile(spec.provider!) : null;
+  if (sibling) {
+    return { profileName: sibling, model: spec.model ?? null, provider: null, thinking: spec.thinking ?? null, mode: null };
+  }
 
   if (backend === own.backend) {
     const base = own.override ?? {};

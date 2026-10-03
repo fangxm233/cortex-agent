@@ -76,6 +76,7 @@ function world(): World {
     cancel: async (channel) => { w.cancelled.push(channel); return 1; },
     readSelection: (channel) => w.selections.get(channel)!,
     defaultProfile: (backend) => (backend === 'pi' ? 'pi-default' : 'claude-default'),
+    providerProfile: () => null,
     applySelection: async (request) => {
       w.applied.push(request);
       if (w.refuse) return { ok: false, ...w.refuse } as ApplySelectionResult;
@@ -275,6 +276,22 @@ test('spawn on the other backend starts from its default profile with only the p
   w.deps.defaultProfile = () => null;
   assert.match((await call(w, { action: 'spawn', name: 'c', prompt: 'p', backend: 'claude' })).error!,
     /no profile is configured for the claude backend/);
+});
+
+test('spawn moves a PI worker onto the profile configured for the provider it names', async () => {
+  const w = world();
+  w.deps.providerProfile = (provider) => (provider === 'openai' ? 'oa' : provider === 'deepseek' ? 'ds' : null);
+  w.selections.set('web:lead', {
+    profileName: 'ds', backend: 'pi', model: 'deepseek-v4', provider: 'deepseek', thinking: 'high',
+    mode: 'deepseek-plan', override: { model: 'deepseek-v4', thinking: 'high', mode: 'deepseek-plan' },
+  });
+  await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'openai/gpt-6:low' });
+  assert.deepEqual(w.applied[0], {
+    channel: 'web:w1', profileName: 'oa', model: 'gpt-6', provider: null, thinking: 'low', mode: null, seedDefault: false,
+  });
+  await call(w, { action: 'spawn', name: 'b', prompt: 'p', model: 'deepseek/deepseek-v4-flash' });
+  assert.equal(w.applied[1].profileName, 'ds', 'the lead\'s own provider keeps the lead\'s profile');
+  assert.equal(w.applied[1].mode, 'deepseek-plan');
 });
 
 test('spawn refuses a selection the rule rejects, and an unknown backend, creating nothing', async () => {
