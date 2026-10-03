@@ -111,65 +111,6 @@ test('an oversized signal body is refused 413 without being buffered', async () 
   assert.equal(result.destroyed, true, 'the request must be torn down, not read to completion');
 });
 
-test('thread-op-only mode refuses every broader webhook route', async () => {
-  process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
-  try {
-    const refused = await drive({
-      method: 'POST', url: '/webhook/remote-command',
-      headers: { 'x-cortex-token': TOKEN }, body: { device: 'x', action: 'bash' },
-    });
-    assert.equal(refused.statusCode, 403);
-    const admitted = await drive({
-      method: 'POST', url: '/webhook/thread-op',
-      headers: { 'x-cortex-token': TOKEN }, body: { action: 'list' },
-    });
-    assert.equal(admitted.statusCode, 200);
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY;
-  }
-});
-
-test('thread-op-only mode refuses task-op and manager-qa to an authenticated caller', async () => {
-  // A task-root benchmark arm injects its unit of work through the shipped `cortex-task` CLI
-  // inside the sealed home, so its confinement is unchanged: the route that would have carried
-  // the add, and the route `ask_manager` posts to, both stay refused with a valid bearer.
-  process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
-  try {
-    for (const url of ['/webhook/task-op', '/webhook/manager-qa']) {
-      const refused = await drive({
-        method: 'POST', url, headers: { 'x-cortex-token': TOKEN },
-        body: { op: 'add', project: 'general', text: 'injected' },
-      });
-      assert.equal(refused.statusCode, 403, url);
-    }
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY;
-  }
-});
-
-test('thread-op-only mode admits manager-qa only when the arm explicitly enables it', async () => {
-  process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
-  process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED = '1';
-  try {
-    const admitted = await drive({
-      method: 'POST', url: '/webhook/manager-qa',
-      headers: { 'x-cortex-token': TOKEN }, body: { action: 'unknown' },
-    });
-    assert.equal(admitted.statusCode, 200);
-    assert.deepEqual(JSON.parse(admitted.body), { success: false, error: 'unknown action: unknown' });
-
-    for (const url of ['/webhook/task-op', '/webhook/remote-command']) {
-      const refused = await drive({
-        method: 'POST', url, headers: { 'x-cortex-token': TOKEN }, body: {},
-      });
-      assert.equal(refused.statusCode, 403, url);
-    }
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY;
-    delete process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED;
-  }
-});
-
 test('POST /webhook/github is exempt from the token gate (uses HMAC instead)', async () => {
   // No x-cortex-token header. With no GITHUB_WEBHOOK_SECRET configured, verifySignature
   // returns true (warns) and a non-push event is Ignored with 200 — proving the token

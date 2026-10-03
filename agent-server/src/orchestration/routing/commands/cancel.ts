@@ -9,10 +9,9 @@ import { sessionHolds } from '../../../core/session-holds.js';
 import { engines } from '@domain/runs/engines.js';
 import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
-import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 
-/** Cancel one live execution: cancel its thread record, then tear it down as 'cancelled'.
+/** Cancel one live execution: tear it down as 'cancelled'.
  *  teardownExecution sets the persistent record cancelled BEFORE killing the handle, so
  *  the kill-error path's failExecution is a terminal no-op — and it publishes a balanced terminal
  *  event so agent.started is not left dangling.
@@ -24,7 +23,6 @@ import * as executionRegistry from '@domain/executions/registry.js';
  *  persistence on an interrupted turn is handled by the Turn's settle-time backstop instead
  *  (`turn/turn.ts` → `resume-target-sink.ts`). */
 async function cancelLive(exec: RunningExecution): Promise<void> {
-  if (exec.threadId) await cancelThreadById(exec.threadId).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {
@@ -136,29 +134,24 @@ export async function cancelChannelRuns(channel: string): Promise<number> {
   return total;
 }
 
-/** Matches thread IDs like `thr_a1b2c3d4`. */
-const THREAD_ID_RE = /^thr_[0-9a-f]{8}$/;
-
 const log = createLogger('cancel');
 
 const MAX_CANCEL_BUTTONS = 10;
 
-export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: string; channel: string }) => Promise<{ ok: boolean; message: string }>) | null, router?: CommandActionRouter) {
+export function createCancelHandler(router?: CommandActionRouter) {
   if (router) {
     const cancelHandler = async (ctx: import('@platform/index.js').ActionContext) => {
-      const { threadId, executionId } = JSON.parse(ctx.value);
+      const { executionId } = JSON.parse(ctx.value);
       const adapter = router.getAdapter();
       if (!adapter) return;
 
-      const exec = threadId
-        ? runRegistry.getByThreadId(threadId)
-        : (executionId ? runRegistry.getById(executionId) : null);
+      const exec = executionId ? runRegistry.getById(executionId) : null;
       if (exec) await cancelLive(exec);
       conduitQueues.delete(ctx.channelId);
 
       if (ctx.messageRef) {
         await adapter.updateMessage(ctx.messageRef, {
-          text: `${Icons.stopped} ${t('cmd.cancel.cancelledShort', { id: threadId || executionId })}`,
+          text: `${Icons.stopped} ${t('cmd.cancel.cancelledShort', { id: executionId })}`,
         }).catch(() => {});
       }
     };
@@ -187,26 +180,15 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
         return;
       }
 
-      // Thread ID pattern: kill by threadId + cancel thread store record
-      if (THREAD_ID_RE.test(firstArg)) {
-        const exec = runRegistry.getByThreadId(firstArg);
-        if (exec) {
-          await cancelLive(exec);
-          log.info('Cancel requested for thread:', firstArg);
-          await adapter.postMessage(dest, { text: `${Icons.stopped} ${t('cmd.cancel.threadCancelled', { id: firstArg })}` });
-        } else {
-          await adapter.postMessage(dest, { text: t('cmd.cancel.threadNotFound', { id: firstArg }) });
-        }
-        return;
+      // Anything else names one execution.
+      const exec = runRegistry.getById(firstArg);
+      if (exec) {
+        await cancelLive(exec);
+        log.info('Cancel requested for execution:', firstArg);
+        await adapter.postMessage(dest, { text: `${Icons.stopped} ${t('cmd.cancel.executionCancelled', { id: firstArg })}` });
+      } else {
+        await adapter.postMessage(dest, { text: t('cmd.cancel.executionNotFound', { id: firstArg }) });
       }
-
-      // Fallback: dispatched-task cancellation
-      if (!cancelDispatchedTask) {
-        await adapter.postMessage(dest, { text: t('cmd.cancel.dispatchUnavailable') });
-        return;
-      }
-      const result = await cancelDispatchedTask({ taskId: firstArg, channel });
-      await adapter.postMessage(dest, { text: result.message });
       return;
     }
 
@@ -229,19 +211,16 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
 
     // 2+ executions: show interactive list with cancel buttons
     return {
-      text: t('cmd.cancel.runningTasks', { n: executions.length }),
+      text: t('cmd.cancel.runningExecutions', { n: executions.length }),
       richBlocks: executions.map(exec => ({
         type: 'section' as const,
-        text: `\`${exec.threadId || exec.registryKey}\` · started ${new Date(exec.startTime).toLocaleTimeString()} · ${exec.backend}${exec.channel ? ` · ${exec.channel}` : ''}`,
+        text: `\`${exec.executionId || exec.registryKey}\` · started ${new Date(exec.startTime).toLocaleTimeString()} · ${exec.backend}${exec.channel ? ` · ${exec.channel}` : ''}`,
       })),
       actions: executions.map((exec, i) => ({
         type: 'button' as const,
-        text: t('cmd.cancel.cancelButton', { id: exec.threadId || exec.registryKey }),
+        text: t('cmd.cancel.cancelButton', { id: exec.executionId || exec.registryKey }),
         actionId: `cmd:cancel:exec-${i}`,
-        value: JSON.stringify({
-          threadId: exec.threadId,
-          executionId: exec.executionId,
-        }),
+        value: JSON.stringify({ executionId: exec.executionId }),
         style: 'danger' as const,
       })),
     };

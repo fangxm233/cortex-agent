@@ -42,7 +42,6 @@ test('!cancel with 2+ executions shows interactive list with cancel buttons', as
   const router = new CommandActionRouter();
   const dispatchCommand = createCommandDispatcher({
     scheduler: null as any,
-    cancelDispatchedTask: null,
     commandRouter: router,
   });
   router.bindToAdapter(adapter);
@@ -77,7 +76,6 @@ test('!cancel with 2+ executions: clicking cancel button kills execution', async
   const router = new CommandActionRouter();
   createCommandDispatcher({
     scheduler: null as any,
-    cancelDispatchedTask: null,
     commandRouter: router,
   });
   router.bindToAdapter(adapter);
@@ -107,7 +105,6 @@ test('!cancel with 1 execution falls back to direct cancel', async () => {
   const router = new CommandActionRouter();
   const dispatchCommand = createCommandDispatcher({
     scheduler: null as any,
-    cancelDispatchedTask: null,
     commandRouter: router,
   });
   router.bindToAdapter(adapter);

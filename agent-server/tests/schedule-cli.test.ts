@@ -159,8 +159,8 @@ test('scheduler skips an unregistered dispatch type instead of falling through t
 
 test('schedule updates reject built-in job dispatch types', withTempSchedules(async ({ scheduler }) => {
   await assert.rejects(
-    () => scheduler.update('int1', { dispatchType: 'task-dispatch' }),
-    /built-in job.*task-dispatch/i,
+    () => scheduler.update('int1', { dispatchType: 'memory-index-regen' }),
+    /built-in job.*memory-index-regen/i,
   );
   assert.equal((await scheduler.get('int1')).dispatchType, undefined);
 }));

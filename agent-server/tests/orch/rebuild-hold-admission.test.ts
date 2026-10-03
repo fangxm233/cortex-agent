@@ -1,7 +1,6 @@
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
-import { ThreadExecutor } from '../../src/orchestration/thread-executor.js';
 import { holdNewTurns, releaseNewTurnHold } from '../../src/domain/system/rebuild-hold.js';
 import { resetSystemNoticeHistory, listSystemNotices } from '../../src/domain/system/notice-history.js';
 import { MockAdapter } from '../../src/platform/testing.js';
@@ -89,23 +88,4 @@ test('a callback refused under the hold is recorded instead of answered into a c
   const notices = listSystemNotices();
   assert.equal(notices.length, 1);
   assert.match(notices[0].text, /Background agent sa_99/);
-});
-
-test('thread routing is held on the same rule', async () => {
-  const track: number[] = [];
-  const enqueued: string[] = [];
-  const executor = new ThreadExecutor({
-    track: (delta) => track.push(delta),
-    enqueue: (channel) => { enqueued.push(channel); return true; },
-    execute: async () => {},
-  });
-  const ctx = makeCtx({ threadStartMatch: ['!thread review', 'review'] as any });
-  holdNewTurns({ phase: 'install' });
-
-  await executor.route(ctx as any);
-
-  assert.deepEqual(track, []);
-  assert.deepEqual(enqueued, []);
-  assert.equal(ctx.adapter.posted.length, 1);
-  assert.match(ctx.adapter.posted[0].content.text!, /rebuilding/);
 });

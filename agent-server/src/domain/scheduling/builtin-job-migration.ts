@@ -13,11 +13,11 @@ interface JobMigrationSpec {
 }
 
 const JOB_SPECS: JobMigrationSpec[] = [
-  { dispatchType: 'task-dispatch', enabledKey: 'taskDispatchEnabled', intervalKey: 'taskDispatchIntervalMs' },
-  { dispatchType: 'task-archive', enabledKey: 'taskArchiveEnabled', intervalKey: 'taskArchiveIntervalMs' },
   { dispatchType: 'memory-index-regen', enabledKey: 'memoryIndexRegenEnabled', intervalKey: 'memoryIndexRegenIntervalMs' },
 ];
-const MOVED_TYPES = new Set(JOB_SPECS.map((spec) => spec.dispatchType));
+/** Jobs that no longer exist at all: a legacy schedule for one is dropped and carries nothing over. */
+const RETIRED_TYPES = ['task-dispatch', 'task-archive'];
+const MOVED_TYPES = new Set([...JOB_SPECS.map((spec) => spec.dispatchType), ...RETIRED_TYPES]);
 
 interface SnapshotEntry {
   key: string;

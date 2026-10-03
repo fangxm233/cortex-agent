@@ -19,10 +19,6 @@ function legacyTask(dispatchType: string, patch: Record<string, unknown> = {}) {
 function harness(tasks: any[], overrides: Record<string, unknown> = {}) {
   let data = { tasks: [...tasks] };
   const values: Record<string, unknown> = {
-    taskDispatchEnabled: true,
-    taskDispatchIntervalMs: 30_000,
-    taskArchiveEnabled: true,
-    taskArchiveIntervalMs: 21_600_000,
     memoryIndexRegenEnabled: true,
     memoryIndexRegenIntervalMs: 86_400_000,
     ...overrides,
@@ -55,8 +51,6 @@ function harness(tasks: any[], overrides: Record<string, unknown> = {}) {
 test('migration preserves intervals and maps pause provenance before removing legacy records', async () => {
   const kept = legacyTask('auth-expiry-scan');
   const h = harness([
-    legacyTask('task-dispatch', { intervalMs: 45_000 }),
-    legacyTask('task-archive', { intervalMs: 7_200_000, isPaused: true, pausedBy: 'user' }),
     legacyTask('memory-index-regen', { intervalMs: 43_200_000, isPaused: true, pausedBy: 'rate-limit' }),
     kept,
   ]);
@@ -64,25 +58,34 @@ test('migration preserves intervals and maps pause provenance before removing le
   const result = await migrateBuiltinJobSchedules(h);
 
   assert.deepEqual(h.updateSettings.mock.calls[0][0], {
-    taskDispatchEnabled: true,
-    taskDispatchIntervalMs: 45_000,
-    taskArchiveEnabled: false,
-    taskArchiveIntervalMs: 7_200_000,
     memoryIndexRegenEnabled: true,
     memoryIndexRegenIntervalMs: 43_200_000,
   });
-  assert.equal(result.removed, 3);
+  assert.equal(result.removed, 1);
   assert.deepEqual(h.tasks().map((task) => task.dispatchType), ['auth-expiry-scan']);
 });
 
+test('records of retired jobs are dropped and carry no settings over', async () => {
+  const h = harness([
+    legacyTask('task-dispatch', { intervalMs: 45_000 }),
+    legacyTask('task-archive', { intervalMs: 7_200_000, isPaused: true, pausedBy: 'user' }),
+  ]);
+
+  const result = await migrateBuiltinJobSchedules(h);
+
+  assert.equal(h.updateSettings.mock.calls.length, 0);
+  assert.equal(result.removed, 2);
+  assert.deepEqual(h.tasks(), []);
+});
+
 test('explicit settings win and identical duplicate records collapse idempotently', async () => {
-  const duplicate = legacyTask('task-archive', { intervalMs: 7_200_000, isPaused: true, pausedBy: 'user' });
+  const duplicate = legacyTask('memory-index-regen', { intervalMs: 7_200_000, isPaused: true, pausedBy: 'user' });
   const h = harness([
     duplicate,
     { ...duplicate, id: 'duplicate-2' },
   ], {
-    taskArchiveEnabled: true,
-    taskArchiveIntervalMs: 3_600_000,
+    memoryIndexRegenEnabled: true,
+    memoryIndexRegenIntervalMs: 3_600_000,
   });
 
   const first = await migrateBuiltinJobSchedules(h);
@@ -96,18 +99,18 @@ test('explicit settings win and identical duplicate records collapse idempotentl
 
 test('conflicting duplicate values abort before either file is changed', async () => {
   const h = harness([
-    legacyTask('task-archive', { intervalMs: 3_600_000 }),
-    legacyTask('task-archive', { intervalMs: 7_200_000 }),
+    legacyTask('memory-index-regen', { intervalMs: 3_600_000 }),
+    legacyTask('memory-index-regen', { intervalMs: 7_200_000 }),
   ]);
 
-  await assert.rejects(() => migrateBuiltinJobSchedules(h), /conflicting task-archive interval/i);
+  await assert.rejects(() => migrateBuiltinJobSchedules(h), /conflicting memory-index-regen interval/i);
   assert.equal(h.updateSettings.mock.calls.length, 0);
   assert.equal(h.repo.mutate.mock.calls.length, 0);
   assert.equal(h.tasks().length, 2);
 });
 
 test('settings persist before schedule removal and a removal failure is retry-safe', async () => {
-  const h = harness([legacyTask('task-dispatch', { intervalMs: 60_000 })]);
+  const h = harness([legacyTask('memory-index-regen', { intervalMs: 60_000 })]);
   h.repo.mutate.mockRejectedValueOnce(new Error('schedule write failed'));
 
   await assert.rejects(() => migrateBuiltinJobSchedules(h), /schedule write failed/);
@@ -121,7 +124,7 @@ test('settings persist before schedule removal and a removal failure is retry-sa
 });
 
 test('invalid settings storage aborts before migration can overwrite it', async () => {
-  const h = harness([legacyTask('task-dispatch')]);
+  const h = harness([legacyTask('memory-index-regen')]);
   h.assertSettingsFileValid.mockImplementationOnce(() => { throw new Error('invalid settings file'); });
 
   await assert.rejects(() => migrateBuiltinJobSchedules(h), /invalid settings file/);

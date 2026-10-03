@@ -6,10 +6,8 @@ import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 
 import { handleOrientCmd } from './orient.js';
-import { handleThreadCmd } from './thread-handlers.js';
 import { createScheduleHandler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
-import { createTasksHandler } from './task.js';
 import { handleModeCmd, handleBackendCmd, handleModelCmd, handleThinkingCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
 import { createCancelHandler } from './cancel.js';
@@ -20,7 +18,6 @@ import { handleProjectsCmd, createRegisterHandler, createProjectDirHandler, hand
 import { createDevicesHandler } from './device.js';
 import { handleTailCmd } from './tail.js';
 import { handleSendFileCmd } from './sendfile.js';
-import { handleDispatchCmd } from './dispatch.js';
 import { createLangHandler } from './lang.js';
 import { handleRestartCmd } from './restart.js';
 import { createLoginHandler } from './login.js';
@@ -31,7 +28,6 @@ const log = createLogger('command-handler');
 
 export interface CommandDeps {
   scheduler: any;
-  cancelDispatchedTask?: ((opts: { taskId: string; channel: string }) => Promise<{ ok: boolean; message: string }>) | null;
   getExecutionStatusReport?: (() => string) | null;
   commandRouter?: CommandActionRouter;
   compactSessionByChannel?: CompactSessionByChannel | null;
@@ -93,12 +89,11 @@ const catchHandlerError = (promise: Promise<unknown>, cmd: string, channel: stri
 function createHandlerSet(deps: CommandDeps) {
   const router = deps.commandRouter;
   return {
-    cancel: createCancelHandler(deps.cancelDispatchedTask ?? null, router),
+    cancel: createCancelHandler(router),
     status: createStatusHandler(deps.getExecutionStatusReport ?? null, router),
     compact: createCompactHandler(deps.compactSessionByChannel ?? null),
     help: createHelpHandler(router),
     devices: createDevicesHandler(router),
-    tasks: createTasksHandler(router),
     resume: createResumeHandler(router),
     profile: createProfileHandler(router),
     agent: createAgentHandler(router),
@@ -134,7 +129,6 @@ function createExactCommands(h: HandlerSet): Record<string, Handler> {
     '!tail': (ch, ad, msg) => handleTailCmd(ch, ad, msg),
     '!devices': (ch, ad) => h.devices(ch, ad),
     '!clients': (ch, ad) => h.devices(ch, ad),
-    '!thread': (ch, ad, msg) => handleThreadCmd(ch, ad, msg),
     '!agent': (ch, ad, msg) => h.agent(ch, ad, msg),
     '!orient': (ch, ad) => handleOrientCmd(ch, ad),
     '!lang': (ch, ad, msg) => h.lang(ch, ad, msg),
@@ -156,16 +150,13 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!schedule', handler: h.schedule },
     { prefix: '!resume', handler: h.resume },
     { prefix: '!tail', handler: handleTailCmd },
-    { prefix: '!tasks', handler: h.tasks },
     { prefix: '!nvidia-smi', handler: handleNvidiaSmiCmd },
     { prefix: '!nvtop', handler: handleNvtopCmd },
     { prefix: '!project-dir', handler: h.projectDir },
     { prefix: '!register', handler: h.register },
     { prefix: '!unregister', handler: handleUnregisterCmd },
-    { prefix: '!thread', handler: handleThreadCmd },
     { prefix: '!agent', handler: h.agent },
     { prefix: '!sendFile', handler: handleSendFileCmd },
-    { prefix: '!dispatch', handler: handleDispatchCmd as Handler },
     { prefix: '!lang', handler: h.lang },
     { prefix: '!login ', handler: (ch, ad, msg) => h.login(ch, ad, msg) },
   ];
