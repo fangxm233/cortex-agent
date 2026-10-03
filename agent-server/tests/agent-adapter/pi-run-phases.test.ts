@@ -329,3 +329,36 @@ test('session_started lands on the stream of the first turn, never on a reused o
   assert.equal(fake.runtimes.length, 1, 'the second turn reused the pooled PI runtime');
   assert.equal(secondRaw.some((event) => event.type === 'session_started'), false);
 });
+
+test("a turn's final output is the main agent's last text block", async (t) => {
+  const fixture = await openSession('pi-phases-final-output');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { done } = collect(run);
+
+  runtime.emitAgentStart();
+  runtime.emitAssistantText('looking around');
+  runtime.emitAssistantText('wrote /tmp/out.txt');
+  settleRun(runtime, 0.01);
+  const result = await run.result;
+  await done;
+
+  assert.equal(result.finalOutput, 'wrote /tmp/out.txt');
+});
+
+test('killing a session mid-turn rejects the turn as cancelled, not as a failure', async (t) => {
+  const fixture = await openSession('pi-phases-kill-cancel');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { done } = collect(run);
+  runtime.emitAgentStart();
+
+  assert.equal(engine.kill(), true);
+  const error = await run.result.then(() => null, (e: unknown) => e as { cancelled?: boolean });
+  await done;
+
+  assert.equal(error?.cancelled, true);
+  assert.ok(runtime.calls.some((call) => call.kind === 'abort'), 'PI itself is aborted');
+});

@@ -26,6 +26,9 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     scheduleId: null,
     ...over,
     commissionId: over.commissionId ?? null,
+    teamLeadId: over.teamLeadId ?? null,
+    workerName: over.workerName ?? null,
+    workerRetiredAt: over.workerRetiredAt ?? null,
   };
 }
 
@@ -79,6 +82,12 @@ describe('sessionStatusLine', () => {
     // An absent field (older server) must not invent a waiting state.
     expect(sessionStatusLine(sess({})).kind).toBe('idle');
   });
+
+  it('shows a worker blocked on its lead as waiting on the lead, even while its turn runs', () => {
+    expect(sessionStatusLine(sess({ running: true, waitingOnLead: 1 }), 'zh')).toEqual({ kind: 'waiting-external', text: '等待主会话' });
+    expect(sessionStatusLine(sess({ waitingOnLead: 1 }), 'en').text).toBe('Waiting on lead');
+    expect(sessionStatusLine(sess({ waitingOnLead: 1, awaitingInput: true })).kind).toBe('awaiting');
+  });
 });
 
 describe('buildSessionRows', () => {
@@ -112,5 +121,34 @@ describe('buildSessionRows', () => {
     const row = sess({ running: true, numTurns: 3, lastUsedAt: '2026-07-15T08:00:00Z' });
     expect(buildSessionRows([row], now, 'en')[0]).toMatchObject({ time: '4h', status: { text: 'Running · 3 turns' } });
     expect(buildSessionRows([row], now, 'zh')[0]).toMatchObject({ time: '4小时前', status: { text: '运行中 · 3 轮' } });
+  });
+});
+
+describe('team workers in the session list', () => {
+  const lead = sess({ sessionId: 'lead', lastUsedAt: '2026-07-15T10:00:00Z' });
+  const active = sess({ sessionId: 'w-active', teamLeadId: 'lead', workerName: 'a', lastUsedAt: '2026-07-15T08:00:00Z' });
+  const retired = sess({ sessionId: 'w-retired', teamLeadId: 'lead', workerName: 'b',
+    lastUsedAt: '2026-07-15T11:00:00Z', workerRetiredAt: Date.parse('2026-07-15T11:00:00Z') });
+  const orphan = sess({ sessionId: 'orphan', teamLeadId: 'gone', workerName: 'c', lastUsedAt: '2026-07-15T09:30:00Z' });
+  const now = Date.parse('2026-07-15T12:00:00Z');
+
+  it('nests workers as children of a present lead, retired last, orphans flat', () => {
+    const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', true);
+    expect(rows.map(r => r.id)).toEqual(['lead', 'orphan']);
+    expect(rows[0].children?.map(r => r.id)).toEqual(['w-active', 'w-retired']);
+    expect(rows[0].children?.[1].retired).toBe(true);
+    expect(rows[0].children?.[0].retired).toBeUndefined();
+    expect(rows[1].children).toBeUndefined();
+  });
+
+  it('is the plain flat list when team mode is off', () => {
+    const sessions = [active, lead, retired, orphan];
+    const off = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', false);
+    const plain = buildProjectSessionList('nimbus',
+      sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en');
+    expect(off).toEqual(plain);
+    expect(off.rows.every(r => r.children === undefined)).toBe(true);
+    const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true);
+    expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
   });
 });

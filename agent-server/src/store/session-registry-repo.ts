@@ -94,6 +94,8 @@ export interface RegisterSessionOpts {
   browser?: SessionBrowserOption | null;
   commissionId?: string | null;
   commissionDraft?: string | null;
+  teamLeadId?: string | null;
+  workerName?: string | null;
 }
 
 /** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
@@ -207,6 +209,9 @@ export class SessionRegistryRepo {
       browser: opts.browser ?? null,
       commissionId: opts.commissionId ?? null,
       commissionDraft: opts.commissionDraft ?? null,
+      ...(opts.teamLeadId
+        ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerRetiredAt: null }
+        : {}),
     });
   }
 
@@ -280,6 +285,11 @@ export class SessionRegistryRepo {
     ));
   }
 
+  /** Every worker owned by `leadSessionId`, retired or not. */
+  async listWorkers(leadSessionId: string): Promise<Session[]> {
+    return this.withState(async (state) => sortRecent(filterLive(state, s => s.teamLeadId === leadSessionId)));
+  }
+
   async listResumable(projectId?: string): Promise<Session[]> {
     return this.withState(async (state) => sortRecent(
       filterLive(state, s => s.kind !== 'scheduled' && (projectId === undefined || s.projectId === projectId)),
@@ -345,6 +355,11 @@ export class SessionRegistryRepo {
         ? record
         : { ...record, commissionDraft: draftDir }
     ));
+  }
+
+  /** Retire a worker (epoch ms), or reactivate it with null. */
+  async setWorkerRetired(sessionId: string, retiredAt: number | null): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({ ...record, workerRetiredAt: retiredAt }));
   }
 
   /** Record that the `[Commission]` block for `key` is now in this session's backend history. */
@@ -559,12 +574,22 @@ export class SessionRegistryRepo {
     return this.withState(async (state) => {
       const blocked = new Set(protectedIds);
       const removed: PendingDeletion[] = [];
-      for (const record of sortRecent(state.live.values())) {
+      const records = sortRecent(state.live.values());
+      const expired = (record: SessionRecord): boolean => {
+        const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
+        return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
+      };
+      // A team worker lives as long as its lead: kept while the lead exists, deleted with it.
+      const leadsDeleted = new Set(records
+        .filter(record => !record.teamLeadId && !blocked.has(record.sessionId) && expired(record))
+        .map(record => record.sessionId));
+      const liveIds = new Set(records.map(record => record.sessionId));
+      for (const record of records) {
         // In-use sessions are protected by the caller: `domain/sessions/session-retention.ts` unions
         // `activeSessionUseIds()` into `protectedIds`. The store no longer keeps a use counter.
         if (blocked.has(record.sessionId)) continue;
-        const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
-        if (lastUsedAtMs === null || lastUsedAtMs >= toCutoffMs(cutoff)) continue;
+        const leadId = record.teamLeadId && liveIds.has(record.teamLeadId) ? record.teamLeadId : null;
+        if (leadId ? !leadsDeleted.has(leadId) : !expired(record)) continue;
         // Hand the callback the session's turns from the locked state directly — the ledger is now a
         // façade over THIS registry, so a callback that read it back would re-enter `withState` and
         // deadlock. (The old ledger was a separate store with its own lock.)

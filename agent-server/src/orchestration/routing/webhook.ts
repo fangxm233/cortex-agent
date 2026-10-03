@@ -26,6 +26,7 @@ import { openThreadRunDetached } from '../thread-run/index.js';
 import { settleThread } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
+import { handleTeamWebhook } from '../team-webhook.js';
 import { sendAgentFiles } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
@@ -356,6 +357,18 @@ function createWebhookHandler() {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
         const reply = await handleSubagentWebhook(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(reply));
+      });
+      return;
+    }
+
+    // --- Team operation (from the cortex-workers MCP tools → team-webhook) ---
+    // Every action returns at once; worker reports and questions reach the lead as deliveries.
+    if (req.method === 'POST' && req.url === '/webhook/team') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const reply = await handleTeamWebhook(data ?? {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(reply));
       });

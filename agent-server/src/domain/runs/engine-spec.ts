@@ -139,6 +139,7 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
       captureTranscripts: request.policy.captureTranscripts,
       preserveUnreportedAccounting: request.benchmark?.preserveUnreportedAccounting,
       isUserInitiated: !!request.context.isUserInitiated,
+      ...(request.context.teamLead ? { teamLead: true } : {}),
     },
     process: {
       spawner: request.isolation?.spawner,

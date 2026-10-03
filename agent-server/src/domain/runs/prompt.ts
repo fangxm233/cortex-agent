@@ -55,6 +55,10 @@ export interface UserPromptOptions {
   project?: { id: string; contextDir: string } | null;
   /** Index + protocol for a commission-bound session (DR-0037). */
   commission?: CommissionPromptContext | null;
+  /** Team mode, lead side: one roster line per active worker. */
+  team?: { roster: string[] } | null;
+  /** Team mode, worker side: its own name and its lead's title. */
+  worker?: { name: string; lead: string } | null;
   /** A control-plane preamble (the thread protocol) — the last prefix before the body. */
   preamble?: string | null;
   /** Text spliced between the prefixes and the rendered body, separated by a `---` rule. The
@@ -74,8 +78,8 @@ export interface UserPromptOptions {
  * Assemble one turn's user prompt: the agent's template rendered over the turn's variables, with
  * the ambient blocks the session needs in front of it.
  *
- * Prefix order is fixed — user profile, agent directive, session project, commission, control-plane
- * preamble — and every block is optional. A caller that passes none (and no lead/appendix) gets the
+ * Prefix order is fixed — user profile, agent directive, session project, commission, team or
+ * worker, control-plane preamble — and every block is optional. A caller that passes none (and no lead/appendix) gets the
  * rendered template alone, trimmed.
  */
 export function composeUserPrompt(
@@ -101,6 +105,8 @@ export function composeUserPrompt(
     if (spec.directive) prefixes.push(resolveSystemVars(spec.directive));
     if (opts.project) prefixes.push(buildProjectBlock(opts.project));
     if (opts.commission) prefixes.push(buildCommissionBlock(opts.commission));
+    if (opts.team) prefixes.push(buildTeamBlock(opts.team.roster));
+    if (opts.worker) prefixes.push(buildWorkerBlock(opts.worker));
     if (opts.preamble) prefixes.push(opts.preamble);
     if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
   }
@@ -125,6 +131,26 @@ function buildProjectBlock(project: { id: string; contextDir: string }): string 
     + `Project context directory: ${project.contextDir}\n`
     + `Treat messages in this session as pertaining to this project unless stated otherwise, `
     + `and record project-related findings and status updates there.`;
+}
+
+/** The lead's standing rules plus its live roster, re-sent every turn while it has workers. */
+export function buildTeamBlock(roster: readonly string[]): string {
+  return `[Team] You lead these workers (persistent sessions you manage with the worker_* tools):
+${roster.join('\n')}
+Rules:
+1. After dispatching work, end your turn. Worker reports and questions arrive as new messages and wake you; never poll or wait.
+2. Continue a worker with worker_send when the topic and code area are the same and its context is still relevant; otherwise write a self-contained handoff and spawn a fresh one.
+3. Answer workers' questions and approve their plans yourself with worker_answer; ask the user with cortex_ask_user only when you are unsure what they would want.
+4. Do not run repeated review loops on a worker's output.`;
+}
+
+/** A worker's first-turn orientation. */
+export function buildWorkerBlock(worker: { name: string; lead: string }): string {
+  return `[Worker] You are worker "${worker.name}" of the lead session "${worker.lead}". `
+    + 'Your final reply each turn is delivered to the lead. The user may also open this session and '
+    + 'talk to you directly. Your questions (cortex_ask_user) and plan approvals are handled by the '
+    + 'lead. Keep final replies concise: conclusions, output paths, and open items. You cannot create '
+    + 'workers yourself.';
 }
 
 /** Execution protocol for commission-bound sessions (DR-0037). Deliberately compact: the four

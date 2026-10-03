@@ -16,7 +16,9 @@ import {
   loadCommissionDraftContext, loadCommissionPromptContext,
   type CommissionPromptContext,
 } from '@domain/commissions/commission-context.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { sessionStore, type Session } from '@store/session-registry-repo.js';
+import { isTeamWorker } from '@domain/sessions/team.js';
+import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
 import type { AgentSlotConfig } from '@core/types/thread-types.js';
@@ -50,6 +52,8 @@ export interface PrepareConversationRequestOptions {
   browserCdpEndpoint?: string | null;
   /** True once the session is bound to a landed commission; loads the commission skill bundle. */
   commissionMode?: boolean;
+  /** Team mode: the session may lead workers (worker tools, and the [Team] roster once it has any). */
+  teamLead?: boolean;
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
 }
@@ -243,6 +247,41 @@ export async function resolveConversationCommission(
 }
 
 /**
+ * The team-mode blocks for this turn. A lead with at least one active worker gets the [Team]
+ * roster on every turn (its state changes between turns, and a lead with no workers sees nothing
+ * new). A worker gets the [Worker] orientation on its first turn only; resume keeps it in history.
+ * Best-effort: a failure injects nothing.
+ */
+export async function resolveConversationTeam(
+  trackSessionId: string,
+  args: { teamLead?: boolean; isFreshSession?: boolean },
+  deps: {
+    getSession?: (id: string) => Promise<Pick<Session, 'teamLeadId' | 'workerName' | 'name' | 'label'> | null>;
+    describeTeam?: (leadSessionId: string) => Promise<WorkerView[]>;
+    now?: () => number;
+  } = {},
+): Promise<{ team: { roster: string[] } | null; worker: { name: string; lead: string } | null }> {
+  const none = { team: null, worker: null };
+  try {
+    if (args.teamLead) {
+      const team = (await (deps.describeTeam ?? describeTeam)(trackSessionId)).filter(v => !v.retired);
+      if (team.length === 0) return none;
+      const now = (deps.now ?? Date.now)();
+      return { team: { roster: team.map(v => rosterLine(v, now)) }, worker: null };
+    }
+    if (!args.isFreshSession) return none;
+    const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
+    const session = await getSession(trackSessionId);
+    if (!isTeamWorker(session)) return none;
+    const lead = await getSession(session!.teamLeadId!);
+    if (!lead) return none;
+    return { team: null, worker: { name: session!.workerName ?? session!.name, lead: lead.label ?? lead.name } };
+  } catch {
+    return none;
+  }
+}
+
+/**
  * Assemble the `RunRequest` for a single plain user-conversation turn against the active default
  * agent — no thread, no workspace, no artifact. The thread path's decisions are mirrored field for
  * field (channel session reuse, no core MCP, a user-initiated single step) so a plain turn and a
@@ -283,6 +322,8 @@ export async function prepareConversationRequest(
     // Commission sessions additionally get the contract + ledger index + protocol block, once per
     // binding rather than once per session (see resolveConversationCommission).
     commission: await resolveConversationCommission(sessionId, { isFreshSession }),
+    // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
+    ...(await resolveConversationTeam(sessionId, { teamLead: opts.teamLead, isFreshSession })),
   });
   // The backend composes the real prompt from `prompt.text` + `prompt.attachments`, so a download
   // failure has to ride the TEXT to reach the model — `backendPrompt` below is the debug echo.
@@ -334,6 +375,7 @@ export async function prepareConversationRequest(
       executionKind: 'local',
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
+      ...(opts.teamLead ? { teamLead: true } : {}),
       scheduleTaskId: null,
     },
     policy,

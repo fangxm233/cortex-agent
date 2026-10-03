@@ -19,6 +19,7 @@ export interface SessionRegistryWriter {
     label?: string | null; profileName?: string | null; agentName?: string | null;
     browser?: SessionBrowserOption | null;
     commissionId?: string | null; commissionDraft?: string | null;
+    teamLeadId?: string | null; workerName?: string | null;
   }): Promise<void>;
 }
 
@@ -37,6 +38,9 @@ export interface RegisterNamedSessionOpts {
   /** Resolve commission fields from the freshly generated session name. Needed because a new
    *  commission's draft directory is named after the session, which is not known until here. */
   commissionFor?: (sessionName: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
+  /** Team mode: the owning lead's sessionId and this worker's name. Absent for ordinary sessions. */
+  teamLeadId?: string | null;
+  workerName?: string | null;
 }
 
 /** Generate a fresh session name and register a registry record for sessionId. Returns the name.
@@ -61,6 +65,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     browser: opts.browser ?? null,
     commissionId: commission?.commissionId ?? null,
     commissionDraft: commission?.commissionDraft ?? null,
+    ...(opts.teamLeadId ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null } : {}),
   });
   return name;
 }
@@ -91,6 +96,7 @@ export async function createDirectSession(
     projectId: string; sessionId?: string; profileName?: string | null; agentName?: string | null;
     selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
     browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
+    teamLeadId?: string | null; workerName?: string | null;
   },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
@@ -157,6 +163,8 @@ export async function createDirectSession(
     commissionFor: opts.commission
       ? (name) => resolveCommissionCreate(opts.projectId, name, opts.commission!)
       : undefined,
+    teamLeadId: opts.teamLeadId ?? null,
+    workerName: opts.workerName ?? null,
   });
   await deps.setChannelSession(channel, sessionId);
   await deps.initConversation(channel, { sessionId, sessionName, backend });

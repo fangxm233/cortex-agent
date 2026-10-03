@@ -29,6 +29,7 @@ export interface Settings {
   clientHotReloadEnabled: boolean;
   hooksLegacy: boolean;
   commissionEnabled: boolean;
+  teamEnabled: boolean;
   feishuSkillsInWeb: boolean;
   managerRotateSteps: number;
   waitingSweepMs: number;
@@ -235,6 +236,13 @@ export const SETTINGS_SPEC = {
     // nobody has to opt into. It stays a switch because it is the kill switch — off refuses every
     // entry point (create, composer, the start webhook) and stops injecting contract blocks.
     default: true,
+    legacyParse: (raw: string) => raw === '1',
+  },
+  // Experimental team mode: web sessions may spawn and manage persistent worker sessions.
+  teamEnabled: {
+    envVar: 'CORTEX_TEAM_ENABLED',
+    type: 'boolean',
+    default: false,
     legacyParse: (raw: string) => raw === '1',
   },
   managerRotateSteps: {

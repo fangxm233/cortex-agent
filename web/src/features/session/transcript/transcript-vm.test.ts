@@ -20,6 +20,9 @@ import {
   applyDelivered,
   reconcilePendingUserMessages,
   toolCallLabel,
+  systemOriginLabel,
+  systemOriginDisplay,
+  systemOriginBody,
   type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
@@ -1593,5 +1596,42 @@ describe('localized time labels', () => {
     expect(formatDividerFromVocab(en, 'en')(old, now)).toBe('SEP 24 09:05');
     expect(formatDividerFromVocab(zh, 'zh')(old, now)).toBe('9月24日 09:05');
     expect(formatDividerFromVocab(zh, 'zh')(new Date(2026, 8, 25, 9, 5).toISOString(), now)).toBe('昨天 09:05');
+  });
+});
+
+describe('systemOriginLabel team origins', () => {
+  it('names each team origin in both languages', () => {
+    expect(systemOriginLabel('team-lead', en)).toBe('From lead session');
+    expect(systemOriginLabel('worker-result', en)).toBe('Worker report');
+    expect(systemOriginLabel('worker-question', en)).toBe('Worker request');
+    expect(systemOriginLabel('team-lead', zh)).toBe('来自主会话');
+    expect(systemOriginLabel('worker-result', zh)).toBe('Worker 汇报');
+    expect(systemOriginLabel('worker-question', zh)).toBe('Worker 请求');
+  });
+});
+
+describe('team origin display', () => {
+  it('bubbles a lead message, expands worker reports and requests, and hints the rest', () => {
+    expect(systemOriginDisplay('team-lead')).toBe('bubble');
+    expect(systemOriginDisplay('worker-result')).toBe('expandable');
+    expect(systemOriginDisplay('worker-question')).toBe('expandable');
+    expect(systemOriginDisplay('agent-result')).toBe('hint');
+    expect(systemOriginDisplay('resume')).toBe('hint');
+  });
+
+  it('strips the reminder envelope from the expandable body', () => {
+    expect(systemOriginBody('<system-reminder>\nline one\n\nline two\n</system-reminder>')).toBe('line one\n\nline two');
+    expect(systemOriginBody('<system-reminder>\n</system-reminder>')).toBe('');
+  });
+
+  it('starts a new copy turn at a lead message, but not at a worker report', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'go' },
+      { kind: 'assistant', text: 'first', streaming: false },
+      { kind: 'user', text: 'next step', systemOrigin: 'team-lead' },
+      { kind: 'assistant', text: 'second', streaming: false },
+      { kind: 'user', text: 'done', systemOrigin: 'worker-result' },
+    ];
+    expect([...assistantTurnCopyTargets(rows).entries()]).toEqual([[1, 'first'], [4, 'second']]);
   });
 });

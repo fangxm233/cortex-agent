@@ -71,6 +71,20 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/manager-qa.ts`。
 
+### cortex-workers
+
+[团队模式](./team.md)中主会话一侧的工具。当 `teamEnabled` 开启、且会话是网页直接会话而本身不是 worker 时，Claude 和 PI 会话都会选入此能力组。worker 和子智能体永远不加载它。所有工具都立即返回；worker 的汇报和提问以新消息的形式到达主会话。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `worker_spawn` | `name`、`prompt`、`profile?` | 启动一个持久的 worker 会话并交给它第一个任务 |
+| `worker_send` | `worker`、`message` | 给 worker 发消息：并入它正在运行的一轮，或开启新的一轮 |
+| `worker_list` | `worker?` | 主会话的名单，或某个 worker 及其完整的上一份汇报 |
+| `worker_stop` | `worker`、`retire?` | 停止 worker 当前这一轮，可选同时退役 |
+| `worker_answer` | `request_id`、`answers?`、`approved?`、`feedback?` | 解决 worker 挂起的提问或计划审批 |
+
+该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理。
+
 ### cortex-thread
 
 暴露线程生命周期控制面和向上澄清通道。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。

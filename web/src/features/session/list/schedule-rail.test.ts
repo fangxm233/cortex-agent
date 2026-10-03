@@ -31,6 +31,9 @@ function mkRun(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     costUsd: p.costUsd ?? null,
     unread: p.unread ?? false,
     commissionId: p.commissionId ?? null,
+    teamLeadId: p.teamLeadId ?? null,
+    workerName: p.workerName ?? null,
+    workerRetiredAt: p.workerRetiredAt ?? null,
   };
 }
 

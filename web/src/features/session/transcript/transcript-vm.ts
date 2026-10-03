@@ -273,6 +273,9 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
     case 'subtask-question': return L.chatSystemOriginSubtaskQuestion;
     case 'agent-result': return L.chatSystemOriginAgentResult;
     case 'external-signal': return L.chatSystemOriginExternalSignal;
+    case 'team-lead': return L.chatSystemOriginTeamLead;
+    case 'worker-result': return L.chatSystemOriginWorkerResult;
+    case 'worker-question': return L.chatSystemOriginWorkerQuestion;
     default: return unlabelledOrigin(origin, L);
   }
 }
@@ -284,6 +287,32 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
 function unlabelledOrigin(origin: never, L: Vocab): string {
   void origin;
   return L.chatSystemOriginGeneric;
+}
+
+/**
+ * How a system-authored turn renders. Most are a one-line hint. A lead's message to its worker is
+ * an instruction the worker acts on — the human's own words relayed — so it keeps the user bubble,
+ * labelled with where it came from. A worker's report or request to its lead is the substance the
+ * lead answers from, so its hint line expands to the full text.
+ */
+export type SystemTurnDisplay = 'hint' | 'expandable' | 'bubble';
+
+export function systemOriginDisplay(origin: SystemTurnOrigin): SystemTurnDisplay {
+  switch (origin) {
+    case 'team-lead': return 'bubble';
+    case 'worker-result':
+    case 'worker-question': return 'expandable';
+    default: return 'hint';
+  }
+}
+
+/** The full text of a system-authored turn without its `<system-reminder>` envelope lines. */
+export function systemOriginBody(text: string): string {
+  return (text ?? '')
+    .split('\n')
+    .filter((l) => !SYSTEM_REMINDER_LINE.test(l.trim()))
+    .join('\n')
+    .trim();
 }
 
 /**
@@ -512,7 +541,8 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'user') {
-      if (!row.systemOrigin) {
+      // A lead's message to its worker opens a turn exactly like the human's own.
+      if (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') {
         flush();
         continue;
       }

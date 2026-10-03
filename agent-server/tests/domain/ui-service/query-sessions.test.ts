@@ -76,6 +76,21 @@ test('sessions.list exposes display metadata and defaults legacy records to fals
   assert.deepEqual(result.map(session => session.labelRenamed), [true, false, false]);
 });
 
+test('sessions.list exposes worker fields and uses null for ordinary sessions', async () => {
+  const deps = makeDeps();
+  deps.sessionStore.listByProject = async () => [
+    { ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout', workerRetiredAt: 1738454400000 },
+    mockSessions[2],
+  ];
+  const [worker, ordinary] = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(worker.teamLeadId, 'lead-1');
+  assert.equal(worker.workerName, 'scout');
+  assert.equal(worker.workerRetiredAt, 1738454400000);
+  assert.equal(ordinary.teamLeadId, null);
+  assert.equal(ordinary.workerName, null);
+  assert.equal(ordinary.workerRetiredAt, null);
+});
+
 test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
   const result = await handleSessionsList(makeDeps(), {});
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));
@@ -533,6 +548,33 @@ test('sessions.list awaitingInput: a pending NON-blocking ask does not stall the
   const result = await handleSessionsList(deps, {});
   const byId = Object.fromEntries(result.map((s) => [s.sessionId, s.awaitingInput]));
   assert.equal(byId['s1'], false, 'non-blocking ask → not awaiting');
+});
+
+test('sessions.list: a worker blocked on a question routed to its lead waits on the lead, not on the user', async () => {
+  const { resetSettingsForTests } = await import('../../../src/core/settings.js');
+  const worker = { ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout' };
+  const orphan = { ...mockSessions[2], channel: 'C1', sessionId: 's-orphan', teamLeadId: 'gone', workerName: 'old' };
+  const deps = makeDeps({
+    getPendingAskUser: (channel: string) =>
+      channel === 'C1' ? { requestId: 'r1', questions: [], blocking: true } : null,
+  });
+  deps.sessionStore.listByProject = async () => [worker, orphan];
+  deps.sessionStore.getById = async (id: string) => (id === 'lead-1' ? { sessionId: 'lead-1' } as any : null);
+  process.env.CORTEX_TEAM_ENABLED = '1';
+  resetSettingsForTests();
+  try {
+    const [w, o] = await handleSessionsList(deps, { projectId: 'proj1' });
+    assert.equal(w.awaitingInput, false);
+    assert.equal(w.waitingOnLead, 1, 'the routed question waits on the lead');
+    assert.equal(w.waitingOn, 0, 'waitpoint count is untouched');
+    assert.equal(o.awaitingInput, true, 'a worker whose lead is gone asks the user as before');
+    assert.equal(o.waitingOnLead, 0);
+  } finally {
+    delete process.env.CORTEX_TEAM_ENABLED;
+    resetSettingsForTests();
+  }
+  const [off] = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(off.awaitingInput, true, 'team mode off: the worker is an ordinary session');
 });
 
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {

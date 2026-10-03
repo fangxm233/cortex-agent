@@ -83,7 +83,9 @@ export interface EngineSpec {
    *  which setting files the backend may read at all. */
   flags: { disableHooks?: boolean; disableSkills?: boolean; settingSources?: string[];
            streamDeltas?: boolean; captureTranscripts?: boolean;
-           preserveUnreportedAccounting?: boolean; isUserInitiated: boolean };
+           preserveUnreportedAccounting?: boolean; isUserInitiated: boolean;
+           /** Team lead: a direct session that also gets the `cortex-workers` tools. */
+           teamLead?: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
   extraOption?: Record<string, string>;
   backend:

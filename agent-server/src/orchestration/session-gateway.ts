@@ -30,7 +30,10 @@ export type DeliveryOrigin =
   | 'thread-callback'   // a background thread finished
   | 'task-callback'     // a dispatched task turned terminal
   | 'subtask-question'  // ask_manager escalated to the top of the tree
-  | 'external-signal';  // a waitpoint fired — an external process reported it finished
+  | 'external-signal'   // a waitpoint fired — an external process reported it finished
+  | 'team-lead'         // a team lead handing work to one of its workers
+  | 'worker-result'     // a worker reporting the end of a turn to its lead
+  | 'worker-question';  // a worker's pending question or plan, forwarded to its lead
 
 interface OriginSpec {
   senderId: string;
@@ -61,6 +64,9 @@ const ORIGINS: Record<DeliveryOrigin, OriginSpec> = {
   'task-callback':    { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'task-callback' },
   'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'subtask-question' },
   'external-signal':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'external-signal', systemOrigin: 'external-signal' },
+  'team-lead':        { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'team-lead' },
+  'worker-result':    { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-result' },
+  'worker-question':  { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-question' },
 };
 
 export interface DeliverToSessionOptions {
@@ -98,7 +104,12 @@ export function buildDeliveryMessage(opts: {
     isBot: false,
     kind: 'user',
     // `source` is the origin's and is not overridable; `tag` mirrors what the wake builder wrote.
-    raw: { ...opts.raw, source: spec.rawSource, ...(spec.prefix === 'cb' ? { tag: opts.tag } : {}) },
+    // `deliveryOrigin` lets the turn tell a human-typed message from the origins that share its
+    // sender and source (an ask-user answer looks identical otherwise).
+    raw: {
+      ...opts.raw, source: spec.rawSource, deliveryOrigin: opts.origin,
+      ...(spec.prefix === 'cb' ? { tag: opts.tag } : {}),
+    },
     // Only web-originated turns carry attachments; the callback shapes had no such field at all.
     ...(spec.prefix === 'web' ? { webAttachments: opts.attachments } : {}),
   };

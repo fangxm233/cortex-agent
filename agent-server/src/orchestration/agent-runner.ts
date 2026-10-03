@@ -8,6 +8,7 @@ import { sessionStore, effectiveBackendSessionId } from '@store/session-registry
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
+import { isTeamLead } from '@domain/sessions/team.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
@@ -208,6 +209,8 @@ export class AgentRunner {
      *  Drafting is not tracked here: the drill needs no plugin, and the [Commission] block reads the
      *  session record itself (see resolveConversationCommission). */
     let sessionCommissionId: string | null = null;
+    /** Team mode: this session may lead workers, so its engine loads the worker tools. */
+    let teamLead = false;
     if (sessionId) {
       sessionLease = await acquireSessionUseLease(sessionId);
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
@@ -220,6 +223,7 @@ export class AgentRunner {
       // contract block, and the commission tools refuse.
       const commissionOn = getSettings().commissionEnabled;
       sessionCommissionId = commissionOn ? sessionLease.session.commissionId ?? null : null;
+      teamLead = isTeamLead(sessionLease.session);
     } else {
       sessionId = crypto.randomUUID();
       projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
@@ -247,6 +251,7 @@ export class AgentRunner {
         },
         ledger: { userMessageTs: message.ref.messageId },
         trigger: 'user',
+        origin: turnOrigin(message),
         startTime,
         mutationRelease,
         // The default agent's spec plus the first-turn ambient blocks — the assembly half of what
@@ -264,6 +269,7 @@ export class AgentRunner {
           failedFiles: turnFiles.failures,
           browserCdpEndpoint: browser.cdpEndpoint,
           commissionMode: !!sessionCommissionId,
+          teamLead,
           onPromptBuilt: debugEnabled ? (prompt: string) => {
             recordHistory(
               conversationHistory.appendUserPrompt(trackSessionId, { agentMessage: prompt }),
@@ -289,6 +295,13 @@ function mergeAttachments(
 ): IncomingMessage['webAttachments'] {
   const merged = [...(web ?? []), ...(platform ?? [])];
   return merged.length > 0 ? merged : undefined;
+}
+
+/** The delivery origin `session-gateway` stamped on the message, or `platform` for an inbound
+ *  chat-platform message that never went through it. */
+function turnOrigin(message: IncomingMessage): string {
+  const origin = (message.raw as { deliveryOrigin?: unknown } | null | undefined)?.deliveryOrigin;
+  return typeof origin === 'string' && origin ? origin : 'platform';
 }
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {

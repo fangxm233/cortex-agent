@@ -106,6 +106,24 @@ bundle because they do not own task-tree questions.
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tool is in
 `agent-server/src/domain/mcp/tools/manager-qa.ts`.
 
+### cortex-workers
+
+The lead's side of [team mode](./team.md). A session selects this bundle when `teamEnabled` is
+on and it is a web direct session that is not itself a worker, on Claude and PI alike. Workers and
+subagents never load it. Every tool returns at once; worker reports and questions reach the lead
+as new messages.
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `worker_spawn` | `name`, `prompt`, `profile?` | Start a persistent worker session with its first task |
+| `worker_send` | `worker`, `message` | Deliver a message to a worker, folded into its running turn or opening a new one |
+| `worker_list` | `worker?` | The lead's roster, or one worker with its full last report |
+| `worker_stop` | `worker`, `retire?` | Stop a worker's current turn, optionally retiring it |
+| `worker_answer` | `request_id`, `answers?`, `approved?`, `feedback?` | Resolve a worker's pending question or plan approval |
+
+The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in
+`agent-server/src/domain/mcp/tools/workers.ts` and are served by the `/webhook/team` route.
+
 ### cortex-thread
 
 Exposes thread lifecycle control and upward clarification. For Claude and PI,

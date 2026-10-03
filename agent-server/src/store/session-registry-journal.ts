@@ -66,6 +66,12 @@ export interface SessionRecord {
   commissionBlockFor?: string | null;
   contextUsage?: unknown;
   browser?: SessionBrowserOption | null;
+  /** Team mode: the lead session that owns this worker. Non-null means this session is a worker. */
+  teamLeadId?: string | null;
+  /** The worker's short name, unique within its lead's team. */
+  workerName?: string | null;
+  /** Epoch ms when the worker was retired; null while active. */
+  workerRetiredAt?: number | null;
 }
 
 /** Copied VERBATIM from store/conversation-ledger-repo.ts:9-22 (B.T1). The journal owns turn history
@@ -520,6 +526,9 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     commissionBlockFor: toOptionalNullableString(row?.commissionBlockFor),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
+    teamLeadId: toOptionalNullableString(row?.teamLeadId),
+    workerName: toOptionalNullableString(row?.workerName),
+    workerRetiredAt: toOptionalNullableNumber(row?.workerRetiredAt),
   } satisfies SessionRecord;
   return assertRecordId(record, expectedId);
 }
@@ -559,6 +568,12 @@ function toOptionalBrowserValue(value: unknown): SessionBrowserOption | null | u
   const device = (value as Record<string, unknown>).device;
   if (typeof device !== 'string' || !device) throw new Error('Invalid session registry browser option');
   return { device };
+}
+
+function toOptionalNullableNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return toNumberValue(value);
 }
 
 function toKindValue(value: unknown): SessionKind {
@@ -619,6 +634,9 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   commissionBlockFor: toOptionalNullableString,
   contextUsage: value => value,
   browser: toOptionalBrowserValue,
+  teamLeadId: toOptionalNullableString,
+  workerName: toOptionalNullableString,
+  workerRetiredAt: toOptionalNullableNumber,
 };
 
 /** Every key a `patch` may carry, derived from the exhaustive reader table so the WRITER (repo

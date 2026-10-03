@@ -52,3 +52,20 @@ test('a response resolves the waiting webhook request and seals the interaction'
   assert.equal(approvals.has('req-webhook'), false);
   assert.equal(interactions.resolved[0].status, 'approved');
 });
+
+test('the resolver is recorded on the sealed interaction', () => {
+  const approvals = new PlanApprovals();
+  approvals.register('req-agent', { channel: 'web:sess-agent' });
+  const interactions = makeInteractions();
+  hookBridge.initHookBridge(new EventBus());
+  void hookBridge.registerPlanApproval('req-agent', 'web:sess-agent', 'sess-agent', 'plan', {});
+
+  const outcome = respondToPlan(
+    { planApprovals: approvals, interactionRecords: interactions.service as any },
+    'req-agent', false, 'tighten scope', 'agent',
+  );
+
+  assert.equal(outcome, 'resolved');
+  assert.equal(interactions.resolved[0].resolvedVia, 'agent');
+  assert.equal(interactions.resolved[0].status, 'rejected');
+});

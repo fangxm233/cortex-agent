@@ -1,6 +1,7 @@
 import { resolveRequest as resolveHookRequest } from '../routing/hook-bridge.js';
 import type { InteractionRecords } from './interaction-records.js';
 import type { PendingPlan, PlanApprovals } from './plan-approvals.js';
+import type { InteractionResolvedVia } from '@store/conversation-history-repo.js';
 
 export type PlanResponseOutcome = 'resolved' | 'already-resolved' | 'not-found';
 
@@ -21,6 +22,7 @@ export function respondToPlan(
   requestId: string,
   approved: boolean,
   feedback = '',
+  resolvedVia: InteractionResolvedVia = 'web',
 ): PlanResponseOutcome {
   const record = deps.interactionRecords.get(requestId);
   if (record && record.status !== 'pending') return 'already-resolved';
@@ -34,7 +36,7 @@ export function respondToPlan(
     id: requestId,
     status: approved ? 'approved' : 'rejected',
     result: feedback ? { feedback } : undefined,
-    resolvedVia: 'web',
+    resolvedVia,
   });
   return 'resolved';
 }

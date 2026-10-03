@@ -344,6 +344,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
+| `teamEnabled` | boolean | `false` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起不再提供这些工具，已有的 worker 变回普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `managerRotateSteps` | number | `10` | 一个 manager 会话在被轮换成新 incarnation 之前运行的步数。参见 [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
 | `waitingSweepMs` | number | `60000` | 磁盘对账扫描的间隔（毫秒），逐个核对等待中的 manager 线程与磁盘上的任务状态。`0` 表示禁用扫描（见下文的热更新例外） | `CORTEX_WAITING_SWEEP_MS` |
@@ -367,7 +368,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
 

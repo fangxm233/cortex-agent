@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
@@ -9,7 +9,7 @@ import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
 import { ToolCallsRow } from '@/features/session/transcript/ToolCallsRow';
 import { DecisionCardGroup } from '@/features/session/interaction/DecisionCards';
 import { useLangOptional, useVocab, useVocabOptional } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/session/interaction/interaction-vm';
 import { MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
@@ -23,6 +23,8 @@ import { MChatSessionMenu } from './MChatSessionMenu';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
+import { WorkerStrip } from '@/features/team/WorkerStrip';
+import { isRetiredWorker } from '@/features/team/worker-groups';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export type {
@@ -32,6 +34,8 @@ export type {
 // ── floating header — back chevron · title + status line · context ring · ⋯ ───
 interface MChatHeaderProps {
   title: string;
+  /** Team mode: the worker's lead, a tappable prefix before the title. */
+  parent?: { title: string; onSelect: () => void } | null;
   status: ChatHeaderStatus;
   /** Project the session belongs to; prefixes the status line when known. */
   project?: string;
@@ -77,7 +81,16 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)' }} />
-          <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {props.parent && (
+            <button type="button" data-lead-crumb="" aria-label={`${vocab.wbTeamOpenLead} · ${props.parent.title}`}
+              onClick={props.parent.onSelect}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '45%', flexShrink: 1,
+                padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: MC.muted }}>
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.parent.title}</span>
+              <span aria-hidden="true" style={{ flex: 'none' }}>/</span>
+            </button>
+          )}
+          <span style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {props.title}
           </span>
         </div>
@@ -251,24 +264,46 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
  */
 function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): JSX.Element {
   const L = useVocab();
+  const [open, setOpen] = useState(false);
   const summary = systemOriginSummary(row.text);
-  return (
+  // A worker's report or request opens to its full text (systemOriginDisplay); other hints stay one line.
+  const body = systemOriginDisplay(row.systemOrigin!) === 'expandable' ? systemOriginBody(row.text) : '';
+  const canOpen = body.length > 0;
+  const line = (
     <div
       data-system-origin={row.systemOrigin}
+      role={canOpen ? 'button' : undefined}
+      aria-expanded={canOpen ? open : undefined}
+      aria-label={canOpen ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined}
+      onClick={canOpen ? () => setOpen((v) => !v) : undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 7, padding: '2px 0',
         opacity: row.pending ? 0.55 : 1,
+        cursor: canOpen ? 'pointer' : undefined,
       }}
     >
       <span aria-hidden="true" style={{ width: 3, alignSelf: 'stretch', minHeight: 13, borderRadius: 2, background: MC.divider, flexShrink: 0 }} />
       <span style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted, flexShrink: 0 }}>
         {systemOriginLabel(row.systemOrigin!, L)}
       </span>
-      {summary && (
+      {summary && !open && (
         <span style={{ fontSize: 11, color: MC.muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {summary}
         </span>
       )}
+      {canOpen && (
+        <span aria-hidden="true" style={{ font: `400 11px ${MONO}`, color: MC.muted, flexShrink: 0, transform: open ? 'rotate(90deg)' : 'none' }}>›</span>
+      )}
+    </div>
+  );
+  if (!canOpen || !open) return line;
+  return (
+    <div>
+      {line}
+      <div data-system-origin-body="" style={{ margin: '4px 0 2px 10px', padding: '2px 0 2px 10px', borderLeft: `1px solid ${MC.divider}`,
+        fontSize: 13, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+        <ChatMarkdown text={body} dropTrailingHr />
+      </div>
     </div>
   );
 }
@@ -295,6 +330,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
   const regenIdx = editCopy ? regenNoteIndexes(rows) : null;
   const assistantCopies = assistantTurnCopyTargets(rows);
   const editingIdx = editing?.rowIndex ?? null;
+  const L = useVocabOptional();
   return (
     <>
       {rows.slice(start).map((row, j) => {
@@ -313,7 +349,7 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
           )}
-          {row.kind === 'user' && row.systemOrigin && (
+          {row.kind === 'user' && row.systemOrigin && systemOriginDisplay(row.systemOrigin) !== 'bubble' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <MSystemHintRow row={row} />
               {/* The hint line is the machine steering itself INSIDE the turn, so it can be the
@@ -322,13 +358,16 @@ export function MChatStream({ rows, start = 0, copyLabel, copiedLabel, interacti
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
-          {row.kind === 'user' && !row.systemOrigin && (
+          {row.kind === 'user' && (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') && (
             <>
               {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
               <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '84%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
                 {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
                 {isEditingRow && editCopy && (
                   <span style={{ font: `600 11px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.editingBadge}</span>
+                )}
+                {row.systemOrigin && (
+                  <span data-bubble-label="" style={{ font: `600 11px ${MONO}`, letterSpacing: '.04em', color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
                 )}
                 <div
                   {...(hold ?? {})}
@@ -472,7 +511,11 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
   // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
   // Only the transcript is masked, leaving the floating title and its glass unchanged.
-  const transcriptFade = `linear-gradient(to bottom, transparent calc(60px + env(safe-area-inset-top)), #000 calc(72px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
+  // Team mode: a lead's worker chips float in a 36px row under the header, so the transcript's top
+  // clearance grows by that much while the row is there.
+  const workerRow = !!props.onOpenWorker && (props.workers ?? []).some((w) => !isRetiredWorker(w));
+  const topClear = workerRow ? 108 : 72;
+  const transcriptFade = `linear-gradient(to bottom, transparent calc(${topClear - 12}px + env(safe-area-inset-top)), #000 calc(${topClear}px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
 
   // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
@@ -530,6 +573,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     >
       <MChatHeader
         title={props.title}
+        parent={props.parent}
         status={props.status}
         project={props.project}
         onBack={props.onBack}
@@ -546,6 +590,10 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           />
         ) : null}
       />
+      {workerRow && (
+        <WorkerStrip workers={props.workers ?? []} onOpen={props.onOpenWorker!} touch
+          style={{ position: 'absolute', top: 'calc(66px + env(safe-area-inset-top))', left: 16, right: 16, zIndex: 5 }} />
+      )}
       {/* Body region — a position:relative frame holding the scroll transcript + the floating
           composer, both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of
           THIS region; since the header now floats over the same box, the editor outranks it. */}
@@ -553,7 +601,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': 'calc(72px + env(safe-area-inset-top))' } as CSSProperties}>
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': `calc(${topClear}px + env(safe-area-inset-top))` } as CSSProperties}>
           {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
           <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream

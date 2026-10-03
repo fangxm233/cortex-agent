@@ -796,6 +796,12 @@ export interface SessionInfo {
   /** Draft directory name while this session is in commission mode but its contract has not been
    *  named yet. Null once the contract lands (commissionId takes over) or outside the mode. */
   commissionDraft?: string | null;
+  /** Team mode: the lead session that owns this worker; non-null means this session is a worker. */
+  teamLeadId: string | null;
+  /** The worker's short name within its team; null outside team mode. */
+  workerName: string | null;
+  /** Epoch ms when the worker was retired; null while active or outside team mode. */
+  workerRetiredAt: number | null;
   createdAt: string;
   lastUsedAt: string;
   resumable: boolean;
@@ -854,6 +860,9 @@ export interface SessionInfo {
    *  and 0 when the waitpoint dep is absent (fixtures / TUI). Optional for rolling compatibility
    *  with older servers, like `totals` below — consumers read it as `?? 0`. */
   waitingOn?: number;
+  /** Team mode: a worker's blocking questions and plans that were routed to its lead (counted here,
+   *  not in `awaitingInput`, because the lead answers them). 0 for every other session. */
+  waitingOnLead?: number;
   /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
    *  the live count of the in-flight turn (from the running execution); while idle, the last run's
    *  final turn count (from the most recent non-thread execution on the session's channel). Null when

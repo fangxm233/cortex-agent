@@ -340,3 +340,64 @@ test('session registry replays commissionDraft and clears it when the commission
   assert.equal(afterRestart?.commissionId, 'comm-9');
   assert.equal(afterRestart?.commissionDraft, null);
 });
+
+test('session registry replays worker fields, retirement, and lists a lead\'s workers', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession('cortex-lead', registerOpts('sess-lead'));
+  await repo.registerSession('cortex-w1', registerOpts('sess-w1', { teamLeadId: 'sess-lead', workerName: 'scout' }));
+  await repo.registerSession('cortex-w2', registerOpts('sess-w2', { teamLeadId: 'sess-lead', workerName: 'builder' }));
+  await repo.registerSession('cortex-other', registerOpts('sess-other', { teamLeadId: 'sess-elsewhere', workerName: 'scout' }));
+
+  // Ordinary sessions carry no worker fields at all.
+  const lead = await repo.getById('sess-lead');
+  assert.equal(lead?.teamLeadId ?? null, null);
+  assert.equal(lead?.workerName ?? null, null);
+
+  await repo.setWorkerRetired('sess-w2', 1738454400000);
+
+  const reopened = new SessionRegistryRepo(filePath);
+  const w1 = await reopened.getById('sess-w1');
+  assert.equal(w1?.teamLeadId, 'sess-lead');
+  assert.equal(w1?.workerName, 'scout');
+  assert.equal(w1?.workerRetiredAt, null);
+  assert.equal((await reopened.getById('sess-w2'))?.workerRetiredAt, 1738454400000);
+  assert.deepEqual((await reopened.listWorkers('sess-lead')).map(s => s.sessionId).sort(), ['sess-w1', 'sess-w2']);
+  assert.deepEqual(await reopened.listWorkers('sess-w1'), []);
+
+  // Reactivating clears the retirement and survives another restart.
+  await reopened.setWorkerRetired('sess-w2', null);
+  const again = new SessionRegistryRepo(filePath);
+  assert.equal((await again.getById('sess-w2'))?.workerRetiredAt, null);
+  assert.equal((await again.getById('sess-w2'))?.workerName, 'builder');
+});
+
+test('retention keeps a stale worker while its lead lives and deletes fresh workers with their lead', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  const stale = '2020-01-01T00:00:00.000Z';
+  await repo.registerSession('cortex-lead', registerOpts('sess-lead'));
+  await repo.registerSession('cortex-w1', { ...registerOpts('sess-w1'), teamLeadId: 'sess-lead', workerName: 'w1' });
+  await repo.registerSession('cortex-lead2', registerOpts('sess-lead2'));
+  await repo.registerSession('cortex-w2', { ...registerOpts('sess-w2'), teamLeadId: 'sess-lead2', workerName: 'w2' });
+  await repo.registerSession('cortex-orphan', { ...registerOpts('sess-orphan'), teamLeadId: 'sess-gone', workerName: 'o' });
+  await repo.updateSession('cortex-w1', { lastUsedAt: stale });
+  await repo.updateSession('cortex-lead2', { lastUsedAt: stale });
+  await repo.updateSession('cortex-orphan', { lastUsedAt: stale });
+
+  const pending = await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
+  assert.deepEqual(
+    pending.map(entry => entry.session.sessionId).sort(),
+    ['sess-lead2', 'sess-orphan', 'sess-w2'],
+    'w1 waits for its live lead; w2 (fresh) goes with its expired lead; an orphan ages out normally',
+  );
+  assert.equal((await repo.getById('sess-w1'))?.workerName, 'w1');
+
+  const protectedLead = new SessionRegistryRepo(nextPaths().filePath);
+  await protectedLead.registerSession('cortex-l', registerOpts('l'));
+  await protectedLead.registerSession('cortex-w', { ...registerOpts('w'), teamLeadId: 'l', workerName: 'w' });
+  await protectedLead.updateSession('cortex-l', { lastUsedAt: stale });
+  await protectedLead.updateSession('cortex-w', { lastUsedAt: stale });
+  assert.deepEqual(await protectedLead.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), ['l']), [],
+    'an in-use lead keeps its workers');
+});

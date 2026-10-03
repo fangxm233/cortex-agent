@@ -65,6 +65,7 @@ interface ClaudeSessionOptions {
   needsResume: boolean;
   model?: string | null;
   isUserInitiated?: boolean;
+  teamLead?: boolean;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   sessionKey?: string | null;
@@ -156,6 +157,9 @@ export interface ClaudeSpawnCompatibility {
   routeIdentity: string;
   composition: McpComposition;
   interactionBridge: boolean;
+  /** The worker tools are in the bundle set, which is fixed at spawn: toggling team mode must
+   *  force a fresh (resumed) process. */
+  teamLead: boolean;
   tools: string | null;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
@@ -188,6 +192,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     routeIdentity: claudeRouteIdentity(options),
     composition,
     interactionBridge: composition === 'direct' && options.isUserInitiated === true,
+    teamLead: composition === 'direct' && options.teamLead === true,
     tools: options.tools ?? null,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
@@ -224,6 +229,8 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
     ['mcpToolAllowlist', compatibility.mcpToolAllowlist],
     ['settingSources', compatibility.settingSources],
   ];
+  // Appended only when set, so every session that is not a lead keeps its existing identity.
+  if (compatibility.teamLead) fields.push(['teamLead', true]);
   return JSON.stringify(fields);
 }
 
@@ -256,6 +263,7 @@ class ClaudeSession implements TurnHost {
   /** Model name requested via --model CLI arg (used as fallback for cost_record). */
   modelName: string | null;
   private isUserInitiated: boolean;
+  private teamLead: boolean;
   private callbackSource: string | null;
   private scheduleTaskId: string | null;
   private claudeAgent: string | null;
@@ -313,6 +321,7 @@ class ClaudeSession implements TurnHost {
     this.cwd = resolveSpawnCwd(options.cwd);
     this.turns = new ClaudeTurnMachine(this, createContextUsageTracker(this.modelName, this.cwd, options));
     this.isUserInitiated = options.isUserInitiated || false;
+    this.teamLead = options.teamLead === true;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
     this.claudeAgent = options.claudeAgent || null;
@@ -405,6 +414,7 @@ class ClaudeSession implements TurnHost {
     options.loadFeishuMcp = this.channel.startsWith('feishu:');
     options.loadWebMcp = this.channel.startsWith('web:');
     options.isUserInitiated = this.isUserInitiated;
+    options.teamLead = this.teamLead;
     const env = buildClaudeEnv(
       this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
       this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
@@ -684,6 +694,7 @@ function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOpti
     tools: spec.tools.rawClaude ?? canonicalToolsToNative(spec.tools.canonical),
     pluginDirs: spec.plugins.dirs ?? null,
     isUserInitiated: !!spec.flags.isUserInitiated,
+    teamLead: spec.flags.teamLead === true,
     callbackSource: spec.context.callbackSource ?? null,
     scheduleTaskId: spec.context.scheduleTaskId ?? null,
     claudeAgent: claudeBackend?.claudeAgent ?? null,

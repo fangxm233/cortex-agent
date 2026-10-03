@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
-import { useLang } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import { ChatSessionMenu } from './ChatSessionMenu';
 import { workbenchCopy } from '@/features/workbench/workbench-copy';
@@ -97,6 +97,47 @@ function BrowserIconButton(): JSX.Element | null {
   );
 }
 
+/** Team mode: a worker's header leads with its lead session, one click back to it. */
+export interface ChatHeaderParent {
+  title: string;
+  onSelect: () => void;
+}
+
+function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
+  const L = useVocab();
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      data-lead-crumb=""
+      className={MENU_FOCUS}
+      title={`${L.wbTeamOpenLead} · ${parent.title}`}
+      onClick={parent.onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        minWidth: 0,
+        maxWidth: 220,
+        flexShrink: 1,
+        padding: 0,
+        border: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        fontSize: 13.5,
+        color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
+      }}
+    >
+      <span aria-hidden="true" style={{ flex: 'none' }}>‹</span>
+      <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{parent.title}</span>
+      <span aria-hidden="true" style={{ flex: 'none', color: 'var(--proto-muted-3)' }}>/</span>
+    </button>
+  );
+}
+
 export function ChatHeader({
   title,
   running,
@@ -104,6 +145,7 @@ export function ChatHeader({
   backendSessionId,
   sessionName,
   metadataSession,
+  parent,
 }: {
   title: string;
   running: boolean;
@@ -112,6 +154,7 @@ export function ChatHeader({
   backendSessionId: string | null;
   sessionName: string | null;
   metadataSession: MetadataSession | null;
+  parent?: ChatHeaderParent | null;
 }): JSX.Element {
   const notes = useNotes();
   // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
@@ -142,6 +185,7 @@ export function ChatHeader({
           }}
         />
       )}
+      {parent && <ParentCrumb parent={parent} />}
       <div
         style={{
           fontSize: 13.5,

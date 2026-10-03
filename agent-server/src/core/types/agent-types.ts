@@ -35,7 +35,13 @@ export type SystemTurnOrigin =
   /** A backgrounded `agent` run delivered its result. */
   | 'agent-result'
   /** A waitpoint an agent armed was resolved by a signal from outside the process. */
-  | 'external-signal';
+  | 'external-signal'
+  /** A team lead handed work to one of its workers. */
+  | 'team-lead'
+  /** A worker reported the end of a turn to its lead. */
+  | 'worker-result'
+  /** A worker's pending question or plan was forwarded to its lead. */
+  | 'worker-question';
 
 export interface AuthNoticeAction {
   kind: 'auth-login';

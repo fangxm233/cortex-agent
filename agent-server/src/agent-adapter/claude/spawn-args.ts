@@ -70,6 +70,8 @@ export interface ClaudeSpawnOptions {
    *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
    *  AskUserQuestion are filtered out by headless `-p`. Non-direct compositions never get them. */
   isUserInitiated?: boolean;
+  /** Team lead (team mode): a direct session additionally gets the cortex-workers tools. */
+  teamLead?: boolean;
 }
 
 /** Token-level assistant streaming gate, read for each spawn argument build. */
@@ -136,6 +138,7 @@ export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleN
   if (options.isUserInitiated) {
     bundles.push('cortex-interaction-bridge');
   }
+  if (options.teamLead) bundles.push('cortex-workers');
   if (options.loadSlackMcp) bundles.push('cortex-slack');
   if (options.loadFeishuMcp) bundles.push('cortex-feishu');
   if (options.loadWebMcp) bundles.push('cortex-web');

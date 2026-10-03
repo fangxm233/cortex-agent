@@ -55,6 +55,25 @@ describe('createDirectSession', () => {
     assert.strictEqual(ledger.backend, 'claude');
   });
 
+  it('passes worker fields through for a team worker and omits them for an ordinary session', async () => {
+    const registered: any[] = [];
+    const deps = {
+      sessionStore: {
+        generateSessionName: async () => 'cortex-w',
+        registerSession: async (_name: string, opts: any) => { registered.push(opts); },
+      } satisfies SessionRegistryWriter,
+      setChannelSession: async () => {},
+      initConversation: async () => {},
+      resolveBackend: () => 'claude',
+    };
+    await createDirectSession(deps, { projectId: 'p', teamLeadId: 'sess-lead', workerName: 'scout' });
+    await createDirectSession(deps, { projectId: 'p' });
+    assert.strictEqual(registered[0].teamLeadId, 'sess-lead');
+    assert.strictEqual(registered[0].workerName, 'scout');
+    assert.strictEqual(registered[0].origin, 'direct', 'a worker stays an ordinary direct session');
+    assert.ok(!('teamLeadId' in registered[1]), 'ordinary sessions carry no worker fields');
+  });
+
   it('generates a distinct sessionId + channel per call', async () => {
     const fakeStore: SessionRegistryWriter = {
       generateSessionName: async () => 'cortex-x',

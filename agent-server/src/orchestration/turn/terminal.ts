@@ -99,7 +99,11 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 
 // --- Agent error handler ---
 
-export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
+/** How a failed turn ended, for the caller that reports turn ends: `superseded` (an edit replaced
+ *  it) and `rate-limited` (queued for auto-resume) are not the end of the conversation's turn. */
+export type AgentErrorOutcome = 'superseded' | 'cancelled' | 'rate-limited' | 'failed';
+
+export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
   // DISPLAY id: the status line names the backend session when the caller knows it, exactly as the
   // success path does (`handleAgentSuccess` renders `result.sessionId`). Every IDENTITY decision —
   // channel binding, registry key, message delivery — uses `sessionId`, the stable track id. The two
@@ -111,7 +115,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     activeTurns.clearSuperseded(channel, 'edit');
     const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
-    return;
+    return 'superseded';
   }
 
   await persistErrorSession({
@@ -122,7 +126,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (error?.cancelled) {
     const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
-    return;
+    return 'cancelled';
   }
 
   // Thrown rate-limit error while the five-hour throttle is active: pause-and-resume instead of
@@ -135,7 +139,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-    return;
+    return 'rate-limited';
   }
 
   log.error('Agent error:', error.message);
@@ -157,6 +161,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     ? durablePost(queue, adapter, errorDest, errorBody, errorOpts)
     : adapter.postMessage(errorDest, errorBody, errorOpts)
   ).catch((e) => log.error('error body post failed:', (e as Error).message));
+  return 'failed';
 }
 
 /** The terminal seal is a platform side effect of a turn that is already over: a seal the platform
@@ -229,7 +234,7 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
   /** Only the assistant stream is read here; the full `AgentCallbacks` shape stays in `turn.ts`. */
   callbacks: { onAssistantMsg: ((text: string) => void) & { stream?: OutputStream } };
   holdBackground?: BackgroundHoldInstaller | null;
-}): Promise<void> {
+}): Promise<'completed' | 'rate-limited'> {
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
     // resets (rate-limit-throttle onResume → resume-dispatcher).
@@ -237,7 +242,8 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-    return;
+    return 'rate-limited';
   }
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground });
+  return 'completed';
 }

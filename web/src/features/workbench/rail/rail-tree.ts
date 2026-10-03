@@ -3,6 +3,8 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
+import { leadRow, workerRow } from './worker-rail';
+import { groupWorkers } from '@/features/team/worker-groups';
 import { lastActivityByProject, sortProjectsByActivity } from '@/features/session/list/left-rail-projects';
 import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { effectiveMs, orderSessions } from '@/features/session/list/session-groups';
@@ -41,6 +43,11 @@ export interface RailSessionRow {
   waitingOn: boolean;
   unread: boolean;
   selected: boolean;
+  /** Team mode only: a retired worker — sorted last, rendered dimmed. */
+  retired?: boolean;
+  /** Team mode only: this lead's workers, nested under it. Absent when it has none to show. */
+  workers?: RailSessionRow[];
+  workersExpanded?: boolean;
 }
 
 /** A commission folder: one long-horizon task, expanding in place to the sessions working on it. */
@@ -112,6 +119,10 @@ export interface RailTreeInput {
   /** Individual commission folders that are open — keyed by commission id. */
   expandedCommissions: ReadonlySet<string>;
   showAll: ReadonlySet<string>;
+  /** Team mode: nest workers under their lead. Off ⇒ every session is a plain row. */
+  teamEnabled?: boolean;
+  /** Lead sessions whose worker list is open — keyed by session id. */
+  expandedLeads?: ReadonlySet<string>;
   /** Free-text session filter; empty string means no filter. */
   filter: string;
   sort: RailSortMode;
@@ -185,19 +196,23 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     commissionsExpanded, expandedCommissions, showAll,
     sort, manualOrder, dragged, now, lang,
   } = input;
-  const toSessionRow = (s: SessionInfo): RailSessionRow => ({
-    sessionId: s.sessionId,
-    projectId: s.projectId,
-    title: sessionTitle(s),
-    starred: s.starred,
-    age: relTime(effectiveMs(s), now, lang),
-    stamp: sessionTooltipStamp(s),
-    running: !!s.running,
-    awaitingInput: !!s.awaitingInput,
-    waitingOn: (s.waitingOn ?? 0) > 0,
-    unread: !!s.unread,
-    selected: s.sessionId === selectedSessionId,
-  });
+  const toSessionRow = (s: SessionInfo): RailSessionRow => {
+    // A worker blocked on its lead is not progressing and not blocked on the user: hollow ring.
+    const onLead = (s.waitingOnLead ?? 0) > 0;
+    return {
+      sessionId: s.sessionId,
+      projectId: s.projectId,
+      title: sessionTitle(s),
+      starred: s.starred,
+      age: relTime(effectiveMs(s), now, lang),
+      stamp: sessionTooltipStamp(s),
+      running: !!s.running && !onLead,
+      awaitingInput: !!s.awaitingInput,
+      waitingOn: (s.waitingOn ?? 0) > 0 || onLead,
+      unread: !!s.unread,
+      selected: s.sessionId === selectedSessionId,
+    };
+  };
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
 
@@ -236,6 +251,10 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const commissionRows = buildCommissionRows(commissionsByProject.get(project.id) ?? [], allOwn);
     const claimed = commissionSessionIds(commissionRows);
     const own = claimed.size ? allOwn.filter((s) => !claimed.has(s.sessionId)) : allOwn;
+    // Team mode: workers hang under their lead and count as part of its row, so the folder cap and
+    // ordering see one row per lead.
+    const nesting = input.teamEnabled ? groupWorkers(own) : null;
+    const workersOf = (s: SessionInfo): SessionInfo[] => nesting?.workers.get(s.sessionId) ?? [];
     const scheduleRows = buildScheduleRows(
       schedulesByProject.get(project.id) ?? [],
       partition.scheduled,
@@ -250,7 +269,24 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       partition.starred.length === 0 && own.length === 0 && scheduleRows.length === 0 &&
       commissionRows.length === 0 && running === 0;
 
-    const matching = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)) : own;
+    const ownMatches = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)).length : own.length;
+    // A lead stays in a filtered list while any of its workers matches — the hit nests under it.
+    const matching = !nesting
+      ? filtering ? own.filter((s) => sessionMatchesFilter(s, filter)) : own
+      : filtering
+        ? nesting.top.filter((s) =>
+          sessionMatchesFilter(s, filter) || workersOf(s).some((w) => sessionMatchesFilter(w, filter)))
+        : nesting.top;
+    const toTopRow = (s: SessionInfo): RailSessionRow => {
+      const workers = workersOf(s);
+      if (workers.length === 0) return toSessionRow(s);
+      const all = workers.map((w) => workerRow(w, toSessionRow));
+      const shown = filtering ? all.filter((_, i) => sessionMatchesFilter(workers[i], filter)) : all;
+      // Open while filtering (the hits must be visible) and while a worker is the selection.
+      const expandedLead = filtering || !!input.expandedLeads?.has(s.sessionId) ||
+        workers.some((w) => w.sessionId === selectedSessionId);
+      return leadRow(toSessionRow(s), all, shown, expandedLead);
+    };
 
     // Commission folders filter on their own sessions and, while filtering, open themselves to the
     // hits — a match hidden two levels down is a match the user cannot see.
@@ -292,7 +328,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       id: project.id,
       current: project.id === currentProjectId,
       expanded: filtering
-        ? matching.length + matchingStars.length + commissionMatches > 0
+        ? ownMatches + matchingStars.length + commissionMatches > 0
         : expanded.has(project.id),
       empty,
       running,
@@ -303,7 +339,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         !hasSignal && typeof activityMs === 'number' ? relTime(activityMs, now, lang) : null,
       starredSessions: orderSessions(matchingStars).map(toSessionRow),
       starsExpanded: filtering || !input.starsCollapsed?.has(project.id),
-      sessions: visible.map(toSessionRow),
+      sessions: visible.map(toTopRow),
       hiddenSessions: Math.max(0, rows.length - visible.length),
       // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is
       // the way back from that one.
@@ -317,7 +353,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         ? commissionMatches > 0
         : commissionsExpanded.has(project.id),
       commissionUnread: unreadCommissionCount(commissionRows),
-      matchCount: filtering ? matching.length + matchingStars.length + commissionMatches : null,
+      matchCount: filtering ? ownMatches + matchingStars.length + commissionMatches : null,
     };
   });
 
