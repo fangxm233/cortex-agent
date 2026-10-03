@@ -371,3 +371,33 @@ test('session registry replays worker fields, retirement, and lists a lead\'s wo
   assert.equal((await again.getById('sess-w2'))?.workerRetiredAt, null);
   assert.equal((await again.getById('sess-w2'))?.workerName, 'builder');
 });
+
+test('retention keeps a stale worker while its lead lives and deletes fresh workers with their lead', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  const stale = '2020-01-01T00:00:00.000Z';
+  await repo.registerSession('cortex-lead', registerOpts('sess-lead'));
+  await repo.registerSession('cortex-w1', { ...registerOpts('sess-w1'), teamLeadId: 'sess-lead', workerName: 'w1' });
+  await repo.registerSession('cortex-lead2', registerOpts('sess-lead2'));
+  await repo.registerSession('cortex-w2', { ...registerOpts('sess-w2'), teamLeadId: 'sess-lead2', workerName: 'w2' });
+  await repo.registerSession('cortex-orphan', { ...registerOpts('sess-orphan'), teamLeadId: 'sess-gone', workerName: 'o' });
+  await repo.updateSession('cortex-w1', { lastUsedAt: stale });
+  await repo.updateSession('cortex-lead2', { lastUsedAt: stale });
+  await repo.updateSession('cortex-orphan', { lastUsedAt: stale });
+
+  const pending = await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
+  assert.deepEqual(
+    pending.map(entry => entry.session.sessionId).sort(),
+    ['sess-lead2', 'sess-orphan', 'sess-w2'],
+    'w1 waits for its live lead; w2 (fresh) goes with its expired lead; an orphan ages out normally',
+  );
+  assert.equal((await repo.getById('sess-w1'))?.workerName, 'w1');
+
+  const protectedLead = new SessionRegistryRepo(nextPaths().filePath);
+  await protectedLead.registerSession('cortex-l', registerOpts('l'));
+  await protectedLead.registerSession('cortex-w', { ...registerOpts('w'), teamLeadId: 'l', workerName: 'w' });
+  await protectedLead.updateSession('cortex-l', { lastUsedAt: stale });
+  await protectedLead.updateSession('cortex-w', { lastUsedAt: stale });
+  assert.deepEqual(await protectedLead.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), ['l']), [],
+    'an in-use lead keeps its workers');
+});
