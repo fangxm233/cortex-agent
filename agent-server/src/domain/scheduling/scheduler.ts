@@ -503,7 +503,7 @@ class Scheduler {
   async _runTask(task: ScheduleTask): Promise<void> {
     const profileName = resolveTaskProfile(task.profile);
     const resolvedChannel = task.projectId;
-    log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, profile=${profileName}, channel=${resolvedChannel}): "${task.message}"`);
+    log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, profile=${profileName}, project=${task.projectId}): "${task.message}"`);
     void emitCortexEvent('cortex:schedule.fired', {
       scheduleId: task.id,
       name: task.message,
