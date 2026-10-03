@@ -56,7 +56,7 @@ test('multiple adds and reads interleaved', () => {
 
   state = _addNotification(state, makeNotifFrame({ title: 'A', kind: 'project-report' }));
   state = _addNotification(state, makeNotifFrame({ title: 'B', kind: 'system-notice' }));
-  state = _addNotification(state, makeNotifFrame({ title: 'C', kind: 'thread-report' }));
+  state = _addNotification(state, makeNotifFrame({ title: 'C', kind: 'project-report' }));
 
   assert.equal(state.ids.length, 3);
   assert.equal(state.unreadCount, 3);

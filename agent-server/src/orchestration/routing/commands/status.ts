@@ -76,7 +76,7 @@ function configHelpCategory(): HelpCategory {
     label: t('cmd.help.catConfig'),
     commands: [t('cmd.help.config.mode'), t('cmd.help.config.backend'),
       t('cmd.help.config.model'), t('cmd.help.config.thinking'), t('cmd.help.config.profile'),
-      t('cmd.help.config.skills')],
+      t('cmd.help.config.agent'), t('cmd.help.config.skills')],
   };
 }
 
@@ -89,11 +89,11 @@ function monitoringHelpCategory(): HelpCategory {
   };
 }
 
-function taskHelpCategory(): HelpCategory {
+function projectHelpCategory(): HelpCategory {
   return {
-    label: t('cmd.help.catTasks'),
-    commands: [t('cmd.help.tasks.tasks'), t('cmd.help.tasks.projects'),
-      t('cmd.help.tasks.register'), t('cmd.help.tasks.unregister'), t('cmd.help.tasks.projectDir')],
+    label: t('cmd.help.catProjects'),
+    commands: [t('cmd.help.projects.projects'), t('cmd.help.projects.register'),
+      t('cmd.help.projects.unregister'), t('cmd.help.projects.projectDir')],
   };
 }
 
@@ -105,18 +105,11 @@ function deviceHelpCategory(): HelpCategory {
   };
 }
 
-function threadHelpCategory(): HelpCategory {
-  return {
-    label: t('cmd.help.catThreads'),
-    commands: [t('cmd.help.threads.thread'), t('cmd.help.threads.agent')],
-  };
-}
-
 function getHelpCategories(): Record<string, HelpCategory> {
   return {
     session: sessionHelpCategory(), config: configHelpCategory(),
-    monitoring: monitoringHelpCategory(), tasks: taskHelpCategory(),
-    devices: deviceHelpCategory(), threads: threadHelpCategory(),
+    monitoring: monitoringHelpCategory(), projects: projectHelpCategory(),
+    devices: deviceHelpCategory(),
   };
 }
 
@@ -143,7 +136,7 @@ function buildHelpRichBlocks(category?: string): import('@platform/index.js').Ri
   }));
 }
 
-const HELP_CATEGORY_KEYS = ['session', 'config', 'monitoring', 'tasks', 'devices', 'threads', 'all'];
+const HELP_CATEGORY_KEYS = ['session', 'config', 'monitoring', 'projects', 'devices', 'all'];
 
 function buildHelpButtons(): import('@platform/index.js').ActionElement[] {
   const buttons: import('@platform/index.js').ActionElement[] = Object.entries(getHelpCategories()).map(([key, cat]) => ({

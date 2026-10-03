@@ -25,12 +25,9 @@ const legacyLines = [
   'CORTEX_DISABLE_USER_CONTEXT=1',
   'CORTEX_SERVER_UPDATE_DISABLE=1',
   'CORTEX_HOOKS_LEGACY=1',
-  'CORTEX_MANAGER_ROTATE_STEPS=12steps',
-  'CORTEX_WAITING_SWEEP_MS=0',
+  'CORTEX_WAITPOINT_SWEEP_MS=0',
+  'CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR=20wakes',
   'CORTEX_INJECT_WAIT_MAX_S=2.5',
-  'CORTEX_THREAD_MAX_DEPTH=7levels',
-  'CORTEX_TASK_ARTIFACT_TEMPLATES="manager, coder-review, ,"',
-  'TASK_DISPATCH_MAX_CONCURRENT=8workers',
   'CORTEX_UI_CORS_ORIGINS="https://a.example, https://b.example"',
   'CORTEX_ADMIN_CHANNEL=C123',
   'FEISHU_ADMIN_CHANNEL=oc_123',
@@ -50,12 +47,9 @@ const expectedSettings = {
   disableUserContext: true,
   serverUpdateDisable: true,
   hooksLegacy: true,
-  managerRotateSteps: 12,
-  waitingSweepMs: 0,
+  waitpointSweepMs: 0,
+  waitpointMaxWakesPerHour: 20,
   injectWaitMaxS: 2.5,
-  threadMaxDepth: 7,
-  taskArtifactTemplates: ['manager', 'coder-review'],
-  taskDispatchMaxConcurrent: 8,
   uiCorsOrigins: ['https://a.example', 'https://b.example'],
   adminChannel: 'C123',
   feishuAdminChannel: 'oc_123',
@@ -77,7 +71,7 @@ beforeEach(async () => {
 });
 
 describe.sequential('migrateEnvToSettings', () => {
-  test('migrates all 22 setting keys, strips legacy lines, preserves other lines, and is idempotent', async () => {
+  test('migrates the legacy setting keys, strips their lines, preserves other lines, and is idempotent', async () => {
     const preserved = [
       '# existing comment',
       'ANTHROPIC_API_KEY=secret-value',
@@ -122,14 +116,12 @@ describe.sequential('migrateEnvToSettings', () => {
   test('does not overwrite explicit settings and preserves admin alias precedence', async () => {
     const existing = {
       showToolCalls: false,
-      taskDispatchMaxConcurrent: null,
       uiCorsOrigins: [],
       unknownField: 'preserved',
     };
     await fs.writeFile(SETTINGS_FILE, `${JSON.stringify(existing, null, 2)}\n`);
     await fs.writeFile(ENV_FILE, [
       'CORTEX_SHOW_TOOL_CALLS=1',
-      'TASK_DISPATCH_MAX_CONCURRENT=9',
       'CORTEX_UI_CORS_ORIGINS=https://ignored.example',
       'SLACK_ADMIN_CHANNEL=slack-admin',
       'CORTEX_ADMIN_CHANNEL=cortex-admin',

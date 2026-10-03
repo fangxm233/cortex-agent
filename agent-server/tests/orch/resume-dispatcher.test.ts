@@ -142,7 +142,7 @@ test('direct entry on a busy channel is dropped', async () => {
  *  stubbed busy checks so the dispatcher's real ones read the live registry. */
 function withChildOnChannel(deps: any, channel: string): () => void {
   runRegistry.register({
-    threadId: null, channel, agentSlotId: null, executionId: null, registryKey: 'resume-child',
+    channel, executionId: null, registryKey: 'resume-child',
     kind: 'local', kill: () => true, backend: 'claude', trackSessionId: null, subagent: true,
   });
   delete deps.channelBusy;
@@ -178,11 +178,10 @@ test('disabled flag drains the queue without dispatching', async () => {
   resetSettingsForTests();
 });
 
-test('readiness drain is invoked exactly once per dispatch, and a leftover thread entry is dropped', async () => {
+test('readiness drain is invoked exactly once per dispatch', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const { deps, calls } = baseDeps([
     { kind: 'direct', channel: 'C1', userMessage: 'a', recordedAt: NOW },
-    { kind: 'thread', threadId: 'thr_b', channel: 'C2', userMessage: 'b', recordedAt: NOW },
   ]);
   await dispatchPendingResumes(adapter as any, deps);
   assert.equal(calls.taken, 1);

@@ -68,9 +68,8 @@ function activeThrottle(): RateLimitThrottleState {
 
 function resumeEntries(): ResumeEntry[] {
   return [{
-    kind: 'thread',
+    kind: 'direct',
     provider: 'provider-a',
-    threadId: 'thread-a',
     channel: 'channel-a',
     userMessage: 'continue',
     recordedAt: 100,

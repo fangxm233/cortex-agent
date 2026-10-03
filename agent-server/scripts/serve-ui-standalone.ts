@@ -20,8 +20,6 @@ import type { UiServiceDeps } from '@domain/ui-service/index.js';
 import { startUiHttpServer } from '@entry/start-ui-http.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { threadStore } from '@store/thread-repo.js';
-import { taskStore } from '@store/task-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { executionLogTailer } from '@domain/executions/log-tailer.js';
@@ -62,8 +60,6 @@ async function main(): Promise<void> {
 
   // Hydrate the on-disk stores that back the read-only UI queries (same calls app.ts makes).
   await projectStore.initialize();
-  taskStore.load();
-  threadStore.load();
   executionRepo.load();
 
   const bus = new EventBus();
@@ -72,8 +68,6 @@ async function main(): Promise<void> {
   const uiService = createUiService({
     projectStore,
     sessionStore,
-    threadStore,
-    taskStore,
     scheduler: schedulerStub,
     executionRegistry,
     executionLogTailer,

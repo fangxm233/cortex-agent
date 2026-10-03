@@ -387,7 +387,6 @@ export async function prepareConversationRequest(
     context: {
       channel: opts.channel,
       project,
-      threadId: null,
       // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
       // to, so it pauses and resumes on a rate limit exactly like one.
       isUserInitiated: true,

@@ -19,14 +19,7 @@ test('buildStatusActionBlocks: Cancel button carries executionId (conversation p
   const value = cancelButtonValue(blocks);
   assert.equal(value.channel, 'C1');
   assert.equal(value.executionId, 'exec_abc');
-  assert.equal(value.threadId, null);
-});
-
-test('buildStatusActionBlocks: Cancel button carries threadId (thread path), executionId null', () => {
-  const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionName: null, isDm: false, threadId: 'thr_x' });
-  const value = cancelButtonValue(blocks);
-  assert.equal(value.threadId, 'thr_x');
-  assert.equal(value.executionId, null);
+  assert.deepEqual(Object.keys(value).sort(), ['channel', 'executionId']);
 });
 
 // --- Basic serialization ---

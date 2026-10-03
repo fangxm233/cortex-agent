@@ -9,7 +9,7 @@ const MAX_NOTIFICATIONS = 50;
 
 export interface NotificationEntry {
   id: string;
-  kind: 'project-report' | 'system-notice' | 'thread-report';
+  kind: 'project-report' | 'system-notice';
   projectId: string;
   sessionId?: string | null;
   title: string;

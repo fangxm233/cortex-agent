@@ -20,7 +20,7 @@ export type HookMountTarget = HookDetail['mountsOn'][number];
  * `agent:pre-tool` entry answers both `agent` and `claude`. That asymmetry is the point: the
  * declaration says what you wrote, the mount says where it actually runs.
  */
-export type HookFilterKey = 'all' | 'agent' | 'claude' | 'pi' | 'server' | 'template';
+export type HookFilterKey = 'all' | 'agent' | 'claude' | 'pi' | 'server';
 
 export const HOOK_FILTER_KEYS: readonly HookFilterKey[] = [
   'all',
@@ -28,7 +28,6 @@ export const HOOK_FILTER_KEYS: readonly HookFilterKey[] = [
   'claude',
   'pi',
   'server',
-  'template',
 ];
 
 function matchesFilterKey(hook: HookDetail, filter: HookFilterKey): boolean {
@@ -43,8 +42,6 @@ function matchesFilterKey(hook: HookDetail, filter: HookFilterKey): boolean {
       return hook.mountsOn.includes('pi');
     case 'server':
       return hook.mountsOn.includes('server');
-    case 'template':
-      return hook.source === 'template-scoped';
   }
 }
 
@@ -56,7 +53,6 @@ function searchHaystack(hook: HookDetail): string {
     hook.run.script ?? '',
     hook.run.command ?? '',
     hook.matcher ?? '',
-    hook.template ?? '',
     hook.source,
   ]
     .join('\n')
@@ -89,24 +85,21 @@ export function countHooksByFilter(
 
 // ── grouping ──────────────────────────────────────────────────────────────────────────────────
 
-export type HookNamespace = 'agent' | 'cc' | 'pi' | 'cortex' | 'template' | 'other';
+export type HookNamespace = 'agent' | 'cc' | 'pi' | 'cortex' | 'other';
 
 export const HOOK_NAMESPACE_ORDER: readonly HookNamespace[] = [
   'agent',
   'cc',
   'pi',
   'cortex',
-  'template',
   'other',
 ];
 
 /**
- * Template-scoped entries carry a `cortex:thread.*` event but are owned by a template file, so they
- * get their own group rather than being mixed into the registry's `cortex:` block. `other` is a
- * forward-compatible inventory fallback; the current server still validates the four known prefixes.
+ * A hook groups by its event prefix. `other` is a forward-compatible inventory fallback; the current
+ * server still validates the four known prefixes.
  */
 export function hookNamespace(hook: HookDetail): HookNamespace {
-  if (hook.source === 'template-scoped') return 'template';
   if (hook.event.startsWith('agent:')) return 'agent';
   if (hook.event.startsWith('cc:')) return 'cc';
   if (hook.event.startsWith('pi:')) return 'pi';
@@ -161,19 +154,15 @@ export interface HookCapability {
   canToggle: boolean;
   canEdit: boolean;
   /** Which persistent inline explanation the detail pane must show. */
-  note: 'managed' | 'template-scoped' | null;
+  note: 'managed' | null;
 }
 
 /**
  * managed — every non-`enabled` field is restored by the next hook sync, so offering to edit them
  * would be a lie; even the toggle is only durable until that sync.
- * template-scoped — owned by a thread-template file; the writer rejects it outright.
  * user — the only fully writable source, and `editable` is the server's own say-so.
  */
 export function hookCapability(hook: HookDetail): HookCapability {
-  if (hook.source === 'template-scoped') {
-    return { canToggle: false, canEdit: false, note: 'template-scoped' };
-  }
   if (hook.source === 'managed') {
     return { canToggle: true, canEdit: false, note: 'managed' };
   }

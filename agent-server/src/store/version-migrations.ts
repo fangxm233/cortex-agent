@@ -12,7 +12,6 @@ import { importLegacySessionStores } from './session-registry-import.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
-  MANAGER_TASK_FILE_REPLACEMENTS,
   STATUS_REGISTER_REPLACEMENTS,
 } from './prompt-migration-replacements.js';
 
@@ -41,7 +40,7 @@ export function compareCalVer(a: string, b: string): number {
 // ── Migration type ─────────────────────────────────────────────
 
 export interface Migration {
-  /** File path relative to DATA_DIR, e.g. "config/thread-templates.json". */
+  /** File path relative to DATA_DIR, e.g. "config/profiles.json". */
   filePath: string;
   /** CalVer when this migration was introduced. Compared against the per-file
    *  version tracked in versions.json to decide whether to run. */
@@ -51,11 +50,10 @@ export interface Migration {
    *  reads, diffs, and writes the file. */
   format?: 'json' | 'text';
   /** Idempotent migration function. For 'json' migrations, receives the parsed JSON
-   *  of the target file and optionally the parsed JSON of the corresponding defaults
-   *  file. For 'text' migrations, receives the raw file string. Must return the
+   *  of the target file; for 'text' migrations, the raw file string. Must return the
    *  migrated data (object for json, string for text) — the runner compares
    *  before/after to decide whether to write. */
-  migrate(data: unknown, defaults?: unknown): unknown;
+  migrate(data: unknown): unknown;
 }
 
 // ── Step migration type ────────────────────────────────────────
@@ -199,38 +197,6 @@ const PI_SUBAGENT_ROLE_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = 
 // pending ones in version-ascending order.
 
 const migrations: Migration[] = [
-  // M1: Backfill systemPrompt on user agents that are missing it.
-  // Agents that exist in both user config and defaults, but whose user version
-  // has no systemPrompt field, get the default agent's systemPrompt value copied.
-  // Agents that already have systemPrompt are left untouched. User-only agents
-  // (not in defaults) are skipped.
-  {
-    filePath: 'config/thread-templates.json',
-    version: '2026.5.23',
-    migrate(data: unknown, defaultsData?: unknown): unknown {
-      if (!defaultsData || typeof defaultsData !== 'object' || defaultsData === null) return data;
-      if (typeof data !== 'object' || data === null) return data;
-      const d = data as Record<string, unknown>;
-      const defs = defaultsData as Record<string, unknown>;
-      const userAgents: Record<string, unknown> | undefined = d.agents as Record<string, unknown> | undefined;
-      const defaultAgents: Record<string, unknown> | undefined = defs.agents as Record<string, unknown> | undefined;
-      if (!userAgents || !defaultAgents) return data;
-
-      let changed = false;
-      for (const [name, defAgent] of Object.entries(defaultAgents)) {
-        const userAgent = userAgents[name];
-        if (!userAgent || typeof userAgent !== 'object') continue; // agent not in user config
-        const ua = userAgent as Record<string, unknown>;
-        const da = defAgent as Record<string, unknown>;
-        if (ua.systemPrompt === undefined && da.systemPrompt !== undefined) {
-          ua.systemPrompt = da.systemPrompt;
-          changed = true;
-        }
-      }
-      if (changed) d.agents = userAgents;
-      return data;
-    },
-  },
   // M2: Backfill `provider` on pi profiles that predate the gateway-routing split (6e50225f).
   // That commit made `provider` REQUIRED for backend='pi' with no default — so any pre-upgrade
   // profiles.json with a pi profile lacking `provider` now fails the whole-file validation in
@@ -403,12 +369,6 @@ const migrations: Migration[] = [
     migrate: (data) => typeof data === 'string'
       ? applyReplacements(data, CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS) : data,
   },
-  // M8: Move stock manager task creation off shell-interpolated arguments.
-  {
-    filePath: 'prompts/directives/manager.md', version: '2026.7.31', format: 'text',
-    migrate: (data) => typeof data === 'string'
-      ? applyReplacements(data, MANAGER_TASK_FILE_REPLACEMENTS) : data,
-  },
   // M9: Align coder commit instructions with repository privacy policy.
   {
     filePath: 'prompts/directives/coder.md', version: '2026.7.31', format: 'text',
@@ -416,13 +376,12 @@ const migrations: Migration[] = [
       ? applyReplacements(data, CODER_COMMIT_POLICY_REPLACEMENTS) : data,
   },
   // M10: STATUS.md register semantics. Stock prompts mandated unconditional
-  // STATUS.md updates (worker exit checklist, manager step 7) and a
+  // STATUS.md updates (worker exit checklist) and a
   // `## Milestone Verdict` STATUS section (director); the register convention
   // makes STATUS updates conditional and keeps verdicts in the gate artifact.
   // Idempotent via applyReplacements; customized copies don't match → no-op.
   ...[
     'prompts/systemPrompts/worker.md',
-    'prompts/directives/manager.md',
     'prompts/directives/director.md',
   ].map((filePath): Migration => ({
     filePath,
@@ -988,35 +947,6 @@ export async function saveVersionsTo(filePath: string, versions: Record<string, 
   await atomicWrite(filePath, JSON.stringify(versions, null, 2) + '\n');
 }
 
-// ── Defaults loader ────────────────────────────────────────────
-
-/** Map of target filePath → corresponding defaults filePath (relative to DEFAULTS_DIR).
- *  When a migration needs defaults data, the runner looks up the defaults path here,
- *  reads it once, and passes it to every pending migration for that target file. */
-const DEFAULTS_MAP: Record<string, string> = {
-  'config/thread-templates.json': 'config/thread-templates.json',
-};
-
-async function loadDefaultsForWith(filePath: string, defaultsDir: string): Promise<unknown> {
-  const defaultsRel = DEFAULTS_MAP[filePath];
-  if (!defaultsRel) return undefined;
-  const defaultsPath = path.join(defaultsDir, defaultsRel);
-  try {
-    const raw = await fs.readFile(defaultsPath, 'utf8');
-    return JSON.parse(raw);
-  } catch (err: unknown) {
-    const e = err as NodeJS.ErrnoException;
-    if (e.code === 'ENOENT') {
-      log.warn(`Defaults file not found: ${defaultsPath}; migrations for ${filePath} may be skipped`);
-    } else if (err instanceof SyntaxError) {
-      log.warn(`Defaults file corrupt (${defaultsPath}): ${e.message}`);
-    } else {
-      log.warn(`Could not load defaults for ${filePath}: ${e.message}`);
-    }
-    return undefined;
-  }
-}
-
 // ── Runner options ─────────────────────────────────────────────
 
 export interface MigrationOptions {
@@ -1090,16 +1020,13 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
       throw err;
     }
 
-    // Load defaults once for this file (if any)
-    const defaultsData = await loadDefaultsForWith(filePath, defaultsDir);
-
     // Apply all pending migrations in version order
     let changed = false;
     let anyFailed = false;
     for (const m of pending) {
       const before = serialize(data);
       try {
-        data = m.migrate(data, defaultsData);
+        data = m.migrate(data);
       } catch (err: unknown) {
         log.error(`Migration ${m.version} for ${filePath} failed: ${(err as Error).message}; skipping remaining migrations for this file`);
         changed = false;

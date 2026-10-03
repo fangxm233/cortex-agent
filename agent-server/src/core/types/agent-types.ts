@@ -25,11 +25,10 @@ export type ChatNoticeLevel = 'info' | 'warning' | 'error';
 export type SystemTurnOrigin =
   /** Provider rate limit / outage cleared — continuation signal for the interrupted turn. */
   | 'resume'
-  /** A dispatched task reached a terminal state (completed or blocked). */
+  /** Legacy, never written now: the retired task queue's terminal report, its thread runtime's
+   *  completion report and a subtask's escalated question. Old transcripts still carry them. */
   | 'task-callback'
-  /** A child thread finished and reported back to its parent session. */
   | 'thread-callback'
-  /** A subtask escalated a question to the manager session (`ask_manager`). */
   | 'subtask-question'
   /** A backgrounded `agent` run delivered its result. */
   | 'agent-result'

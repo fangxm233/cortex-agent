@@ -1,7 +1,6 @@
 //
 //         Direction of imports matters here: this module imports `agent-runner`, never the other
-//         way round. That is what lets `thread-callback` / `manager-qa` reach a turn without the
-//         `agent-runner → manager-qa → thread-callback → agent-runner` cycle they used to close
+//         way round, so a delivering module never closes a cycle back through the turn
 //         (.dependency-cruiser.cjs `no-circular` locks it).
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
@@ -27,9 +26,6 @@ export type DeliveryOrigin =
   | 'agent-result'      // a backgrounded `agent` run reporting its result
   | 'ask-user-answer'   // the answer to a non-blocking `cortex_ask_user`
   | 'resume'            // the rate-limit resume reminder
-  | 'thread-callback'   // a background thread finished
-  | 'task-callback'     // a dispatched task turned terminal
-  | 'subtask-question'  // ask_manager escalated to the top of the tree
   | 'external-signal'   // a waitpoint fired — an external process reported it finished
   | 'team-lead'         // a team lead handing work to one of its workers
   | 'worker-result'     // a worker reporting the end of a turn to its lead
@@ -47,23 +43,17 @@ interface OriginSpec {
 
 /**
  * The origin table. Every value here is the value that origin's hand-written builder used before
- * this module existed — including the two that look inconsistent:
- *
- * - `agent-result` and `ask-user-answer` are `WEB_UI_SENDER`, not `SYNTHETIC_CALLBACK_SENDER`,
- *   even though Cortex authors both. That is load-bearing: `isInjectableMessage` refuses
- *   `SYNTHETIC_CALLBACK_SENDER`, so tagging them synthetic would stop a background agent's result
- *   from folding into the live turn and push it behind the queue instead (mid-turn-inject.ts:47).
- * - all three callback origins carry `raw.source: 'task-callback'`, which is what
- *   `buildSyntheticWakeMessage` wrote for every one of them.
+ * this module existed — including the two that look inconsistent: `agent-result` and
+ * `ask-user-answer` are `WEB_UI_SENDER`, not `SYNTHETIC_CALLBACK_SENDER`, even though Cortex
+ * authors both. That is load-bearing: `isInjectableMessage` refuses `SYNTHETIC_CALLBACK_SENDER`,
+ * so tagging them synthetic would stop a background agent's result from folding into the live
+ * turn and push it behind the queue instead (mid-turn-inject.ts:47).
  */
 const ORIGINS: Record<DeliveryOrigin, OriginSpec> = {
   'web-user':         { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui' },
   'agent-result':     { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'agent-result' },
   'ask-user-answer':  { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui' },
   'resume':           { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'resume', rawSource: 'rate-limit-resume', systemOrigin: 'resume' },
-  'thread-callback':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'thread-callback' },
-  'task-callback':    { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'task-callback' },
-  'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'subtask-question' },
   'external-signal':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'external-signal', systemOrigin: 'external-signal' },
   'team-lead':        { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'team-lead' },
   'worker-result':    { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-result' },
@@ -77,7 +67,7 @@ export interface DeliverToSessionOptions {
   text: string;
   origin: DeliveryOrigin;
   attachments?: AttachmentMeta[];
-  /** Short label folded into a `cb_` messageId (`cb_task_1f3_…`). Ignored by the other prefixes. */
+  /** Short label folded into a `cb_` messageId (`cb_<tag>_<now>`). Ignored by the other prefixes. */
   tag?: string;
   /** Extra `raw` fields for this delivery (`raw.source` is the origin's and cannot be overridden). */
   raw?: Record<string, unknown>;

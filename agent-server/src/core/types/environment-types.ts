@@ -2,22 +2,7 @@ import type { McpComposition } from '../../agent-adapter/types.js';
 
 /**
  * Execution environments: the agent definitions a conversation runs under (`config/environments/`).
- * Multi-step thread agents reuse the same shape and add `stages` on top.
  */
-
-// --- Stage Definition (multi-step thread agents only; an environment never declares stages) ---
-
-/** A named stage of an agent. When an agent declares `stages`, each transition target
- *  may select one stage (syntax `"agent:stage"`). Stages that set `continuesSession: true`
- *  send only an incremental prompt when the persistent session is being resumed — the
- *  directive, protocol preamble and auto `previousOutput` injection are all skipped.
- *  Stage prompts MUST reference `{{artifactPath}}` so the agent can self-recover when
- *  the Claude session is lost and the full-bootstrap fallback kicks in. */
-export interface StageDefinition {
-  promptTemplate: string;            // stage-specific template with {{input}}, {{artifactPath}}, ... vars
-  continuesSession?: boolean;        // default false; true = incremental prompt on resume (skip directive+preamble)
-  description?: string;              // human-readable description of this stage
-}
 
 // --- Execution environment (the half of an agent that is not its prompt) ---
 
@@ -48,7 +33,7 @@ export interface AgentDefinition extends AgentEnvironment {
   persistSession: boolean;           // true: reuse session across iterations; false: fresh each time
   directive?: string;                 // agent role/identity definition, prepended to the prompt
   systemPrompt?: string;             // full system prompt override (--system-prompt flag, replaces default)
-  promptTemplate?: string;           // template with {{input}}, {{artifactPath}}, {{previousOutput}} vars (omit when using `stages`)
+  promptTemplate?: string;           // template with {{input}}, {{artifactPath}}, {{previousOutput}} vars
   claudeAgent?: string;              // Claude Code agent name (--agent flag, loads from .claude/agents/)
   outputStyle?: string;              // Claude Code output style (--settings '{"outputStyle":"<value>"}')
   tools?: string;                    // Claude Code tools list (--tools flag, overrides default tool set)
@@ -58,13 +43,6 @@ export interface AgentDefinition extends AgentEnvironment {
   /** Whether this template may be named as a subagent delegation target. Declared now so a
    *  definition can carry the intent; nothing reads it yet. */
   delegable?: boolean;
-  /** Optional per-stage prompt map. When set, `promptTemplate` is ignored and the engine
-   *  selects one stage per step based on the transition target (`"agent:stage"` syntax). */
-  stages?: Record<string, StageDefinition>;
-  /** Default stage for transitions that target this agent without an explicit stage
-   *  (`"agent"` rather than `"agent:stage"`). Required when `stages` has >1 entry; defaults to
-   *  the first declared stage otherwise. */
-  entryStage?: string;
 }
 
 // --- Per-use overrides of a definition ---
@@ -97,8 +75,4 @@ export interface AgentSlotConfig extends AgentEnvironment {
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags)
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   mcpToolAllowlist?: string[];        // canonical resolved per-tool MCP allowlist
-  /** Per-stage prompts (merged from AgentDefinition; templates currently don't override per stage). */
-  stages?: Record<string, StageDefinition>;
-  /** Default stage when a transition target omits the `:stage` suffix. */
-  entryStage?: string;
 }

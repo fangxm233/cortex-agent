@@ -28,9 +28,7 @@ function setupDirs(idx: number): { dataDir: string; storeDir: string; configDir:
   const dataDir = path.join(tmpDir, `data-${idx}`);
   const storeDir = path.join(dataDir, 'data');
   const configDir = path.join(dataDir, 'config');
-  // defaultsDir corresponds to DEFAULTS_DIR (= INSTALL_ROOT/defaults/).
-  // The DEFAULTS_MAP maps config/thread-templates.json → config/thread-templates.json,
-  // which is joined under DEFAULTS_DIR. So we put the actual file at defaultsDir/config/.
+  // defaultsDir stands in for DEFAULTS_DIR (= INSTALL_ROOT/defaults/), which the step migrations read.
   const defaultsDir = path.join(dataDir, 'defaults');
   return { dataDir, storeDir, configDir, defaultsDir };
 }
@@ -88,122 +86,46 @@ test('compareCalVer - zero version', () => {
 // runMigrations(), avoiding dependency on the global CORTEX_HOME env var
 // (which is locked at module load time via @core/paths).
 //
-// The runner tests below use the legacy thread-templates.json file migration as their vehicle. The
-// step that retires threads would archive that file after the file loop, so they run without steps.
+// The runner tests below use the profiles.json provider backfill (2026.5.25) as their vehicle and
+// run without step migrations, so only the file loop is exercised.
 const NO_STEPS: never[] = [];
-
-test('runMigrations - no versions file, adds systemPrompt to agent missing it', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  // Write defaults with systemPrompt (defaults are at defaultsDir/config/thread-templates.json)
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
-      coder: { name: 'coder', profile: 'sonnet', persistSession: false, systemPrompt: 'file:coder.md', promptTemplate: 'coder' },
-    },
-    templates: {},
-  });
-
-  // Write user config: main has no systemPrompt, coder has one, custom has no defaults counterpart
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-      coder: { name: 'coder', profile: 'sonnet', persistSession: false, systemPrompt: 'file:custom-coder.md', promptTemplate: 'coder' },
-      custom: { name: 'custom', profile: 'deepseek', persistSession: false, promptTemplate: 'custom' },
-    },
-    templates: {},
-  });
-
-  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
-
-  // Verify
-  const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  // main: systemPrompt was missing, should be added from defaults
-  assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
-  // coder: systemPrompt already existed, should NOT be overwritten
-  assert.equal(migrated.agents.coder.systemPrompt, 'file:custom-coder.md');
-  // custom: not in defaults, should be untouched and still have no systemPrompt
-  assert.equal(migrated.agents.custom.systemPrompt, undefined);
-
-  // Versions file should exist and track this file
-  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.ok(versions['config/thread-templates.json']);
-  assert.ok(compareCalVer(versions['config/thread-templates.json'], '0.0.0') > 0);
-});
+const PROFILES = 'config/profiles.json';
+/** A pi profile without a provider: the backfill sets `provider` from `mode`. */
+const UNMIGRATED_PROFILES = {
+  defaultProfile: 'execute',
+  profiles: { execute: { model: 'deepseek-v4-flash', backend: 'pi', mode: 'anthropic' } },
+};
 
 test('runMigrations - idempotent on second run', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
 
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // First run
   await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
-  const first = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(first.agents.main.systemPrompt, 'file:direct.md');
+  const first = await readJson(path.join(configDir, 'profiles.json')) as any;
+  assert.equal(first.profiles.execute.provider, 'anthropic');
 
   // Second run — should be a no-op
   await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
-  const second = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(second.agents.main.systemPrompt, 'file:direct.md');
-  assert.deepEqual(second, first);
+  assert.deepEqual(await readJson(path.join(configDir, 'profiles.json')), first);
 });
 
 test('runMigrations - skips when file is already up to date', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // User config lacks systemPrompt, so running the migration would backfill it
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // Manually write versions.json with up-to-date version
-  await writeJson(path.join(storeDir, 'versions.json'), {
-    'config/thread-templates.json': '2026.5.23',
-  });
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  // Running the migration would backfill the provider
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
+  await writeJson(path.join(storeDir, 'versions.json'), { [PROFILES]: '2026.5.25' });
 
   await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
-  // Migration was skipped, so systemPrompt was not backfilled
-  const content = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(content.agents.main.systemPrompt, undefined);
-  // Versions should still track the existing version
+  // Migration was skipped, so the provider was not backfilled
+  const content = await readJson(path.join(configDir, 'profiles.json')) as any;
+  assert.equal(content.profiles.execute.provider, undefined);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions['config/thread-templates.json'], '2026.5.23');
+  assert.equal(versions[PROFILES], '2026.5.25');
 });
 
 test('runMigrations - handles missing user config file gracefully', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
-
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } },
-    templates: {},
-  });
+  const { dataDir, storeDir, defaultsDir } = setupDirs(_testIdx++);
   // Do NOT create user config
 
   // Should not throw
@@ -212,7 +134,7 @@ test('runMigrations - handles missing user config file gracefully', async () => 
   // Versions file should NOT track this file (migration was skipped)
   try {
     const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-    assert.equal(versions['config/thread-templates.json'], undefined);
+    assert.equal(versions[PROFILES], undefined);
   } catch (e: any) {
     // versions.json may not exist at all — that's also fine
     if (e.code !== 'ENOENT') throw e;
@@ -220,94 +142,64 @@ test('runMigrations - handles missing user config file gracefully', async () => 
 });
 
 test('runMigrations - handles corrupt user config gracefully', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } },
-    templates: {},
-  });
-
-  // Write invalid JSON
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
   await fs.mkdir(configDir, { recursive: true });
-  await fs.writeFile(path.join(configDir, 'thread-templates.json'), '{ not valid json }');
+  await fs.writeFile(path.join(configDir, 'profiles.json'), '{ not valid json }');
 
   // Should not throw
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
-  // Versions file should NOT track this file
+  // The file is left as it was, and its migrations stay pending
+  assert.equal(await readText(path.join(configDir, 'profiles.json')), '{ not valid json }');
   try {
     const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-    assert.equal(versions['config/thread-templates.json'], undefined);
+    assert.equal(versions[PROFILES], undefined);
   } catch (e: any) {
     if (e.code !== 'ENOENT') throw e;
   }
 });
 
 test('runMigrations - handles corrupt versions.json gracefully', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // Write corrupt versions.json
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
   await fs.mkdir(storeDir, { recursive: true });
   await fs.writeFile(path.join(storeDir, 'versions.json'), 'not json {');
 
   // Should not throw — migration should still apply
   await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
-  const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
-
+  const migrated = await readJson(path.join(configDir, 'profiles.json')) as any;
+  assert.equal(migrated.profiles.execute.provider, 'anthropic');
   // Versions file should now be valid
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.ok(versions['config/thread-templates.json']);
+  assert.equal(versions[PROFILES], '2026.5.25');
 });
 
 test('runMigrations - vector-clock: only runs versions newer than tracked', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, systemPrompt: 'file:direct.md', promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // Tracked version is at 2026.5.10 — migrations at 2026.5.23 should still run
-  await writeJson(path.join(storeDir, 'versions.json'), {
-    'config/thread-templates.json': '2026.5.10',
-  });
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
+  // Tracked version is at 2026.5.10 — the migration at 2026.5.25 should still run
+  await writeJson(path.join(storeDir, 'versions.json'), { [PROFILES]: '2026.5.10' });
 
   await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
-  const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
-
+  const migrated = await readJson(path.join(configDir, 'profiles.json')) as any;
+  assert.equal(migrated.profiles.execute.provider, 'anthropic');
   // Version should be bumped to the highest applied migration version
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(compareCalVer(versions['config/thread-templates.json'], '2026.5.10') > 0, true);
+  assert.equal(versions[PROFILES], '2026.5.25');
+});
+
+test('runMigrations - a migration that changes nothing leaves the file byte-identical and is still tracked', async () => {
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(_testIdx++);
+  const raw = '{"defaultProfile":"plan","profiles":{"plan":{"model":"opus","backend":"claude","mode":"plan"}}}';
+  await writeText(path.join(configDir, 'profiles.json'), raw);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
+
+  assert.equal(await readText(path.join(configDir, 'profiles.json')), raw);
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions[PROFILES], '2026.5.25');
 });
 
 // ── M2: profiles.json provider backfill ────────────────────────
@@ -454,31 +346,6 @@ test('runMigrations - sessions.json: skipped when multiple platforms configured'
   const input = { 'claude:C1': 'x', 'C2': 'y' };
   const out = await runSessionsMigration(_testIdx++, 'slack,feishu', input);
   assert.deepEqual(out, input, 'bare channels cannot be attributed → no-op');
-});
-
-test('runMigrations - no defaults file, still runs (migration function handles undefined)', async () => {
-  const idx = _testIdx++;
-  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
-
-  // Do NOT create defaults file
-
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: {
-      main: { name: 'main', profile: 'sonnet', persistSession: false, promptTemplate: 'direct' },
-    },
-    templates: {},
-  });
-
-  // Should not throw — migration function checks for undefined defaults
-  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
-
-  // File should be unchanged (no defaults means no systemPrompt to copy)
-  const content = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(content.agents.main.systemPrompt, undefined);
-
-  // But version should still be tracked (migration was "applied" — it was a no-op)
-  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.ok(versions['config/thread-templates.json']);
 });
 
 // ── upsertMarkerBlock (text-migration primitive) ───────────────
@@ -865,12 +732,7 @@ test('a throwing step does not bump its key and does not block file migrations',
   const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
 
   // A normal file migration that must still apply despite the throwing step.
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } }, templates: {},
-  });
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: { main: { name: 'main' } }, templates: {},
-  });
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
 
   let laterRan = 0;
   const throwing: StepMigration = {
@@ -884,8 +746,8 @@ test('a throwing step does not bump its key and does not block file migrations',
   await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [throwing, later] });
 
   // File migration applied (step throw did not abort the run — steps run after the file loop anyway).
-  const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
-  assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
+  const migrated = await readJson(path.join(configDir, 'profiles.json')) as any;
+  assert.equal(migrated.profiles.execute.provider, 'anthropic');
 
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions['data/boom.json'], undefined, 'throwing step must not bump');
@@ -897,24 +759,19 @@ test('steps run AFTER file migrations (a step sees the file-loop output)', async
   const idx = _testIdx++;
   const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
 
-  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
-    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } }, templates: {},
-  });
-  await writeJson(path.join(configDir, 'thread-templates.json'), {
-    agents: { main: { name: 'main' } }, templates: {},
-  });
+  await writeJson(path.join(configDir, 'profiles.json'), UNMIGRATED_PROFILES);
 
-  let sawSystemPrompt: string | undefined;
+  let sawProvider: string | undefined;
   const probe: StepMigration = {
     key: 'data/order-probe.json', version: CURRENT_VERSION,
     run: async ({ dataDir: dd }) => {
-      const cfg = await readJson(path.join(dd, 'config', 'thread-templates.json')) as any;
-      sawSystemPrompt = cfg.agents.main.systemPrompt;
+      const cfg = await readJson(path.join(dd, 'config', 'profiles.json')) as any;
+      sawProvider = cfg.profiles.execute.provider;
     },
   };
 
   await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [probe] });
-  assert.equal(sawSystemPrompt, 'file:direct.md', 'step observed the migrated file → ran after the file loop');
+  assert.equal(sawProvider, 'anthropic', 'step observed the migrated file → ran after the file loop');
 });
 
 test('the registered S1 step imports the legacy session stores via runMigrations', async () => {

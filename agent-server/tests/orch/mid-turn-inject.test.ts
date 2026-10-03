@@ -133,9 +133,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
   // channel-keyed registry production uses (an absent run means "no live execution on the channel").
   if (run) {
     runRegistry.register({
-      threadId: null,
       channel: CHANNEL,
-      agentSlotId: null,
       executionId: null,
       registryKey: REGISTRY_KEY,
       kind: 'local',
@@ -255,7 +253,7 @@ const CHILD_KEY = 'mid-turn-inject-child';
 function registerChild(run: FakeRun): void {
   // A background subagent registers on the parent's channel with no session of its own.
   runRegistry.register({
-    threadId: null, channel: CHANNEL, agentSlotId: null, executionId: null,
+    channel: CHANNEL, executionId: null,
     registryKey: CHILD_KEY, kind: 'local', kill: () => true, backend: run.backend,
     run: run as any, trackSessionId: null,
   });

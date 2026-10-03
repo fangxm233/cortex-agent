@@ -14,10 +14,6 @@ import type {
 } from '../types.js';
 
 function runInfo(hook: MountedHook): HookRunInfo {
-  if (hook.kind === 'template') {
-    // Template hooks are raw commands with a millisecond timeout; only the command is comparable.
-    return { script: null, command: hook.run.command, timeoutSec: null };
-  }
   const run = hook.entry.run;
   return {
     script: run.script ?? null,
@@ -27,7 +23,6 @@ function runInfo(hook: MountedHook): HookRunInfo {
 }
 
 function scopeInfo(hook: MountedHook): HookScopeInfo | null {
-  if (hook.kind === 'template') return null;
   const scope = hook.entry.scope;
   if (!scope) return null;
   return {
@@ -38,15 +33,13 @@ function scopeInfo(hook: MountedHook): HookScopeInfo | null {
 
 /** Present only when the declaration names a script we can resolve on disk. */
 function scriptExists(hook: MountedHook, scriptsDir: string): boolean | null {
-  if (hook.kind === 'template') return null;
   const script = hook.entry.run.script;
   if (script === undefined) return null;
   return fs.existsSync(path.join(scriptsDir, script));
 }
 
 function toDetail(hook: MountedHook, order: number, scriptsDir: string): HookDetail {
-  const matcher = hook.kind === 'registry' ? hook.entry.matcher : undefined;
-  const isTemplate = hook.kind === 'template';
+  const matcher = hook.entry.matcher;
   return {
     id: hook.id,
     event: hook.event,
@@ -54,28 +47,26 @@ function toDetail(hook: MountedHook, order: number, scriptsDir: string): HookDet
     matcherFilters: typeof matcher === 'object' && matcher !== null ? matcher : null,
     run: runInfo(hook),
     scope: scopeInfo(hook),
-    blocking: !isTemplate ? hook.entry.blocking ?? null : null,
-    result: !isTemplate ? hook.entry.result ?? null : null,
+    blocking: hook.entry.blocking ?? null,
+    result: hook.entry.result ?? null,
     enabled: hook.enabled,
     source: hook.source,
-    version: !isTemplate ? hook.entry.version ?? null : null,
-    fileName: !isTemplate ? path.basename(hook.filePath) : null,
+    version: hook.entry.version ?? null,
+    fileName: path.basename(hook.filePath),
     order,
-    // Template hooks are dispatched through the same bus as cortex:thread.* registry entries, so
-    // the derived view is computed from a synthetic entry carrying just the event.
-    mountsOn: hookMountTargets(isTemplate ? ({ event: hook.event } as never) : hook.entry),
+    mountsOn: hookMountTargets(hook.entry),
     legalResults: legalResultModes(hook.event),
     appliesAt: hookAppliesAt(hook.event),
     scriptExists: scriptExists(hook, scriptsDir),
     editable: hook.source === 'user',
-    template: isTemplate ? hook.template : null,
-    phase: isTemplate ? hook.phase : null,
+    template: null,
+    phase: null,
   };
 }
 
 /**
- * Whether a hook references a script. `run.script` is the declared form, but template hooks and
- * command-based entries invoke scripts through a shell string instead (`node ~/.cortex/hooks/x.mjs`),
+ * Whether a hook references a script. `run.script` is the declared form, but command-based entries
+ * invoke scripts through a shell string instead (`node ~/.cortex/hooks/x.mjs`),
  * so the command is scanned too — matching whole path segments, not substrings, so `task.mjs` is
  * not considered used by a command that runs `post-task.mjs`. Reporting a live script as unused
  * would invite deleting it.
@@ -106,12 +97,8 @@ function listScripts(scriptsDir: string, hooks: HookDetail[]): HookScriptInfo[] 
  * Build the hooks overview from explicit directories. Pure over its arguments (no global paths) so
  * it is hermetically testable against fixtures, mirroring `readConfigSnapshot`.
  */
-export function readHooksOverview(
-  registryDir: string,
-  templateDir: string,
-  scriptsDir: string,
-): HooksOverview {
-  const hooks = loadMountedHooks(registryDir, templateDir).map((hook, index) =>
+export function readHooksOverview(registryDir: string, scriptsDir: string): HooksOverview {
+  const hooks = loadMountedHooks(registryDir).map((hook, index) =>
     toDetail(hook, index, scriptsDir),
   );
   return { hooks, scripts: listScripts(scriptsDir, hooks), hooksDir: scriptsDir };
@@ -121,9 +108,5 @@ export async function handleHooksList(
   _deps: UiServiceDeps,
   _params: HooksListParams,
 ): Promise<HooksOverview> {
-  return readHooksOverview(
-    path.join(CONFIG_DIR, 'hooks'),
-    path.join(CONFIG_DIR, 'thread-templates', 'templates'),
-    HOOKS_DIR,
-  );
+  return readHooksOverview(path.join(CONFIG_DIR, 'hooks'), HOOKS_DIR);
 }

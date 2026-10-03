@@ -29,7 +29,6 @@ export type AskPostFn = (url: string, body: unknown, headers: Record<string, str
 
 export interface HookCliOptions {
   registryDir?: string;
-  templateDir?: string;
   hooksDir?: string;
   askPost?: AskPostFn;
 }
@@ -60,7 +59,7 @@ const ROOT_HELP: HelpSpec = {
   description: 'Inspect, manage, and execute Cortex hook declarations',
   usage: 'cortex-hook <command> [options]',
   commands: [
-    { name: 'list', description: 'List registry and template-scoped hooks' },
+    { name: 'list', description: 'List registry hooks' },
     { name: 'show --id <id>', description: 'Show one complete hook declaration' },
     { name: 'enable --id <id>', description: 'Enable a registry hook' },
     { name: 'disable --id <id>', description: 'Disable a registry hook' },
@@ -79,7 +78,7 @@ const ROOT_HELP: HelpSpec = {
 const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
   list: {
     name: 'cortex-hook list',
-    description: 'List every registry and template-scoped hook declaration',
+    description: 'List every registry hook declaration',
     usage: 'cortex-hook list',
     options: [{ flag: '--help, -h', description: 'Show this help' }],
     examples: [{ description: 'List hooks as JSON', command: 'cortex-hook list' }],
@@ -201,7 +200,6 @@ function cliFailure(message: string, validValues?: string[], hint?: string): Err
 function defaults(options: HookCliOptions): Required<HookCliOptions> {
   return {
     registryDir: options.registryDir ?? path.join(CONFIG_DIR, 'hooks'),
-    templateDir: options.templateDir ?? path.join(CONFIG_DIR, 'thread-templates', 'templates'),
     hooksDir: options.hooksDir ?? HOOKS_DIR,
     askPost: options.askPost ?? defaultAskPost,
   };
@@ -264,45 +262,15 @@ function parseArgs(argv: string[]): ParsedArgs {
   return parsed;
 }
 
-function uniqueHookIds(hooks: MountedHook[]): string[] {
-  const counts = new Map<string, number>();
-  for (const hook of hooks) counts.set(hook.id, (counts.get(hook.id) ?? 0) + 1);
-  return hooks.filter((hook) => counts.get(hook.id) === 1).map((hook) => hook.id);
-}
-
+// The registry loader already rejects a duplicate id, so an id names at most one hook.
 function findHook(id: string, hooks: MountedHook[]): MountedHook {
-  const matches = hooks.filter((candidate) => candidate.id === id);
-  if (matches.length === 1) return matches[0];
-  const valid = uniqueHookIds(hooks);
-  if (matches.length === 0) throw cliFailure(`Unknown hook id: '${id}'`, valid);
-  const sources = matches.map((hook) => hook.source).join(', ');
-  throw cliFailure(
-    `Ambiguous hook id: '${id}' from sources ${sources}`,
-    valid,
-    'Rename one declaration so every mounted hook id is unique',
-  );
+  const hook = hooks.find((candidate) => candidate.id === id);
+  if (!hook) throw cliFailure(`Unknown hook id: '${id}'`, hooks.map((candidate) => candidate.id));
+  return hook;
 }
 
 function showHook(hook: MountedHook): Record<string, unknown> {
-  if (hook.kind === 'registry') {
-    return { ...hook.entry, enabled: hook.enabled, source: hook.source };
-  }
-  return {
-    id: hook.id,
-    event: hook.event,
-    run: hook.run,
-    enabled: hook.enabled,
-    source: hook.source,
-    template: hook.template,
-    phase: hook.phase,
-  };
-}
-
-function registryForMutation(id: string, hooks: MountedHook[]): RegistryHook {
-  const hook = findHook(id, hooks);
-  if (hook.kind === 'registry') return hook;
-  const valid = hooks.filter((item) => item.kind === 'registry').map((item) => item.id);
-  throw cliFailure(`Hook '${id}' is template-scoped; template-scoped hooks are read-only`, valid);
+  return { ...hook.entry, enabled: hook.enabled, source: hook.source };
 }
 
 function managedWarnings(hook: RegistryHook, enabled: boolean): string[] | undefined {
@@ -333,9 +301,9 @@ function statePayload(
 
 // The write itself is delegated to the shared registry writer, so the CLI and the Web UI cannot
 // drift into two different on-disk representations of the same toggle. The CLI keeps ownership of
-// what the writer has no opinion about: --dry-run, and the richer template-scoped error message.
+// what the writer has no opinion about: --dry-run.
 function handleState(context: HandlerContext, enabled: boolean): CliResult {
-  const hook = registryForMutation(context.parsed.id!, context.hooks);
+  const hook = findHook(context.parsed.id!, context.hooks);
   if (context.parsed.dryRun) {
     return success(statePayload(hook, enabled, hook.enabled !== enabled, true));
   }
@@ -489,7 +457,7 @@ export async function runHookCli(
       return { exitCode: 0, stdout: formatHelp(spec), stderr: '' };
     }
     const options = defaults(cliOptions);
-    const hooks = loadMountedHooks(options.registryDir, options.templateDir);
+    const hooks = loadMountedHooks(options.registryDir);
     return await dispatch({ parsed, hooks, options });
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error));

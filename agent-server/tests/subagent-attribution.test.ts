@@ -32,7 +32,7 @@ function register(executionId: string, trackSessionId: string | null): RunEvent[
     respondToDialog: () => false,
   };
   runRegistry.register({
-    threadId: null, channel: CHANNEL, agentSlotId: null, executionId,
+    channel: CHANNEL, executionId,
     kind: 'local', kill: () => true, backend: 'test', trackSessionId,
     run,
   });

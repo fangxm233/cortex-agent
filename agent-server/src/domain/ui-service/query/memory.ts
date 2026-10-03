@@ -12,7 +12,7 @@ import type {
 } from '../types.js';
 
 // Canonical top-level memory files, in display order. Missing ones are omitted (not errored).
-const TOP_LEVEL_FILES = ['mission.md', 'roadmap.md', 'STATUS.md', 'TASKS.yaml'];
+const TOP_LEVEL_FILES = ['mission.md', 'roadmap.md', 'STATUS.md'];
 // Memory subdirectories whose `*.md` entries are counted (excluding the auto-generated index.md).
 const MEMORY_DIRS = ['experiments', 'knowledge', 'patterns', 'decisions'];
 

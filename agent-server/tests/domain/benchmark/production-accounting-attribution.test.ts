@@ -257,8 +257,8 @@ for (const backend of ['claude', 'pi'] as const) {
       const row = rows.get(`exec-${suffix}`);
       assert.ok(row);
       assert.equal(row.session_id, 'session-accounting');
-      assert.equal(row.thread_id, null);
-      assert.equal(row.task_id, null);
+      assert.equal('thread_id' in row, false);
+      assert.equal('task_id' in row, false);
       assert.equal(row.attempt_id, expectedAttempts.get(suffix));
       assert.equal(row.root_run_id, 'root-accounting');
     }

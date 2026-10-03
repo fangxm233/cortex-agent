@@ -21,9 +21,8 @@ function readUserMd(): string | null {
 }
 
 /**
- * The user profile for plain, thread-free conversation turns. Injected by default;
- * set CORTEX_DISABLE_USER_CONTEXT=1 to opt out. Multi-agent thread steps deliberately
- * do NOT inject this — only the direct conversation path calls it.
+ * The user profile for conversation turns. Injected by default; set
+ * CORTEX_DISABLE_USER_CONTEXT=1 to opt out. Only the direct conversation path calls it.
  */
 export function loadUserContext(): string | null {
   if (getSettings().disableUserContext) return null;

@@ -11,9 +11,8 @@ import * as askUserQuestion from './ask-user-question.js';
 
 const log = createLogger('ask-user-resume');
 
-/** Ask-user groups are thread-less in practice, but the pre-refactor path fell back to
- *  the inline background policy (settings-gated, thread-keyed); mirror that decision here. */
-export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
+/** Resume the session an answered ask-user group belongs to, with the answers as its next turn. */
+export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
   try {
     sessionRelease = await acquireSessionUse(group.sessionId);
@@ -64,18 +63,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
           project: ids.projectId,
           trigger: 'ask-user-question',
         });
-        const request: RunRequest = {
-          ...base,
-          context: {
-            ...base.context,
-            // The pre-refactor resume passed an explicit null threadId and never waited for
-            // background work inline. Both are load-bearing: a threadId lands in CORTEX_THREAD_ID
-            // and switches the run's inline background wait on, which would make the resume turn
-            // block on background tasks. Spelled out here (rather than left off) to keep the field
-            // set byte-identical to the literal this replaced.
-            threadId: null,
-          },
-        };
+        const request: RunRequest = base;
         return { request, backendPrompt: request.prompt.text };
       },
     });

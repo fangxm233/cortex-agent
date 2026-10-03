@@ -27,11 +27,10 @@ export interface SessionState {
 /**
  * The single answer to "is this session busy": the running execution snapshot (foreground) plus
  * the background-hold flag. `running` stays true while a background hold is active, matching
- * sessions.list's `running = inTurn || bgHeld`. Thread executions are excluded from the
- * foreground lookup (a thread step beside its parent does not make the session itself busy).
+ * sessions.list's `running = inTurn || bgHeld`.
  */
 export function sessionState(sessionId: string): SessionState {
-  const exec = runRegistry.getForegroundBySessionId(sessionId);
+  const exec = runRegistry.getBySessionId(sessionId);
   const backgroundRunning = sessionHolds.has(sessionId);
   return {
     running: !!exec || backgroundRunning,

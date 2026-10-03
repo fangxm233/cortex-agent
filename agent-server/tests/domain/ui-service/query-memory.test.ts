@@ -20,7 +20,7 @@ function makeProject(): { root: string; outsideFile: string } {
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(path.join(root, 'mission.md'), '# mission\n', 'utf8');
   fs.writeFileSync(path.join(root, 'STATUS.md'), '# status\nline2\n', 'utf8');
-  fs.writeFileSync(path.join(root, 'TASKS.yaml'), 'tasks: []\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'TASKS.yaml'), 'tasks: []\n', 'utf8'); // a leftover, not listed
   // roadmap.md intentionally absent → omitted from the tree.
   fs.mkdirSync(path.join(root, 'experiments'), { recursive: true });
   fs.writeFileSync(path.join(root, 'experiments', 'EXP-001.md'), 'exp1', 'utf8');
@@ -59,7 +59,7 @@ test('memory.tree lists real top-level files and memory dirs with entry counts',
 
   assert.equal(tree.projectId, 'my-project');
   const fileNames = tree.files.map((f) => f.name);
-  assert.deepEqual(fileNames, ['mission.md', 'STATUS.md', 'TASKS.yaml']); // roadmap.md absent
+  assert.deepEqual(fileNames, ['mission.md', 'STATUS.md']); // roadmap.md absent
   const status = tree.files.find((f) => f.name === 'STATUS.md')!;
   assert.equal(status.sizeBytes, Buffer.byteLength('# status\nline2\n'));
   assert.ok(typeof status.modifiedAt === 'string' && status.modifiedAt.length > 0);

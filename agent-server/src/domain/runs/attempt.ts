@@ -71,12 +71,6 @@ function costAttribution(
     session_id: identity?.session_id
       ?? request.session.sessionId ?? request.session.backendSessionId ?? null,
     execution_id: identity?.execution_id ?? executionId ?? null,
-    thread_id: request.context.threadId ?? null,
-    parent_thread_id: request.context.parentThreadId ?? null,
-    root_thread_id: request.context.rootThreadId ?? null,
-    task_id: request.context.taskId ?? null,
-    task_project: request.context.taskProject ?? null,
-    dispatch_generation: request.context.taskGeneration ?? null,
     attempt_id: identity?.attempt_id ?? null,
     root_attempt_id: identity?.root_attempt_id ?? null,
     trial_id: identity?.trial_id ?? null,

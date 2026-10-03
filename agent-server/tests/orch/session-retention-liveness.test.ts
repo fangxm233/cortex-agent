@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildSessionRetentionLiveness } from '../../src/core/session-retention-liveness.js';
 
-test('retention liveness protects live execution ids, active thread ids, bg holds, and pending interactions', () => {
+test('retention liveness protects live execution ids, bg holds, and pending interactions', () => {
   const snapshot = buildSessionRetentionLiveness({
     runningExecutions: {
       getAll: () => [
@@ -13,32 +13,15 @@ test('retention liveness protects live execution ids, active thread ids, bg hold
     bgHeldSessions: { listIds: () => ['track-bg'] },
     interactionRecords: { pendingSessionIds: () => ['track-pending'] },
     pendingDirectResumeSessionIds: ['track-resume'],
-    threads: [
-      {
-        status: 'running',
-        agents: { a: { sessionId: 'track-agent', backendSessionId: 'backend-agent' } },
-        steps: [{ sessionId: 'track-step', backendSessionId: 'backend-step' }],
-      },
-      {
-        status: 'rate_limited',
-        agents: { a: { sessionId: 'track-rate', backendSessionId: undefined } },
-        steps: [],
-      },
-      {
-        status: 'completed',
-        agents: { a: { sessionId: 'track-done', backendSessionId: 'backend-done' } },
-        steps: [{ sessionId: 'track-done-step', backendSessionId: 'backend-done-step' }],
-      },
-    ] as any,
     activeClaudeCapturePaths: ['/tmp/cap-a.jsonl'],
     activeClaudeCapturePairs: ['pair-a'],
   });
 
   assert.deepEqual(new Set(snapshot.protectedTrackSessionIds), new Set([
-    'track-run', 'track-bg', 'track-pending', 'track-resume', 'track-agent', 'track-step', 'track-rate',
+    'track-run', 'track-bg', 'track-pending', 'track-resume',
   ]));
   assert.deepEqual(new Set(snapshot.protectedBackendSessionIds), new Set([
-    'backend-run', 'backend-legacy', 'backend-agent', 'backend-step', 'track-rate',
+    'backend-run', 'backend-legacy',
   ]));
   assert.deepEqual(snapshot.activeClaudeCapturePaths, ['/tmp/cap-a.jsonl']);
   assert.deepEqual(snapshot.activeClaudeCapturePairs, ['pair-a']);

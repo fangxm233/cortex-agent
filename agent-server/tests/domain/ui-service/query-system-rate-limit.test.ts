@@ -47,15 +47,14 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
   );
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   recordResume({ kind: 'direct', provider: 'anthropic', channel: 'C1', userMessage: 'a', recordedAt: 1 });
-  recordResume({ kind: 'thread', provider: 'anthropic', threadId: 'thr_a', channel: 'C2', userMessage: 'b', recordedAt: 2 });
-  recordResume({ kind: 'thread', provider: 'openai-codex', threadId: 'thr_b', channel: 'C3', userMessage: 'c', recordedAt: 3 });
+  recordResume({ kind: 'direct', provider: 'openai-codex', channel: 'C3', userMessage: 'c', recordedAt: 3 });
 
   const status = await handleSystemRateLimitStatus({});
   assert.deepEqual(status.providers.map((provider) => provider.provider), ['anthropic', 'openai-codex']);
   assert.deepEqual(status.providers.map((provider) => provider.windows[0].resetsAt), [nowSec + 900, nowSec + 300]);
   assert.equal(status.providers[0].windows[0].utilization, 0.97);
   assert.equal(status.providers[0].windows[1].label, 'Sonnet');
-  assert.deepEqual(status.providers.map((provider) => provider.waitingSessions), [1, 0]);
+  assert.deepEqual(status.providers.map((provider) => provider.waitingSessions), [1, 1]);
 });
 
 test('system.rateLimitStatus returns no placeholder when throttle is inactive', async () => {

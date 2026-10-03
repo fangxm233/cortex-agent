@@ -42,8 +42,6 @@ export interface MHooksCopy {
     order: string;
     mountsOn: string;
     appliesAt: string;
-    template: string;
-    phase: string;
   };
   applies: Record<MHookDetailVm['appliesAt'], string>;
   sheetFooter: string;
@@ -140,7 +138,7 @@ function FieldRow({ label, children, divider = true }: { label: string; children
 /**
  * The declaration rows. Identity and semantics (event / run / order / mounts / applies / source) are
  * always shown — a gap there is real information. Optional declaration fields are shown only when the
- * entry actually declares them, so a template-scoped hook does not read as a column of dashes.
+ * entry actually declares them, so a sparse entry does not read as a column of dashes.
  */
 function declarationRows(detail: MHookDetailVm, copy: MHooksCopy): { label: string; value: ReactNode }[] {
   const rows: { label: string; value: ReactNode }[] = [{ label: copy.field.event, value: detail.event }];
@@ -196,8 +194,6 @@ function declarationRows(detail: MHookDetailVm, copy: MHooksCopy): { label: stri
   rows.push({ label: copy.field.source, value: detail.source });
   if (detail.version !== null) rows.push({ label: copy.field.version, value: detail.version });
   if (detail.fileName !== null) rows.push({ label: copy.field.fileName, value: detail.fileName });
-  if (detail.template !== null) rows.push({ label: copy.field.template, value: detail.template });
-  if (detail.phase !== null) rows.push({ label: copy.field.phase, value: detail.phase });
   rows.push({ label: copy.field.order, value: String(detail.order) });
 
   return rows;

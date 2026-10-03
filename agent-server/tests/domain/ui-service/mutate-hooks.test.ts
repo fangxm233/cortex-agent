@@ -55,20 +55,3 @@ test('clamps a long declared timeout so a blocking hook cannot park the request'
 test('resolves a script against the hooks directory with quoting', () => {
   assert.equal(hookProcessOptions(registryHook(5), '/hooks', '{}', 15_000).command, "node '/hooks/ask.mjs'");
 });
-
-test('clamps template hooks too, whose timeout is already in milliseconds', () => {
-  const template = {
-    kind: 'template',
-    id: 'template:x:end',
-    event: 'cortex:thread.end',
-    enabled: true,
-    source: 'template-scoped',
-    run: { command: 'node post.mjs', args: ['reviewer'], timeout: 30_000 },
-    template: 'x',
-    phase: 'end',
-  } as MountedHook;
-
-  const options = hookProcessOptions(template, '/hooks', '{}', 15_000);
-  assert.equal(options.timeoutMs, 15_000);
-  assert.deepEqual(options.args, ['reviewer']);
-});

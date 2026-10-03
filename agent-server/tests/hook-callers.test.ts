@@ -1,4 +1,4 @@
-import { afterAll, test, vi } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -8,8 +8,6 @@ import type { AgentRun } from '../src/domain/runs/run.js';
 import type { RunRequest } from '../src/domain/runs/request.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import { MockAdapter } from '../src/platform/testing.js';
-import { threadStore } from '../src/store/thread-repo.js';
-import { executeLifecycleHooks } from '../src/domain/threads/hook-runner.js';
 import {
   isOnMessageEndHookConfigured,
   isOnNewHookConfigured,
@@ -18,60 +16,9 @@ import {
   type SessionHookSpec,
 } from '../src/domain/sessions/session-hooks.js';
 import { loadHookRegistry, type HookEntry } from '../src/store/hook-registry.js';
-import type {
-  RunThreadOptions,
-  ThreadHookConfig,
-  ThreadRecord,
-} from '../src/core/types/thread-types.js';
-
-const threadIds: string[] = [];
-
 interface RecordingStream extends OutputStream {
   texts: string[];
   flushCount: number;
-}
-
-function makeThreadRecord(id: string): ThreadRecord {
-  const now = new Date().toISOString();
-  return {
-    id, templateName: null, status: 'running', channel: 'C-hook-caller', projectId: 'general',
-    platformThreadId: null, userMessage: 'test', userMessageTs: '1', workspacePath: '', artifactPath: '',
-    agents: { main: {
-      slotId: 'main', profile: '__active__', sessionId: null, sessionName: null,
-      status: 'idle', lastOutput: null, persistSession: false,
-    } },
-    activeAgent: 'main', activeStage: null, currentStepIndex: 0, steps: [], iterationCounts: {},
-    totalCostUsd: 0, createdAt: now, updatedAt: now, endedAt: null, error: null,
-    abortReason: null, metadata: null,
-  };
-}
-
-function makeThreadOptions(adapter: MockAdapter): RunThreadOptions {
-  return {
-    channel: 'C-hook-caller',
-    startTime: Date.now(),
-    // The hook runner announces on the thread's OutputStream; MockOutputStream still routes
-    // through adapter.postMessage, so the posted[] assertions below keep their meaning.
-    stream: adapter.openOutputStream({ type: 'interactive-reply', conduit: 'C-hook-caller', sessionId: '' }),
-    surface: { onStepStarted() {}, onStepProgress() {} },
-  };
-}
-
-async function runThreadHook(config: ThreadHookConfig) {
-  const id = `thr_hook-caller-${threadIds.length}`;
-  const adapter = new MockAdapter();
-  const errors: string[] = [];
-  const errorSpy = vi.spyOn(console, 'error').mockImplementation((...values) => {
-    errors.push(values.map(String).join(' '));
-  });
-  threadIds.push(id);
-  threadStore.set(makeThreadRecord(id));
-  try {
-    await executeLifecycleHooks(id, 'end', { template: config }, makeThreadOptions(adapter));
-  } finally {
-    errorSpy.mockRestore();
-  }
-  return { adapter, errors, steps: threadStore.get(id)?.steps ?? [] };
 }
 
 function writeSessionHooks(
@@ -159,41 +106,6 @@ function makeInjectDeps() {
   };
   return { deps, calls, closeCalls };
 }
-
-afterAll(async () => {
-  for (const id of threadIds) await threadStore.delete(id);
-  await threadStore.flush();
-});
-
-test('thread public path suppresses hook agents after a non-zero exit', async () => {
-  const result = await runThreadHook({ command: 'node -e', args: ['process.exit(9)'] });
-
-  assert.equal(result.steps.length, 0);
-  assert.equal(result.adapter.posted.length, 0);
-  assert.match(result.errors.join('\n'), /exited with code 9/);
-});
-
-test('thread public path suppresses hook agents after malformed JSON', async () => {
-  const result = await runThreadHook({
-    command: 'node -e',
-    args: ["process.stdout.write('not json')"],
-  });
-
-  assert.equal(result.steps.length, 0);
-  assert.equal(result.adapter.posted.length, 0);
-  assert.match(result.errors.join('\n'), /Hook .* failed: .*not valid JSON/);
-});
-
-test('thread public path rejects JSON missing insertAgent and targetAgent', async () => {
-  const result = await runThreadHook({
-    command: 'node -e',
-    args: ["process.stdout.write(JSON.stringify({ prompt: 'ignored' }))"],
-  });
-
-  assert.equal(result.steps.length, 0);
-  assert.equal(result.adapter.posted.length, 0);
-  assert.match(result.errors.join('\n'), /missing insertAgent or targetAgent/);
-});
 
 test('session hook predicates follow registry subscriptions', () => {
   writeSessionHooks([{

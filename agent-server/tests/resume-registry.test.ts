@@ -34,7 +34,7 @@ test('recordResume dedupes direct entries by channel (latest wins)', async (t) =
   assert.equal((all[0] as any).userMessage, 'second');
 });
 
-test('init backfills and persists stable ids for legacy direct resumes before liveness reads them', async (t) => {
+test('init backfills stable ids for legacy direct resumes and drops a leftover thread entry', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub([
     { kind: 'direct', channel: 'legacy', userMessage: 'legacy', recordedAt: 1 },
@@ -49,31 +49,8 @@ test('init backfills and persists stable ids for legacy direct resumes before li
 
   assert.deepEqual(new Set(mod.pendingDirectTrackSessionIds()), new Set(['track-legacy', 'track-1']));
   assert.equal(persistence.getSaved()[0].trackSessionId, 'track-legacy');
-});
-
-test('recordResume keeps multiple thread entries by threadId', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  await mod.initResumeRegistry(makePersistenceStub() as any);
-
-  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 'a', recordedAt: 1 });
-  mod.recordResume({ kind: 'thread', threadId: 'thr_b', channel: 'C1', userMessage: 'b', recordedAt: 2 });
-  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 'a2', recordedAt: 3 });
-
+  assert.deepEqual(persistence.getSaved().map((e: any) => e.kind), ['direct', 'direct']);
   assert.equal(mod.getResumeCount(), 2);
-  const ids = mod.takeReadyResumes([]).map((e: any) => e.threadId).sort();
-  assert.deepEqual(ids, ['thr_a', 'thr_b']);
-});
-
-test('direct and thread on same channel coexist', async (t) => {
-  const mod = await freshModuleWithCleanup(t);
-  await mod.initResumeRegistry(makePersistenceStub() as any);
-
-  mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
-  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 't', recordedAt: 2 });
-
-  assert.equal(mod.getResumeCount(), 2);
-  const kinds = mod.takeReadyResumes([]).map((e: any) => e.kind).sort();
-  assert.deepEqual(kinds, ['direct', 'thread']);
 });
 
 test('takeReadyResumes([]) drains the registry (second call is empty)', async (t) => {
@@ -92,7 +69,7 @@ test('recordResume persists the full entry list', async (t) => {
   await mod.initResumeRegistry(persistence as any);
 
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
-  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 't', recordedAt: 2 });
+  mod.recordResume({ kind: 'direct', channel: 'C2', userMessage: 'd2', recordedAt: 2 });
 
   const saved = persistence.getSaved();
   assert.equal(saved.length, 2);
@@ -112,13 +89,13 @@ test('initResumeRegistry hydrates from persisted entries', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub([
     { kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 },
-    { kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 't', recordedAt: 2 },
+    { kind: 'direct', channel: 'C2', userMessage: 'd2', recordedAt: 2 },
   ]);
   await mod.initResumeRegistry(persistence as any);
 
   assert.equal(mod.getResumeCount(), 2);
-  const kinds = mod.takeReadyResumes([]).map((e: any) => e.kind).sort();
-  assert.deepEqual(kinds, ['direct', 'thread']);
+  const channels = mod.takeReadyResumes([]).map((e: any) => e.channel).sort();
+  assert.deepEqual(channels, ['C1', 'C2']);
 });
 
 test('takeReadyResumes drains only providers that are no longer active', async (t) => {
@@ -127,18 +104,18 @@ test('takeReadyResumes drains only providers that are no longer active', async (
   await mod.initResumeRegistry(persistence as any);
 
   mod.recordResume({ kind: 'direct', provider: 'provider-a', channel: 'C1', userMessage: 'a', recordedAt: 1 });
-  mod.recordResume({ kind: 'thread', provider: 'provider-b', threadId: 'thr_b', channel: 'C2', userMessage: 'b', recordedAt: 2 });
+  mod.recordResume({ kind: 'direct', provider: 'provider-b', channel: 'C2', userMessage: 'b', recordedAt: 2 });
   mod.recordResume({ kind: 'direct', provider: null, channel: 'legacy', userMessage: 'legacy', recordedAt: 3 });
 
   const first = mod.takeReadyResumes(['provider-b']);
   assert.deepEqual(first.map((entry: any) => entry.provider), ['provider-a']);
   assert.equal(mod.getResumeCount(), 2);
   assert.deepEqual(mod.getResumeCountsByProvider(), {
-    'provider-b': { sessions: 0, threads: 1 },
+    'provider-b': { sessions: 1 },
   });
 
   const final = mod.takeReadyResumes([]);
-  assert.deepEqual(final.map((entry: any) => entry.provider), [null, 'provider-b']);
+  assert.deepEqual(final.map((entry: any) => entry.provider), ['provider-b', null]);
   assert.equal(mod.getResumeCount(), 0);
 });
 
@@ -161,7 +138,7 @@ test('removeDirectResume cancels one channel and leaves other entries queued', a
 
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'cancel me', recordedAt: 1 });
   mod.recordResume({ kind: 'direct', channel: 'C2', userMessage: 'keep me', recordedAt: 2 });
-  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 't', recordedAt: 3 });
+  mod.recordResume({ kind: 'direct', channel: 'C3', userMessage: 't', recordedAt: 3 });
   const changesBefore = changes;
 
   assert.equal(mod.removeDirectResume('C1'), true);
@@ -169,8 +146,8 @@ test('removeDirectResume cancels one channel and leaves other entries queued', a
   assert.ok(changes > changesBefore, 'cancellation publishes a waiting-count change');
   assert.deepEqual(
     (persistence.getSaved() as any[]).map((e) => e.channel).sort(),
-    ['C1', 'C2'],
-    'the surviving thread entry keeps its channel; only the direct C1 entry is gone',
+    ['C2', 'C3'],
+    'only the C1 entry is gone',
   );
 
   assert.equal(mod.removeDirectResume('C1'), false, 'cancelling twice is a no-op');

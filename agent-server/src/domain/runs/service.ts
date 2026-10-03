@@ -25,8 +25,6 @@ export function startRun(request: RunRequest, observers: RunObserver[]): AgentRu
     ownerSessionId: request.context.ownerSessionId ?? null,
     label: request.prompt.text.substring(0, 60),
     scheduleTaskId: request.context.scheduleTaskId || null,
-    threadId: request.context.threadId ?? null,
-    agentSlotId: request.context.agentSlotId ?? null,
   });
 
   const run = new AgentRunImpl({

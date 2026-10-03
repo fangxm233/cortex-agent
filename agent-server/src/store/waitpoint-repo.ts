@@ -17,8 +17,6 @@ export interface WaitpointOwner {
   sessionId: string;
   /** The conduit the wake turn is delivered to. Find-or-creates a session if it is gone. */
   channel: string;
-  /** Recorded only; v1 never wakes a thread directly. */
-  threadId?: string | null;
   project?: string | null;
 }
 

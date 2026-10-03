@@ -44,7 +44,7 @@ function defaultDeps(): ResumeDeps {
 }
 
 function entryKey(e: ResumeEntry): string {
-  return e.kind === 'direct' ? `direct ${e.channel}` : `${e.kind} entry`;
+  return `direct ${e.channel}`;
 }
 
 type ResumeDispatch = (adapter: PlatformAdapter) => Promise<void>;
@@ -83,11 +83,6 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
 
   let dispatched = 0;
   for (const entry of entries) {
-    if (entry.kind !== 'direct') {
-      // A thread entry left over from before threads were retired has nothing left to resume.
-      log.info(`Resume skip (${entryKey(entry)}): no longer resumable`);
-      continue;
-    }
     // A direct session is a live conversation — serialize per channel (no interleaved turns).
     if (deps.channelBusy(entry.channel)) {
       log.info(`Resume skip (${entryKey(entry)}): channel already has a running execution`);
@@ -105,7 +100,7 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
   log.info(`Resume complete — dispatched ${dispatched}/${entries.length}`);
 }
 
-async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {
+async function resumeDirect(entry: ResumeEntry, adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {
   const notice = buildResumeReminder();
   log.info(`Resuming direct session on ${entry.channel}`);
   const release = entry.trackSessionId ? await deps.acquireSessionUse(entry.trackSessionId) : null;

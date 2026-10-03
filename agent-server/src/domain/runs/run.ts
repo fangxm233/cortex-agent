@@ -425,9 +425,7 @@ export class AgentRunImpl implements AgentRun {
 
   private registerAttempt(attempt: RunAttempt): void {
     this.registry.register({
-      threadId: this.request.context.threadId ?? null,
       channel: this.request.context.channel,
-      agentSlotId: this.request.context.agentSlotId ?? null,
       executionId: this.executionId,
       kind: this.request.context.executionKind,
       kill: () => attempt.kill(),

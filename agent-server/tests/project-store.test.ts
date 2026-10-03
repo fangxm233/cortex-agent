@@ -192,7 +192,7 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
   assert.ok(fs.existsSync(generalDir));
   assert.ok(fs.existsSync(path.join(generalDir, 'STATUS.md')));
   assert.ok(fs.existsSync(path.join(generalDir, 'AGENTS.md')));
-  assert.equal(fs.readFileSync(path.join(generalDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
+  assert.equal(fs.existsSync(path.join(generalDir, 'TASKS.yaml')), false);
 
   const statusContent = fs.readFileSync(path.join(generalDir, 'STATUS.md'), 'utf8');
   assert.ok(statusContent.includes('# general'));
@@ -202,14 +202,14 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
   }
 });
 
-test('ProjectStore - initialization adds TASKS.yaml to an existing project without one', async (t) => {
+test('ProjectStore - initialization adds nothing to an existing project', async (t) => {
   const { baseDir, cleanup } = makeTempProjectsDir(['nimbus']);
   t.onTestFinished(cleanup);
 
   const { store } = await makeStore(baseDir);
   t.onTestFinished(() => store.destroy());
 
-  assert.equal(fs.readFileSync(path.join(baseDir, 'nimbus', 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
+  assert.deepEqual(fs.readdirSync(path.join(baseDir, 'nimbus')), []);
 });
 
 test('ProjectStore - scaffolding does not overwrite existing general', async (t) => {
@@ -229,7 +229,7 @@ test('ProjectStore - scaffolding does not overwrite existing general', async (t)
 
 // ── createProject ──
 
-test('ProjectStore - createProject creates dir + STATUS.md + AGENTS.md + TASKS.yaml and returns project', async (t) => {
+test('ProjectStore - createProject creates dir + STATUS.md + AGENTS.md and returns project', async (t) => {
   const { baseDir, cleanup } = makeTempProjectsDir();
   t.onTestFinished(cleanup);
 
@@ -247,7 +247,7 @@ test('ProjectStore - createProject creates dir + STATUS.md + AGENTS.md + TASKS.y
   assert.ok(fs.existsSync(projectDir));
   assert.ok(fs.existsSync(path.join(projectDir, 'STATUS.md')));
   assert.ok(fs.existsSync(path.join(projectDir, 'AGENTS.md')));
-  assert.equal(fs.readFileSync(path.join(projectDir, 'TASKS.yaml'), 'utf8'), 'tasks: []\n');
+  assert.deepEqual(fs.readdirSync(projectDir).sort(), ['AGENTS.md', 'STATUS.md']);
   const status = fs.readFileSync(path.join(projectDir, 'STATUS.md'), 'utf8');
   assert.ok(status.includes('# nimbus'));
   // Scaffold follows the STATUS register skeleton (rules/status-md.md)

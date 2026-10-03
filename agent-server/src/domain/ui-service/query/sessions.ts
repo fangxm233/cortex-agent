@@ -114,7 +114,7 @@ export async function handleSessionsList(
     if (inTurn) return liveNumTurns;
     return sessionId ? (lastRunBySession.get(sessionId)?.numTurns ?? null) : null;
   };
-  // Last run's cost: idle → this session's latest non-thread run's finalized cost; running → null
+  // Last run's cost: idle → this session's latest run's finalized cost; running → null
   // (no live source).
   const resolveCost = (sessionId: string | undefined, running: boolean): number | null => {
     if (running) return null;

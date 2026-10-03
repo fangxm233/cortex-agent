@@ -13,10 +13,7 @@ type Parity<Schema extends z.ZodType, Interface> = Exact<z.infer<Schema>, Interf
   ? Exact<keyof z.infer<Schema>, keyof Interface>
   : false;
 
-/** An environment never declares thread stages. */
-type EnvironmentDocument = Omit<AgentDefinition, 'stages' | 'entryStage'>;
-
-const _environment: Parity<typeof environmentSchema, EnvironmentDocument> = true;
+const _environment: Parity<typeof environmentSchema, AgentDefinition> = true;
 
 // Referenced so the assertion is not dead code to a linter.
 export const ENVIRONMENT_SCHEMA_PARITY = [_environment] as const;

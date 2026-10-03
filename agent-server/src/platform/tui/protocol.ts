@@ -284,13 +284,13 @@ export interface TranscriptReplay {
 /**
  * @direction server→client
  *
- * Routed when a project-report / scheduled-report / thread-report destination
+ * Routed when a project-report / scheduled-report destination
  * lands on a TUI conduit whose active session ≠ the originating session.
  * Renders as a corner badge, not inserted into the active chat.
  */
 export interface Notification {
   type: typeof NOTIFICATION;
-  kind: 'project-report' | 'system-notice' | 'thread-report';
+  kind: 'project-report' | 'system-notice';
   projectId: string;
   sessionId?: string | null;
   title: string;

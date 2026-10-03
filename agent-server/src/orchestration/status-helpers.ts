@@ -21,9 +21,7 @@ export function buildExecutionStatusReport(): string {
 
   const lines = [t('status.runningExecutions', { count: running.length })];
   for (const record of running) {
-    const location = record.kind === 'dispatch'
-      ? `${record.dispatch?.machine || '?'}:${record.dispatch?.taskId || record.id}`
-      : record.channel || record.id;
+    const location = record.channel || record.id;
     lines.push(`\u2022 ${record.kind} ${location} ${record.project} ${record.status}`);
   }
   return lines.join('\n');
@@ -74,21 +72,18 @@ export interface StatusBlocksTemplate {
   channel: string;
   sessionName: string | null;
   isDm: boolean;
-  threadId?: string | null;
-  /** Execution-scoped Cancel target for the conversation path (plain user messages that
-   *  are no longer wrapped in a thread). When set, the Cancel handler resolves the running
-   *  execution via executionId instead of threadId. */
+  /** The running execution the Cancel button stops. */
   executionId?: string | null;
 }
 
-function buildActionElements({ channel, sessionName, isDm, includeCancel, threadId, executionId }: StatusBlocksTemplate & { includeCancel: boolean }): ActionElement[] {
+function buildActionElements({ channel, sessionName, isDm, includeCancel, executionId }: StatusBlocksTemplate & { includeCancel: boolean }): ActionElement[] {
   const elements: ActionElement[] = [];
   if (includeCancel) {
     elements.push({
       type: 'button',
       text: t('btn.cancel'),
       actionId: 'status_cancel',
-      value: JSON.stringify({ channel, threadId: threadId ?? null, executionId: executionId ?? null }),
+      value: JSON.stringify({ channel, executionId: executionId ?? null }),
       style: 'danger',
     });
   }

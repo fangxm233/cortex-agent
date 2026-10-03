@@ -4,25 +4,20 @@ const log = createLogger('resume-registry');
 
 // --- Types ---
 
-/** One unit of work that was interrupted by a rate limit and should be resumed
- *  once the limit window resets. `direct` = an interactive conversation (resumed by
- *  re-routing a message into the channel's pooled session); `thread` = a thread
- *  pipeline (resumed via continueThread). */
-interface ResumeEntryBase {
+/** An interactive conversation interrupted by a rate limit, resumed once the limit window resets
+ *  by re-routing a message into the channel's pooled session. */
+export interface ResumeEntry {
+  kind: 'direct';
   /** Opaque provider key. Missing/null entries are legacy and wait for every provider to clear. */
   provider?: string | null;
   channel: string;
   userMessage: string;
   recordedAt: number;
+  trackSessionId?: string | null;
 }
-
-export type ResumeEntry =
-  | (ResumeEntryBase & { kind: 'direct'; trackSessionId?: string | null })
-  | (ResumeEntryBase & { kind: 'thread'; threadId: string });
 
 export interface ProviderResumeCounts {
   sessions: number;
-  threads: number;
 }
 
 export interface ResumePersistence {
@@ -33,13 +28,11 @@ export interface ResumePersistence {
 // --- Module state ---
 let _persistence: ResumePersistence | null = null;
 let _onChange: (() => void) | null = null;
-// Direct conversations dedupe by channel (pooled per channel — only the latest turn matters).
+// Conversations dedupe by channel (pooled per channel — only the latest turn matters).
 const _direct = new Map<string, ResumeEntry>();
-// Threads dedupe by threadId (each thread is an independent resumable unit).
-const _threads = new Map<string, ResumeEntry>();
 
 function snapshot(): ResumeEntry[] {
-  return [..._direct.values(), ..._threads.values()];
+  return [..._direct.values()];
 }
 
 function persist(): void {
@@ -73,7 +66,7 @@ function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): Resu
 async function initResumeRegistry(
   persistence: ResumePersistence,
   onChange?: () => void,
-  resolveLegacyDirectTrackSessionId?: (entry: Extract<ResumeEntry, { kind: 'direct' }>) => Promise<string | null>,
+  resolveLegacyDirectTrackSessionId?: (entry: ResumeEntry) => Promise<string | null>,
 ): Promise<void> {
   _persistence = persistence;
   _onChange = onChange ?? null;
@@ -81,29 +74,29 @@ async function initResumeRegistry(
     const persisted = await persistence.load();
     let migrated = false;
     for (const entry of persisted ?? []) {
-      if (entry.kind === 'direct') {
-        if (!entry.trackSessionId && resolveLegacyDirectTrackSessionId) {
-          const trackSessionId = await resolveLegacyDirectTrackSessionId(entry);
-          if (trackSessionId) {
-            entry.trackSessionId = trackSessionId;
-            migrated = true;
-          }
+      // An entry of another kind (a thread queued before threads were retired) has nothing left
+      // to resume: it is dropped, and the rewrite below forgets it.
+      if (entry.kind !== 'direct') { migrated = true; continue; }
+      if (!entry.trackSessionId && resolveLegacyDirectTrackSessionId) {
+        const trackSessionId = await resolveLegacyDirectTrackSessionId(entry);
+        if (trackSessionId) {
+          entry.trackSessionId = trackSessionId;
+          migrated = true;
         }
-        _direct.set(entry.channel, entry);
-      } else if (entry.kind === 'thread') _threads.set(entry.threadId, entry);
+      }
+      _direct.set(entry.channel, entry);
     }
     if (migrated) await persistence.save(snapshot());
-    log.info(`Initialized — ${_direct.size + _threads.size} pending resume(s) restored`);
+    log.info(`Initialized — ${_direct.size} pending resume(s) restored`);
   } catch (e) {
     log.error(`Failed to load resume queue: ${(e as Error).message}`);
   }
 }
 
-/** Record an interrupted session/thread for later resume. Idempotent per key
- *  (direct→channel, thread→threadId): a newer record overwrites the older one. */
+/** Record an interrupted conversation for later resume. Idempotent per channel: a newer record
+ *  overwrites the older one. */
 function recordResume(entry: ResumeEntry): void {
-  if (entry.kind === 'direct') _direct.set(entry.channel, entry);
-  else if (entry.kind === 'thread') _threads.set(entry.threadId, entry);
+  _direct.set(entry.channel, entry);
   persist();
   fireChange();
 }
@@ -117,17 +110,9 @@ function removeDirectResume(channel: string): boolean {
   return true;
 }
 
-function removeThreadResume(threadId: string): boolean {
-  const removed = _threads.delete(threadId);
-  if (!removed) return false;
-  persist();
-  fireChange();
-  return true;
-}
-
 function takeReadyResumes(activeProviders: string[]): ResumeEntry[] {
   const active = new Set(activeProviders);
-  const ready = [...takeReadyFrom(_direct, active), ...takeReadyFrom(_threads, active)];
+  const ready = takeReadyFrom(_direct, active);
   if (ready.length > 0) {
     persist();
     fireChange();
@@ -139,28 +124,24 @@ function getResumeCountsByProvider(): Record<string, ProviderResumeCounts> {
   const counts: Record<string, ProviderResumeCounts> = {};
   for (const entry of snapshot()) {
     if (!entry.provider) continue;
-    const count = counts[entry.provider] ??= { sessions: 0, threads: 0 };
-    if (entry.kind === 'direct') count.sessions++;
-    else count.threads++;
+    const count = counts[entry.provider] ??= { sessions: 0 };
+    count.sessions++;
   }
   return counts;
 }
 
 function getResumeCount(): number {
-  return _direct.size + _threads.size;
+  return _direct.size;
 }
 
 function pendingDirectTrackSessionIds(): string[] {
-  return Array.from(_direct.values()).flatMap(entry =>
-    entry.kind === 'direct' && entry.trackSessionId ? [entry.trackSessionId] : [],
-  );
+  return Array.from(_direct.values()).flatMap(entry => entry.trackSessionId ? [entry.trackSessionId] : []);
 }
 
 
 // --- Test helpers ---
 function _testReset(): void {
   _direct.clear();
-  _threads.clear();
   _persistence = null;
   _onChange = null;
 }
@@ -169,7 +150,6 @@ export {
   initResumeRegistry,
   recordResume,
   removeDirectResume,
-  removeThreadResume,
   takeReadyResumes,
   getResumeCountsByProvider,
   getResumeCount,

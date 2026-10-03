@@ -33,8 +33,9 @@ test('raw carries the origin source, and the caller may add fields but not repla
     raw: { originalMessage: 'the first ask', source: 'nope' },
   });
   assert.deepEqual(resume.raw, { source: 'rate-limit-resume', deliveryOrigin: 'resume', originalMessage: 'the first ask' });
-  const wake = buildDeliveryMessage({ channel: 'C1', text: 'n', origin: 'thread-callback', tag: 'thr_1' });
-  assert.deepEqual(wake.raw, { source: 'task-callback', deliveryOrigin: 'thread-callback', tag: 'thr_1' });
+  const wake = buildDeliveryMessage({ channel: 'C1', text: 'n', origin: 'external-signal', tag: 'wp_1' });
+  assert.deepEqual(wake.raw, { source: 'external-signal', deliveryOrigin: 'external-signal', tag: 'wp_1' });
+  assert.match(wake.ref.messageId, /^cb_wp_1_\d+$/);
 });
 
 test('a human-typed message and an ask-user answer differ only by their recorded delivery origin', () => {

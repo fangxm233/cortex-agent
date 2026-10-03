@@ -130,11 +130,11 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   }
 
   // Thrown rate-limit error while the five-hour throttle is active: pause-and-resume instead of
-  // failing, mirroring the thread thrown path (domain/threads/runner.ts) and the graceful direct
-  // path (agent-runner handleDefaultAgentResult / edit-retry below). The execution record and the
-  // live-run registry were already closed by the run's own terminal handler (domain/runs/service);
-  // this handler owns the SURFACE. Only when a userMessage is available (direct/TUI turns) —
-  // manager-qa / edit callers without it fall through to the normal error path.
+  // failing, mirroring the graceful direct path (agent-runner handleDefaultAgentResult /
+  // edit-retry below). The execution record and the live-run registry were already closed by the
+  // run's own terminal handler (domain/runs/service); this handler owns the SURFACE. Only when a
+  // userMessage is available (direct/TUI turns) — edit callers without it fall through to the
+  // normal error path.
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });

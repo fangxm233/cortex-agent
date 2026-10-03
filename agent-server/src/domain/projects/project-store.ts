@@ -148,7 +148,7 @@ export class ProjectStore {
 
   /**
    * Create a new user project directory under PROJECTS_DIR with a standard scaffold
-   * (STATUS.md + AGENTS.md + TASKS.yaml). Validates the name (rejects path traversal, separators,
+   * (STATUS.md + AGENTS.md). Validates the name (rejects path traversal, separators,
    * empty/whitespace, leading-dot, and the reserved 'general'). Never overwrites an
    * existing project directory — returns an `already-exists` error instead.
    */
@@ -205,7 +205,6 @@ export class ProjectStore {
       this.scaffoldProject(generalDir, GENERAL_SCAFFOLD_STATUS, GENERAL_SCAFFOLD_CORTEX);
       log.info(`Scaffolded general project at ${generalDir}`);
     }
-    this.ensureTasksFile(generalDir);
   }
 
   /** Create a project directory and write the standard scaffold files. */
@@ -213,12 +212,6 @@ export class ProjectStore {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'STATUS.md'), statusContent, 'utf8');
     fs.writeFileSync(path.join(dir, 'AGENTS.md'), indexContent, 'utf8');
-    this.ensureTasksFile(dir);
-  }
-
-  private ensureTasksFile(dir: string): void {
-    const tasksPath = path.join(dir, 'TASKS.yaml');
-    if (!fs.existsSync(tasksPath)) fs.writeFileSync(tasksPath, 'tasks: []\n', 'utf8');
   }
 
   /** Read PROJECTS_DIR and rebuild the in-memory cache. */
@@ -235,7 +228,6 @@ export class ProjectStore {
         if (!entry.isDirectory()) continue;
         if (entry.name.startsWith('.')) continue;
         if (entry.name === 'general') continue; // already added
-        this.ensureTasksFile(path.join(this.projectsDir, entry.name));
         result.push({
           id: entry.name,
           name: entry.name,

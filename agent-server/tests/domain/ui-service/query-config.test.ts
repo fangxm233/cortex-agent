@@ -83,9 +83,9 @@ test('readConfigSnapshot surfaces per-project budgets and drops half-pair entrie
 test('readConfigSnapshot reports file, env, and default setting sources with plaintext values', async () => {
   const { configDir } = await makeFixture();
   const previousShowToolCalls = process.env.CORTEX_SHOW_TOOL_CALLS;
-  const previousManagerRotateSteps = process.env.CORTEX_MANAGER_ROTATE_STEPS;
+  const previousMaxWakes = process.env.CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR;
   process.env.CORTEX_SHOW_TOOL_CALLS = 'yes';
-  delete process.env.CORTEX_MANAGER_ROTATE_STEPS;
+  delete process.env.CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR;
   try {
     const snap = await readConfigSnapshot(configDir, resolveSettingsSnapshot({ turnNotify: false, sessionRetentionDays: 31 }), LANG);
     assert.deepEqual(snap.settings.map((entry) => entry.key), Object.keys(SETTINGS_SPEC));
@@ -98,8 +98,8 @@ test('readConfigSnapshot reports file, env, and default setting sources with pla
       { key: 'showToolCalls', value: true, source: 'env' },
     );
     assert.deepEqual(
-      snap.settings.find((entry) => entry.key === 'managerRotateSteps'),
-      { key: 'managerRotateSteps', value: 10, source: 'default' },
+      snap.settings.find((entry) => entry.key === 'waitpointMaxWakesPerHour'),
+      { key: 'waitpointMaxWakesPerHour', value: 12, source: 'default' },
     );
     assert.deepEqual(
       snap.settings.find((entry) => entry.key === 'sessionRetentionDays'),
@@ -108,8 +108,8 @@ test('readConfigSnapshot reports file, env, and default setting sources with pla
   } finally {
     if (previousShowToolCalls === undefined) delete process.env.CORTEX_SHOW_TOOL_CALLS;
     else process.env.CORTEX_SHOW_TOOL_CALLS = previousShowToolCalls;
-    if (previousManagerRotateSteps === undefined) delete process.env.CORTEX_MANAGER_ROTATE_STEPS;
-    else process.env.CORTEX_MANAGER_ROTATE_STEPS = previousManagerRotateSteps;
+    if (previousMaxWakes === undefined) delete process.env.CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR;
+    else process.env.CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR = previousMaxWakes;
   }
 });
 
@@ -170,8 +170,8 @@ test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks',
     { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
     { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user' },
     { id: 'disabled-hook', event: 'cc:Notification', enabled: false, source: 'user' },
-    { id: 'template:coder-review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
   ]);
+  // A thread template left on disk by an older install no longer contributes a hook.
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
 });
 

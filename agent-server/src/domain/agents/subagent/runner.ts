@@ -295,7 +295,7 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       scheduleTaskId: null,
     },
     policy: {
-      // A child with no threadId never waits inline for background work.
+      // A child never waits inline for background work.
       background: 'none',
       // A child's own spend is recorded like any other run's.
       recordCost: true,

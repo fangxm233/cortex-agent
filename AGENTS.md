@@ -23,10 +23,10 @@ The server follows a six-layer structure (`agent-server/src/`):
 
 | Layer | Directory | Purpose |
 |-------|-----------|---------|
-| L0 | `core/` | Zero-dependency utilities: types, path constants, async-mutex, CLI utils, task parser |
+| L0 | `core/` | Zero-dependency utilities: types, path constants, async-mutex, CLI utils, settings |
 | L1 | `store/` | Persistence: 13 JSON-based repositories with atomic writes |
 | L2 | `events/` | Event bus: typed EventBus, daily-rolling JSONL logger |
-| L3 | `domain/` | Business logic: agents, sessions, tasks, executions, costs, scheduling, memory, remote clients, threads, MCP |
+| L3 | `domain/` | Business logic: agents, sessions, runs, executions, costs, scheduling, waitpoints, memory, remote clients, MCP |
 | L4 | `orchestration/` | Message routing, the `Turn` (one owner per conversation turn) + background holds, the `session-gateway` entry, 15 !commands, interactions |
 | L5 | `entry/` | Entry points: app.ts (composition root), daemon.ts (process supervisor), CLI |
 

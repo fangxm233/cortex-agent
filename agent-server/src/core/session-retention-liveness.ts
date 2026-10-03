@@ -2,14 +2,12 @@ import type { RetentionLivenessSnapshot } from '@domain/sessions/session-retenti
 import type { RunRegistry } from './run-registry.js';
 import type { SessionHolds } from './session-holds.js';
 import type { InteractionRecords } from '@orch/interactions/interaction-records.js';
-import type { ThreadRecord } from './types/thread-types.js';
 
 export interface SessionRetentionLivenessDeps {
   runningExecutions: Pick<RunRegistry, 'getAll'>;
   bgHeldSessions?: Pick<SessionHolds, 'listIds'>;
   interactionRecords?: Pick<InteractionRecords, 'pendingSessionIds'>;
   pendingDirectResumeSessionIds?: Iterable<string>;
-  threads?: Iterable<Pick<ThreadRecord, 'status' | 'agents' | 'steps'>>;
   activeClaudeCapturePaths?: Iterable<string>;
   activeClaudeCapturePairs?: Iterable<string>;
 }
@@ -30,19 +28,6 @@ export function buildSessionRetentionLiveness(deps: SessionRetentionLivenessDeps
     const backendId = execution.backendSessionId ?? null;
     if (trackId) addTrack(trackId);
     addBackend(backendId);
-  }
-
-  const protectedThreadStatuses = new Set(['running', 'waiting', 'rate_limited']);
-  for (const thread of deps.threads ?? []) {
-    if (!protectedThreadStatuses.has(thread.status)) continue;
-    for (const agent of Object.values(thread.agents ?? {})) {
-      addTrack(agent.sessionId ?? null);
-      addBackend(agent.backendSessionId ?? agent.sessionId ?? null);
-    }
-    for (const step of thread.steps ?? []) {
-      addTrack(step.sessionId ?? null);
-      addBackend(step.backendSessionId ?? step.sessionId ?? null);
-    }
   }
 
   for (const sessionId of deps.bgHeldSessions?.listIds() ?? []) addTrack(sessionId);

@@ -31,25 +31,15 @@ export interface Settings {
   commissionEnabled: boolean;
   teamEnabled: boolean;
   feishuSkillsInWeb: boolean;
-  managerRotateSteps: number;
-  waitingSweepMs: number;
   waitpointSweepMs: number;
   waitpointTtlMs: number;
   waitpointMaxWakesPerHour: number;
   injectWaitMaxS: number;
-  threadMaxDepth: number;
-  taskArtifactTemplates: string[];
   anthropicSubscriptionModes: string[];
   subscriptionBillingModes: string[];
   providerUsageCollectionEnabled: boolean;
   providerUsageCollectionIntervalMs: number;
   providerRateLimits: ProviderRateLimits;
-  taskDispatchMaxConcurrent: number | null;
-  taskDispatchEnabled: boolean;
-  taskDispatchIntervalMs: number;
-  dispatchReconcilerEnabled: boolean;
-  taskArchiveEnabled: boolean;
-  taskArchiveIntervalMs: number;
   storeArchiveEnabled: boolean;
   memoryIndexRegenEnabled: boolean;
   memoryIndexRegenIntervalMs: number;
@@ -245,24 +235,6 @@ export const SETTINGS_SPEC = {
     default: false,
     legacyParse: (raw: string) => raw === '1',
   },
-  managerRotateSteps: {
-    envVar: 'CORTEX_MANAGER_ROTATE_STEPS',
-    type: 'number',
-    default: 10,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw || '', 10);
-      return Number.isFinite(value) && value > 0 ? value : 10;
-    },
-  },
-  waitingSweepMs: {
-    envVar: 'CORTEX_WAITING_SWEEP_MS',
-    type: 'number',
-    default: 60_000,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw || '', 10);
-      return Number.isFinite(value) ? value : 60_000;
-    },
-  },
   waitpointSweepMs: {
     envVar: 'CORTEX_WAITPOINT_SWEEP_MS',
     type: 'number',
@@ -296,18 +268,6 @@ export const SETTINGS_SPEC = {
     default: 600,
     legacyParse: (raw: string) => Number(raw),
   },
-  threadMaxDepth: {
-    envVar: 'CORTEX_THREAD_MAX_DEPTH',
-    type: 'number',
-    default: 5,
-    legacyParse: (raw: string) => Number.parseInt(raw || '5', 10) || 5,
-  },
-  taskArtifactTemplates: {
-    envVar: 'CORTEX_TASK_ARTIFACT_TEMPLATES',
-    type: 'string[]',
-    default: ['manager'],
-    legacyParse: (raw: string) => raw.split(',').map((value) => value.trim()).filter(Boolean),
-  },
   // Which gateway modes count as an Anthropic subscription for *quota collection*.
   // Narrow and Anthropic-specific: an empty list disables Anthropic quota polling.
   // Distinct from subscriptionBillingModes below, which governs cost suppression
@@ -336,37 +296,6 @@ export const SETTINGS_SPEC = {
   providerRateLimits: {
     type: 'provider-rate-limits',
     default: {},
-  },
-  taskDispatchMaxConcurrent: {
-    envVar: 'TASK_DISPATCH_MAX_CONCURRENT',
-    type: 'number|null',
-    default: null,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw, 10);
-      return raw.trim() && Number.isFinite(value) && value > 0 ? value : null;
-    },
-  },
-  taskDispatchEnabled: {
-    type: 'boolean',
-    default: true,
-  },
-  taskDispatchIntervalMs: {
-    type: 'number',
-    default: 30_000,
-    validate: validateJobInterval,
-  },
-  dispatchReconcilerEnabled: {
-    type: 'boolean',
-    default: true,
-  },
-  taskArchiveEnabled: {
-    type: 'boolean',
-    default: true,
-  },
-  taskArchiveIntervalMs: {
-    type: 'number',
-    default: 6 * 60 * 60 * 1000,
-    validate: validateJobInterval,
   },
   storeArchiveEnabled: {
     type: 'boolean',

@@ -4,8 +4,7 @@
 // the migration, with the call site's own inputs turned into parameters. Every case asserts that
 // the builder (plus whatever the call site spreads over it) is deep-equal to that literal, AND
 // that the key sets of `context` / `policy` match exactly — `toEqual` treats an absent key and an
-// `undefined` one as equal, and the difference between `threadId: null` and no `threadId` at all
-// is load-bearing (see ask-user-resume's comment about CORTEX_THREAD_ID).
+// `undefined` one as equal.
 //
 // `runId` is a fresh uuid per request, so it is normalized away before comparison and asserted
 // separately.
@@ -134,7 +133,6 @@ function legacyAskUserResume(i: {
       channel: i.channel,
       project: i.projectId,
       trigger: 'ask-user-question',
-      threadId: null,
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,
@@ -153,7 +151,7 @@ function legacyAskUserResume(i: {
 }
 
 describe('continuationRunRequest — ask-user-resume', () => {
-  it('matches the pre-migration literal, including the explicit threadId: null', () => {
+  it('matches the pre-migration literal', () => {
     const p = profile('ask-profile');
     const input = {
       sessionId: 'sess-ask', backendSessionId: 'backend-ask', channel: 'slack:C2',
@@ -172,10 +170,7 @@ describe('continuationRunRequest — ask-user-resume', () => {
       project: input.projectId,
       trigger: 'ask-user-question',
     });
-    const built: RunRequest = { ...base, context: { ...base.context, threadId: null } };
-    expectIdentical(built, legacyAskUserResume(input));
-    // The spread is what adds the key; the builder alone must not carry it.
-    expect('threadId' in base.context).toBe(false);
+    expectIdentical(base, legacyAskUserResume(input));
   });
 });
 

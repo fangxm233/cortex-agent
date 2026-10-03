@@ -26,52 +26,6 @@ export const CODER_COMMIT_POLICY_REPLACEMENTS: ReadonlyArray<readonly [string, s
   ],
 ];
 
-export const MANAGER_TASK_FILE_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
-  [
-    '3. **Decompose via /manager-method** — the method (map the seams before cutting, the Cut-at-the-Seam Iron Rules, one-criterion-one-task with explicit dependencies, template selection by residual reasoning, and the per-child self-audit quality gate) lives in the skill (pointer below). After the method yields your children, create them in ONE call (exact recipe — write the JSON to a temp file first):',
-    '3. **Decompose via /manager-method** — the method (map the seams before cutting, the Cut-at-the-Seam Iron Rules, one-criterion-one-task with explicit dependencies, template selection by residual reasoning, and the per-child self-audit quality gate) lives in the skill (pointer below). After the method yields your children, create them in ONE call. Use the Write tool—not shell redirection—to create `/tmp/subtasks-<your Task ID>.json` with this content:',
-  ],
-  [
-    [
-      '     ```bash',
-      "     cat > /tmp/subtasks-<your Task ID>.json <<'JSON'",
-      '     {"subtasks": [',
-      '       {"key": "a", "text": "Create X", "done-when": "X exists and ...", "template": "execute-review"},',
-      '       {"key": "b", "text": "Create Y", "done-when": "...", "template": "execute-review", "depends-on": ["a"]}',
-      '     ]}',
-      '     JSON',
-      '     cortex-task decompose --project <project> --task-id <your Task ID> --keep-parent --auto-lock --subtasks-file /tmp/subtasks-<your Task ID>.json',
-      '     ```',
-    ].join('\n'),
-    [
-      '     ```json',
-      '     [',
-      '       {"key": "a", "text": "Create X", "done-when": "X exists and ...", "template": "execute-review"},',
-      '       {"key": "b", "text": "Create Y", "done-when": "...", "template": "execute-review", "depends-on": ["a"]}',
-      '     ]',
-      '     ```',
-      '',
-      '     Then run `cortex-task decompose --project <project> --task-id <your Task ID> --keep-parent --auto-lock --subtasks-file /tmp/subtasks-<your Task ID>.json`.',
-    ].join('\n'),
-  ],
-  [
-    '1. Read the actual deliverable (code, files, experiment records) and check it against the child\'s done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child (`cortex-task spawn --text "Verify <deliverable> against: <done_when>" --template <review template>`) and consume only its verdict — an independent fresh-context check catches what your anchored read misses, and keeps large deliverables out of your own context.',
-    '1. Read the actual deliverable (code, files, experiment records) and check it against the child\'s done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON at `/tmp/cortex-task-<your Task ID>-<child-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<child-id>.json`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.',
-  ],
-  [
-    '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), create a single child with `cortex-task spawn --text "..." --template <name>` (it hangs under you and joins via `depends_on`, like decompose) and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
-    '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON at `/tmp/cortex-task-<your Task ID>-<unique-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<unique-id>.json` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
-  ],
-  [
-    '1. Read the actual deliverable (code, files, experiment records) and check it against the child\'s done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON, run `cortex-task spawn --task-file <path>`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.',
-    '1. Read the actual deliverable (code, files, experiment records) and check it against the child\'s done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON at `/tmp/cortex-task-<your Task ID>-<child-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<child-id>.json`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.',
-  ],
-  [
-    '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON, run `cortex-task spawn --task-file <path>` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
-    '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON at `/tmp/cortex-task-<your Task ID>-<unique-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<unique-id>.json` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
-  ],
-];
-
 // STATUS.md register semantics: stock prompts used to mandate unconditional
 // STATUS.md updates and a `## Milestone Verdict` section; the register
 // convention makes STATUS updates conditional on a situation change and moves
@@ -85,10 +39,6 @@ export const STATUS_REGISTER_REPLACEMENTS: ReadonlyArray<readonly [string, strin
   [
     "Prefer editing the existing project artifacts (STATUS.md, knowledge entries, the role's artifact file) over creating parallel new files.",
     "Prefer editing the existing project artifacts (the role's artifact file, knowledge entries, existing experiment records) over creating parallel new files.",
-  ],
-  [
-    "7. Update the project's `STATUS.md`; record durable findings in the project knowledge files.",
-    "7. Record durable findings in the project knowledge files. Update `STATUS.md` only if the delivered work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — one line + pointer, not a completion report (see rules/status-md.md).",
   ],
   [
     '- **STATUS.md update**: append or replace a `## Milestone Verdict` section summarizing the verdict and the top 3 reasons. Include a timestamp and the milestone being judged.',

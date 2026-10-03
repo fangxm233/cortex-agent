@@ -74,7 +74,7 @@ function todayISO(): string {
  * Returns [] if the directory does not exist or is unreadable.
  * Use this everywhere instead of `fs.readdirSync(PROJECTS_DIR)` to avoid
  * treating stray files as projects (would surface as ghost projects in
- * `cortex-task lock-status`, `stats`, id-assignment, etc.).
+ * project listings and stats).
  */
 function listProjectDirs(projectsDir: string = PROJECTS_DIR): string[] {
   if (!fs.existsSync(projectsDir)) return [];

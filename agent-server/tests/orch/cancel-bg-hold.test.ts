@@ -93,7 +93,7 @@ test('Stop seals the hold even when the held session still has a live execution'
   };
   sessionHolds.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
   runRegistry.register({
-    threadId: null, channel: 'web:both', agentSlotId: null, executionId: 'exec-both',
+    channel: 'web:both', executionId: 'exec-both',
     kill: () => { killed++; return true; }, backend: 'claude', trackSessionId: 'sess-1',
   });
 
@@ -143,7 +143,7 @@ test('new foreground turn releases the old hold before publishing running:true',
 /** A live execution, reduced to the two fields the session bridge reads. */
 function exec(fields: Partial<RunningExecution>): RunningExecution {
   return {
-    threadId: null, channel: 'web:live', registryKey: 'k', agentSlotId: null, executionId: null,
+    channel: 'web:live', registryKey: 'k', executionId: null,
     kind: null, kill: () => true, startTime: 0, backend: 'claude', ...fields,
   } as RunningExecution;
 }

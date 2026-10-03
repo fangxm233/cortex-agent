@@ -109,31 +109,6 @@ test('concurrent start/complete/cancel — getRunningExecutions stays consistent
   assert.equal(repo.getAll().length, 20);
 });
 
-test('concurrent dispatch register — getExecutionByTaskId returns correct record', async () => {
-  const repo = createRepo();
-
-  const taskIds = Array.from({ length: 10 }, (_, i) => `task-${i}`);
-  const promises = taskIds.map((taskId) =>
-    repo.registerDispatchExecution({
-      taskId,
-      machine: 'testbox',
-      channel: 'C1',
-      project: 'proj',
-      taskText: `task-${taskId}`,
-    })
-  );
-  await Promise.all(promises);
-  await repo.flush();
-
-  // Each taskId should resolve to exactly one record
-  for (const taskId of taskIds) {
-    const record = repo.getExecutionByTaskId(taskId);
-    assert.ok(record, `missing record for ${taskId}`);
-    assert.equal(record.dispatch?.taskId, taskId);
-    assert.equal(record.status, 'running');
-  }
-});
-
 // ── Group 3: Mid-mutate flush resolves cleanly (FIFO ordering) ──
 
 test('flush — resolves after all pending persists have drained', async () => {
@@ -232,61 +207,6 @@ test('lifecycle — start → touch → complete → terminal state is sticky', 
   assert.equal(stuck?.text.error, null); // error field should NOT have changed
 });
 
-test('lifecycle — getExecutionByTaskId prefers non-terminal over terminal', async () => {
-  const repo = createRepo();
-
-  // Create and complete a dispatch
-  const r1 = repo.registerDispatchExecution({ taskId: 't1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'v1' });
-  repo.completeExecution(r1!.id, { costUsd: 0.5 });
-  assert.equal(repo.getExecutionByTaskId('t1')?.status, 'completed');
-
-  // Re-dispatch: creates new record
-  const r2 = repo.registerDispatchExecution({ taskId: 't1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'v2' });
-  assert.equal(r2?.status, 'running');
-  assert.notEqual(r2?.id, r1?.id);
-
-  // getExecutionByTaskId should prefer the running one
-  const found = repo.getExecutionByTaskId('t1');
-  assert.equal(found?.status, 'running');
-  assert.equal(found?.id, r2?.id);
-});
-
-// ── Group 5: Dispatch registration with existing running ──
-
-test('dispatch duplicate lookup can match task identity across schedule sources', () => {
-  const repo = createRepo();
-  repo.registerDispatchExecution({
-    taskId: 'task-upgrade', machine: 'lab', channel: 'C1', project: 'proj',
-    taskText: 'same task', taskHash: 'hash-upgrade', scheduleTaskId: 'legacy-schedule-id',
-  });
-
-  const match = repo.findRunningDispatchMatch({
-    taskHash: 'hash-upgrade', project: 'proj', taskText: 'same task',
-  });
-
-  assert.equal(match?.dispatch?.taskId, 'task-upgrade');
-  assert.equal(match?.scheduleTaskId, 'legacy-schedule-id');
-});
-
-test('dispatch — registerDispatchExecution updates existing running record', async () => {
-  const repo = createRepo();
-
-  const r1 = repo.registerDispatchExecution({
-    taskId: 't-update', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'original',
-  });
-  assert.equal(r1?.status, 'running');
-
-  // Register again with same taskId while still running — should update, not create new
-  const r2 = repo.registerDispatchExecution({
-    taskId: 't-update', machine: 'testbox', channel: 'C2', project: 'proj', taskText: 'updated',
-    sessionName: 'new-session', tmuxName: 'new-tmux', pid: '12345',
-  });
-  assert.equal(r2?.id, r1?.id, 'should return same record when existing is non-terminal');
-  assert.equal(r2?.dispatch?.machine, 'testbox');
-  assert.equal(r2?.text?.label, 'updated');
-  assert.equal(r2?.dispatch?.sessionName, 'new-session');
-});
-
 // ── Group 6: Terminal state stickiness ──
 
 test('terminal stickiness — completed record resists fail/cancel', async () => {
@@ -315,117 +235,29 @@ test('markMissingRunningExecutionsStale — marks non-kept running executions st
   const repo = createRepo();
 
   const localExec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'local' });
-  const dispatchExec = repo.registerDispatchExecution({ taskId: 't1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'dispatch' });
-  const anotherLocal = repo.startLocalExecution({ kind: 'scheduled', channel: 'C1', project: 'proj', label: 'scheduled' });
+  const kept = repo.startLocalExecution({ kind: 'scheduled', channel: 'C1', project: 'proj', label: 'scheduled' });
+  const anotherLocal = repo.startLocalExecution({ kind: 'local', channel: 'C2', project: 'proj', label: 'local-2' });
 
   await repo.flush();
 
-  // Mark all non-dispatch running executions as stale
-  await repo.markMissingRunningExecutionsStale((r) => r.kind === 'dispatch');
+  // Mark every running execution except the scheduled one as stale
+  await repo.markMissingRunningExecutionsStale((r) => r.kind === 'scheduled');
 
   assert.equal(repo.getExecution(localExec.id)?.status, 'stale');
   assert.equal(repo.getExecution(anotherLocal.id)?.status, 'stale');
-  assert.equal(repo.getExecution(dispatchExec!.id)?.status, 'running');
+  assert.equal(repo.getExecution(kept.id)?.status, 'running');
 });
 
 test('markMissingRunningExecutionsStale — no-op when all match keepRunning', async () => {
   const repo = createRepo();
 
-  repo.registerDispatchExecution({ taskId: 't1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'd1' });
-  repo.registerDispatchExecution({ taskId: 't2', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'd2' });
+  repo.startLocalExecution({ kind: 'scheduled', channel: 'C1', project: 'proj', label: 's1' });
+  repo.startLocalExecution({ kind: 'scheduled', channel: 'C1', project: 'proj', label: 's2' });
 
   await repo.flush();
-  await repo.markMissingRunningExecutionsStale((r) => r.kind === 'dispatch');
+  await repo.markMissingRunningExecutionsStale((r) => r.kind === 'scheduled');
 
   assert.equal(repo.getRunningExecutions().length, 2);
-});
-
-// ── Group 8: Reconcile stale dispatches ──
-
-test('reconcileStaleDispatches — marks orphaned dispatches stale', async () => {
-  const repo = createRepo();
-
-  const record = repo.registerDispatchExecution({
-    taskId: 'orphan', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'orphan',
-  });
-
-  await repo.flush();
-
-  // Backdate startedAt. getExecution returns the live map reference, so mutating
-  // record.runtime.startedAt is already visible in-map. reconcileStaleDispatches
-  // reads from the same reference on its next tick — no explicit repo.set needed.
-  const backdated = repo.getExecution(record!.id)!;
-  backdated.runtime.startedAt = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-
-  const reconciled = await repo.reconcileStaleDispatches({
-    maxAgeMs: 3 * 60 * 60 * 1000, // 3h threshold
-  });
-
-  assert.equal(reconciled.count, 1);
-  assert.equal(repo.getExecutionByTaskId('orphan')?.status, 'stale');
-});
-
-test('reconcileStaleDispatches — reaps a not-live in-process orphan after short grace', async () => {
-  const repo = createRepo();
-  const record = repo.registerDispatchExecution({ taskId: 'inproc-orphan', machine: 'local', channel: 'C1', project: 'proj', taskText: 'orphan' });
-  await repo.flush();
-  // Only 5 minutes old — well under the 3h hard ceiling, but it is not live.
-  repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-  const reconciled = await repo.reconcileStaleDispatches({
-    isLive: () => false,        // not in the in-memory registry → crashed orphan
-    graceMs: 2 * 60 * 1000,     // 2 min grace
-    maxAgeMs: 3 * 60 * 60 * 1000,
-  });
-
-  assert.equal(reconciled.count, 1, 'orphan should be reaped quickly, not after 3h');
-  assert.equal(repo.getExecutionByTaskId('inproc-orphan')?.status, 'stale');
-});
-
-test('reconcileStaleDispatches — a remote dispatch is NOT reaped at the short grace, only the hard ceiling', async () => {
-  const repo = createRepo();
-  // Remote dispatch (machine set) is never in the in-memory registry, so isLive is always false.
-  // It must not be subject to the short in-process orphan grace — only the long hard ceiling.
-  const record = repo.registerDispatchExecution({ taskId: 'remote-running', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'remote' });
-  await repo.flush();
-  repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-  const reconciled = await repo.reconcileStaleDispatches({
-    isLive: () => false,
-    graceMs: 2 * 60 * 1000,
-    maxAgeMs: 3 * 60 * 60 * 1000,
-  });
-
-  assert.equal(reconciled.count, 0, 'remote dispatch must survive the short grace');
-  assert.equal(repo.getExecutionByTaskId('remote-running')?.status, 'running');
-});
-
-test('reconcileStaleDispatches — keeps a live dispatch younger than the hard ceiling', async () => {
-  const repo = createRepo();
-  const record = repo.registerDispatchExecution({ taskId: 'live-dispatch', machine: 'local', channel: 'C1', project: 'proj', taskText: 'running' });
-  await repo.flush();
-  repo.getExecution(record!.id)!.runtime.startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-  const reconciled = await repo.reconcileStaleDispatches({
-    isLive: (id) => id === record!.id,   // still running in-process
-    graceMs: 2 * 60 * 1000,
-    maxAgeMs: 3 * 60 * 60 * 1000,
-  });
-
-  assert.equal(reconciled.count, 0);
-  assert.equal(repo.getExecutionByTaskId('live-dispatch')?.status, 'running');
-});
-
-test('startup recovery — stales an in-process dispatch orphan', async () => {
-  const repo = createRepo();
-  // In-process dispatch: startLocalExecution leaves dispatch=null — dies with the server.
-  const inproc = repo.startLocalExecution({ kind: 'dispatch', channel: 'C1', project: 'proj', trigger: 'task-dispatch', backend: 'test' });
-  await repo.flush();
-
-  // The startup call in app.ts.
-  await repo.markMissingRunningExecutionsStale();
-
-  assert.equal(repo.getExecution(inproc.id)!.status, 'stale', 'in-process orphan staled at startup');
 });
 
 // ── Group 10: Persistence roundtrip ──
@@ -434,7 +266,7 @@ test('persistence — records survive reload via load()', async () => {
   const repo = createRepo();
 
   repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'persist-test' });
-  repo.registerDispatchExecution({ taskId: 'p1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'persist-dispatch' });
+  const scheduled = repo.startLocalExecution({ kind: 'scheduled', channel: 'C1', project: 'proj', label: 'persist-scheduled' });
   await repo.flush();
 
   // Create new repo pointing to same file
@@ -444,31 +276,27 @@ test('persistence — records survive reload via load()', async () => {
 
   assert.equal(repo2.getAll().length, 2);
   assert.equal(repo2.getRunningExecutions().length, 2);
-  assert.ok(repo2.getExecutionByTaskId('p1'));
+  assert.ok(repo2.getExecution(scheduled.id));
 });
 
-// ── Group 11: findRunningDispatchMatch ──
-
-test('findRunningDispatchMatch — matches by scheduleTaskId/project/taskText', async () => {
+test('persistence — a new record carries no thread or dispatch data, and a legacy one still loads', async () => {
   const repo = createRepo();
+  const fresh = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'fresh' });
+  assert.equal('thread' in fresh, false);
+  assert.equal(fresh.dispatch, null);
 
-  repo.registerDispatchExecution({ taskId: 'm1', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'match-me', scheduleTaskId: 'sched-123' });
+  const legacy = {
+    ...fresh, id: 'exec_dispatch_legacy', kind: 'dispatch', status: 'completed',
+    thread: { threadId: 'thr_1', agentSlotId: 'main' },
+    dispatch: { taskId: 't1', taskHash: null, machine: 'lab', scheduleTaskId: null, sessionName: null, tmuxName: null, pid: null },
+  };
+  repo.set(legacy.id, legacy);
   await repo.flush();
 
-  // Callers always pass all 4 args (task-dispatcher.ts:124, pending-task-tracker.ts:124)
-  const match = repo.findRunningDispatchMatch({ scheduleTaskId: 'sched-123', project: 'proj', taskText: 'match-me' });
-  assert.ok(match);
-  assert.equal(match.scheduleTaskId, 'sched-123');
-});
-
-test('findRunningDispatchMatch — returns null for non-running', async () => {
-  const repo = createRepo();
-
-  const exec = repo.registerDispatchExecution({ taskId: 'm2', machine: 'lab', channel: 'C1', project: 'proj', taskText: 'completed-dispatch', scheduleTaskId: 'sched-456' });
-  repo.completeExecution(exec!.id, { costUsd: 0.1 });
-
-  const match = repo.findRunningDispatchMatch({ scheduleTaskId: 'sched-456', project: 'proj', taskText: 'completed-dispatch' });
-  assert.equal(match, null);
+  const repo2 = new ExecutionRepo({ filePath: repo.filePath });
+  repo2.load();
+  assert.equal(repo2.getExecution(legacy.id)?.kind, 'dispatch');
+  assert.equal(repo2.getExecution(legacy.id)?.dispatch?.taskId, 't1');
 });
 
 // ── Group 12: getAll returns sorted by createdAt desc ──

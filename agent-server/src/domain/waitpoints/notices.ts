@@ -64,7 +64,7 @@ export interface SignalNoticeOptions {
 /**
  * The turn text delivered when a waitpoint fires.
  *
- * Wrapped in `<system-reminder>` like the task-callback notice, and the external payload is
+ * Wrapped in `<system-reminder>` like every other system-authored turn, and the external payload is
  * explicitly framed as data: it is attacker-controlled in the general case (anything holding the
  * capability can write it) and it arrives in the transcript as a *user* turn.
  */

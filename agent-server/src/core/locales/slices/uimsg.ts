@@ -63,9 +63,7 @@ export const uimsgEn = {
   'ui.approval.addMachineImpact': 'machines.json · client lifecycle (a new remote client will be managed)',
   'ui.approval.webReason': 'Requested from the Web settings panel — high-privilege, gated for approval',
   'ui.approval.machineNameRequired': 'machineName is required for kind=add-machine',
-  // threads / executions / waitpoints / hooks
-  'ui.thread.notFound': 'Thread not found: ${id}',
-  'ui.thread.alreadyTerminal': 'Thread ${id} is already in terminal state',
+  // executions / waitpoints / hooks
   'ui.execution.notFound': 'Execution not found: ${id}',
   'ui.waitpoint.unavailable': 'Waitpoints are not available on this server',
   'ui.waitpoint.notFound': 'Waitpoint not found: ${id}',
@@ -93,19 +91,12 @@ export const uimsgEn = {
   'ui.plugin.envKeyLabel': 'env key',
   'ui.plugin.headerLabel': 'header',
   'ui.plugin.duplicateMcp': 'Duplicate MCP server name: \'${name}\'',
-  // issues / notes / projects / tasks / machines
+  // issues / notes / projects / machines
   'ui.issue.notFound': 'Issue not found: ${id}',
   'ui.issue.promptHead': 'Handle the issue recorded in ISSUES.md of project ${projectId}:',
   'ui.issue.promptTail': 'The entry has been removed from ISSUES.md and handed to this session. Please investigate and resolve the problem above; if the conclusion should be kept, write it to the matching project context file.',
   'ui.note.oneLine': 'Note text must be one line',
   'ui.project.notFound': 'Project not found: ${id}',
-  'ui.task.notFound': 'Task not found: ${id}',
-  'ui.task.lockBusy': 'Task lock is busy',
-  'ui.task.claimFailed': 'Claim failed',
-  'ui.task.unclaimFailed': 'Unclaim failed',
-  'ui.task.completeFailed': 'Complete failed',
-  'ui.task.blockFailed': 'Block failed',
-  'ui.task.unblockFailed': 'Unblock failed',
   'ui.machine.unknown': 'Unknown machine: ${name}',
 } as const;
 
@@ -166,8 +157,6 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.approval.addMachineImpact': 'machines.json · 客户端生命周期（将开始托管一个新的远程客户端）',
   'ui.approval.webReason': '从 Web 设置面板发起——高权限操作，需审批后执行',
   'ui.approval.machineNameRequired': '请填写机器名称。',
-  'ui.thread.notFound': '未找到线程：${id}',
-  'ui.thread.alreadyTerminal': '线程 ${id} 已处于终止状态。',
   'ui.execution.notFound': '未找到执行记录：${id}',
   'ui.waitpoint.unavailable': '此服务器不支持等待点。',
   'ui.waitpoint.notFound': '未找到等待点：${id}',
@@ -197,12 +186,5 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.issue.promptTail': '该条目已从 ISSUES.md 移除并交由本会话处理。请调查并解决上述问题；如需持久记录结论，写入项目上下文相应文件。',
   'ui.note.oneLine': '笔记内容必须是单行。',
   'ui.project.notFound': '未找到项目：${id}',
-  'ui.task.notFound': '未找到任务：${id}',
-  'ui.task.lockBusy': '任务锁正被占用，请稍后重试。',
-  'ui.task.claimFailed': '认领任务失败。',
-  'ui.task.unclaimFailed': '取消认领失败。',
-  'ui.task.completeFailed': '完成任务失败。',
-  'ui.task.blockFailed': '阻塞任务失败。',
-  'ui.task.unblockFailed': '解除阻塞失败。',
   'ui.machine.unknown': '未知机器：${name}',
 };

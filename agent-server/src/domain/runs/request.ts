@@ -41,19 +41,9 @@ export interface RunRequest {
      *  last-run resolvers keep ignoring it. Lands on the execution record as
      *  `session.ownerSessionId` and is read only by the session-totals roll-up. */
     ownerSessionId?: string | null;
-    threadId?: string | null;
-    threadDepth?: number | null;
-    /** Thread runs only: the step's agent slot and its tree position, for the execution record
-     *  and cost attribution. */
-    agentSlotId?: string | null;
-    rootThreadId?: string | null;
-    parentThreadId?: string | null;
-    taskId?: string | null;
-    taskProject?: string | null;
-    taskGeneration?: string | null;
     scheduleTaskId?: string | null;
     callbackSource?: string | null;
-    executionKind: 'local' | 'dispatch' | 'scheduled';
+    executionKind: 'local' | 'scheduled';
     isUserInitiated: boolean;
     commissionMode: boolean;
     /** The session may lead a team (team mode): its engine also loads the worker tools. */
