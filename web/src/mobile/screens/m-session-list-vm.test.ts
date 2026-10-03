@@ -132,13 +132,40 @@ describe('team workers in the session list', () => {
   const orphan = sess({ sessionId: 'orphan', teamLeadId: 'gone', workerName: 'c', lastUsedAt: '2026-07-15T09:30:00Z' });
   const now = Date.parse('2026-07-15T12:00:00Z');
 
-  it('nests workers as children of a present lead, retired last, orphans flat', () => {
+  it('leaves out workers whose lead is listed, keeps orphans as rows', () => {
     const rows = buildSessionRows([active, lead, retired, orphan], now, 'en', true);
     expect(rows.map(r => r.id)).toEqual(['lead', 'orphan']);
-    expect(rows[0].children?.map(r => r.id)).toEqual(['w-active', 'w-retired']);
-    expect(rows[0].children?.[1].retired).toBe(true);
-    expect(rows[0].children?.[0].retired).toBeUndefined();
-    expect(rows[1].children).toBeUndefined();
+    expect(rows[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
+  });
+
+  it('shows an idle lead as running while a worker runs, and counts them', () => {
+    const second = sess({ sessionId: 'w-2', teamLeadId: 'lead', workerName: 'd', running: true });
+    const one = buildSessionRows([lead, { ...active, running: true }], now, 'en', true);
+    expect(one[0].status).toEqual({ kind: 'running', text: '1 worker running' });
+    const two = buildSessionRows([lead, { ...active, running: true }, second], now, 'zh', true);
+    expect(two[0].status).toEqual({ kind: 'running', text: '2 个 worker 运行中' });
+  });
+
+  it('keeps the lead’s own line within a tier, and puts a worker blocked on the user above a run', () => {
+    const runningLead = { ...lead, running: true, numTurns: 4 };
+    expect(buildSessionRows([runningLead, { ...active, running: true }], now, 'en', true)[0].status)
+      .toEqual({ kind: 'running', text: 'Running · 4 turns' });
+    expect(buildSessionRows([runningLead, { ...active, awaitingInput: true }], now, 'en', true)[0].status)
+      .toEqual({ kind: 'awaiting', text: 'A worker needs your input' });
+    expect(buildSessionRows([{ ...lead, awaitingInput: true }, { ...active, awaitingInput: true }], now, 'en', true)[0].status)
+      .toEqual({ kind: 'awaiting', text: 'Needs your input' });
+  });
+
+  it('shows a waiting worker as a wait on the lead, not as a run', () => {
+    const onLead = { ...active, running: true, waitingOnLead: 1 };
+    expect(buildSessionRows([lead, onLead], now, 'en', true)[0].status)
+      .toEqual({ kind: 'waiting-external', text: '1 worker waiting' });
+  });
+
+  it('rolls up unread from workers, but nothing from retired ones, which the lead’s chat does not offer', () => {
+    expect(buildSessionRows([lead, { ...active, unread: true }], now, 'en', true)[0].unread).toBe(true);
+    const dormant = { ...retired, unread: true, running: true };
+    expect(buildSessionRows([lead, dormant], now, 'en', true)[0]).toMatchObject({ unread: false, status: { kind: 'idle' } });
   });
 
   it('is the plain flat list when team mode is off', () => {
@@ -147,7 +174,7 @@ describe('team workers in the session list', () => {
     const plain = buildProjectSessionList('nimbus',
       sessions.map(s => ({ ...s, teamLeadId: null, workerName: null, workerRetiredAt: null })), [], [], now, 'en');
     expect(off).toEqual(plain);
-    expect(off.rows.every(r => r.children === undefined)).toBe(true);
+    expect(off.rows.map(r => r.id)).toEqual(['w-retired', 'lead', 'orphan', 'w-active']);
     const on = buildProjectSessionList('nimbus', sessions, [], [], now, 'en', true);
     expect(on.rows.map(r => r.id)).toEqual(['lead', 'orphan']);
   });

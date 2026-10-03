@@ -6,6 +6,7 @@ import { partitionStarredSessions } from '@/features/session/list/starred-sessio
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import { orderSessions } from '@/features/session/list/session-groups';
 import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
+import { sessionRollup, workerRollup, type WorkerRollup } from '@/features/team/worker-rollup';
 import { relTime } from '@/mobile/ui/format';
 
 type Lang = 'en' | 'zh';
@@ -19,10 +20,6 @@ export interface MSessionRow {
   time: string;
   unread: boolean;
   status: MSessionStatus;
-  /** Team mode only: a retired worker, rendered dimmed. */
-  retired?: boolean;
-  /** Team mode only: this lead's workers, indented under it in the same group. */
-  children?: MSessionRow[];
 }
 
 const STATUS_TEXT: Record<Lang, {
@@ -32,6 +29,9 @@ const STATUS_TEXT: Record<Lang, {
   waiting: (n: number) => string;
   waitingLead: string;
   idle: string;
+  workerAwaiting: string;
+  workersRunning: (n: number) => string;
+  workersWaiting: (n: number) => string;
 }> = {
   en: {
     awaiting: 'Needs your input',
@@ -40,6 +40,9 @@ const STATUS_TEXT: Record<Lang, {
     waiting: (n) => `Waiting on ${n} signal${n === 1 ? '' : 's'}`,
     waitingLead: 'Waiting on lead',
     idle: 'Idle',
+    workerAwaiting: 'A worker needs your input',
+    workersRunning: (n) => `${n} worker${n === 1 ? '' : 's'} running`,
+    workersWaiting: (n) => `${n} worker${n === 1 ? '' : 's'} waiting`,
   },
   zh: {
     awaiting: '等待操作',
@@ -48,6 +51,9 @@ const STATUS_TEXT: Record<Lang, {
     waiting: (n) => `等 ${n} 个信号`,
     waitingLead: '等待主会话',
     idle: '空闲',
+    workerAwaiting: 'Worker 等待操作',
+    workersRunning: (n) => `${n} 个 worker 运行中`,
+    workersWaiting: (n) => `${n} 个 worker 等待中`,
   },
 };
 
@@ -81,9 +87,34 @@ function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
   };
 }
 
-function toWorkerRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
+/**
+ * A lead's status line with its workers rolled up, in the dot's precedence: anything blocked on the
+ * user first, then the lead's own run, then its workers' runs, then waits. The lead's own line wins
+ * within each tier, since it says more.
+ */
+function leadStatusLine(own: MSessionStatus, workers: WorkerRollup[], lang: Lang): MSessionStatus {
+  const t = STATUS_TEXT[lang];
+  const up = workerRollup(workers);
+  if (own.kind === 'awaiting') return own;
+  if (up.awaitingInput) return { kind: 'awaiting', text: t.workerAwaiting };
+  if (own.kind === 'running' || own.kind === 'background') return own;
+  if (up.running) return { kind: 'running', text: t.workersRunning(workers.filter((w) => w.running).length) };
+  if (own.kind === 'waiting-external') return own;
+  if (up.waitingOn) return { kind: 'waiting-external', text: t.workersWaiting(workers.filter((w) => w.waitingOn).length) };
+  return own;
+}
+
+function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: Lang): MSessionRow {
   const row = toRow(s, now, lang);
-  return isRetiredWorker(s) ? { ...row, retired: true } : row;
+  // The workers the lead's chat offers (its worker strip leaves retired ones out): whatever the
+  // row signals, the user can reach from there.
+  const team = workers.filter((w) => !isRetiredWorker(w)).map(sessionRollup);
+  if (team.length === 0) return row;
+  return {
+    ...row,
+    unread: row.unread || workerRollup(team).unread,
+    status: leadStatusLine(row.status, team, lang),
+  };
 }
 
 /** Scope before partitioning: Stars never aggregate sessions from different projects. */
@@ -105,16 +136,13 @@ export function buildProjectSessionList(
   };
 }
 
-/** Rows for the 会话 list, in desktop rail-folder order. In team mode a lead carries its workers
- *  (those whose lead is in the same list) as `children`; the rest stay flat. */
+/** Rows for the 会话 list, in desktop rail-folder order. In team mode the workers whose lead is in
+ *  the same list are left out — they are opened from the lead's chat — and the lead's row carries
+ *  their running, waiting and unread state; a worker whose lead is not in the list stays a row. */
 export function buildSessionRows(
   sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
 ): MSessionRow[] {
   if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang));
   const { top, workers } = groupWorkers(sessions);
-  return orderSessions(top).map((s) => {
-    const children = workers.get(s.sessionId);
-    const row = toRow(s, now, lang);
-    return children ? { ...row, children: children.map((w) => toWorkerRow(w, now, lang)) } : row;
-  });
+  return orderSessions(top).map((s) => toLeadRow(s, workers.get(s.sessionId) ?? [], now, lang));
 }
