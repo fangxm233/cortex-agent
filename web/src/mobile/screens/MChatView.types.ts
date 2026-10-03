@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
-import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
+import type { SessionContextUsage, SessionInfo, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
@@ -121,6 +121,11 @@ export interface CommissionSheetItem {
 
 export interface MChatViewProps {
   title: string;
+  /** Team mode: the worker's lead, named before the title; tapping it opens the lead. */
+  parent?: { title: string; onSelect: () => void } | null;
+  /** Team mode: the lead's workers, as a chip row under the header. */
+  workers?: SessionInfo[];
+  onOpenWorker?: (sessionId: string) => void;
   status: ChatHeaderStatus;
   /** Project the session belongs to; prefixes the header status line when known. */
   project?: string;

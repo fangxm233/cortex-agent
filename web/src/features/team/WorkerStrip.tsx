@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { isRetiredWorker } from './worker-groups';
 
 // A lead session's workers as one compact row of chips under the chat header — the lead's view of
@@ -69,7 +69,7 @@ export function WorkerStrip({ workers, onOpen, touch = false, style }: {
   touch?: boolean;
   style?: CSSProperties;
 }): JSX.Element | null {
-  const L = useVocab();
+  const L = useVocabOptional();
   const active = workers.filter((w) => !isRetiredWorker(w));
   if (active.length === 0) return null;
   return (

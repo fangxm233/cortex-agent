@@ -428,3 +428,51 @@ describe('MChatView header status line', () => {
     }
   });
 });
+
+describe('MChatView team context', () => {
+  const status = { running: false, tone: 'idle' as const, text: 'idle' };
+  const worker = (sessionId: string, retired = false) => ({
+    sessionId, projectId: 'p', name: sessionId, label: null, origin: 'direct', teamLeadId: 'lead',
+    workerName: 'w-' + sessionId, workerRetiredAt: retired ? 1 : null, createdAt: '', lastUsedAt: '',
+  }) as unknown as import('@cortex-agent/ui-contract').SessionInfo;
+  const mount = (extra: Record<string, unknown>) => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} {...extra} /></LangProvider>); });
+    return renderer;
+  };
+  const strips = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'div' && n.props['data-worker-strip'] !== undefined);
+  const crumbs = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-lead-crumb'] !== undefined);
+  const top = (r: ReactTestRenderer) => r.root.findByProps({ 'data-transcript-scroller': true }).props.style['--transcript-sticky-top'];
+
+  it('renders neither strip nor breadcrumb without a team, keeping the default clearance', () => {
+    const r = mount({ workers: [], parent: null, onOpenWorker: vi.fn() });
+    expect(strips(r)).toHaveLength(0);
+    expect(crumbs(r)).toHaveLength(0);
+    expect(top(r)).toBe('calc(72px + env(safe-area-inset-top))');
+    const retiredOnly = mount({ workers: [worker('w0', true)], onOpenWorker: vi.fn() });
+    expect(strips(retiredOnly)).toHaveLength(0);
+    act(() => { r.unmount(); retiredOnly.unmount(); });
+  });
+
+  it('floats the worker chips under the header and pushes the transcript down', () => {
+    const onOpenWorker = vi.fn();
+    const r = mount({ workers: [worker('w1'), worker('w2', true)], onOpenWorker });
+    expect(strips(r)).toHaveLength(1);
+    expect(top(r)).toBe('calc(108px + env(safe-area-inset-top))');
+    const chips = r.root.findAll((n) => n.type === 'button' && n.props['data-worker-chip']);
+    expect(chips.map((c) => c.props['data-worker-chip'])).toEqual(['w1']);
+    act(() => chips[0].props.onClick());
+    expect(onOpenWorker).toHaveBeenCalledWith('w1');
+    act(() => r.unmount());
+  });
+
+  it('names the lead before the title and opens it on tap', () => {
+    const onSelect = vi.fn();
+    const r = mount({ parent: { title: 'Lead plan', onSelect } });
+    const crumb = r.root.findByProps({ 'data-lead-crumb': '' });
+    expect(crumb.props['aria-label']).toBe('Open lead session · Lead plan');
+    act(() => crumb.props.onClick());
+    expect(onSelect).toHaveBeenCalledOnce();
+    act(() => r.unmount());
+  });
+});

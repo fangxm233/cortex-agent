@@ -23,6 +23,8 @@ import { MChatSessionMenu } from './MChatSessionMenu';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
 import { useNowTick } from '@/lib/useNowTick';
+import { WorkerStrip } from '@/features/team/WorkerStrip';
+import { isRetiredWorker } from '@/features/team/worker-groups';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
 export type {
@@ -32,6 +34,8 @@ export type {
 // ── floating header — back chevron · title + status line · context ring · ⋯ ───
 interface MChatHeaderProps {
   title: string;
+  /** Team mode: the worker's lead, a tappable prefix before the title. */
+  parent?: { title: string; onSelect: () => void } | null;
   status: ChatHeaderStatus;
   /** Project the session belongs to; prefixes the status line when known. */
   project?: string;
@@ -77,7 +81,16 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', background: props.status.tone === 'waiting' ? 'var(--proto-amber)' : props.status.running ? 'var(--proto-accent)' : 'var(--proto-line-3)' }} />
-          <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {props.parent && (
+            <button type="button" data-lead-crumb="" aria-label={`${vocab.wbTeamOpenLead} · ${props.parent.title}`}
+              onClick={props.parent.onSelect}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '45%', flexShrink: 1,
+                padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: MC.muted }}>
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.parent.title}</span>
+              <span aria-hidden="true" style={{ flex: 'none' }}>/</span>
+            </button>
+          )}
+          <span style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {props.title}
           </span>
         </div>
@@ -472,7 +485,11 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   const fadeEdge = `calc(100% - ${shellHeight + 20}px - env(safe-area-inset-bottom))`;
   // Hide text beneath the header and safe area; fade in across its existing 12px clearance.
   // Only the transcript is masked, leaving the floating title and its glass unchanged.
-  const transcriptFade = `linear-gradient(to bottom, transparent calc(60px + env(safe-area-inset-top)), #000 calc(72px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
+  // Team mode: a lead's worker chips float in a 36px row under the header, so the transcript's top
+  // clearance grows by that much while the row is there.
+  const workerRow = !!props.onOpenWorker && (props.workers ?? []).some((w) => !isRetiredWorker(w));
+  const topClear = workerRow ? 108 : 72;
+  const transcriptFade = `linear-gradient(to bottom, transparent calc(${topClear - 12}px + env(safe-area-inset-top)), #000 calc(${topClear}px + env(safe-area-inset-top)), #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
 
   // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
@@ -530,6 +547,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     >
       <MChatHeader
         title={props.title}
+        parent={props.parent}
         status={props.status}
         project={props.project}
         onBack={props.onBack}
@@ -546,6 +564,10 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           />
         ) : null}
       />
+      {workerRow && (
+        <WorkerStrip workers={props.workers ?? []} onOpen={props.onOpenWorker!} touch
+          style={{ position: 'absolute', top: 'calc(66px + env(safe-area-inset-top))', left: 16, right: 16, zIndex: 5 }} />
+      )}
       {/* Body region — a position:relative frame holding the scroll transcript + the floating
           composer, both anchored to it. The full-screen editor (2b) mounts as an absolute overlay of
           THIS region; since the header now floats over the same box, the editor outranks it. */}
@@ -553,7 +575,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
             Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': 'calc(72px + env(safe-area-inset-top))' } as CSSProperties}>
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': `calc(${topClear}px + env(safe-area-inset-top))` } as CSSProperties}>
           {/* 72px = the floating header's 8px top + 52px height + 12px clearance. */}
           <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <MChatStream
