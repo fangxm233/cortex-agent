@@ -3,13 +3,19 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runMigrations, seedEnvironmentsFromThreadAgents } from '../../src/store/version-migrations.js';
+import { createHash } from 'node:crypto';
+import {
+  runMigrations, seedEnvironmentsFromThreadAgents, STOCK_THREAD_AGENT_SHA256,
+} from '../../src/store/version-migrations.js';
 
 let root: string;
 let dataDir: string;
 let defaultsDir: string;
 
 const SHIPPED_THREAD_MAIN = '{"name":"main","profile":"__active__","persistSession":true,"promptTemplate":"{{input}} -> {{artifactPath}}"}\n';
+const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+/** The thread agents no longer ship, so a test stands in its own stock content by hash. */
+const STOCK = { main: [sha256(SHIPPED_THREAD_MAIN)] };
 const SHIPPED_ENV_MAIN = '{"name":"main","profile":"__active__","persistSession":true,"promptTemplate":"{{input}}"}\n';
 const SHIPPED_ENV_CREATIVE = '{"name":"creative","profile":"__active__","persistSession":true}\n';
 
@@ -25,7 +31,6 @@ beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'env-migration-'));
   dataDir = path.join(root, 'home');
   defaultsDir = path.join(root, 'defaults');
-  await write(path.join(defaultsDir, 'config', 'thread-templates', 'agents', 'main.json'), SHIPPED_THREAD_MAIN);
   await write(path.join(defaultsDir, 'config', 'environments', 'main.json'), SHIPPED_ENV_MAIN);
   await write(path.join(defaultsDir, 'config', 'environments', 'creative.json'), SHIPPED_ENV_CREATIVE);
 });
@@ -42,7 +47,7 @@ test('copies the install\'s own main and creative, leaving the thread agents in 
   await write(threadAgent('creative'), ownCreative);
   await write(threadAgent('coder'), '{"name":"coder"}');
 
-  expect(await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir)).toEqual(['main', 'creative']);
+  expect(await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir, STOCK)).toEqual(['main', 'creative']);
   expect(await fs.readFile(envFile('main'), 'utf8')).toBe(ownMain);
   expect(await fs.readFile(envFile('creative'), 'utf8')).toBe(ownCreative);
   expect(existsSync(envFile('coder'))).toBe(false);
@@ -53,9 +58,16 @@ test('copies the install\'s own main and creative, leaving the thread agents in 
 test('falls back to the shipped environments, and swaps an unmodified stock thread agent for them', async () => {
   await write(threadAgent('main'), SHIPPED_THREAD_MAIN);
 
-  expect(await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir)).toEqual(['main', 'creative']);
+  expect(await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir, STOCK)).toEqual(['main', 'creative']);
   expect(await fs.readFile(envFile('main'), 'utf8')).toBe(SHIPPED_ENV_MAIN);
   expect(await fs.readFile(envFile('creative'), 'utf8')).toBe(SHIPPED_ENV_CREATIVE);
+});
+
+test('the recorded stock hashes cover both kept agents', () => {
+  expect(Object.keys(STOCK_THREAD_AGENT_SHA256).sort()).toEqual(['creative', 'main']);
+  for (const hashes of Object.values(STOCK_THREAD_AGENT_SHA256)) {
+    for (const hash of hashes) expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  }
 });
 
 test('an existing environments directory is never touched', async () => {

@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
+import { createHash } from 'node:crypto';
 import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
 import { DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
@@ -81,15 +82,22 @@ export interface StepMigration {
 // (replaced in place if present, appended otherwise). Bumping the block version token
 // makes a future migration replace an older block cleanly.
 
-const DOCS_BLOCK_VERSION = 'v1';
-const DOCS_MARKER_START = `<!-- cortex:docs ${DOCS_BLOCK_VERSION} -->`;
 const DOCS_MARKER_END = '<!-- /cortex:docs -->';
+
+/** The first shipped docs block. It named tasks and threads, which no longer exist; a copy still
+ *  byte-identical to it is upgraded to {@link DOCS_BLOCK}, a customized one is left alone. */
+const DOCS_BLOCK_V1 = [
+  '<!-- cortex:docs v1 -->',
+  '# Cortex documentation',
+  `For how to use Cortex — tasks, threads, scheduling, memory, skills, safety & approvals — consult the docs: ${CORTEX_DOCS_URL}`,
+  DOCS_MARKER_END,
+].join('\n');
 
 /** The canonical Cortex-docs block inserted into system prompts and AGENTS.md. */
 const DOCS_BLOCK = [
-  DOCS_MARKER_START,
+  '<!-- cortex:docs v2 -->',
   '# Cortex documentation',
-  `For how to use Cortex — tasks, threads, scheduling, memory, skills, safety & approvals — consult the docs: ${CORTEX_DOCS_URL}`,
+  `For how to use Cortex — sessions, scheduling, memory, skills, safety & approvals — consult the docs: ${CORTEX_DOCS_URL}`,
   DOCS_MARKER_END,
 ].join('\n');
 
@@ -335,6 +343,21 @@ const migrations: Migration[] = [
       return upsertMarkerBlock(data, DOCS_BLOCK);
     },
   })),
+  // M4b: the stock docs block named tasks and threads, both since removed. Only the exact stock
+  // block is rewritten, so a block the user edited (or a prompt that ships its own wording) stays.
+  ...[
+    'AGENTS.md',
+    'prompts/systemPrompts/web-opus-4-6.md',
+    'prompts/systemPrompts/web-sonnet-4-6.md',
+    'prompts/systemPrompts/worker.md',
+    'prompts/systemPrompts/coder.md',
+  ].map((filePath): Migration => ({
+    filePath,
+    version: '2026.10.2',
+    format: 'text',
+    migrate: (data) => typeof data === 'string'
+      ? applyReplacements(data, [[DOCS_BLOCK_V1, DOCS_BLOCK]]) : data,
+  })),
   // M5: De-personalize the coder / coder-reviewer directives. The shipped wording
   // hardcoded Cortex's own toolchain (a non-negotiable TDD mandate, `npm test` as THE
   // test command, the dependency-cruiser linter by name) — fine for this repo, wrong as
@@ -523,7 +546,7 @@ const stepMigrations: StepMigration[] = [
   // S5: execution environments live in config/environments/ rather than among the thread agents.
   // An install without that directory gets one holding the two environments that are kept, `main`
   // and `creative`: the install's own copies from config/thread-templates/agents/ where they
-  // exist, the shipped environments otherwise. Copy only — nothing under thread-templates moves.
+  // exist, the shipped environments otherwise. Copy only — S6 archives thread-templates later.
   {
     key: 'config/environments',
     version: '2026.10.2',
@@ -534,6 +557,22 @@ const stepMigrations: StepMigration[] = [
 // ── Execution environments (S5) ────────────────────────────────
 
 const KEPT_ENVIRONMENTS = ['main', 'creative'] as const;
+
+/** SHA-256 of every thread agent Cortex shipped under these names. An install's copy that matches
+ *  one is stock rather than the user's own, so it is replaced by the shipped environment. The
+ *  thread agents no longer ship, so the hashes are what remains of them. */
+export const STOCK_THREAD_AGENT_SHA256: Readonly<Record<string, readonly string[]>> = {
+  main: [
+    '492a151f11a2376ffb714579a6950b6bc11e469d0852102935a6d0f1261c3eeb',
+    'b8358bb5ba5bef0998c3e4fc545150372fee98b503b1baf6fc210a8313d21271',
+    'c1d70e3b77b12fd611d4fbf7dcb7dcfcbbd16ed2d325597dc2e328d82a7c18f1',
+  ],
+  creative: ['d0edb06aeeab32427dd9c6d649501b7b2078168e38d47bcac10700d32f3611dc'],
+};
+
+function sha256(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
 
 async function readTextOrNull(filePath: string): Promise<string | null> {
   try {
@@ -556,19 +595,22 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 /**
  * Build config/environments/ from the thread agents an install already has. The user's own file is
- * copied verbatim; one still byte-identical to the shipped thread agent is replaced by the shipped
+ * copied verbatim; one still byte-identical to a shipped thread agent is replaced by the shipped
  * environment, which drops the thread-only artifact instruction from its prompt template. The
  * directory is assembled beside its final name and renamed into place, so an interrupted run leaves
  * nothing that would make the retry skip. A home whose config is sealed is left alone.
  *
  * @returns the environment names written (empty when the directory already existed).
  */
-export async function seedEnvironmentsFromThreadAgents(dataDir: string, defaultsDir: string): Promise<string[]> {
+export async function seedEnvironmentsFromThreadAgents(
+  dataDir: string,
+  defaultsDir: string,
+  stockHashes: Readonly<Record<string, readonly string[]>> = STOCK_THREAD_AGENT_SHA256,
+): Promise<string[]> {
   if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return [];
   const envDir = path.join(dataDir, 'config', 'environments');
   if (await pathExists(envDir)) return [];
   const agentsDir = path.join(dataDir, 'config', 'thread-templates', 'agents');
-  const shippedAgentsDir = path.join(defaultsDir, 'config', 'thread-templates', 'agents');
   const shippedEnvDir = path.join(defaultsDir, 'config', 'environments');
 
   const staging = `${envDir}.partial`;
@@ -578,7 +620,7 @@ export async function seedEnvironmentsFromThreadAgents(dataDir: string, defaults
   for (const name of KEPT_ENVIRONMENTS) {
     const file = `${name}.json`;
     const own = await readTextOrNull(path.join(agentsDir, file));
-    const stock = own !== null && own === await readTextOrNull(path.join(shippedAgentsDir, file));
+    const stock = own !== null && (stockHashes[name] ?? []).includes(sha256(own));
     const content = own !== null && !stock ? own : await readTextOrNull(path.join(shippedEnvDir, file));
     if (content === null) continue;
     await fs.writeFile(path.join(staging, file), content, 'utf8');
@@ -731,8 +773,7 @@ export async function renameIndexRuleFile(dataDir: string): Promise<number> {
 
 // ── Versions file I/O ──────────────────────────────────────────
 
-/** Exported for plugin-retirement.ts, which guards its own one-shot rewrite with a sentinel key
- *  in the same versions.json. Keeping one reader means one definition of "corrupt → reset". */
+/** The one reader of versions.json, so there is one definition of "corrupt → reset". */
 export async function loadVersionsFrom(filePath: string): Promise<Record<string, string>> {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
@@ -1206,6 +1247,9 @@ const RETIRED_HOOK_ENTRIES: readonly RetiredHook[] = [
   // CORTEX.md-named copy alongside the new one and inject every rule file twice.
   { file: '08-cortex-md-injector-post-tool.json', id: 'cortex-md-injector-post-tool', script: 'cortex-md-injector.mjs' },
   { file: '10-cortex-md-injector-session-start.json', id: 'cortex-md-injector-session-start', script: 'cortex-md-injector.mjs' },
+  // The task queue they guarded and reported on was removed.
+  { file: '02-tasks-yaml-guard.json', id: 'tasks-yaml-guard', script: 'tasks-yaml-guard.mjs' },
+  { file: '11-task-status-check.json', id: 'task-status-check', script: 'task-status-check.mjs' },
 ];
 
 async function removeIfPresent(filePath: string, label: string): Promise<boolean> {
@@ -1256,8 +1300,9 @@ async function isRetiredScriptOrphaned(registryDir: string, script: string): Pro
  * the session whatever `--tools` lists (plan approval and questions now run through the
  * interaction-bridge MCP tools against the same webhook endpoints), and the PermissionRequest
  * auto-allow matched an event Claude never emits under the `bypassPermissions` mode every Cortex
- * spawn runs in. The last two are a rename: the CORTEX.md injector became the AGENTS.md injector
- * under new filenames, and leaving the old pair deployed would double every injection.
+ * spawn runs in. The next two are a rename: the CORTEX.md injector became the AGENTS.md injector
+ * under new filenames, and leaving the old pair deployed would double every injection. The last
+ * two served the task queue, which no longer exists.
  * `syncManagedHooks` only adds and upgrades files, so without this the dead entries would linger
  * in every upgraded registry. Idempotent, and a no-op once the files are gone.
  *

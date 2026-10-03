@@ -99,14 +99,14 @@ test('loadConfig prefers the directory when both dir and single file exist', () 
 test('template MCP tool allowlist override wins and resolves canonically', () => {
   clean();
   const cfg = structuredClone(FIXTURE) as any;
-  cfg.agents.executor.mcpToolAllowlist = ['thread_wait', 'ask_manager'];
+  cfg.agents.executor.mcpToolAllowlist = ['current_time', 'cost_query'];
   cfg.templates.plain.agents = [{
-    ref: 'executor', mcpToolAllowlist: ['thread_wait', 'task_status', 'thread_wait'],
+    ref: 'executor', mcpToolAllowlist: ['current_time', 'send_file', 'current_time'],
   }];
   writeDir(cfg);
   const { templates } = loadConfig();
   const resolved = resolveAgentSlotConfig(templates.plain.agents[0]);
-  assert.deepEqual(resolved?.mcpToolAllowlist, ['task_status', 'thread_wait']);
+  assert.deepEqual(resolved?.mcpToolAllowlist, ['current_time', 'send_file']);
 });
 
 // --- Fail-soft: name-field ≠ filename is skipped; the rest still load ---

@@ -522,10 +522,37 @@ test('runMigrations - text: injects docs block into AGENTS.md and tracks version
   assert.ok(out.includes('# My customized AGENTS.md'), 'user content preserved');
   assert.ok(out.includes('User notes here.'), 'user content preserved');
   assert.ok(out.includes('https://fangxm233.github.io/cortex-agent/'), 'docs URL injected');
-  assert.ok(out.includes('<!-- cortex:docs'), 'marker present');
+  assert.ok(out.includes('<!-- cortex:docs v2 -->'), 'current marker present');
+  assert.ok(!out.includes('tasks, threads'), 'the block no longer names tasks or threads');
 
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions['AGENTS.md'], '2026.6.22');
+  assert.equal(versions['AGENTS.md'], '2026.10.2');
+});
+
+test('runMigrations - text: upgrades only the exact stock v1 docs block', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  const v1 = [
+    '<!-- cortex:docs v1 -->',
+    '# Cortex documentation',
+    `For how to use Cortex — tasks, threads, scheduling, memory, skills, safety & approvals — consult the docs: ${DOCS_URL}`,
+    '<!-- /cortex:docs -->',
+  ].join('\n');
+  const custom = `<!-- cortex:docs v1 -->\nMy own docs pointer: ${DOCS_URL}\n<!-- /cortex:docs -->`;
+  await writeText(path.join(dataDir, 'AGENTS.md'), `# Mine\n\n${v1}\n`);
+  await writeText(path.join(dataDir, 'prompts', 'systemPrompts', 'worker.md'), `Worker\n\n${custom}\n`);
+  await writeJson(path.join(storeDir, 'versions.json'), {
+    'AGENTS.md': '2026.6.22', 'prompts/systemPrompts/worker.md': '2026.8.2',
+  });
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+
+  const agents = await readText(path.join(dataDir, 'AGENTS.md'));
+  assert.ok(agents.startsWith('# Mine'), 'user content preserved');
+  assert.ok(agents.includes('<!-- cortex:docs v2 -->'));
+  assert.ok(agents.includes('sessions, scheduling, memory'));
+  assert.ok(!agents.includes('tasks, threads'));
+  assert.equal(await readText(path.join(dataDir, 'prompts', 'systemPrompts', 'worker.md')), `Worker\n\n${custom}\n`);
 });
 
 test('runMigrations - text: updates docs and PI roles in system prompt files', async () => {
@@ -534,8 +561,8 @@ test('runMigrations - text: updates docs and PI roles in system prompt files', a
   const promptsDir = path.join(dataDir, 'prompts', 'systemPrompts');
   const promptVersions = [
     ['direct', '2026.6.24'],
-    ['worker', '2026.8.2'],
-    ['coder', '2026.6.24'],
+    ['worker', '2026.10.2'],
+    ['coder', '2026.10.2'],
   ] as const;
   for (const [promptName] of promptVersions) {
     await writeText(

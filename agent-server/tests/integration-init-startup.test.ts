@@ -208,9 +208,6 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       path.join(tempDir, 'config', 'mcp-config.json'),
       path.join(tempDir, 'config', 'mcp-config-core.json'),
       path.join(tempDir, 'data', 'agent-state.json'),
-      // DR-0017 D6 Phase 2.5: thread-templates is a directory (one file per entity)
-      path.join(tempDir, 'config', 'thread-templates', 'templates', 'default.json'),
-      path.join(tempDir, 'config', 'thread-templates', 'shells', 'worker-review.json'),
       path.join(tempDir, 'config', 'environments', 'main.json'),
       path.join(tempDir, 'config', 'environments', 'creative.json'),
     ];
@@ -382,15 +379,11 @@ test('Test 3: Initialized environment has correct config content', async () => {
       assert.ok(name !== 'qa', 'qa profile must not be generated');
     }
 
-    // Verify the thread-templates directory holds valid per-template JSON files.
-    const templatesDir = path.join(tempDir, 'config', 'thread-templates', 'templates');
-    const templateNames = readdirSync(templatesDir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => f.slice(0, -'.json'.length));
-    assert.ok(templateNames.length > 0, 'Should have at least one thread template');
-    // Each template file must be valid JSON.
-    for (const name of templateNames) {
-      JSON.parse(readFileSync(path.join(templatesDir, `${name}.json`), 'utf-8'));
+    // The retired thread config is no longer seeded; environments are.
+    assert.equal(existsSync(path.join(tempDir, 'config', 'thread-templates')), false);
+    const environmentsDir = path.join(tempDir, 'config', 'environments');
+    for (const name of readdirSync(environmentsDir).filter((f) => f.endsWith('.json'))) {
+      JSON.parse(readFileSync(path.join(environmentsDir, name), 'utf-8'));
     }
 
     // Verify .env content

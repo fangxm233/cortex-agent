@@ -1,12 +1,12 @@
 # Cortex — Project Codebase
 
-Cortex is an autonomous research agent system for robotics and AI/ML. It runs as a Node.js server-client architecture: the agent-server orchestrates work — task dispatch, thread execution, scheduling, Slack/Feishu integration — while remote agent instances connect as clients via WebSocket to execute commands on remote machines.
+Cortex is an autonomous research agent system for robotics and AI/ML. It runs as a Node.js server-client architecture: the agent-server orchestrates work — agent sessions, scheduling, Slack/Feishu integration — while remote agent instances connect as clients via WebSocket to execute commands on remote machines.
 
 ## Top-Level Structure
 
 | Directory | Purpose |
 |-----------|---------|
-| `agent-server/` | Main server application (TypeScript, Node.js >=22.19.0). Slack/Feishu bot, LLM orchestration, scheduling, task system, MCP tools. |
+| `agent-server/` | Main server application (TypeScript, Node.js >=22.19.0). Slack/Feishu bot, LLM orchestration, scheduling, MCP tools. |
 | `client/` | Remote agent client (TypeScript, Node.js >=20). Connects to agent-server via WebSocket and executes bash/read/write/edit/glob/grep commands locally. |
 | `web/` | Vite + React SPA; browser-responsive desktop/mobile layouts share one router. Built to `web/dist`, served by the in-core UI host and native shells. Layer map + enforced import rules: `web/.dependency-cruiser.cjs`. |
 | `desktop/` | Tauri v2 desktop shell. Loads `web/dist` via asset protocol in a native webview. Exposes the `get_connection_config` Tauri command plus `window.__CORTEX_DESKTOP_CONFIG` for injecting `{serverUrl, token}` into the SPA. |
@@ -43,7 +43,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 
 | File | Purpose |
 |------|---------|
-| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-evidence-export, cortex-hook, cortex-signal, cortex-task) |
+| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-evidence-export, cortex-hook, cortex-signal) |
 | `agent-server/tsconfig.json` | TypeScript config (ES2022, NodeNext) |
 | `agent-server/defaults/` | Shipped default config, context templates, plugins, hooks, prompts, rules |
 | `agent-server/tests/` | Vitest regression suite (~510 test files) covering all major subsystems |
@@ -60,9 +60,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `data/provider-state.json` | Provider usage, throttle windows and provider-attributed resume queue |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
-| `config/thread-templates/` | Thread config directory: one JSON file per entity under `agents/`, `templates/`, and `shells/` (a legacy single-file config is still read as a fallback and split into this directory on startup) |
-| `threads.json` | Active and historical thread state |
-| `tasks/` | Project task queues (TASKS.yaml per project) |
+| `config/environments/` | Execution environments: one JSON file per environment (`main`, `creative`, and any the user adds) |
 | `logs/` | Daemon and LLM logs |
 
 ### CLI Design

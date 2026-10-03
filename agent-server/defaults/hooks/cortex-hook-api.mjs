@@ -1,4 +1,4 @@
-// @cortex-hook-version 2026.9.15
+// @cortex-hook-version 2026.10.2
 
 import http from 'node:http';
 
@@ -52,7 +52,6 @@ function postJson(path, payload, timeoutMs) {
  * @param {string=}  opts.level      'info' | 'warn' | 'warning' | 'error' — card severity (omit for neutral)
  * @param {string=}  opts.channel    conduit id; defaults to CORTEX_HOOK_CHANNEL → SLACK_CHANNEL
  * @param {string=}  opts.sessionId  session to resolve the channel from; defaults to CORTEX_HOOK_SESSION_ID
- * @param {string=}  opts.threadId   defaults to CORTEX_THREAD_ID
  * @param {number=}  opts.timeoutMs  client-side HTTP guard (default 60 min)
  * @param {boolean=} opts.dryRun     smoke-test path: journal the event, resolve synthetically
  * @returns {Promise<{answers: Record<string,string>, error?: string}>}
@@ -71,7 +70,6 @@ export async function askUser(opts = {}) {
   const body = {
     ...(channel ? { channel } : {}),
     ...(sessionId ? { sessionId } : {}),
-    threadId: opts.threadId ?? process.env.CORTEX_THREAD_ID ?? null,
     questions,
     ...(level !== undefined ? { level: resolveLevel(level) } : {}),
     ...(dryRun === true ? { dryRun: true } : {}),

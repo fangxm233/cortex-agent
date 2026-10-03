@@ -340,32 +340,6 @@ test('PI hook registration and dispatch follow fixture registry entries', async 
   await verifyAddedEntry(fixture);
 });
 
-function readDefaultEntry(filename: string): Record<string, any> {
-  const file = path.join(DEFAULTS_DIR, 'config', 'hooks', filename);
-  return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, any>;
-}
-
-test('shipped tasks-yaml-guard blocks PI edit and write calls without a task lock', async (t) => {
-  const fixture = setupFixture(t);
-  const script = 'tasks-yaml-guard.mjs';
-  fs.copyFileSync(path.join(DEFAULTS_DIR, 'hooks', script), path.join(HOOKS_DIR, script));
-  writeEntry(fixture.registryDir, '02-tasks-yaml-guard.json', readDefaultEntry('02-tasks-yaml-guard.json'));
-  const taskDir = path.join(CONFIG_DIR, 'projects', 'pi-guard');
-  const taskFile = path.join(taskDir, 'TASKS.yaml');
-  fs.mkdirSync(taskDir, { recursive: true });
-  fs.writeFileSync(taskFile, 'tasks: []\n');
-  t.onTestFinished(() => fs.rmSync(taskDir, { recursive: true, force: true }));
-  const pi = makeBridge();
-
-  for (const toolName of ['edit', 'write']) {
-    const result = await pi.emit('tool_call', {
-      type: 'tool_call', toolName, toolCallId: `guard-${toolName}`, input: { path: taskFile },
-    }, fixture.ctx) as { block?: boolean; reason?: string } | undefined;
-    assert.equal(result?.block, true, `expected PI ${toolName} to be blocked`);
-    assert.match(result?.reason ?? '', /cortex-task lock-acquire/);
-  }
-});
-
 function writeNativeEntry(
   fixture: Fixture,
   filename: string,

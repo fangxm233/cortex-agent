@@ -478,7 +478,7 @@ test('runMigrations preserves compact shipped directives and base prompts', asyn
   const { dataDir, storeDir, defaultsDir } = setupDirs();
   const relatives = [
     ...['coder', 'coder-reviewer', 'doc-writer', 'doc-reviewer', 'executor',
-      'executor-reviewer', 'director', 'manager'].map(name => `prompts/directives/${name}.md`),
+      'executor-reviewer', 'director'].map(name => `prompts/directives/${name}.md`),
     'prompts/systemPrompts/worker.md', 'prompts/systemPrompts/coder.md',
   ];
   const originals = new Map<string, string>();
