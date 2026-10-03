@@ -172,15 +172,15 @@ export function TopBar(): JSX.Element {
   useMenuShortcuts(menus, !nativeMenu.active);
 
   const mode = titleBarMode();
-  // macOS keeps the bar in full screen, as native apps keep their toolbars; the traffic lights are
-  // hidden there, so their strip and the window drag go too. Elsewhere full screen is immersive.
+  // Full screen keeps the bar. The traffic lights hide there, so their strip goes, and the window
+  // drag and caption buttons have nothing to act on.
   const fullscreen = windowActions.isFullscreen;
   const insetLeft = fullscreen ? 0 : captionInsetLeft();
   const style: CSSProperties = {
     height: TOP_BAR_HEIGHT,
     boxSizing: 'border-box',
     flex: 'none',
-    display: fullscreen && mode !== 'overlay' ? 'none' : 'flex',
+    display: 'flex',
     alignItems: 'center',
     // Transparent on purpose: the bar is a strip of the mesh ground, not a panel. Its buttons are
     // the only marks on it, so the panes below read as floating rather than as a docked layout with
@@ -293,7 +293,7 @@ export function TopBar(): JSX.Element {
         </IconButton>
       </div>
 
-      {mode === 'custom' && <WindowControls actions={windowActions} />}
+      {mode === 'custom' && !fullscreen && <WindowControls actions={windowActions} />}
     </div>
   );
 }

@@ -90,10 +90,14 @@ describe('TopBar in full screen', () => {
     act(() => view.unmount());
   });
 
-  it('hides on Windows and Linux', () => {
+  it('stays on Windows and Linux without caption buttons or window drag', () => {
     Object.assign(chrome, { mode: 'custom', fullscreen: true });
     const view = create(<TopBar />);
-    expect(bar(view).props.style.display).toBe('none');
+    expect(bar(view).props.style.display).toBe('flex');
+    expect(bar(view).props['data-tauri-drag-region']).toBeUndefined();
+    const labels = view.root.findAllByType('button').map((node) => node.props['aria-label']);
+    expect(labels).toContain('settings');
+    expect(labels).not.toContain('winClose');
     act(() => view.unmount());
   });
 });
