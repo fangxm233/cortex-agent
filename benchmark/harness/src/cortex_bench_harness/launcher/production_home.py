@@ -10,21 +10,11 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from ..trial_assets import canonical_sha256
-from .production_arms import (
-    MANAGER_QA_ENDPOINT,
-    TASK_ROOT,
-    ProductionArmBundle,
-    production_arm_bundle,
-)
+from .production_arms import ProductionArmBundle, production_arm_bundle
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/4"
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/5"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
-# A task root is created by the daemon's own dispatcher, not posted to the webhook, so it cannot
-# carry the launcher's evidence context in a request body the way a thread root does. The context
-# is materialized into the sealed home instead and named by the server's sealed environment.
-EVIDENCE_CONTEXT_FILENAME = "production-benchmark-evidence-context.json"
-EVIDENCE_CONTEXT_FILE_ENV = "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE"
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
 # logs the trial collects. The leak scanner refuses any `/home/<name>` it finds there, so this
 # directory may not be called `home`: that spelling made the gateway logging its own config path
@@ -179,8 +169,8 @@ def committed_input_bundle_files(bundle_key: str) -> tuple[dict[str, str], ...]:
     The attestation states that digest and a file count but never the list, and a record that only
     counts its inputs cannot be read back to what they were. The list is therefore read off the
     committed bundle it was computed from, never reconstructed from the digest — and off the bundle
-    the trial's own attestation names, so a coder-review trial can never record the direct arm's
-    inventory.
+    the trial's own attestation names, so a trial of one provider's arm can never record the other
+    provider's inventory.
     """
     return _snapshot_entries(
         _snapshot_tree(production_arm_bundle(bundle_key).bundle_dir).files)
@@ -229,7 +219,7 @@ def _gateway_yaml(
 
 def _write_dynamic_inputs(
     cortex_home: Path, bundle: ProductionArmBundle, proxy_base_url: str,
-    dummy_token_ref: str, evidence_context: Mapping[str, object] | None,
+    dummy_token_ref: str,
 ) -> None:
     auth = _pi_auth(bundle, dummy_token_ref)
     payload = (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode()
@@ -242,11 +232,6 @@ def _write_dynamic_inputs(
         cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
         _gateway_yaml(bundle, proxy_base_url, dummy_token_ref),
     )
-    if evidence_context is not None:
-        _write_bytes(
-            cortex_home / EVIDENCE_CONTEXT_FILENAME,
-            (json.dumps(dict(evidence_context), indent=2, ensure_ascii=False) + "\n").encode(),
-        )
 
 
 def _write_profile_output_cap(cortex_home: Path, max_output_tokens: int) -> None:
@@ -290,38 +275,17 @@ def _sealed_environment(
         "HOME": str(runtime_home / CONTAINER_HOME_DIR),
         "XDG_CACHE_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.cache"),
         "XDG_CONFIG_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.config"),
-        "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_THREAD_OP_ONLY": "1",
-        # Single-root mode admits exactly the root this launch attests, and admits nothing at all
-        # when the launcher states no template: the arm widens the guard, the server does not.
-        "CORTEX_WEBHOOK_SINGLE_ROOT": "1",
-        "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE": facts.arm_bundle.root_template,
+        # The server serves the benchmark-session route and refuses every other one.
+        "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_BENCHMARK_ONLY": "1",
         "WEBHOOK_PORT": "3001",
         "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
     })
-    if facts.arm_bundle.injection == TASK_ROOT:
-        environment[EVIDENCE_CONTEXT_FILE_ENV] = str(
-            runtime_home / EVIDENCE_CONTEXT_FILENAME)
-    if MANAGER_QA_ENDPOINT in facts.arm_bundle.webhook_endpoints:
-        environment["CORTEX_WEBHOOK_MANAGER_QA_ALLOWED"] = "1"
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")
     return dict(sorted(environment.items()))
 
 
-def _writable_target(root: Path, relative: str) -> Path:
-    """One directory this arm declared writable, refused unless it is really inside the home.
-
-    An arm opens a path because something in the running server has to write it; a path that
-    escapes the home, or that the bundle never shipped, is a launcher defect, not a relaxation.
-    """
-    target = (root / relative).resolve()
-    if not target.is_relative_to(root.resolve()) or not target.is_dir():
-        raise ProductionHomeError(
-            f"writable arm path must be one directory inside the home: {relative}")
-    return target
-
-
-def _make_read_only(root: Path, writable: tuple[str, ...] = ()) -> None:
+def _make_read_only(root: Path) -> None:
     for path in root.rglob("*"):
         if path.is_file():
             path.chmod(0o444)
@@ -331,13 +295,6 @@ def _make_read_only(root: Path, writable: tuple[str, ...] = ()) -> None:
             if path.is_dir():
                 path.chmod(0o555)
         immutable.chmod(0o555)
-    # Reopened last and only here: the arm's declared paths, not their parents, so the tree above
-    # a writable task store stays exactly as sealed as every other arm's.
-    for relative in writable:
-        target = _writable_target(root, relative)
-        for path in target.rglob("*"):
-            path.chmod(0o755 if path.is_dir() else 0o644)
-        target.chmod(0o755)
 
 
 def _sha256_file(path: Path) -> str:
@@ -443,14 +400,8 @@ def materialize_production_home(
     evidence_context = _evidence_context(facts, manifest_hash)
     _copy_snapshot(bundle, home)
     _write_profile_output_cap(home, facts.max_output_tokens)
-    _write_dynamic_inputs(
-        home,
-        facts.arm_bundle,
-        proxy_base_url,
-        facts.dummy_token_ref,
-        evidence_context if facts.arm_bundle.injection == TASK_ROOT else None,
-    )
-    _make_read_only(home, facts.arm_bundle.writable_home_paths)
+    _write_dynamic_inputs(home, facts.arm_bundle, proxy_base_url, facts.dummy_token_ref)
+    _make_read_only(home)
     home_sha256, home_count = _digest_tree(home)
     attestation = _launch_attestation(facts, npm_sha256, bundle, home_sha256, home_count, manifest_hash)
     _write_json_atomic(attestation_path, attestation)

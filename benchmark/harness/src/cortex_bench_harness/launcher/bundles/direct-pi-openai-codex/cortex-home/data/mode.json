@@ -4,6 +4,6 @@
   "backend": "pi",
   "claudeModel": "gpt-5.6-sol",
   "activeProfile": "direct",
-  "defaultAgent": "direct",
+  "defaultAgent": "main",
   "channelProfiles": {}
 }

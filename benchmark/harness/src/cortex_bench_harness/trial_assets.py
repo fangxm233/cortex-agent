@@ -30,8 +30,7 @@ ASSET_MANIFEST_PATH = f"{ASSETS_DIRNAME}/manifest.json"
 MEMBER_ROOT = "package"
 PRODUCTION_HOME_DIRNAME = "production-cortex-home"
 PRODUCTION_HOME_CONTAINER_ROOT = f"/logs/agent/{PRODUCTION_HOME_DIRNAME}"
-PRODUCTION_TEMPLATES_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/templates"
-PRODUCTION_AGENTS_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/thread-templates/agents"
+PRODUCTION_ENVIRONMENTS_DIR = f"{PRODUCTION_HOME_DIRNAME}/config/environments"
 PROMPT_FILE_PREFIX = "file:"
 
 
@@ -58,9 +57,9 @@ def canonical_sha256(value: object) -> str:
 
 def publish_trial_assets(
     *, logs_dir: Path, npm_artifact: Path, bundle_root: str,
-    root_template: str | None = None,
+    environment: str | None = None,
 ) -> PublishedAssets:
-    roles = _production_home_roles(logs_dir, bundle_root, root_template)
+    roles = _production_home_roles(logs_dir, bundle_root, environment)
     trees = _asset_plan(roles, bundle_root)
     home_files, container_paths = _production_prompt_assets(
         logs_dir, roles, bundle_root)
@@ -74,21 +73,16 @@ def publish_trial_assets(
 
 
 def _production_home_roles(
-    logs_dir: Path, bundle_root: str, root_template: str | None,
+    logs_dir: Path, bundle_root: str, environment: str | None,
 ) -> Mapping[str, Mapping[str, object]]:
-    if not root_template:
-        raise TrialAssetError("production_root_template_unattested")
-    template = _read_home_document(
-        logs_dir / PRODUCTION_TEMPLATES_DIR / f"{root_template}.json")
-    agents = template.get("agents")
-    if not isinstance(agents, list) or not agents:
-        raise TrialAssetError("production_home_unreadable")
+    """The one execution environment the trial's session ran, keyed by its name."""
+    if not environment:
+        raise TrialAssetError("production_environment_unattested")
     return {
-        str(name): _production_role(
-            _read_home_document(logs_dir / PRODUCTION_AGENTS_DIR / f"{name}.json"),
+        environment: _production_role(
+            _read_home_document(logs_dir / PRODUCTION_ENVIRONMENTS_DIR / f"{environment}.json"),
             bundle_root,
-        )
-        for name in agents
+        ),
     }
 
 

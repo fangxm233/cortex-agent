@@ -11,7 +11,6 @@ import {
   type ProductionEvidenceExportResult,
 } from '@domain/benchmark/production-evidence-export.js';
 import { executionRepo } from '@store/execution-repo.js';
-import { threadStore } from '@store/thread-repo.js';
 
 interface ProductionEvidenceExportCliIo {
   stdout: Pick<NodeJS.WriteStream, 'write'>;
@@ -36,7 +35,6 @@ function readInput(source: string): string {
 function prepareProductionStores(): void {
   initializeProductionAttemptIdentity();
   executionRepo.load();
-  threadStore.load();
 }
 
 const DEFAULT_DEPS: ProductionEvidenceExportCliDeps = {

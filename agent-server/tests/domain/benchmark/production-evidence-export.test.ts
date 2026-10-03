@@ -7,10 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProductionAttemptIdentityRecord } from '../../../src/domain/benchmark/production-attempt-identity.js';
 import type { ProductionAttemptJournalRecord } from '../../../src/domain/benchmark/production-attempt-journal.js';
 import type { CostEntry } from '../../../src/domain/costs/cost-tracker.js';
-import type { ProductionTopologyFact } from '../../../src/domain/tasks/production-topology-ledger.js';
 import type { ExecutionRecord } from '../../../src/store/execution-repo.js';
-import type { ThreadRecord } from '../../../src/core/types/thread-types.js';
-import type { Task } from '../../../src/core/task-parser.js';
 import type { ProxyExport } from '../../../src/domain/benchmark/accounting-reconciliation.js';
 import {
   exportProductionBenchmarkEvidence,
@@ -25,12 +22,12 @@ const SHA = 'a'.repeat(64);
 const BUNDLE = 'b'.repeat(64);
 const START = '2026-08-16T00:00:00.000Z';
 const END = '2026-08-16T00:00:02.000Z';
+const SESSION = 'session-1';
 
 interface AttemptFixture {
   identity: ProductionAttemptIdentityRecord;
   journal: ProductionAttemptJournalRecord;
   execution: ExecutionRecord;
-  thread: ThreadRecord;
   cost: CostEntry;
 }
 
@@ -38,22 +35,13 @@ function hash(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-function topology(kind: ProductionTopologyFact['kind'], payload: object, index: number) {
-  return {
-    schema_version: 'cortex-production-topology/1', source: 'production_topology_ledger',
-    fact_id: `fact-${index}`, order_key: String(index).padStart(4, '0'),
-    occurred_at: `2026-08-16T00:00:01.${String(index).padStart(3, '0')}Z`,
-    project: 'cortex-self', kind, ...payload,
-  } as ProductionTopologyFact;
-}
-
 function journalBytes(input: {
-  rootRunId: string; threadId: string; role: string; reportedModel?: string | null;
+  rootRunId: string; sessionId: string; reportedModel?: string | null;
   rateLimited?: boolean; events?: readonly object[];
 }): Buffer {
   const header = {
-    schema_version: 'cortex-bench-journal/1', type: 'run_header',
-    root_run_id: input.rootRunId, thread_id: input.threadId, agent_slot: input.role,
+    schema_version: 'cortex-bench-journal/2', type: 'run_header',
+    root_run_id: input.rootRunId, session_id: input.sessionId, agent_slot: 'direct',
     seq: 0, ts: START, resolved_cwd: '/workspace',
     canonical_instruction_sha256: SHA, model_visible_prompt_sha256: SHA,
     system_prompt_sha256: SHA, tool_manifest_sha256: SHA, plugin_manifest_sha256: SHA,
@@ -64,9 +52,9 @@ function journalBytes(input: {
     ? [{ type: 'rate_limit', raw: { status: 429 } }]
     : [{ type: 'assistant_text', text: 'done', model: input.reportedModel ?? 'model-native' }]);
   const rows = [header, ...events.map((event, index) => ({
-    schema_version: 'cortex-bench-journal/1', type: 'event',
-    root_run_id: input.rootRunId, thread_id: input.threadId, step: null,
-    agent_slot: input.role, seq: index + 1, ts: END, backend: 'claude',
+    schema_version: 'cortex-bench-journal/2', type: 'event',
+    root_run_id: input.rootRunId, session_id: input.sessionId,
+    agent_slot: 'direct', seq: index + 1, ts: END, backend: 'claude',
     provider: 'anthropic', requested_model: 'model-requested',
     reported_model: input.reportedModel ?? 'model-native',
     model_execution_identity_hash: SHA, role_tool_surface_hash: SHA,
@@ -76,32 +64,26 @@ function journalBytes(input: {
 }
 
 function attemptFixture(root: string, input: {
-  rootRunId: string; executionId: string; threadId: string; role: string;
-  taskId: string; parentThreadId?: string | null; rootThreadId?: string;
-  taskProject?: string | null; generation?: string | null;
+  executionId: string; rootRunId?: string; sessionId?: string;
   parentAttemptId?: string | null; rootAttemptId?: string;
-  status?: 'completed' | 'failed' | 'cancelled'; threadStatus?: ThreadRecord['status'];
-  abortReason?: string | null; rateLimited?: boolean; frozenAt?: string;
+  status?: 'completed' | 'failed' | 'cancelled'; rateLimited?: boolean; frozenAt?: string;
   cacheCreationTokens?: number | null; events?: readonly object[];
 }): AttemptFixture {
   const attemptId = `execution-${input.executionId}`;
+  const rootRunId = input.rootRunId ?? 'root-1';
+  const sessionId = input.sessionId ?? SESSION;
   const bytes = journalBytes({
-    rootRunId: input.rootRunId, threadId: input.threadId, role: input.role,
-    rateLimited: input.rateLimited, events: input.events,
+    rootRunId, sessionId, rateLimited: input.rateLimited, events: input.events,
   });
   const journalPath = path.join(root, `${attemptId}.source.ndjson`);
   fs.writeFileSync(journalPath, bytes);
   const identity = {
-    schema_version: 'cortex-production-attempt-identity/3', trial_id: 'trial-1',
-    root_run_id: input.rootRunId, attempt_id: attemptId,
+    schema_version: 'cortex-production-attempt-identity/4', trial_id: 'trial-1',
+    root_run_id: rootRunId, attempt_id: attemptId,
     root_attempt_id: input.rootAttemptId ?? attemptId,
     spawn_parent_attempt_id: input.parentAttemptId ?? null,
-    execution_id: input.executionId, thread_id: input.threadId,
-    parent_thread_id: input.parentThreadId ?? null,
-    root_thread_id: input.rootThreadId ?? input.threadId,
-    task_id: input.taskId, task_project: input.taskProject ?? null,
-    dispatch_generation: input.generation ?? null, template: `template-${input.role}`,
-    role: input.role, stage: null, profile_name: 'benchmark', backend: 'claude',
+    execution_id: input.executionId, session_id: sessionId,
+    profile_name: 'benchmark', backend: 'claude',
     provider: 'anthropic', requested_model: 'model-requested',
     model_execution_identity_hash: SHA, role_tool_surface_hash: SHA,
     bundle_manifest_hash: BUNDLE,
@@ -114,32 +96,39 @@ function attemptFixture(root: string, input: {
   } satisfies ProductionAttemptJournalRecord;
   const status = input.status ?? 'completed';
   const execution = {
-    id: input.executionId, kind: 'thread', status, channel: 'benchmark', project: 'cortex-self',
-    source: { trigger: 'benchmark' }, backend: 'claude', billingMode: 'api',
-    session: { sessionId: null },
-    thread: { threadId: input.threadId, agentSlotId: input.role }, dispatch: null,
+    id: input.executionId, kind: 'local', status, channel: 'web:benchmark', project: 'general',
+    source: { trigger: 'user' }, backend: 'claude', billingMode: 'api',
+    session: { sessionId }, thread: null, dispatch: null,
     scheduleTaskId: null, runtime: { startedAt: START, updatedAt: END, endedAt: END },
     metrics: { costUsd: 0.25, numTurns: 1, durationS: 2 },
-    text: { label: input.role, finalOutput: null, error: status === 'failed' ? 'failed' : null },
+    text: { label: 'direct', finalOutput: null, error: status === 'failed' ? 'failed' : null },
   } satisfies ExecutionRecord;
-  const thread = {
-    id: input.threadId, status: input.threadStatus ?? (status === 'failed' ? 'failed' : 'completed'),
-    abortReason: input.abortReason ?? null, endedAt: END,
-    steps: status === 'failed' ? [] : [{ executionId: input.executionId }],
-  } as ThreadRecord;
   const cost = {
-    timestamp: END, project: 'cortex-self', trigger: 'thread', cost_usd: 0.25,
+    timestamp: END, project: 'general', trigger: 'user', cost_usd: 0.25,
     num_turns: 1, duration_s: 2, backend: 'claude', mode: 'api', source: 'agent',
     input_tokens: 10, output_tokens: 4, prompt_tokens: 12, cache_read_tokens: 2,
     cache_creation_tokens: input.cacheCreationTokens ?? null,
-    provider_requests: 1, execution_id: input.executionId,
-    thread_id: input.threadId, parent_thread_id: input.parentThreadId ?? null,
-    root_thread_id: input.rootThreadId ?? input.threadId, task_id: input.taskId,
-    task_project: input.taskProject ?? null, dispatch_generation: input.generation ?? null,
+    provider_requests: 1, execution_id: input.executionId, session_id: sessionId,
+    thread_id: null, parent_thread_id: null, root_thread_id: null, task_id: null,
+    task_project: null, dispatch_generation: null,
     attempt_id: attemptId, root_attempt_id: input.rootAttemptId ?? attemptId,
-    trial_id: 'trial-1', root_run_id: input.rootRunId,
+    trial_id: 'trial-1', root_run_id: rootRunId,
   } satisfies CostEntry;
-  return { identity, journal, execution, thread, cost };
+  return { identity, journal, execution, cost };
+}
+
+/** Three runs of one session: the first opens the chain, each later one continues the last. */
+function sessionChain(root: string): AttemptFixture[] {
+  const first = attemptFixture(root, { executionId: 'turn-1' });
+  const second = attemptFixture(root, {
+    executionId: 'turn-2', rootAttemptId: first.identity.attempt_id,
+    parentAttemptId: first.identity.attempt_id, frozenAt: '2026-08-16T00:00:00.700Z',
+  });
+  const third = attemptFixture(root, {
+    executionId: 'turn-3', rootAttemptId: first.identity.attempt_id,
+    parentAttemptId: second.identity.attempt_id, frozenAt: '2026-08-16T00:00:00.900Z',
+  });
+  return [first, second, third];
 }
 
 function proxy(): ProxyExport {
@@ -153,34 +142,21 @@ function proxy(): ProxyExport {
   };
 }
 
-function task(id: string, parent: string | null): Task {
-  return { id, parent, depends_on: [], project: 'cortex-self' } as Task;
-}
-
-function sources(
-  attempts: readonly AttemptFixture[], facts: readonly ProductionTopologyFact[] = [],
-  tasks: readonly Task[] = [],
-): ProductionEvidenceSources {
+function sources(attempts: readonly AttemptFixture[]): ProductionEvidenceSources {
   return {
     flush: async () => {},
     listIdentities: () => attempts.map(item => item.identity),
     getJournal: executionId => attempts.find(item => item.identity.execution_id === executionId)?.journal ?? null,
     getExecution: executionId => attempts.find(item => item.identity.execution_id === executionId)?.execution ?? null,
-    getThread: threadId => attempts.find(item => item.identity.thread_id === threadId)?.thread ?? null,
     readCosts: async () => attempts.map(item => item.cost),
-    readTopology: () => [...facts], readTasks: () => [...tasks],
   };
 }
 
-function exportInput(
-  outputDirectory: string, mode: ProductionEvidenceExportInput['mode'],
-  expectedRoles: readonly string[], managerQa: 'on' | 'off' | null = null,
-) {
+function exportInput(outputDirectory: string) {
   return {
-    outputDirectory, project: 'cortex-self', trialId: 'trial-1', rootRunId: 'root-1',
-    armName: `arm-${mode}`, armCanonicalSha256: 'c'.repeat(64),
-    bundleManifestHash: BUNDLE, mode, expectedRoles, managerQa,
-    proxyExport: proxy(),
+    outputDirectory, trialId: 'trial-1', rootRunId: 'root-1',
+    armName: 'arm-direct', armCanonicalSha256: 'c'.repeat(64),
+    bundleManifestHash: BUNDLE, proxyExport: proxy(),
   } satisfies ProductionEvidenceExportInput;
 }
 
@@ -191,60 +167,6 @@ function readComposite(directory: string): CompositeManifest {
 function atifIds(value: Record<string, unknown>): string[] {
   const children = (value.subagent_trajectories ?? []) as Record<string, unknown>[];
   return [String(value.trajectory_id), ...children.flatMap(atifIds)];
-}
-
-function coderScenario(root: string, withFixer: boolean): AttemptFixture[] {
-  const rootAttempt = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'coder', taskId: 'trial-1',
-  });
-  const reviewer = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'review', threadId: 'thr-root', role: 'reviewer',
-    taskId: 'trial-1', rootAttemptId: rootAttempt.identity.attempt_id,
-    parentAttemptId: rootAttempt.identity.attempt_id,
-    frozenAt: '2026-08-16T00:00:00.700Z',
-  });
-  if (!withFixer) return [rootAttempt, reviewer];
-  const fixer = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'fix', threadId: 'thr-root', role: 'fixer',
-    taskId: 'trial-1', rootAttemptId: rootAttempt.identity.attempt_id,
-    parentAttemptId: reviewer.identity.attempt_id,
-    frozenAt: '2026-08-16T00:00:00.900Z',
-  });
-  return [rootAttempt, reviewer, fixer];
-}
-
-function managerScenario(root: string, qa: boolean) {
-  const manager = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'manager', threadId: 'thr-manager', role: 'manager',
-    taskId: 'task-root', taskProject: 'cortex-self', generation: 'gen-root',
-  });
-  const child = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'child', threadId: 'thr-child', role: 'coder',
-    taskId: 'task-child', taskProject: 'cortex-self', generation: 'gen-child',
-    parentThreadId: 'thr-manager', rootThreadId: 'thr-manager',
-    rootAttemptId: manager.identity.attempt_id, parentAttemptId: manager.identity.attempt_id,
-  });
-  const reviewer = attemptFixture(root, {
-    rootRunId: 'root-1', executionId: 'child-review', threadId: 'thr-child', role: 'reviewer',
-    taskId: 'task-child', taskProject: 'cortex-self', generation: 'gen-child',
-    parentThreadId: 'thr-manager', rootThreadId: 'thr-manager',
-    rootAttemptId: manager.identity.attempt_id, parentAttemptId: child.identity.attempt_id,
-    frozenAt: '2026-08-16T00:00:00.700Z',
-  });
-  const facts = [
-    topology('decompose', { actor_thread_id: 'thr-manager', parent_task_id: 'task-root', child_task_id: 'task-child' }, 1),
-    topology('dispatch', { task_id: 'task-child', dispatch_generation: 'gen-child', thread_id: 'thr-child' }, 2),
-    topology('delivery', { child_task_id: 'task-child', child_thread_id: 'thr-child', child_dispatch_generation: 'gen-child', parent_task_id: 'task-root', parent_thread_id: 'thr-manager', outcome: 'completed' }, 3),
-    topology('verdict', { parent_task_id: 'task-root', manager_thread_id: 'thr-manager', child_task_id: 'task-child', child_thread_id: 'thr-child', child_dispatch_generation: 'gen-child', verdict: 'accepted', rework_round: 0 }, 4),
-  ];
-  if (qa) facts.push(
-    topology('question', { question_id: 'q1', asker_thread_id: 'thr-child', asker_task_id: 'task-child', manager_thread_id: 'thr-manager', origin_channel: null, question: 'clarify', projectable: true }, 5),
-    topology('answer', { question_id: 'q1', answerer_thread_id: 'thr-manager', answerer_channel: null, asker_thread_id: 'thr-child', answer: 'answer', consumed_at: END, projectable: true }, 6),
-  );
-  return {
-    attempts: [manager, child, reviewer], facts,
-    tasks: [task('task-root', null), task('task-child', 'task-root')],
-  };
 }
 
 describe('production evidence export', () => {
@@ -262,23 +184,18 @@ describe('production evidence export', () => {
     }
   });
 
-  it('rejects string-coercible mode and predicate results', async () => {
+  it('rejects string-coercible predicate results', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-input-coerced-'));
     try {
-      const base = exportInput(path.join(root, 'evidence'), 'direct', ['direct']);
-      for (const [input, message] of [
-        [{ ...base, mode: ['direct'] }, /orchestration mode is invalid/],
-        // A `fail` verdict wrapped in an array would clear an allowlist that coerces to text and
-        // then slip past the `=== 'fail'` refusal, publishing a failed predicate verbatim.
-        [
-          { ...base, evaluatedChecks: { G1: { result: ['fail'], detail: 'boom' } } },
-          /evaluated check G1 result is invalid/,
-        ],
-      ] as const) {
-        await expect(exportProductionBenchmarkEvidence(
-          input as unknown as ProductionEvidenceExportInput, sources([]),
-        )).rejects.toThrow(message);
-      }
+      // A `fail` verdict wrapped in an array would clear an allowlist that coerces to text and
+      // then slip past the `=== 'fail'` refusal, publishing a failed predicate verbatim.
+      const input = {
+        ...exportInput(path.join(root, 'evidence')),
+        evaluatedChecks: { G1: { result: ['fail'], detail: 'boom' } },
+      };
+      await expect(exportProductionBenchmarkEvidence(
+        input as unknown as ProductionEvidenceExportInput, sources([]),
+      )).rejects.toThrow(/evaluated check G1 result is invalid/);
       expect(fs.readdirSync(root)).toEqual([]);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -286,42 +203,42 @@ describe('production evidence export', () => {
   });
 
   it.each([
-    ['direct', false, false],
-    ['coder-review', false, false],
-    ['coder-review', true, false],
-    ['manager', false, false],
-    ['manager', false, true],
-  ] as const)('publishes validator-admissible %s evidence (fixer=%s qa=%s)', async (mode, fixer, qa) => {
+    ['a one-run session', false],
+    ['a session whose runs chain', true],
+  ] as const)('publishes validator-admissible evidence for %s', async (_label, chained) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-export-'));
     try {
       const output = path.join(root, 'trajectory');
-      const scenario = mode === 'direct'
-        ? { attempts: [attemptFixture(root, { rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'direct', taskId: 'trial-1' })], facts: [], tasks: [] }
-        : mode === 'coder-review'
-          ? { attempts: coderScenario(root, fixer), facts: [], tasks: [] }
-          : managerScenario(root, qa);
-      const roles = [...new Set(scenario.attempts.map(item => item.identity.role))];
-      const input = exportInput(output, mode, roles, mode === 'manager' ? (qa ? 'on' : 'off') : null);
-      const result = await exportProductionBenchmarkEvidence(input, sources(
-        scenario.attempts, scenario.facts, scenario.tasks,
-      ));
+      const attempts = chained ? sessionChain(root) : [attemptFixture(root, { executionId: 'root' })];
+      const result = await exportProductionBenchmarkEvidence(exportInput(output), sources(attempts));
       const composite = readComposite(output);
       const violations = validateCompositeManifest(composite, {
         lifecycleStems: composite.nodes.map(node => node.attempt_id),
       });
       expect(violations).toEqual([]);
-      expect(composite.roots.root_attempt_id).toBe(scenario.attempts[0].identity.attempt_id);
-      expect(composite.nodes.every(node => node.thread_id !== null)).toBe(true);
-      expect(composite.nodes.every(node => node.journal_sha256.length === 64)).toBe(true);
-      expect(composite.accounting.journal.requests).toEqual({
-        status: 'available', value: scenario.attempts.length,
+      expect(composite.predicate.mode).toBe('direct');
+      expect(composite.roots).toEqual({
+        root_attempt_id: attempts[0].identity.attempt_id, root_task_id: null,
       });
-      expect(result.terminalPaths).toHaveLength(scenario.attempts.length);
+      expect(composite.nodes.every(node => node.session_id === SESSION)).toBe(true);
+      expect(composite.nodes.map(node => node.execution_id))
+        .toEqual(attempts.map(item => item.identity.execution_id));
+      expect(composite.nodes.every(node => node.role === 'direct')).toBe(true);
+      expect(composite.nodes.every(node => node.journal_sha256.length === 64)).toBe(true);
+      expect(composite.edges).toEqual(attempts.slice(1).map(item => ({
+        kind: 'spawn',
+        from: { ref: 'attempt', id: item.identity.spawn_parent_attempt_id },
+        to: { ref: 'attempt', id: item.identity.attempt_id },
+      })));
+      expect(composite.accounting.journal.requests).toEqual({
+        status: 'available', value: attempts.length,
+      });
+      expect(result.terminalPaths).toHaveLength(attempts.length);
       expect(fs.lstatSync(output).isDirectory()).toBe(true);
       const atif = JSON.parse(
         fs.readFileSync(path.join(output, 'trajectory.json'), 'utf8'),
       ) as Record<string, unknown>;
-      expect(new Set(atifIds(atif))).toEqual(new Set(composite.nodes.map(node => node.attempt_id)));
+      expect(atifIds(atif)).toEqual(attempts.map(item => item.identity.attempt_id));
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -331,14 +248,12 @@ describe('production evidence export', () => {
     // `context_usage` is emitted every couple of seconds, so it lands between two calls of one
     // batch whenever the model issues them a moment apart. The call phase used to end at the first
     // event that was not a call, which registered only `call-a`; `call-b`'s result then answered a
-    // batch that had never opened it and the whole journal was refused `unpaired_tool_result`. On
-    // 2026-08-27 that cost three terminal-bench trials their score outright, because the export
-    // refusal aborts the trial before the verifier runs.
+    // batch that had never opened it and the whole journal was refused `unpaired_tool_result`,
+    // aborting the trial before the verifier ran.
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-heartbeat-batch-'));
     try {
       const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'direct',
-        taskId: 'trial-1',
+        executionId: 'root',
         events: [
           { type: 'tool_use', toolUseId: 'call-a', name: 'bash', input: {} },
           { type: 'context_usage', usedTokens: 1024 },
@@ -349,9 +264,7 @@ describe('production evidence export', () => {
         ],
       });
       const output = path.join(root, 'trajectory');
-      const result = await exportProductionBenchmarkEvidence(
-        exportInput(output, 'direct', ['direct']), sources([attempt]),
-      );
+      const result = await exportProductionBenchmarkEvidence(exportInput(output), sources([attempt]));
 
       expect(result.terminalPaths).toHaveLength(1);
       const atif = JSON.parse(
@@ -368,13 +281,9 @@ describe('production evidence export', () => {
     async (cacheCreationTokens) => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-cache-creation-'));
       try {
-        const attempt = attemptFixture(root, {
-          rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
-          role: 'direct', taskId: 'trial-1', cacheCreationTokens,
-        });
+        const attempt = attemptFixture(root, { executionId: 'root', cacheCreationTokens });
         const output = path.join(root, 'trajectory');
-        const input = exportInput(output, 'direct', ['direct']);
-        await exportProductionBenchmarkEvidence(input, sources([attempt]));
+        await exportProductionBenchmarkEvidence(exportInput(output), sources([attempt]));
         const composite = readComposite(output);
         const terminal = JSON.parse(fs.readFileSync(
           path.join(output, composite.nodes[0].terminal_manifest_path), 'utf8',
@@ -388,17 +297,14 @@ describe('production evidence export', () => {
     },
   );
 
-  it('projects a direct rate-limited failure without weakening its evidence', async () => {
+  it('projects a rate-limited failure without weakening its evidence', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-rate-limit-'));
     try {
       const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
-        role: 'direct', taskId: 'trial-1', status: 'failed', rateLimited: true,
-        cacheCreationTokens: 3,
+        executionId: 'root', status: 'failed', rateLimited: true, cacheCreationTokens: 3,
       });
       const output = path.join(root, 'trajectory');
-      const input = exportInput(output, 'direct', ['direct']);
-      await exportProductionBenchmarkEvidence(input, sources([attempt]));
+      await exportProductionBenchmarkEvidence(exportInput(output), sources([attempt]));
       const composite = readComposite(output);
       expect(composite.nodes[0]).toMatchObject({
         terminal_state: 'failed', terminal_reason: 'rate_limited',
@@ -409,59 +315,34 @@ describe('production evidence export', () => {
     }
   });
 
-  it('refuses negative cache-creation attribution', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-cache-invalid-'));
+  it('keeps every run of the session on the record, whatever each one ended in', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-history-'));
     try {
-      const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
-        role: 'direct', taskId: 'trial-1', cacheCreationTokens: -1,
-      });
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'trajectory'), 'direct', ['direct']), sources([attempt]),
-      )).rejects.toThrow(/invalid counter/i);
+      const [first, second, third] = sessionChain(root);
+      first.execution.status = 'failed';
+      second.execution.status = 'cancelled';
+      const output = path.join(root, 'trajectory');
+      await exportProductionBenchmarkEvidence(exportInput(output), sources([first, second, third]));
+      const nodes = readComposite(output).nodes;
+      expect(nodes.map(node => [node.execution_id, node.terminal_state, node.terminal_reason]))
+        .toEqual([
+          ['turn-1', 'failed', 'child_failure'],
+          ['turn-2', 'cancelled', 'cancelled'],
+          ['turn-3', 'completed', 'ok'],
+        ]);
+      expect(nodes.every(node => node.disposition === 'none')).toBe(true);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('preserves failed, aborted, rejected, and superseded production history', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-history-'));
+  it('refuses negative cache-creation attribution', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-cache-invalid-'));
     try {
-      const scenario = managerScenario(root, false);
-      const failed = scenario.attempts[2];
-      failed.execution.status = 'failed';
-      failed.thread.status = 'failed';
-      scenario.facts[3] = topology('verdict', {
-        parent_task_id: 'task-root', manager_thread_id: 'thr-manager',
-        child_task_id: 'task-child', child_thread_id: 'thr-child',
-        child_dispatch_generation: 'gen-child', verdict: 'rejected', rework_round: 1,
-      }, 4);
-      const replacement = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'replacement', threadId: 'thr-replacement', role: 'coder',
-        taskId: 'task-child', taskProject: 'cortex-self', generation: 'gen-replacement',
-        parentThreadId: 'thr-manager', rootThreadId: 'thr-manager',
-        rootAttemptId: scenario.attempts[0].identity.attempt_id,
-        parentAttemptId: failed.identity.attempt_id, threadStatus: 'aborted', abortReason: 'blocked',
-        frozenAt: '2026-08-16T00:00:00.900Z',
-      });
-      scenario.facts.push(
-        topology('rework', { task_id: 'task-child', rejected_thread_id: 'thr-child', rejected_dispatch_generation: 'gen-child', replacement_thread_id: 'thr-replacement', replacement_dispatch_generation: 'gen-replacement', rework_round: 1 }, 5),
-        topology('dispatch', { task_id: 'task-child', dispatch_generation: 'gen-replacement', thread_id: 'thr-replacement' }, 6),
-        topology('delivery', { child_task_id: 'task-child', child_thread_id: 'thr-replacement', child_dispatch_generation: 'gen-replacement', parent_task_id: 'task-root', parent_thread_id: 'thr-manager', outcome: 'blocked' }, 7),
-        topology('verdict', { parent_task_id: 'task-root', manager_thread_id: 'thr-manager', child_task_id: 'task-child', child_thread_id: 'thr-replacement', child_dispatch_generation: 'gen-replacement', verdict: 'rejected', rework_round: 1 }, 8),
-      );
-      const output = path.join(root, 'trajectory');
-      await exportProductionBenchmarkEvidence(
-        exportInput(output, 'manager', ['manager', 'coder', 'reviewer'], 'off'),
-        sources([...scenario.attempts, replacement], scenario.facts, scenario.tasks),
-      );
-      const nodes = readComposite(output).nodes;
-      expect(nodes.find(node => node.attempt_id === failed.identity.attempt_id)).toMatchObject({
-        terminal_state: 'failed', terminal_reason: 'child_failure', disposition: 'superseded',
-      });
-      expect(nodes.find(node => node.attempt_id === replacement.identity.attempt_id)).toMatchObject({
-        terminal_state: 'aborted', terminal_reason: 'aborted', disposition: 'rejected',
-      });
+      const attempt = attemptFixture(root, { executionId: 'root', cacheCreationTokens: -1 });
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'trajectory')), sources([attempt]),
+      )).rejects.toThrow(/invalid counter/i);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -470,15 +351,11 @@ describe('production evidence export', () => {
   it('fails closed without exposing a partial directory when a durable fact is missing', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-missing-'));
     try {
-      const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'direct', taskId: 'trial-1',
-      });
+      const attempt = attemptFixture(root, { executionId: 'root' });
       const output = path.join(root, 'trajectory');
       const broken = sources([attempt]);
       broken.getJournal = () => null;
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(output, 'direct', ['direct']), broken,
-      ))
+      await expect(exportProductionBenchmarkEvidence(exportInput(output), broken))
         .rejects.toThrow(/journal/i);
       expect(fs.existsSync(output)).toBe(false);
       expect(fs.readdirSync(root).some(name => name.includes('.staging-'))).toBe(false);
@@ -487,129 +364,46 @@ describe('production evidence export', () => {
     }
   });
 
-  it('exports a pipeline the vendor or the clock stopped before its later roles ran', async () => {
-    // A coder-review thread whose coder is cut off -- budget revoked at the wall clock, or the
-    // vendor refusing the request -- has no reviewer attempt because there was never a reviewer.
-    // Refusing the export there aborts the trial before the verifier runs, so on 2026-08-27 eight
-    // terminal-bench trials lost the score they had already earned.
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-stopped-early-'));
+  it('refuses a run the session did not own and evidence the session never wrote', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-session-linkage-'));
     try {
-      const coder = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'coder',
-        taskId: 'trial-1', status: 'failed', threadStatus: 'failed',
-      });
-      const output = path.join(root, 'trajectory');
-      const result = await exportProductionBenchmarkEvidence(
-        exportInput(output, 'coder-review', ['coder', 'reviewer']), sources([coder]),
-      );
+      const foreignRun = attemptFixture(root, { executionId: 'root' });
+      foreignRun.execution.session.sessionId = 'session-other';
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'foreign-run')), sources([foreignRun]),
+      )).rejects.toThrow(/execution linkage mismatch/i);
 
-      expect(result.terminalPaths).toHaveLength(1);
-      const composite = readComposite(output);
-      // The incompleteness is on the record: one node, in the role that ran, terminally failed.
-      expect(composite.nodes.map(node => node.role)).toEqual(['coder']);
-      expect(composite.nodes[0].terminal_state).toBe('failed');
+      const foreignCost = attemptFixture(root, { executionId: 'root' });
+      foreignCost.cost.session_id = 'session-other';
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'foreign-cost')), sources([foreignCost]),
+      )).rejects.toThrow(/cost attribution mismatch/i);
+
+      const foreignJournal = attemptFixture(root, { executionId: 'root' });
+      const bytes = journalBytes({ rootRunId: 'root-1', sessionId: 'session-other' });
+      fs.writeFileSync(foreignJournal.journal.journal_path, bytes);
+      foreignJournal.journal = { ...foreignJournal.journal, journal_sha256: hash(bytes) };
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'foreign-journal')), sources([foreignJournal]),
+      )).rejects.toThrow(/session mismatch/i);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('refuses a role the launcher never declared, however the thread ended', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-role-outside-'));
+  it('refuses a trial run whose attempts do not resolve to one root', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-roots-'));
     try {
-      const coder = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'coder',
-        taskId: 'trial-1', status: 'failed', threadStatus: 'failed',
+      const first = attemptFixture(root, { executionId: 'first' });
+      const second = attemptFixture(root, {
+        executionId: 'second', frozenAt: '2026-08-16T00:00:00.700Z',
       });
       await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'trajectory'), 'coder-review', ['reviewer']), sources([coder]),
-      )).rejects.toThrow(/attempt role coder is outside reviewer/i);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('exports a re-dispatch whose thread never froze an attempt', async () => {
-    // A task cut off mid-flight goes out again, and the trial can end before the replacement thread
-    // freezes anything. The edge is `task -> attempt`, so there is no endpoint and no edge -- an
-    // absent projection, not a broken graph. Refusing cost five manager trials their score on
-    // 2026-08-27, the verifier never having run.
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-redispatch-'));
-    try {
-      const scenario = managerScenario(root, false);
-      const facts = [...scenario.facts, topology('dispatch', {
-        task_id: 'task-child', dispatch_generation: 'gen-replacement', thread_id: 'thr-replacement',
-      }, 7)];
-      const output = path.join(root, 'trajectory');
-      const result = await exportProductionBenchmarkEvidence(
-        exportInput(output, 'manager', ['manager', 'coder', 'reviewer'], 'off'),
-        sources(scenario.attempts, facts, scenario.tasks),
-      );
-
-      expect(result.terminalPaths).toHaveLength(scenario.attempts.length);
-      const composite = readComposite(output);
-      expect(composite.edges.some(edge => edge.to.ref === 'attempt'
-        && edge.to.id.includes('replacement'))).toBe(false);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('refuses missing launcher roles and incomplete manager topology', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-shape-'));
-    try {
-      const direct = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
-        role: 'direct', taskId: 'trial-1',
-      });
+        exportInput(path.join(root, 'two-roots')), sources([first, second]),
+      )).rejects.toThrow(/root resolves to 2 attempts/i);
       await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'direct'), 'direct', ['direct', 'reviewer']),
-        sources([direct]),
-      )).rejects.toThrow(/roles mismatch/i);
-      const manager = managerScenario(root, false);
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'manager'), 'manager', ['manager', 'coder', 'reviewer'], 'off'),
-        sources(manager.attempts, manager.facts.filter(fact => fact.kind !== 'verdict'), manager.tasks),
-      )).rejects.toThrow(/verdict count is 0/i);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('allows unused Q&A-on but refuses unpaired Q&A, missing dependencies, and direct retry', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-closure-'));
-    try {
-      const manager = managerScenario(root, false);
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'qa-unused'), 'manager', ['manager', 'coder', 'reviewer'], 'on'),
-        sources(manager.attempts, manager.facts, manager.tasks),
-      )).resolves.toBeDefined();
-      const unpaired = [...manager.facts, topology('question', {
-        question_id: 'unpaired', asker_thread_id: 'thr-child', asker_task_id: 'task-child',
-        manager_thread_id: 'thr-manager', origin_channel: null,
-        question: 'missing answer', projectable: true,
-      }, 9)];
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'qa-unpaired'), 'manager', ['manager', 'coder', 'reviewer'], 'on'),
-        sources(manager.attempts, unpaired, manager.tasks),
-      )).rejects.toThrow(/Q&A topology is unpaired/i);
-      manager.tasks[1].depends_on = ['task-root'];
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'dependency'), 'manager', ['manager', 'coder', 'reviewer'], 'off'),
-        sources(manager.attempts, manager.facts, manager.tasks),
-      )).rejects.toThrow(/dependency topology mismatches/i);
-      const first = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'direct-1', threadId: 'thr-direct',
-        role: 'direct', taskId: 'trial-1',
-      });
-      const retry = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'direct-2', threadId: 'thr-direct',
-        role: 'direct', taskId: 'trial-1', rootAttemptId: first.identity.attempt_id,
-        parentAttemptId: first.identity.attempt_id, frozenAt: '2026-08-16T00:00:00.700Z',
-      });
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(path.join(root, 'direct-retry'), 'direct', ['direct']),
-        sources([first, retry]),
-      )).rejects.toThrow(/requires one attempt/i);
+        exportInput(path.join(root, 'no-root')), sources([]),
+      )).rejects.toThrow(/root resolves to 0 attempts/i);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -619,15 +413,11 @@ describe('production evidence export', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-atomic-'));
     const originalPath = process.env.PATH;
     try {
-      const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root',
-        role: 'direct', taskId: 'trial-1',
-      });
+      const attempt = attemptFixture(root, { executionId: 'root' });
       const output = path.join(root, 'trajectory');
       process.env.PATH = '';
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(output, 'direct', ['direct']), sources([attempt]),
-      )).rejects.toThrow(/ENOENT|spawn/i);
+      await expect(exportProductionBenchmarkEvidence(exportInput(output), sources([attempt])))
+        .rejects.toThrow(/ENOENT|spawn/i);
       expect(fs.existsSync(output)).toBe(false);
       expect(fs.readdirSync(root).some(name => name.includes('.staging-'))).toBe(false);
     } finally {
@@ -639,20 +429,14 @@ describe('production evidence export', () => {
   it('refuses bundle drift and never overwrites a prior publication', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-drift-'));
     try {
-      const attempt = attemptFixture(root, {
-        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'direct', taskId: 'trial-1',
-      });
+      const attempt = attemptFixture(root, { executionId: 'root' });
       const output = path.join(root, 'trajectory');
-      const input = {
-        ...exportInput(output, 'direct', ['direct']), bundleManifestHash: 'd'.repeat(64),
-      };
+      const input = { ...exportInput(output), bundleManifestHash: 'd'.repeat(64) };
       await expect(exportProductionBenchmarkEvidence(input, sources([attempt])))
         .rejects.toThrow(/bundle/i);
       fs.mkdirSync(output);
       fs.writeFileSync(path.join(output, 'owner'), 'first');
-      await expect(exportProductionBenchmarkEvidence(
-        exportInput(output, 'direct', ['direct']), sources([attempt]),
-      ))
+      await expect(exportProductionBenchmarkEvidence(exportInput(output), sources([attempt])))
         .rejects.toThrow(/exists/i);
       expect(fs.readFileSync(path.join(output, 'owner'), 'utf8')).toBe('first');
     } finally {

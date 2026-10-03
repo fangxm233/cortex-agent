@@ -8,15 +8,11 @@ import {
 
 const COMPLETE_INPUT = {
   outputDirectory: '/tmp/evidence',
-  project: 'cortex-self',
   trialId: 'trial-1',
   rootRunId: 'root-1',
   armName: 'direct',
   armCanonicalSha256: 'a'.repeat(64),
   bundleManifestHash: 'b'.repeat(64),
-  mode: 'direct',
-  expectedRoles: ['direct'],
-  managerQa: null,
   proxyExport: {
     schema_version: 'cortex-bench-proxy-export/1',
     trial_id: 'trial-1',

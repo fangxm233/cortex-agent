@@ -42,6 +42,6 @@ def test_wheel_contains_every_committed_arm_bundle() -> None:
         for bundle in PRODUCTION_ARM_BUNDLES
         for path in bundle.bundle_dir.rglob("*") if path.is_file()
     }
-    assert len(expected) >= 20
+    assert len(expected) >= 18
     with zipfile.ZipFile(WHEEL_PATH) as wheel:
         assert expected <= set(wheel.namelist())

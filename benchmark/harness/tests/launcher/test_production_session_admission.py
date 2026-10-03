@@ -33,8 +33,6 @@ from cortex_bench_harness.launcher.production_session import (
 from cortex_bench_harness.launcher.trial_admission import build_harbor_trial_config
 
 DIRECT_BUNDLE = production_arm_bundle("direct-pi-deepseek")
-AUDIT_RETRY_BUNDLE = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
-MANAGER_BUNDLE = production_arm_bundle("manager-qa-off-pi-deepseek")
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
 TRIAL_ID = "trial-sealed"
@@ -65,11 +63,7 @@ def admitted_deepseek_capability(monkeypatch: pytest.MonkeyPatch):
     )
 
 
-ARM_NAMES = {
-    "direct-pi-deepseek": "zero-paid-pi-direct",
-    "coder-review-audit-retry-pi-deepseek": "zp-pi-coder-audit-retry",
-    "manager-qa-off-pi-deepseek": "zp-pi-manager-qa-off",
-}
+ARM_NAMES = {"direct-pi-deepseek": "zero-paid-pi-direct"}
 
 
 def production_arm(bundle: ProductionArmBundle = DIRECT_BUNDLE) -> dict[str, object]:
@@ -178,35 +172,23 @@ class ContainerDouble:
         if "production-app-bootstrap.js" in command:
             (self.logs_dir / "production-server-auth.json").unlink()
             return "4242\n"
-        if "production-thread-ready.json" in command:
-            return json.dumps({"success": True, "data": {"agents": []}})
+        if "production-session-ready.json" in command:
+            return json.dumps({"success": True, "data": {"ready": True}})
         if "127.0.0.1:9880/status" in command:
             return json.dumps({"status": "ok"})
-        if "production-thread-start.json" in command:
+        if "production-session-start.json" in command:
             return json.dumps({
                 "success": True,
-                "data": {"threadId": "thr_sealed", "status": "running"},
+                "data": {"sessionId": "ses_sealed", "channel": "web:ses_sealed",
+                         "status": "running"},
             })
-        if "cortex-task add" in command:
-            return self._task_cli_stdout({
-                "success": True, "message": "Task added to general", "task-id": "a1b2",
-            })
-        if "cortex-task lock-release" in command:
-            return self._task_cli_stdout({"success": True, "message": "Lock released"})
-        if "production-thread-list.json" in command:
-            return json.dumps({"success": True, "data": {
-                "scope": "project", "count": 1,
-                "threads": [{
-                    "threadId": "thr_sealed", "status": "running",
-                    "templateName": "manager", "trigger": "task-dispatch",
-                    "createdAt": "2026-01-01T00:00:01.000Z",
-                }],
-            }})
-        if "production-thread-result.json" in command:
+        if "production-session-status.json" in command:
             return json.dumps({
                 "success": True,
-                "data": {"threadId": "thr_sealed", "status": "completed",
-                         "terminal": True, "artifact": None, "finalOutput": "done"},
+                "data": {"sessionId": "ses_sealed", "channel": "web:ses_sealed",
+                         "running": False, "terminal": True, "status": "completed",
+                         "turns": 1, "finalOutput": "done", "error": None,
+                         "executionIds": ["exec-1"]},
             })
         if "events.jsonl" in command:
             # The workspace-contract reader. The real one is a node script in the container;
@@ -225,24 +207,15 @@ class ContainerDouble:
             trajectory = self.logs_dir / "trajectory"
             trajectory.mkdir(exist_ok=True)
             (trajectory / "events.jsonl").write_text(json.dumps({
-                "schema_version": "cortex-bench-journal/1", "type": "run_header",
-                "root_run_id": f"{TRIAL_ID}.sealed", "agent_slot": "direct", "seq": 0,
+                "schema_version": "cortex-bench-journal/2", "type": "run_header",
+                "root_run_id": f"{TRIAL_ID}.sealed", "session_id": "ses_sealed",
+                "agent_slot": "direct", "seq": 0,
                 "resolved_cwd": WORKSPACE_CWD,
             }) + "\n", encoding="utf-8")
             return ""
         if "kill -TERM" in command:
             return ""
         raise AssertionError(f"unexpected container command: {command}")
-
-    @staticmethod
-    def _task_cli_stdout(value: dict[str, object]) -> str:
-        """The JSON result with the CLI's own logger ahead of it and its notice trailing it."""
-        return (
-            "[thread-manager 09:40:08] Loaded 17 agents, 9 templates\n"
-            + json.dumps(value, indent=2) + "\n"
-            "Lock acquired automatically. "
-            "Release with: cortex-task lock-release --project general\n"
-        )
 
 
 def sealed_trial(tmp_path: Path, bundle: ProductionArmBundle = DIRECT_BUNDLE) -> Trial:
@@ -309,9 +282,12 @@ def test_webhook_post_passes_the_real_sealed_environment_assertion(
 
     result = asyncio.run(session.run("Solve only this task.", execute))
 
-    assert (result.thread_id, result.status) == ("thr_sealed", "completed")
+    assert (result.session_id, result.status) == ("ses_sealed", "completed")
     assert session.stopped_cleanly is True
-    assert any("/webhook/thread-op" in command for command in container.commands)
+    assert any("/webhook/benchmark-session" in command for command in container.commands)
+    launch = container.commands[0]
+    assert "CORTEX_WEBHOOK_BENCHMARK_ONLY=1" in launch
+    assert "CORTEX_WEBHOOK_THREAD_OP_ONLY" not in launch
 
 
 def test_webhook_token_never_reaches_a_container_command_string(
@@ -337,87 +313,3 @@ def test_webhook_token_never_reaches_a_container_command_string(
         for command in container.commands
     )
     assert not list(logs_dir.glob("production-*auth*.json"))
-
-
-def test_audit_retry_arm_injects_its_attested_root_through_the_real_sealed_exec(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """K-051: the second arm's exec path gets its own witness against the real admission check.
-
-    A fake executor cannot see that the sealed environment gained
-    `CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE`, and the exact-identity comparison in
-    `AdmittedDockerEnvironment.exec` is what would refuse it.
-    """
-    trial = sealed_trial(tmp_path, AUDIT_RETRY_BUNDLE)
-    logs_dir = trial.paths.agent_dir
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    container = ContainerDouble(logs_dir)
-    monkeypatch.setattr(trial.agent_environment, "_compose_exec", container)
-    session = production_session(trial, logs_dir, AUDIT_RETRY_BUNDLE)
-    posted: list[dict[str, object]] = []
-    original = session._write_request
-
-    def capture(name: str, value):
-        posted.append({"name": name, "body": dict(value)})
-        return original(name, value)
-
-    monkeypatch.setattr(session, "_write_request", capture)
-
-    result = asyncio.run(session.run("Solve only this task.", lambda command, **kwargs: (
-        trial.agent.exec_as_agent(trial.agent_environment, command, **kwargs)
-    )))
-
-    assert (result.thread_id, result.status) == ("thr_sealed", "completed")
-    start = next(
-        item["body"] for item in posted if item["name"] == "production-thread-start.json")
-    evidence = next(
-        item["body"] for item in posted if item["name"] == "production-evidence-input.json")
-    assert start["template"] == "coder-review"
-    assert evidence["mode"] == "coder-review"
-    assert evidence["expectedRoles"] == ["coder", "reviewer"]
-    launch = container.commands[0]
-    assert "CORTEX_WEBHOOK_SINGLE_ROOT=1" in launch
-    assert "CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE=coder-review" in launch
-    assert all(
-        "config/thread-templates/templates/direct.json" not in command
-        for command in container.commands
-    )
-
-
-def test_manager_arm_injects_its_task_root_through_the_real_sealed_exec(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """K-051: the task-root injection is a new exec path, so it gets its own real-exec witness.
-
-    `cortex-task` runs under a composed environment the webhook POSTs do not use — it adds
-    `CORTEX_EXECUTION_ID` for the lock owner and the launch adds the evidence-context file — and
-    only `AdmittedDockerEnvironment.exec` compares the merged environment against the sealed
-    identity by keys AND value digest.
-    """
-    trial = sealed_trial(tmp_path, MANAGER_BUNDLE)
-    logs_dir = trial.paths.agent_dir
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    container = ContainerDouble(logs_dir)
-    monkeypatch.setattr(trial.agent_environment, "_compose_exec", container)
-    session = production_session(trial, logs_dir, MANAGER_BUNDLE)
-
-    result = asyncio.run(session.run("Solve only this task.", lambda command, **kwargs: (
-        trial.agent.exec_as_agent(trial.agent_environment, command, **kwargs)
-    )))
-
-    assert (result.thread_id, result.status) == ("thr_sealed", "completed")
-    assert all(
-        "production-thread-start.json" not in command for command in container.commands)
-    add = next(command for command in container.commands if "cortex-task add" in command)
-    assert "CORTEX_EXECUTION_ID=benchmark-launcher" in add
-    assert (
-        "cortex-task add --project general "
-        f"--task-file {CONTAINER_LOGS_DIR}/production-task-spec.json --auto-lock"
-    ) in add
-    assert any("cortex-task lock-release" in command for command in container.commands)
-    launch = container.commands[0]
-    assert (
-        "CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE="
-        f"{CONTAINER_LOGS_DIR}/production-cortex-home"
-        "/production-benchmark-evidence-context.json"
-    ) in launch

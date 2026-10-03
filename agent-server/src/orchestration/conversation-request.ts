@@ -8,6 +8,8 @@ import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { FALLBACK_ENVIRONMENT, resolveAgentSlotConfigByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
+import { resolveSystemVars } from '@core/prompt-template.js';
+import { sessionEvidenceContext } from '@domain/benchmark/session-evidence.js';
 import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import { DIRECT_RUN_POLICY } from '@domain/runs/builders.js';
 import { projectStore } from '@domain/projects/index.js';
@@ -395,6 +397,15 @@ export async function prepareConversationRequest(
     },
     policy,
   };
+  // A production benchmark session: every run it opens is an attempt the trial's evidence records.
+  const evidenceContext = sessionEvidenceContext(sessionId);
+  if (evidenceContext) {
+    request.benchmark = {
+      evidenceContext,
+      identityDirective: spec.directive ? resolveSystemVars(spec.directive) : '',
+      preserveUnreportedAccounting: false,
+    };
+  }
 
   return { request, backendPrompt };
 }

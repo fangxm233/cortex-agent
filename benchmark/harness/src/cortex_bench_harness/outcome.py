@@ -28,7 +28,7 @@ REVOCATION_SCHEMA_VERSION = "cortex-bench-proxy-revocation/1"
 VERIFIER_ROOT = "verifier"
 VERIFIER_CTRF = "ctrf.json"
 _REQUIRED_ROOTS = frozenset({"agent", "verifier", "artifacts"})
-_THREAD_FAILURE_STATUSES = frozenset({"failed", "cancelled", "aborted"})
+_SESSION_FAILURE_STATUSES = frozenset({"failed", "stopped"})
 _AGENT_EXCEPTION_TYPES = frozenset({
     "AgentTimeoutError", "NonZeroAgentExitCodeError", "ApiError",
     "ApiRateLimitError", "ApiUsageLimitError", "ApiInternalServerError",
@@ -271,14 +271,14 @@ def _agent_outcome_reason(
     reason = outcome.get("terminal_reason")
     valid_terminal = (
         status == DEADLINE_EXHAUSTED and reason == DEADLINE_REASON
-        or isinstance(status, str) and status in _THREAD_FAILURE_STATUSES
-        and reason == f"thread_{status}"
+        or isinstance(status, str) and status in _SESSION_FAILURE_STATUSES
+        and reason == f"session_{status}"
     )
     if any(outcome.get(key) != value for key, value in expected.items()) or not valid_terminal:
         return "outer envelope agent_outcome is invalid"
-    thread_id = outcome.get("thread_id")
-    if not isinstance(thread_id, str) or not thread_id:
-        return "outer envelope agent_outcome has no thread_id"
+    session_id = outcome.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return "outer envelope agent_outcome has no session_id"
     return None
 
 

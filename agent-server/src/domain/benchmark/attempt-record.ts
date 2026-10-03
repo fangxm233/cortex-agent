@@ -3,7 +3,7 @@ import type { AgentSlot } from './journal.js';
 import type { TerminalReason, TerminalState } from './manifest-contract.js';
 
 /**
- * An attempt is a FRAGMENT — one process or one thread — never a step. §17 (17.3.1) ruled this
+ * An attempt is a FRAGMENT — one execution of the benchmark session — never a step. §17 (17.3.1) ruled this
  * (Branch B) against three frozen statements that cannot all be literally true. The load-bearing
  * consequence: an attempt is the unit that OWNS A JOURNAL, so `journal_sha256`, `event_count` and
  * the `<stem>.started.json`/`<stem>.terminal.json` pair are each well-defined for exactly one node.
@@ -111,60 +111,32 @@ export function validAttemptTokens(value: unknown): value is AttemptTokenCounts 
 }
 
 /**
- * §9.1's record (`design:2571-2603`), 39 members. Every key is ALWAYS PRESENT; `| null` marks a
- * member whose VALUE may be null, never an optional key (G4-CM2).
+ * §9.1's record, 36 members. Every key is ALWAYS PRESENT; `| null` marks a member whose VALUE may
+ * be null, never an optional key (G4-CM2). An attempt is identified by the benchmark session it
+ * ran in and the execution it was; the task members describe the trial's one task.
  */
 export interface AttemptRecord {
   // identity
   readonly trial_id: string;
   readonly root_run_id: string;
+  /** The trial's task; a session runs exactly one. */
   readonly task_id: string;
   readonly parent_task_id: string | null;
-  /**
-   * Widened against §9.1's non-nullable declaration (finding G4-N13, decision D-NULL3). Two
-   * grounds, and the second is the decisive one: the shipped source type is ALREADY nullable
-   * (`core/task-parser.ts:35` declares `dispatch_generation: string | null`), and the benchmark
-   * path never claims at all — `benchmark-local-thread-orchestrator.ts` references no dispatcher
-   * and creates its threads with `createThread(...)` at `:389`. So this is null for EVERY attempt
-   * on this path, parent and thread alike. Re-using `root_run_id` here would fabricate a
-   * distinction the data does not contain; `null` means UNDERIVABLE, never `""`.
-   */
+  /** Always `null`: a benchmark session is not dispatched. `null` means UNDERIVABLE, never `""`. */
   readonly dispatch_generation: string | null;
   readonly attempt_id: string;
   readonly attempt_ordinal: number;
   // ancestry
-  /** `null` for the parent attempt — `runner.ts:726` writes `threadId: null` into the header. This
-   * is the PARENT-ATTEMPT PREDICATE the G4-N14 biconditional below is scoped by. */
-  readonly thread_id: string | null;
-  /** Finding G4-N16: no benchmark writer produces `metadata.parentThreadId`. `registerChildSpawn`
-   * (`tree.ts:130-136`) writes `childThreadIds` (`:133`) and `waitingOn` (`:134`) ONLY — the
-   * `parentThreadId` at `:130` is its parameter, a name collision. Already nullable, so the shape
-   * survives; the linkage repair is deferred. */
-  readonly parent_thread_id: string | null;
-  /**
-   * Widened under the G4-N14 biconditional (decision D-NULL3), NOT unconditionally: for a thread
-   * attempt this IS derivable, so a bare `| null` would let a thread attempt lose real data and
-   * still pass schema. See `THREAD_SCOPED_IDENTITY_FIELDS`.
-   *
-   * Finding G4-N15: (17.1.4) row 10 sources this as `metadata.rootThreadId`, which is undefined
-   * for every benchmark thread — its only production writer is off the benchmark path, and
-   * `createBenchmarkRecord` writes `metadata: { trigger: 'benchmark-local' }`. The shipped
-   * derivation is the accessor `getRootThreadId` (`tree.ts:26-27`), whose `?? t.id` fallback is
-   * correct only at depth 1; a producer at depth ≥ 2 must establish the root from the trial scope
-   * instead of trusting the fallback.
-   */
-  readonly root_thread_id: string | null;
+  /** The benchmark session this attempt ran in. */
+  readonly session_id: string;
+  /** The execution record this attempt is; `attempt_id` is derived from it. */
+  readonly execution_id: string;
   /** Ordered root-first; the node's own `task_id` is the last element. */
   readonly task_ancestry: readonly string[];
   // execution shape
-  /** Widened under the same G4-N14 biconditional as `root_thread_id`. Derivable for a thread
-   * attempt (`createBenchmarkRecord` passes `templateName: request.template` at `:390`); absent for
-   * the parent process, which has no `ThreadRecord`. */
-  readonly template: string | null;
-  /** G4-AI8: the fragment's ENTRY role, verbatim the journal header's `agentSlot`, never its
-   * terminal one — which is what makes the equality mechanically assertable. */
+  /** Verbatim the journal header's `agentSlot`, which is what makes the equality mechanically
+   *  assertable. */
   readonly role: AgentSlot;
-  readonly stage: string | null;
   // model identity
   readonly backend: Backend;
   readonly provider: string | null;
@@ -225,8 +197,8 @@ export interface AttemptRecord {
 export const ATTEMPT_RECORD_KEYS = [
   'trial_id', 'root_run_id', 'task_id', 'parent_task_id', 'dispatch_generation',
   'attempt_id', 'attempt_ordinal',
-  'thread_id', 'parent_thread_id', 'root_thread_id', 'task_ancestry',
-  'template', 'role', 'stage',
+  'session_id', 'execution_id', 'task_ancestry',
+  'role',
   'backend', 'provider', 'requested_model', 'reported_model',
   'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
   'terminal_state', 'terminal_reason', 'disposition', 'superseded_by',
@@ -242,24 +214,6 @@ type MissingAttemptRecordKeys = Exclude<keyof AttemptRecord, typeof ATTEMPT_RECO
 export type AttemptRecordKeysAreExhaustive = MissingAttemptRecordKeys extends never ? true : never;
 const _attemptRecordKeysAreExhaustive: AttemptRecordKeysAreExhaustive = true;
 void _attemptRecordKeysAreExhaustive;
-
-/**
- * G4-N14 / D-NULL3 — the thread-scoped identity fields. Each is derivable exactly when the attempt
- * IS a thread, so their nullability is a BICONDITIONAL rather than a bare widening:
- *
- *   `thread_id === null`  ⟺  `root_thread_id === null`  ⟺  `template === null`
- *
- * A thread attempt carrying `null` in either field has silently lost real data; a parent attempt
- * carrying non-null in either has fabricated it. Both directions are refused.
- */
-export const THREAD_SCOPED_IDENTITY_FIELDS = ['root_thread_id', 'template'] as const;
-
-export function threadScopedIdentityHolds(node: Pick<
-  AttemptRecord, 'thread_id' | 'root_thread_id' | 'template'
->): boolean {
-  const isParent = node.thread_id === null;
-  return THREAD_SCOPED_IDENTITY_FIELDS.every(field => (node[field] === null) === isParent);
-}
 
 export interface AttemptOrdinalInput {
   readonly attempt_id: string;

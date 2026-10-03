@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import type {
   SourceJournalEvent, SourceJournalHeader,
 } from './atif.js';
+import { PRODUCTION_ROLE } from './journal.js';
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
 import type { ProductionAttemptJournalRecord } from './production-attempt-journal.js';
 
@@ -14,6 +15,8 @@ export interface ParsedProductionJournal {
   readonly reportedModel: string | null;
   readonly rateLimited: boolean;
 }
+
+const JOURNAL_SCHEMA = 'cortex-bench-journal/2';
 
 function fail(detail: string): never {
   throw new Error(`production evidence journal invalid: ${detail}`);
@@ -40,11 +43,11 @@ function assertHeader(
   header: Record<string, unknown>, identity: ProductionAttemptIdentityRecord,
 ): void {
   const checks: Array<[unknown, unknown, string]> = [
-    [header.schema_version, 'cortex-bench-journal/1', 'schema'],
+    [header.schema_version, JOURNAL_SCHEMA, 'schema'],
     [header.type, 'run_header', 'header'],
     [header.root_run_id, identity.root_run_id, 'root run'],
-    [header.thread_id, identity.thread_id, 'thread'],
-    [header.agent_slot, identity.role, 'role'],
+    [header.session_id, identity.session_id, 'session'],
+    [header.agent_slot, PRODUCTION_ROLE, 'role'],
     [header.model_execution_identity_hash, identity.model_execution_identity_hash, 'model identity'],
     [header.role_tool_surface_hash, identity.role_tool_surface_hash, 'role identity'],
     [header.bundle_manifest_hash, identity.bundle_manifest_hash, 'bundle identity'],
@@ -56,12 +59,12 @@ function assertHeader(
 function assertEvent(
   row: Record<string, unknown>, identity: ProductionAttemptIdentityRecord,
 ): void {
-  if (row.schema_version !== 'cortex-bench-journal/1' || row.type !== 'event') {
+  if (row.schema_version !== JOURNAL_SCHEMA || row.type !== 'event') {
     fail(`event schema mismatch for ${identity.attempt_id}`);
   }
   const fields: Array<[unknown, unknown]> = [
-    [row.root_run_id, identity.root_run_id], [row.thread_id, identity.thread_id],
-    [row.agent_slot, identity.role], [row.backend, identity.backend],
+    [row.root_run_id, identity.root_run_id], [row.session_id, identity.session_id],
+    [row.agent_slot, PRODUCTION_ROLE], [row.backend, identity.backend],
     [row.provider, identity.provider], [row.requested_model, identity.requested_model],
     [row.model_execution_identity_hash, identity.model_execution_identity_hash],
     [row.role_tool_surface_hash, identity.role_tool_surface_hash],

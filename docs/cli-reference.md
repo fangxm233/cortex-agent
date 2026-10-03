@@ -269,17 +269,20 @@ cortex-evidence-export --input-file <path|->
 
 Publish immutable terminal/composite benchmark evidence v2 from the production stores under
 `CORTEX_HOME`. The command initializes the production attempt identity and journal stores, loads
-`data/executions.json` and `data/threads.json`, reads attributed costs, task state, and production
-topology, then delegates validation and atomic publication to
+`data/executions.json`, reads attributed costs, then delegates validation and atomic publication to
 `exportProductionBenchmarkEvidence`. Cortex benchmark arms always run through the production
-server; this command records that runtime's stores and does not define a second orchestration path.
+server, as one direct session per trial; this command records that runtime's stores and does not
+define a second orchestration path.
+
+Evidence is keyed by session and execution: every run the trial's session opened is one attempt,
+identified by its `session_id` and `execution_id`, and each later run of the session is a spawn
+child of the run before it.
 
 `--input-file` contains one JSON-encoded `ProductionEvidenceExportInput`; use `-` to read it from
-stdin. The launcher owns every field: `outputDirectory`, `project`, `trialId`, `rootRunId`,
-`armName`, `armCanonicalSha256`, `bundleManifestHash`, `mode`, `expectedRoles`, `managerQa`,
-`proxyExport`, and optional `evaluatedChecks`. Hashes, modes, role sets, proxy trial identity, and
-predicate results are validated before publication. Missing or malformed input,
-incomplete durable records, or an existing output directory fail closed with exit code `1`.
+stdin. The launcher owns every field: `outputDirectory`, `trialId`, `rootRunId`, `armName`,
+`armCanonicalSha256`, `bundleManifestHash`, `proxyExport`, and optional `evaluatedChecks`. Hashes,
+proxy trial identity, and predicate results are validated before publication. Missing or malformed
+input, incomplete durable records, or an existing output directory fail closed with exit code `1`.
 
 ```bash
 cortex-evidence-export --input-file production-evidence.json

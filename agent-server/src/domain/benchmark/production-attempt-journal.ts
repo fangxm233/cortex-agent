@@ -6,7 +6,7 @@ import type { EngineSpec } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { EventObserver } from '../../agent-adapter/normalize/event-types.js';
 import { canonicalJsonSha256, computeRoleToolSurfaceHash } from './identity.js';
-import { openJournal, type Journal } from './journal.js';
+import { PRODUCTION_ROLE, openJournal, type Journal } from './journal.js';
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
 import { roleSurfaceFromSpec } from './role-surface.js';
 
@@ -213,8 +213,8 @@ function journalHeader(input: ProductionAttemptJournalInput) {
   const { identity, spec } = input;
   return {
     rootRunId: identity.root_run_id,
-    threadId: identity.thread_id,
-    agentSlot: identity.role,
+    sessionId: identity.session_id,
+    agentSlot: PRODUCTION_ROLE,
     resolvedCwd: resolveSpawnCwd(spec.cwd),
     ...promptHashes(input),
     modelExecutionIdentityHash: identity.model_execution_identity_hash,
@@ -241,9 +241,8 @@ class ProductionAttemptJournalSink implements EventObserver {
   onEvent(event: NormalizedEvent): void {
     try {
       this.journal.writeEvent({
-        threadId: this.identity.thread_id,
-        step: null,
-        agentSlot: this.identity.role,
+        sessionId: this.identity.session_id,
+        agentSlot: PRODUCTION_ROLE,
         backend: this.identity.backend,
         provider: this.identity.provider,
         requestedModel: this.identity.requested_model,

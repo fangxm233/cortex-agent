@@ -1,12 +1,12 @@
 import {
   ATTEMPT_EDGE_KINDS, ATTEMPT_RECORD_KEYS, EDGE_ENDPOINT_LEGALITY, isDurableAttemptEdgeKind,
-  threadScopedIdentityHolds, validAttemptTokens,
+  validAttemptTokens,
   type AttemptEdge, type AttemptEdgeKind, type AttemptRecord, type EndpointRef,
 } from './attempt-record.js';
 import type { AccountingRecord } from './accounting-reconciliation.js';
 import { validReasonPair } from './manifest-contract.js';
 
-export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/2';
+export const COMPOSITE_MANIFEST_SCHEMA_VERSION = 'cortex-bench-composite-manifest/3';
 
 export type OrchestrationModeName = 'direct' | 'coder-review' | 'manager';
 
@@ -69,7 +69,7 @@ export interface CompositeManifest {
   readonly identity: CompositeManifestIdentity;
   /** May not be empty: a trial with no attempt has no manifest to publish. */
   readonly nodes: readonly AttemptRecord[];
-  /** May be empty: mode `direct` has zero edges by §9.4 D2. */
+  /** May be empty: a session that ran once has no spawn edge. */
   readonly edges: readonly AttemptEdge[];
   readonly roots: CompositeManifestRoots;
   /** Gate 8's record, VERBATIM (O-G4-ACCT). Gate 8 delivers the value; Gate 4 delivers the carrier. */
@@ -115,7 +115,6 @@ export const COMPOSITE_MANIFEST_VIOLATION_CODES = [
   // node-level
   'attempt_ordinal_invalid', 'attempt_evidence_invalid', 'superseded_by_unresolved',
   'task_ancestry_invalid',
-  'thread_scoped_identity_invalid',
   // predicate
   'predicate_checks_incomplete', 'predicate_checks_out_of_order', 'predicate_check_detail_invalid',
 ] as const;
@@ -401,12 +400,12 @@ function validAttemptEvidence(node: AttemptRecord): boolean {
   const keys = Object.keys(node);
   if (keys.length !== ATTEMPT_RECORD_KEYS.length
     || !ATTEMPT_RECORD_KEYS.every(key => Object.hasOwn(node, key))) return false;
-  const paths = [node.journal_path, node.terminal_manifest_path];
+  const texts = [node.journal_path, node.terminal_manifest_path, node.session_id, node.execution_id];
   const hashes = [
     node.model_execution_identity_hash, node.role_tool_surface_hash, node.bundle_manifest_hash,
     node.journal_sha256, node.terminal_manifest_sha256,
   ];
-  return paths.every(value => typeof value === 'string' && value.length > 0)
+  return texts.every(value => typeof value === 'string' && value.length > 0)
     && node.terminal_manifest_path.endsWith('.terminal.json')
     && hashes.every(isSha256)
     && Number.isInteger(node.event_count) && node.event_count >= 0 && validAttemptTokens(node.tokens)
@@ -539,7 +538,7 @@ export function validateCompositeManifest(
 
   // ---- roots (17.1.6) -----------------------------------------------------------------------
   const rootNode = nodes.find(node => node.attempt_id === rootAttemptId);
-  if (!rootNode || depths.get(rootAttemptId) !== 0 || rootNode.thread_id === null) {
+  if (!rootNode || depths.get(rootAttemptId) !== 0 || !rootNode.session_id) {
     add('roots_parent_attempt_invalid', String(rootAttemptId));
   }
 
@@ -581,11 +580,6 @@ export function validateCompositeManifest(
     const ancestry = node.task_ancestry ?? [];
     if (ancestry.length === 0 || ancestry[ancestry.length - 1] !== node.task_id) {
       add('task_ancestry_invalid', node.attempt_id);
-    }
-    // G4-N14: refused in BOTH directions — a thread attempt that lost its thread-scoped identity,
-    // and a parent attempt that fabricated one.
-    if (!threadScopedIdentityHolds(node)) {
-      add('thread_scoped_identity_invalid', node.attempt_id);
     }
   }
 

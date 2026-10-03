@@ -1,6 +1,6 @@
 import type { AgentProcessSpawner, McpComposition, UserMessage } from '../../agent-adapter/types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '@core/types/benchmark-types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import type { RunEvent } from './events.js';
 import type { AgentSpec } from './spec-loader.js';
@@ -43,6 +43,11 @@ export interface RunRequest {
     ownerSessionId?: string | null;
     threadId?: string | null;
     threadDepth?: number | null;
+    /** Thread runs only: the step's agent slot and its tree position, for the execution record
+     *  and cost attribution. */
+    agentSlotId?: string | null;
+    rootThreadId?: string | null;
+    parentThreadId?: string | null;
     taskId?: string | null;
     taskProject?: string | null;
     taskGeneration?: string | null;
@@ -74,14 +79,11 @@ export interface RunRequest {
     browserCdpEndpoint?: string | null;
     captureTranscripts: boolean;
   };
+  /** Present only on a production benchmark session's runs: the trial facts each attempt is
+   *  frozen and journaled under. */
   benchmark?: {
     evidenceContext: ProductionBenchmarkEvidenceContext | null;
     identityDirective: string;
-    rootThreadId: string | null;
-    parentThreadId: string | null;
-    templateName: string | null;
-    agentSlotId: string | null;
-    stage: string | null;
     preserveUnreportedAccounting: boolean;
   };
   /**

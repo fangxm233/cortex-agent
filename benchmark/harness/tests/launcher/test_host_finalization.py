@@ -33,7 +33,7 @@ from cortex_bench_harness.launcher.production_home import (
 )
 from cortex_bench_harness.launcher.production_session import (
     ProductionServerSession,
-    ProductionThreadResult,
+    ProductionSessionResult,
 )
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
@@ -209,7 +209,7 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
     return {
-        "schema_version": "cortex-bench-launch-attestation/4", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-launch-attestation/5", "trial_id": TRIAL_ID,
         "capture_boundary": "launcher_pre_boot",
         "arm_bundle": production_arm_bundle("direct-pi-deepseek").attested_record(),
         "arm_confinement": production_arm_bundle(
@@ -245,12 +245,12 @@ def container_boundary_observation(
 
 def journal_bytes() -> bytes:
     header = {
-        "schema_version": "cortex-bench-journal/1", "type": "run_header",
-        "root_run_id": ROOT_RUN_ID, "thread_id": "thr-production-root", "agent_slot": "parent",
+        "schema_version": "cortex-bench-journal/2", "type": "run_header",
+        "root_run_id": ROOT_RUN_ID, "session_id": "ses-production", "agent_slot": "direct",
         "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
     }
-    event = {"schema_version": "cortex-bench-journal/1", "type": "event"}
+    event = {"schema_version": "cortex-bench-journal/2", "type": "event"}
     return (json.dumps(header, sort_keys=True) + "\n" + json.dumps(event) + "\n").encode()
 
 
@@ -301,10 +301,9 @@ def attempt_node(terminal_sha256: str, journal: bytes | None = None) -> dict[str
     return {
         "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "task_id": TRIAL_ID,
         "parent_task_id": None, "dispatch_generation": None,
-        "attempt_id": "thread-thr-production-root", "attempt_ordinal": 1,
-        "thread_id": "thr-production-root", "parent_thread_id": None,
-        "root_thread_id": "thr-production-root", "task_ancestry": [TRIAL_ID],
-        "template": "benchmark-direct", "role": "parent", "stage": None,
+        "attempt_id": "execution-exec-production", "attempt_ordinal": 1,
+        "session_id": "ses-production", "execution_id": "exec-production",
+        "task_ancestry": [TRIAL_ID], "role": "direct",
         "backend": "claude", "provider": "anthropic", "requested_model": "claude-sonnet",
         "reported_model": None, "model_execution_identity_hash": MODEL_HASH,
         "role_tool_surface_hash": ROLE_HASH, "bundle_manifest_hash": BUNDLE_HASH,
@@ -324,14 +323,14 @@ def composite_document(
     terminal_sha256: str, journal: bytes | None = None,
 ) -> dict[str, object]:
     return {
-        "schema_version": "cortex-bench-composite-manifest/2", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-composite-manifest/3", "trial_id": TRIAL_ID,
         "root_run_id": ROOT_RUN_ID, "arm_name": ARM_NAME,
         "arm_canonical_sha256": canonical_sha256(arm()),
-        "identity": {"model_execution_identity_hash": {"parent": MODEL_HASH},
-                     "role_tool_surface_hash": {"parent": ROLE_HASH},
+        "identity": {"model_execution_identity_hash": {"direct": MODEL_HASH},
+                     "role_tool_surface_hash": {"direct": ROLE_HASH},
                      "bundle_manifest_hash": BUNDLE_HASH},
         "nodes": [attempt_node(terminal_sha256, journal)], "edges": [],
-        "roots": {"root_attempt_id": "thread-thr-production-root", "root_task_id": None},
+        "roots": {"root_attempt_id": "execution-exec-production", "root_task_id": None},
         "accounting": accounting(), "predicate": production_predicate(),
     }
 
@@ -359,7 +358,7 @@ def write_inner_outputs(logs_dir: Path, mutation: Callable[[Path], None] | None)
     journal = journal_bytes()
     (root / "events.jsonl").write_bytes(journal)
     write_json(root / f"run-{ROOT_RUN_ID}.started.json", {
-        "root_run_id": ROOT_RUN_ID, "thread_id": None,
+        "root_run_id": ROOT_RUN_ID, "session_id": "ses-production",
         "ts": "2026-08-11T00:00:00.000Z", "journal_path": "events.jsonl",
     })
     terminal_path = root / f"run-{ROOT_RUN_ID}.terminal.json"
@@ -446,12 +445,12 @@ def make_agent(
 
     async def run_production(
         _self: object, _instruction: str, _execute: object,
-    ) -> ProductionThreadResult:
+    ) -> ProductionSessionResult:
         if environment.run_return_code != 0:
             raise RuntimeError("production run failed")
         write_inner_outputs(logs_dir, mutation)
         _self._stopped_cleanly = True
-        return ProductionThreadResult("thr-production-root", "completed", None, None)
+        return ProductionSessionResult("ses-production", "completed", None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_production)
     agent._require_production_proxy_traffic = lambda: None
@@ -566,9 +565,7 @@ def test_launch_parameters_are_recorded_as_the_launcher_emitted_them(
         "pre_boot_input_bundle_sha256"]
     assert launch["config_bundle"]["file_count"] == attestation["input_bundle_file_count"]
     assert launch["confinement"] == {
-        "injection": "thread-root",
-        "webhook_endpoints": ["POST /webhook/thread-op"],
-        "writable_home_paths": [],
+        "webhook_endpoints": ["POST /webhook/benchmark-session"],
     }
     assert launch["sealed_environment_allowlist"] == list(SEALED_ENVIRONMENT_KEYS)
     assert launch["image"] == {
@@ -764,11 +761,10 @@ def test_the_proxy_revocation_and_audit_records_land_in_the_envelope(
 
 def deadline_outcome_record() -> dict[str, object]:
     return {
-        "schema_version": "cortex-bench-production-session-outcome/1",
-        "trial_id": TRIAL_ID, "thread_id": "thr-manager-root",
+        "schema_version": "cortex-bench-production-session-outcome/2",
+        "trial_id": TRIAL_ID, "session_id": "ses-production",
         "terminal": True, "status": "deadline_exhausted",
-        "terminal_reason": "run_deadline_reached", "artifact": None,
-        "final_output": None,
+        "terminal_reason": "run_deadline_reached", "final_output": None,
     }
 
 
@@ -777,7 +773,7 @@ def install_deadline_run(
 ) -> None:
     async def run_deadline(
         self: ProductionServerSession, _instruction: str, _execute: object,
-    ) -> ProductionThreadResult:
+    ) -> ProductionSessionResult:
         write_json(
             environment.logs_dir / "production-session-outcome.json",
             deadline_outcome_record(),
@@ -789,9 +785,7 @@ def install_deadline_run(
         cost.parent.mkdir(parents=True)
         cost.write_bytes(DEADLINE_COST_PAYLOAD)
         self._stopped_cleanly = True
-        return ProductionThreadResult(
-            "thr-manager-root", "deadline_exhausted", None, None,
-        )
+        return ProductionSessionResult("ses-production", "deadline_exhausted", None)
 
     monkeypatch.setattr(ProductionServerSession, "run", run_deadline)
 
@@ -1182,14 +1176,24 @@ def production_arm_for(bundle: ProductionArmBundle) -> dict[str, object]:
     return arm
 
 
-def agent_prompt_members(bundle: ProductionArmBundle) -> dict[str, bytes]:
-    """The prompts the arm's own agents name, as the pinned npm bundle ships them."""
+def environment_prompts(bundle: ProductionArmBundle) -> dict[str, str]:
+    """The prompt file the arm's environment names for each prompt kind."""
+    environment = json.loads((
+        bundle.bundle_dir / f"config/environments/{bundle.environment}.json"
+    ).read_text(encoding="utf-8"))
     return {
-        f"defaults/prompts/{kind}/{role}.md": (
-            bundle.bundle_dir / f"prompts/{kind}/{role}.md"
+        kind: str(environment[field]).removeprefix("file:")
+        for field, kind in (("directive", "directives"), ("systemPrompt", "systemPrompts"))
+    }
+
+
+def agent_prompt_members(bundle: ProductionArmBundle) -> dict[str, bytes]:
+    """The prompts the arm's environment names, as the pinned npm bundle ships them."""
+    return {
+        f"defaults/prompts/{kind}/{name}": (
+            bundle.bundle_dir / f"prompts/{kind}/{name}"
         ).read_bytes()
-        for role in bundle.expected_roles
-        for kind in ("directives", "systemPrompts")
+        for kind, name in environment_prompts(bundle).items()
     }
 
 
@@ -1305,8 +1309,8 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
 
     assert envelope["schema_version"] == OUTER_ENVELOPE_SCHEMA_VERSION
     assert not (tmp_path / "agent/arm-resolution.json").exists()
-    for role in bundle.expected_roles:
-        assert f"assets/bundle/defaults/prompts/systemPrompts/{role}.md" in asset_paths(envelope)
+    for kind, name in environment_prompts(bundle).items():
+        assert f"assets/bundle/defaults/prompts/{kind}/{name}" in asset_paths(envelope)
     recorded = envelope["launch"]["config_bundle"]
     attestation = json.loads(materialized.launch_attestation_path.read_bytes())
     assert recorded["canonical_sha256"] == attestation["pre_boot_input_bundle_sha256"]
@@ -1316,15 +1320,17 @@ def test_the_production_layout_records_through_the_same_collect_and_record_path(
     assert recorded["files"] == list(committed_input_bundle_files(bundle.key))
 
 
-def test_failed_production_thread_projects_as_terminal_agent_failure(tmp_path: Path) -> None:
-    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+@pytest.mark.parametrize("status", ["failed", "stopped"])
+def test_a_production_session_that_did_not_complete_projects_as_terminal_agent_failure(
+    tmp_path: Path, status: str,
+) -> None:
+    bundle = production_arm_bundle("direct-pi-deepseek")
     envelope, _ = finalize_production_trial(tmp_path, bundle)
     envelope["agent_outcome"] = {
-        "schema_version": "cortex-bench-production-session-outcome/1",
-        "trial_id": TRIAL_ID, "thread_id": "thr-coder-review",
-        "terminal": True, "status": "failed",
-        "terminal_reason": "thread_failed", "artifact": None,
-        "final_output": None,
+        "schema_version": "cortex-bench-production-session-outcome/2",
+        "trial_id": TRIAL_ID, "session_id": "ses-production",
+        "terminal": True, "status": status,
+        "terminal_reason": f"session_{status}", "final_output": None,
     }
     write_json(envelope_path(tmp_path), envelope)
     write_json(tmp_path / "result.json", {
@@ -1336,7 +1342,7 @@ def test_failed_production_thread_projects_as_terminal_agent_failure(tmp_path: P
     ).read()
 
     assert outcome.outcome_state == "terminal-agent-failure"
-    assert outcome.reason == "thread_failed"
+    assert outcome.reason == f"session_{status}"
     assert outcome.verifier_rewards == {"reward": 1.0}
 
 
@@ -1548,7 +1554,7 @@ def test_collected_source_missing_before_scan_is_recorded_without_refusal(
 def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(
     tmp_path: Path,
 ) -> None:
-    bundle = production_arm_bundle("coder-review-audit-retry-pi-deepseek")
+    bundle = production_arm_bundle("direct-pi-deepseek")
     npm_prompts = {
         path: b"different npm default\n" for path in agent_prompt_members(bundle)
     }
@@ -1558,18 +1564,18 @@ def test_production_assets_copy_the_materialized_arm_prompts_not_npm_defaults(
     )
 
     manifest = json.loads((tmp_path / "agent/assets/manifest.json").read_bytes())
-    role = manifest["roles"]["coder"]
+    role = manifest["roles"]["main"]
     asset = tmp_path / "agent" / role["system_prompt"]
-    expected = bundle.bundle_dir / "prompts/systemPrompts/coder.md"
+    expected = bundle.bundle_dir / "prompts/systemPrompts/direct.md"
     assert asset.read_bytes() == expected.read_bytes()
     entry = next(
         item for item in manifest["files"]
         if item["asset_path"] == role["system_prompt"]
     )
     assert entry["container_path"] == (
-        "/logs/agent/production-cortex-home/prompts/systemPrompts/coder.md"
+        "/logs/agent/production-cortex-home/prompts/systemPrompts/direct.md"
     )
-    assert envelope["assets"]["file_count"] == 4
+    assert envelope["assets"]["file_count"] == 2
 
 
 def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
@@ -1586,7 +1592,7 @@ def test_an_attestation_naming_no_committed_bundle_records_no_other_arms_list(
     artifact_dir.mkdir()
     attestation = launch_attestation(npm_artifact)
     attestation["arm_bundle"] = {
-        "key": "retired-arm", "profile_name": "retired", "root_template": "retired",
+        "key": "retired-arm", "profile_name": "retired", "environment": "retired",
     }
     write_json(artifact_dir / "cortex-bench-launch-attestation.json", attestation)
     write_json(artifact_dir / ADMISSION_EVIDENCE_FILENAME, admission_evidence())

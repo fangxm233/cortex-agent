@@ -194,7 +194,7 @@ def _arm_records(
         raise HostFinalizationError("cortex_launch_inputs_unavailable")
     attestation = _read_record(artifact_dir / LAUNCH_ATTESTATION_FILENAME)
     assets = _lift_assets(
-        logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "root_template"),
+        logs_dir, npm_artifact, bundle_root, _attested_arm(attestation, "environment"),
     )
     return _launch_record(attestation, artifact_dir, npm_artifact), _asset_record(assets)
 
@@ -306,7 +306,7 @@ def _unavailable(reason: str) -> dict[str, str]:
 
 
 def _lift_assets(
-    logs_dir: Path, npm_artifact: Path, bundle_root: str, root_template: str | None,
+    logs_dir: Path, npm_artifact: Path, bundle_root: str, environment: str | None,
 ) -> PublishedAssets | str:
     """Copy the production arm's model-visible assets into the trial record.
 
@@ -315,7 +315,7 @@ def _lift_assets(
     try:
         return publish_trial_assets(
             logs_dir=logs_dir, npm_artifact=npm_artifact, bundle_root=bundle_root,
-            root_template=root_template,
+            environment=environment,
         )
     except TrialAssetError as error:
         return error.reason

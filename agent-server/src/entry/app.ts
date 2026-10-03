@@ -737,7 +737,7 @@ process.on('SIGTERM', async () => {
   startEnvironmentWatcher();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
-      profiles: getProfileConfigRevision(), threads: getThreadConfigRevision(),
+      profiles: getProfileConfigRevision(), environments: getThreadConfigRevision(),
     }),
   });
   startThreadConfigWatcher();

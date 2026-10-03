@@ -253,8 +253,7 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_CALLBACK_SOURCE: 'stale-callback',
     CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
     CORTEX_CONFIG_IMMUTABLE: '1',
-    CORTEX_WEBHOOK_SINGLE_ROOT: '1',
-    CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'stale-root-template',
+    CORTEX_WEBHOOK_BENCHMARK_ONLY: '1',
     CORTEX_PI_SUBAGENT: '1',
     [PI_INTERACTION_BRIDGE_ENV]: '1',
   };
@@ -313,19 +312,13 @@ test('buildPiEnv scrubs production bootstrap controls from the child', () => {
   const env = buildPiEnv({ piAgentDir: '/pi-agent' }, {
     CORTEX_CONFIG_IMMUTABLE: '1',
     CORTEX_PRODUCTION_AUTH_FILE: '/inherited/auth.json',
-    CORTEX_WEBHOOK_THREAD_OP_ONLY: '1',
-    CORTEX_WEBHOOK_SINGLE_ROOT: 'root-run',
-    CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'benchmark-coder-review',
-    CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE: '/inherited/evidence-context.json',
+    CORTEX_WEBHOOK_BENCHMARK_ONLY: '1',
   });
 
   for (const key of [
     'CORTEX_CONFIG_IMMUTABLE',
     'CORTEX_PRODUCTION_AUTH_FILE',
-    'CORTEX_WEBHOOK_THREAD_OP_ONLY',
-    'CORTEX_WEBHOOK_SINGLE_ROOT',
-    'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
-    'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
+    'CORTEX_WEBHOOK_BENCHMARK_ONLY',
   ]) assert.equal(env[key], undefined, key);
 });
 

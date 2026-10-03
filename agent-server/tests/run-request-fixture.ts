@@ -158,8 +158,7 @@ export function runRequestFixture(
     ...(partial.preserveUnreportedAccounting !== undefined
       ? {
         benchmark: {
-          evidenceContext: null, identityDirective: '', rootThreadId: null, parentThreadId: null,
-          templateName: null, agentSlotId: null, stage: null,
+          evidenceContext: null, identityDirective: '',
           preserveUnreportedAccounting: partial.preserveUnreportedAccounting,
         },
       }

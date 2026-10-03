@@ -3,10 +3,14 @@ import fs from 'node:fs';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { Backend } from '../../agent-adapter/types.js';
 
-const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
+const JOURNAL_SCHEMA = 'cortex-bench-journal/2';
 const READ_BUFFER_BYTES = 64 * 1024;
 
 export type AgentSlot = string;
+
+/** The one role a production benchmark session runs. Evidence keyed by role (the journal's
+ *  `agent_slot`, the manifest's identity maps) carries this constant. */
+export const PRODUCTION_ROLE: AgentSlot = 'direct';
 
 export class TrajectoryWriteFailedError extends Error {
   readonly reason = 'trajectory_write_failed' as const;
@@ -26,7 +30,7 @@ class FilesystemOperationError extends Error {
 
 export interface JournalHeaderInput {
   rootRunId: string;
-  threadId: string | null;
+  sessionId: string;
   agentSlot: AgentSlot;
   resolvedCwd: string;
   canonicalInstructionSha256: string;
@@ -40,8 +44,7 @@ export interface JournalHeaderInput {
 }
 
 export interface JournalEventInput {
-  threadId: string | null;
-  step: number | null;
+  sessionId: string;
   agentSlot: AgentSlot;
   backend: Backend;
   provider: string | null;
@@ -139,7 +142,7 @@ function buildHeader(input: JournalHeaderInput, ts: string): Record<string, unkn
     schema_version: JOURNAL_SCHEMA,
     type: 'run_header',
     root_run_id: input.rootRunId,
-    thread_id: input.threadId,
+    session_id: input.sessionId,
     agent_slot: input.agentSlot,
     seq: 0,
     ts,
@@ -165,8 +168,7 @@ function buildEvent(
     schema_version: JOURNAL_SCHEMA,
     type: 'event',
     root_run_id: headerIdentity.rootRunId,
-    thread_id: input.threadId,
-    step: input.step,
+    session_id: input.sessionId,
     agent_slot: input.agentSlot,
     seq,
     ts,

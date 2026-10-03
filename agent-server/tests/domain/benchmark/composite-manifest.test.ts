@@ -68,7 +68,7 @@ function directManifest(): CompositeManifest {
     identity: IDENTITY,
     nodes: [sampleAttempt({
       attempt_id: 'run-r1', task_id: 'trial-1', task_ancestry: ['trial-1'],
-      thread_id: 'r1', root_thread_id: 'r1', template: 'benchmark-direct', role: 'benchmark-direct',
+      session_id: 'session-r1', execution_id: 'exec-r1', role: 'direct',
     })],
     edges: [],
     roots: { root_attempt_id: 'run-r1', root_task_id: null },
@@ -86,14 +86,12 @@ function managerManifest(overrides: {
   nodes?: readonly AttemptRecord[]; edges?: readonly AttemptEdge[];
 } = {}): CompositeManifest {
   const parent = sampleAttempt({
-    attempt_id: 'run-r1', task_id: 't-root', task_ancestry: ['t-root'], thread_id: 'r1',
-    root_thread_id: 'r1', template: 'benchmark-manager', role: 'benchmark-manager',
+    attempt_id: 'run-r1', task_id: 't-root', task_ancestry: ['t-root'],
+    session_id: 'session-r1', execution_id: 'exec-r1', role: 'manager',
   });
   const child = sampleAttempt({
     attempt_id: 'thread-c1', task_id: 't-child', parent_task_id: 't-root',
-    task_ancestry: ['t-root', 't-child'], thread_id: 'c1',
-    // A THREAD attempt: the G4-N14 biconditional requires non-null thread-scoped identity here.
-    root_thread_id: 'c1', template: 'benchmark-coder-review',
+    task_ancestry: ['t-root', 't-child'], session_id: 'session-c1', execution_id: 'exec-c1',
     journal_path: 'thread-c1.journal.ndjson', terminal_manifest_path: 'thread-c1.terminal.json',
   });
   return buildCompositeManifest({
@@ -140,7 +138,7 @@ describe('the eleven top-level members (§17 17.1.2, count RULED eleven)', () =>
   it('a built manifest carries all eleven and nothing else', () => {
     expect(Object.keys(directManifest())).toEqual([...COMPOSITE_MANIFEST_KEYS]);
     expect(directManifest().schema_version).toBe(COMPOSITE_MANIFEST_SCHEMA_VERSION);
-    expect(COMPOSITE_MANIFEST_SCHEMA_VERSION).toBe('cortex-bench-composite-manifest/2');
+    expect(COMPOSITE_MANIFEST_SCHEMA_VERSION).toBe('cortex-bench-composite-manifest/3');
   });
 });
 
@@ -465,7 +463,7 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
   });
 
   // ---- roots / coherence -------------------------------------------------------------------
-  it('roots_parent_attempt_invalid — must resolve to a node at depth 0 with thread_id null', () => {
+  it('roots_parent_attempt_invalid — must resolve to a node at depth 0', () => {
     const bad = mutate(directManifest(), {
       roots: { root_attempt_id: 'nobody', root_task_id: null },
     });
@@ -510,6 +508,7 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
 
   it.each([
     ['model_execution_identity_hash', ''], ['role_tool_surface_hash', ''],
+    ['session_id', ''], ['execution_id', ''],
     ['journal_path', ''], ['journal_sha256', ''],
     ['terminal_manifest_path', ''], ['terminal_manifest_sha256', ''],
     ['provider_requests', 0],
@@ -546,24 +545,6 @@ describe('§9.2 structural invariants — DIRECTION 2: each violation, its OWN n
       })],
     });
     expect(codesOf(bad, directContext)).toContain('task_ancestry_invalid');
-  });
-
-  it('thread_scoped_identity_invalid — a THREAD attempt that lost its identity (G4-N14)', () => {
-    const manifest = managerManifest();
-    const stripped = manifest.nodes.map(node => (
-      node.thread_id === null ? node : { ...node, root_thread_id: null, template: null }
-    ));
-    expect(codesOf(mutate(manifest, { nodes: stripped }), managerContext))
-      .toContain('thread_scoped_identity_invalid');
-  });
-
-  it('thread_scoped_identity_invalid — a PARENT attempt that fabricated one (G4-N14)', () => {
-    const bad = mutate(directManifest(), {
-      nodes: [sampleAttempt({
-        attempt_id: 'run-r1', task_id: 'trial-1', thread_id: null, root_thread_id: 'invented',
-      })],
-    });
-    expect(codesOf(bad, directContext)).toContain('thread_scoped_identity_invalid');
   });
 
   it('predicate_checks_incomplete', () => {

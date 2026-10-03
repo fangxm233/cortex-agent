@@ -28,7 +28,7 @@ import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
 import { AGENT_CWD, resolveSpawnCwd } from '../../../src/core/paths.js';
 import { canonicalJsonSha256 } from '../../../src/domain/benchmark/identity.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
@@ -116,7 +116,7 @@ function initialize(backend: Backend): ProductionBenchmarkEvidenceContext {
   activeEvidence = evidence(backend);
   initializeProductionAttemptIdentity({
     storePath: identityStorePath(),
-    configurationRevision: () => ({ profiles: 1, threads: 1 }),
+    configurationRevision: () => ({ profiles: 1, environments: 1 }),
   });
   return activeEvidence;
 }
@@ -129,26 +129,6 @@ function profile(backend: Backend): ResolvedProfileConfig {
   };
 }
 
-interface AttemptPath {
-  label: string;
-  template: string;
-  role: string;
-  stage: string | null;
-  taskId: string | null;
-}
-
-const PATHS: AttemptPath[] = [
-  { label: 'direct', template: 'benchmark-direct', role: 'benchmark-direct', stage: null, taskId: null },
-  { label: 'coder-review', template: 'benchmark-coder-review', role: 'benchmark-coder', stage: 'implement', taskId: null },
-  { label: 'manager/task-dispatch', template: 'benchmark-manager', role: 'benchmark-manager', stage: null, taskId: 'a1b2' },
-];
-
-interface AttemptTopology {
-  threadId: string;
-  rootThreadId: string;
-  parentThreadId: string | null;
-}
-
 interface RequestOptions {
   evidenceContext?: ProductionBenchmarkEvidenceContext | null;
   cwd?: string;
@@ -158,19 +138,14 @@ interface RequestOptions {
 
 function makeRequest(
   backend: Backend,
-  pathCase: AttemptPath,
   resolved: ResolvedProfileConfig,
-  topology: AttemptTopology,
+  sessionId: string,
   opts: RequestOptions = {},
 ): RunRequest {
   const request = runRequestFixture({
-    sessionKey: opts.sessionKey
-      ?? `journal-${backend}-${pathCase.label.replaceAll('/', '-')}`,
+    sessionKey: opts.sessionKey ?? `journal-${backend}-${sessionId}`,
+    trackSessionId: sessionId,
     promptText: 'do work',
-    threadId: topology.threadId,
-    taskId: pathCase.taskId,
-    taskProject: pathCase.taskId ? 'atlas' : null,
-    taskGeneration: pathCase.taskId ? `generation-${topology.threadId}` : null,
     profileName: resolved.name,
     systemPrompt: 'System prompt',
     tools: 'Read,Write',
@@ -185,20 +160,16 @@ function makeRequest(
   request.profile = resolved;
   request.benchmark = {
     evidenceContext: opts.evidenceContext === undefined ? activeEvidence : opts.evidenceContext,
-    identityDirective: `Directive for ${pathCase.role}`,
-    rootThreadId: topology.rootThreadId,
-    parentThreadId: topology.parentThreadId,
-    templateName: pathCase.template,
-    agentSlotId: pathCase.role,
-    stage: pathCase.stage,
+    identityDirective: 'Directive for the session',
     preserveUnreportedAccounting: false,
   };
   request.policy.background = 'none';
   return request;
 }
 
-function defaultTopology(executionId: string): AttemptTopology {
-  return { threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`, parentThreadId: null };
+/** Each test's attempt runs in a session of its own. */
+function sessionOf(executionId: string): string {
+  return `session-${executionId}`;
 }
 
 /** One successful Claude turn, as the CLI's stream-json would emit it. */
@@ -284,7 +255,7 @@ function makeDirectJournal(
   executionId: string,
   resolved: ResolvedProfileConfig,
 ): ReturnType<typeof createProductionAttemptJournalSink> {
-  const request = makeRequest(backend, PATHS[0], resolved, defaultTopology(executionId));
+  const request = makeRequest(backend, resolved, sessionOf(executionId));
   const spec = buildEngineSpec(request, attemptOf(resolved), {
     route: backend === 'claude' ? TRIAL_ROUTE : undefined,
     executionId,
@@ -328,7 +299,7 @@ test('records the exact model-visible role asset witnesses used by host finaliza
   const evidenceContext = initialize('pi');
   const resolved = profile('pi');
   const { handle } = startJournalAttempt(
-    'pi', makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-asset-witness'), { evidenceContext }),
+    'pi', makeRequest('pi', resolved, sessionOf('exec-asset-witness'), { evidenceContext }),
     resolved, 'exec-asset-witness',
   );
   await finishRun(handle, 'pi');
@@ -346,7 +317,7 @@ test('records the cwd the backend was actually spawned with, not the server proc
   const evidenceContext = initialize('pi');
   const resolved = profile('pi');
   const { handle } = startJournalAttempt(
-    'pi', makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-resolved-cwd'), { evidenceContext }),
+    'pi', makeRequest('pi', resolved, sessionOf('exec-resolved-cwd'), { evidenceContext }),
     resolved, 'exec-resolved-cwd',
   );
   await finishRun(handle, 'pi');
@@ -369,7 +340,7 @@ test('journals an explicitly requested cwd verbatim', async () => {
   try {
     const { handle } = startJournalAttempt(
       'pi',
-      makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-explicit-cwd'), { evidenceContext, cwd: workspace }),
+      makeRequest('pi', resolved, sessionOf('exec-explicit-cwd'), { evidenceContext, cwd: workspace }),
       resolved, 'exec-explicit-cwd',
     );
     await finishRun(handle, 'pi');
@@ -382,44 +353,48 @@ test('journals an explicitly requested cwd verbatim', async () => {
 });
 
 for (const backend of ['claude', 'pi'] as const) {
-  for (const pathCase of PATHS) {
-    test(`journals every ${backend} ${pathCase.label} normalized event once and links frozen identity`, async () => {
-      const evidenceContext = initialize(backend);
-      const resolved = profile(backend);
-      const executionId = `exec-${backend}-${pathCase.label.replace('/', '-')}`;
-      const { handle, raw } = startJournalAttempt(
-        backend,
-        makeRequest(backend, pathCase, resolved, defaultTopology(executionId), {
-          evidenceContext,
-          processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
-        }),
-        resolved, executionId,
-      );
-      await finishRun(handle, backend);
-    
-      const identity = getProductionAttemptIdentity(executionId);
-      const evidenceRecord = getProductionAttemptJournal(executionId);
-      assert.ok(identity && evidenceRecord);
-      assert.equal(evidenceRecord.attempt_id, identity.attempt_id);
-      assert.equal(evidenceRecord.execution_id, identity.execution_id);
-      assert.equal(evidenceRecord.event_count, raw.length);
-      // Literal normalized-event order per backend (the run's own raw tap is the authority for
-      // content; the type order is the backend protocol fact the suite pins).
-      // PI keeps its default `streamDeltas`, so its wire record carries the per-token preview
-      // event ahead of the whole buffered assistant message; both are journaled once.
-      assert.deepEqual(raw.map(event => event.type), backend === 'claude'
-        ? ['assistant_text', 'turn_progress', 'cost_record', 'turn_complete']
-        : ['session_started', 'assistant_delta', 'assistant_text', 'turn_progress', 'cost_record', 'turn_complete']);
-      assert.ok(path.isAbsolute(evidenceRecord.journal_path));
-      assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
-      const records = readJournal(evidenceRecord.journal_path);
-      assert.deepEqual(records.slice(1).map(record => record.event), raw);
-      assert.deepEqual(
-        records.map(record => record.seq),
-        Array.from({ length: raw.length + 1 }, (_, index) => index),
-      );
-    });
-  }
+  test(`journals every ${backend} normalized event once and links frozen identity`, async () => {
+    const evidenceContext = initialize(backend);
+    const resolved = profile(backend);
+    const executionId = `exec-${backend}-direct`;
+    const { handle, raw } = startJournalAttempt(
+      backend,
+      makeRequest(backend, resolved, sessionOf(executionId), {
+        evidenceContext,
+        processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
+      }),
+      resolved, executionId,
+    );
+    await finishRun(handle, backend);
+  
+    const identity = getProductionAttemptIdentity(executionId);
+    const evidenceRecord = getProductionAttemptJournal(executionId);
+    assert.ok(identity && evidenceRecord);
+    assert.equal(evidenceRecord.attempt_id, identity.attempt_id);
+    assert.equal(evidenceRecord.execution_id, identity.execution_id);
+    assert.equal(evidenceRecord.event_count, raw.length);
+    // Literal normalized-event order per backend (the run's own raw tap is the authority for
+    // content; the type order is the backend protocol fact the suite pins).
+    // PI keeps its default `streamDeltas`, so its wire record carries the per-token preview
+    // event ahead of the whole buffered assistant message; both are journaled once.
+    assert.deepEqual(raw.map(event => event.type), backend === 'claude'
+      ? ['assistant_text', 'turn_progress', 'cost_record', 'turn_complete']
+      : ['session_started', 'assistant_delta', 'assistant_text', 'turn_progress', 'cost_record', 'turn_complete']);
+    assert.ok(path.isAbsolute(evidenceRecord.journal_path));
+    assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
+    const records = readJournal(evidenceRecord.journal_path);
+    assert.deepEqual(records.slice(1).map(record => record.event), raw);
+    for (const record of records) {
+      assert.equal(record.schema_version, 'cortex-bench-journal/2');
+      assert.equal(record.session_id, sessionOf(executionId));
+      assert.equal(record.agent_slot, 'direct');
+      assert.equal('thread_id' in record, false);
+    }
+    assert.deepEqual(
+      records.map(record => record.seq),
+      Array.from({ length: raw.length + 1 }, (_, index) => index),
+    );
+  });
 }
 
 type AttemptLifecycle =
@@ -458,7 +433,7 @@ for (const lifecycle of [
     const executionId = `exec-${lifecycle}`;
     const { handle, raw } = startJournalAttempt(
       'claude',
-      makeRequest('claude', PATHS[0], resolved, defaultTopology(executionId), {
+      makeRequest('claude', resolved, sessionOf(executionId), {
         evidenceContext, processSpawner: claudeSpawner(lifecycleScript(lifecycle)),
       }),
       resolved, executionId,
@@ -480,7 +455,7 @@ for (const lifecycle of [
 test('a synchronous adapter spawn failure still closes and links its zero-event attempt', () => {
   const evidenceContext = initialize('claude');
   const resolved = profile('claude');
-  const request = makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-spawn-failure'), {
+  const request = makeRequest('claude', resolved, sessionOf('exec-spawn-failure'), {
     evidenceContext,
     processSpawner: (() => { throw new Error('spawn failed'); }) as AgentProcessSpawner,
   });
@@ -494,25 +469,17 @@ test('a synchronous adapter spawn failure still closes and links its zero-event 
   assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
 });
 
-test('keeps concurrent child-thread attempt journals isolated and ordered', async () => {
+test('keeps concurrent attempt journals of one session isolated and ordered', async () => {
   const evidenceContext = initialize('pi');
   const resolved = profile('pi');
   const executions = Array.from({ length: 6 }, (_, index) => `exec-concurrent-${index}`);
-  const rootThreadId = `thr-${executions[0]}`;
-  const runs = executions.map((executionId, index) => {
-    const pathCase: AttemptPath = {
-      label: `concurrent-${index}`, template: 'benchmark-coder-review',
-      role: 'benchmark-coder', stage: 'implement', taskId: null,
-    };
-    return startJournalAttempt(
-      'pi',
-      makeRequest('pi', pathCase, resolved, {
-        threadId: `thr-${executionId}`, rootThreadId,
-        parentThreadId: index === 0 ? null : rootThreadId,
-      }, { evidenceContext }),
-      resolved, executionId,
-    );
-  });
+  const runs = executions.map((executionId, index) => startJournalAttempt(
+    'pi',
+    makeRequest('pi', resolved, 'session-concurrent', {
+      evidenceContext, sessionKey: `journal-concurrent-${index}`,
+    }),
+    resolved, executionId,
+  ));
   await Promise.all(runs.map(async ({ handle }, index) => {
     const runtime = await piFake.runtime(index);
     await runtime.nextCall('prompt');
@@ -589,7 +556,7 @@ test('reload fails closed when persisted journal bytes no longer match their dig
   const resolved = profile('claude');
   const { handle } = startJournalAttempt(
     'claude',
-    makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-tampered'), {
+    makeRequest('claude', resolved, sessionOf('exec-tampered'), {
       evidenceContext, processSpawner: claudeSpawner(),
     }),
     resolved, 'exec-tampered',
@@ -610,7 +577,7 @@ test('ordinary non-benchmark runs do not create production attempt evidence', as
   resolved.name = 'ordinary';
   const { handle } = startJournalAttempt(
     'claude',
-    makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-ordinary'), {
+    makeRequest('claude', resolved, sessionOf('exec-ordinary'), {
       evidenceContext: null, processSpawner: claudeSpawner(),
     }),
     resolved, 'exec-ordinary',
