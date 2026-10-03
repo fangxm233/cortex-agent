@@ -8,7 +8,7 @@ import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLeve
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
-import { getAgent, listAgents } from '@domain/threads/index.js';
+import { getEnvironment, listEnvironments } from '@domain/agents/environments/registry.js';
 import { handleNewCmd } from './session.js';
 
 function formatProfileList(channel?: string): string {
@@ -327,7 +327,7 @@ const MAX_AGENT_BUTTONS = 10;
 
 /** `profile · agent:<claude agent>` — what an agent runs under, in one line. */
 function agentDetail(name: string): string {
-  const agentDef = getAgent(name);
+  const agentDef = getEnvironment(name);
   const claudeAgentStr = agentDef?.claudeAgent ? ` · agent:${agentDef.claudeAgent}` : '';
   return `${agentDef?.profile || '?'}${claudeAgentStr}`;
 }
@@ -350,7 +350,7 @@ function buildAgentText(channel: string): string {
     ? t('cmd.agent.globalLine', { name: globalAgent })
     : t('cmd.agent.globalNone');
   const available = t('cmd.agent.available', {
-    agents: listAgents().map(a => `\`${a.name}\``).join(', '),
+    agents: listEnvironments().map(a => `\`${a.name}\``).join(', '),
   });
   return `${header}\n${globalLine}\n${available}`;
 }
@@ -359,7 +359,7 @@ function buildAgentText(channel: string): string {
  *  the global default. Changing the global is a typed command (`!agent global <name>`) — a button
  *  that silently re-points every other conversation is not a button anyone wants to mis-tap. */
 function buildAgentButtons(channel: string): import('@platform/index.js').ActionElement[] {
-  const agents = listAgents();
+  const agents = listEnvironments();
   const buttons: import('@platform/index.js').ActionElement[] = agents.slice(0, MAX_AGENT_BUTTONS - 1).map((a, i) => ({
     type: 'button' as const,
     text: a.name,
@@ -388,7 +388,7 @@ async function switchChannelAgentReply(channel: string, name: string): Promise<s
         name, target: res.targetBackend ?? '?', current: res.currentBackend ?? '?',
       })}`;
     }
-    const available = listAgents().map(a => `\`${a.name}\``).join(', ');
+    const available = listEnvironments().map(a => `\`${a.name}\``).join(', ');
     return `${Icons.error} ${t('cmd.agent.unknown', { name, available })}`;
   }
   return `${Icons.ok} ${t('cmd.agent.channelSet', { name, detail: agentDetail(name) })}`;
@@ -469,8 +469,8 @@ export function createAgentHandler(router?: CommandActionRouter) {
           await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.agent.disabled')}` });
           return;
         }
-        if (!getAgent(name)) {
-          const available = listAgents().map(a => `\`${a.name}\``).join(', ');
+        if (!getEnvironment(name)) {
+          const available = listEnvironments().map(a => `\`${a.name}\``).join(', ');
           await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.agent.unknown', { name, available })}` });
           return;
         }

@@ -1,10 +1,11 @@
 import { threadStore } from '@store/thread-repo.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
-import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import { resolveSystemVars } from '@core/prompt-template.js';
-import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
+import { getAgent, getTemplate } from './template-loader.js';
 import { getModifiedFilesFromSession } from './artifact-io.js';
-import { getDefaultAgent } from '../agents/index.js';
+import {
+  buildSlotConfig, collectOverrides, getEnvironment, resolveActiveAgentName,
+} from '../agents/environments/index.js';
 import { composeUserPrompt } from '../runs/prompt.js';
 import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
@@ -15,75 +16,18 @@ import type {
  *  implementation is the layer-0 template engine every prompt composer shares. */
 export { resolveSystemVars };
 
-/** Resolve the `__active__` agent ref placeholder to the currently active default agent
- *  (set by `!agent`). With a `channel`, that channel's own selection answers first — a thread
- *  running on a channel that picked an agent runs the agent the channel picked, the same way its
- *  profile follows the channel. Falls back to `'main'` when nothing is configured. Other names
- *  pass through unchanged. */
-export function resolveActiveAgentName(name: string, channel?: string): string {
-  return name === '__active__' ? (getDefaultAgent(channel) || 'main') : name;
-}
+export { resolveActiveAgentName };
 
-// --- Agent slot config resolution ---
-
-type AgentOverrides = Partial<Pick<AgentSlotConfig,
-  'promptTemplate' | 'directive' | 'systemPrompt' | 'persistSession' |
-  'claudeAgent' | 'outputStyle' | 'tools' | 'pluginDirs' | 'mcpToolAllowlist' |
-  'loadRules' | 'disableHooks' | 'skills' | 'settingSources' | 'projectContext'>>;
-
-function collectRefOverrides(ref: TemplateAgentRef): AgentOverrides {
-  if (typeof ref === 'string') return {};
-  const o: AgentOverrides = {};
-  if (ref.promptTemplate != null) o.promptTemplate = resolveFileRef('promptTemplate', ref.promptTemplate) ?? ref.promptTemplate;
-  if (ref.directive != null) o.directive = resolveFileRef('directive', ref.directive) ?? ref.directive;
-  if (ref.systemPrompt != null) o.systemPrompt = resolveFileRef('systemPrompt', ref.systemPrompt) ?? ref.systemPrompt;
-  if (ref.persistSession != null) o.persistSession = ref.persistSession;
-  if (ref.claudeAgent != null) o.claudeAgent = ref.claudeAgent;
-  if (ref.outputStyle != null) o.outputStyle = ref.outputStyle;
-  if (ref.tools != null) o.tools = ref.tools;
-  if (ref.pluginDirs != null) o.pluginDirs = ref.pluginDirs;
-  if (ref.mcpToolAllowlist != null) {
-    o.mcpToolAllowlist = canonicalizeMcpToolAllowlist(ref.mcpToolAllowlist);
-  }
-  if (ref.loadRules != null) o.loadRules = ref.loadRules;
-  if (ref.disableHooks != null) o.disableHooks = ref.disableHooks;
-  if (ref.skills != null) o.skills = ref.skills;
-  if (ref.settingSources != null) o.settingSources = ref.settingSources;
-  if (ref.projectContext != null) o.projectContext = ref.projectContext;
-  return o;
-}
-
-/** Resolve a TemplateAgentRef to a full AgentSlotConfig by merging agent definition with optional
- *  overrides. `channel` only matters for an `__active__` ref — see {@link resolveActiveAgentName}. */
+/** Resolve a TemplateAgentRef to a full AgentSlotConfig by merging the agent definition with the
+ *  ref's overrides. A thread agent wins; a name only the environments know (what an `__active__`
+ *  ref resolves to when the channel picked one) runs that environment. `channel` only matters for
+ *  an `__active__` ref — see {@link resolveActiveAgentName}. */
 export function resolveAgentSlotConfig(ref: TemplateAgentRef, channel?: string): AgentSlotConfig | null {
   const rawName = typeof ref === 'string' ? ref : ref.ref;
   const agentName = resolveActiveAgentName(rawName, channel);
-  const agentDef = getAgent(agentName);
+  const agentDef = getAgent(agentName) ?? getEnvironment(agentName);
   if (!agentDef) return null;
-  const overrides = collectRefOverrides(ref);
-  return {
-    slotId: agentName,
-    profile: agentDef.profile,
-    persistSession: overrides.persistSession ?? agentDef.persistSession,
-    directive: overrides.directive ?? agentDef.directive,
-    systemPrompt: overrides.systemPrompt ?? agentDef.systemPrompt,
-    promptTemplate: overrides.promptTemplate ?? agentDef.promptTemplate,
-    claudeAgent: overrides.claudeAgent ?? agentDef.claudeAgent,
-    outputStyle: overrides.outputStyle ?? agentDef.outputStyle,
-    tools: overrides.tools ?? agentDef.tools,
-    pluginDirs: overrides.pluginDirs ?? agentDef.pluginDirs,
-    mcpComposition: agentDef.mcpComposition,
-    mcpToolAllowlist: overrides.mcpToolAllowlist
-      ?? (agentDef.mcpToolAllowlist
-        ? canonicalizeMcpToolAllowlist(agentDef.mcpToolAllowlist) : undefined),
-    loadRules: overrides.loadRules ?? agentDef.loadRules,
-    disableHooks: overrides.disableHooks ?? agentDef.disableHooks,
-    skills: overrides.skills ?? agentDef.skills,
-    settingSources: overrides.settingSources ?? agentDef.settingSources,
-    projectContext: overrides.projectContext ?? agentDef.projectContext,
-    stages: agentDef.stages,
-    entryStage: agentDef.entryStage,
-  };
+  return buildSlotConfig(agentName, agentDef, collectOverrides(ref));
 }
 
 /** Resolve a single agent name to AgentSlotConfig (for ad-hoc threads) */

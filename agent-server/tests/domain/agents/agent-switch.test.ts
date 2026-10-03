@@ -43,8 +43,8 @@ vi.mock('@store/session-registry-repo.js', () => ({
   },
 }));
 
-vi.mock('../../../src/domain/threads/template-loader.js', () => ({
-  getAgent: (name: string) => AGENTS[name] ?? null,
+vi.mock('../../../src/domain/agents/environments/registry.js', () => ({
+  getEnvironment: (name: string) => AGENTS[name] ?? null,
 }));
 
 function seed(state: Record<string, unknown> = {}) {

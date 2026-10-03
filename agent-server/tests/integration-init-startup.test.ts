@@ -214,6 +214,8 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       // DR-0017 D6 Phase 2.5: thread-templates is a directory (one file per entity)
       path.join(tempDir, 'config', 'thread-templates', 'templates', 'default.json'),
       path.join(tempDir, 'config', 'thread-templates', 'shells', 'worker-review.json'),
+      path.join(tempDir, 'config', 'environments', 'main.json'),
+      path.join(tempDir, 'config', 'environments', 'creative.json'),
     ];
     for (const f of files) {
       assert.ok(existsSync(f), `Expected file to exist: ${f}`);

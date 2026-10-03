@@ -49,6 +49,7 @@ import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
+import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
@@ -114,7 +115,7 @@ import {
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener, getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { installTeamDelivery } from '@orch/team-delivery.js';
@@ -124,7 +125,7 @@ import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outboun
 import { createUiService } from '@domain/ui-service/index.js';
 import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
-import { deliverToSessionDetached } from '@orch/session-gateway.js';
+import { deliverToSession, deliverToSessionDetached } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
 import { openThreadRun, type ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
@@ -369,16 +370,19 @@ const oq = initOutboundQueue(adapter);
 
 // --- Init extracted modules ---
 initScheduledRunner(adapter);
-// The `domain/scheduling` → `orchestration` seam (plan §1.3): the two thread jobs hand a
-// ThreadRunInput over and render nothing themselves, and the paths that fail before a run exists
-// say their one line through `notify`. Both are injected here because domain may not import
-// orchestration.
+// The `domain/scheduling` → `orchestration` seams: task dispatch hands a ThreadRunInput over and
+// renders nothing itself, a schedule's fire hands its prompt to the session it opened as that
+// session's first turn, and the paths that fail before a run exists say their one line through
+// `notify`. All are injected here because domain may not import orchestration.
 jobCtx.runThreadOnSurface = (input: ThreadRunSurfaceInput) => openThreadRun({ ...input, adapter });
 jobCtx.notify = async (destination, text) => {
   const queue = getOutboundQueue();
   if (queue) { await durablePost(queue, adapter, destination, { text }); }
   else { await adapter.postMessage(destination, { text }); }
 };
+jobCtx.deliverScheduledTurn = ({ channel, text }) => deliverToSession({
+  channel, text, origin: 'scheduled', tag: 'sched', adapter,
+});
 setBus(bus);
 registerAuthWatch(bus, adapter, {
   buildPlatformAction: buildAuthRequiredLoginAction,
@@ -726,6 +730,11 @@ process.on('SIGTERM', async () => {
     );
   }
   loadThreadConfig();
+  // Execution environments: copy-if-missing the shipped defaults (a sealed trial home brings its
+  // own), then load and watch config/environments/.
+  if (syncManagedAssets) mergeDefaultEnvironments(DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR);
+  loadEnvironments();
+  startEnvironmentWatcher();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
       profiles: getProfileConfigRevision(), threads: getThreadConfigRevision(),

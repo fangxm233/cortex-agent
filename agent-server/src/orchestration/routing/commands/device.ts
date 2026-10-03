@@ -2,7 +2,7 @@ import type { PlatformAdapter, Destination } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { getOnlineDevices } from '@domain/remote/client-manager.js';
-import { getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import { formatTimeAgo } from './time-ago.js';

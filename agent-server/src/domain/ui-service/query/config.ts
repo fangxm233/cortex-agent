@@ -6,6 +6,7 @@ import { getSettingsSnapshot } from '@core/settings.js';
 import { getLocale } from '@core/i18n.js';
 import { langSource } from '@domain/system/preferences.js';
 import { loadMountedHookSummaries } from '@store/hook-registry.js';
+import { ENVIRONMENTS_DIRNAME } from '@domain/agents/environments/paths.js';
 import type {
   UiServiceDeps,
   ConfigGetParams,
@@ -33,10 +34,10 @@ async function readJson(file: string): Promise<any | null> {
   }
 }
 
-/** The agent templates, read as documents rather than filenames: a picker has to say what each
- *  environment is for and which profile it pins. Read from the same directory the bare listing
- *  comes from, so the snapshot stays hermetic to `configDir`; a malformed file is skipped rather
- *  than failing the whole snapshot. */
+/** The execution environments (`config/environments/`), read as documents rather than filenames: a
+ *  picker has to say what each environment is for and which profile it pins. Read under
+ *  `configDir`, so the snapshot stays hermetic; a malformed file is skipped rather than failing the
+ *  whole snapshot. */
 async function readAgentEntries(dir: string, names: readonly string[]): Promise<ConfigAgentEntry[]> {
   const entries = await Promise.all(names.map(async (name): Promise<ConfigAgentEntry | null> => {
     const raw = await readJson(path.join(dir, `${name}.json`));
@@ -187,14 +188,15 @@ export async function readConfigSnapshot(
     listJsonBasenames(path.join(tt, 'templates')),
     listJsonBasenames(path.join(tt, 'shells')),
     readEnv(path.join(configDir, '.env')),
+    listJsonBasenames(path.join(configDir, ENVIRONMENTS_DIRNAME)),
   ]);
-  const [budget, profiles, machines, mcp, agents, templates, shells, env] = parts;
+  const [budget, profiles, machines, mcp, agents, templates, shells, env, environments] = parts;
   const threadTemplates: ConfigThreadTemplates = { agents, templates, shells };
   return {
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
     mcp: parseMcp(mcp), threadTemplates,
-    agents: await readAgentEntries(path.join(tt, 'agents'), agents),
+    agents: await readAgentEntries(path.join(configDir, ENVIRONMENTS_DIRNAME), environments),
     hooks, env, settings: liveSettings, lang,
   };
 }

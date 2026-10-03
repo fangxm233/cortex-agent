@@ -331,7 +331,7 @@ test('generateDefaultModeJson returns valid JSON with expected fields', () => {
   assert.equal(parsed.backend, 'claude');
   assert.equal(parsed.claudeModel, 'opus');
   assert.equal(parsed.activeProfile, '__active__');
-  assert.equal(parsed.defaultAgent, 'direct');
+  assert.equal(parsed.defaultAgent, 'main');
 });
 
 test('generateDefaultModeJson uses provided backend', () => {

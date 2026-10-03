@@ -2,7 +2,7 @@ import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
-import { resolveTemplate } from '../src/domain/threads/template-resolver.js';
+import { resolveTemplate } from '../src/domain/agents/environments/prompt-includes.js';
 
 const TMP_DIR = join(import.meta.dirname!, '..', 'tmp', 'test-templates');
 

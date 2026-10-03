@@ -31,7 +31,7 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   };
 });
 
-vi.mock('@domain/threads/index.js', async (importOriginal) => {
+vi.mock('@domain/agents/environments/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,

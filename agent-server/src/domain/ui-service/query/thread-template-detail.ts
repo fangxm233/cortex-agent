@@ -8,6 +8,7 @@ import { readEntity, readRawRegistry } from '@domain/threads/template-writer.js'
 import { loaderRefResolver, CONFIG_TEMPLATES_DIR } from '@domain/threads/template-loader.js';
 import { isShellBinding, expandShell } from '@domain/threads/shell-templates.js';
 import { classifyOrigin } from './thread-templates.js';
+import { readEnvironmentDetail } from './environments.js';
 import type { AgentDefinition, ShellDefinition, ShellTemplateBinding } from '@core/types/thread-types.js';
 import type {
   UiServiceDeps,
@@ -38,6 +39,7 @@ export async function handleThreadTemplatesDetail(
   params: ThreadTemplateDetailParams,
 ): Promise<ThreadTemplateDetail> {
   const { kind, name } = params;
+  if (kind === 'agent') return readEnvironmentDetail(name);
   const entity = readEntity(CONFIG_TEMPLATES_DIR, kind, name);
   const registry = readRawRegistry(CONFIG_TEMPLATES_DIR);
   const { errors, warnings } = validateEntity(kind, name, entity.body, registry, loaderRefResolver());

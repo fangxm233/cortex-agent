@@ -1,21 +1,28 @@
 import { z } from 'zod';
 import { t } from '@core/i18n.js';
+import {
+  ACTIVE_AGENT,
+  FILE_REF_PREFIX,
+  PROMPT_FIELD_DIRS,
+  checkPluginDirs,
+  checkPromptFileRef,
+  environmentFieldsShape,
+  environmentSchema,
+  isPlainObject,
+  unknownKeyWarnings,
+  zodIssues,
+  type Issue,
+  type RefResolver,
+  type ValidationResult,
+} from '../agents/environments/index.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
 import { parseTarget } from './utils.js';
 import type { AgentDefinition, ShellDefinition, ShellTemplateBinding } from '@core/types/thread-types.js';
 
 export type EntityKind = 'agent' | 'template' | 'shell';
 
-/** `path` anchors the issue at a field (`transitions[2].from`) so the editor can point at it. */
-export interface Issue {
-  path: string;
-  message: string;
-}
-
-export interface ValidationResult {
-  errors: Issue[];
-  warnings: Issue[];
-}
+export { ACTIVE_AGENT, FILE_REF_PREFIX, PROMPT_FIELD_DIRS };
+export type { Issue, RefResolver, ValidationResult };
 
 /** Raw (unexpanded, un-file-ref-resolved) config as it sits on disk: name → parsed JSON. */
 export interface RawRegistry {
@@ -23,26 +30,6 @@ export interface RawRegistry {
   templates: Record<string, unknown>;
   shells: Record<string, unknown>;
 }
-
-/** Optional filesystem probes. Omitted in unit tests, injected by the API handler. */
-export interface RefResolver {
-  promptsDir: string;
-  pluginBaseDir: string;
-  join: (...parts: string[]) => string;
-  exists: (absPath: string) => boolean;
-  isAbsolute: (p: string) => boolean;
-}
-
-/** `__active__` is the runtime-resolved default agent (prompt-builder.ts:20), not a config entity. */
-export const ACTIVE_AGENT = '__active__';
-
-/** Prompt fields accept `file:<name>` to read the text from `prompts/<subdir>/<name>`. */
-export const FILE_REF_PREFIX = 'file:';
-export const PROMPT_FIELD_DIRS: Record<string, string> = {
-  directive: 'directives',
-  promptTemplate: 'promptTemplates',
-  systemPrompt: 'systemPrompts',
-};
 
 // --- Structural schemas (mirror core/types/thread-types.ts) ---
 
@@ -79,32 +66,10 @@ export const hooksSchema = z.object({
   onEnd: hookConfigSchema.optional(),
 });
 
-/** The execution-environment fields, spelled once: an agent declares them and a template ref may
- *  override all but `delegable` (which decides what the agent IS, not how one template runs it). */
-const environmentShape = {
-  loadRules: z.boolean().optional(),
-  disableHooks: z.boolean().optional(),
-  skills: z.boolean().optional(),
-  settingSources: z.array(z.enum(['user', 'project', 'local'])).optional(),
-  projectContext: z.boolean().optional(),
-};
-
-export const agentSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  profile: z.string().min(1),
-  persistSession: z.boolean(),
-  directive: z.string().optional(),
-  systemPrompt: z.string().optional(),
-  promptTemplate: z.string().optional(),
-  claudeAgent: z.string().optional(),
-  outputStyle: z.string().optional(),
-  tools: z.string().optional(),
-  pluginDirs: z.array(z.string()).optional(),
+/** A thread agent is an environment plus the stage map, and may also run on the thread-control
+ *  MCP surface. */
+export const agentSchema = environmentSchema.extend({
   mcpComposition: z.enum(['direct', 'thread-control', 'none']).optional(),
-  mcpToolAllowlist: z.array(z.string()).optional(),
-  delegable: z.boolean().optional(),
-  ...environmentShape,
   stages: z.record(z.string(), stageSchema).optional(),
   entryStage: z.string().optional(),
 });
@@ -120,7 +85,7 @@ export const agentRefOverrideSchema = z.object({
   tools: z.string().optional(),
   pluginDirs: z.array(z.string()).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
-  ...environmentShape,
+  ...environmentFieldsShape,
 });
 
 export const agentRefSchema = z.union([z.string().min(1), agentRefOverrideSchema]);
@@ -162,33 +127,6 @@ const TEMPLATE_KEYS = new Set(Object.keys(templateSchema.shape));
 const SHELL_KEYS = new Set(Object.keys(shellSchema.shape));
 
 // --- Helpers ---
-
-function formatPath(segments: ReadonlyArray<PropertyKey>): string {
-  let out = '';
-  for (const seg of segments) {
-    if (typeof seg === 'number') out += `[${seg}]`;
-    else out += out === '' ? String(seg) : `.${String(seg)}`;
-  }
-  return out;
-}
-
-function zodIssues(result: z.ZodSafeParseResult<unknown>): Issue[] {
-  if (result.success) return [];
-  return result.error.issues.map((issue) => ({
-    path: formatPath(issue.path) || '(root)',
-    message: issue.message,
-  }));
-}
-
-function unknownKeyWarnings(body: Record<string, unknown>, known: ReadonlySet<string>): Issue[] {
-  return Object.keys(body)
-    .filter((key) => !known.has(key))
-    .map((key) => ({ path: key, message: t('ux.tpl.unknownField', { key }) }));
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** Registry agents as AgentDefinitions, for the shell expander. Non-object entries are dropped. */
 function agentDefs(registry: RawRegistry): Record<string, AgentDefinition> {
@@ -248,25 +186,6 @@ function checkCondition(condition: unknown, path: string, result: ValidationResu
 
 // --- Agent validation ---
 
-function checkPromptFileRef(
-  field: string,
-  value: unknown,
-  path: string,
-  refs: RefResolver | undefined,
-  warnings: Issue[],
-): void {
-  if (!refs || typeof value !== 'string' || !value.startsWith(FILE_REF_PREFIX)) return;
-  const subdir = PROMPT_FIELD_DIRS[field];
-  if (!subdir) return;
-  const filename = value.slice(FILE_REF_PREFIX.length);
-  if (!refs.exists(refs.join(refs.promptsDir, subdir, filename))) {
-    warnings.push({
-      path,
-      message: t('ux.tpl.promptFileMissing', { subdir, filename, value }),
-    });
-  }
-}
-
 function validateAgent(
   name: string,
   body: Record<string, unknown>,
@@ -325,15 +244,7 @@ function validateAgent(
     checkPromptFileRef(field, body[field], field, refs, result.warnings);
   }
 
-  if (refs && Array.isArray(body.pluginDirs)) {
-    body.pluginDirs.forEach((dir, i) => {
-      if (typeof dir !== 'string') return;
-      const abs = refs.isAbsolute(dir) ? dir : refs.join(refs.pluginBaseDir, dir);
-      if (!refs.exists(abs)) {
-        result.warnings.push({ path: `pluginDirs[${i}]`, message: t('ux.tpl.pluginDirMissing', { dir }) });
-      }
-    });
-  }
+  checkPluginDirs(body.pluginDirs, refs, result.warnings);
 
   return result;
 }

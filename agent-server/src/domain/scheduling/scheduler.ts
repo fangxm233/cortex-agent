@@ -164,10 +164,6 @@ interface RunnerParams {
   projectId: string;
   scheduleTaskId: string;
   profileName: string;
-  /** Where the fired task should land — passed through so scheduled-task.ts can pick its dispatch branch. */
-  target?: ScheduleTask['target'];
-  /** What to do if the chosen target thread no longer exists at fire time. */
-  fallback?: ScheduleTask['fallback'];
 }
 
 interface ProgrammaticHandlerParams {
@@ -529,8 +525,6 @@ class Scheduler {
           projectId: task.projectId,
           scheduleTaskId: task.id,
           profileName,
-          target: task.target,
-          fallback: task.fallback,
         });
       }
     } catch (e) {

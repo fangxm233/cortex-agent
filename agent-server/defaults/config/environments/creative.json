@@ -1,0 +1,17 @@
+{
+  "name": "creative",
+  "description": "Clean-room creative environment: writing, image prompts, naming, copy. No skills, no project rules, minimal tools.",
+  "profile": "__active__",
+  "persistSession": true,
+  "promptTemplate": "{{input}}",
+  "systemPrompt": "file:creative.md",
+  "tools": "Read,Write,Edit",
+  "pluginDirs": [],
+  "skills": false,
+  "settingSources": [],
+  "mcpComposition": "direct",
+  "mcpToolAllowlist": ["send_file", "send_view", "cortex_ask_user"],
+  "loadRules": false,
+  "disableHooks": true,
+  "projectContext": false
+}

@@ -2,6 +2,7 @@ import { CONFIG_TEMPLATES_DIR } from '@domain/threads/template-loader.js';
 import { isShellBinding } from '@domain/threads/shell-templates.js';
 import { listEntityNames, readEntity, readRawRegistry } from '@domain/threads/template-writer.js';
 import type { RawRegistry } from '@domain/threads/template-validate.js';
+import { ENVIRONMENTS_DIR, listEnvironmentNames, readEnvironment } from '@domain/agents/environments/index.js';
 import {
   normalizePluginDirs,
   pluginDirsOf,
@@ -44,8 +45,9 @@ function readAgentTargets(
   snapshot: ReturnType<typeof readPluginCatalogSnapshot>,
 ): PluginAgentTarget[] {
   const out: PluginAgentTarget[] = [];
-  for (const name of listEntityNames(CONFIG_TEMPLATES_DIR, 'agent')) {
-    const entity = readEntity(CONFIG_TEMPLATES_DIR, 'agent', name);
+  // Agent targets are the execution environments; template slots below still name thread agents.
+  for (const name of listEnvironmentNames(ENVIRONMENTS_DIR)) {
+    const entity = readEnvironment(ENVIRONMENTS_DIR, name);
     if (!entity.body) continue;
     const normalized = normalizePluginDirs(pluginDirsOf(entity.body), snapshot);
     out.push({

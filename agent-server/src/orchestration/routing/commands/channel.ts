@@ -6,7 +6,7 @@ import { projectStore } from '@domain/projects/index.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
-import { getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { getMachineRegistry } from '@domain/remote/machine-registry.js';
 
 /**
  * Render a (possibly platform-prefixed) conduit for display.
