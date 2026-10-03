@@ -18,13 +18,13 @@ Records execution friction affecting work efficiency: misleading requirements, c
 
 ```markdown
 - **<One-line title>** (<YYYY-MM-DD>): <symptom and impact, 1 line>
-  - <root cause guess or confirmation, 1 line; investigation detail → pointer (K-NNN / task artifact / EXP-NNN / file:line)>
+  - <root cause guess or confirmation, 1 line; investigation detail → pointer (K-NNN / report / EXP-NNN / file:line)>
 ```
 
 ## Prohibited Content
 
 - Fixed issues (resolved must be deleted, no changelog left behind)
-- Investigation journals, reproduction logs, multi-block code → reusable findings go to `knowledge/K-NNN`, task-specific detail goes to that task's artifact; the entry keeps only a pointer
+- Investigation journals, reproduction logs, multi-block code → reusable findings go to `knowledge/K-NNN`, detail specific to one piece of work goes to its report; the entry keeps only a pointer
 - Experiment failure conclusions → belongs in `experiments/EXP-NNN.md`
 - Design decision trade-offs → belongs in `decisions/DR-NNNN.md`
 - Project-level blockers → belongs in `STATUS.md` "Blockers & Pending Decisions" section (ISSUES.md records process friction, not phase blockers)

@@ -1,10 +1,10 @@
 # Cortex Memory System
 
-Cortex stores all knowledge on the filesystem as atomized, indexed markdown files — the **Dense Context** structure (DR-0007). There is no vector database, no RAG pipeline, and no external knowledge store. The filesystem is the database. For how this fits into the broader system architecture, see [architecture.md](./architecture.md).
+Cortex stores all knowledge on the filesystem as atomized, indexed markdown files — the **Dense Context** structure. There is no vector database, no RAG pipeline, and no external knowledge store. The filesystem is the database. For how this fits into the broader system architecture, see [architecture.md](./architecture.md).
 
 ## Why Atomized Memory
 
-The core insight (from DR-0007) is that monolithic context files don't scale. A single `EXPERIMENTS.md` file grows unboundedly, making it expensive to load into agent context and hard to search. The solution is to atomize each experiment, knowledge entry, and pattern into its own file, with auto-generated indexes for fast lookup.
+The core insight is that monolithic context files don't scale. A single `EXPERIMENTS.md` file grows unboundedly, making it expensive to load into agent context and hard to search. The solution is to atomize each experiment, knowledge entry, and pattern into its own file, with auto-generated indexes for fast lookup.
 
 This design draws from academic work: Du 2026's survey of agent memory patterns, QMatSuite's layered knowledge hierarchy (finding → pattern → principle), and A-MEM's atomic notes with dynamic linking (< 4μs retrieval time at 1M memories).
 
@@ -53,14 +53,14 @@ Each experiment is an atomic file recording a single investigation. An experimen
 
 ```yaml
 ---
-id: EXP-042
+id: EXP-NNN
 date: 2026-03-09
 project: nimbus
 summary: "Initial object registry extraction from 573 artifacts"
 tags: [registry, data-analysis, milestone-2.2]
 status: valid
 executor: Cortex-hub
-links: [PAT-002]
+links: [PAT-NNN]
 refs: 2
 last-ref: "2026-04-16T03:12:21.074Z"
 ---
@@ -94,12 +94,12 @@ Knowledge entries are atomic facts, anti-patterns, or heuristics distilled from 
 
 ```yaml
 ---
-id: K-008
+id: K-NNN
 date: 2026-04-01
 project: nimbus
 summary: "ANTI-PATTERN: Running smoke tests or broader validation without verifying upstream service availability"
 tags: [anti-pattern, smoke-test, service-dependency]
-evidence: [EXP-021, EXP-022, EXP-025, EXP-033, EXP-040]
+evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 refs: 2
 last-ref: "2026-04-10T20:42:00.826Z"
 ---
@@ -117,13 +117,13 @@ Patterns synthesize invariants across multiple experiments. A pattern states a r
 
 ```yaml
 ---
-id: PAT-001
+id: PAT-NNN
 date: 2026-04-01
 project: nimbus
 summary: "When a multi-stage pipeline yields zero output, per-stage pass-rate quantification locates the bottleneck faster than end-to-end retries"
 tags: [pipeline, diagnosis, stage-isolation]
-source-experiments: [EXP-001, EXP-005, EXP-006, EXP-008]
-evidence: [EXP-001, EXP-005, EXP-006, EXP-008]
+source-experiments: [EXP-NNN, EXP-NNN, EXP-NNN]
+evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 refs: 2
 last-ref: "2026-04-16T03:16:28.890Z"
 ---
@@ -170,7 +170,7 @@ Cortex automatically tracks which experiment, knowledge, and pattern files are a
 1. After every `Read` or `Grep` tool call, the hook checks if the accessed file path matches the pattern `/(experiments|knowledge|patterns)/(EXP-\d+[a-z]?|K-\d+|PAT-\d+)\.md$/`
 2. If matched, it extracts the project name from the path and appends a JSON line to `_meta/access-log.jsonl`:
    ```json
-   {"file":"EXP-001.md","tool":"Read","ts":"2026-04-02T03:12:21.074Z"}
+   {"file":"EXP-NNN.md","tool":"Read","ts":"2026-04-02T03:12:21.074Z"}
    ```
 3. For `Grep` operations that match multiple files, it parses the tool output to count per-file matches, avoiding duplicate counting
 4. If a `Grep` returns zero file matches, it records `_directory_search` instead

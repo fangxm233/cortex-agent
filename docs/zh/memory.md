@@ -1,11 +1,11 @@
 # Cortex 内存系统 {#cortex-memory-system}
 
 
-Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件系统中——即 **Dense Context** 结构（DR-0007）。没有向量数据库、没有 RAG 管道、没有外部知识存储。文件系统就是数据库。关于这如何融入更广泛的系统架构，参见 [architecture.md](./architecture.md)。
+Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件系统中——即 **Dense Context** 结构。没有向量数据库、没有 RAG 管道、没有外部知识存储。文件系统就是数据库。关于这如何融入更广泛的系统架构，参见 [architecture.md](./architecture.md)。
 
 ## 为什么使用原子化内存 {#why-atomized-memory}
 
-核心洞察（来自 DR-0007）是单体上下文文件无法扩展。单个 `EXPERIMENTS.md` 文件无限增长，使其加载到智能体上下文时代价高昂且难以搜索。解决方案是将每个实验、知识条目和模式原子化为自己的文件，并带有自动生成的索引以便快速查找。
+核心洞察是单体上下文文件无法扩展。单个 `EXPERIMENTS.md` 文件无限增长，使其加载到智能体上下文时代价高昂且难以搜索。解决方案是将每个实验、知识条目和模式原子化为自己的文件，并带有自动生成的索引以便快速查找。
 
 此设计借鉴了学术工作：Du 2026 的智能体内存模式调查，QMatSuite 的分层知识层次（finding → pattern → principle），以及 A-MEM 的带动态链接的原子笔记（100 万条记忆时检索时间 < 4μs）。
 
@@ -54,14 +54,14 @@ context/
 
 ```yaml
 ---
-id: EXP-042
+id: EXP-NNN
 date: 2026-03-09
 project: nimbus
 summary: "从 573 个产物中初步提取对象注册表"
 tags: [registry, data-analysis, milestone-2.2]
 status: valid
 executor: Cortex-hub
-links: [PAT-002]
+links: [PAT-NNN]
 refs: 2
 last-ref: "2026-04-16T03:12:21.074Z"
 ---
@@ -95,12 +95,12 @@ last-ref: "2026-04-16T03:12:21.074Z"
 
 ```yaml
 ---
-id: K-008
+id: K-NNN
 date: 2026-04-01
 project: nimbus
 summary: "反模式：在未验证上游服务可用性的情况下运行烟雾测试或更广泛的验证"
 tags: [anti-pattern, smoke-test, service-dependency]
-evidence: [EXP-021, EXP-022, EXP-025, EXP-033, EXP-040]
+evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 refs: 2
 last-ref: "2026-04-10T20:42:00.826Z"
 ---
@@ -118,13 +118,13 @@ last-ref: "2026-04-10T20:42:00.826Z"
 
 ```yaml
 ---
-id: PAT-001
+id: PAT-NNN
 date: 2026-04-01
 project: nimbus
 summary: "当多阶段管道产生零输出时，按阶段量化通过率比端到端重试更快定位瓶颈"
 tags: [pipeline, diagnosis, stage-isolation]
-source-experiments: [EXP-001, EXP-005, EXP-006, EXP-008]
-evidence: [EXP-001, EXP-005, EXP-006, EXP-008]
+source-experiments: [EXP-NNN, EXP-NNN, EXP-NNN]
+evidence: [EXP-NNN, EXP-NNN, EXP-NNN]
 refs: 2
 last-ref: "2026-04-16T03:16:28.890Z"
 ---
@@ -171,7 +171,7 @@ Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。�
 1. 每次 `Read` 或 `Grep` 工具调用后，钩子检查访问的文件路径是否匹配模式 `/(experiments|knowledge|patterns)/(EXP-\d+[a-z]?|K-\d+|PAT-\d+)\.md$/`
 2. 如果匹配，它从路径中提取项目名称并追加一行 JSON 到 `_meta/access-log.jsonl`：
    ```json
-   {"file":"EXP-001.md","tool":"Read","ts":"2026-04-02T03:12:21.074Z"}
+   {"file":"EXP-NNN.md","tool":"Read","ts":"2026-04-02T03:12:21.074Z"}
    ```
 3. 对于匹配多个文件的 `Grep` 操作，它解析工具输出以计算每个文件的匹配数，避免重复计数
 4. 如果 `Grep` 返回零个文件匹配，则记录 `_directory_search`
