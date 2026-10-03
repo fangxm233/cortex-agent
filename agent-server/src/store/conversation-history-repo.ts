@@ -49,7 +49,7 @@ export interface HistoryDebugDetails {
 
 export type InteractionKind = 'ask-user' | 'plan-approval';
 export type InteractionStatus = 'pending' | 'answered' | 'approved' | 'rejected' | 'expired' | 'cancelled';
-export type InteractionResolvedVia = 'web' | 'slack' | 'timeout' | 'restart' | 'command';
+export type InteractionResolvedVia = 'web' | 'slack' | 'timeout' | 'restart' | 'command' | 'agent';
 
 export interface InteractionQuestion {
   question: string;

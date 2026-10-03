@@ -20,7 +20,7 @@ import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { initHookBridge, resolveRequest as resolveHookRequest, setOnStale } from '@orch/routing/hook-bridge.js';
+import { initHookBridge, setOnStale } from '@orch/routing/hook-bridge.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
@@ -76,6 +76,7 @@ import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTas
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
 import { respondToPlan } from '@orch/interactions/plan-response.js';
+import { answerQuestion } from '@orch/interactions/answer-question.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { createUiUpdatePrompt } from '@orch/interactions/ui-update-prompt.js';
@@ -662,26 +663,7 @@ process.on('SIGTERM', async () => {
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
     // on the HTTP response; this callback collects answers, resolves the entity (which persists
     // the record and broadcasts session.interaction to every client), and unblocks the tool.
-    answerQuestion: (requestId, answers) => {
-      const rec = interactionRecords.get(requestId);
-      if (rec && rec.status !== 'pending') return 'already-resolved';
-      const group = askUserQuestion.getGroupByHookRequestId(requestId);
-      if (!group) {
-        // No group (raw hook request) — unblock the webhook directly if it exists.
-        if (!resolveHookRequest(requestId, { answers })) return 'not-found';
-        void interactionRecords.resolve({ id: requestId, status: 'answered', result: { answers }, resolvedVia: 'web' });
-        return 'resolved';
-      }
-      for (const q of group.questions) {
-        const answer = answers[q.question];
-        if (answer !== undefined) {
-          group.answers.set(q.pendingId, { header: q.header, value: answer });
-        }
-      }
-      if (!askUserQuestion.tryResolveHook(group)) return 'not-found';
-      void interactionRecords.resolve({ id: requestId, status: 'answered', result: { answers }, resolvedVia: 'web' });
-      return 'resolved';
-    },
+    answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'web'),
     // Web UI plan-approval: resolve or reject a pending plan by requestId. First-writer-wins;
     // the entity resolve persists + broadcasts, so no separate history/session-message writes.
     respondPlan: (requestId, approved, feedback) => respondToPlan(
@@ -689,6 +671,7 @@ process.on('SIGTERM', async () => {
       requestId,
       approved,
       feedback,
+      'web',
     ),
   });
   extractTuiAdapter(adapter)?.setUiService(uiService);
