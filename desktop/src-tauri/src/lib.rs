@@ -27,6 +27,9 @@ mod forward;
 #[path = "forward_stub.rs"]
 mod forward;
 
+#[cfg(target_os = "macos")]
+mod traffic_lights;
+
 // macOS system menu bar, built from the model the SPA sends. Compiled everywhere: the command must
 // exist on every platform so the JS side has one call path, and it answers `false` off macOS.
 mod native_menu;
@@ -721,12 +724,14 @@ pub fn run() {
                     .disable_drag_drop_handler();
                 // macOS keeps its decorations: Overlay is the supported way to run content under
                 // the title bar, and it preserves the native traffic lights, fullscreen button
-                // and window menu. The lights are nudged to sit centred in the SPA's 34px bar.
+                // and window menu. The lights are centred in the SPA's 44px bar.
                 #[cfg(target_os = "macos")]
                 {
+                    let lights = traffic_lights::position();
+                    shell_log!("[cortex-desktop] traffic lights at ({}, {})", lights.x, lights.y);
                     win = win
                         .title_bar_style(tauri::TitleBarStyle::Overlay)
-                        .traffic_light_position(tauri::LogicalPosition::new(20.0, 11.0))
+                        .traffic_light_position(lights)
                         .hidden_title(true);
                 }
                 // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`
