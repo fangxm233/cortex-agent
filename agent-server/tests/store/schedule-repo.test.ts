@@ -148,6 +148,29 @@ test('ScheduleRepo - migrate fills target=fresh for legacy records without targe
   assert.deepEqual(found.target, { kind: 'fresh' }, 'migrate should default target to fresh');
 });
 
+test('ScheduleRepo - a stored thread target is read as fresh, the rest of the record intact', async () => {
+  const idx = _testIdx++;
+  const filePath = path.join(tmpDir, `schedules-${idx}.json`);
+  await fs.writeFile(filePath, JSON.stringify({
+    tasks: [
+      {
+        id: 'thread-1', type: 'daily', time: '09:00', message: 'morning digest', projectId: 'p1',
+        profile: 'plan', createdAt: 1, target: { kind: 'thread', threadId: 'thr_1', channel: 'C1' }, fallback: 'skip',
+      },
+      { id: 'project-1', type: 'interval', intervalMs: 60000, message: 'm', projectId: 'p1', profile: null, createdAt: 1, target: { kind: 'project' } },
+    ],
+  }));
+  const repo = new ScheduleRepo(filePath);
+  const thread = await repo.findTask('thread-1');
+  assert.ok(thread);
+  assert.deepEqual(thread.target, { kind: 'fresh' });
+  assert.equal(thread.message, 'morning digest');
+  assert.equal(thread.time, '09:00');
+  assert.equal(thread.fallback, 'skip');
+  // A project target without its projectId cannot be honoured either.
+  assert.deepEqual((await repo.findTask('project-1'))!.target, { kind: 'fresh' });
+});
+
 // ── Invalidate: clears cache so next read fetches from disk ────
 
 test('ScheduleRepo - invalidate() clears in-memory cache', async () => {

@@ -22,9 +22,9 @@ test('resolveTargetShorthand: "current-project" → resolved project', () => {
   assert.deepEqual(out, { kind: 'project', projectId: 'cortex-self' });
 });
 
-test('resolveTargetShorthand: "current-thread" → resolved thread', () => {
-  const out = resolveTargetShorthand('current-thread', FULL_CTX);
-  assert.deepEqual(out, { kind: 'thread', threadId: 'thr_xyz999', channel: 'C123' });
+test('resolveTargetShorthand: "fresh" and an absent target → fresh', () => {
+  assert.deepEqual(resolveTargetShorthand('fresh', FULL_CTX), { kind: 'fresh' });
+  assert.deepEqual(resolveTargetShorthand(undefined, FULL_CTX), { kind: 'fresh' });
 });
 
 // --- shorthand error paths (context missing required fields) ---
@@ -36,10 +36,11 @@ test('resolveTargetShorthand: "current-project" without project → throws', () 
   );
 });
 
-test('resolveTargetShorthand: "current-thread" without threadId → throws (does not silently fall back to fresh)', () => {
+test('resolveTargetShorthand: the retired thread target is refused at create time', () => {
+  assert.throws(() => resolveTargetShorthand('current-thread' as any, FULL_CTX), /unknown target/i);
   assert.throws(
-    () => resolveTargetShorthand('current-thread', { ...FULL_CTX, threadId: null }),
-    /current-thread.*thread/i,
+    () => resolveTargetShorthand({ kind: 'thread', threadId: 'thr_xyz999', channel: 'C123' } as any, FULL_CTX),
+    /unknown target/i,
   );
 });
 

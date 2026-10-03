@@ -7,15 +7,24 @@ export const SCHEDULES_FILE = path.join(STORE_DIR, 'schedules.json');
 export const CHANNEL_REGISTRY_FILE = path.join(STORE_DIR, 'channel-registry.json');
 
 /** Where a fired scheduled-task should land. Resolved by the cortex_schedule_add MCP tool
- *  (or schedule-cli) at create time — `__current__` placeholders are concretized then, so
- *  list/get always show real IDs. The 4 kinds map to the dispatch branches in
- *  scheduling/jobs/scheduled-task.ts. */
+ *  (or schedule-cli) at create time — shorthand placeholders are concretized then, so list/get
+ *  always show real IDs. Every fire opens a fresh session (scheduling/jobs/scheduled-task.ts). */
 export type ScheduleTarget =
   | { kind: 'fresh' }
-  /** Fire into the project — spawns a fresh session in the project's channel. */
-  | { kind: 'project'; projectId: string }
-  /** Continue a specific thread; only valid while thread.status is running|waiting. */
-  | { kind: 'thread'; threadId: string; channel: string };
+  /** Fire into the project — the fresh session is bound to that project. */
+  | { kind: 'project'; projectId: string };
+
+/** A stored target this build can run, else null. Kinds that no longer exist (a thread target)
+ *  and malformed records are read as null and land as a fresh session. */
+function readTarget(raw: unknown): ScheduleTarget | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const target = raw as { kind?: unknown; projectId?: unknown };
+  if (target.kind === 'fresh') return { kind: 'fresh' };
+  if (target.kind === 'project' && typeof target.projectId === 'string' && target.projectId) {
+    return { kind: 'project', projectId: target.projectId };
+  }
+  return null;
+}
 
 export interface ScheduleTask {
   id: string;
@@ -40,10 +49,8 @@ export interface ScheduleTask {
   taskConfigHash?: string;
   /** Dispatch routing — defaults to { kind: 'fresh' } for legacy records. */
   target?: ScheduleTarget;
-  /** What to do when the target thread no longer exists at fire time.
-   *  fresh: silently fall back to fresh-thread dispatch.
-   *  skip:  record lastSkipped, post a Slack one-liner, do not run.
-   *  wait:  reschedule short delay (max 3 retries), then fall back to fresh. */
+  /** No longer read: it chose what a thread target did once its thread was gone, and every target
+   *  now opens a fresh session. Kept so stored records and the schedule editor round-trip. */
   fallback?: 'fresh' | 'skip' | 'wait';
 }
 
@@ -100,10 +107,10 @@ function makeMigrate(channelRegistryPath?: string): (raw: unknown) => SchedulesD
       }
     }
 
-    // Backfill target=fresh on records persisted before the multi-target dispatch landed,
-    // so the scheduler can dispatch them through the unified branch table without null-checks.
+    // Backfill target=fresh on records persisted before targets existed, and on targets of a kind
+    // that no longer exists, so every reader sees one of the kinds above.
     for (const task of data.tasks) {
-      if (!task.target) task.target = { kind: 'fresh' };
+      task.target = readTarget(task.target) ?? { kind: 'fresh' };
     }
     return data;
   };
