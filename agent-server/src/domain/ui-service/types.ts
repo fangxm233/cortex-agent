@@ -1500,9 +1500,9 @@ export interface ConfigThreadTemplates {
   shells: string[];
 }
 
-/** One agent template as a picker needs it: what it is for, and which profile it pins (or
- *  `__active__` — it runs whatever the conversation's own profile resolves to). Richer than
- *  {@link ConfigThreadTemplates.agents}, which is the bare file listing the config editor uses. */
+/** One execution environment (`config/environments/`) as a picker needs it: what it is for, and
+ *  which profile it pins (or `__active__` — it runs whatever the conversation's own profile
+ *  resolves to). */
 export interface ConfigAgentEntry {
   name: string;
   description?: string;
@@ -1661,8 +1661,8 @@ export interface ConfigSnapshot {
   machines: ConfigMachine[];
   mcp: ConfigMcp | null;
   threadTemplates: ConfigThreadTemplates;
-  /** The agent templates a composer may pick from, with what each one is and pins. Always emitted
-   *  by current servers; optional while clients and servers roll independently. */
+  /** The execution environments a composer may pick from, with what each one is and pins. Always
+   *  emitted by current servers; optional while clients and servers roll independently. */
   agents?: ConfigAgentEntry[];
   hooks: ConfigHook[];
   env: ConfigEnvEntry[];

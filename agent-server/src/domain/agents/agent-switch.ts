@@ -5,9 +5,7 @@ import {
 } from './config.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import { channelHasHistory, decideProfileSwitch } from './profile-switch.js';
-// The template loader, not the `@domain/threads` barrel: the barrel re-exports prompt-builder,
-// which imports this domain back, and the cycle would be real at module-init time.
-import { getAgent } from '../threads/template-loader.js';
+import { getEnvironment } from './environments/registry.js';
 
 export type SwitchAgentFailure = 'unknown-agent' | 'cross-backend-live-session';
 
@@ -63,7 +61,7 @@ function targetBackendOf(agentProfile: string, currentBackend: string): string {
  */
 export async function switchChannelAgent(opts: { channel: string; name: string }): Promise<SwitchAgentResult> {
   const { channel, name } = opts;
-  const agent = getAgent(name);
+  const agent = getEnvironment(name);
   if (!agent) return { ok: false, reason: 'unknown-agent' };
 
   const currentBackend = resolveBackendForChannel(channel);

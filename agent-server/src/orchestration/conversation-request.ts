@@ -6,7 +6,7 @@ import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { resolveAgentSlotConfigByName } from '@domain/threads/index.js';
+import { FALLBACK_ENVIRONMENT, resolveAgentSlotConfigByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import { DIRECT_RUN_POLICY } from '@domain/runs/builders.js';
@@ -21,7 +21,7 @@ import { isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
-import type { AgentSlotConfig } from '@core/types/thread-types.js';
+import type { AgentSlotConfig } from '@core/types/environment-types.js';
 import {
   buildPrompt as buildAgentPrompt, formatAttachmentFailures,
 } from '../agent-adapter/normalize/prompt-builder.js';
@@ -139,9 +139,6 @@ export function conversationRunPolicy(
   };
 }
 
-/** The agent a conversation falls back to when nothing anywhere names one. */
-const FALLBACK_AGENT = 'main';
-
 /**
  * Which agent — which execution environment — a conversation turn opens under.
  *
@@ -157,12 +154,12 @@ export function resolveConversationAgent(
   candidates: ReadonlyArray<string | null | undefined>,
   resolve: (name: string) => AgentSlotConfig | null = resolveAgentSlotConfigByName,
 ): { agentName: string; agentConfig: AgentSlotConfig } {
-  for (const name of [...candidates, FALLBACK_AGENT]) {
+  for (const name of [...candidates, FALLBACK_ENVIRONMENT]) {
     if (!name) continue;
     const agentConfig = resolve(name);
     if (agentConfig) return { agentName: name, agentConfig };
   }
-  throw new Error(`Unknown default agent: ${FALLBACK_AGENT}`);
+  throw new Error(`Unknown default agent: ${FALLBACK_ENVIRONMENT}`);
 }
 
 /** The agent recorded on the session record, if any. Best-effort: a registry read that fails leaves

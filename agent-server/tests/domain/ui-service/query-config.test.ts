@@ -45,6 +45,13 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
     hooks: { onEnd: { command: 'node review.mjs' } },
   }));
   await fs.writeFile(path.join(configDir, 'thread-templates', 'shells', 'default.json'), '{}');
+  await fs.mkdir(path.join(configDir, 'environments'), { recursive: true });
+  await fs.writeFile(path.join(configDir, 'environments', 'main.json'), JSON.stringify({
+    name: 'main', description: 'General', profile: '__active__',
+  }));
+  await fs.writeFile(path.join(configDir, 'environments', 'creative.json'), JSON.stringify({
+    name: 'creative', profile: 'fast',
+  }));
   await fs.writeFile(path.join(configDir, 'hooks', '01-managed.json'), JSON.stringify({
     id: 'managed-hook', event: 'agent:pre-tool', run: { command: 'true' }, version: '2026.7.29',
   }));
@@ -157,6 +164,11 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   assert.deepEqual(snap.threadTemplates.agents, ['coder']);
   assert.deepEqual(snap.threadTemplates.templates, ['coder-review']);
   assert.deepEqual(snap.threadTemplates.shells, ['default']);
+  // The composer picker lists the execution environments only, never the thread agents.
+  assert.deepEqual(snap.agents, [
+    { name: 'creative', profile: 'fast' },
+    { name: 'main', profile: '__active__', description: 'General' },
+  ]);
   assert.deepEqual(snap.hooks, [
     { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
     { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user' },

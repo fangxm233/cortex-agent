@@ -36,9 +36,9 @@ vi.mock('@domain/agents/index.js', () => ({
   switchChannelProfile: async () => ({ ok: true }),
 }));
 
-vi.mock('@domain/threads/index.js', () => ({
-  getAgent: (name: string) => AGENTS[name] ?? null,
-  listAgents: () => Object.values(AGENTS),
+vi.mock('@domain/agents/environments/registry.js', () => ({
+  getEnvironment: (name: string) => AGENTS[name] ?? null,
+  listEnvironments: () => Object.values(AGENTS),
 }));
 
 const { createAgentHandler } = await import('../../src/orchestration/routing/commands/mode.js');

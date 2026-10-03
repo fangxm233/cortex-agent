@@ -49,6 +49,7 @@ import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
+import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
@@ -726,6 +727,11 @@ process.on('SIGTERM', async () => {
     );
   }
   loadThreadConfig();
+  // Execution environments: copy-if-missing the shipped defaults (a sealed trial home brings its
+  // own), then load and watch config/environments/.
+  if (syncManagedAssets) mergeDefaultEnvironments(DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR);
+  loadEnvironments();
+  startEnvironmentWatcher();
   initializeProductionAttemptIdentity({
     configurationRevision: () => ({
       profiles: getProfileConfigRevision(), threads: getThreadConfigRevision(),
