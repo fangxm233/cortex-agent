@@ -27,28 +27,6 @@ export const sessionsPendingInteractionInput = z.object({
   sessionId: z.string().min(1),
 });
 
-export const threadsListInput = z.object({
-  projectId: z.string().optional(),
-  status: z.array(z.string()).optional(),
-  sessionId: z.string().optional(),
-});
-
-export const threadsGetInput = z.object({
-  threadId: z.string(),
-  includeArtifactContent: z.boolean().optional(),
-});
-
-export const tasksListInput = z.object({
-  projectId: z.string().optional(),
-  status: z.enum(['open', 'done']).optional(),
-  actionable: z.boolean().optional(),
-});
-
-export const taskVerificationInput = z.object({
-  projectId: z.string(),
-  taskId: z.string(),
-});
-
 export const schedulesListInput = z.object({
   projectId: z.string().optional(),
   paused: z.boolean().optional(),

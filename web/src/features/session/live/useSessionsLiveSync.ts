@@ -7,7 +7,7 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
  * (`features/live/LiveEventsProvider` — one SSE for the whole app) for `session.status` +
  * `session.interaction` + snapshot-bearing context/Todo events, UNSCOPED (the center chat's listener
  * only covers the selected session), and invalidates `sessions.list` so every session snapshot is
- * current before selection. Mirrors useThreadsLiveSync.
+ * current before selection.
  */
 const RAIL_EVENTS = [
   'session.status', 'session.interaction', 'session.context-usage', 'session.context-compacted',

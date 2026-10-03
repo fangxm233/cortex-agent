@@ -6,11 +6,10 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/session/list/session-groups';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
-import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import type { UsageNavState } from './MUsageScreen';
-import { threadCountsForProject, pendingApprovalCounts } from './m-project-vm';
+import { pendingApprovalCounts } from './m-project-vm';
 import { PROJECT_SWITCH_COPY } from './MProjectSwitchRows';
 import { useProjectSwitchRows } from './useMProjectSwitch';
 import { MNewProjectSheet, useNewProjectSheet, type NewProjectSheet } from './useMNewProjectSheet';
@@ -25,7 +24,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     ...PROJECT_SWITCH_COPY.en,
     title: 'Projects',
     current: 'Current',
-    threadsRunning: 'running',
     needsYou: 'need you',
     perDay: 'day',
     week: 'Week',
@@ -34,7 +32,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     approvals: 'Approvals',
     pending: 'pending',
     globalPending: 'global',
-    threadsWaiting: 'threads paused',
     handle: 'Review',
     memory: 'Project memory',
     usage: 'Usage',
@@ -45,7 +42,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     ...PROJECT_SWITCH_COPY.zh,
     title: '项目',
     current: '当前',
-    threadsRunning: '线程运行中',
     needsYou: '需要你',
     perDay: '日',
     week: '本周',
@@ -54,7 +50,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     approvals: '审批',
     pending: '待处理',
     globalPending: '全局',
-    threadsWaiting: '线程暂停等待',
     handle: '处理',
     memory: '项目记忆',
     usage: '用量',
@@ -70,7 +65,6 @@ function useProjectQueries(projectId: string) {
     sessions: useAllSessions('direct').data ?? [],
     scopedCost: useQuery({ ...trpc.cost.summary.queryOptions({ projectId: projectId || undefined }), enabled: !!projectId }).data ?? null,
     globalCost: useQuery(trpc.cost.summary.queryOptions({})).data,
-    threads: useQuery(trpc.threads.list.queryOptions({})).data ?? [],
     approvals: useQuery(trpc.approvals.list.queryOptions({ status: 'pending' })).data ?? [],
     issues: useQuery({ ...trpc.issues.list.queryOptions({ projectId }), enabled: !!projectId }).data ?? [],
   };
@@ -83,9 +77,8 @@ function useCurrentCard(
 ) {
   return useMemo(() => {
     if (!projectId) return null;
-    const counts = threadCountsForProject(queries.threads, projectId);
-    return { id: projectId, initials: projectInitials(projectId), runningThreads: counts.running, waitingThreads: counts.waiting, needsYou: scopedApprovals, cost: queries.scopedCost };
-  }, [projectId, queries.threads, scopedApprovals, queries.scopedCost]);
+    return { id: projectId, initials: projectInitials(projectId), needsYou: scopedApprovals, cost: queries.scopedCost };
+  }, [projectId, scopedApprovals, queries.scopedCost]);
 }
 
 function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnType<typeof useRateLimitStatus>; rateOpen: boolean; closeRate: () => void; project: NewProjectSheet }) {
@@ -109,7 +102,7 @@ export function MProjectScreen() {
   const lang = useLang();
   const { currentProjectId, setCurrentProject } = useCurrentProject();
   const projectId = currentProjectId ?? '';
-  useSessionsLiveSync(); useThreadsLiveSync();
+  useSessionsLiveSync();
   const queries = useProjectQueries(projectId);
   const { notes, busy: notesBusy, add: addNote } = useNotesResource(projectId);
   const notesVm = useMemo(() => buildMNotesVm(notes, Date.now(), lang), [notes, lang]);
@@ -119,7 +112,7 @@ export function MProjectScreen() {
   const scopedApprovals = projectId ? approvalCounts.byProject[projectId] ?? 0 : 0;
   const current = useCurrentCard(projectId, queries, scopedApprovals);
   const switchRows = useProjectSwitchRows(projectId, {
-    projects: queries.projects, sessions: queries.sessions, threads: queries.threads,
+    projects: queries.projects, sessions: queries.sessions,
     globalByProject: queries.globalCost?.byProject, approvalsByProject: approvalCounts.byProject,
   });
   const { rate, rateOpen, setRateOpen } = useRateLimitSheet();

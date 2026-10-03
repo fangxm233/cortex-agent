@@ -14,23 +14,6 @@ function TabIcon({ id, color }: { id: MobileTabId; color: string }): ReactNode {
           <path d="M4 4.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H9.5L5.5 19v-3.5H4A1.5 1.5 0 0 1 2.5 14V6A1.5 1.5 0 0 1 4 4.5z" />
         </svg>
       );
-    case 'threads':
-      return (
-        <svg width="22" height="22" viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth="1.4">
-          <circle cx="3.5" cy="3" r="1.9" />
-          <circle cx="3.5" cy="11" r="1.9" />
-          <circle cx="10.5" cy="7" r="1.9" />
-          <path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
-        </svg>
-      );
-    case 'tasks':
-      return (
-        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6">
-          <path d="M4 5.5l1.5 1.5L8 4.5" />
-          <path d="M4 12.5l1.5 1.5L8 11.5" />
-          <path d="M10.5 6h6M10.5 13h6" />
-        </svg>
-      );
     case 'project':
       // Folder icon (scheme 1a L125): the 项目 tab.
       return (

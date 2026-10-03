@@ -17,7 +17,6 @@ export interface MDaemonCopy {
   connConnecting: string;
   connReconnecting: string;
   connDisconnected: string;
-  threadsRunning: (n: number) => string;
   schedules: (n: number) => string;
   /** Mono label prefix for the uptime metric (`uptime` / `运行时长`). */
   uptimeLabel: string;
@@ -38,7 +37,7 @@ export interface MDaemonCopy {
   rebuildStatus: Record<DaemonRebuildVm['status'], string>;
   softRestart: string;
   forceKill: string;
-  softNote: (n: number) => string;
+  softNote: string;
   holdHint: string;
   footerNote: string;
   sent: string;
@@ -307,8 +306,6 @@ export function MDaemonView({
               borderTop: `1px solid ${MC.divider}`,
             }}
           >
-            <span>{copy.threadsRunning(vm.threadCount)}</span>
-            <span>·</span>
             <span>{copy.schedules(vm.scheduleCount)}</span>
           </div>
         </MCard>
@@ -369,7 +366,7 @@ export function MDaemonView({
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{copy.softRestart}</span>
             <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted }}>
-              {copy.softNote(vm.threadCount)}
+              {copy.softNote}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

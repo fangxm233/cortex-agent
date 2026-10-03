@@ -8,7 +8,7 @@ const copy: MApprovalsCopy = {
   toProcess: 'pending',
   tier: 'Approval',
   from: 'from',
-  paused: 'thread paused, waiting',
+  paused: 'waiting for your decision',
   approve: 'Approve',
   reject: 'Reject with feedback',
   feedbackPlaceholder: 'Optional feedback',

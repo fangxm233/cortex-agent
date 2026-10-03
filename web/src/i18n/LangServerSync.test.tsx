@@ -42,7 +42,6 @@ vi.mock('@/lib/trpc', () => ({
 function snapshot(lang?: { value: Lang; source: 'env' | 'file' | 'default' }): ConfigSnapshot {
   return {
     budget: null, profiles: null, machines: [], mcp: null,
-    threadTemplates: { agents: [], templates: [], shells: [] },
     hooks: [], env: [], settings: [], ...(lang ? { lang } : {}),
   } as unknown as ConfigSnapshot;
 }

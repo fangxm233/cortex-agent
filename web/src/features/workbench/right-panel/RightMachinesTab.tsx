@@ -199,7 +199,7 @@ function MachineCardMeta({ machine }: { machine: MachineInfo }) {
 function MachineCard({ machine, open, detail, onToggle }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void;
 }) {
-  // Same glass-on-glass rule as the thread cards: translucent fill, no filter of its own.
+  // Glass-on-glass inside the drawer sheet: translucent fill, no filter of its own.
   return <div style={{ background: 'var(--material-card-bg)', border: 0, borderRadius: 'var(--r-card)',
     boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)' }}>
     <div role="button" aria-expanded={open} onClick={onToggle}
@@ -212,8 +212,8 @@ function MachineCard({ machine, open, detail, onToggle }: {
   </div>;
 }
 
-// A group label, not a header bar: the drawer's three tabs each open onto the same kind of
-// labelled card stack, so machines gets the same label the threads and tasks groups use.
+// A group label, not a header bar: the machines section is a labelled card stack under the
+// drawer's tab strip.
 function MachinesHeader({ count }: { count: string }) {
   const L = useVocab();
   return <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em',

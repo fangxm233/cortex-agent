@@ -15,7 +15,7 @@ import { ShellModalHost } from './ShellModals';
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
 // frame including its own left rail; other routes render full-bleed. The old token-summary nav
 // LeftRail was removed (superseded). The global ⌘K command palette (design 6c) and every
-// always-available overlay — the execution log drawer, thread detail, Settings, New-schedule,
+// always-available overlay — the execution log drawer, Settings, New-schedule,
 // approvals, … — stay mounted here so any surface can open them without route navigation. The
 // overlays share one registry (ShellProviders' ModalRegistry) and are rendered by ShellModalHost.
 //

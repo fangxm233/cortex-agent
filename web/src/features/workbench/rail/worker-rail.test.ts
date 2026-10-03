@@ -37,7 +37,6 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   scheduledSessions: [],
   schedules: [],
   commissions: [],
-  threads: [],
   selectedSessionId: null,
   fallbackProjectId: null,
   expanded: new Set(['atlas']),

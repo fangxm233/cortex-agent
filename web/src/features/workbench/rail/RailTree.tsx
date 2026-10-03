@@ -628,19 +628,6 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                 {node.matchCount}
               </span>
             )}
-            {node.running > 0 && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 11px ${mono}`, color: 'var(--proto-accent)' }}>
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--proto-accent)',
-                  }}
-                />
-                {node.running}
-              </span>
-            )}
             {node.attention > 0 && (
               <span
                 data-project-attention-badge={node.id}

@@ -10,7 +10,7 @@ vi.mock('@/i18n', async (importOriginal) => {
     useVocab: () => ({
       stNavAppearance: 'Appearance', stNavPlatform: 'Platform', stNavAccounts: 'Accounts',
       stNavProfiles: 'Profiles', stNavBudget: 'Budget', stNavUsage: 'Usage',
-      stNavMachines: 'Machines', stNavTemplates: 'Templates', stNavPlugins: 'Plugins',
+      stNavMachines: 'Machines', stNavEnvironments: 'Environments', stNavPlugins: 'Plugins',
       stNavMcp: 'MCP', stNavNotifications: 'Notifications', stNavHooks: 'Hooks',
       stNavAdvanced: 'Advanced', connConnected: 'Connected', connConnecting: 'Connecting',
       connReconnecting: 'Reconnecting', connDisconnected: 'Disconnected',
@@ -60,7 +60,7 @@ describe('MSettingsView parity', () => {
 
     act(() => renderer.root.findByProps({ 'data-settings-entry': 'budget' }).props.onClick());
     expect(onOpenSection).toHaveBeenCalledWith('budget');
-    expect(renderer.root.findByProps({ 'data-settings-entry': 'templates' }).props.onClick).toBeUndefined();
+    expect(renderer.root.findByProps({ 'data-settings-entry': 'environments' }).props.onClick).toBeUndefined();
     expect(renderer.root.findByProps({ 'data-settings-entry': 'plugins' }).props.onClick).toBeUndefined();
   });
 });

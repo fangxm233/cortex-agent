@@ -18,9 +18,8 @@ import {
 // SHARED LIVE-EVENT STREAM — one SSE subscription for the whole app, fanned out client-side.
 //
 // Before this, every live surface opened its own `client.subscribe.subscribe(...)`: the chat, the
-// rail's running dots, the threads panel, each expanded thread card, the tasks panel, DM notifications,
-// system notices, plus a connectivity probe that subscribed to an EMPTY event set just to watch the
-// link state. tRPC's httpSubscriptionLink does not multiplex, so that was 6+ concurrent EventSources —
+// rail's running dots, the side panels, DM notifications, system notices, plus a connectivity probe
+// that subscribed to an EMPTY event set just to watch the link state. tRPC's httpSubscriptionLink does not multiplex, so that was 6+ concurrent EventSources —
 // the exact per-origin connection cap of HTTP/1.1, after which every other request (thumbnails,
 // uploads, downloads) queued forever on a direct plain-HTTP origin.
 //

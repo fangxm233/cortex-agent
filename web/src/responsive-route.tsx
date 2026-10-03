@@ -8,18 +8,12 @@ import { matchMobileRoute, mobileRoutePath } from '@/mobile/mobile-route-manifes
 export function layoutDestination(pathname: string, mobile: boolean): string {
   if (mobile) {
     switch (pathname.replace(/\/+$/, '')) {
-      case '/tasks': return mobileRoutePath('tasks');
-      case '/threads': return mobileRoutePath('threads');
       case '/memory': return mobileRoutePath('memory');
       case '/overview': return mobileRoutePath('project');
       default: return mobileRoutePath('sessions');
     }
   }
   switch (matchMobileRoute(pathname)?.route.id) {
-    case 'tasks':
-    case 'task': return '/tasks';
-    case 'threads':
-    case 'thread': return '/threads';
     case 'memory':
     case 'memoryFile': return '/memory';
     case 'project': return '/overview';

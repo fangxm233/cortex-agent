@@ -53,7 +53,7 @@ function deferred<T>() {
 describe('runtime setting commits', () => {
   it.each<[WritableBooleanSettingKey, boolean]>([
     ['turnNotify', true],
-    ['taskArchiveEnabled', false],
+    ['memoryIndexRegenEnabled', false],
   ])('writes %s through config.set settings and refreshes the snapshot', async (key, nextValue) => {
     const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
     const refresh = vi.fn().mockResolvedValue(undefined);
@@ -67,7 +67,7 @@ describe('runtime setting commits', () => {
   });
 
   it.each([
-    ['taskArchiveIntervalMs', 3_600_000],
+    ['memoryIndexRegenIntervalMs', 3_600_000],
     ['sessionRetentionDays', 45],
   ] as const)('writes the validated %s number through the generic path', async (key, nextValue) => {
     const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });

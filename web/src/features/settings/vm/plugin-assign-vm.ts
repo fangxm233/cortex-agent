@@ -1,22 +1,17 @@
 import type {
-  PluginAgentTarget,
   PluginAssignmentTarget,
-  PluginTemplateShellBindingTarget,
-  PluginTemplateSlotTarget,
   PluginsAssignArgs,
   UiPluginCatalogEntry,
 } from '@cortex-agent/ui-contract';
 
-/** The entity whose assignment is being edited. Assignment is a field of an agent or a template
- *  slot, so the scope is always one config entity — never the plugin. */
+/** The environment whose assignment is being edited. Assignment is a field of the environment, so
+ *  the scope is always one config file — never the plugin. */
 export interface PluginAssignScope {
-  kind: 'agent' | 'template';
   name: string;
 }
 
 export interface PluginsPanelDraft {
   targetKey: string;
-  mode: PluginTemplateSlotTarget['mode'] | null;
   baseHash: string;
   sourceFingerprint: string;
   pluginIds: string[];
@@ -42,39 +37,12 @@ function dedupePluginIds(ids: readonly string[]): string[] {
   return out;
 }
 
-function agentForRef(targets: readonly PluginAssignmentTarget[], ref: string): PluginAgentTarget | null {
-  return targets.find((target): target is PluginAgentTarget => target.kind === 'agent' && target.name === ref) ?? null;
-}
-
-function inheritedPluginIds(target: PluginTemplateSlotTarget, targets: readonly PluginAssignmentTarget[]): string[] {
-  return dedupePluginIds(agentForRef(targets, target.ref)?.managedPluginIds ?? target.managedPluginIds);
-}
-
-function templateMode(target: PluginAssignmentTarget): PluginTemplateSlotTarget['mode'] | null {
-  return target.kind === 'template-slot' ? target.mode : null;
-}
-
-function targetPluginIds(target: PluginAssignmentTarget): string[] {
-  if (target.kind === 'template-shell') return [];
-  return dedupePluginIds(target.managedPluginIds);
-}
-
-function isEditableTarget(target: PluginAssignmentTarget | null): target is PluginAgentTarget | PluginTemplateSlotTarget {
-  return !!target?.editable;
-}
-
 function isSelected(draft: PluginsPanelDraft, pluginId: string): boolean {
   return draft.pluginIds.includes(pluginId);
 }
 
-function isInheritedDraft(target: PluginAssignmentTarget | null, draft: PluginsPanelDraft | null): boolean {
-  return target?.kind === 'template-slot' && draft?.mode === 'inherit';
-}
-
 export function pluginTargetKey(target: PluginAssignmentTarget): string {
-  if (target.kind === 'agent') return `agent:${target.name}`;
-  if (target.kind === 'template-shell') return `template-shell:${target.templateName}`;
-  return `template-slot:${target.templateName}:${target.index}:${target.ref}`;
+  return `agent:${target.name}`;
 }
 
 export function resolvePluginTarget(targets: readonly PluginAssignmentTarget[], key: string | null): PluginAssignmentTarget | null {
@@ -82,88 +50,29 @@ export function resolvePluginTarget(targets: readonly PluginAssignmentTarget[], 
   return targets.find((target) => pluginTargetKey(target) === key) ?? targets[0] ?? null;
 }
 
-function draftSourceFingerprint(
-  mode: PluginTemplateSlotTarget['mode'] | null,
-  pluginIds: readonly string[],
-): string {
-  return JSON.stringify({ mode, pluginIds: dedupePluginIds(pluginIds) });
+function draftSourceFingerprint(pluginIds: readonly string[]): string {
+  return JSON.stringify(dedupePluginIds(pluginIds));
 }
 
-export function createPluginDraft(target: PluginAssignmentTarget, targets: readonly PluginAssignmentTarget[]): PluginsPanelDraft {
-  const pluginIds = target.kind === 'template-slot' && target.mode === 'inherit'
-    ? inheritedPluginIds(target, targets)
-    : targetPluginIds(target);
-  const mode = templateMode(target);
+export function createPluginDraft(target: PluginAssignmentTarget): PluginsPanelDraft {
+  const pluginIds = dedupePluginIds(target.managedPluginIds);
   return {
-    targetKey: pluginTargetKey(target), mode, baseHash: target.baseHash,
-    sourceFingerprint: draftSourceFingerprint(mode, pluginIds), pluginIds,
+    targetKey: pluginTargetKey(target), baseHash: target.baseHash,
+    sourceFingerprint: draftSourceFingerprint(pluginIds), pluginIds,
   };
 }
 
-function syncCustomToInherit(
-  target: PluginTemplateSlotTarget,
-  targets: readonly PluginAssignmentTarget[],
-  draft: PluginsPanelDraft,
-): PluginsPanelDraft {
-  const pluginIds = inheritedPluginIds(target, targets);
-  const unchanged = JSON.stringify(dedupePluginIds(draft.pluginIds)) === JSON.stringify(pluginIds);
-  return unchanged ? draft : { ...draft, pluginIds };
-}
-
-function preservesCustomOverride(
-  target: PluginAssignmentTarget,
-  draft: PluginsPanelDraft,
-): boolean {
-  return target.kind === 'template-slot'
-    && target.mode === 'inherit'
-    && draft.mode === 'custom';
-}
-
-function syncInheritedDraft(
-  target: PluginAssignmentTarget,
-  targets: readonly PluginAssignmentTarget[],
-  draft: PluginsPanelDraft,
-  fresh: PluginsPanelDraft,
-): PluginsPanelDraft | null {
-  if (preservesCustomOverride(target, draft)) return draft;
-  if (target.kind !== 'template-slot' || draft.mode !== 'inherit') return null;
-  return target.mode === 'inherit'
-    ? syncSourceDraft(draft, fresh)
-    : syncCustomToInherit(target, targets, draft);
-}
-
 function hasDraftChanges(draft: PluginsPanelDraft): boolean {
-  return draftSourceFingerprint(draft.mode, draft.pluginIds) !== draft.sourceFingerprint;
+  return draftSourceFingerprint(draft.pluginIds) !== draft.sourceFingerprint;
 }
 
-function syncSourceDraft(
-  draft: PluginsPanelDraft,
-  fresh: PluginsPanelDraft,
-): PluginsPanelDraft {
-  return draft.sourceFingerprint === fresh.sourceFingerprint ? draft : fresh;
-}
-
-export function syncPluginDraft(
-  target: PluginAssignmentTarget,
-  targets: readonly PluginAssignmentTarget[],
-  draft: PluginsPanelDraft | null,
-): PluginsPanelDraft {
-  const fresh = createPluginDraft(target, targets);
+/** Follow the live target unless the draft holds unsaved choices: a dirty draft survives a hash
+ *  change so it can be shown as conflicted rather than silently dropped. */
+export function syncPluginDraft(target: PluginAssignmentTarget, draft: PluginsPanelDraft | null): PluginsPanelDraft {
+  const fresh = createPluginDraft(target);
   if (!draft || draft.targetKey !== fresh.targetKey) return fresh;
   if (draft.baseHash !== fresh.baseHash) return hasDraftChanges(draft) ? draft : fresh;
-  const inherited = syncInheritedDraft(target, targets, draft, fresh);
-  return inherited ?? syncSourceDraft(draft, fresh);
-}
-
-export function setPluginDraftMode(
-  draft: PluginsPanelDraft,
-  target: PluginAssignmentTarget,
-  targets: readonly PluginAssignmentTarget[],
-  mode: PluginTemplateSlotTarget['mode'],
-): PluginsPanelDraft {
-  if (target.kind !== 'template-slot' || !target.editable || mode === draft.mode) return draft;
-  const pluginIds = mode === 'inherit' ? inheritedPluginIds(target, targets) : dedupePluginIds(draft.pluginIds);
-  return { ...draft, mode, pluginIds };
+  return draft.sourceFingerprint === fresh.sourceFingerprint ? draft : fresh;
 }
 
 export function pluginToggleDisabledReason(
@@ -171,7 +80,7 @@ export function pluginToggleDisabledReason(
   draft: PluginsPanelDraft | null,
   plugin: UiPluginCatalogEntry,
 ): PluginToggleDisabledReason {
-  if (!isEditableTarget(target) || !draft || isInheritedDraft(target, draft)) return 'readonly';
+  if (!target || !draft) return 'readonly';
   if (isSelected(draft, plugin.id)) return null;
   return plugin.assignable ? null : 'invalid';
 }
@@ -193,36 +102,12 @@ export function pluginDraftState(
   draft: PluginsPanelDraft | null,
   pending: boolean,
 ): PluginDraftState {
-  if (!target || !draft || !isEditableTarget(target)) {
+  if (!target || !draft) {
     return { dirty: false, conflicted: false, canSave: false, canReset: false };
   }
   const conflicted = target.baseHash !== draft.baseHash;
   const dirty = conflicted || hasDraftChanges(draft);
   return { dirty, conflicted, canSave: dirty && !conflicted && !pending, canReset: dirty && !pending };
-}
-
-export function targetReadOnlyReason(target: PluginAssignmentTarget | null): 'active-agent' | 'shell-binding' | null {
-  if (!target || target.editable) return null;
-  return target.readOnlyReason ?? null;
-}
-
-function slotUnmanagedPluginCount(
-  target: PluginTemplateSlotTarget,
-  targets: readonly PluginAssignmentTarget[],
-  mode: PluginTemplateSlotTarget['mode'] | null,
-): number {
-  if (mode === 'custom' && target.mode === 'custom') return target.unmanagedPluginCount;
-  return agentForRef(targets, target.ref)?.unmanagedPluginCount ?? target.unmanagedPluginCount;
-}
-
-export function effectiveUnmanagedPluginCount(
-  target: PluginAssignmentTarget | null,
-  targets: readonly PluginAssignmentTarget[],
-  mode: PluginTemplateSlotTarget['mode'] | null,
-): number {
-  if (!target || target.kind === 'template-shell') return 0;
-  if (target.kind === 'agent') return target.unmanagedPluginCount;
-  return slotUnmanagedPluginCount(target, targets, mode);
 }
 
 export function draftMcpPlugins(
@@ -231,7 +116,7 @@ export function draftMcpPlugins(
   plugins: readonly UiPluginCatalogEntry[],
 ): UiPluginCatalogEntry[] {
   if (!target || !draft) return [];
-  const current = new Set(targetPluginIds(target));
+  const current = new Set(dedupePluginIds(target.managedPluginIds));
   const desired = new Set(dedupePluginIds(draft.pluginIds));
   return plugins.filter((plugin) => desired.has(plugin.id) && !current.has(plugin.id) && plugin.mcp.servers.length > 0);
 }
@@ -240,50 +125,26 @@ export function buildPluginsAssignArgs(
   target: PluginAssignmentTarget | null,
   draft: PluginsPanelDraft | null,
 ): PluginsAssignArgs | null {
-  if (!target || !draft || !isEditableTarget(target)) return null;
-  const pluginIds = dedupePluginIds(draft.pluginIds);
-  const args: PluginsAssignArgs = target.kind === 'agent'
-    ? { target: { kind: 'agent', name: target.name, baseHash: draft.baseHash }, pluginIds }
-    : {
-      target: {
-        kind: 'template-slot',
-        templateName: target.templateName,
-        index: target.index,
-        ref: target.ref,
-        baseHash: draft.baseHash,
-        mode: draft.mode ?? target.mode,
-      },
-      pluginIds,
-    };
-  return args;
+  if (!target || !draft) return null;
+  return {
+    target: { kind: 'agent', name: target.name, baseHash: draft.baseHash },
+    pluginIds: dedupePluginIds(draft.pluginIds),
+  };
 }
 
-function matchesScope(target: PluginAssignmentTarget, scope: PluginAssignScope): boolean {
-  if (scope.kind === 'agent') return target.kind === 'agent' && target.name === scope.name;
-  return target.kind !== 'agent' && target.templateName === scope.name;
-}
-
-function scopeOrder(target: PluginAssignmentTarget): number {
-  return target.kind === 'template-slot' ? target.index : Number.MAX_SAFE_INTEGER;
-}
-
-/** The assignment targets belonging to one config entity. An agent owns exactly one; a template
- *  owns one per `agents[]` slot plus, for shell bindings, a single read-only target. */
+/** The assignment target of one environment (at most one). */
 export function scopedAssignTargets(
   targets: readonly PluginAssignmentTarget[],
   scope: PluginAssignScope,
 ): PluginAssignmentTarget[] {
-  return targets
-    .filter((target) => matchesScope(target, scope))
-    .sort((a, b) => scopeOrder(a) - scopeOrder(b));
+  return targets.filter((target) => target.name === scope.name);
 }
 
-/** Agents and template slots that currently reference `pluginId` — the reverse of assignment,
- *  read straight off the targets `plugins.list` already returns. */
+/** Environments that currently reference `pluginId` — the reverse of assignment, read straight off
+ *  the targets `plugins.list` already returns. */
 export function pluginUsedBy(
   targets: readonly PluginAssignmentTarget[],
   pluginId: string,
-): Exclude<PluginAssignmentTarget, PluginTemplateShellBindingTarget>[] {
-  return targets.filter((target): target is Exclude<PluginAssignmentTarget, PluginTemplateShellBindingTarget> =>
-    target.kind !== 'template-shell' && target.managedPluginIds.includes(pluginId));
+): PluginAssignmentTarget[] {
+  return targets.filter((target) => target.managedPluginIds.includes(pluginId));
 }

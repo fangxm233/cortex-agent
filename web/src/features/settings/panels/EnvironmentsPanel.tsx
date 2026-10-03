@@ -1,12 +1,11 @@
 import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState } from 'react';
-import type { ThreadTemplateDetail, ThreadTemplateEntry, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
+import type { EnvironmentDetail, EnvironmentEntry, EnvironmentIssue } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
-import { useLang, useVocab, type Vocab } from '@/i18n';
-import { SChip, SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
-import { useTemplatesController } from '@/features/settings/controllers/useTemplatesController';
+import { useLang, useVocab } from '@/i18n';
+import { SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
+import { useEnvironmentsController } from '@/features/settings/controllers/useEnvironmentsController';
 import {
-  CHIP_COUNT_STYLE,
   EDITOR_COLUMNS_STYLE,
   EDITOR_ROOT_STYLE,
   LIST_BODY_STYLE,
@@ -16,56 +15,39 @@ import {
   listPaneStyle,
   listRowStyle,
 } from '@/features/settings/ui/master-detail-ui';
+import { EnvironmentDetailPane, type Tab } from './EnvironmentDetailPane';
 import {
-  KindBadge,
-  TemplateDetailPane,
-  showsPluginTab,
-  type Tab,
-} from './TemplateDetailPane';
-import {
-  TEMPLATE_FILTER_KEYS,
   buildSaveArgs,
-  countByFilter,
   formatBody,
-  needsRunningConfirm,
   parseEditor,
   starterBody,
-  type TemplateFilterKey,
-  type TemplateKind,
-  type TemplateSelection,
-} from '@/features/settings/vm/templates-panel-vm';
+} from '@/features/settings/vm/environments-panel-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 248;
 
-const FILTER_LABEL: Record<TemplateFilterKey, keyof Vocab> = {
-  all: 'ttFilterAll',
-  template: 'ttFilterTemplate',
-  agent: 'ttFilterAgent',
-  shell: 'ttFilterShell',
-};
+type Issues = { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] };
 
 // ── list ──────────────────────────────────────────────────────────────────────────────────────
 
-function TemplateRow({
+function EnvironmentRow({
   entry,
   selected,
   onSelect,
 }: {
-  entry: ThreadTemplateEntry;
+  entry: EnvironmentEntry;
   selected: boolean;
-  onSelect: (selection: TemplateSelection) => void;
+  onSelect: (name: string) => void;
 }) {
   const L = useVocab();
   return (
     <div
-      data-template-row={`${entry.kind}:${entry.name}`}
+      data-environment-row={entry.name}
       data-selected={selected ? '' : undefined}
       role="button"
-      onClick={() => onSelect({ kind: entry.kind, name: entry.name })}
+      onClick={() => onSelect(entry.name)}
       style={listRowStyle(selected)}
     >
-      <KindBadge kind={entry.kind} />
       <span
         style={{
           flex: 1,
@@ -86,84 +68,50 @@ function TemplateRow({
   );
 }
 
-function TemplateFilters({ counts, filter, onFilter }: {
-  counts: Record<TemplateFilterKey, number>;
-  filter: TemplateFilterKey;
-  onFilter: (key: TemplateFilterKey) => void;
-}) {
-  const L = useVocab();
-  return (
-    <>
-      {TEMPLATE_FILTER_KEYS.map((key) => (
-        <SChip
-          key={key}
-          data-template-filter={key}
-          data-active={key === filter ? '' : undefined}
-          active={key === filter}
-          onClick={() => onFilter(key)}
-        >
-          {L[FILTER_LABEL[key]]}
-          <span style={CHIP_COUNT_STYLE}>{counts[key]}</span>
-        </SChip>
-      ))}
-    </>
-  );
-}
-
-function TemplateList({
+function EnvironmentList({
   entries,
   visible,
-  filter,
   search,
   selection,
-  onFilter,
   onSearch,
   onSelect,
   onStartCreate,
 }: {
-  entries: readonly ThreadTemplateEntry[];
-  visible: readonly ThreadTemplateEntry[];
-  filter: TemplateFilterKey;
+  entries: readonly EnvironmentEntry[];
+  visible: readonly EnvironmentEntry[];
   search: string;
-  selection: TemplateSelection | null;
-  onFilter: (key: TemplateFilterKey) => void;
+  selection: string | null;
   onSearch: (value: string) => void;
-  onSelect: (selection: TemplateSelection) => void;
-  onStartCreate: (kind: TemplateKind) => void;
+  onSelect: (name: string) => void;
+  onStartCreate: () => void;
 }) {
   const L = useVocab();
   return (
     <div className="settings-list-pane" style={listPaneStyle(LIST_WIDTH)}>
       <ListHeader
-        title={L.ttEditorTitle} count={entries.length} searchAttr="data-template-search"
+        title={L.ttEditorTitle} count={entries.length} searchAttr="data-environment-search"
         search={search} placeholder={L.ttSearchPh} onSearch={onSearch}
-      >
-        <TemplateFilters counts={countByFilter(entries, search)} filter={filter} onFilter={onFilter} />
-      </ListHeader>
+      />
 
       <div style={LIST_BODY_STYLE}>
         {visible.length === 0 ? (
-          <div data-templates-empty="" style={LIST_EMPTY_STYLE}>
-            {entries.length === 0 ? L.stNoTemplates : L.ttNoMatch}
+          <div data-environments-empty="" style={LIST_EMPTY_STYLE}>
+            {entries.length === 0 ? L.stNoEnvironments : L.ttNoMatch}
           </div>
         ) : (
           visible.map((entry) => (
-            <TemplateRow
-              key={`${entry.kind}:${entry.name}`}
+            <EnvironmentRow
+              key={entry.name}
               entry={entry}
-              selected={selection?.kind === entry.kind && selection?.name === entry.name}
+              selected={selection === entry.name}
               onSelect={onSelect}
             />
           ))
         )}
       </div>
 
-      <PaneFooter hint={`+ ${L.ttNew}`}>
-        {(['template', 'agent', 'shell'] as const).map((kind) => (
-          <SLinkAction key={kind} data-create-kind={kind} onClick={() => onStartCreate(kind)}>
-            {kind}
-          </SLinkAction>
-        ))}
+      <PaneFooter>
+        <SLinkAction data-action="create" onClick={onStartCreate}>+ {L.ttNew}</SLinkAction>
       </PaneFooter>
     </div>
   );
@@ -171,26 +119,23 @@ function TemplateList({
 
 // ── view ──────────────────────────────────────────────────────────────────────────────────────
 
-export interface TemplatesPanelViewProps {
-  entries: readonly ThreadTemplateEntry[];
-  visible: readonly ThreadTemplateEntry[];
-  filter: TemplateFilterKey;
+export interface EnvironmentsPanelViewProps {
+  entries: readonly EnvironmentEntry[];
+  visible: readonly EnvironmentEntry[];
   search: string;
-  selection: TemplateSelection | null;
-  detail: ThreadTemplateDetail | null;
-  creating: { kind: TemplateKind } | null;
+  selection: string | null;
+  detail: EnvironmentDetail | null;
+  creating: boolean;
   draftName: string;
   text: string;
   loaded: string;
   tab: Tab;
-  liveIssues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] } | null;
-  armedSave: boolean;
+  liveIssues: Issues | null;
   armedDelete: boolean;
   busy: boolean;
-  onFilter: (key: TemplateFilterKey) => void;
   onSearch: (value: string) => void;
-  onSelect: (selection: TemplateSelection) => void;
-  onStartCreate: (kind: TemplateKind) => void;
+  onSelect: (name: string) => void;
+  onStartCreate: () => void;
   onDraftName: (value: string) => void;
   onText: (value: string) => void;
   onTab: (tab: Tab) => void;
@@ -205,22 +150,20 @@ export interface TemplatesPanelViewProps {
   onPluginSaved?: () => void;
 }
 
-export function TemplatesPanelView(props: TemplatesPanelViewProps) {
+export function EnvironmentsPanelView(props: EnvironmentsPanelViewProps) {
   return (
-    <div data-settings-panel="templates" style={EDITOR_ROOT_STYLE}>
+    <div data-settings-panel="environments" style={EDITOR_ROOT_STYLE}>
       <div className="settings-editor-columns" style={EDITOR_COLUMNS_STYLE}>
-        <TemplateList
+        <EnvironmentList
           entries={props.entries}
           visible={props.visible}
-          filter={props.filter}
           search={props.search}
           selection={props.selection}
-          onFilter={props.onFilter}
           onSearch={props.onSearch}
           onSelect={props.onSelect}
           onStartCreate={props.onStartCreate}
         />
-        <TemplateDetailPane
+        <EnvironmentDetailPane
           detail={props.detail}
           creating={props.creating}
           draftName={props.draftName}
@@ -228,7 +171,6 @@ export function TemplatesPanelView(props: TemplatesPanelViewProps) {
           loaded={props.loaded}
           tab={props.tab}
           liveIssues={props.liveIssues}
-          armedSave={props.armedSave}
           armedDelete={props.armedDelete}
           busy={props.busy}
           onDraftName={props.onDraftName}
@@ -251,23 +193,22 @@ export function TemplatesPanelView(props: TemplatesPanelViewProps) {
 
 // ── container ─────────────────────────────────────────────────────────────────────────────────
 
-export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
+export function EnvironmentsPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const L = useVocab();
   const lang = useLang();
   const { toast } = useToast();
 
-  const [creating, setCreating] = useState<{ kind: TemplateKind } | null>(null);
+  const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [tab, setTab] = useState<Tab>('body');
   /** Editor text. Null means "not touched" — the loaded body is the truth. */
   const [text, setText] = useState<string | null>(null);
-  const [liveIssues, setLiveIssues] = useState<{ errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] } | null>(null);
-  const [armedSave, setArmedSave] = useState(false);
+  const [liveIssues, setLiveIssues] = useState<Issues | null>(null);
   const [armedDelete, setArmedDelete] = useState(false);
   const [createText, setCreateText] = useState('');
   const [pluginDirty, setPluginDirty] = useState(false);
 
-  const templates = useTemplatesController({
+  const environments = useEnvironmentsController({
     creating,
     onValidated: (issues) => {
       setLiveIssues(issues);
@@ -275,62 +216,53 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     },
     onSaved: () => {
       setText(null);
-      setArmedSave(false);
       setLiveIssues(null);
-      if (creating) setCreating(null);
+      if (creating) setCreating(false);
     },
     onRemoved: () => {
       setArmedDelete(false);
     },
   });
-  const { entries, visible, selection, detail } = templates;
+  const { entries, visible, selection, detail } = environments;
 
   const loaded = creating ? createText : detail?.body ? formatBody(detail.body) : '';
   const currentText = creating ? createText : (text ?? loaded);
 
-  // Moving to another entity drops the working copy and every transient affordance with it.
+  // Moving to another environment drops the working copy and every transient affordance with it.
   useEffect(() => {
     setText(null);
     setLiveIssues(null);
-    setArmedSave(false);
     setArmedDelete(false);
-    // The plugins tab does not exist for shells or while creating; fall back rather than blank out.
-    setTab((current) => (current === 'plugins' && !showsPluginTab(selection?.kind ?? null, creating !== null) ? 'body' : current));
-  }, [selection?.kind, selection?.name, creating?.kind, creating]);
+    // The plugins tab does not exist while creating; fall back rather than blank out.
+    setTab((current) => (current === 'plugins' && creating ? 'body' : current));
+  }, [selection, creating]);
 
   // Only the assignment draft blocks navigation: it is a committed-on-save form, whereas the JSON
   // buffer has always been free to abandon.
   useEffect(() => { onDirtyChange?.(pluginDirty); }, [pluginDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
-  const startCreate = (kind: TemplateKind) => {
-    setCreating({ kind });
-    setDraftName('');
-    setCreateText(formatBody(starterBody(kind)));
+  const startCreate = (initialName: string, body: string) => {
+    setCreating(true);
+    setDraftName(initialName);
+    setCreateText(body);
     setTab('body');
     setLiveIssues(null);
   };
 
-  const kind = creating?.kind ?? selection?.kind ?? null;
-  const name = creating ? draftName : (selection?.name ?? '');
+  const name = creating ? draftName : (selection ?? '');
+  const hasTarget = creating || selection !== null;
 
   const onSave = () => {
-    if (!kind) return;
-    // A live thread on this template gets one confirmation, because transitions are re-read on
-    // every step and a save can reroute or stall it.
-    if (!creating && needsRunningConfirm(detail) && !armedSave) {
-      setArmedSave(true);
-      return;
-    }
+    if (!hasTarget) return;
     const args = buildSaveArgs({
-      kind,
       name,
       text: currentText,
       loaded,
-      creating: creating !== null,
+      creating,
       baseHash: detail?.sha256 ?? null,
     });
-    if (args) templates.save(args);
+    if (args) environments.save(args);
   };
 
   const onDelete = () => {
@@ -339,16 +271,7 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       setArmedDelete(true);
       return;
     }
-    templates.remove(selection);
-  };
-
-  const onDuplicate = () => {
-    if (!kind) return;
-    setCreating({ kind });
-    setDraftName(`${name}-copy`);
-    setCreateText(currentText);
-    setTab('body');
-    setLiveIssues(null);
+    environments.remove(selection);
   };
 
   const setCurrentText = (value: string) => {
@@ -356,12 +279,17 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     else setText(value);
   };
 
+  const parsedOrToast = () => {
+    const parsed = parseEditor(currentText, lang);
+    if (parsed.body === null) toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
+    return parsed.body;
+  };
+
   return (
-    <TemplatesPanelView
+    <EnvironmentsPanelView
       entries={entries}
       visible={visible}
-      filter={templates.filter}
-      search={templates.search}
+      search={environments.search}
       selection={selection}
       detail={detail}
       creating={creating}
@@ -370,16 +298,14 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       loaded={loaded}
       tab={tab}
       liveIssues={liveIssues}
-      armedSave={armedSave}
       armedDelete={armedDelete}
-      busy={templates.busy}
-      onFilter={templates.setFilter}
-      onSearch={templates.setSearch}
+      busy={environments.busy}
+      onSearch={environments.setSearch}
       onSelect={(next) => {
-        setCreating(null);
-        templates.select(next);
+        setCreating(false);
+        environments.select(next);
       }}
-      onStartCreate={startCreate}
+      onStartCreate={() => startCreate('', formatBody(starterBody()))}
       onDraftName={setDraftName}
       onText={setCurrentText}
       onTab={setTab}
@@ -387,29 +313,22 @@ export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       onRevert={() => {
         setText(null);
         setLiveIssues(null);
-        setArmedSave(false);
       }}
       onValidate={() => {
-        if (!kind) return;
-        const parsed = parseEditor(currentText, lang);
-        if (parsed.body === null) {
-          toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
-          return;
-        }
-        templates.validate({ kind, name: name || 'draft', body: parsed.body });
+        if (!hasTarget) return;
+        const body = parsedOrToast();
+        if (body) environments.validate({ name: name || 'draft', body });
       }}
       onDelete={onDelete}
-      onDuplicate={onDuplicate}
-      onCancelCreate={() => setCreating(null)}
+      onDuplicate={() => {
+        if (hasTarget) startCreate(`${name}-copy`, currentText);
+      }}
+      onCancelCreate={() => setCreating(false)}
       onPluginDirtyChange={setPluginDirty}
-      onPluginSaved={templates.invalidate}
+      onPluginSaved={environments.invalidate}
       onFormat={() => {
-        const parsed = parseEditor(currentText, lang);
-        if (parsed.body === null) {
-          toast({ title: parsed.parseError ?? L.ttHintParse, tone: 'failed' });
-          return;
-        }
-        setCurrentText(formatBody(parsed.body));
+        const body = parsedOrToast();
+        if (body) setCurrentText(formatBody(body));
       }}
     />
   );

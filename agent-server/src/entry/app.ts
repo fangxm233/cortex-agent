@@ -526,8 +526,6 @@ process.on('SIGTERM', async () => {
     checkServerUpdate: () => serverUpdateCoordinator.check(),
     projectStore,
     sessionStore,
-    threadStore,
-    taskStore,
     scheduler: {
       list: () => scheduler.list(),
       get: (id) => scheduler.get(id),
@@ -535,14 +533,13 @@ process.on('SIGTERM', async () => {
       resume: (id) => scheduler.resume(id),
       remove: (id) => scheduler.remove(id),
       // schedules.add: create via the real scheduler.add (timing math + persist), then backfill
-      // target/fallback through the shared scheduleRepo singleton (buildTask drops them) — mirrors
+      // target through the shared scheduleRepo singleton (buildTask drops it) — mirrors
       // domain/mcp/tools/schedule.ts::runScheduleAdd. scheduler._repo === scheduleRepo (default).
       add: async (type, options) => {
         const task = await scheduler.add(type, options);
-        if (options.target || options.fallback) {
+        if (options.target) {
           await scheduleRepo.updateTask(task.id, (t) => {
-            if (options.target) t.target = options.target;
-            if (options.fallback) t.fallback = options.fallback;
+            t.target = options.target;
           });
           return (await scheduleRepo.findTask(task.id)) ?? task;
         }

@@ -14,7 +14,7 @@ function viewProps(current = false): ProfilesPanelViewProps {
   return {
     snapshot: {
       budget: null, profiles: { defaultProfile: current ? name : null, profiles: [profile] },
-      machines: [], mcp: null, threadTemplates: { agents: [], templates: [], shells: [] },
+      machines: [], mcp: null,
       hooks: [], env: [], settings: [],
     },
     profileFacts: [{ profile, current, canDelete: !current, canSetDefault: !current }],

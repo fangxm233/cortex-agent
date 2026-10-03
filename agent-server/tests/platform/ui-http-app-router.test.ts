@@ -96,7 +96,7 @@ test('query Err maps to a TRPCError with the mapped code', async () => {
   const fake = makeFake({ queryResult: { ok: false, code: 'not-found', message: 'nope' } });
   const caller = makeCaller(fake);
   await assert.rejects(
-    () => caller.tasks.list({}),
+    () => caller.schedules.list({}),
     (e: unknown) => e instanceof TRPCError && e.code === 'NOT_FOUND' && e.message === 'nope',
   );
 });
@@ -105,7 +105,7 @@ test('mutation Err maps to a TRPCError with the mapped code', async () => {
   const fake = makeFake({ mutateResult: { ok: false, code: 'invalid-args', message: 'bad' } });
   const caller = makeCaller(fake);
   await assert.rejects(
-    () => caller.threads.cancel({ threadId: 't1' }),
+    () => caller.executions.cancel({ executionId: 'e1' }),
     (e: unknown) => e instanceof TRPCError && e.code === 'BAD_REQUEST',
   );
 });
@@ -114,7 +114,7 @@ test('unknown Err code falls back to INTERNAL_SERVER_ERROR', async () => {
   const fake = makeFake({ mutateResult: { ok: false, code: 'weird-code', message: 'huh' } });
   const caller = makeCaller(fake);
   await assert.rejects(
-    () => caller.tasks.claim({ projectId: 'p', taskId: 'a1b2' }),
+    () => caller.schedules.pause({ scheduleId: 's1' }),
     (e: unknown) => e instanceof TRPCError && e.code === 'INTERNAL_SERVER_ERROR',
   );
 });

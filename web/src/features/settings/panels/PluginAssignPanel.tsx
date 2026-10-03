@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
-import { Modal, Select, useToast, type SelectOption } from '@/design';
+import { Modal, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { trpcErrorCode, useTRPC } from '@/lib/trpc';
-import { RadioDot, SButton, SNotice, SPill, SSection, S_CONTROL_STYLE, Toggle } from '@/features/settings/ui/settings-ui';
+import { SButton, SNotice, SPill, Toggle } from '@/features/settings/ui/settings-ui';
 import {
   EmptyMessage, McpServerSummary, ROW,
   pluginTitle, scopeNoticeText,
@@ -13,15 +13,12 @@ import {
   buildPluginsAssignArgs,
   createPluginDraft,
   draftMcpPlugins,
-  effectiveUnmanagedPluginCount,
   pluginDraftState,
   pluginTargetKey,
   pluginToggleDisabledReason,
   resolvePluginTarget,
   scopedAssignTargets,
-  setPluginDraftMode,
   syncPluginDraft,
-  targetReadOnlyReason,
   togglePluginDraftId,
   type PluginAssignScope,
   type PluginsPanelDraft,
@@ -31,7 +28,6 @@ const MONO = "'IBM Plex Mono',monospace";
 
 const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 };
 const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
-const TARGET_SELECT: CSSProperties = { ...S_CONTROL_STYLE, width: '100%' };
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
 type AssignMutation = { mutateAsync: (payload: PluginsAssignArgs) => Promise<unknown> };
@@ -84,28 +80,7 @@ function selectionState(
 ): Selection {
   const target = resolvePluginTarget(scopedAssignTargets(all, scope), key);
   if (!target) return { target: null, draft: null };
-  return { target, draft: syncPluginDraft(target, all, draft) };
-}
-
-function slotLabel(target: PluginAssignmentTarget, L: Vocab): string {
-  if (target.kind === 'agent') return target.name;
-  if (target.kind === 'template-shell') return `${L.plTargetShell} · ${target.templateName}`;
-  return `[${target.index + 1}] ${target.ref}`;
-}
-
-function readonlyText(reason: 'active-agent' | 'shell-binding' | null, L: Vocab): string | null {
-  if (reason === 'active-agent') return L.plReadonlyActive;
-  if (reason === 'shell-binding') return L.plReadonlyShell;
-  return null;
-}
-
-function slotOptions(targets: readonly PluginAssignmentTarget[], L: Vocab): SelectOption<string>[] {
-  return targets.map((target) => ({
-    value: pluginTargetKey(target),
-    label: slotLabel(target, L),
-    disabled: !target.editable,
-    disabledReason: readonlyText(targetReadOnlyReason(target), L) ?? undefined,
-  }));
+  return { target, draft: syncPluginDraft(target, draft) };
 }
 
 async function refreshCatalog(args: RefreshArgs, preserveDraft: boolean): Promise<void> {
@@ -183,40 +158,6 @@ function PluginChoice(props: {
   );
 }
 
-function ModeChoice(props: { label: string; selected: boolean; disabled: boolean; mode: 'inherit' | 'custom'; onClick: () => void }) {
-  return (
-    <button type="button" data-plugin-mode={props.mode} data-selected={String(props.selected)}
-      disabled={props.disabled} aria-pressed={props.selected} onClick={props.onClick}
-      style={{
-        ...ROW, flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
-        cursor: props.disabled ? 'not-allowed' : 'pointer', opacity: props.disabled ? 0.55 : 1,
-      }}>
-      <RadioDot selected={props.selected} />
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{props.label}</span>
-    </button>
-  );
-}
-
-function SlotModes(props: {
-  target: PluginAssignmentTarget | null;
-  draft: PluginsPanelDraft | null;
-  pending: boolean;
-  onModeChange: (mode: 'inherit' | 'custom') => void;
-}) {
-  const L = useVocab();
-  if (props.target?.kind !== 'template-slot' || !props.target.editable) return null;
-  return (
-    <SSection label={L.plModeLabel}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <ModeChoice mode="inherit" label={L.plModeInherit} selected={props.draft?.mode === 'inherit'}
-          disabled={props.pending} onClick={() => props.onModeChange('inherit')} />
-        <ModeChoice mode="custom" label={L.plModeCustom} selected={props.draft?.mode === 'custom'}
-          disabled={props.pending} onClick={() => props.onModeChange('custom')} />
-      </div>
-    </SSection>
-  );
-}
-
 function AckModal(props: {
   open: boolean; plugins: readonly UiPluginCatalogEntry[]; pending: boolean;
   onOpenChange: (open: boolean) => void; onConfirm: () => void;
@@ -262,8 +203,6 @@ export interface PluginAssignViewProps {
   busy: boolean;
   ackOpen: boolean;
   ackPlugins: UiPluginCatalogEntry[];
-  onSelectTarget: (key: string) => void;
-  onModeChange: (mode: 'inherit' | 'custom') => void;
   onTogglePlugin: (pluginId: string) => void;
   onReset: () => void;
   onSave: () => void;
@@ -275,20 +214,12 @@ function AssignBody(props: PluginAssignViewProps) {
   const L = useVocab();
   const state = pluginDraftState(props.target, props.draft, props.pending);
   const resettable = pluginDraftState(props.target, props.draft, props.busy).canReset;
-  const readOnly = targetReadOnlyReason(props.target);
   return (
     <>
-      {props.scopedTargets.length > 1 ? (
-        <Select popupClassName="settings-surface settings-select-popup" data-plugin-target aria-label={L.plSlotLabel} value={props.selectedKey ?? ''}
-          options={slotOptions(props.scopedTargets, L)} disabled={props.pending || state.dirty}
-          onValueChange={props.onSelectTarget} style={TARGET_SELECT} />
-      ) : null}
-      {readOnly ? <SNotice tone="muted" data-plugin-readonly={readOnly}>{readonlyText(readOnly, L)}</SNotice> : null}
       {props.unmanagedCount > 0 ? <SNotice tone="muted">{L.plUnmanagedNotice.replace('{n}', String(props.unmanagedCount))}</SNotice> : null}
       {/* The marker stays on a plain wrapper: hung on the notice it would appear twice, once on the
           component and once on the element it renders. */}
       {state.conflicted ? <div data-plugin-conflict=""><SNotice tone="amber">{L.plStaleDraft}</SNotice></div> : null}
-      <SlotModes target={props.target} draft={props.draft} pending={props.pending} onModeChange={props.onModeChange} />
       <div style={LIST}>
         {props.plugins.length > 0
           ? props.plugins.map((plugin) => (
@@ -328,9 +259,8 @@ export function PluginAssignView(props: PluginAssignViewProps) {
 
 function usePluginAssignProps(props: PluginAssignPanelProps): PluginAssignViewProps {
   const { onDirtyChange, onSaved } = props;
-  const scopeKind = props.scope.kind;
   const scopeName = props.scope.name;
-  const scope = useMemo<PluginAssignScope>(() => ({ kind: scopeKind, name: scopeName }), [scopeKind, scopeName]);
+  const scope = useMemo<PluginAssignScope>(() => ({ name: scopeName }), [scopeName]);
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -375,21 +305,11 @@ function usePluginAssignProps(props: PluginAssignPanelProps): PluginAssignViewPr
     selectedKey: targetKeyOf(current.target),
     target: current.target,
     draft: current.draft,
-    unmanagedCount: effectiveUnmanagedPluginCount(current.target, all, current.draft?.mode ?? null),
+    unmanagedCount: current.target?.unmanagedPluginCount ?? 0,
     pending,
     busy,
     ackOpen: ack !== null,
     ackPlugins: ack?.plugins ?? [],
-    onSelectTarget: (key) => {
-      if (pending || state.dirty) return;
-      const next = selectionState(all, scope, key, null);
-      setSelectedKey(targetKeyOf(next.target));
-      setDraft(next.draft);
-    },
-    onModeChange: (mode) => {
-      if (!current.target || !current.draft || pending) return;
-      setDraft(setPluginDraftMode(current.draft, current.target, all, mode));
-    },
     onTogglePlugin: (pluginId) => {
       if (!current.target || !current.draft || pending) return;
       const plugin = listQuery.data?.plugins.find((item) => item.id === pluginId);
@@ -397,7 +317,7 @@ function usePluginAssignProps(props: PluginAssignPanelProps): PluginAssignViewPr
     },
     onReset: () => {
       if (!current.target || busy) return;
-      setDraft(createPluginDraft(current.target, all));
+      setDraft(createPluginDraft(current.target));
     },
     onSave: () => {
       if (pending || !listQuery.data) return;

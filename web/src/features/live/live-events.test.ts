@@ -14,8 +14,6 @@ import {
   LIVE_EVENT_TYPES,
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
-  TASK_LIVE_EVENTS,
-  THREAD_LIVE_EVENTS,
   type LiveEvent,
 } from './live-events';
 
@@ -23,7 +21,7 @@ const ev = (type: string, payload?: Record<string, unknown>): LiveEvent => ({ ty
 
 describe('LIVE_EVENT_TYPES', () => {
   it('is the union of every consumer group — a group event missing here would never reach its hook', () => {
-    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS, ...COMMISSION_LIVE_EVENTS]) {
+    for (const t of [...SESSION_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS, ...COMMISSION_LIVE_EVENTS]) {
       expect(LIVE_EVENT_TYPES).toContain(t);
     }
   });
@@ -48,7 +46,7 @@ describe('matchesLiveEvent — type filter', () => {
     expect(matchesLiveEvent(ev('session.status'), ['session.status', 'session.message'])).toBe(true);
   });
   it('rejects an event outside the listener set', () => {
-    expect(matchesLiveEvent(ev('task.claimed'), THREAD_LIVE_EVENTS)).toBe(false);
+    expect(matchesLiveEvent(ev('system.notice'), COMMISSION_LIVE_EVENTS)).toBe(false);
   });
   it('rejects the synthetic overflow event unless explicitly listened for', () => {
     expect(matchesLiveEvent(ev('ui-subscribe.dropped'), SESSION_LIVE_EVENTS)).toBe(false);
@@ -83,7 +81,7 @@ describe('dispatchLiveEvent — fan-out', () => {
       { types: SESSION_LIVE_EVENTS, fn: () => seen.push('chat-any') },
       { types: SESSION_LIVE_EVENTS, scope: { sessionId: 's1' }, fn: () => seen.push('chat-s1') },
       { types: SESSION_LIVE_EVENTS, scope: { sessionId: 's2' }, fn: () => seen.push('chat-s2') },
-      { types: THREAD_LIVE_EVENTS, fn: () => seen.push('threads') },
+      { types: COMMISSION_LIVE_EVENTS, fn: () => seen.push('commissions') },
     ];
     const delivered = dispatchLiveEvent(listeners, ev('session.message', { sessionId: 's1' }));
     expect(seen).toEqual(['chat-any', 'chat-s1']);
@@ -92,14 +90,14 @@ describe('dispatchLiveEvent — fan-out', () => {
   it('a throwing listener does not stop the others (the stream must survive one bad surface)', () => {
     const seen: string[] = [];
     const listeners = [
-      { types: TASK_LIVE_EVENTS, fn: () => { throw new Error('boom'); } },
-      { types: TASK_LIVE_EVENTS, fn: () => seen.push('second') },
+      { types: COMMISSION_LIVE_EVENTS, fn: () => { throw new Error('boom'); } },
+      { types: COMMISSION_LIVE_EVENTS, fn: () => seen.push('second') },
     ];
-    expect(() => dispatchLiveEvent(listeners, ev('task.claimed'))).not.toThrow();
+    expect(() => dispatchLiveEvent(listeners, ev('commission.updated'))).not.toThrow();
     expect(seen).toEqual(['second']);
   });
   it('delivers nothing when no listener matches', () => {
-    expect(dispatchLiveEvent([{ types: TASK_LIVE_EVENTS, fn: () => {} }], ev('system.notice'))).toBe(0);
+    expect(dispatchLiveEvent([{ types: COMMISSION_LIVE_EVENTS, fn: () => {} }], ev('system.notice'))).toBe(0);
   });
 });
 

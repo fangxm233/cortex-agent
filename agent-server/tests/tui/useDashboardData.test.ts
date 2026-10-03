@@ -9,12 +9,8 @@ import type { UiQueryResult, UiEvent } from '../../src/platform/tui/protocol.js'
 
 // ── Fixtures ──
 
-const THREADS_DATA = [
-  { id: 't1', templateName: 'test', status: 'running', projectId: 'p1', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z', currentStep: null, totalSteps: 0, artifactPath: null },
-];
-
-const TASKS_DATA = [
-  { id: 'task1', text: 'Do something', project: 'p1', status: 'open', priority: 'high', actionable: true, claimedBy: null, blockedBy: null, dependsOn: [], plan: null, template: 'default' },
+const SCHEDULES_DATA = [
+  { id: 's1', type: 'interval', message: 'check status', projectId: 'p1', paused: false, nextRun: '2024-01-01T00:00:00Z' },
 ];
 
 // ── Helpers ──
@@ -40,25 +36,25 @@ function makeUiEvent(subscribeId: string, eventType: string): UiEvent {
 test('_handleQueryResult stores data for a tab', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    makeQueryResult('threads', 'dash-threads', THREADS_DATA),
+    makeQueryResult('schedules', 'dash-schedules', SCHEDULES_DATA),
   );
 
-  assert.equal(state.tabs.threads.data.length, 1);
-  assert.equal((state.tabs.threads.data[0] as { id: string }).id, 't1');
-  assert.equal(state.tabs.threads.loading, false);
-  assert.equal(state.tabs.threads.error, null);
-  assert.ok(typeof state.tabs.threads.lastUpdated === 'number');
+  assert.equal(state.tabs.schedules.data.length, 1);
+  assert.equal((state.tabs.schedules.data[0] as { id: string }).id, 's1');
+  assert.equal(state.tabs.schedules.loading, false);
+  assert.equal(state.tabs.schedules.error, null);
+  assert.ok(typeof state.tabs.schedules.lastUpdated === 'number');
 });
 
 test('_handleQueryResult with error sets error state', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    makeQueryResult('threads', 'dash-threads', null, false),
+    makeQueryResult('schedules', 'dash-schedules', null, false),
   );
 
-  assert.equal(state.tabs.threads.loading, false);
-  assert.equal(state.tabs.threads.error, 'failed');
-  assert.equal(state.tabs.threads.data.length, 0);
+  assert.equal(state.tabs.schedules.loading, false);
+  assert.equal(state.tabs.schedules.error, 'failed');
+  assert.equal(state.tabs.schedules.data.length, 0);
 });
 
 test('_handleQueryResult with non-array (object) data wraps in array', () => {
@@ -78,7 +74,7 @@ test('_handleQueryResult with non-array (object) data wraps in array', () => {
 test('_handleQueryResult with unknown id is no-op', () => {
   const state = _handleQueryResult(
     EMPTY_DASH_STATE,
-    makeQueryResult('threads', 'unknown-id', THREADS_DATA),
+    makeQueryResult('schedules', 'unknown-id', SCHEDULES_DATA),
   );
 
   // State unchanged — no tab matched this query id
@@ -88,16 +84,16 @@ test('_handleQueryResult with unknown id is no-op', () => {
 test('_handleEvent refreshes tab on matching event', () => {
   // Simulate a tab having an active subscription
   const activeSubs = new Map<string, TabName>();
-  activeSubs.set('dash-threads', 'threads');
+  activeSubs.set('dash-schedules', 'schedules');
 
   const state = _handleEvent(
     EMPTY_DASH_STATE,
     activeSubs,
-    makeUiEvent('dash-threads', 'thread.created'),
+    makeUiEvent('dash-schedules', 'scheduler.tick'),
   );
 
   // The tab should be marked as needing refresh (loading = true or stale flag)
   // For now, events just set loading = true (trigger re-fetch on next render)
-  assert.equal(state.tabs.threads.loading, true);
-  assert.equal(state.tabs.threads.error, null);
+  assert.equal(state.tabs.schedules.loading, true);
+  assert.equal(state.tabs.schedules.error, null);
 });

@@ -18,8 +18,6 @@ export const commonEn = {
   cmCopied: 'Copied',
   cmMoreCount: '+ {n} more',
   cmLines: '{n} lines',
-  cmTaskRef: 'task {id}',
-  cmStepN: 'Step {n}',
 };
 export const commonZh: Record<keyof typeof commonEn, string> = {
   cmClose: '关闭',
@@ -39,6 +37,4 @@ export const commonZh: Record<keyof typeof commonEn, string> = {
   cmCopied: '已复制',
   cmMoreCount: '另有 {n} 项',
   cmLines: '{n} 行',
-  cmTaskRef: '任务 {id}',
-  cmStepN: '步骤 {n}',
 };

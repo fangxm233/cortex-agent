@@ -44,9 +44,9 @@ describe('planFrameChange', () => {
   });
 
   it('reuses the exact retained frame when returning to the tab root', () => {
-    const root = frame('/m/tasks');
-    const detail = frame('/m/task/task-1');
-    const freshRoot = frame('/m/tasks');
+    const root = frame('/m/project');
+    const detail = frame('/m/approvals');
+    const freshRoot = frame('/m/project');
 
     const result = planFrameChange(detail, root, freshRoot);
     expect(result.current).toBe(root);
@@ -54,23 +54,23 @@ describe('planFrameChange', () => {
   });
 
   it('keeps the actual source tab through cross-linked drill-in screens', () => {
-    const taskRoot = frame('/m/tasks');
-    const task = frame('/m/task/task-1');
-    const thread = frame('/m/thread/thread-1');
+    const projectRoot = frame('/m/project');
+    const approvals = frame('/m/approvals');
+    const chat = frame('/m/session/chat-1');
 
-    expect(planFrameChange(task, taskRoot, thread)).toEqual({
-      current: thread,
-      retainedTab: taskRoot,
+    expect(planFrameChange(approvals, projectRoot, chat)).toEqual({
+      current: chat,
+      retainedTab: projectRoot,
       returningToRetained: false,
     });
   });
 
   it('clears the retained frame only when switching to another tab root', () => {
-    const taskRoot = frame('/m/tasks');
-    const task = frame('/m/task/task-1');
+    const projectRoot = frame('/m/project');
+    const approvals = frame('/m/approvals');
     const sessionRoot = frame('/m/sessions');
 
-    expect(planFrameChange(task, taskRoot, sessionRoot)).toEqual({
+    expect(planFrameChange(approvals, projectRoot, sessionRoot)).toEqual({
       current: sessionRoot,
       retainedTab: null,
       returningToRetained: false,
@@ -78,9 +78,9 @@ describe('planFrameChange', () => {
   });
 
   it('reuses a retained root when the destination has a trailing slash', () => {
-    const root = frame('/m/tasks');
-    const detail = frame('/m/task/task-1');
-    const result = planFrameChange(detail, root, frame('/m/tasks/'));
+    const root = frame('/m/project');
+    const detail = frame('/m/approvals');
+    const result = planFrameChange(detail, root, frame('/m/project/'));
 
     expect(result.current).toBe(root);
     expect(result.returningToRetained).toBe(true);

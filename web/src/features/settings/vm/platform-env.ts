@@ -52,13 +52,9 @@ export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'serverUpdateDisable',
   'commissionEnabled',
   'teamEnabled',
-  'taskDispatchEnabled',
-  'taskArchiveEnabled',
   'memoryIndexRegenEnabled',
 ] as const;
 export const WRITABLE_INTERVAL_SETTING_KEYS = [
-  'taskDispatchIntervalMs',
-  'taskArchiveIntervalMs',
   'memoryIndexRegenIntervalMs',
 ] as const;
 export const WRITABLE_NUMBER_SETTING_KEYS = [
@@ -239,14 +235,6 @@ export interface BuiltinJobSettingDescriptor {
 }
 
 export const BUILTIN_JOB_SETTINGS: BuiltinJobSettingDescriptor[] = [
-  {
-    enabled: 'taskDispatchEnabled', interval: 'taskDispatchIntervalMs',
-    titleKey: 'stBuiltinTaskDispatchTitle', descKey: 'stBuiltinTaskDispatchDesc',
-  },
-  {
-    enabled: 'taskArchiveEnabled', interval: 'taskArchiveIntervalMs',
-    titleKey: 'stBuiltinTaskArchiveTitle', descKey: 'stBuiltinTaskArchiveDesc',
-  },
   {
     enabled: 'memoryIndexRegenEnabled', interval: 'memoryIndexRegenIntervalMs',
     titleKey: 'stBuiltinMemoryRegenTitle', descKey: 'stBuiltinMemoryRegenDesc',

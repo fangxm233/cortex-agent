@@ -9,14 +9,10 @@ import {
 import { MSessionListScreen } from './screens/MSessionListScreen';
 import { MChatScreen } from './screens/MChatScreen';
 import { MPlanReadScreen } from './screens/MPlanReadScreen';
-import { MThreadsScreen } from './screens/MThreadsScreen';
-import { MTasksScreen } from './screens/MTasksScreen';
 import { MProjectScreen } from './screens/MProjectScreen';
 import { MApprovalsScreen } from './screens/MApprovalsScreen';
 import { MIssuesScreen } from './screens/MIssuesScreen';
 import { MNotesScreen } from './screens/MNotesScreen';
-import { MThreadDetailScreen } from './screens/MThreadDetailScreen';
-import { MTaskDetailScreen } from './screens/MTaskDetailScreen';
 import { MMemoryScreen } from './screens/MMemoryScreen';
 import { MMemoryFileScreen } from './screens/MMemoryFileScreen';
 import { MMachinesScreen } from './screens/MMachinesScreen';
@@ -34,13 +30,9 @@ import { MAdvancedScreen, MNotificationsScreen } from './screens/MRuntimeSetting
 
 const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   sessions: <MSessionListScreen />,
-  threads: <MThreadsScreen />,
-  tasks: <MTasksScreen />,
   project: <MProjectScreen />,
   session: <MChatScreen />,
   plan: <MPlanReadScreen />,
-  thread: <MThreadDetailScreen />,
-  task: <MTaskDetailScreen />,
   approvals: <MApprovalsScreen />,
   issues: <MIssuesScreen />,
   notes: <MNotesScreen />,

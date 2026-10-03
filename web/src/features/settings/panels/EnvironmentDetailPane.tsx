@@ -1,5 +1,5 @@
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
-import type { ThreadTemplateDetail, ThreadTemplateIssue } from '@cortex-agent/ui-contract';
+import type { EnvironmentDetail, EnvironmentIssue } from '@cortex-agent/ui-contract';
 import { useLang, useVocab, type Vocab } from '@/i18n';
 import {
   SButton,
@@ -10,7 +10,6 @@ import {
   SSectionLabel,
   SSegmented,
   S_CONTROL_STYLE,
-  type SPillTone,
 } from '@/features/settings/ui/settings-ui';
 import {
   DETAIL_PANE_STYLE,
@@ -21,54 +20,39 @@ import {
 } from '@/features/settings/ui/master-detail-ui';
 import { PluginAssignPanel } from './PluginAssignPanel';
 import {
-  deleteBlockedReason,
+  canDelete,
   forksFromDefaults,
-  formatBody,
   isDirty,
-  needsRunningConfirm,
   parseEditor,
   saveGate,
   validateName,
-  type TemplateKind,
-} from '@/features/settings/vm/templates-panel-vm';
+} from '@/features/settings/vm/environments-panel-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-export type Tab = 'body' | 'validation' | 'references' | 'plugins';
+export type Tab = 'body' | 'validation' | 'plugins';
 
-const KIND_TONE: Record<TemplateKind, SPillTone> = {
-  template: 'accent',
-  agent: 'success',
-  shell: 'amber',
-};
-
-const ORIGIN_LABEL: Record<ThreadTemplateDetail['origin'], keyof Vocab> = {
+const ORIGIN_LABEL: Record<EnvironmentDetail['origin'], keyof Vocab> = {
   stock: 'ttOriginStock',
   modified: 'ttOriginModified',
   custom: 'ttOriginCustom',
 };
 
-const ORIGIN_TITLE: Record<ThreadTemplateDetail['origin'], keyof Vocab> = {
+const ORIGIN_TITLE: Record<EnvironmentDetail['origin'], keyof Vocab> = {
   stock: 'ttOriginStockTitle',
   modified: 'ttOriginModifiedTitle',
   custom: 'ttOriginCustomTitle',
 };
 
-/** Plugin assignment is a field of an agent or a template slot, so it is edited here, on the
- *  entity that owns it. Shells have no pluginDirs, and a not-yet-created entity has no file to
- *  assign against. */
-export function showsPluginTab(kind: TemplateKind | null, creating: boolean): boolean {
-  return !creating && (kind === 'agent' || kind === 'template');
+/** Plugin assignment is a field of the environment file, so a not-yet-created environment has
+ *  nothing to assign against. */
+export function showsPluginTab(creating: boolean): boolean {
+  return !creating;
 }
 
 // ── small pieces ──────────────────────────────────────────────────────────────────────────────
 
-/** The list row leads with this too, which is why it is exported from the pane that defines it. */
-export function KindBadge({ kind }: { kind: TemplateKind }) {
-  return <SPill data-kind={kind} tone={KIND_TONE[kind]}>{kind}</SPill>;
-}
-
-function OriginBadge({ origin }: { origin: ThreadTemplateDetail['origin'] }) {
+function OriginBadge({ origin }: { origin: EnvironmentDetail['origin'] }) {
   const L = useVocab();
   return (
     <SPill data-origin={origin} title={L[ORIGIN_TITLE[origin]]} tone="neutral">
@@ -77,12 +61,12 @@ function OriginBadge({ origin }: { origin: ThreadTemplateDetail['origin'] }) {
   );
 }
 
-function IssueList({ issues, tone }: { issues: readonly ThreadTemplateIssue[]; tone: 'danger' | 'warn' }) {
+function IssueList({ issues, tone }: { issues: readonly EnvironmentIssue[]; tone: 'danger' | 'warn' }) {
   const color = tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-amber-fg)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       {issues.map((issue, i) => (
-        <div key={`${issue.path}:${i}`} data-issue={tone} className="settings-template-issue">
+        <div key={`${issue.path}:${i}`} data-issue={tone} className="settings-environment-issue">
           <span style={{ font: `600 12px ${MONO}`, color, minWidth: 0, overflowWrap: 'anywhere' }}>
             {issue.path}
           </span>
@@ -93,30 +77,9 @@ function IssueList({ issues, tone }: { issues: readonly ThreadTemplateIssue[]; t
   );
 }
 
-function RefRow({ k, v }: { k: string; v: ReactNode }) {
-  return (
-    <div className="settings-template-reference">
-      <span style={{ color: 'var(--proto-muted-3)', minWidth: 0, overflowWrap: 'anywhere' }}>{k}</span>
-      <span style={{ color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'anywhere' }}>{v}</span>
-    </div>
-  );
-}
-
 function Muted({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.6, overflowWrap: 'anywhere', ...style }}>{children}</div>;
 }
-
-// Code, so it stays opaque: `--proto-card` keeps the mesh from showing through a monospace block.
-const CODE_BLOCK_STYLE: CSSProperties = {
-  font: `400 12px/1.7 ${MONO}`,
-  color: 'var(--proto-muted)',
-  background: 'var(--proto-card)',
-  boxShadow: 'none',
-  borderRadius: 'var(--r-control)',
-  padding: 12,
-  marginTop: 8,
-  overflow: 'auto',
-};
 
 const EDITOR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE,
@@ -135,21 +98,19 @@ const EDITOR_STYLE: CSSProperties = {
 // ── header ────────────────────────────────────────────────────────────────────────────────────
 
 function DetailIdentity(props: {
-  kind: TemplateKind;
   name: string;
   creating: boolean;
   draftName: string;
-  origin: ThreadTemplateDetail['origin'] | null;
+  origin: EnvironmentDetail['origin'] | null;
   dirty: boolean;
   onDraftName: (value: string) => void;
 }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-      <KindBadge kind={props.kind} />
       {props.creating ? (
         <input
-          data-template-name=""
+          data-environment-name=""
           value={props.draftName}
           onChange={(e) => props.onDraftName(e.target.value)}
           placeholder={L.ttNamePh}
@@ -185,25 +146,18 @@ function DetailTabs({ tabs, tab, onTab }: {
   // The track sizes to its options, so it needs a flex line of its own rather than a block.
   return (
     <div style={{ display: 'flex' }}>
-      <SSegmented<Tab> value={tab} options={options} onChange={onTab} dataAttr="data-template-tab" />
+      <SSegmented<Tab> value={tab} options={options} onChange={onTab} dataAttr="data-environment-tab" />
     </div>
   );
 }
 
 // ── tab bodies ────────────────────────────────────────────────────────────────────────────────
 
-function DetailNotices({ nameError, runningThreads, forkWarn }: {
-  nameError: string | null;
-  runningThreads: number | null;
-  forkWarn: boolean;
-}) {
+function DetailNotices({ nameError, forkWarn }: { nameError: string | null; forkWarn: boolean }) {
   const L = useVocab();
   const notices = [
     nameError !== null
       ? <SNotice key="name" data-banner="danger" tone="danger">{nameError}</SNotice>
-      : null,
-    runningThreads !== null
-      ? <SNotice key="running" data-banner="warn" tone="amber">{runningThreads} {L.ttRunningWarn}</SNotice>
       : null,
     forkWarn ? <SNotice key="fork" data-banner="warn" tone="amber">{L.ttForkWarn}</SNotice> : null,
   ].filter((notice) => notice !== null);
@@ -233,7 +187,7 @@ function BodyTab({ text, parseError, onText }: {
         </NoticeStack>
       ) : null}
       <textarea
-        data-template-body=""
+        data-environment-body=""
         value={text}
         spellCheck={false}
         onChange={(e) => onText(e.target.value)}
@@ -244,9 +198,7 @@ function BodyTab({ text, parseError, onText }: {
   );
 }
 
-function ValidationTab({ issues }: {
-  issues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] };
-}) {
+function ValidationTab({ issues }: { issues: { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] } }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -263,41 +215,16 @@ function ValidationTab({ issues }: {
   );
 }
 
-function ReferencesTab({ detail }: { detail: ThreadTemplateDetail | null }) {
-  const L = useVocab();
-  if (!detail) return <Muted>{L.ttSelectPrompt}</Muted>;
-  return (
-    <div>
-      <RefRow k={L.ttFilePath} v={<span style={{ font: `400 12px ${MONO}` }}>{detail.filePath}</span>} />
-      <RefRow k={L.ttUsedBy} v={detail.usedByTemplates.length > 0 ? detail.usedByTemplates.join(', ') : L.ttUsedByNone} />
-      <RefRow k={L.ttRunningThreads} v={detail.runningThreads} />
-      <RefRow k={L.ttReferencingTasks} v={detail.referencingTasks} />
-      {detail.expanded ? (
-        <div style={{ marginTop: 6 }}>
-          <SSectionLabel>{L.ttExpanded}</SSectionLabel>
-          <Muted>{L.ttExpandedNote}</Muted>
-          <pre data-template-expanded="" style={CODE_BLOCK_STYLE}>{formatBody(detail.expanded)}</pre>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // ── footer ────────────────────────────────────────────────────────────────────────────────────
 
-function deleteBlockedTitle(reason: 'dependents' | 'running' | null, L: Vocab): string | undefined {
-  if (reason === 'dependents') return L.ttDeleteBlockedDependents;
-  if (reason === 'running') return L.ttDeleteBlockedRunning;
-  return undefined;
-}
-
-function EntityActions(props: TemplateDetailPaneProps & { deleteBlocked: 'dependents' | 'running' | null }) {
+function EntityActions(props: EnvironmentDetailPaneProps & { name: string }) {
   const L = useVocab();
   if (props.creating) {
     return (
       <SButton tone="neutral" onClick={props.onCancelCreate} data-action="cancel-create">{L.ttCancel}</SButton>
     );
   }
+  const deletable = canDelete(props.name);
   return (
     <>
       <SButton tone="neutral" disabled={props.busy} onClick={props.onDuplicate} data-action="duplicate">
@@ -305,10 +232,10 @@ function EntityActions(props: TemplateDetailPaneProps & { deleteBlocked: 'depend
       </SButton>
       <SButton
         tone="danger"
-        disabled={props.deleteBlocked !== null || props.busy}
+        disabled={!deletable || props.busy}
         onClick={props.onDelete}
         data-action="delete"
-        title={deleteBlockedTitle(props.deleteBlocked, L)}
+        title={deletable ? undefined : L.ttDeleteBlockedDefault}
       >
         {props.armedDelete ? L.ttDeleteConfirm : L.ttDelete}
       </SButton>
@@ -316,17 +243,17 @@ function EntityActions(props: TemplateDetailPaneProps & { deleteBlocked: 'depend
   );
 }
 
-function DetailFooter(props: TemplateDetailPaneProps & {
+function DetailFooter(props: EnvironmentDetailPaneProps & {
+  name: string;
   canSave: boolean;
   dirty: boolean;
-  deleteBlocked: 'dependents' | 'running' | null;
   hint: string | null;
 }) {
   const L = useVocab();
   return (
     <PaneFooter hint={props.hint !== null ? <span data-save-hint="">{props.hint}</span> : null}>
       <SButton tone="accent" disabled={!props.canSave || props.busy} onClick={props.onSave} data-action="save">
-        {props.armedSave ? L.ttSaveConfirm : L.ttSave}
+        {L.ttSave}
       </SButton>
       <SButton tone="neutral" disabled={props.busy} onClick={props.onValidate} data-action="validate">
         {L.ttValidate}
@@ -344,15 +271,14 @@ function DetailFooter(props: TemplateDetailPaneProps & {
 
 // ── the pane ──────────────────────────────────────────────────────────────────────────────────
 
-export interface TemplateDetailPaneProps {
-  detail: ThreadTemplateDetail | null;
-  creating: { kind: TemplateKind } | null;
+export interface EnvironmentDetailPaneProps {
+  detail: EnvironmentDetail | null;
+  creating: boolean;
   draftName: string;
   text: string;
   loaded: string;
   tab: Tab;
-  liveIssues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] } | null;
-  armedSave: boolean;
+  liveIssues: { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] } | null;
   armedDelete: boolean;
   busy: boolean;
   onDraftName: (value: string) => void;
@@ -369,12 +295,11 @@ export interface TemplateDetailPaneProps {
   onPluginSaved?: () => void;
 }
 
-function tabsFor(L: Vocab, kind: TemplateKind, creating: boolean, issueCount: number) {
+function tabsFor(L: Vocab, creating: boolean, issueCount: number) {
   return [
     { key: 'body' as Tab, label: L.ttTabBody },
     { key: 'validation' as Tab, label: L.ttTabValidation, badge: issueCount },
-    { key: 'references' as Tab, label: L.ttTabReferences },
-    ...(showsPluginTab(kind, creating) ? [{ key: 'plugins' as Tab, label: L.ttTabPlugins }] : []),
+    ...(showsPluginTab(creating) ? [{ key: 'plugins' as Tab, label: L.ttTabPlugins }] : []),
   ];
 }
 
@@ -382,41 +307,37 @@ function EmptyDetail() {
   const L = useVocab();
   return (
     <div className="settings-detail-pane" style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
-      <span data-template-detail-empty="" style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
+      <span data-environment-detail-empty="" style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
         {L.ttSelectPrompt}
       </span>
     </div>
   );
 }
 
-function DetailBody(props: TemplateDetailPaneProps & {
-  kind: TemplateKind;
+function DetailBody(props: EnvironmentDetailPaneProps & {
   name: string;
   dirty: boolean;
-  issues: { errors: ThreadTemplateIssue[]; warnings: ThreadTemplateIssue[] };
+  issues: { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] };
 }) {
   const lang = useLang();
-  const creating = props.creating !== null;
   return (
     <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
       <DetailNotices
-        nameError={creating ? validateName(props.draftName, lang) : null}
-        runningThreads={!creating && needsRunningConfirm(props.detail) ? props.detail?.runningThreads ?? 0 : null}
-        forkWarn={!creating && props.dirty && forksFromDefaults(props.detail)}
+        nameError={props.creating ? validateName(props.draftName, lang) : null}
+        forkWarn={!props.creating && props.dirty && forksFromDefaults(props.detail)}
       />
       {props.tab === 'body' ? (
         <BodyTab text={props.text} parseError={parseEditor(props.text, lang).parseError} onText={props.onText} />
       ) : null}
       {props.tab === 'validation' ? <ValidationTab issues={props.issues} /> : null}
-      {props.tab === 'plugins' && showsPluginTab(props.kind, creating) ? (
+      {props.tab === 'plugins' && showsPluginTab(props.creating) ? (
         <PluginAssignPanel
-          scope={{ kind: props.kind as 'agent' | 'template', name: props.name }}
+          scope={{ name: props.name }}
           locked={props.dirty}
           onDirtyChange={props.onPluginDirtyChange}
           onSaved={props.onPluginSaved}
         />
       ) : null}
-      {props.tab === 'references' ? <ReferencesTab detail={props.detail} /> : null}
     </div>
   );
 }
@@ -428,33 +349,29 @@ function saveHint(reason: string | null, L: Vocab): string | null {
   return null;
 }
 
-export function TemplateDetailPane(props: TemplateDetailPaneProps) {
+export function EnvironmentDetailPane(props: EnvironmentDetailPaneProps) {
   const L = useVocab();
   const { detail, creating, text, loaded } = props;
-  const kind = creating?.kind ?? detail?.kind ?? null;
+  if (!creating && !detail) return <EmptyDetail />;
   const name = creating ? props.draftName : (detail?.name ?? '');
-  if (!kind) return <EmptyDetail />;
 
-  const gate = saveGate({ text, loaded, name, creating: creating !== null });
+  const gate = saveGate({ text, loaded, name, creating });
   // Live validation (from the Validate button) wins; otherwise show what the server said on load.
   const issues = props.liveIssues ?? { errors: detail?.errors ?? [], warnings: detail?.warnings ?? [] };
   const dirty = isDirty(text, loaded);
-  const tabs = tabsFor(L, kind, creating !== null, issues.errors.length + issues.warnings.length);
+  const tabs = tabsFor(L, creating, issues.errors.length + issues.warnings.length);
 
   return (
-    <div className="settings-detail-pane" data-template-detail={`${kind}:${name}`} style={DETAIL_PANE_STYLE}>
+    <div className="settings-detail-pane" data-environment-detail={name} style={DETAIL_PANE_STYLE}>
       <div style={PANE_HEADER_STYLE}>
         <DetailIdentity
-          kind={kind} name={name} creating={creating !== null} draftName={props.draftName}
+          name={name} creating={creating} draftName={props.draftName}
           origin={detail && !creating ? detail.origin : null} dirty={dirty} onDraftName={props.onDraftName}
         />
         <DetailTabs tabs={tabs} tab={props.tab} onTab={props.onTab} />
       </div>
-      <DetailBody {...props} kind={kind} name={name} dirty={dirty} issues={issues} />
-      <DetailFooter
-        {...props} canSave={gate.canSave} dirty={dirty}
-        deleteBlocked={deleteBlockedReason(detail)} hint={saveHint(gate.reason, L)}
-      />
+      <DetailBody {...props} name={name} dirty={dirty} issues={issues} />
+      <DetailFooter {...props} name={name} canSave={gate.canSave} dirty={dirty} hint={saveHint(gate.reason, L)} />
     </div>
   );
 }

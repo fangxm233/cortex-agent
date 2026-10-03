@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
-  PluginsAssignArgs, PluginsListReturn, ThreadTemplateDetail, ThreadTemplateEntry, UiPluginCatalogEntry,
+  PluginsAssignArgs, PluginsListReturn, EnvironmentDetail, EnvironmentEntry, UiPluginCatalogEntry,
 } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
@@ -73,12 +73,12 @@ vi.mock('@/lib/trpc', () => ({
     config: { get: configQuery(), set: staticMutation() },
     cost: { summary: staticQuery('cost.summary', {}) },
     approvals: { request: staticMutation() },
-    threadTemplates: {
-      get: staticQuery('threadTemplates.get', templateEntries()),
-      detail: templateDetailQuery(),
+    environments: {
+      list: staticQuery('environments.list', environmentEntries()),
+      get: environmentDetailQuery(),
       validate: staticMutation(),
       save: staticMutation(),
-      remove: staticMutation(),
+      delete: staticMutation(),
     },
     plugins: {
       list: pluginListQuery(),
@@ -111,25 +111,24 @@ function configQuery() {
   };
 }
 
-function templateEntries(): ThreadTemplateEntry[] {
-  return [{ kind: 'agent', name: 'writer', description: null, body: { name: 'writer' }, valid: true, errorCount: 0, origin: 'custom' }];
+function environmentEntries(): EnvironmentEntry[] {
+  return [{ name: 'writer', description: null, body: { name: 'writer' }, valid: true, errorCount: 0, origin: 'custom' }];
 }
 
-function templateDetail(): ThreadTemplateDetail {
+function environmentDetail(): EnvironmentDetail {
   return {
-    kind: 'agent', name: 'writer', description: null, body: { name: 'writer' },
-    filePath: '/tmp/writer.json', origin: 'custom', sha256: 'hash-agent',
-    errors: [], warnings: [], usedByTemplates: [], runningThreads: 0, referencingTasks: 0, expanded: null,
+    name: 'writer', description: null, body: { name: 'writer' },
+    filePath: '/tmp/writer.json', origin: 'custom', sha256: 'hash-agent', errors: [], warnings: [],
   };
 }
 
-function templateDetailQuery() {
+function environmentDetailQuery() {
   return {
     queryOptions: (params: unknown) => ({
-      queryKey: ['threadTemplates.detail', params],
-      queryFn: async () => templateDetail(),
+      queryKey: ['environments.get', params],
+      queryFn: async () => environmentDetail(),
     }),
-    queryFilter: (params: unknown) => ({ queryKey: ['threadTemplates.detail', params] }),
+    queryFilter: (params: unknown) => ({ queryKey: ['environments.get', params] }),
   };
 }
 
@@ -195,7 +194,7 @@ function listData(): PluginsListReturn {
 function mount(queryClient: QueryClient): ReactTestRenderer {
   return create(
     <QueryClientProvider client={queryClient}>
-      <LangProvider><PluginAssignPanel scope={{ kind: 'agent', name: 'writer' }} /></LangProvider>
+      <LangProvider><PluginAssignPanel scope={{ name: 'writer' }} /></LangProvider>
     </QueryClientProvider>,
   );
 }
@@ -303,20 +302,20 @@ describe('Plugins Settings shell integration', () => {
 });
 
 describe('Settings dirty guard', () => {
-  it('blocks leaving while an assignment draft is dirty inside the templates editor', async () => {
+  it('blocks leaving while an assignment draft is dirty inside the environments editor', async () => {
     adapter.configFails = false;
     const queryClient = testQueryClient();
     const renderer = mountSettings(queryClient);
 
-    const templatesNav = renderer.root.findByProps({ 'data-settings-nav': 'templates' });
-    expect(templatesNav.type).toBe('button');
-    await act(async () => { templatesNav.props.onClick(); });
+    const environmentsNav = renderer.root.findByProps({ 'data-settings-nav': 'environments' });
+    expect(environmentsNav.type).toBe('button');
+    await act(async () => { environmentsNav.props.onClick(); });
 
-    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-template-row': 'agent:writer' })).toHaveLength(1));
-    await click(renderer.root.findByProps({ 'data-template-row': 'agent:writer' }));
-    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-template-tab': 'plugins' })).toHaveLength(1));
-    await click(renderer.root.findByProps({ 'data-template-tab': 'plugins' }));
-    // The templates editor owns a `data-action="save"` of its own, so `ready()` would resolve
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-environment-row': 'writer' })).toHaveLength(1));
+    await click(renderer.root.findByProps({ 'data-environment-row': 'writer' }));
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-environment-tab': 'plugins' })).toHaveLength(1));
+    await click(renderer.root.findByProps({ 'data-environment-tab': 'plugins' }));
+    // The environments editor owns a `data-action="save"` of its own, so `ready()` would resolve
     // before the embedded assignment control has any rows. Wait on a row instead.
     await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-plugin-row': 'beta' })).not.toHaveLength(0));
 

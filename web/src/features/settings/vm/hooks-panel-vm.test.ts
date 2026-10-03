@@ -56,10 +56,10 @@ describe('hooks-panel-vm / filters + grouping', () => {
     hook({ id: 'a-turn', event: 'agent:turn-end', order: 1, mountsOn: ['pi'] }),
     hook({ id: 'cc-perm', event: 'cc:PermissionRequest', order: 2, mountsOn: ['claude'] }),
     hook({ id: 'pi-hdr', event: 'pi:before_provider_headers', order: 3, mountsOn: ['pi'] }),
-    hook({ id: 'cx-end', event: 'cortex:thread.end', order: 4, mountsOn: ['server'] }),
+    hook({ id: 'cx-end', event: 'cortex:session.messageEnd', order: 4, mountsOn: ['server'] }),
     hook({
       id: 'template:review:end',
-      event: 'cortex:thread.end',
+      event: 'cortex:session.messageEnd',
       order: 5,
       mountsOn: ['server'],
       source: 'template-scoped',
@@ -85,7 +85,7 @@ describe('hooks-panel-vm / filters + grouping', () => {
   });
 
   it('search matches id, event, filename, script and command, case-insensitively', () => {
-    expect(filterHooks(hooks, 'all', 'THREAD.END').map((h) => h.id)).toEqual(['cx-end', 'template:review:end']);
+    expect(filterHooks(hooks, 'all', 'SESSION.MESSAGEEND').map((h) => h.id)).toEqual(['cx-end', 'template:review:end']);
     expect(filterHooks(hooks, 'all', 'pi-hdr').map((h) => h.id)).toEqual(['pi-hdr']);
     const withCommand = [hook({ id: 'cmd', run: { script: null, command: 'printf hello', timeoutSec: null } })];
     expect(filterHooks(withCommand, 'all', 'printf').map((h) => h.id)).toEqual(['cmd']);
@@ -100,7 +100,7 @@ describe('hooks-panel-vm / filters + grouping', () => {
     expect(countHooksByFilter(hooks, '')).toEqual({
       all: 6, agent: 2, claude: 2, pi: 3, server: 2, template: 1,
     });
-    expect(countHooksByFilter(hooks, 'thread.end')).toEqual({
+    expect(countHooksByFilter(hooks, 'messageend')).toEqual({
       all: 2, agent: 0, claude: 0, pi: 0, server: 2, template: 1,
     });
   });
@@ -169,7 +169,7 @@ describe('hooks-panel-vm / mount gap', () => {
 
   it('does not flag cc: / pi: / cortex: declarations — they name their target', () => {
     expect(hasClaudeMountGap(hook({ event: 'pi:tool_call', mountsOn: ['pi'] }))).toBe(false);
-    expect(hasClaudeMountGap(hook({ event: 'cortex:thread.end', mountsOn: ['server'] }))).toBe(false);
+    expect(hasClaudeMountGap(hook({ event: 'cortex:session.messageEnd', mountsOn: ['server'] }))).toBe(false);
     expect(hasClaudeMountGap(hook({ event: 'cc:Stop', mountsOn: ['claude'] }))).toBe(false);
   });
 });
@@ -178,22 +178,22 @@ describe('hooks-panel-vm / result legality', () => {
 
   it('locks every other event down to none', () => {
     expect(legalResultsForEvent('agent:pre-tool')).toEqual(['none']);
-    expect(legalResultsForEvent('cortex:task.completed')).toEqual(['none']);
+    expect(legalResultsForEvent('cortex:schedule.fired')).toEqual(['none']);
     expect(isResultLocked('agent:pre-tool')).toBe(true);
-    expect(isResultLocked('cortex:thread.end')).toBe(false);
+    expect(isResultLocked('cortex:session.messageEnd')).toBe(false);
   });
 
   it('resets an illegal result when the event changes, and keeps a legal one', () => {
-    expect(reconcileResultForEvent('hook-result', 'agent:pre-tool')).toBe('none');
-    expect(reconcileResultForEvent('hook-result', 'cortex:thread.end')).toBe('hook-result');
-    expect(reconcileResultForEvent('stdout-as-prompt', 'cortex:thread.end')).toBe('none');
-    expect(reconcileResultForEvent('none', 'cortex:thread.end')).toBe('none');
+    expect(reconcileResultForEvent('stdout-as-prompt', 'agent:pre-tool')).toBe('none');
+    expect(reconcileResultForEvent('stdout-as-prompt', 'cortex:session.messageEnd')).toBe('stdout-as-prompt');
+    expect(reconcileResultForEvent('hook-result', 'cortex:session.messageEnd')).toBe('none');
+    expect(reconcileResultForEvent('none', 'cortex:session.messageEnd')).toBe('none');
   });
 });
 
 describe('hooks-panel-vm / matcher', () => {
   it('picks the filter editor for cortex:* and the regex input everywhere else', () => {
-    expect(matcherKindForEvent('cortex:thread.end')).toBe('filters');
+    expect(matcherKindForEvent('cortex:session.messageEnd')).toBe('filters');
     expect(matcherKindForEvent('agent:pre-tool')).toBe('regex');
     expect(matcherKindForEvent('cc:Stop')).toBe('regex');
     expect(matcherKindForEvent('pi:tool_call')).toBe('regex');
@@ -206,14 +206,14 @@ describe('hooks-panel-vm / matcher', () => {
   });
 
   it('round-trips filter values through their typed form', () => {
-    expect(parseFilterValue('task-dispatch')).toBe('task-dispatch');
+    expect(parseFilterValue('scheduled')).toBe('scheduled');
     expect(parseFilterValue('true')).toBe(true);
     expect(parseFilterValue('false')).toBe(false);
     expect(parseFilterValue('null')).toBeNull();
     expect(parseFilterValue('42')).toBe(42);
     expect(parseFilterValue('"42"')).toBe('42');
 
-    expect(formatFilterValue('task-dispatch')).toBe('task-dispatch');
+    expect(formatFilterValue('scheduled')).toBe('scheduled');
     expect(formatFilterValue(true)).toBe('true');
     expect(formatFilterValue(null)).toBe('null');
     expect(formatFilterValue(42)).toBe('42');
@@ -227,20 +227,20 @@ describe('hooks-panel-vm / matcher', () => {
 describe('hooks-panel-vm / form state', () => {
   it('hydrates the form from a script-based declaration', () => {
     const form = formStateFromDetail(hook({
-      id: 'tasks-yaml-guard',
+      id: 'edit-guard',
       event: 'agent:pre-tool',
       matcher: 'Edit|Write',
-      run: { script: 'tasks-yaml-guard.mjs', command: null, timeoutSec: 10 },
+      run: { script: 'edit-guard.mjs', command: null, timeoutSec: 10 },
       scope: { backends: ['claude'], requiresTool: 'Edit' },
       enabled: false,
     }));
     expect(form).toEqual({
-      id: 'tasks-yaml-guard',
+      id: 'edit-guard',
       event: 'agent:pre-tool',
       matcher: 'Edit|Write',
       filters: [],
       runKind: 'script',
-      script: 'tasks-yaml-guard.mjs',
+      script: 'edit-guard.mjs',
       command: '',
       timeoutSec: '10',
       backends: ['claude'],
@@ -252,12 +252,12 @@ describe('hooks-panel-vm / form state', () => {
 
   it('hydrates the form from a command-based, filter-matched declaration', () => {
     const form = formStateFromDetail(hook({
-      id: 'task-status-check',
-      event: 'cortex:thread.end',
+      id: 'message-end-check',
+      event: 'cortex:session.messageEnd',
       matcher: null,
-      matcherFilters: { source: 'task-dispatch', retry: 2 },
+      matcherFilters: { source: 'scheduled', retry: 2 },
       run: { script: null, command: 'printf ok', timeoutSec: null },
-      result: 'hook-result',
+      result: 'stdout-as-prompt',
     }));
     expect(form.runKind).toBe('command');
     expect(form.command).toBe('printf ok');
@@ -265,10 +265,10 @@ describe('hooks-panel-vm / form state', () => {
     expect(form.timeoutSec).toBe('');
     expect(form.matcher).toBe('');
     expect(form.filters).toEqual([
-      { key: 'source', value: 'task-dispatch' },
+      { key: 'source', value: 'scheduled' },
       { key: 'retry', value: '2' },
     ]);
-    expect(form.result).toBe('hook-result');
+    expect(form.result).toBe('stdout-as-prompt');
   });
 
   it('is not dirty until a field actually changes', () => {
@@ -313,13 +313,13 @@ describe('hooks-panel-vm / validation', () => {
     expect(validateHookForm({ ...base, matcher: 'Edit|Write' }, { mode: 'create' }).matcher).toBeUndefined();
     // A cortex:* event uses filters, so a stale regex string is not validated.
     expect(validateHookForm(
-      { ...base, event: 'cortex:thread.end', matcher: 'Edit(' },
+      { ...base, event: 'cortex:session.messageEnd', matcher: 'Edit(' },
       { mode: 'create' },
     ).matcher).toBeUndefined();
   });
 
   it('rejects empty and duplicated filter keys', () => {
-    const cortex = { ...base, event: 'cortex:thread.end' };
+    const cortex = { ...base, event: 'cortex:session.messageEnd' };
     expect(validateHookForm(
       { ...cortex, filters: [{ key: '', value: 'x' }] },
       { mode: 'create' },
@@ -343,9 +343,9 @@ describe('hooks-panel-vm / validation', () => {
   });
 
   it('rejects a result the event cannot carry', () => {
-    expect(validateHookForm({ ...base, result: 'hook-result' }, { mode: 'create' }).result).toBeTruthy();
+    expect(validateHookForm({ ...base, result: 'stdout-as-prompt' }, { mode: 'create' }).result).toBeTruthy();
     expect(validateHookForm(
-      { ...base, event: 'cortex:thread.end', result: 'hook-result' },
+      { ...base, event: 'cortex:session.messageEnd', result: 'stdout-as-prompt' },
       { mode: 'create' },
     ).result).toBeUndefined();
   });
@@ -393,15 +393,15 @@ describe('hooks-panel-vm / mutation args', () => {
     const args = buildHookUpdateArgs({
       ...emptyHookForm(),
       id: 'x',
-      event: 'cortex:thread.end',
+      event: 'cortex:session.messageEnd',
       script: 'x.mjs',
       matcher: 'Edit|Write',
-      filters: [{ key: ' source ', value: 'task-dispatch' }, { key: 'retry', value: '2' }],
-      result: 'hook-result',
+      filters: [{ key: ' source ', value: 'scheduled' }, { key: 'retry', value: '2' }],
+      result: 'stdout-as-prompt',
     });
     expect(args.matcher).toBeUndefined();
-    expect(args.matcherFilters).toEqual({ source: 'task-dispatch', retry: 2 });
-    expect(args.result).toBe('hook-result');
+    expect(args.matcherFilters).toEqual({ source: 'scheduled', retry: 2 });
+    expect(args.result).toBe('stdout-as-prompt');
   });
 
   it('sends matcher (never matcherFilters) for a non-cortex event', () => {
@@ -410,7 +410,7 @@ describe('hooks-panel-vm / mutation args', () => {
       id: 'x',
       script: 'x.mjs',
       matcher: 'Edit|Write',
-      filters: [{ key: 'source', value: 'task-dispatch' }],
+      filters: [{ key: 'source', value: 'scheduled' }],
     });
     expect(args.matcher).toBe('Edit|Write');
     expect(args.matcherFilters).toBeUndefined();
@@ -447,5 +447,9 @@ describe('hooks-panel-vm / event options and sample payloads', () => {
     ]);
     expect(options).toContain('pi:before_provider_headers');
     expect(options.filter((e) => e === 'agent:pre-tool')).toHaveLength(1);
+  });
+
+  it('offers no thread, task or dispatch lifecycle events', () => {
+    expect(hookEventOptions([]).filter((e) => /^cortex:(thread|task|dispatch)\./.test(e))).toEqual([]);
   });
 });

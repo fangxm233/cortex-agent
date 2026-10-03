@@ -13,7 +13,7 @@ function status(): RateLimitView {
         displayName: 'OpenAI Codex',
         recoveryAt: 1_000,
         recoveryCountdown: '5m',
-        waitingLabel: '0 sessions · 1 thread waiting',
+        waitingLabel: '1 session waiting',
         windows: [
           { type: 'outage', typeLabel: 'outage', resetsAt: 1_000, countdown: '5m' },
         ],

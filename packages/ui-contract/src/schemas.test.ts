@@ -65,9 +65,10 @@ test('auth logout schema accepts only the secret-free identity tuple', () => {
 });
 
 test('query schemas reject invalid input', () => {
-  assert.throws(() => queryInputSchemas['tasks.list'].parse({ status: 'nope' }));
+  assert.throws(() => queryInputSchemas['schedules.list'].parse({ paused: 'nope' }));
   assert.throws(() => queryInputSchemas['executions.list'].parse({ limit: 'ten' }));
-  assert.throws(() => queryInputSchemas['threads.get'].parse({}));
+  assert.throws(() => queryInputSchemas['environments.get'].parse({}));
+  assert.throws(() => queryInputSchemas['environments.get'].parse({ name: '../escape' }));
   assert.throws(() => queryInputSchemas['sessions.list'].parse({ resumable: 'yes' }));
   assert.throws(() => queryInputSchemas['memory.tree'].parse({}));
   assert.throws(() => queryInputSchemas['memory.file'].parse({ projectId: 'p' }));
@@ -85,17 +86,14 @@ test('mutate schemas require their mandatory fields', () => {
   // sessions.create: projectId optional (accepts empty + a project id)
   assert.deepEqual(mutateInputSchemas['sessions.create'].parse({}), {});
   assert.deepEqual(mutateInputSchemas['sessions.create'].parse({ projectId: 'nimbus' }), { projectId: 'nimbus' });
-  assert.deepEqual(mutateInputSchemas['threads.cancel'].parse({ threadId: 't1' }), { threadId: 't1' });
+  assert.deepEqual(mutateInputSchemas['executions.cancel'].parse({ executionId: 'e1' }), { executionId: 'e1' });
+  // environments.save: name + body required, baseHash optional
   assert.deepEqual(
-    mutateInputSchemas['tasks.claim'].parse({ projectId: 'p', taskId: 'f184' }),
-    { projectId: 'p', taskId: 'f184' },
+    mutateInputSchemas['environments.save'].parse({ name: 'main', body: { name: 'main' } }),
+    { name: 'main', body: { name: 'main' } },
   );
-  // tasks.block requires reason
-  assert.throws(() => mutateInputSchemas['tasks.block'].parse({ projectId: 'p', taskId: 'f184' }));
-  assert.deepEqual(
-    mutateInputSchemas['tasks.block'].parse({ projectId: 'p', taskId: 'f184', reason: 'stuck' }),
-    { projectId: 'p', taskId: 'f184', reason: 'stuck' },
-  );
+  assert.throws(() => mutateInputSchemas['environments.save'].parse({ name: 'main' }));
+  assert.deepEqual(mutateInputSchemas['environments.delete'].parse({ name: 'creative' }), { name: 'creative' });
   // sessions.send requires sessionId + text; empty text is schema-legal (attachment-only sends —
   // the handler enforces "text or attachments")
   assert.deepEqual(
@@ -110,8 +108,8 @@ test('mutate schemas require their mandatory fields', () => {
   assert.deepEqual(mutateInputSchemas['sessions.compact'].parse({ sessionId: 'sess-1' }), { sessionId: 'sess-1' });
   assert.throws(() => mutateInputSchemas['sessions.compact'].parse({}));
   // missing required id
-  assert.throws(() => mutateInputSchemas['threads.cancel'].parse({}));
-  assert.throws(() => mutateInputSchemas['tasks.claim'].parse({ projectId: 'p' }));
+  assert.throws(() => mutateInputSchemas['executions.cancel'].parse({}));
+  assert.throws(() => mutateInputSchemas['environments.delete'].parse({}));
   // approvals.approve requires id; approvals.reject id + optional feedback
   assert.deepEqual(mutateInputSchemas['approvals.approve'].parse({ id: 'a1' }), { id: 'a1' });
   assert.deepEqual(
@@ -190,21 +188,14 @@ test('plugins.assign accepts catalog ids and filesystem-bounded entity names', (
     target: { kind: 'agent', name: longName, baseHash: 'a'.repeat(64) },
     pluginIds: ['alpha plugin', '实验插件', 'p'.repeat(255)],
   };
-  const slot = {
-    target: {
-      kind: 'template-slot',
-      templateName: 'workflow',
-      index: 1,
-      ref: 'writer',
-      baseHash: 'b'.repeat(64),
-      mode: 'custom',
-    },
+  const acknowledged = {
+    target: { kind: 'agent', name: 'writer', baseHash: 'b'.repeat(64) },
     pluginIds: ['alpha'],
     acknowledgeMcp: true,
   };
 
   assert.deepEqual(s.parse(agent), agent);
-  assert.deepEqual(s.parse(slot), slot);
+  assert.deepEqual(s.parse(acknowledged), acknowledged);
 });
 
 test('plugins.assign rejects bad hashes and unsafe path ids', () => {
@@ -218,11 +209,11 @@ test('plugins.assign rejects bad hashes and unsafe path ids', () => {
     pluginIds: ['alpha'],
   }));
   assert.throws(() => s.parse({
-    target: { kind: 'template-slot', templateName: 'workflow', index: -1, ref: 'writer', baseHash: 'x', mode: 'inherit' },
+    target: { kind: 'template-slot', templateName: 'workflow', index: 1, ref: 'writer', baseHash: 'c'.repeat(64), mode: 'custom' },
     pluginIds: [],
   }));
   assert.throws(() => s.parse({
-    target: { kind: 'template-slot', templateName: 'workflow', index: 1, ref: 'writer', baseHash: 'c'.repeat(64), mode: 'custom' },
+    target: { kind: 'agent', name: 'writer', baseHash: 'c'.repeat(64) },
     pluginIds: [bigId],
   }));
   assert.throws(() => s.parse({
@@ -241,9 +232,9 @@ test('schedules.add accepts valid per-type input', () => {
   assert.equal(s.parse({ type: 'daily', message: 'm', time: '09:00' }).type, 'daily');
   assert.equal(s.parse({ type: 'weekly', message: 'm', time: '09:00', dayOfWeek: 1 }).dayOfWeek, 1);
   assert.equal(s.parse({ type: 'once', message: 'm', delay: 5000 }).delay, 5000);
-  // optional target + fallback
+  // optional target
   assert.deepEqual(
-    s.parse({ type: 'once', message: 'm', delay: 1, target: { kind: 'project', projectId: 'p' }, fallback: 'skip' }).target,
+    s.parse({ type: 'once', message: 'm', delay: 1, target: { kind: 'project', projectId: 'p' } }).target,
     { kind: 'project', projectId: 'p' },
   );
 });

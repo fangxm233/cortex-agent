@@ -113,7 +113,6 @@ vi.mock('@/lib/trpc', () => ({
       },
       config: { get: query('config.get') },
       models: { catalog: query('models.catalog') },
-      threads: { list: query('threads.list'), get: query('threads.get') },
       schedules: { list: query('schedules.list') },
       // The composer's WaitRail asks what this session is waiting on.
       waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
@@ -157,7 +156,6 @@ vi.mock('@/features/session/live/useSessionCompact', () => ({
 }));
 vi.mock('@/features/session/interaction/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
 vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
-vi.mock('@/features/thread/useThreadGetLiveSync', () => ({ useThreadGetLiveSync: () => {} }));
 vi.mock('@/features/attachments/useAttachmentUploads', () => ({
   useAttachmentUploads: () => ({
     items: harness.attachmentItems,

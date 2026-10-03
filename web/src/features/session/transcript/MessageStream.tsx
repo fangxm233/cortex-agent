@@ -33,7 +33,7 @@ const GUTTER = 32;
 const JUMP_MARGIN = 22;
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
- *  w.r.t. editing (the thread step chat), hover copy still works. */
+ *  w.r.t. editing (e.g. a nested subagent transcript), hover copy still works. */
 export interface MessageEditCtx {
   /** Live turn on the session — editing is greyed out (运行中不可编辑). */
   running: boolean;
@@ -80,7 +80,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   attachments?: AttachmentMeta[];
   ts?: string;
   /** Row index this bubble sits at, published to the DOM so the nav rail can scroll back to it.
-   *  Absent in nested (subagent) and embedded (thread step) transcripts, which have no rail. */
+   *  Absent in nested (subagent) transcripts, which have no rail. */
   anchor?: number;
   edited?: { originalText: string; originalTs: string };
   /** Present → the sec-23 hover copy/edit affordances render. */
@@ -511,7 +511,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
 
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid
  *  out vertically. Framework-free of the scroll/stick behavior so it can be embedded wherever a
- *  transcript needs rendering (the workbench center chat, the thread-detail step chat). Owns the
+ *  transcript needs rendering (the workbench center chat, nested subagent transcripts). Owns the
  *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
  *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
  *  the rewind. */
@@ -616,7 +616,7 @@ function scrollToAnchor(el: HTMLElement | null, row: number): void {
   else el.scrollTop = top;
 }
 
-export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
+export function MessageStream({ rows, loading, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -745,7 +745,6 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
         <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
-          {inlineThreadCard && <div style={{ marginTop: 18 }}>{inlineThreadCard}</div>}
         </div>
       </div>
       <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />

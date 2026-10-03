@@ -51,7 +51,7 @@ export async function handleRemoveSchedule(
 // Create a schedule (DR-0018 §2.1 7c). Re-checks the per-type required fields (mirrors
 // domain/mcp/tools/schedule.ts::runScheduleAdd) so a direct facade / unit call is rejected as an Err
 // with nothing written; the zod router already rejects the same cases upstream. The injected
-// deps.scheduler.add composes the real scheduler.add + schedule-repo backfill of target/fallback.
+// deps.scheduler.add composes the real scheduler.add + schedule-repo backfill of target.
 export async function handleAddSchedule(
   deps: UiServiceDeps,
   args: ScheduleAddArgs,
@@ -84,7 +84,6 @@ export async function handleAddSchedule(
       dayOfWeek: args.dayOfWeek,
       delay: args.delay,
       target: args.target,
-      fallback: args.fallback,
     });
     return { ok: true, data: toScheduleInfo(task) };
   } catch (err: any) {

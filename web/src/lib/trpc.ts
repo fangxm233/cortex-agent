@@ -17,7 +17,7 @@ import type { EventSourceFetchInit } from 'eventsource';
 // (`AppRouter extends AnyTRPCRouter ? AppRouter : AnyTRPCRouter`) was removed in task 5: a
 // deferred conditional type does NOT auto-tighten — createTRPCContext widened it back to
 // AnyTRPCRouter and every procedure degraded to `any`. Using AppRouter directly restores
-// full end-to-end type inference (tasks.list → TaskInfo[], mutation inputs, etc.).
+// full end-to-end type inference (sessions.list → SessionInfo[], mutation inputs, etc.).
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 /**

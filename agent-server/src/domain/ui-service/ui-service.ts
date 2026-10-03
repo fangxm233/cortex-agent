@@ -8,9 +8,6 @@ import {
   handleSessionsDebugDetails,
   handleSessionsPendingInteraction,
 } from './query/sessions.js';
-import { handleThreadsList, handleThreadsGet } from './query/threads.js';
-import { handleTasksList } from './query/tasks.js';
-import { handleTaskVerification } from './query/task-verification.js';
 import { handleSchedulesList } from './query/schedules.js';
 import {
   handleCommissionsList,
@@ -35,8 +32,7 @@ import { handleMachineDetail } from './query/machine-detail.js';
 import { handleSkillsList } from './query/skills.js';
 import { handlePluginsList } from './query/plugins.js';
 import { handlePluginsSkillFile, handlePluginsMcpRead } from './query/plugin-source.js';
-import { handleThreadTemplatesGet } from './query/thread-templates.js';
-import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
+import { handleEnvironmentsList, handleEnvironmentsGet } from './query/environments.js';
 import {
   handleSystemDaemonStatus,
   handleSystemRateLimitStatus,
@@ -61,10 +57,10 @@ import {
   handleProfilesRemove,
 } from './mutate/profiles.js';
 import {
-  handleThreadTemplatesValidate,
-  handleThreadTemplatesSave,
-  handleThreadTemplatesRemove,
-} from './mutate/thread-templates.js';
+  handleEnvironmentsValidate,
+  handleEnvironmentsSave,
+  handleEnvironmentsDelete,
+} from './mutate/environments.js';
 import { handlePluginsAssign } from './mutate/plugins.js';
 import {
   handlePluginsSkillWrite,
@@ -78,7 +74,6 @@ import {
 } from './mutate/plugin-packages.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleSetAgent, handleSetSelection, handleSetCommission, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
-import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import { handleCancelWaitpoint } from './mutate/waitpoints.js';
 import {
@@ -89,13 +84,6 @@ import {
   handleUpdateSchedule,
 } from './mutate/schedules.js';
 import { handleCommissionClose } from './mutate/commissions.js';
-import {
-  handleClaimTask,
-  handleUnclaimTask,
-  handleCompleteTask,
-  handleBlockTask,
-  handleUnblockTask,
-} from './mutate/tasks.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
 import { handleIssuesDelete, handleIssuesHandle } from './mutate/issues.js';
 import {
@@ -137,10 +125,6 @@ const queryHandlers: Record<string, QueryHandler> = {
   'sessions.subagentTranscript': (deps, params) => handleSessionsSubagentTranscript(deps, params),
   'sessions.debugDetails': (deps, params) => handleSessionsDebugDetails(deps, params),
   'sessions.pendingInteraction': (deps, params) => handleSessionsPendingInteraction(deps, params),
-  'threads.list': (deps, params) => handleThreadsList(deps, params),
-  'threads.get': (deps, params) => handleThreadsGet(deps, params),
-  'tasks.list': (deps, params) => handleTasksList(deps, params),
-  'tasks.verification': (deps, params) => handleTaskVerification(deps, params),
   'schedules.list': (deps, params) => handleSchedulesList(deps, params),
   'commissions.list': (deps, params) => handleCommissionsList(deps, params),
   'commissions.get': (deps, params) => handleCommissionsGet(deps, params),
@@ -166,8 +150,8 @@ const queryHandlers: Record<string, QueryHandler> = {
   'plugins.list': (deps, params) => handlePluginsList(deps, params),
   'plugins.skillFile': (deps, params) => handlePluginsSkillFile(deps, params),
   'plugins.mcpRead': (deps, params) => handlePluginsMcpRead(deps, params),
-  'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
-  'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),
+  'environments.list': (deps, params) => handleEnvironmentsList(deps, params),
+  'environments.get': (deps, params) => handleEnvironmentsGet(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
   'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
   'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
@@ -195,7 +179,6 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.respondDecision': (deps, args) => handleRespondDecision(deps, args),
   'sessions.cancelResume': (_deps, args) => handleCancelResume(args),
   'sessions.rewind': (deps, args) => handleRewindSession(deps, args),
-  'threads.cancel': (deps, args) => handleCancelThread(deps, args),
   'executions.cancel': (deps, args) => handleCancelExecution(deps, args),
   'waitpoints.cancel': (deps, args) => handleCancelWaitpoint(deps, args),
   'schedules.pause': (deps, args) => handlePauseSchedule(deps, args),
@@ -204,11 +187,6 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'schedules.add': (deps, args) => handleAddSchedule(deps, args),
   'schedules.update': (deps, args) => handleUpdateSchedule(deps, args),
   'commissions.close': (deps, args) => handleCommissionClose(deps, args),
-  'tasks.claim': (deps, args) => handleClaimTask(deps, args),
-  'tasks.unclaim': (deps, args) => handleUnclaimTask(deps, args),
-  'tasks.complete': (deps, args) => handleCompleteTask(deps, args),
-  'tasks.block': (deps, args) => handleBlockTask(deps, args),
-  'tasks.unblock': (deps, args) => handleUnblockTask(deps, args),
   'approvals.approve': (deps, args) => handleApproveApproval(deps, args),
   'approvals.reject': (deps, args) => handleRejectApproval(deps, args),
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),
@@ -246,9 +224,9 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'plugins.remove': (deps, args) => handlePluginsRemove(deps, args),
   'plugins.convertToPortable': (deps, args) => handlePluginsConvertToPortable(deps, args),
   'plugins.mcpWrite': (deps, args) => handlePluginsMcpWrite(deps, args),
-  'threadTemplates.validate': (deps, args) => handleThreadTemplatesValidate(deps, args),
-  'threadTemplates.save': (deps, args) => handleThreadTemplatesSave(deps, args),
-  'threadTemplates.remove': (deps, args) => handleThreadTemplatesRemove(deps, args),
+  'environments.validate': (deps, args) => handleEnvironmentsValidate(deps, args),
+  'environments.save': (deps, args) => handleEnvironmentsSave(deps, args),
+  'environments.delete': (deps, args) => handleEnvironmentsDelete(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
   'system.refreshUsage': (_deps, args) => handleSystemRefreshUsage(args),

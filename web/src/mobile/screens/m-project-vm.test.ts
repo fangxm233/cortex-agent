@@ -1,47 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
+import type { ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
 import {
-  threadCountsForProject,
   onlineMachineCount,
   buildProjectSwitchRows,
   pendingApprovalCounts,
 } from './m-project-vm';
 
 // Neutral placeholder fixtures (守则11 — nimbus / atlas / orchard, no real project ids).
-function thread(over: Partial<ThreadInfo>): ThreadInfo {
-  return {
-    id: 't1',
-    templateName: 'x',
-    currentStep: null,
-    status: 'running',
-    projectId: 'nimbus',
-    createdAt: '2026-07-15T09:00:00Z',
-    updatedAt: '2026-07-15T09:00:00Z',
-    totalSteps: 1,
-    artifactPath: null,
-    ...over,
-  };
-}
-
 function project(id: string): ProjectConduitInfo {
   return { id, kind: 'general', contextDir: '/x/' + id, hasMission: false, conduits: {} };
 }
-
-describe('threadCountsForProject', () => {
-  it('counts running and waiting separately, scoped to the project (real ThreadInfo.status)', () => {
-    const threads = [
-      thread({ projectId: 'nimbus', status: 'running' }),
-      thread({ projectId: 'nimbus', status: 'running' }),
-      thread({ projectId: 'nimbus', status: 'waiting' }),
-      thread({ projectId: 'atlas', status: 'running' }),
-      thread({ projectId: 'nimbus', status: 'completed' }),
-    ];
-    // `running` counts ACTIVE threads (running + waiting) to match the desktop sibling
-    // `runningCountByProject` (workbench/project-menu): 2 running + 1 waiting = 3 active;
-    // `waiting` is additionally reported on its own.
-    expect(threadCountsForProject(threads, 'nimbus')).toEqual({ running: 3, waiting: 1 });
-  });
-});
 
 describe('onlineMachineCount', () => {
   it('counts only machines with online=true (MachineInfo.online)', () => {
@@ -75,24 +43,20 @@ describe('pendingApprovalCounts — prototype-named ids', () => {
 
 describe('buildProjectSwitchRows', () => {
   const projects = [project('nimbus'), project('atlas'), project('orchard')];
-  const threads = [thread({ projectId: 'atlas', status: 'running' })];
   const byProject: CostSummary['byProject'] = {
     atlas: { today: 0.87, week: 1, month: 2, total: 3 },
   };
 
-  it('drops the current project and carries running count and today $', () => {
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject);
+  it('drops the current project and carries today $', () => {
+    const rows = buildProjectSwitchRows(projects, 'nimbus', byProject);
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
-    expect(rows.find((r) => r.id === 'atlas')).toMatchObject({
-      running: 1,
-      todayCost: 0.87,
-    });
+    expect(rows.find((r) => r.id === 'atlas')).toMatchObject({ todayCost: 0.87 });
     // orchard has no cost bucket → honest null, no fabricated $0.
-    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ running: 0, todayCost: null });
+    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ todayCost: null });
   });
 
   it('carries the per-project unread count and defaults to 0 when absent', () => {
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 3 });
+    const rows = buildProjectSwitchRows(projects, 'nimbus', byProject, { orchard: 3 });
     expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ badgeCount: 3, badgeTone: 'unread' });
     expect(rows.find((r) => r.id === 'atlas')).toMatchObject({ badgeCount: 0, badgeTone: null });
   });
@@ -101,7 +65,6 @@ describe('buildProjectSwitchRows', () => {
     const rows = buildProjectSwitchRows(
       projects,
       'nimbus',
-      threads,
       byProject,
       { orchard: 2, atlas: 1 },
       {},
@@ -123,20 +86,20 @@ describe('buildProjectSwitchRows', () => {
       atlas: Date.parse('2026-07-14T00:00:00'),
       orchard: Date.parse('2026-07-16T00:00:00'),
     };
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {}, activity);
+    const rows = buildProjectSwitchRows(projects, 'nimbus', byProject, {}, activity);
     expect(rows.map((r) => r.id)).toEqual(['orchard', 'atlas']);
   });
 
   it('unread no longer drives ordering (recency does) — badge still carried', () => {
     // orchard has unread but atlas is the more recently active → atlas stays ahead.
     const activity = { atlas: Date.parse('2026-07-16T00:00:00') };
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 2 }, activity);
+    const rows = buildProjectSwitchRows(projects, 'nimbus', byProject, { orchard: 2 }, activity);
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
     expect(rows.find((r) => r.id === 'orchard')).toMatchObject({ badgeCount: 2, badgeTone: 'unread' });
   });
 
   it('preserves projects.list order when no activity is known (back-compat)', () => {
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {});
+    const rows = buildProjectSwitchRows(projects, 'nimbus', byProject, {});
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
   });
 
@@ -145,7 +108,6 @@ describe('buildProjectSwitchRows', () => {
     const rows = buildProjectSwitchRows(
       projects,
       'nimbus',
-      threads,
       byProject,
       {},
       {},

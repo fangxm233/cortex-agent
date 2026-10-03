@@ -1,5 +1,5 @@
 // Smoke test: TUI Phase 2 — Dashboard queries via WS protocol
-// Connects to running daemon on port 3003, verifies all 5 dashboard tabs
+// Connects to running daemon on port 3003, verifies the dashboard tabs
 // return valid data via M3 ui.query.
 //
 // Usage: node scripts/smoke-tui-phase2.mjs
@@ -56,7 +56,7 @@ async function main() {
   console.log(`Target: ${URL}`);
   console.log(`HEAD: f62ddf7c\n`);
 
-  // ── S1: Dashboard initial load — verify all 5 query scopes ──
+  // ── S1: Dashboard initial load — verify every dashboard query scope ──
   console.log(`--- S1: Dashboard Query Scopes ---`);
   {
     const ws = await connect();
@@ -67,8 +67,6 @@ async function main() {
 
     // Query each dashboard scope
     const scopes = [
-      { id: 'q-threads', scope: 'threads.list', label: 'threads' },
-      { id: 'q-tasks',   scope: 'tasks.list',   label: 'tasks' },
       { id: 'q-sched',   scope: 'schedules.list', label: 'schedules' },
       { id: 'q-exec',    scope: 'executions.list', label: 'executions' },
       { id: 'q-cost',    scope: 'cost.summary',  label: 'cost' },

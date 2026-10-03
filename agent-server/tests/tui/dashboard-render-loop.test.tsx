@@ -22,7 +22,7 @@ test('dashboard tab does not re-subscribe/re-query when caller passes unstable c
       dashState: EMPTY_DASH_STATE,
       onRegisterSubscription: () => {},
       onUnregisterSubscription: () => {},
-      activeTab: 'threads',
+      activeTab: 'schedules',
       onSetActiveTab: () => {},
       mutate: async () => ({ ok: true }),
     });
@@ -32,7 +32,7 @@ test('dashboard tab does not re-subscribe/re-query when caller passes unstable c
   await delay(120);
 
   const countQueries = () =>
-    sent.filter(f => f && f.type === 'ui.query' && f.scope === 'threads.list').length;
+    sent.filter(f => f && f.type === 'ui.query' && f.scope === 'schedules.list').length;
 
   const afterMount = countQueries();
   assert.equal(afterMount, 1, `expected exactly one initial query, got ${afterMount}`);
@@ -46,7 +46,7 @@ test('dashboard tab does not re-subscribe/re-query when caller passes unstable c
   const total = countQueries();
   assert.ok(
     total <= 1,
-    `threads.list query re-fired on re-render (${total} total) — the per-tab effect ` +
+    `schedules.list query re-fired on re-render (${total} total) — the per-tab effect ` +
       `depends on unstable callback identities and will infinite-loop in App`,
   );
 

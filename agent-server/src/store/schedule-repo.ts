@@ -49,9 +49,6 @@ export interface ScheduleTask {
   taskConfigHash?: string;
   /** Dispatch routing — defaults to { kind: 'fresh' } for legacy records. */
   target?: ScheduleTarget;
-  /** No longer read: it chose what a thread target did once its thread was gone, and every target
-   *  now opens a fresh session. Kept so stored records and the schedule editor round-trip. */
-  fallback?: 'fresh' | 'skip' | 'wait';
 }
 
 export interface SchedulesData {
@@ -108,9 +105,11 @@ function makeMigrate(channelRegistryPath?: string): (raw: unknown) => SchedulesD
     }
 
     // Backfill target=fresh on records persisted before targets existed, and on targets of a kind
-    // that no longer exists, so every reader sees one of the kinds above.
+    // that no longer exists, so every reader sees one of the kinds above. `fallback` chose what a
+    // thread target did once its thread was gone; older records may still carry it.
     for (const task of data.tasks) {
       task.target = readTarget(task.target) ?? { kind: 'fresh' };
+      delete (task as unknown as Record<string, unknown>).fallback;
     }
     return data;
   };

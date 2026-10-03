@@ -6,7 +6,6 @@ import { workbenchCopy } from '@/features/workbench/workbench-copy';
 import { ChatHeader } from './ChatHeader';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { MessageStream, type MessageEditCtx } from '@/features/session/transcript/MessageStream';
-import { InlineThreadCard } from './InlineThreadCard';
 import { Composer } from '@/features/workbench/composer/Composer';
 import { ContextUsageControl } from '@/features/session/composer/ContextUsageControl';
 import { useSessionCompact } from '@/features/session/live/useSessionCompact';
@@ -40,8 +39,7 @@ import { WorkerStrip } from '@/features/team/WorkerStrip';
 //     back over the same live stream (fire-and-forget)
 // Running is snapshot + delta: SessionInfo.running (sessions.list) restores the true state on
 // mount / session switch / reload, and the live `session.status` event overrides once received —
-// so a mid-turn session never shows idle after switching away and back. The one other live surface
-// (inline thread card, threads.get) is kept.
+// so a mid-turn session never shows idle after switching away and back.
 
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
@@ -318,7 +316,6 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           <MessageStream
             rows={rows}
             loading={!!sessionId && transcriptQuery.isPending}
-            inlineThreadCard={sessionId ? <InlineThreadCard sessionId={sessionId} /> : undefined}
             interactionActions={interactionActions}
             edit={edit}
             streamKey={sessionId}

@@ -28,7 +28,6 @@ const node = (commissions: RailCommissionRow[]): RailProjectNode => ({
   current: true,
   expanded: true,
   empty: false,
-  running: 0,
   attention: 0,
   attentionTone: 'unread',
   hotkey: null,

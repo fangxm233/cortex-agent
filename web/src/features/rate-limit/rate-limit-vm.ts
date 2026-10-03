@@ -35,11 +35,9 @@ export function formatRateLimitCountdown(seconds: number, lang: Lang): string {
   return formatSpanPrecise(Math.max(1, Math.ceil(seconds / 60)) * 60_000, lang);
 }
 
-function waitingLabel(sessions: number, threads: number, lang: Lang): string {
-  if (lang === 'zh') return `${sessions} 个会话 · ${threads} 个线程等待恢复`;
-  const sessionWord = sessions === 1 ? 'session' : 'sessions';
-  const threadWord = threads === 1 ? 'thread' : 'threads';
-  return `${sessions} ${sessionWord} · ${threads} ${threadWord} waiting`;
+function waitingLabel(sessions: number, lang: Lang): string {
+  if (lang === 'zh') return `${sessions} 个会话等待恢复`;
+  return `${sessions} ${sessions === 1 ? 'session' : 'sessions'} waiting`;
 }
 
 type RawRateLimitWindow = SystemRateLimitStatus['providers'][number]['windows'][number];
@@ -67,11 +65,10 @@ function buildProvider(
   if (windows.length === 0) return null;
   const recoveryAt = Math.max(...windows.map((window) => window.resetsAt));
   const waitingSessions = raw.waitingSessions ?? 0;
-  const waitingThreads = raw.waitingThreads ?? 0;
   return {
     provider: raw.provider, displayName: raw.displayName, recoveryAt,
     recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec, lang),
-    waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang), windows,
+    waitingLabel: waitingLabel(waitingSessions, lang), windows,
   };
 }
 

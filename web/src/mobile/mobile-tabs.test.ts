@@ -4,16 +4,12 @@ import { activeTabId, isTabRoute, tabBadge } from './mobile-tabs';
 describe('activeTabId (v3)', () => {
   it('resolves each tab path to its own id', () => {
     expect(activeTabId('/m/sessions')).toBe('sessions');
-    expect(activeTabId('/m/threads')).toBe('threads');
-    expect(activeTabId('/m/tasks')).toBe('tasks');
     expect(activeTabId('/m/project')).toBe('project');
   });
 
   it('maps drill-in sub-screens to their origin tab', () => {
     expect(activeTabId('/m/session/s_abcd')).toBe('sessions');
     expect(activeTabId('/m/session/s_abcd/plan/request-1')).toBe('sessions');
-    expect(activeTabId('/m/thread/thr_abcd')).toBe('threads');
-    expect(activeTabId('/m/task/T-041')).toBe('tasks');
     expect(activeTabId('/m/approvals')).toBe('project');
     expect(activeTabId('/m/notes')).toBe('project');
     expect(activeTabId('/m/memory')).toBe('project');
@@ -31,18 +27,14 @@ describe('activeTabId (v3)', () => {
 });
 
 describe('isTabRoute (v3)', () => {
-  it('is true for the 4 tab paths (and their sub-paths)', () => {
+  it('is true for the tab paths (and their sub-paths)', () => {
     expect(isTabRoute('/m/sessions')).toBe(true);
-    expect(isTabRoute('/m/threads')).toBe(true);
-    expect(isTabRoute('/m/tasks')).toBe(true);
     expect(isTabRoute('/m/project')).toBe(true);
-    expect(isTabRoute('/m/threads/x')).toBe(true);
+    expect(isTabRoute('/m/project/x')).toBe(true);
   });
 
   it('is false for the drill-in sub-screens (Tab bar hidden)', () => {
     expect(isTabRoute('/m/session/s_x')).toBe(false);
-    expect(isTabRoute('/m/thread/thr_x')).toBe(false);
-    expect(isTabRoute('/m/task/T-1')).toBe(false);
     expect(isTabRoute('/m/approvals')).toBe(false);
     expect(isTabRoute('/m/notes')).toBe(false);
     expect(isTabRoute('/m/memory')).toBe(false);
@@ -68,9 +60,7 @@ describe('tabBadge (v3)', () => {
     expect(tabBadge('project', { needsYouCount: 0 })).toEqual({});
   });
 
-  it('never decorates sessions / threads / tasks tabs', () => {
+  it('never decorates the sessions tab', () => {
     expect(tabBadge('sessions', { needsYouCount: 9 })).toEqual({});
-    expect(tabBadge('threads', { needsYouCount: 9 })).toEqual({});
-    expect(tabBadge('tasks', { needsYouCount: 9 })).toEqual({});
   });
 });

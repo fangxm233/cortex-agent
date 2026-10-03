@@ -1,13 +1,10 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { MC, MCard, MGroup, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
-import { MTasksView, type MTasksCopy } from './MTasksView';
+import { MC, MCard, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
 import type { MSessionRow } from './m-session-list-vm';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 
 const noop = () => {};
-const taskCopy = { title: 'Tasks', done: 'Done' } as MTasksCopy;
 const sessionCopy: MSessionListCopy = { title: 'Sessions', empty: 'Empty' };
 const sessionRow = (id: string, title: string): MSessionRow => ({
   id, title, time: '3h', unread: false, status: { kind: 'idle', text: '' },
@@ -24,16 +21,6 @@ describe('mobile presentation', () => {
     });
     expect(tree.root.findByType(MCard).findByType('div').props.style.backdropFilter).toBeUndefined();
     expect(MC.card).toBe('var(--m-card)');
-    tree.unmount();
-  });
-
-  it('does not fade completed task rows or remove their content', () => {
-    const task = { id: 'task-1', text: 'Completed task with a long path', status: 'done' } as TaskInfo;
-    const tree = create(<MTasksView groups={[{ kind: 'done', tasks: [task] }]} copy={taskCopy}
-      expandedIds={new Set()} onToggleExpand={noop} onOpenTask={noop} onOpenThread={noop} onOpenApprovals={noop} />);
-    const row = tree.root.findByType(MGroup).find((node) => node.type === 'div' && node.props.className === 'm-press');
-    expect(row.props.style.opacity).toBeUndefined();
-    expect(JSON.stringify(tree.toJSON())).toContain(task.text);
     tree.unmount();
   });
 

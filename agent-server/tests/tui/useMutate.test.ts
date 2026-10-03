@@ -49,7 +49,7 @@ test('ok-path: resolves with data on matching ui.mutateResult', async (t) => {
   const instance = render(React.createElement(Harness));
   await delay(100);
 
-  const promise = state.mutate!('task.claim', { taskId: 't1' });
+  const promise = state.mutate!('schedules.pause', { id: 's1' });
   await delay(50);
 
   assert.equal(state.sentFrames.length, 1);
@@ -60,13 +60,13 @@ test('ok-path: resolves with data on matching ui.mutateResult', async (t) => {
     type: 'ui.mutateResult',
     id: sentId,
     ok: true,
-    data: { success: true, taskId: 't1' },
+    data: { success: true, id: 's1' },
   } as any);
 
   const result = await promise;
   assert.equal(result.ok, true);
   if (result.ok) {
-    assert.deepEqual(result.data, { success: true, taskId: 't1' });
+    assert.deepEqual(result.data, { success: true, id: 's1' });
   }
 
   instance.unmount();
@@ -78,7 +78,7 @@ test('error-path: resolves with error on failing ui.mutateResult', async (t) => 
   const instance = render(React.createElement(Harness));
   await delay(100);
 
-  const promise = state.mutate!('task.claim', { taskId: 't1' });
+  const promise = state.mutate!('schedules.pause', { id: 's1' });
   await delay(50);
 
   assert.equal(state.sentFrames.length, 1);
@@ -89,14 +89,14 @@ test('error-path: resolves with error on failing ui.mutateResult', async (t) => 
     type: 'ui.mutateResult',
     id: sentId,
     ok: false,
-    error: { code: 'not_found', message: 'Task not found' },
+    error: { code: 'not_found', message: 'Schedule not found' },
   } as any);
 
   const result = await promise;
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.error.code, 'not_found');
-    assert.equal(result.error.message, 'Task not found');
+    assert.equal(result.error.message, 'Schedule not found');
   }
 
   instance.unmount();
@@ -111,7 +111,7 @@ test('timeout-path: resolves with timeout error after 10s', async (t) => {
   // Enable mock timers AFTER mount so React/Ink internals are unaffected
   vi.useFakeTimers({ toFake: ['setTimeout'] });
 
-  const promise = state.mutate!('task.claim', { taskId: 't1' });
+  const promise = state.mutate!('schedules.pause', { id: 's1' });
 
   // Advance past the 10s timeout
   vi.advanceTimersByTime(10000);
@@ -135,7 +135,7 @@ test('unmount-cleanup: clears pending on unmount', async (t) => {
 
   // Save handleFrame reference before unmount
   const { handleFrame: savedHandleFrame } = state;
-  const promise = state.mutate!('task.claim', { taskId: 't1' });
+  const promise = state.mutate!('schedules.pause', { id: 's1' });
   const sentId = state.sentFrames[0].id;
 
   // Unmount — triggers useEffect cleanup (clears pending map, clears timers).

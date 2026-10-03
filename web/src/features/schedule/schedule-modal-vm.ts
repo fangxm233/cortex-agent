@@ -3,7 +3,6 @@ import { formatSpan, formatSpanPrecise, type TimeLang } from '@/lib/time-format'
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';
-export type FallbackKind = 'fresh' | 'skip' | 'wait';
 // Only target kinds the browser can actually construct. `current-channel` (the prototype default)
 // and an explicit thread/channel target have no source in the web contract → not offered / omitted
 // (flagged data gap); the scheduler applies its own default when `target` is absent.
@@ -11,7 +10,6 @@ export type TargetChoice = 'current-channel' | 'fresh' | 'project';
 
 export const SCHED_TYPES: SchedType[] = ['interval', 'daily', 'weekly', 'once'];
 export const INTERVAL_UNITS: IntervalUnit[] = ['min', 'hr'];
-export const FALLBACK_OPTIONS: FallbackKind[] = ['fresh', 'skip', 'wait'];
 export const TARGET_OPTIONS: TargetChoice[] = ['current-channel', 'fresh', 'project'];
 
 export const DAY_OPTIONS: number[] = [0, 1, 2, 3, 4, 5, 6];
@@ -42,7 +40,6 @@ export interface ScheduleForm {
   delayValue: number; // once
   delayUnit: IntervalUnit;
   target: TargetChoice;
-  fallback: FallbackKind;
   projectId: string | null;
 }
 
@@ -58,7 +55,6 @@ export function defaultScheduleForm(projectId: string | null): ScheduleForm {
     delayValue: 10,
     delayUnit: 'min',
     target: 'current-channel',
-    fallback: 'fresh',
     projectId,
   };
 }
@@ -79,7 +75,6 @@ export interface ScheduleEditableFields extends FieldVisibility {
   profile: boolean;
   projectId: boolean;
   target: boolean;
-  fallback: boolean;
 }
 
 export function visibleFields(type: SchedType): FieldVisibility {
@@ -106,7 +101,6 @@ export function editableScheduleFields(
     profile: true,
     projectId: true,
     target: !editing,
-    fallback: !editing,
   };
 }
 
@@ -155,7 +149,6 @@ export function buildScheduleAddArgs(form: ScheduleForm): ScheduleAddArgs {
   const args: ScheduleAddArgs = {
     type: form.type,
     message: form.message.trim(),
-    fallback: form.fallback,
   };
   if (form.projectId) args.projectId = form.projectId;
   if (form.profile) args.profile = form.profile;
@@ -173,8 +166,8 @@ export function buildScheduleAddArgs(form: ScheduleForm): ScheduleAddArgs {
 
 // ── Edit mode (design 27b「Edit schedule ↗」) ────────────────────────────────
 // The schedule's type is immutable and `schedules.update` patches only message/projectId/profile +
-// the type's own timing fields — target/fallback and a once-schedule's runAt are not patchable, so
-// the form's target/fallback are prefill-only in edit mode (the modal renders them disabled).
+// the type's own timing fields — target and a once-schedule's runAt are not patchable, so the form's
+// target is prefill-only in edit mode (the modal renders it disabled).
 
 /** Prefill the form from a persisted schedule. Missing fields fall back to the create defaults so
  *  every control stays controlled; the profile falls back to '' (never a fabricated name). */
@@ -192,7 +185,6 @@ export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
     intervalValue: ms > 0 ? (wholeHours ? ms / 3_600_000 : Math.round(ms / 60_000)) : base.intervalValue,
     intervalUnit: wholeHours ? 'hr' : 'min',
     target: s.target?.kind === 'fresh' ? 'fresh' : s.target?.kind === 'project' ? 'project' : 'current-channel',
-    fallback: s.fallback ?? 'fresh',
   };
 }
 

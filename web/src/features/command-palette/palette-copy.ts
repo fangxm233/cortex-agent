@@ -4,7 +4,7 @@ import type { Lang } from '@/i18n';
 const en = {
   label: 'Command palette',
   close: 'Close command palette',
-  kinds: { command: 'command', session: 'session', thread: 'thread', task: 'task', page: 'page', modal: 'modal' } as Record<string, string>,
+  kinds: { command: 'command', session: 'session', page: 'page', modal: 'modal' } as Record<string, string>,
 };
 
 export type PaletteCopy = typeof en;
@@ -12,7 +12,7 @@ export type PaletteCopy = typeof en;
 const zh: PaletteCopy = {
   label: '命令面板',
   close: '关闭命令面板',
-  kinds: { command: '命令', session: '会话', thread: '线程', task: '任务', page: '页面', modal: '弹窗' },
+  kinds: { command: '命令', session: '会话', page: '页面', modal: '弹窗' },
 };
 
 export const PALETTE_COPY: Record<Lang, PaletteCopy> = { en, zh };

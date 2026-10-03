@@ -22,13 +22,13 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
 
 const EMPTY_SNAPSHOT: ConfigSnapshot = {
   budget: null, profiles: null, machines: [], mcp: null,
-  threadTemplates: { agents: [], templates: [], shells: [] }, hooks: [], env: [], settings: [],
+  hooks: [], env: [], settings: [],
 };
 
 const SECTION_PATH: Record<SettingsSectionKey, string> = {
   appearance: '/m/settings/appearance', platform: '/m/settings/platform',
   accounts: '/m/settings/accounts', profiles: '/m/settings/profiles', budget: '/m/settings/budget',
-  usage: '/m/settings/usage', machines: '/m/machines', templates: '/m/settings/templates',
+  usage: '/m/settings/usage', machines: '/m/machines', environments: '/m/settings/environments',
   plugins: '/m/settings/plugins', mcp: '/m/settings/mcp', notifications: '/m/settings/notifications',
   hooks: '/m/settings/hooks', advanced: '/m/settings/advanced',
 };

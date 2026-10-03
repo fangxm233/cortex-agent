@@ -27,14 +27,14 @@ describe('profileOptions', () => {
 });
 
 describe('buildScheduleAddArgs', () => {
-  it('daily → type + time + message + projectId + profile + fallback, no interval/delay/dayOfWeek', () => {
+  it('daily → type + time + message + projectId + profile, no interval/delay/dayOfWeek', () => {
     const args = buildScheduleAddArgs(form({ type: 'daily', message: '  ping  ', profile: 'claude-haiku' }));
     expect(args.type).toBe('daily');
     expect(args.time).toBe('09:00');
     expect(args.message).toBe('ping');
     expect(args.projectId).toBe('nimbus');
     expect(args.profile).toBe('claude-haiku');
-    expect(args.fallback).toBe('fresh');
+    expect(args).not.toHaveProperty('fallback');
     expect(args.intervalMs).toBeUndefined();
     expect(args.delay).toBeUndefined();
     expect(args.dayOfWeek).toBeUndefined();
@@ -102,7 +102,6 @@ describe('editableScheduleFields', () => {
       type: false,
       delay: false,
       target: false,
-      fallback: false,
       message: true,
       profile: true,
     });
@@ -150,13 +149,13 @@ function sched(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {
     id: 'sch1', type: 'daily', message: 'scan arXiv', projectId: 'nimbus', profile: 'claude-haiku',
     nextRun: null, lastRun: null, paused: false, pausedBy: null,
-    intervalMs: null, time: '07:30', dayOfWeek: null, target: null, fallback: null,
+    intervalMs: null, time: '07:30', dayOfWeek: null, target: null,
     ...p,
-  };
+  } as ScheduleInfo;
 }
 
 describe('formFromSchedule', () => {
-  it('prefills a daily schedule (null target → current-channel, null fallback → fresh)', () => {
+  it('prefills a daily schedule (null target → current-channel)', () => {
     const f = formFromSchedule(sched());
     expect(f.type).toBe('daily');
     expect(f.message).toBe('scan arXiv');
@@ -164,7 +163,6 @@ describe('formFromSchedule', () => {
     expect(f.time).toBe('07:30');
     expect(f.projectId).toBe('nimbus');
     expect(f.target).toBe('current-channel');
-    expect(f.fallback).toBe('fresh');
   });
 
   it('decomposes intervalMs into value+unit (whole hours prefer hr)', () => {
@@ -176,13 +174,12 @@ describe('formFromSchedule', () => {
     });
   });
 
-  it('prefills weekly dayOfWeek and maps persisted target/fallback', () => {
+  it('prefills weekly dayOfWeek and maps the persisted target', () => {
     const f = formFromSchedule(sched({
-      type: 'weekly', dayOfWeek: 3, target: { kind: 'project', projectId: 'nimbus' }, fallback: 'skip',
+      type: 'weekly', dayOfWeek: 3, target: { kind: 'project', projectId: 'nimbus' },
     }));
     expect(f.dayOfWeek).toBe(3);
     expect(f.target).toBe('project');
-    expect(f.fallback).toBe('skip');
   });
 
   it('maps a null profile to an empty form value (never fabricates one)', () => {

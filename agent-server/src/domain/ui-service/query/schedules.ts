@@ -17,7 +17,6 @@ export function toScheduleInfo(s: ScheduleTask): ScheduleInfo {
     time: s.time ?? null,
     dayOfWeek: s.dayOfWeek ?? null,
     target: s.target ?? null,
-    fallback: s.fallback ?? null,
   };
 }
 

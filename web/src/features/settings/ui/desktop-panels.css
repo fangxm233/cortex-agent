@@ -32,15 +32,7 @@
 }
 .settings-surface .settings-secret-fields > input { flex: 1 1 140px; min-width: 0; }
 .settings-surface .settings-secret-fields > span { min-width: 0; overflow-wrap: anywhere; }
-.settings-surface .settings-template-reference {
-  display: grid;
-  grid-template-columns: minmax(100px, .7fr) minmax(0, 1.3fr);
-  align-items: baseline;
-  gap: 8px;
-  padding: 6px 0;
-  font-size: 13px;
-}
-.settings-surface .settings-template-issue {
+.settings-surface .settings-environment-issue {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -88,7 +80,6 @@
   .settings-surface .settings-detail-fields .settings-field-row { flex-direction: column; gap: 4px !important; }
   .settings-surface .settings-detail-fields .settings-field-row > * { width: 100% !important; }
   .settings-surface .settings-detail-fields .settings-field-label { padding-top: 0 !important; }
-  .settings-surface .settings-key-value-fields,
-  .settings-surface .settings-template-reference { grid-template-columns: minmax(0, 1fr); }
+  .settings-surface .settings-key-value-fields { grid-template-columns: minmax(0, 1fr); }
   .settings-surface .settings-key-value-fields > button { justify-self: start; }
 }

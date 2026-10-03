@@ -17,12 +17,10 @@ export interface MobileTab {
 
 const TAB_LABELS: Readonly<Record<MobileTabId, keyof Vocab>> = {
   sessions: 'sessions',
-  threads: 'threads',
-  tasks: 'tasks',
   project: 'project',
 };
 
-// Manifest order is the design order: 会话 / 线程 / 任务 / 项目.
+// Manifest order is the design order: 会话 / 项目.
 export const MOBILE_TABS: readonly MobileTab[] = MOBILE_ROUTE_MANIFEST
   .filter((route) => route.tabRoot)
   .map((route) => ({

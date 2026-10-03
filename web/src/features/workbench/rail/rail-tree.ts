@@ -1,5 +1,5 @@
 import type {
-  CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo,
+  CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo,
 } from '@cortex-agent/ui-contract';
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from '@/features/session/list/schedule-rail';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
@@ -11,7 +11,6 @@ import { effectiveMs, orderSessions } from '@/features/session/list/session-grou
 import {
   awaitingInputCountByProject,
   projectAttentionBadge,
-  runningCountByProject,
   unreadCountByProject,
   type ProjectAttentionBadgeTone,
 } from '@/features/session/list/project-menu';
@@ -70,17 +69,15 @@ export interface RailProjectNode {
   /** The project holding the selected session — the rail's only notion of "current". */
   current: boolean;
   expanded: boolean;
-  /** No sessions, no schedules and no running threads: rendered dimmed, sorted last. */
+  /** No sessions, no schedules and no commissions: rendered dimmed, sorted last. */
   empty: boolean;
-  /** Active thread count (running + waiting) — the blue dot. */
-  running: number;
   /** Unread + awaiting-input sessions, in one badge. */
   attention: number;
   /** 'action' when any session is actually blocked on you (amber), else 'unread' (accent). */
   attentionTone: ProjectAttentionBadgeTone;
   /** '⌘1'…'⌘9' by visible order, non-empty projects only; null past nine or when an age shows. */
   hotkey: string | null;
-  /** Last-activity age, only for quiet rows that show neither badge nor dot. */
+  /** Last-activity age, only for quiet rows that show no badge. */
   idleAge: string | null;
   starredSessions: RailSessionRow[];
   starsExpanded: boolean;
@@ -106,7 +103,6 @@ export interface RailTreeInput {
   scheduledSessions: SessionInfo[];
   schedules: ScheduleInfo[];
   commissions: CommissionInfo[];
-  threads: ThreadInfo[];
   selectedSessionId: string | null;
   /** Project to call current while the selection owns none — a draft session, or none at all. */
   fallbackProjectId: string | null;
@@ -191,7 +187,7 @@ export function projectOfSession(
 
 export function buildRailTree(input: RailTreeInput): RailTree {
   const {
-    projects, directSessions, scheduledSessions, schedules, commissions, threads,
+    projects, directSessions, scheduledSessions, schedules, commissions,
     selectedSessionId, fallbackProjectId, expanded, schedulesExpanded,
     commissionsExpanded, expandedCommissions, showAll,
     sort, manualOrder, dragged, now, lang,
@@ -216,7 +212,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
 
-  const runningCounts = runningCountByProject(threads);
   const unreadCounts = unreadCountByProject(directSessions);
   const actionCounts = awaitingInputCountByProject(directSessions);
   // Activity spans BOTH origins: a project whose only life is a scheduled run still has a place in
@@ -259,7 +254,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       schedulesByProject.get(project.id) ?? [],
       partition.scheduled,
     );
-    const running = runningCounts[project.id] ?? 0;
     // The badge counts both, but its COLOUR only ever means one thing: amber = something is waiting
     // on you. Unread replies are news, not a request, so they stay accent — collapsing the two into
     // one alarm colour makes the real asks stop registering.
@@ -267,7 +261,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const attention = badge.count;
     const empty =
       partition.starred.length === 0 && own.length === 0 && scheduleRows.length === 0 &&
-      commissionRows.length === 0 && running === 0;
+      commissionRows.length === 0;
 
     const ownMatches = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)).length : own.length;
     // A lead stays in a filtered list while any of its workers matches — the hit nests under it.
@@ -321,7 +315,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     const visible = filtering || uncapped ? rows : rows.slice(0, FOLDER_SESSION_CAP);
 
     const activityMs = lastActivity[project.id];
-    const hasSignal = running > 0 || attention > 0;
+    const hasSignal = attention > 0;
     const hotkey = !empty && hotkeyIndex < 9 ? '⌘' + ++hotkeyIndex : null;
 
     return {
@@ -331,7 +325,6 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         ? ownMatches + matchingStars.length + commissionMatches > 0
         : expanded.has(project.id),
       empty,
-      running,
       attention,
       attentionTone: badge.tone,
       hotkey,

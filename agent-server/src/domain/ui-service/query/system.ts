@@ -155,7 +155,6 @@ export async function handleSystemRateLimitStatus(
     provider: provider.provider,
     displayName: provider.displayName,
     waitingSessions: waiting[provider.provider]?.sessions ?? 0,
-    waitingThreads: waiting[provider.provider]?.threads ?? 0,
     windows: provider.windows.map((window) => ({ ...window })),
   }));
   return { providers };

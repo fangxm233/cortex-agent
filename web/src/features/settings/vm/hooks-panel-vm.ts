@@ -207,9 +207,6 @@ export function claudeAlternativeEvent(event: string): string | null {
 
 /** Mirrors RESULT_CAPABILITY_BY_EVENT in the registry — the loader rejects anything else. */
 const RESULT_CAPABILITY_BY_EVENT: Readonly<Record<string, Exclude<HookResultMode, 'none'>>> = {
-  'cortex:thread.start': 'hook-result',
-  'cortex:thread.transition': 'hook-result',
-  'cortex:thread.end': 'hook-result',
   'cortex:session.new': 'stdout-as-prompt',
   'cortex:session.messageEnd': 'stdout-as-prompt',
 };
@@ -529,13 +526,7 @@ export const KNOWN_HOOK_EVENTS: readonly string[] = [
   'pi:before_provider_headers',
   'cortex:server.start',
   'cortex:server.shutdown',
-  'cortex:thread.start',
-  'cortex:thread.transition',
-  'cortex:thread.end',
-  'cortex:dispatch.started',
   'cortex:schedule.fired',
-  'cortex:task.completed',
-  'cortex:task.blocked',
   'cortex:client.connected',
   'cortex:client.disconnected',
   'cortex:session.new',
@@ -556,17 +547,6 @@ const SAMPLE_SESSION_ENVELOPE = {
   executionId: 'exec_example',
   profile: 'default',
   timestampIso: '2026-01-01T00:00:00.000Z',
-};
-
-const SAMPLE_THREAD_CONTEXT = {
-  threadId: 'thr_example',
-  templateName: 'example',
-  source: 'task-dispatch',
-  project: 'my-project',
-  projectId: 'my-project',
-  taskId: '0000',
-  currentStepIndex: 0,
-  activeAgent: 'executor',
 };
 
 const SAMPLE_TOOL_CALL = {
@@ -604,18 +584,7 @@ const SAMPLE_PAYLOADS: Readonly<Record<string, unknown>> = {
   'agent:turn-end': { hook_event_name: 'Stop', session_id: 'sess_example', cwd: '/tmp' },
   'cortex:server.start': { version: '0.0.0', pid: 0 },
   'cortex:server.shutdown': { version: '0.0.0', pid: 0, reason: 'SIGTERM' },
-  'cortex:thread.start': { ...SAMPLE_THREAD_CONTEXT, phase: 'start' },
-  'cortex:thread.transition': { ...SAMPLE_THREAD_CONTEXT, phase: 'transition' },
-  'cortex:thread.end': { ...SAMPLE_THREAD_CONTEXT, phase: 'end' },
-  'cortex:dispatch.started': {
-    taskId: '0000',
-    project: 'my-project',
-    source: 'task-dispatch',
-    templateName: 'example',
-  },
   'cortex:schedule.fired': { scheduleId: 'sch_example', name: 'example', project: 'my-project' },
-  'cortex:task.completed': { taskId: '0000', project: 'my-project' },
-  'cortex:task.blocked': { taskId: '0000', project: 'my-project', reason: 'example reason' },
   'cortex:client.connected': { device: 'workstation' },
   'cortex:client.disconnected': { device: 'workstation', reason: 'socket closed' },
   'cortex:session.new': { ...SAMPLE_SESSION_ENVELOPE, trigger: 'new' },

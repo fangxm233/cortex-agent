@@ -55,8 +55,8 @@ export const SESSION_LIVE_EVENTS = [
  * The server delivers `session.message.delta` only to a subscription that names the session it
  * belongs to (`SESSION_SCOPED_ONLY` in agent-server `domain/ui-service/subscribe.ts`): a preview is
  * renderable by exactly one surface — the chat showing that session — and an app-wide stream taking
- * every session's previews would fill its 256-slot server queue and drop-oldest the status / thread
- * / task events it exists to deliver. The shared stream is unscoped by design, so it could not
+ * every session's previews would fill its 256-slot server queue and drop-oldest the status / commission
+ * / system events it exists to deliver. The shared stream is unscoped by design, so it could not
  * receive these anyway.
  *
  * They therefore ride a small dedicated subscription owned by the open chat
@@ -65,26 +65,6 @@ export const SESSION_LIVE_EVENTS = [
  * it polls `executions.get` while the run is running.
  */
 export const ASSISTANT_DELTA_EVENTS = ['session.message.delta'] as const;
-
-/** Thread lifecycle — any of these can change what `threads.list` / `threads.get` returns. */
-export const THREAD_LIVE_EVENTS = [
-  'thread.created',
-  'thread.step.started',
-  'thread.step.finished',
-  'thread.completed',
-  'thread.failed',
-] as const;
-
-/** Task lifecycle events carried by the shared stream. */
-export const TASK_LIVE_EVENTS = [
-  'task.claimed',
-  'task.completed',
-  'task.blocked',
-  'task.dispatched',
-] as const;
-
-/** Task-list refresh hints, including the post-claim thread association becoming available. */
-export const TASK_LIST_LIVE_EVENTS = [...TASK_LIVE_EVENTS, 'thread.created'] as const;
 
 /** Server-classified system broadcasts (restart, hot-reload, disk, rate-limit). */
 export const SYSTEM_LIVE_EVENTS = ['system.notice'] as const;
@@ -109,8 +89,6 @@ export const COMMISSION_LIVE_EVENTS = ['commission.updated', 'session.commission
  */
 export const LIVE_EVENT_TYPES: readonly string[] = [
   ...SESSION_LIVE_EVENTS,
-  ...THREAD_LIVE_EVENTS,
-  ...TASK_LIVE_EVENTS,
   ...SYSTEM_LIVE_EVENTS,
   ...CONFIG_LIVE_EVENTS,
   ...RATE_LIMIT_LIVE_EVENTS,

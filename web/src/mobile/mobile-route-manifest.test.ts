@@ -23,8 +23,6 @@ describe('mobile route manifest', () => {
   it.each([
     ['session', '/m/session/session-1', { sessionId: 'session-1' }],
     ['plan', '/m/session/session-1/plan/request-2', { sessionId: 'session-1', requestId: 'request-2' }],
-    ['thread', '/m/thread/thread-3', { threadId: 'thread-3' }],
-    ['task', '/m/task/T-041', { taskId: 'T-041' }],
     ['settingsAccounts', '/m/settings/accounts', {}],
     ['memoryFile', '/m/memory/file', {}],
   ])('matches %s from a concrete path', (id, pathname, params) => {
@@ -36,8 +34,6 @@ describe('mobile route manifest', () => {
   it.each([
     ['/m/session/session-1', '/m/sessions'],
     ['/m/session/session-1/plan/request-2', '/m/session/session-1'],
-    ['/m/thread/thread-3', '/m/threads'],
-    ['/m/task/T-041', '/m/tasks'],
     ['/m/settings/accounts', '/m/settings'],
     ['/m/memory/file', '/m/memory'],
   ])('resolves %s to semantic parent %s with inherited params', (pathname, parent) => {
@@ -45,7 +41,7 @@ describe('mobile route manifest', () => {
   });
 
   it('derives concrete paths and tab attribution from the same metadata', () => {
-    expect(mobileRoutePath('tasks')).toBe('/m/tasks');
+    expect(mobileRoutePath('project')).toBe('/m/project');
     expect(MOBILE_ROUTE_REGISTRY.plan.tab).toBe('sessions');
     expect(MOBILE_ROUTE_REGISTRY.settingsHooks.tab).toBe('project');
   });
