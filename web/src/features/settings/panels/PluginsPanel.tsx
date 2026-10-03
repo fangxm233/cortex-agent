@@ -189,9 +189,8 @@ function UsageRow({ item }: { item: PluginUsage }) {
   const L = useVocab();
   return (
     <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, flexWrap: 'wrap', overflowWrap: 'anywhere', gap: 8 }}>
-      <SPill>{item.kind === 'agent' ? L.plTargetAgent : L.plTargetSlot}</SPill>
+      <SPill>{L.plTargetAgent}</SPill>
       <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-ink-2)', minWidth: 0 }}>{item.name}</span>
-      {item.slot ? <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{item.slot}</span> : null}
     </div>
   );
 }

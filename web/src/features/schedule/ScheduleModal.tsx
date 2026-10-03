@@ -7,9 +7,7 @@ import {
   SCHED_TYPES,
   DAY_OPTIONS,
   INTERVAL_UNITS,
-  FALLBACK_OPTIONS,
   TARGET_OPTIONS,
-  type FallbackKind,
   type IntervalUnit,
   type ScheduleEditableFields,
   type ScheduleForm,
@@ -20,7 +18,7 @@ import {
 // New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
 // L1291-1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source; the
 // prototype's static mock is made interactive: TYPE drives which field cell shows, MESSAGE is
-// editable, PROFILE/TARGET/FALLBACK/DAY/unit are real controls, and Create schedule fires the real
+// editable, PROFILE/TARGET/DAY/unit are real controls, and Create schedule fires the real
 // `schedules.add` mutation (owned by useScheduleEditorController). The DAILY state is the visual-diff bar
 // (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
 
@@ -37,19 +35,16 @@ const LABEL: CSSProperties = {
 // control inside it is.
 // Option labels per UI language; the option VALUES stay the scheduler's own spellings.
 const OPTION_COPY: Record<'en' | 'zh', {
-  unit: Record<IntervalUnit, string>; target: Record<TargetChoice, string>;
-  fallback: Record<FallbackKind, string>; clock: string;
+  unit: Record<IntervalUnit, string>; target: Record<TargetChoice, string>; clock: string;
 }> = {
   en: {
     unit: { min: 'min', hr: 'hr' },
     target: { 'current-channel': 'current-channel', fresh: 'fresh', project: 'project' },
-    fallback: { fresh: 'fresh', skip: 'skip', wait: 'wait' },
     clock: '24h',
   },
   zh: {
     unit: { min: '分钟', hr: '小时' },
     target: { 'current-channel': '当前频道', fresh: '新会话', project: '项目' },
-    fallback: { fresh: '新会话', skip: '跳过', wait: '等待' },
     clock: '24 小时制',
   },
 };
@@ -392,8 +387,8 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
             />
           </div>
 
-          {/* TARGET + FALLBACK (prototype L1449-1452) — not patchable via schedules.update, so
-              edit mode shows them read-only (prefill from the persisted record). */}
+          {/* TARGET (prototype L1449-1452) — not patchable via schedules.update, so edit mode shows
+              it read-only (prefill from the persisted record). */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
@@ -409,24 +404,6 @@ export function ScheduleModal({ form, mode, editableFields, onChange, onCancel, 
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),
                     cursor: editableFields.target ? 'pointer' : 'not-allowed',
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scFallback}</div>
-              <div style={CELL_BOX}>
-                <Select
-                  data-schedule-select="fallback"
-                  density="bare"
-                  aria-label={L.scFallback}
-                  value={form.fallback}
-                  disabled={!editableFields.fallback}
-                  options={FALLBACK_OPTIONS.map((fallback) => ({ value: fallback, label: optionCopy.fallback[fallback] }))}
-                  onValueChange={(fallback) => onChange({ fallback })}
-                  style={{
-                    ...bareSelectStyle('11.5px system-ui, sans-serif'),
-                    cursor: editableFields.fallback ? 'pointer' : 'not-allowed',
                   }}
                 />
               </div>

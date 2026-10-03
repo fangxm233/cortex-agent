@@ -1,44 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { ThreadInfo } from '@cortex-agent/ui-contract';
 import {
-  runningCountByProject,
   unreadCountByProject,
   awaitingInputCountByProject,
   projectAttentionBadge,
 } from './project-menu';
 
-const thread = (projectId: string, status: ThreadInfo['status']): ThreadInfo => ({
-  id: 't_' + Math.random().toString(36).slice(2),
-  templateName: 'coder-review',
-  currentStep: null,
-  status,
-  projectId,
-  createdAt: '2026-07-06T00:00:00Z',
-  updatedAt: '2026-07-06T00:00:00Z',
-  totalSteps: 1,
-  artifactPath: null,
-});
-
-describe('runningCountByProject', () => {
-  it('counts only running + waiting threads, grouped by projectId', () => {
-    const counts = runningCountByProject([
-      thread('a', 'running'),
-      thread('a', 'waiting'),
-      thread('a', 'completed'),
-      thread('b', 'running'),
-      thread('c', 'failed'),
-    ]);
-    expect(counts).toEqual({ a: 2, b: 1 });
-  });
-});
-
 describe('per-project tallies — prototype-named ids', () => {
   it('treat constructor / __proto__ / toString as ordinary project ids', () => {
-    const t = (projectId: string): ThreadInfo => thread(projectId, 'running');
-    const running = runningCountByProject([t('constructor'), t('__proto__')]);
-    expect(running['constructor']).toBe(1);
-    expect(running['__proto__']).toBe(1);
-    expect(running['toString']).toBeUndefined();
     const s = (projectId: string) => ({ projectId, unread: true, awaitingInput: true }) as never;
     expect(unreadCountByProject([s('constructor')])['constructor']).toBe(1);
     expect(awaitingInputCountByProject([s('__proto__')])['__proto__']).toBe(1);

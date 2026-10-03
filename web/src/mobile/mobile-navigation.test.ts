@@ -8,10 +8,10 @@ import {
 
 describe('resolveMobileBack', () => {
   it('dismisses an overlay before applying route semantics', () => {
-    expect(resolveMobileBack('/m/tasks', true)).toEqual({ kind: 'history' });
+    expect(resolveMobileBack('/m/project', true)).toEqual({ kind: 'history' });
   });
 
-  it.each(['/m/sessions', '/m/threads', '/m/tasks', '/m/tasks/', '/m/project'])(
+  it.each(['/m/sessions', '/m/project', '/m/project/'])(
     'exits from tab root %s instead of traversing history',
     (pathname) => {
       expect(resolveMobileBack(pathname, false)).toEqual({ kind: 'exit' });
@@ -19,13 +19,11 @@ describe('resolveMobileBack', () => {
   );
 
   it('pops the in-app drill stack when the WebView can go back', () => {
-    expect(resolveMobileBack('/m/task/task-1', false, true)).toEqual({ kind: 'history' });
+    expect(resolveMobileBack('/m/approvals', false, true)).toEqual({ kind: 'history' });
   });
 
   it.each([
     ['/m/session/chat-1', '/m/sessions'],
-    ['/m/thread/thread-1', '/m/threads'],
-    ['/m/task/task-1', '/m/tasks'],
     ['/m/approvals', '/m/project'],
     ['/m/issues', '/m/project'],
     ['/m/notes', '/m/project'],
@@ -71,14 +69,14 @@ describe('hasRouterHistory', () => {
 describe('mobile navigation side effects', () => {
   it('uses replace navigation for semantic back and bottom-tab switches', async () => {
     const navigate = vi.fn();
-    await runMobileBack('/m/task/task-1', false, false, {
+    await runMobileBack('/m/session/chat-1', false, false, {
       historyBack: vi.fn(),
       exit: vi.fn(),
       navigate,
     });
     switchMobileTab('/m/project', navigate);
 
-    expect(navigate).toHaveBeenNthCalledWith(1, '/m/tasks', { replace: true });
+    expect(navigate).toHaveBeenNthCalledWith(1, '/m/sessions', { replace: true });
     expect(navigate).toHaveBeenNthCalledWith(2, '/m/project', { replace: true });
   });
 

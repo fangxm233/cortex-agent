@@ -4,7 +4,6 @@ import type {
   ProjectConduitInfo,
   ScheduleInfo,
   SessionInfo,
-  ThreadInfo,
 } from '@cortex-agent/ui-contract';
 import { buildRailTree, projectOfSession, sessionMatchesFilter, type RailTreeInput } from './rail-tree';
 
@@ -38,19 +37,6 @@ const session = (
     ...overrides,
   }) as SessionInfo;
 
-const thread = (projectId: string, status: ThreadInfo['status']): ThreadInfo =>
-  ({
-    id: 't' + ++seq,
-    templateName: 'coder-review',
-    currentStep: null,
-    status,
-    projectId,
-    createdAt: ago(HOUR),
-    updatedAt: ago(HOUR),
-    totalSteps: 1,
-    artifactPath: null,
-  }) as ThreadInfo;
-
 const schedule = (id: string, projectId: string): ScheduleInfo =>
   ({
     id,
@@ -66,7 +52,6 @@ const schedule = (id: string, projectId: string): ScheduleInfo =>
     time: '07:30',
     dayOfWeek: null,
     target: null,
-    fallback: null,
   }) as ScheduleInfo;
 
 const commission = (
@@ -93,7 +78,6 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   scheduledSessions: [],
   schedules: [],
   commissions: [],
-  threads: [],
   selectedSessionId: null,
   fallbackProjectId: null,
   expanded: new Set<string>(),
@@ -201,18 +185,17 @@ describe('buildRailTree bucketing', () => {
     expect(tree.projects[2].sessions).toEqual([]);
   });
 
-  it('marks a project with no sessions, schedules or running threads as empty', () => {
+  it('marks a project with no sessions or schedules as empty', () => {
     const tree = buildRailTree(
       input({
-        projects: [project('nimbus'), project('orchard'), project('atlas'), project('bramble')],
+        projects: [project('nimbus'), project('orchard'), project('bramble')],
         directSessions: [session('nimbus')],
         scheduledSessions: [],
         schedules: [schedule('sch1', 'orchard')],
-        threads: [thread('atlas', 'running')],
       }),
     );
     const empty = Object.fromEntries(tree.projects.map((p) => [p.id, p.empty]));
-    expect(empty).toEqual({ nimbus: false, orchard: false, atlas: false, bramble: true });
+    expect(empty).toEqual({ nimbus: false, orchard: false, bramble: true });
   });
 
   it('sinks projects with no activity to the bottom of the activity order', () => {
@@ -278,16 +261,6 @@ describe('buildRailTree badges and hotkeys', () => {
       input({ projects: [project('nimbus')], directSessions: [session('nimbus', {})] }),
     );
     expect(tree.projects[0].sessions[0].waitingOn).toBe(false);
-  });
-
-  it('counts running and waiting threads as the blue dot', () => {
-    const tree = buildRailTree(
-      input({
-        projects: [project('nimbus')],
-        threads: [thread('nimbus', 'running'), thread('nimbus', 'waiting'), thread('nimbus', 'completed')],
-      }),
-    );
-    expect(tree.projects[0].running).toBe(2);
   });
 
   it('assigns ⌘1–9 to non-empty projects only, in visible order', () => {

@@ -15,7 +15,7 @@ import { ProfilesPanel } from '@/features/settings/panels/ProfilesPanel';
 import { AdvancedPanel, NotificationsPanel } from '@/features/settings/panels/RuntimeSettingsPanels';
 import { BudgetPanel } from '@/features/settings/panels/BudgetPanel';
 import { HooksPanel } from '@/features/settings/panels/HooksPanel';
-import { TemplatesPanel } from '@/features/settings/panels/TemplatesPanel';
+import { EnvironmentsPanel } from '@/features/settings/panels/EnvironmentsPanel';
 import { AppearancePanel } from '@/features/settings/panels/AppearancePanel';
 import { AccountsPanel } from '@/features/settings/panels/AccountsPanel';
 import { PluginsPanel } from '@/features/settings/panels/PluginsPanel';
@@ -79,7 +79,7 @@ export interface SettingsModalProps {
 }
 
 function isBoundedPanel(section: SettingsSectionKey): boolean {
-  return section === 'hooks' || section === 'templates' || section === 'plugins';
+  return section === 'hooks' || section === 'environments' || section === 'plugins';
 }
 
 // Bounded panels (the master–detail editors) own their height and need a flex frame to stretch in.
@@ -125,7 +125,7 @@ function OpenSettingsBody(props: SettingsBodyProps & { open: boolean }) {
 export function SettingsModal({ open, onClose, initialSection = 'appearance' }: SettingsModalProps) {
   const L = useVocab();
   // A panel holding an unsaved committed-on-save draft blocks nav and close. Today that is the
-  // plugin assignment form, which lives in the templates editor.
+  // plugin assignment form, which lives in the environments editor.
   const [dirty, setDirty] = useState(false);
   useEffect(() => resetDirty(open, setDirty), [open]);
   const requestClose = () => requestSettingsClose(dirty, onClose);
@@ -377,7 +377,7 @@ const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
   machines: () => <MachinesPanel />,
-  templates: (props) => <TemplatesPanel onDirtyChange={props.onPanelDirtyChange} />,
+  environments: (props) => <EnvironmentsPanel onDirtyChange={props.onPanelDirtyChange} />,
   mcp: (props) => <McpPanel snapshot={props.snapshot} />,
   notifications: (props) => <NotificationsPanel snapshot={props.snapshot} />,
   hooks: () => <HooksPanel />,

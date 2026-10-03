@@ -180,7 +180,6 @@ vi.mock('@/features/session/live/useMarkSessionRead', () => ({ useMarkSessionRea
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
 vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null} /> }));
-vi.mock('./InlineThreadCard', () => ({ InlineThreadCard: () => null }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('@/features/session/transcript/MessageStream', async () => {

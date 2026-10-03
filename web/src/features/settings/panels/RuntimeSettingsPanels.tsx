@@ -300,25 +300,6 @@ function advancedFlagRows(args: {
   });
 }
 
-function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
-  const L = useVocab();
-  const entry = settings.taskDispatchMaxConcurrent;
-  const value = typeof entry?.value === 'number' ? entry.value : entry?.value === null ? null : undefined;
-  return (
-    <SRow
-      data-setting-key="taskDispatchMaxConcurrent"
-      data-setting-value={value === undefined ? 'missing' : String(value)}
-      title={L.advConc}
-      desc={L.stAdvConcNote}
-      control={
-        <SPill tone="neutral" mono>
-          {typeof value === 'number' ? value : value === null ? L.stAuto : '—'}
-        </SPill>
-      }
-    />
-  );
-}
-
 function NumberControl(props: {
   descriptor: NumberSettingDescriptor;
   draft: string;
@@ -510,7 +491,6 @@ export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: Advanc
           <NumberSettingRow key={descriptor.setting} descriptor={descriptor} settings={settings}
             pending={pending} onSet={onSet} />
         ))}
-        <ConcurrencyRow settings={settings} />
         <GpuMockRow snapshot={snapshot} />
       </SRowGroup>
       <BuiltinJobsSection settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />

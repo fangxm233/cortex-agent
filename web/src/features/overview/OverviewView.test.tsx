@@ -10,7 +10,7 @@ const adapter = vi.hoisted(() => ({
   resume: vi.fn<(args: { scheduleId: string }) => Promise<unknown>>(),
 }));
 
-const schedule: ScheduleInfo = {
+const schedule = {
   id: 'schedule-1',
   type: 'daily',
   message: 'Review project status',
@@ -24,8 +24,7 @@ const schedule: ScheduleInfo = {
   time: '09:00',
   dayOfWeek: null,
   target: { kind: 'project', projectId: 'nimbus' },
-  fallback: 'fresh',
-};
+} as ScheduleInfo;
 
 function staticQuery(key: string, value: unknown) {
   return {

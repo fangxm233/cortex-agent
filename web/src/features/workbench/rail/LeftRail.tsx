@@ -191,7 +191,6 @@ export function LeftRail(): JSX.Element {
   const scheduledSessionsQuery = useAllSessions('scheduled');
   const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
   const commissionsQuery = useQuery(trpc.commissions.list.queryOptions({}));
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
   const commissionBoard = useCommissionBoard();
   // With the feature switched off a create silently drops the binding, so the row offers no ＋.
@@ -292,7 +291,6 @@ export function LeftRail(): JSX.Element {
         scheduledSessions,
         schedules: schedulesQuery.data ?? [],
         commissions: commissionsQuery.data ?? [],
-        threads: threadsQuery.data ?? [],
         selectedSessionId,
         fallbackProjectId: currentProjectId,
         expanded,
@@ -313,7 +311,7 @@ export function LeftRail(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
-      threadsQuery.data, selectedSessionId, currentProjectId, expanded, schedExpanded,
+      selectedSessionId, currentProjectId, expanded, schedExpanded,
       commExpanded, openCommissions, starsCollapsed, showAll, teamEnabled, openLeads, filter, sort, manualOrder, dragged, lang,
     ],
   );

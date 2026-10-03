@@ -43,7 +43,7 @@ describe('buildMHooksVm grouping', () => {
   it('groups by event namespace in canonical order and drops empty groups', () => {
     const vm = buildMHooksVm(
       overview([
-        mk({ id: 'c', event: 'cortex:thread.end', order: 0 }),
+        mk({ id: 'c', event: 'cortex:session.messageEnd', order: 0 }),
         mk({ id: 'a', event: 'agent:pre-tool', order: 1 }),
         mk({ id: 'p', event: 'pi:message_end', order: 2 }),
       ]),
@@ -54,8 +54,8 @@ describe('buildMHooksVm grouping', () => {
   it('puts template-scoped hooks in their own group regardless of event namespace', () => {
     const vm = buildMHooksVm(
       overview([
-        mk({ id: 'template:review:end', event: 'cortex:thread.end', source: 'template-scoped', order: 0 }),
-        mk({ id: 'registry-one', event: 'cortex:thread.end', order: 1 }),
+        mk({ id: 'template:review:end', event: 'cortex:session.messageEnd', source: 'template-scoped', order: 0 }),
+        mk({ id: 'registry-one', event: 'cortex:session.messageEnd', order: 1 }),
       ]),
     );
     expect(vm.groups.map((g) => g.key)).toEqual(['cortex', 'template']);

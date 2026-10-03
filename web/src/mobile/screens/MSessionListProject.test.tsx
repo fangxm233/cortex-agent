@@ -13,7 +13,7 @@ vi.mock('@/mobile/ui/kit', async (load) => ({
 const noop = () => {};
 const copy = { title: 'Sessions', empty: 'Empty' };
 const projectRow = (id: string): MProjectSwitchRow => ({
-  id, initials: id.slice(0, 2).toUpperCase(), running: 0, todayCost: null, badgeCount: 0, badgeTone: 'unread',
+  id, initials: id.slice(0, 2).toUpperCase(), todayCost: null, badgeCount: 0, badgeTone: 'unread',
 });
 
 describe('mobile session list project title', () => {

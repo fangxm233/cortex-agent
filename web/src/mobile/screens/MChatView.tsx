@@ -616,7 +616,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
               onShowOriginal={props.onShowOriginal}
               streamKey={props.streamKey}
             />
-            {props.inlineThreadCard}
             {props.systemLines?.map((t, i) => (
               <SystemLine key={i} text={t} />
             ))}

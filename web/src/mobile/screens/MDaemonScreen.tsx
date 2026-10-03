@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { threadScopeFilter } from '@/features/session/composer/scope';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { isNativeShell } from '@/lib/desktop-config';
@@ -19,7 +18,6 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     connConnecting: 'connecting',
     connReconnecting: 'reconnecting',
     connDisconnected: 'disconnected',
-    threadsRunning: (n) => `${n} threads running`,
     schedules: (n) => `schedules ${n}`,
     uptimeLabel: 'uptime',
     dash: '—',
@@ -34,10 +32,10 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     rebuildStatus: { running: 'running', succeeded: 'succeeded', aborted: 'aborted', deferred: 'deferred' },
     softRestart: 'Soft restart',
     forceKill: 'Force kill',
-    softNote: (n) => `pauses ${n} running thread(s)`,
+    softNote: 'restarts once agents are idle',
     holdHint: 'Keep holding…',
     footerNote:
-      'Soft restart keeps thread state and auto-resumes · Force kill needs a 2s long-press; running threads are marked interrupted',
+      'Soft restart waits until running agents are idle · Force kill needs a 2s long-press; running agents are interrupted',
     sent: 'Restart signal sent',
     failed: 'Restart failed',
     disconnect: 'Disconnect',
@@ -49,7 +47,6 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     connConnecting: '连接中',
     connReconnecting: '正在重连',
     connDisconnected: '已断开',
-    threadsRunning: (n) => `${n} 线程运行中`,
     schedules: (n) => `${n} 个定时任务`,
     uptimeLabel: '运行时长',
     dash: '—',
@@ -64,9 +61,9 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     rebuildStatus: { running: '运行中', succeeded: '成功', aborted: '已中止', deferred: '已推迟' },
     softRestart: '软重启',
     forceKill: '强制终止',
-    softNote: (n) => `先暂停 ${n} 个运行中线程`,
+    softNote: '等待 Agent 空闲后重启',
     holdHint: '继续按住…',
-    footerNote: '软重启不丢线程状态，恢复后自动续跑 · 强制终止需长按 2s 确认，运行中线程标记为已中断',
+    footerNote: '软重启等待运行中的 Agent 空闲后执行 · 强制终止需长按 2s 确认，运行中的 Agent 会被打断',
     sent: '重启信号已发送',
     failed: '重启失败',
     disconnect: '断开连接',
@@ -74,24 +71,20 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
   },
 };
 
-const ACTIVE_THREAD_PARAMS = { status: threadScopeFilter('active') };
-
 function useMobileDaemonVm() {
   const trpc = useTRPC();
-  const threads = useQuery(trpc.threads.list.queryOptions(ACTIVE_THREAD_PARAMS));
   const schedules = useQuery(trpc.schedules.list.queryOptions({}));
   const executions = useQuery(trpc.executions.list.queryOptions({ limit: 5 }));
   const daemon = useDaemonResource();
   const lang = useLang();
-  const ok = !threads.isError && !schedules.isError;
+  const ok = !schedules.isError;
   const vm = useMemo(() => buildDaemonVm({
-    threads: threads.data ?? [],
     schedules: schedules.data ?? [],
     executions: executions.data ?? [],
     daemon: daemon.daemon,
     ok,
     lang,
-  }), [threads.data, schedules.data, executions.data, daemon.daemon, ok, lang]);
+  }), [schedules.data, executions.data, daemon.daemon, ok, lang]);
   return { daemon, vm };
 }
 

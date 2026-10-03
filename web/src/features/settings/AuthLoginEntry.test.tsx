@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   AuthStatusSnapshot,
   ConfigSnapshot,
-  ThreadTemplateDetail,
-  ThreadTemplateEntry,
+  EnvironmentDetail,
+  EnvironmentEntry,
 } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
@@ -37,12 +37,12 @@ vi.mock('@/lib/trpc', () => {
   return { useTRPC: () => ({
     config: { get: query('config.get'), set: mutation('config.set') },
     cost: { summary: query('cost.summary') },
-    threadTemplates: {
-      get: query('threadTemplates.get'),
-      detail: query('threadTemplates.detail'),
-      validate: mutation('threadTemplates.validate'),
-      save: mutation('threadTemplates.save'),
-      remove: mutation('threadTemplates.remove'),
+    environments: {
+      list: query('environments.list'),
+      get: query('environments.get'),
+      validate: mutation('environments.validate'),
+      save: mutation('environments.save'),
+      delete: mutation('environments.delete'),
     },
     approvals: { request: mutation('approvals.request') },
     system: {
@@ -71,10 +71,10 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     return {
       data: options.__kind === 'config.get'
         ? snapshot
-        : options.__kind === 'threadTemplates.get'
-          ? templateEntries
-          : options.__kind === 'threadTemplates.detail'
-            ? templateDetail
+        : options.__kind === 'environments.list'
+          ? environmentEntries
+          : options.__kind === 'environments.get'
+            ? environmentDetail
             : options.__kind === 'auth.status'
               ? authStatus
               : options.__kind === 'auth.customProviders' || options.__kind === 'system.usageStatus'
@@ -98,7 +98,6 @@ const snapshot: ConfigSnapshot = {
   profiles: null,
   machines: [],
   mcp: null,
-  threadTemplates: { agents: [], templates: [], shells: [] },
   hooks: [],
   env: [],
 };
@@ -113,26 +112,21 @@ const authStatus: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
-const templateEntries: ThreadTemplateEntry[] = [{
-  kind: 'template',
-  name: 'coder-review',
-  description: 'coder → reviewer',
-  body: { name: 'coder-review', maxTotalSteps: 4 },
+const environmentEntries: EnvironmentEntry[] = [{
+  name: 'main',
+  description: 'general work',
+  body: { name: 'main' },
   valid: true,
   errorCount: 0,
   origin: 'custom',
 }];
 
-const templateDetail: ThreadTemplateDetail = {
-  ...templateEntries[0],
-  filePath: '/tmp/coder-review.json',
+const environmentDetail: EnvironmentDetail = {
+  ...environmentEntries[0],
+  filePath: '/tmp/main.json',
   sha256: 'a'.repeat(64),
   errors: [],
   warnings: [],
-  usedByTemplates: [],
-  runningThreads: 0,
-  referencingTasks: 0,
-  expanded: null,
 };
 
 function SettingsHarness() {

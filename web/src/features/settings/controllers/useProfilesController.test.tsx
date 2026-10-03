@@ -18,7 +18,7 @@ const SOL = entry({
 });
 const SNAPSHOT = {
   budget: null, profiles: { defaultProfile: 'plan', profiles: [entry(), SOL] }, machines: [],
-  mcp: null, threadTemplates: { agents: [], templates: [], shells: [] }, hooks: [], env: [], settings: [],
+  mcp: null, hooks: [], env: [], settings: [],
 } as unknown as ConfigSnapshot;
 
 const CATALOG = {

@@ -95,18 +95,11 @@ function NumberSettingRow(props: {
     </div>} />;
 }
 
-function AdvancedReadOnly(props: { snapshot: ConfigSnapshot; settings: SettingsIndex }) {
+function AdvancedReadOnly(props: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
-  const concurrencyEntry = props.settings.taskDispatchMaxConcurrent;
-  const concurrency = concurrencyEntry?.value;
   const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
-  const concurrencyLabel = !concurrencyEntry ? '—' : typeof concurrency === 'number' ? concurrency : L.stAuto;
-  return <>
-    <MSettingsRow title={L.advConc} sub={L.stAdvConcNote}
-      trailing={<span style={MSET_KEY}>{concurrencyLabel}</span>} />
-    <MSettingsRow title={L.stGpuMock} sub={L.advMock} last
-      trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />
-  </>;
+  return <MSettingsRow title={L.stGpuMock} sub={L.advMock} last
+    trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />;
 }
 
 function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
@@ -118,7 +111,7 @@ function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingW
           pending={props.write.pending} onToggle={props.write.onToggle} />)}
     {ADVANCED_NUMBER_SETTINGS.map((descriptor) => <NumberSettingRow key={descriptor.setting}
       descriptor={descriptor} settings={settings} write={props.write} />)}
-    <AdvancedReadOnly snapshot={props.snapshot} settings={settings} />
+    <AdvancedReadOnly snapshot={props.snapshot} />
   </MSettingsCard>;
 }
 

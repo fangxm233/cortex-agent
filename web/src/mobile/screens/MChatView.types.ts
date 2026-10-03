@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 import type { SessionContextUsage, SessionInfo, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
@@ -149,7 +148,6 @@ export interface MChatViewProps {
   onSessionStatsClose: () => void;
   cortexId: string | null;
   backendUuid: string | null;
-  inlineThreadCard?: ReactNode;
   systemLines?: string[];
   interactions?: MChatInteractions;
   rejectBar?: MRejectBar;

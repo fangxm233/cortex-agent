@@ -18,10 +18,10 @@ vi.mock('@/router-factory', () => ({
 vi.mock('@/shell/AppShell', () => ({ AppShell: () => <Outlet /> }));
 vi.mock('@/mobile/MobileShell', () => ({ MobileShell: () => <Outlet /> }));
 vi.mock('@/features/workbench/WorkbenchPage', () => ({ WorkbenchPage: () => <span>workbench</span> }));
-vi.mock('@/features/tasks/TasksPage', () => ({ TasksPage: () => <span>tasks</span> }));
+vi.mock('@/features/overview/OverviewPage', () => ({ OverviewPage: () => <span>overview</span> }));
 vi.mock('@/features/provider-setup/ProviderSetupPage', () => ({ ProviderSetupPage: () => <span>setup</span> }));
 vi.mock('@/mobile/screens/MSessionListScreen', () => ({ MSessionListScreen: () => <span>sessions</span> }));
-vi.mock('@/mobile/screens/MTasksScreen', () => ({ MTasksScreen: () => <span>mobile tasks</span> }));
+vi.mock('@/mobile/screens/MProjectScreen', () => ({ MProjectScreen: () => <span>project</span> }));
 vi.mock('@/mobile/screens/MChatScreen', () => ({ MChatScreen: () => <span>chat</span> }));
 // Capture the real combined route table, replacing only rendered pages with probes.
 import './router';
@@ -48,13 +48,10 @@ afterEach(() => {
 
 describe('responsive routes', () => {
   it('maps corresponding pages and falls back for unsupported detail pages', () => {
-    expect(layoutDestination('/tasks', true)).toBe('/m/tasks');
-    expect(layoutDestination('/threads/', true)).toBe('/m/threads');
+    expect(layoutDestination('/overview/', true)).toBe('/m/project');
     expect(layoutDestination('/memory', true)).toBe('/m/memory');
     expect(layoutDestination('/overview', true)).toBe('/m/project');
     expect(layoutDestination('/kit', true)).toBe('/m/sessions');
-    expect(layoutDestination('/m/task/t1', false)).toBe('/tasks');
-    expect(layoutDestination('/m/thread/t1', false)).toBe('/threads');
     expect(layoutDestination('/m/memory/file', false)).toBe('/memory');
     expect(layoutDestination('/m/project', false)).toBe('/overview');
     expect(layoutDestination('/m/settings/appearance', false)).toBe('/workbench');
@@ -84,14 +81,14 @@ describe('responsive routes', () => {
     await mount('/workbench', false);
     await resize(true);
     expect(router!.state.location.pathname).toBe('/m/sessions');
-    await act(async () => { await router!.navigate('/m/tasks'); });
+    await act(async () => { await router!.navigate('/m/project'); });
     await resize(false);
-    expect(router!.state.location.pathname).toBe('/tasks');
+    expect(router!.state.location.pathname).toBe('/overview');
     await resize(true);
-    expect(router!.state.location.pathname).toBe('/m/tasks');
+    expect(router!.state.location.pathname).toBe('/m/project');
     await act(async () => { await router!.navigate(-1); });
     expect(router!.state.location.pathname).toBe('/m/sessions');
     await act(async () => { await router!.navigate(1); });
-    expect(router!.state.location.pathname).toBe('/m/tasks');
+    expect(router!.state.location.pathname).toBe('/m/project');
   });
 });

@@ -98,8 +98,8 @@ export interface SessionLiveSyncOptions {
   /**
    * Render assistant text as it is generated, by opening a session-scoped `session.message.delta`
    * subscription (see useAssistantDeltaStream). Opt-in per surface: it costs one SSE connection, so
-   * only a chat that actually shows a live preview should ask for it — not thread step cards or
-   * background readers, of which several can be mounted at once.
+   * only a chat that actually shows a live preview should ask for it — not background readers, of
+   * which several can be mounted at once.
    */
   deltas?: boolean;
   /**

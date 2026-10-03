@@ -1,11 +1,9 @@
 import { generatePath, matchPath, type Params } from 'react-router-dom';
 
-export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'project';
+export type MobileTabId = 'sessions' | 'project';
 
 const ROUTES = [
   { id: 'sessions', path: '/m/sessions', tab: 'sessions', tabRoot: true },
-  { id: 'threads', path: '/m/threads', tab: 'threads', tabRoot: true },
-  { id: 'tasks', path: '/m/tasks', tab: 'tasks', tabRoot: true },
   { id: 'project', path: '/m/project', tab: 'project', tabRoot: true },
   { id: 'session', path: '/m/session/:sessionId', tab: 'sessions', parent: 'sessions' },
   {
@@ -14,8 +12,6 @@ const ROUTES = [
     tab: 'sessions',
     parent: 'session',
   },
-  { id: 'thread', path: '/m/thread/:threadId', tab: 'threads', parent: 'threads' },
-  { id: 'task', path: '/m/task/:taskId', tab: 'tasks', parent: 'tasks' },
   { id: 'approvals', path: '/m/approvals', tab: 'project', parent: 'project' },
   { id: 'issues', path: '/m/issues', tab: 'project', parent: 'project' },
   { id: 'notes', path: '/m/notes', tab: 'project', parent: 'project' },

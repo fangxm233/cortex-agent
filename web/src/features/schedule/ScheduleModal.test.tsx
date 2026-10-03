@@ -75,20 +75,18 @@ describe('ScheduleModal custom selections', () => {
     expect(renderer.root.findAll(node => node.props.style?.background === 'var(--proto-card)')).toHaveLength(0);
   });
 
-  it('emits typed patches for interval, profile, target and fallback fields', () => {
+  it('emits typed patches for interval, profile and target fields', () => {
     const onChange = vi.fn();
     const form = { ...defaultScheduleForm('nimbus'), type: 'interval' as const };
     const renderer = mount(form, onChange);
     pick(renderer, 'intervalUnit', 'hr');
     pick(renderer, 'profile', 'review');
     pick(renderer, 'target', 'project');
-    pick(renderer, 'fallback', 'skip');
 
     expect(onChange.mock.calls.map(([patch]) => patch)).toEqual([
       { intervalUnit: 'hr' },
       { profile: 'review' },
       { target: 'project' },
-      { fallback: 'skip' },
     ]);
   });
 

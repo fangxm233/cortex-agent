@@ -56,7 +56,6 @@ export function useDaemonResource(options: UseDaemonResourceOptions = {}): Daemo
   const restart = useMutation(trpc.system.restart.mutationOptions({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: statusOptions.queryKey, exact: true });
-      await queryClient.invalidateQueries(trpc.threads.list.queryFilter());
     },
   }));
   return {

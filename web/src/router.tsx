@@ -4,9 +4,7 @@ import { createShellRouter } from '@/router-factory';
 import { ResponsiveRoute } from '@/responsive-route';
 import { mobileRoutes } from '@/mobile/mobile-routes';
 import { AppShell } from '@/shell/AppShell';
-import { EmptyPane } from '@/shell/EmptyPane';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
-import { TasksPage } from '@/features/tasks/TasksPage';
 import { OverviewPage } from '@/features/overview/OverviewPage';
 import { MemoryPage } from '@/features/memory/MemoryPage';
 import { SkillsPage } from '@/features/skills/SkillsPage';
@@ -36,8 +34,6 @@ export const router = createShellRouter([
     children: [
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: <WorkbenchPage /> },
-      { path: 'tasks', element: <TasksPage /> },
-      { path: 'threads', element: <EmptyPane titleKey="threads" /> },
       { path: 'overview', element: <OverviewPage /> },
       { path: 'memory', element: <MemoryPage /> },
       { path: 'skills', element: <SkillsPage /> },

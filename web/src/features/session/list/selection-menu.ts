@@ -234,7 +234,7 @@ export function buildModeOptions(
 }
 
 /** The profile pointer an agent uses to say "whatever the conversation is already running" — the
- *  server's own sentinel (`domain/threads/prompt-builder`). */
+ *  server's own sentinel. */
 const FOLLOW_ACTIVE_PROFILE = '__active__';
 
 /** The agent a conversation lands in when nothing anywhere names one — the server's last link

@@ -24,11 +24,6 @@ vi.mock('@/lib/trpc', () => ({
         mutationOptions: (options: object) => ({ ...options, mutationFn: adapter.restart }),
       },
     },
-    threads: {
-      list: {
-        queryFilter: () => ({ queryKey: ['threads.list'] }),
-      },
-    },
   }),
 }));
 
@@ -133,7 +128,7 @@ describe('useDaemonResource status lifecycle', () => {
 });
 
 describe('useDaemonResource restart lifecycle', () => {
-  it('sends restart kinds and invalidates exact status plus every thread list', async () => {
+  it('sends restart kinds and invalidates the exact status query', async () => {
     const { invalidate, renderer } = await mount();
     await act(async () => {
       resource?.restart('hard');
@@ -143,7 +138,6 @@ describe('useDaemonResource restart lifecycle', () => {
     expect(adapter.restart.mock.calls[0]?.[0]).toEqual({ kind: 'hard' });
     expect(invalidate.mock.calls).toEqual([
       [{ queryKey: ['system.daemonStatus', {}], exact: true }],
-      [{ queryKey: ['threads.list'] }],
     ]);
     expect(resource?.restartState).toBe('success');
     renderer.unmount();

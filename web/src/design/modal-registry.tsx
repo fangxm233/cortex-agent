@@ -136,8 +136,8 @@ interface DefineModalOptions {
  * Declare a typed modal key. `TPayload` is whatever the trigger hands the modal; use `void` for
  * modals that carry nothing.
  *
- * The feature keeps its own hook name and return shape on top of this — `useTaskModal()`,
- * `useSettings()` — so call sites never see the registry.
+ * The feature keeps its own hook name and return shape on top of this — `useSettings()`,
+ * `useScheduleModal()` — so call sites never see the registry.
  */
 export function defineModal<TPayload = void>(
   kind: string,

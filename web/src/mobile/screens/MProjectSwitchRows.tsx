@@ -7,15 +7,13 @@ import type { MProjectSwitchRow } from './m-project-vm';
 
 export interface MProjectSwitchCopy {
   switchProject: string;
-  running: string;
   today: string;
-  idle: string;
   newProject: string;
 }
 
 export const PROJECT_SWITCH_COPY: { en: MProjectSwitchCopy; zh: MProjectSwitchCopy } = {
-  en: { switchProject: 'Switch project', running: 'running', today: 'today', idle: 'idle', newProject: 'New project' },
-  zh: { switchProject: '切换项目', running: '运行中', today: '今日', idle: '空闲', newProject: '新建项目' },
+  en: { switchProject: 'Switch project', today: 'today', newProject: 'New project' },
+  zh: { switchProject: '切换项目', today: '今日', newProject: '新建项目' },
 };
 
 const ROW: CSSProperties = { padding: '10px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 };
@@ -49,14 +47,11 @@ export function Initials({ text, accent, large = false }: { text: string; accent
 }
 
 function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: MProjectSwitchCopy }) {
-  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. 今日 $ omitted when
-  // the project has no cost bucket.
-  const money = row.todayCost != null ? ` · ${copy.today} ${formatMoney(row.todayCost)}` : '';
-  const running = row.running > 0;
+  // Honest sub-line: `今日 $x`, omitted entirely when the project has no cost bucket.
+  if (row.todayCost == null) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
-      {running && <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
-      <span>{running ? `${row.running} ${copy.running}` : copy.idle}{money}</span>
+      <span>{copy.today} {formatMoney(row.todayCost)}</span>
     </div>
   );
 }

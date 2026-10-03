@@ -201,7 +201,7 @@ function ExpandedCard({
             {card.command}
           </div>
         )}
-        {/* provenance (real `来自`, honest omit) · thread-paused status (scheme L370) */}
+        {/* provenance (real `来自`, honest omit) · waiting status (scheme L370) */}
         <div style={{ fontSize: 12, lineHeight: 1.55, color: MC.sub, marginTop: 4 }}>
           {card.provenance && (
             <>

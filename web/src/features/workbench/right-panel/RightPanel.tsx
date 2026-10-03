@@ -1,15 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { TasksPanel } from '@/features/tasks/TasksPanel';
-import { actionableOpenCount } from '@/features/tasks/group-tasks';
 import { PaneToggle } from './PaneToggle';
-import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { onlineMachineCount, rightPanelBudget } from './right-panel-vm';
-import { groupThreads, type ThreadGroup } from '@/features/session/composer/scope';
-import { useRecentNow } from '@/lib/useRecentNow';
-import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
 import { NotesPane } from '@/features/notes/NotesPane';
@@ -18,12 +12,11 @@ import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import { usePaneState } from '@/shell/PaneStateProvider';
 
 // RIGHT PANEL — context drawer + icon rail, following glass-prototype.dc.html L247–362 (segmented
-// tab control, ringed cards, badge-carrying rail). Real tRPC data (cost.summary / threads.list /
-// threads.get / tasks.list) is substituted into the design's structure. Machines and the
-// project-scoped daily budget use their live query data; Pause still has no mutate op and remains
-// non-functional.
+// tab control, ringed cards, badge-carrying rail). Real tRPC data (cost.summary / machines.list) is
+// substituted into the design's structure: the drawer holds the machines section and the notes
+// pane, and the rail carries the project-scoped daily budget meter.
 
-type Tab = 'threads' | 'tasks' | 'machines';
+type Tab = 'machines';
 type PanelTarget = Tab | 'notes';
 type PanelLabels = Record<PanelTarget, string>;
 type PanelCounts = Record<Tab, number>;
@@ -36,8 +29,6 @@ const DRAWER_GAP = 10;
 const DRAWER_SHADOW_ROOM = 48;
 
 const PANEL_ICONS: Record<PanelTarget, ReactNode> = {
-  threads: <><path d="M8 6h11M8 12h8M8 18h5" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></>,
-  tasks: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="m8 12 2.5 2.5L16 9" /></>,
   machines: <><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5" /></>,
   notes: <><path d="M6 3h9l4 4v14H6z" /><path d="M15 3v5h4M9 12h6M9 16h6" /></>,
 };
@@ -148,7 +139,7 @@ function RightPanelRail({ active, labels, counts, budget, budgetLabel, navigatio
   onToggle: () => void;
   onSelect: (target: PanelTarget) => void;
 }) {
-  const workTargets: Tab[] = ['threads', 'tasks', 'machines'];
+  const workTargets: Tab[] = ['machines'];
   return (
     <nav aria-label={navigationLabel} style={{ width: PANEL_RAIL_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0' }}>
       <PaneToggle expanded={expanded} label={toggleLabel} onClick={onToggle} />
@@ -165,7 +156,6 @@ function RightPanelRail({ active, labels, counts, budget, budgetLabel, navigatio
 export function RightPanel(): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
-  const [tab, setTab] = useState<Tab>('threads');
   const { panelCollapsed: collapsed, setPanelCollapsed: setCollapsed } = usePaneState();
   // Collapsing keeps the sheet on screen for its exit slide; `closing` holds it there until the
   // slide's animationend. Adjusted during render so the first collapsed frame already animates out.
@@ -181,17 +171,16 @@ export function RightPanel(): JSX.Element {
   useEffect(() => {
     if (notes.isOpen) setCollapsed(false);
   }, [notes.isOpen, setCollapsed]);
-  const active: PanelTarget = notes.isOpen ? 'notes' : tab;
-  const labels: PanelLabels = { threads: L.threads, tasks: L.tasks, machines: L.machines, notes: notes.copy.title };
+  const active: PanelTarget = notes.isOpen ? 'notes' : 'machines';
+  const labels: PanelLabels = { machines: L.machines, notes: notes.copy.title };
   // The rail badges and its budget meter stay on screen while the drawer is shut, so the panel's
   // data is read here rather than inside the drawer body that consumes the rest of it.
-  const data = useRightPanelData(tab);
-  const counts: PanelCounts = { threads: data.activeThreadCount, tasks: data.openTaskCount, machines: data.machineCount };
+  const data = useRightPanelData();
+  const counts: PanelCounts = { machines: data.machineCount };
   const select = (target: PanelTarget) => {
     setCollapsed(false);
     if (target === 'notes') return notes.open();
     notes.close();
-    setTab(target);
   };
   const collapseAction = <DrawerCollapseButton label={L.rpCollapsePanel} onClick={() => setCollapsed(true)} />;
   return (
@@ -282,7 +271,7 @@ export function RightPanel(): JSX.Element {
           >
             {notes.isOpen
               ? <NotesPane headerIcon={<PanelIcon target="notes" />} headerAction={collapseAction} visible={!collapsed} />
-              : <RightWorkPanel data={data} tab={tab} counts={counts} onTabChange={setTab} headerAction={collapseAction} />}
+              : <RightWorkPanel data={data} counts={counts} headerAction={collapseAction} />}
           </div>
         </div>
       </div>
@@ -330,7 +319,7 @@ function TabButton({ label, count, countColor, active, dot, onClick }: {
   countColor: string;
   active: boolean;
   dot?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
   return (
     <button type="button" role="tab" aria-selected={active} onClick={onClick} style={{ flex: 1, fontFamily: 'inherit', fontSize: 12, fontWeight: active ? 600 : 500, color: active ? 'var(--proto-ink)' : 'var(--proto-muted)', height: 28, border: 0, borderRadius: 'var(--r-chip)', background: active ? 'var(--glass-2)' : 'transparent', boxShadow: active ? 'var(--shadow-card)' : 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'background .15s' }}>
@@ -341,62 +330,27 @@ function TabButton({ label, count, countColor, active, dot, onClick }: {
   );
 }
 
-const THREAD_GROUP_LABEL_STYLE = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '.07em',
-  textTransform: 'uppercase',
-  color: 'var(--proto-muted)',
-  padding: '6px 6px',
-} as const;
-
-function ThreadGroupSection({ group, label, now }: { group: ThreadGroup; label: string; now: number }) {
-  return (
-    <section>
-      <div style={THREAD_GROUP_LABEL_STYLE}>{label} · {group.threads.length}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {group.threads.map((thread) => <RightThreadCard key={thread.id} thread={thread} now={now} />)}
-      </div>
-    </section>
-  );
-}
-
-function useRightPanelData(tab: Tab) {
+function useRightPanelData() {
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
   const projectId = currentProjectId ?? undefined;
-  const now = useRecentNow(tab === 'threads');
-  useThreadsLiveSync();
   const costQuery = useQuery({ ...trpc.cost.summary.queryOptions({ projectId }), enabled: !!projectId });
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ projectId }));
-  const tasksQuery = useQuery(trpc.tasks.list.queryOptions({ ...(projectId ? { projectId } : {}) }));
   const machines = useMachinesResource();
-  const threadGroups = groupThreads(threadsQuery.data ?? []);
   return {
-    projectId,
-    now,
-    threadGroups,
-    threadsReady: threadsQuery.isSuccess,
-    activeThreadCount: threadGroups.find((group) => group.kind === 'active')?.threads.length ?? 0,
-    openTaskCount: tasksQuery.data ? actionableOpenCount(tasksQuery.data) : 0,
     machineCount: onlineMachineCount(machines.machines),
     budget: rightPanelBudget(costQuery.data?.today, costQuery.data?.dailyBudget),
   };
 }
 
-function RightTabs({ tab, counts, headerAction, onTabChange }: {
-  tab: Tab;
+function RightTabs({ counts, headerAction }: {
   counts: PanelCounts;
   headerAction: ReactNode;
-  onTabChange: (tab: Tab) => void;
 }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '10px 10px 8px', flex: 'none' }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 'var(--r-control)', background: 'var(--proto-line-2)', flex: 1 }}>
-        <TabButton label={L.threads} count={String(counts.threads)} countColor="var(--proto-accent)" active={tab === 'threads'} onClick={() => onTabChange('threads')} />
-        <TabButton label={L.tasks} count={String(counts.tasks)} countColor="var(--proto-muted)" active={tab === 'tasks'} onClick={() => onTabChange('tasks')} />
-        <TabButton label={L.machines} count={String(counts.machines)} countColor="var(--proto-muted)" active={tab === 'machines'} dot onClick={() => onTabChange('machines')} />
+        <TabButton label={L.machines} count={String(counts.machines)} countColor="var(--proto-muted)" active dot />
       </div>
       {headerAction}
     </div>
@@ -416,45 +370,18 @@ function BudgetBar({ budget }: { budget: PanelBudget }) {
   );
 }
 
-function ThreadsTab({ groups, ready, now }: { groups: ThreadGroup[]; ready: boolean; now: number }) {
-  const L = useVocab();
-  return (
-    <div style={{ flex: 1, padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0 }}>
-      {groups.map((group) => <ThreadGroupSection key={group.kind} group={group} label={group.kind === 'active' ? L.active : L.history} now={now} />)}
-      {ready && groups.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 'var(--r-card)' }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)' }}>{L.rpNoActiveThreads}</div>
-          <div style={{ fontSize: 11, color: 'var(--proto-muted)', marginTop: 4, lineHeight: 1.6 }}>{L.rpNoActiveThreadsHint}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TasksTab({ projectId }: { projectId?: string }) {
-  return (
-    <div style={{ flex: 1, padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', minHeight: 0 }}>
-      <TasksPanel projectId={projectId} />
-    </div>
-  );
-}
-
-function RightWorkPanel({ data, tab, counts, headerAction, onTabChange }: {
+function RightWorkPanel({ data, counts, headerAction }: {
   data: ReturnType<typeof useRightPanelData>;
-  tab: Tab;
   counts: PanelCounts;
   headerAction: ReactNode;
-  onTabChange: (tab: Tab) => void;
 }) {
   return (
     // No background: the drawer sheet this fills IS the surface, and a tint on top of it would
     // only mute the glass.
     <div style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <RightTabs tab={tab} counts={counts} headerAction={headerAction} onTabChange={onTabChange} />
+      <RightTabs counts={counts} headerAction={headerAction} />
       <BudgetBar budget={data.budget} />
-      {tab === 'threads' && <ThreadsTab groups={data.threadGroups} ready={data.threadsReady} now={data.now} />}
-      {tab === 'tasks' && <TasksTab projectId={data.projectId} />}
-      {tab === 'machines' && <RightMachinesTab />}
+      <RightMachinesTab />
     </div>
   );
 }

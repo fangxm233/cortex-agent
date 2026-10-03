@@ -70,7 +70,7 @@ export function ListHeader({ title, count, searchAttr, search, placeholder, onSe
   search: string;
   placeholder: string;
   onSearch: (value: string) => void;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <div className="settings-pane-header" style={PANE_HEADER_STYLE}>
@@ -78,11 +78,11 @@ export function ListHeader({ title, count, searchAttr, search, placeholder, onSe
         <span style={PANE_TITLE_STYLE}>{title}</span>
         <span style={PANE_COUNT_STYLE}>{count}</span>
       </div>
-      <div style={FILTER_ROW_STYLE}>{children}</div>
+      {children ? <div style={FILTER_ROW_STYLE}>{children}</div> : null}
       <input
         className="settings-control" {...{ [searchAttr]: '' }} value={search} placeholder={placeholder}
         onChange={(event) => onSearch(event.target.value)}
-        style={{ ...S_CONTROL_STYLE, marginTop: 9 }}
+        style={{ ...S_CONTROL_STYLE, marginTop: children ? 9 : 0 }}
       />
     </div>
   );

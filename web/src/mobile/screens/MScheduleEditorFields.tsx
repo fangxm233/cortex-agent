@@ -4,7 +4,6 @@ import { pickCopy } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
-  FALLBACK_OPTIONS,
   INTERVAL_UNITS,
   SCHED_TYPES,
   TARGET_OPTIONS,
@@ -28,10 +27,10 @@ const pair: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, m
 
 type Vocab = ReturnType<typeof useVocab>;
 
-// Option words for the unit / target / fallback enums; en keeps the familiar tokens.
+// Option words for the unit / target enums; en keeps the familiar tokens.
 const OPTION_COPY: { en: Record<string, string>; zh: Record<string, string> } = {
-  en: { min: 'min', hr: 'hr', 'current-channel': 'current channel', fresh: 'fresh', project: 'project', skip: 'skip', wait: 'wait' },
-  zh: { min: '分钟', hr: '小时', 'current-channel': '当前频道', fresh: '新会话', project: '项目', skip: '跳过', wait: '等待' },
+  en: { min: 'min', hr: 'hr', 'current-channel': 'current channel', fresh: 'fresh', project: 'project' },
+  zh: { min: '分钟', hr: '小时', 'current-channel': '当前频道', fresh: '新会话', project: '项目' },
 };
 
 function useOptionWord(): (token: string) => string {
@@ -199,19 +198,12 @@ function MessageField({ copy, form, editableFields, onChange }: FieldsProps) {
 function RoutingFields({ copy, form, mode, editableFields, onChange }: FieldsProps) {
   const word = useOptionWord();
   return (
-    <div style={{ ...pair, opacity: mode === 'edit' ? 0.6 : 1 }}>
+    <div style={{ opacity: mode === 'edit' ? 0.6 : 1 }}>
       <label>
         <span style={label}>{copy.scTarget}</span>
         <select style={field} value={form.target} disabled={!editableFields.target}
           onChange={(event) => onChange({ target: event.target.value as ScheduleForm['target'] })}>
           {TARGET_OPTIONS.map((target) => <option key={target} value={target}>{word(target)}</option>)}
-        </select>
-      </label>
-      <label>
-        <span style={label}>{copy.scFallback}</span>
-        <select style={field} value={form.fallback} disabled={!editableFields.fallback}
-          onChange={(event) => onChange({ fallback: event.target.value as ScheduleForm['fallback'] })}>
-          {FALLBACK_OPTIONS.map((fallback) => <option key={fallback} value={fallback}>{word(fallback)}</option>)}
         </select>
       </label>
     </div>

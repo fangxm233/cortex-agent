@@ -14,7 +14,6 @@ import { Initials, NewProjectRow, SwitchRow, type MProjectSwitchCopy } from './M
 export interface MProjectCopy extends MProjectSwitchCopy {
   title: string;
   current: string;
-  threadsRunning: string;
   needsYou: string;
   perDay: string;
   week: string;
@@ -23,7 +22,6 @@ export interface MProjectCopy extends MProjectSwitchCopy {
   approvals: string;
   pending: string;
   globalPending: string;
-  threadsWaiting: string;
   handle: string;
   memory: string;
   usage: string;
@@ -42,8 +40,6 @@ export interface MProjectCurrent {
   /** Project id == display name. */
   id: string;
   initials: string;
-  runningThreads: number;
-  waitingThreads: number;
   /** THIS project's pending-approval count (real ApprovalInfo.projectId attribution). */
   needsYou: number;
   /** Scoped cost.summary for the budget row; null while unavailable (budget row omitted). */
@@ -152,7 +148,7 @@ function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: MProje
         </div>
         {/* Phase/milestone (Phase 2 · M2.3) have no DTO source → omitted (never fabricated). */}
         <div style={{ fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
-          {current.runningThreads} {copy.threadsRunning} · {current.needsYou} {copy.needsYou}
+          {current.needsYou} {copy.needsYou}
         </div>
       </div>
     </div>
@@ -197,13 +193,11 @@ function CurrentProject({ current, copy }: { current: MProjectCurrent; copy: MPr
 function ApprovalBar({
   pending,
   globalPending,
-  waitingThreads,
   copy,
   onClick,
 }: {
   pending: number;
   globalPending: number;
-  waitingThreads: number;
   copy: MProjectCopy;
   onClick: () => void;
 }) {
@@ -217,10 +211,11 @@ function ApprovalBar({
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-amber-fg)', ...M_NUM }}>
           {copy.approvals} · {pending} {copy.pending}
         </div>
-        <div style={{ fontSize: 12, color: MC.amberText, marginTop: 1, ...M_NUM }}>
-          {globalPending > 0 ? `${globalPending} ${copy.globalPending} · ` : ''}
-          {waitingThreads} {copy.threadsWaiting}
-        </div>
+        {globalPending > 0 && (
+          <div style={{ fontSize: 12, color: MC.amberText, marginTop: 1, ...M_NUM }}>
+            {globalPending} {copy.globalPending}
+          </div>
+        )}
       </div>
       <span style={{ fontSize: 13, fontWeight: 600, color: MC.amberInk, flex: 'none' }}>{copy.handle} ›</span>
     </div>
@@ -232,7 +227,7 @@ function CountTag({ n }: { n: number }) {
 }
 
 // Issues row (design sec-24 24a, mobile column): neutral — deliberately NOT amber and NOT part of
-// the 需要你 bar (issues never block a thread). First titles + `+ N more`; hidden at 0 by the parent.
+// the 需要你 bar (issues never block anything). First titles + `+ N more`; hidden at 0 by the parent.
 function IssuesRow({ issues, copy, onClick }: { issues: MProjectIssues; copy: MProjectCopy; onClick: () => void }) {
   const more = issues.count - issues.previews.length;
   const vocab = useVocabOptional();
@@ -269,7 +264,7 @@ function PrimaryProjectSection({ props }: { props: MProjectViewProps }) {
   return (
     <>
       {current && <CurrentProject current={current} copy={copy} />}
-      {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
+      {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} copy={copy} onClick={props.onApprovals} />}
       <MGroup style={{ marginTop: 14 }}>
         {issues.count > 0 && <IssuesRow issues={issues} copy={copy} onClick={props.onIssues} />}
         <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />

@@ -1,20 +1,20 @@
-import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
+import type { SessionInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
-// Pure mapping from the three real tRPC query results (sessions.list / threads.list /
-// tasks.list) into the prototype's ⌘K flat-row item model (prototype.dc.html L1304–1311 +
-// the `allCmdk` demo shape L2489–2499). Each row = label + sub + right-aligned kbd tag; page rows navigate via React Router and modal rows open in place. §8.3: the row
-// structure is 1:1 with the prototype, real entities are the only variable. Thread rows open the
-// global detail modal; sessions/tasks target their section route and carry the id in `focusId`.
+// Pure mapping from the real tRPC query result (sessions.list) into the prototype's ⌘K flat-row
+// item model (prototype.dc.html L1304–1311 + the `allCmdk` demo shape L2489–2499). Each row =
+// label + sub + right-aligned kbd tag; page rows navigate via React Router and modal rows open in
+// place. §8.3: the row structure is 1:1 with the prototype, real entities are the only variable.
+// Sessions target their section route and carry the id in `focusId`.
 
-export type PaletteModal = 'settings' | 'thread';
+export type PaletteModal = 'settings';
 
 export interface CmdkItem {
   /** Unique cmdk `value` (stable, collision-free across kinds). */
   id: string;
   label: string;
   sub: string;
-  /** Right-aligned mono type tag — session / thread / task. */
+  /** Right-aligned mono type tag — currently always `session`. */
   kbd: string;
   route?: string;
   modal?: PaletteModal;
@@ -24,8 +24,6 @@ export interface CmdkItem {
 
 export interface CmdkSources {
   sessions: SessionInfo[];
-  threads: ThreadInfo[];
-  tasks: TaskInfo[];
 }
 
 export interface CmdkCommand {
@@ -80,24 +78,8 @@ function sessionItem(s: SessionInfo): CmdkItem {
   };
 }
 
-function threadItem(t: ThreadInfo): CmdkItem {
-  return {
-    id: `thread:${t.id}`, label: t.templateName, sub: t.id,
-    kbd: 'thread', modal: 'thread', focusId: t.id,
-    keywords: tokens(t.id, t.templateName, t.status, t.projectId),
-  };
-}
-
-function taskItem(t: TaskInfo): CmdkItem {
-  return {
-    id: `task:${t.id}`, label: t.text, sub: `${t.id} · ${t.project}`,
-    kbd: 'task', route: '/tasks', focusId: t.id,
-    keywords: tokens(t.id, t.text, t.project, t.status, t.priority),
-  };
-}
-
-export function buildCmdkItems({ sessions, threads, tasks }: CmdkSources): CmdkItem[] {
-  return [...sessions.map(sessionItem), ...threads.map(threadItem), ...tasks.map(taskItem)];
+export function buildCmdkItems({ sessions }: CmdkSources): CmdkItem[] {
+  return sessions.map(sessionItem);
 }
 
 // Static navigation command rows (prototype OV/ST legs + section jumps). The prototype also lists
@@ -123,26 +105,6 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     kbd: 'page',
     route: '/workbench',
     keywords: ['home', 'chat'],
-  },
-  {
-    id: 'nav:tasks',
-    label: 'Tasks',
-    labelKey: 'tasks',
-    sub: 'task queue',
-    subKey: 'cpSubTasks',
-    kbd: 'page',
-    route: '/tasks',
-    keywords: ['queue'],
-  },
-  {
-    id: 'nav:threads',
-    label: 'Threads',
-    labelKey: 'threads',
-    sub: 'thread runs',
-    subKey: 'cpSubThreads',
-    kbd: 'page',
-    route: '/threads',
-    keywords: ['runs'],
   },
   {
     id: 'nav:settings',
@@ -174,7 +136,7 @@ export function selectPaletteRows(
 
   if (!q) {
     const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd).slice(0, restPerKind);
-    return [...nav, ...byKind('session'), ...byKind('thread'), ...byKind('task')];
+    return [...nav, ...byKind('session')];
   }
 
   const matches = (r: PaletteRow) =>

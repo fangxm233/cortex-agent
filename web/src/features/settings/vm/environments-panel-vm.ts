@@ -1,96 +1,44 @@
-import type { ThreadTemplateEntry, ThreadTemplateDetail } from '@cortex-agent/ui-contract';
+import type { EnvironmentDetail, EnvironmentEntry } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
 
-export type TemplateKind = ThreadTemplateEntry['kind'];
-export type TemplateFilterKey = 'all' | TemplateKind;
+/** Mirrors the server's environment name pattern so a doomed name is caught before a trip. */
+export const ENVIRONMENT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
-export const TEMPLATE_FILTER_KEYS: TemplateFilterKey[] = ['all', 'template', 'agent', 'shell'];
-
-/** Mirrors the server's NAME_PATTERN (template-writer.ts) so a doomed name is caught before a trip. */
-export const TEMPLATE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
-
-export interface TemplateSelection {
-  kind: TemplateKind;
-  name: string;
-}
+/** The environment every conversation falls back to; the server refuses to delete it. */
+export const DEFAULT_ENVIRONMENT = 'main';
 
 // --- Filtering ---
 
-export function filterEntries(
-  entries: readonly ThreadTemplateEntry[],
-  filter: TemplateFilterKey,
-  search: string,
-): ThreadTemplateEntry[] {
+export function filterEntries(entries: readonly EnvironmentEntry[], search: string): EnvironmentEntry[] {
   const needle = search.trim().toLowerCase();
-  return entries.filter((entry) => {
-    if (filter !== 'all' && entry.kind !== filter) return false;
-    if (needle === '') return true;
-    return (
-      entry.name.toLowerCase().includes(needle) ||
-      (entry.description ?? '').toLowerCase().includes(needle)
-    );
-  });
-}
-
-export function countByFilter(
-  entries: readonly ThreadTemplateEntry[],
-  search: string,
-): Record<TemplateFilterKey, number> {
-  const counts = { all: 0, template: 0, agent: 0, shell: 0 } as Record<TemplateFilterKey, number>;
-  for (const key of TEMPLATE_FILTER_KEYS) {
-    counts[key] = filterEntries(entries, key, search).length;
-  }
-  return counts;
+  if (needle === '') return [...entries];
+  return entries.filter((entry) => (
+    entry.name.toLowerCase().includes(needle)
+    || (entry.description ?? '').toLowerCase().includes(needle)
+  ));
 }
 
 /**
  * Which row to show. Honours an explicit request when it is still visible, otherwise falls back to
  * the first visible row so the pane is never blank while entries exist.
  */
-export function resolveSelection(
-  visible: readonly ThreadTemplateEntry[],
-  requested: TemplateSelection | null,
-): TemplateSelection | null {
-  if (requested && visible.some((e) => e.kind === requested.kind && e.name === requested.name)) {
-    return requested;
-  }
-  const first = visible[0];
-  return first ? { kind: first.kind, name: first.name } : null;
+export function resolveSelection(visible: readonly EnvironmentEntry[], requested: string | null): string | null {
+  if (requested !== null && visible.some((entry) => entry.name === requested)) return requested;
+  return visible[0]?.name ?? null;
 }
 
-// --- Starter skeletons ---
+// --- Starter skeleton ---
 
-/**
- * A new entity opens on something that already validates, so the first save is a rename away from
- * working rather than a wall of errors. Agent and template mirror the shipped shapes.
- */
-export function starterBody(kind: TemplateKind): Record<string, unknown> {
-  if (kind === 'agent') {
-    return {
-      name: '',
-      description: '',
-      profile: '__active__',
-      persistSession: false,
-      promptTemplate: '{{input}}',
-      tools: 'Read,Write,Edit,Glob,Grep,Bash',
-    };
-  }
-  if (kind === 'shell') {
-    return {
-      params: ['worker'],
-      agents: ['{worker}'],
-      transitions: [],
-      entryAgent: '{worker}',
-      maxTotalSteps: 2,
-    };
-  }
+/** A new environment opens on something that already validates, so the first save is a rename
+ *  away from working rather than a wall of errors. */
+export function starterBody(): Record<string, unknown> {
   return {
     name: '',
     description: '',
-    agents: ['__active__'],
-    transitions: [],
-    entryAgent: '__active__',
-    maxTotalSteps: 1,
+    profile: '__active__',
+    persistSession: false,
+    promptTemplate: '{{input}}',
+    tools: 'Read,Write,Edit,Glob,Grep,Bash',
   };
 }
 
@@ -142,7 +90,7 @@ export function isDirty(text: string, loaded: string): boolean {
 
 export function validateName(name: string, lang: Lang = 'en'): string | null {
   if (name.trim() === '') return EDITOR_ERRORS[lang].nameRequired;
-  if (!TEMPLATE_NAME_PATTERN.test(name)) return EDITOR_ERRORS[lang].nameInvalid;
+  if (!ENVIRONMENT_NAME_PATTERN.test(name)) return EDITOR_ERRORS[lang].nameInvalid;
   return null;
 }
 
@@ -168,7 +116,6 @@ export function saveGate(input: {
 }
 
 export interface SaveArgs {
-  kind: TemplateKind;
   name: string;
   body: Record<string, unknown>;
   /** Omitted when creating; otherwise the hash the editor loaded, so a save made under a stale
@@ -178,7 +125,6 @@ export interface SaveArgs {
 
 /** Returns null when the gate is closed, so a caller cannot build args for an unsaveable state. */
 export function buildSaveArgs(input: {
-  kind: TemplateKind;
   name: string;
   text: string;
   loaded: string;
@@ -188,32 +134,19 @@ export function buildSaveArgs(input: {
   if (!saveGate(input).canSave) return null;
   const { body } = parseEditor(input.text);
   if (body === null) return null;
-  const args: SaveArgs = { kind: input.kind, name: input.name, body };
+  const args: SaveArgs = { name: input.name, body };
   if (!input.creating && input.baseHash !== null) args.baseHash = input.baseHash;
   return args;
 }
 
 // --- Detail-derived affordances ---
 
-/**
- * Transitions are re-read on every step, so a live thread on this template can be rerouted or
- * stalled by a save. That is worth a confirmation, not just a note.
- */
-export function needsRunningConfirm(detail: ThreadTemplateDetail | null): boolean {
-  return (detail?.runningThreads ?? 0) > 0;
+/** The default environment cannot be deleted; say so before the user tries. */
+export function canDelete(name: string): boolean {
+  return name !== DEFAULT_ENVIRONMENT;
 }
 
-/** Deleting is refused by the server while dependents exist; say so before the user tries. */
-export function deleteBlockedReason(
-  detail: ThreadTemplateDetail | null,
-): 'dependents' | 'running' | null {
-  if (!detail) return null;
-  if (detail.usedByTemplates.length > 0) return 'dependents';
-  if (detail.runningThreads > 0) return 'running';
-  return null;
-}
-
-/** A stock entity is byte-identical to its shipped default; editing forks it permanently. */
-export function forksFromDefaults(detail: ThreadTemplateDetail | null): boolean {
+/** A stock environment is byte-identical to its shipped default; editing forks it permanently. */
+export function forksFromDefaults(detail: EnvironmentDetail | null): boolean {
   return detail?.origin === 'stock';
 }

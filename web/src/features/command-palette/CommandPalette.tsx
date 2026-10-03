@@ -5,12 +5,11 @@ import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { useSettings } from '@/features/settings/useSettings';
-import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 import { PALETTE_COPY, paletteKindText } from './palette-copy';
 
 // ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
-// label, right-aligned hint); real sessions/threads/tasks over tRPC are substituted into that
+// label, right-aligned hint); real sessions over tRPC are substituted into that
 // structure (§8.3: data is the only variable). cmdk drives the fuzzy filter + ↑/↓/Enter +
 // focus-trap; the underlying Radix Dialog drives Esc/overlay-close + focus-restore. The
 // prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
@@ -133,24 +132,18 @@ const STALE = 30_000;
 function usePaletteRows(open: boolean, query: string): PaletteRow[] {
   const trpc = useTRPC();
   const sessions = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
-  const threads = useQuery(trpc.threads.list.queryOptions({}, { enabled: open, staleTime: STALE }));
-  const tasks = useQuery(trpc.tasks.list.queryOptions({}, { enabled: open, staleTime: STALE }));
   return useMemo(
-    () => selectPaletteRows(query, {
-      sessions: sessions.data ?? [], threads: threads.data ?? [], tasks: tasks.data ?? [],
-    }),
-    [query, sessions.data, threads.data, tasks.data],
+    () => selectPaletteRows(query, { sessions: sessions.data ?? [] }),
+    [query, sessions.data],
   );
 }
 
 function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   const navigate = useNavigate();
   const { open: openSettings } = useSettings();
-  const { openThread } = useThreadDetailModal();
   return (row: PaletteRow) => {
     onOpenChange(false);
     if (row.modal === 'settings') return openSettings();
-    if (row.modal === 'thread' && row.focusId) return openThread(row.focusId);
     if (row.route) navigate(row.route, row.focusId ? { state: { focusId: row.focusId } } : undefined);
   };
 }

@@ -48,7 +48,6 @@ const snapshot = {
   profiles: null,
   machines: [],
   mcp: null,
-  threadTemplates: { agents: [], templates: [], shells: [] },
   hooks: [],
   env: [],
   settings: [],

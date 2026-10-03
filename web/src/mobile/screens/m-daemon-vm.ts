@@ -1,4 +1,4 @@
-import type { ThreadInfo, ScheduleInfo, ExecutionInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
+import type { ScheduleInfo, ExecutionInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
 import {
   buildDaemonVm as buildSharedDaemonVm,
   daemonStatusTone,
@@ -29,8 +29,6 @@ export interface MDaemonEvent {
 }
 
 export interface MDaemonVm {
-  /** Real active-thread count (running + waiting), from `threads.list`. */
-  threadCount: number;
   /** Real schedule count, from `schedules.list`. */
   scheduleCount: number;
   /** Real process rows from `system.daemonStatus` (or an honest fallback when it has not resolved). */
@@ -79,13 +77,12 @@ function restartEvent(facts: DaemonVm, now: number, lang: TimeLang): MDaemonRest
 }
 
 export function buildDaemonVm(input: {
-  threads: ThreadInfo[]; schedules: ScheduleInfo[]; executions: ExecutionInfo[];
+  schedules: ScheduleInfo[]; executions: ExecutionInfo[];
   ok: boolean; daemon?: SystemDaemonStatus | null; now?: number; lang: TimeLang;
 }): MDaemonVm {
   const now = input.now ?? Date.now();
   const facts = buildSharedDaemonVm(input.daemon, input.lang, now);
   return {
-    threadCount: input.threads.length,
     scheduleCount: input.schedules.length,
     processes: fallbackProcesses(facts, input.ok),
     lastRestart: restartEvent(facts, now, input.lang),

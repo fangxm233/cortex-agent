@@ -148,7 +148,7 @@ describe('RunListModal shared shell', () => {
     const value = { ...row(), schedule: {
       id: 'sch-1', type: 'daily', message: 'Nightly scan', projectId: 'proj', profile: null,
       nextRun: null, lastRun: null, paused: false, pausedBy: null, intervalMs: null,
-      time: '00:00', dayOfWeek: null, target: null, fallback: null,
+      time: '00:00', dayOfWeek: null, target: null,
     } } as ScheduleRow;
     const tree = render(<RunListModal row={value} selectedSessionId={null}
       onOpenRun={onOpenRun} onManage={onManage} onClose={onClose} />);

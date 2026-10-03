@@ -62,7 +62,6 @@ import {
   type PlanCardModel,
 } from '@/features/session/interaction/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
-import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 import {
   commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
@@ -111,7 +110,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileTitle: '配置',
     profileSubtitle: '仅本会话',
     profileCurrent: '当前',
-    profileFooter: '下轮生效，不影响运行中的线程。',
+    profileFooter: '下轮生效，不影响正在运行的这一轮。',
     selectionAgent: 'agent',
     selectionAgentDefault: '默认',
     selectionAgentFollow: '跟随全局默认',
@@ -150,7 +149,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileTitle: 'Profile',
     profileSubtitle: 'This session',
     profileCurrent: 'current',
-    profileFooter: 'Applies next turn; running threads are unaffected.',
+    profileFooter: 'Applies from the next turn; a running turn is unaffected.',
     selectionAgent: 'agent',
     selectionAgentDefault: 'default',
     selectionAgentFollow: 'follow the host default',
@@ -871,15 +870,6 @@ export function MChatScreen(): JSX.Element {
         onSessionStatsClose={() => setSessionStatsOpen(false)}
         cortexId={active?.name ?? null}
         backendUuid={active?.backendSessionId ?? null}
-        inlineThreadCard={
-          sessionId ? (
-            <MChatInlineThreadCard
-              sessionId={sessionId}
-              subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
-              openLabel={lang === 'zh' ? '打开' : 'Open'}
-            />
-          ) : undefined
-        }
         systemLines={schedHint ? [...systemLines, schedHint] : systemLines}
         interactions={interactions}
         rejectBar={rejectBar}

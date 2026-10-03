@@ -31,7 +31,7 @@ interface MSettingsViewProps {
   onOpenSection: (section: SettingsSectionKey) => void;
 }
 
-const DESKTOP_ONLY = new Set<SettingsSectionKey>(['templates', 'plugins']);
+const DESKTOP_ONLY = new Set<SettingsSectionKey>(['environments', 'plugins']);
 const INSPECT_ONLY = new Set<SettingsSectionKey>(['hooks']);
 const TITLE = { fontSize: 14, fontWeight: 600, color: MC.ink } as const;
 const SUB = { fontSize: 12, color: MC.muted, marginTop: 4 } as const;
