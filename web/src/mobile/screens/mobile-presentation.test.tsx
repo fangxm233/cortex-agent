@@ -42,7 +42,7 @@ describe('mobile presentation', () => {
     const tree = create(<MSessionListView rows={[]} copy={sessionCopy} presence="connected"
       newLabel="New" scheduled={{ unread: 2, onOpen: noop }} onOpen={noop} onNew={onNew} />);
     const screen = tree.root.findByType(MScreen);
-    expect(screen.props.header.type).toBe(MTabHeader);
+    expect(screen.findByType(MTabHeader).props.title).toBe('Sessions');
     expect(tree.root.findByProps({ 'aria-label': 'Scheduled' }).props.onClick).toBe(noop);
     expect(tree.root.findByProps({ 'aria-label': '2 unread scheduled' })).toBeTruthy();
     expect(screen.props.overlay.props).toMatchObject({ 'aria-label': 'New', onClick: onNew });

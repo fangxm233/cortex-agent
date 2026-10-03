@@ -1,24 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/session/list/session-groups';
-import {
-  awaitingInputCountByProject,
-  unreadCountByProject,
-} from '@/features/session/list/project-menu';
-import { lastActivityByProject } from '@/features/session/list/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/session/live/useSessionsLiveSync';
 import { useThreadsLiveSync } from '@/features/session/live/useThreadsLiveSync';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import type { UsageNavState } from './MUsageScreen';
-import { threadCountsForProject, buildProjectSwitchRows, pendingApprovalCounts } from './m-project-vm';
-import { MNewProjectView, type MNewProjectCopy } from './MNewProjectView';
-import { useCreateProject } from '@/features/projects/useCreateProject';
-import { finishMobileProjectCreation } from './m-new-project-flow';
+import { threadCountsForProject, pendingApprovalCounts } from './m-project-vm';
+import { PROJECT_SWITCH_COPY } from './MProjectSwitchRows';
+import { useProjectSwitchRows } from './useMProjectSwitch';
+import { MNewProjectSheet, useNewProjectSheet, type NewProjectSheet } from './useMNewProjectSheet';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { useNotesResource } from '@/features/notes/useNotesResource';
@@ -27,6 +22,7 @@ import { useAllSessions } from '@/features/projects/useProjectSessions';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
+    ...PROJECT_SWITCH_COPY.en,
     title: 'Projects',
     current: 'Current',
     threadsRunning: 'running',
@@ -43,14 +39,10 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     memory: 'Project memory',
     usage: 'Usage',
     settings: 'Settings',
-    switchProject: 'Switch project',
-    running: 'running',
-    today: 'today',
-    idle: 'idle',
-    newProject: 'New project',
     issuesTitle: 'Issues',
   },
   zh: {
+    ...PROJECT_SWITCH_COPY.zh,
     title: '项目',
     current: '当前',
     threadsRunning: '线程运行中',
@@ -67,25 +59,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     memory: '项目记忆',
     usage: '用量',
     settings: '设置',
-    switchProject: '切换项目',
-    running: '运行中',
-    today: '今日',
-    idle: '空闲',
-    newProject: '新建项目',
     issuesTitle: '问题',
-  },
-};
-
-const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
-  en: {
-    title: 'New project',
-    placeholder: 'Project name, e.g. rl-locomotion',
-    create: 'Create and start a chat',
-  },
-  zh: {
-    title: '新建项目',
-    placeholder: '项目名字，如 rl-locomotion',
-    create: '创建并开始对话',
   },
 };
 
@@ -114,70 +88,20 @@ function useCurrentCard(
   }, [projectId, queries.threads, scopedApprovals, queries.scopedCost]);
 }
 
-function useProjectSwitchRows(
-  projectId: string,
-  queries: ReturnType<typeof useProjectQueries>,
-  approvalsByProject: Record<string, number>,
-) {
-  const unread = useMemo(() => unreadCountByProject(queries.sessions), [queries.sessions]);
-  const actions = useMemo(() => awaitingInputCountByProject(queries.sessions), [queries.sessions]);
-  const activity = useMemo(() => lastActivityByProject(queries.sessions), [queries.sessions]);
-  return useMemo(() => buildProjectSwitchRows(
-    queries.projects,
-    projectId,
-    queries.threads,
-    queries.globalCost?.byProject,
-    unread,
-    activity,
-    actions,
-    approvalsByProject,
-  ), [queries.projects, projectId, queries.threads, queries.globalCost, unread, activity, actions, approvalsByProject]);
-}
-
-function useNewProjectSheet(
-  lang: 'en' | 'zh',
-  navigate: ReturnType<typeof useNavigate>,
-  setCurrentProject: (id: string) => void,
-) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const close = useCallback(() => setOpen(false), []);
-  const onCreated = useCallback((id: string) => {
-    finishMobileProjectCreation(id, { setCurrentProject, close, navigate });
-  }, [close, navigate, setCurrentProject]);
-  const create = useCreateProject({ onCreated });
-  const setProjectName = useCallback((value: string) => {
-    setName(value);
-    create.clearError();
-  }, [create.clearError]);
-  const submit = useCallback(() => {
-    void create.createProject(name);
-  }, [create.createProject, name]);
-  const show = useCallback(() => {
-    setName('');
-    create.clearError();
-    setOpen(true);
-  }, [create.clearError]);
-  return {
-    open,
-    name,
-    setName: setProjectName,
-    submit,
-    close,
-    show,
-    copy: pickCopy(lang, NEW_PROJECT_COPY),
-    error: create.error,
-    pending: create.isPending,
-  };
-}
-
-function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnType<typeof useRateLimitStatus>; rateOpen: boolean; closeRate: () => void; project: ReturnType<typeof useNewProjectSheet> }) {
+function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnType<typeof useRateLimitStatus>; rateOpen: boolean; closeRate: () => void; project: NewProjectSheet }) {
   return (
     <>
       {rateOpen && rate && <MobileRateLimitSheet status={rate} onClose={closeRate} />}
-      {project.open && <MNewProjectView name={project.name} onNameChange={project.setName} onCreate={project.submit} onClose={project.close} copy={project.copy} error={project.error} pending={project.pending} />}
+      <MNewProjectSheet project={project} />
     </>
   );
+}
+
+function useRateLimitSheet() {
+  const rate = useRateLimitStatus();
+  const [rateOpen, setRateOpen] = useState(false);
+  useEffect(() => { if (!rate) setRateOpen(false); }, [rate]);
+  return { rate, rateOpen, setRateOpen };
 }
 
 export function MProjectScreen() {
@@ -194,10 +118,11 @@ export function MProjectScreen() {
   const approvalCounts = useMemo(() => pendingApprovalCounts(queries.approvals), [queries.approvals]);
   const scopedApprovals = projectId ? approvalCounts.byProject[projectId] ?? 0 : 0;
   const current = useCurrentCard(projectId, queries, scopedApprovals);
-  const switchRows = useProjectSwitchRows(projectId, queries, approvalCounts.byProject);
-  const rate = useRateLimitStatus();
-  const [rateOpen, setRateOpen] = useState(false);
-  useEffect(() => { if (!rate) setRateOpen(false); }, [rate]);
+  const switchRows = useProjectSwitchRows(projectId, {
+    projects: queries.projects, sessions: queries.sessions, threads: queries.threads,
+    globalByProject: queries.globalCost?.byProject, approvalsByProject: approvalCounts.byProject,
+  });
+  const { rate, rateOpen, setRateOpen } = useRateLimitSheet();
   const project = useNewProjectSheet(lang, navigate, setCurrentProject);
   const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
   const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };

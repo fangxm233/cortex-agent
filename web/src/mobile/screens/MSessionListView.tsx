@@ -2,7 +2,7 @@ import { type CSSProperties } from 'react';
 import { PlusGlyph } from '@/design';
 import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
-import { MScreen, MTabHeader, MScrollBody, MGroup, MEmpty, MC, M_GUTTER, M_NUM, M_TABBAR_BOTTOM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, type MTabTitleMenu, MScrollBody, MGroup, MEmpty, MC, M_GUTTER, M_NUM, M_TABBAR_BOTTOM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { useLangOptional } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import type { MSessionRow, MSessionStatus } from './m-session-list-vm';
@@ -211,57 +211,79 @@ const FAB_STYLE: CSSProperties = {
   boxShadow: '0 8px 20px -8px color-mix(in srgb, var(--proto-accent) 75%, transparent), 0 1px 3px rgba(16, 24, 40, 0.12)',
 };
 
-export function MSessionListView({
-  rows,
-  stars,
-  copy,
-  presence,
-  newLabel,
-  scheduled,
-  onOpen,
-  onNew,
-}: {
+function SessionListHeader({ title, presence, project, scheduled }: {
+  title: string;
+  presence: ConnectionStatus;
+  project?: MSessionListProject;
+  scheduled?: MSessionListScheduled;
+}) {
+  const menu: MTabTitleMenu | undefined = project && { label: project.switchLabel, onOpen: project.onSwitch };
+  return (
+    <MTabHeader
+      title={project?.name ?? title}
+      titleMenu={menu}
+      leading={<BrandTile presence={presence} />}
+      trailing={scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
+    />
+  );
+}
+
+function SessionListBody({ rows, stars, empty, onOpen }: {
   rows: MSessionRow[];
-  stars?: { projectId: string; rows: MSessionRow[]; expanded: boolean; onToggle: () => void };
+  stars?: MSessionListStars;
+  empty: string;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
+      {stars && <StarredSessionGroup projectId={stars.projectId} count={stars.rows.length}
+        expanded={stars.expanded} onToggle={stars.onToggle} mobile>
+        <MGroup>{stars.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
+      </StarredSessionGroup>}
+      {rows.length === 0 && !stars?.rows.length && <MEmpty>{empty}</MEmpty>}
+      {rows.length > 0 && (
+        <MGroup>{rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
+      )}
+      {/* Room for the FAB, so the last row can scroll clear of it. */}
+      <div style={{ height: 64, flex: 'none' }} />
+    </MScrollBody>
+  );
+}
+
+type MSessionListStars = { projectId: string; rows: MSessionRow[]; expanded: boolean; onToggle: () => void };
+type MSessionListScheduled = { unread: number; onOpen: () => void };
+
+/** The current project as the list title; tapping it opens the project switcher. */
+export interface MSessionListProject {
+  /** null while the current project is still resolving → the plain list title. */
+  name: string | null;
+  switchLabel: string;
+  onSwitch: () => void;
+}
+
+export function MSessionListView({ rows, stars, copy, presence, project, newLabel, scheduled, onOpen, onNew }: {
+  rows: MSessionRow[];
+  stars?: MSessionListStars;
   copy: MSessionListCopy;
   /** Live link state → the brand tile's presence dot. */
   presence: ConnectionStatus;
+  project?: MSessionListProject;
   /** Accessible label for the new-session FAB (vocab `wbNewSession`). */
   newLabel: string;
   /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
-  scheduled?: { unread: number; onOpen: () => void };
+  scheduled?: MSessionListScheduled;
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
+  const fab = (
+    <button type="button" aria-label={newLabel} title={newLabel} onClick={onNew} style={FAB_STYLE}>
+      <PlusGlyph size={20} strokeWidth={2} />
+    </button>
+  );
   return (
-    <MScreen
-      label="1a 会话列表"
-      floatingHeader
-      header={
-        <MTabHeader
-          title={copy.title}
-          leading={<BrandTile presence={presence} />}
-          trailing={scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
-        />
-      }
-      overlay={
-        <button type="button" aria-label={newLabel} title={newLabel} onClick={onNew} style={FAB_STYLE}>
-          <PlusGlyph size={20} strokeWidth={2} />
-        </button>
-      }
-    >
-      <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
-        {stars && <StarredSessionGroup projectId={stars.projectId} count={stars.rows.length}
-          expanded={stars.expanded} onToggle={stars.onToggle} mobile>
-          <MGroup>{stars.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
-        </StarredSessionGroup>}
-        {rows.length === 0 && !stars?.rows.length && <MEmpty>{copy.empty}</MEmpty>}
-        {rows.length > 0 && (
-          <MGroup>{rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}</MGroup>
-        )}
-        {/* Room for the FAB, so the last row can scroll clear of it. */}
-        <div style={{ height: 64, flex: 'none' }} />
-      </MScrollBody>
+    <MScreen label="1a 会话列表" floatingHeader overlay={fab}
+      header={<SessionListHeader title={copy.title} presence={presence} project={project} scheduled={scheduled} />}>
+      <SessionListBody rows={rows} stars={stars} empty={copy.empty} onOpen={onOpen} />
     </MScreen>
   );
 }

@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { CostSummary } from '@cortex-agent/ui-contract';
-import { PlusGlyph } from '@/design';
-import { useLangOptional, useVocabOptional } from '@/i18n';
+import { useVocabOptional } from '@/i18n';
 import { MScreen, MTabHeader, MScrollBody, MGroup, MGroupLabel, MC, M_NUM, M_TAB_BODY_PADDING } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
@@ -10,8 +9,9 @@ import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit
 import type { NotesCopy } from '@/features/notes/notes-copy';
 import type { MNotesVm } from './m-notes-vm';
 import { MNotesProjectCard } from './MNotesProjectCard';
+import { Initials, NewProjectRow, SwitchRow, type MProjectSwitchCopy } from './MProjectSwitchRows';
 
-export interface MProjectCopy {
+export interface MProjectCopy extends MProjectSwitchCopy {
   title: string;
   current: string;
   threadsRunning: string;
@@ -28,11 +28,6 @@ export interface MProjectCopy {
   memory: string;
   usage: string;
   settings: string;
-  switchProject: string;
-  running: string;
-  today: string;
-  idle: string;
-  newProject: string;
   issuesTitle: string;
 }
 
@@ -144,32 +139,10 @@ const CHEVRON = <span aria-hidden="true" style={{ marginLeft: 'auto', fontSize: 
 
 const ROW: CSSProperties = { padding: '12px 14px', borderRadius: 10, cursor: 'pointer', minWidth: 0 };
 
-function Initials({ text, accent }: { text: string; accent: boolean }) {
-  return (
-    <div
-      style={{
-        width: accent ? 40 : 34,
-        height: accent ? 40 : 34,
-        borderRadius: accent ? 12 : 10,
-        background: accent ? MC.run : MC.gray,
-        color: accent ? 'var(--ink-solid-fg)' : MC.sub,
-        display: 'grid',
-        placeItems: 'center',
-        fontSize: accent ? 14 : 12,
-        fontWeight: 700,
-        letterSpacing: '.02em',
-        flex: 'none',
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
 function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: MProjectCopy }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <Initials text={current.initials} accent />
+      <Initials text={current.initials} accent large />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
@@ -285,53 +258,6 @@ function LinkRow({ label, onClick }: { label: string; onClick: () => void }) {
     <div className="m-press" onClick={onClick} style={{ ...ROW, display: 'flex', alignItems: 'center' }}>
       <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{label}</span>
       {CHEVRON}
-    </div>
-  );
-}
-
-function SwitchMeta({ row, copy }: { row: MProjectSwitchRow; copy: MProjectCopy }) {
-  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. 今日 $ omitted when
-  // the project has no cost bucket.
-  const money = row.todayCost != null ? ` · ${copy.today} ${formatMoney(row.todayCost)}` : '';
-  const running = row.running > 0;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: MC.muted, marginTop: 2, ...M_NUM }}>
-      {running && <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />}
-      <span>{running ? `${row.running} ${copy.running}` : copy.idle}{money}</span>
-    </div>
-  );
-}
-
-function SwitchRow({ row, copy, onSwitch }: { row: MProjectSwitchRow; copy: MProjectCopy; onSwitch: (id: string) => void }) {
-  const attentionLabel = useLangOptional() === 'zh' ? '项目待处理' : 'project attention';
-  return (
-    <div className="m-press" onClick={() => onSwitch(row.id)} style={{ ...ROW, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-      <Initials text={row.initials} accent={false} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.id}</div>
-        <SwitchMeta row={row} copy={copy} />
-      </div>
-      {/* One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber. */}
-      {row.badgeCount > 0 && (
-        <span
-          aria-label={attentionLabel}
-          style={{ minWidth: 18, height: 18, padding: '0 6px', boxSizing: 'border-box', borderRadius: 'var(--r-pill)', background: row.badgeTone === 'action' ? MC.amber : MC.run, color: 'var(--ink-solid-fg)', fontSize: 11, fontWeight: 600, display: 'grid', placeItems: 'center', flex: 'none', ...M_NUM }}
-        >
-          {row.badgeCount}
-        </span>
-      )}
-      <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, color: MC.faint, flex: 'none' }}>›</span>
-    </div>
-  );
-}
-
-function NewProjectRow({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
-  return (
-    <div className="m-press" onClick={onClick} style={{ ...ROW, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, color: MC.run }}>
-      <span style={{ width: 34, height: 34, borderRadius: 10, background: MC.runBg, display: 'grid', placeItems: 'center', flex: 'none' }}>
-        <PlusGlyph size={14} strokeWidth={2} />
-      </span>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.newProject}</span>
     </div>
   );
 }

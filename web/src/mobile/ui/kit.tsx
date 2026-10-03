@@ -125,14 +125,59 @@ export function MScreen({
 // title sits straight on the mesh at rest and the bar frosts once rows scroll beneath it. The title
 // shares the row text x (gutter + 14). Optional `leading` (brand mark), passive QN scope tag,
 // `trailing` keys (bare — no frame of their own) and a `below` second row (线程 budget band).
-export function MTabHeader({
-  title,
-  leading,
-  qn,
-  trailing,
-  below,
-}: {
+// `titleMenu` turns the title into a ▾ button (会话: the title is the current project).
+const TAB_TITLE: CSSProperties = {
+  fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em',
+  minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+};
+
+const TAB_TITLE_BUTTON: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, minHeight: 44,
+  margin: 0, padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer',
+};
+
+export interface MTabTitleMenu {
+  /** Accessible action name, read together with the title. */
+  label: string;
+  onOpen: () => void;
+}
+
+function TabTitle({ title, menu }: { title: string; menu?: MTabTitleMenu }) {
+  if (!menu) return <span style={TAB_TITLE}>{title}</span>;
+  return (
+    <button type="button" aria-label={`${menu.label}: ${title}`} aria-haspopup="dialog" onClick={menu.onOpen} style={TAB_TITLE_BUTTON}>
+      <span style={TAB_TITLE}>{title}</span>
+      <svg width={14} height={14} viewBox="0 0 10 10" fill="none" aria-hidden="true" style={{ flex: 'none', color: MC.muted }}>
+        <path d="M2.2 3.8 5 6.6l2.8-2.8" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+function ScopeTag({ text }: { text: string }) {
+  return (
+    <span style={{ fontSize: 11, fontWeight: 650, color: MC.run, background: MC.runBg, padding: '2px 7px', borderRadius: 'var(--r-pill)', flex: 'none' }}>
+      {text}
+    </span>
+  );
+}
+
+function tabHeaderStyle(hasBelow: boolean): CSSProperties {
+  return {
+    flex: 'none',
+    pointerEvents: 'auto',
+    padding: `calc(6px + env(safe-area-inset-top)) ${M_GUTTER}px ${hasBelow ? 12 : 6}px`,
+    background: 'var(--m-header-bg, transparent)',
+    backdropFilter: 'var(--m-header-filter, none)',
+    WebkitBackdropFilter: 'var(--m-header-filter, none)',
+    boxShadow: 'var(--m-header-edge, none)',
+    transition: 'background-color .2s, box-shadow .2s',
+  };
+}
+
+export function MTabHeader({ title, titleMenu, leading, qn, trailing, below }: {
   title: string;
+  titleMenu?: MTabTitleMenu;
   /** Rendered before the title (brand mark / presence). */
   leading?: ReactNode;
   /** Passive project-scope tag (real current-project initials, e.g. "NI"); omitted → no tag. */
@@ -141,41 +186,11 @@ export function MTabHeader({
   below?: ReactNode;
 }) {
   return (
-    <div
-      data-tab-header="true"
-      style={{
-        flex: 'none',
-        pointerEvents: 'auto',
-        padding: `calc(6px + env(safe-area-inset-top)) ${M_GUTTER}px ${below ? 12 : 6}px`,
-        background: 'var(--m-header-bg, transparent)',
-        backdropFilter: 'var(--m-header-filter, none)',
-        WebkitBackdropFilter: 'var(--m-header-filter, none)',
-        boxShadow: 'var(--m-header-edge, none)',
-        transition: 'background-color .2s, box-shadow .2s',
-      }}
-    >
+    <div data-tab-header="true" style={tabHeaderStyle(!!below)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 48, paddingLeft: 14 }}>
         {leading}
-        <span
-          style={{ fontSize: 22, fontWeight: 700, color: MC.ink, letterSpacing: '-.02em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        >
-          {title}
-        </span>
-        {qn && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 650,
-              color: MC.run,
-              background: MC.runBg,
-              padding: '2px 7px',
-              borderRadius: 'var(--r-pill)',
-              flex: 'none',
-            }}
-          >
-            {qn}
-          </span>
-        )}
+        <TabTitle title={title} menu={titleMenu} />
+        {qn && <ScopeTag text={qn} />}
         {trailing && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>{trailing}</div>}
       </div>
       {below && <div style={{ padding: '0 14px' }}>{below}</div>}
