@@ -76,6 +76,21 @@ test('sessions.list exposes display metadata and defaults legacy records to fals
   assert.deepEqual(result.map(session => session.labelRenamed), [true, false, false]);
 });
 
+test('sessions.list exposes worker fields and uses null for ordinary sessions', async () => {
+  const deps = makeDeps();
+  deps.sessionStore.listByProject = async () => [
+    { ...mockSessions[0], teamLeadId: 'lead-1', workerName: 'scout', workerRetiredAt: 1738454400000 },
+    mockSessions[2],
+  ];
+  const [worker, ordinary] = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(worker.teamLeadId, 'lead-1');
+  assert.equal(worker.workerName, 'scout');
+  assert.equal(worker.workerRetiredAt, 1738454400000);
+  assert.equal(ordinary.teamLeadId, null);
+  assert.equal(ordinary.workerName, null);
+  assert.equal(ordinary.workerRetiredAt, null);
+});
+
 test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
   const result = await handleSessionsList(makeDeps(), {});
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));

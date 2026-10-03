@@ -94,6 +94,8 @@ export interface RegisterSessionOpts {
   browser?: SessionBrowserOption | null;
   commissionId?: string | null;
   commissionDraft?: string | null;
+  teamLeadId?: string | null;
+  workerName?: string | null;
 }
 
 /** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
@@ -207,6 +209,9 @@ export class SessionRegistryRepo {
       browser: opts.browser ?? null,
       commissionId: opts.commissionId ?? null,
       commissionDraft: opts.commissionDraft ?? null,
+      ...(opts.teamLeadId
+        ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerRetiredAt: null }
+        : {}),
     });
   }
 
@@ -280,6 +285,11 @@ export class SessionRegistryRepo {
     ));
   }
 
+  /** Every worker owned by `leadSessionId`, retired or not. */
+  async listWorkers(leadSessionId: string): Promise<Session[]> {
+    return this.withState(async (state) => sortRecent(filterLive(state, s => s.teamLeadId === leadSessionId)));
+  }
+
   async listResumable(projectId?: string): Promise<Session[]> {
     return this.withState(async (state) => sortRecent(
       filterLive(state, s => s.kind !== 'scheduled' && (projectId === undefined || s.projectId === projectId)),
@@ -345,6 +355,11 @@ export class SessionRegistryRepo {
         ? record
         : { ...record, commissionDraft: draftDir }
     ));
+  }
+
+  /** Retire a worker (epoch ms), or reactivate it with null. */
+  async setWorkerRetired(sessionId: string, retiredAt: number | null): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({ ...record, workerRetiredAt: retiredAt }));
   }
 
   /** Record that the `[Commission]` block for `key` is now in this session's backend history. */

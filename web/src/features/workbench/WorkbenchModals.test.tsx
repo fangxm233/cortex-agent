@@ -63,6 +63,9 @@ function run(sessionId: string): SessionInfo {
     resumable: true, label: null, profileName: null, running: false,
     backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: 1, unread: false,
     commissionId: null,
+    teamLeadId: null,
+    workerName: null,
+    workerRetiredAt: null,
   };
 }
 

@@ -25,6 +25,9 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     unread: p.unread ?? false,
     scheduleId: p.scheduleId ?? null,
     commissionId: p.commissionId ?? null,
+    teamLeadId: p.teamLeadId ?? null,
+    workerName: p.workerName ?? null,
+    workerRetiredAt: p.workerRetiredAt ?? null,
   };
 }
 

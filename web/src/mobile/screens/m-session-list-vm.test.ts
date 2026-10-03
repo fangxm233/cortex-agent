@@ -26,6 +26,9 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     scheduleId: null,
     ...over,
     commissionId: over.commissionId ?? null,
+    teamLeadId: over.teamLeadId ?? null,
+    workerName: over.workerName ?? null,
+    workerRetiredAt: over.workerRetiredAt ?? null,
   };
 }
 

@@ -139,6 +139,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   const repo = new SessionRegistryRepo(filePath, { shouldCompact: () => false });
   await repo.registerSession('cortex-rt', registerOpts('sess-rt', {
     browser: { device: 'server' }, scheduleId: 'sched-1', commissionDraft: '_draft-cortex-rt',
+    teamLeadId: 'sess-lead', workerName: 'scout',
   }));
   await repo.updateSession('cortex-rt', {
     label: 'renamed', profileName: 'coder', backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
@@ -147,6 +148,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   await repo.markRead('sess-rt');
   await repo.bindCommission('sess-rt', 'comm-1'); // sets commissionId, clears commissionDraft
   await repo.convertToDirect('sess-rt', { channel: 'C999' });
+  await repo.setWorkerRetired('sess-rt', 1738454400000);
   await repo.beginTurn('sess-rt', fullTurn(0));
   await repo.patchTurn('sess-rt', 0, {
     status: 'completed', responseMessageTimestamps: ['a', 'b', 'c'], executionId: 'exec_z',
@@ -165,6 +167,9 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     assert.equal(rec.channel, 'C999');
     assert.equal(rec.origin, 'direct');
     assert.deepEqual(rec.browser, { device: 'server' });
+    assert.equal(rec.teamLeadId, 'sess-lead');
+    assert.equal(rec.workerName, 'scout');
+    assert.equal(rec.workerRetiredAt, 1738454400000);
     assert.deepEqual(rec.contextUsage, usage(9.9));
     assert.ok(rec.lastReadAt);
     const [turn] = await r.getTurns('sess-rt');
