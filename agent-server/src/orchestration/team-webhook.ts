@@ -1,11 +1,18 @@
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
+import type { Backend } from '@core/types/agent-types.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isTeamLead, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
-import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import {
+  applyChannelSelection, readChannelSelection, resolveBackendForChannel,
+  type ApplySelectionRequest, type ApplySelectionResult, type ChannelSelection,
+} from '@domain/agents/index.js';
+import { findProfileForProvider, getDefaultProfileForBackend } from '@domain/agents/profile-manager.js';
+import { parseModelSpec } from '@domain/agents/subagent/runner.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { cancelChannelRuns } from './routing/commands/cancel.js';
 import { interactionRecords, type InteractionRecords } from './interactions/interaction-records.js';
@@ -30,12 +37,19 @@ type Outcome = 'resolved' | 'already-resolved' | 'not-found';
 
 export interface TeamWebhookDeps {
   sessions: Pick<typeof sessionStore, 'getById' | 'listWorkers' | 'setWorkerRetired' | 'rename'>;
+  /** Creates the worker on a channel whose selection is already written. Naming the same profile
+   *  again only records it on the session; it leaves the channel's selection as written. */
   createSession: (opts: {
-    projectId: string; profileName: string | null; teamLeadId: string; workerName: string;
+    projectId: string; sessionId: string; profileName: string; teamLeadId: string; workerName: string;
   }) => Promise<{ sessionId: string; channel: string }>;
+  newSessionId: () => string;
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
   cancel: (channel: string) => Promise<number>;
-  activeProfile: (channel: string) => string | null;
+  readSelection: (channel: string) => ChannelSelection;
+  defaultProfile: (backend: Backend) => string | null;
+  /** The PI profile configured for a provider, if any. */
+  providerProfile: (provider: string) => string | null;
+  applySelection: (request: ApplySelectionRequest) => Promise<ApplySelectionResult>;
   interactions: Pick<InteractionRecords, 'get'>;
   answerQuestion: (requestId: string, answers: Record<string, string>) => Outcome;
   /** The question texts of a pending ask, or null when it has no live group. */
@@ -53,9 +67,13 @@ const defaultDeps: TeamWebhookDeps = {
     initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
     resolveBackend: resolveBackendForChannel,
   }, opts),
+  newSessionId: () => randomUUID(),
   deliver: (opts) => deliverToSessionDetached(opts),
   cancel: (channel) => cancelChannelRuns(channel),
-  activeProfile: (channel) => getActiveProfile(channel),
+  readSelection: (channel) => readChannelSelection(channel),
+  defaultProfile: (backend) => getDefaultProfileForBackend(backend),
+  providerProfile: (provider) => findProfileForProvider('pi', provider)?.name ?? null,
+  applySelection: (request) => applyChannelSelection(request),
   interactions: interactionRecords,
   answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'agent'),
   questionTexts: (requestId) => {
@@ -105,6 +123,57 @@ function capError(): TeamError {
   );
 }
 
+type WorkerSelection = Required<Pick<ApplySelectionRequest, 'model' | 'provider' | 'thinking' | 'mode'>>
+  & { profileName: string };
+
+/**
+ * What a new worker runs: the lead's own profile and selection, unless the call names a backend or
+ * model. `model` is the `agent` tool's `provider/model[:thinking]`; a field it gives replaces the
+ * lead's, a field it omits keeps it. Another backend starts from that backend's default profile,
+ * since none of the lead's choices mean anything there.
+ */
+function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): WorkerSelection {
+  const own = deps.readSelection(lead.channel);
+  const requested = str(data.backend);
+  if (requested && requested !== 'claude' && requested !== 'pi') {
+    throw new TeamError('backend must be "claude" or "pi"');
+  }
+  const backend: Backend = (requested as Backend) || own.backend;
+  const spec = parseModelSpec(str(data.model) || undefined);
+  // A bare Claude model id has no provider segment; one written for PI is dropped, not smuggled in.
+  if (backend === 'claude') delete spec.provider;
+
+  // A PI provider with a profile of its own runs on that profile, as a pick in the composer does,
+  // so its route and settings are the ones configured for it.
+  const leavesProvider = spec.provider !== undefined && !(backend === own.backend && spec.provider === own.provider);
+  const sibling = backend === 'pi' && leavesProvider ? deps.providerProfile(spec.provider!) : null;
+  if (sibling) {
+    return { profileName: sibling, model: spec.model ?? null, provider: null, thinking: spec.thinking ?? null, mode: null };
+  }
+
+  if (backend === own.backend) {
+    const base = own.override ?? {};
+    // A route belongs to its provider's endpoint, so it does not survive a move to another one.
+    const movesProvider = spec.provider !== undefined && spec.provider !== own.provider;
+    return {
+      profileName: own.profileName,
+      model: spec.model ?? base.model ?? null,
+      provider: spec.provider ?? base.provider ?? null,
+      thinking: spec.thinking ?? base.thinking ?? null,
+      mode: movesProvider ? null : base.mode ?? null,
+    };
+  }
+  const profileName = deps.defaultProfile(backend);
+  if (!profileName) throw new TeamError(`no profile is configured for the ${backend} backend`);
+  return {
+    profileName,
+    model: spec.model ?? null,
+    provider: spec.provider ?? null,
+    thinking: spec.thinking ?? null,
+    mode: null,
+  };
+}
+
 async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): Promise<TeamWebhookReply> {
   const name = str(data.name);
   const prompt = str(data.prompt);
@@ -120,9 +189,19 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
   }
   if (runningCount(await deps.describeTeam(lead.sessionId)) >= MAX_RUNNING_WORKERS) throw capError();
 
+  const selection = resolveWorkerSelection(lead, data, deps);
+  // The selection is written before the session exists, so its first turn already runs on it. A
+  // lead's spawn is not a user's pick, so it leaves what the next new conversation opens on alone.
+  const sessionId = deps.newSessionId();
+  const applied = await deps.applySelection({ channel: `web:${sessionId}`, ...selection, seedDefault: false });
+  if (!applied.ok) {
+    const allowed = applied.allowed?.length ? ` (allowed: ${applied.allowed.join(', ')})` : '';
+    throw new TeamError(`cannot run the worker on that model: ${applied.reason}${allowed}`);
+  }
   const created = await deps.createSession({
     projectId: lead.projectId,
-    profileName: str(data.profile) || deps.activeProfile(lead.channel) || null,
+    sessionId,
+    profileName: applied.profileName,
     teamLeadId: lead.sessionId,
     workerName: name,
   });
@@ -152,10 +231,16 @@ async function send(lead: Session, data: Record<string, any>, deps: TeamWebhookD
     : `Delivered to "${worker.workerName}"; it starts a new turn. Its report will arrive as a new message.`);
 }
 
-function describeOne(view: WorkerView, now: number): string {
+function modelLabel(selection: ChannelSelection): string {
+  const model = selection.provider ? `${selection.provider}/${selection.model}` : selection.model;
+  return `${selection.backend} ${model}${selection.thinking ? `:${selection.thinking}` : ''}`;
+}
+
+function describeOne(view: WorkerView, selection: ChannelSelection, now: number): string {
   const lines = [
     `Worker "${view.name}" (session ${view.sessionId})`,
     `Status: ${statusLabel(view)}${view.retired ? ' (retired)' : ''}`,
+    `Model: ${modelLabel(selection)}`,
   ];
   if (view.brief) lines.push(`Brief: ${view.brief}`);
   if (view.contextPercent !== null) lines.push(`Context: ${view.contextPercent}%`);
@@ -176,7 +261,7 @@ async function list(lead: Session, data: Record<string, any>, deps: TeamWebhookD
   if (name) {
     const view = team.find(v => v.name === name);
     if (!view) throw new TeamError(`no worker named "${name}"`);
-    return ok(describeOne(view, now));
+    return ok(describeOne(view, deps.readSelection(view.channel), now));
   }
   const active = team.filter(v => !v.retired);
   const retired = team.filter(v => v.retired);

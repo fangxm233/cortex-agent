@@ -175,9 +175,13 @@ if (isMainModule(import.meta.url)) {
 /** The `OpenBundledMcpServer` port `agent-adapter/pi/mcp-bridge.ts` declares: bundles plus the
  *  session env, with the tool context derived here rather than there (D10 — deriving it reaches
  *  the session registry and the subagent catalog). Injected at `domain/runs/adapters.ts`. */
-export function openBundledMcpServer(
+export async function openBundledMcpServer(
   bundles: McpBundleName[],
   env: Record<string, string>,
 ): Promise<McpServer> {
-  return createBundledServer(bundles, toolContextFromEnv(env));
+  // A PI session's env never carries the model catalogs a Claude sidecar is handed at spawn; this
+  // runs inside the daemon, so read the same caches directly. Loaded lazily: the stdio entry above
+  // must not pull in the Claude adapter.
+  const { subagentModelEnv } = await import('../../agent-adapter/claude/spawn-args.js');
+  return createBundledServer(bundles, toolContextFromEnv({ ...subagentModelEnv(), ...env }));
 }

@@ -115,7 +115,7 @@ as new messages.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `worker_spawn` | `name`, `prompt`, `profile?` | Start a persistent worker session with its first task |
+| `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | Start a persistent worker session with its first task; it runs the lead's current model unless `backend`/`model` (same format as `agent`) name another |
 | `worker_send` | `worker`, `message` | Deliver a message to a worker, folded into its running turn or opening a new one |
 | `worker_list` | `worker?` | The lead's roster, or one worker with its full last report |
 | `worker_stop` | `worker`, `retire?` | Stop a worker's current turn, optionally retiring it |

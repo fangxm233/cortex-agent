@@ -17,8 +17,12 @@ set of `worker_*` tools in its tool list.
 A worker is an ordinary session that belongs to a lead. It has its own transcript, context and
 resume history, runs on Claude or PI like any session, and has the full tool surface, including
 the one-shot `agent` tool. It cannot start workers of its own, so a team is one level deep.
-A worker inherits its lead's project and profile; the lead can name another profile, so a Claude
-lead can run PI workers and the other way round.
+A worker inherits its lead's project and runs the model the lead is currently on, including any
+model, provider or thinking level picked in the composer. The lead can pass `backend` and `model`
+in the same format as the `agent` tool (`provider/model[:thinking]` for PI, a bare model id for
+Claude): a model on the lead's own backend replaces only the parts it names, and another backend
+starts from that backend's default profile, so a Claude lead can run PI workers and the other way
+round. A PI model whose provider has a profile of its own runs on that profile. Spawning a worker leaves the model a new conversation opens on unchanged.
 
 A lead chooses between a worker and the one-shot `agent` tool by what happens next. Work that may
 need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or
@@ -61,9 +65,9 @@ The lead's tools come from the `cortex-workers` MCP bundle (see [MCP](./mcp.md))
 
 | Tool | Parameters | What it does |
 |---|---|---|
-| `worker_spawn` | `name`, `prompt`, `profile?` | Starts a worker named by a short slug and gives it its first task |
+| `worker_spawn` | `name`, `prompt`, `backend?`, `model?` | Starts a worker named by a short slug and gives it its first task |
 | `worker_send` | `worker`, `message` | Continues, redirects or briefs a worker; revives a retired one |
-| `worker_list` | `worker?` | The roster, or one worker in detail with its full last report |
+| `worker_list` | `worker?` | The roster, or one worker in detail with its model and full last report |
 | `worker_stop` | `worker`, `retire?` | Stops the worker's current turn; `retire` also takes it off the roster |
 | `worker_answer` | `request_id`, `answers?` or `approved?` + `feedback?` | Answers a worker's question, or approves or rejects its plan |
 

@@ -77,7 +77,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `worker_spawn` | `name`、`prompt`、`profile?` | 启动一个持久的 worker 会话并交给它第一个任务 |
+| `worker_spawn` | `name`、`prompt`、`backend?`、`model?` | 启动一个持久的 worker 会话并交给它第一个任务；除非用 `backend`/`model`（格式同 `agent`）指定，否则沿用主会话当前的模型 |
 | `worker_send` | `worker`、`message` | 给 worker 发消息：并入它正在运行的一轮，或开启新的一轮 |
 | `worker_list` | `worker?` | 主会话的名单，或某个 worker 及其完整的上一份汇报 |
 | `worker_stop` | `worker`、`retire?` | 停止 worker 当前这一轮，可选同时退役 |

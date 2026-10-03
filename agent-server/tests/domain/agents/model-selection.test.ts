@@ -270,3 +270,16 @@ test('a platform channel does not decide what the desktop composer opens on', as
   assert.equal(result.thinking, 'max', 'the platform channel still got its level');
   assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5' });
 });
+
+test('a selection made with seedDefault false leaves what the next conversation opens on', async () => {
+  seed({ activeProfile: 'opus' });
+  const { applyChannelSelection } = await freshSelection();
+
+  await applyChannelSelection({ channel: 'web:a', model: 'claude-sonnet-5' });
+  const result = await applyChannelSelection({
+    channel: 'web:worker', model: 'claude-haiku-4-5', thinking: 'high', seedDefault: false,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.model, 'claude-haiku-4-5', 'the channel itself still got the pick');
+  assert.deepEqual(storedSeed(), { profileName: 'opus', model: 'claude-sonnet-5' });
+});
