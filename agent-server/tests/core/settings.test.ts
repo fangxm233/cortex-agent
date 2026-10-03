@@ -339,6 +339,16 @@ describe.sequential('core settings', () => {
     }
   });
 
+  test('maxContextTokens defaults to null and accepts null or whole tokens within Claude\'s range', () => {
+    assert.equal(resolveSettingsSnapshot({}).find((entry) => entry.key === 'maxContextTokens')?.value, null);
+    for (const value of [null, 100_000, 450_000, 1_000_000]) {
+      assert.doesNotThrow(() => resolveSettingsSnapshot({ maxContextTokens: value }));
+    }
+    for (const value of [0, 99_999, 200_000.5, 1_000_001]) {
+      assert.throws(() => resolveSettingsSnapshot({ maxContextTokens: value }));
+    }
+  });
+
   test('malformed JSON and type mismatches log errors and retain the last valid snapshot', async (t) => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const batches: string[][] = [];

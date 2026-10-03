@@ -451,6 +451,39 @@ const MAX_SUBAGENT_PI_MODELS = 64;
 /** The same bound on the Anthropic side: an env var, not a manifest. */
 const MAX_SUBAGENT_CLAUDE_MODELS = 64;
 
+/** Cortex's context cap reaches the CLI as its own window override, which beats every settings
+ *  file. A pinned trial keeps its exact environment. */
+function applyContextCap(env: NodeJS.ProcessEnv): void {
+  const cap = getSettings().maxContextTokens;
+  if (cap !== null) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(cap);
+}
+
+/** The provider/model catalogs the MCP sidecar offers subagents, read from the daemon's caches. */
+function applySubagentModelEnv(env: NodeJS.ProcessEnv): void {
+  // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it
+  // already cached. Peeked, never refreshed: decorating a Claude spawn must not be what loads the
+  // PI SDK. An empty cache writes nothing, so such a spawn stays byte-identical to one from before
+  // this variable existed.
+  const piModels = piModelOptions(
+    piProviderDiscovery.peekModels()
+      .slice(0, MAX_SUBAGENT_PI_MODELS)
+      .map((model) => ({ provider: model.provider, id: model.model })),
+  );
+  if (piModels.length > 0) {
+    setIfPresent(env, 'CORTEX_SUBAGENT_PI_MODELS', encodeSubagentModels(piModels));
+  }
+  // Same hand-off for the Anthropic side: the sidecar has no credential of its own to ask the
+  // Models API with, so it inherits what the daemon already discovered. Never waited on — a stale
+  // cache answers now and refreshes in the background — so an empty cache writes nothing and the
+  // sidecar falls back to the shipped table, exactly as before this variable existed.
+  const discoveredClaude = anthropicModelDiscovery.get();
+  if (discoveredClaude.length > 0) {
+    const claudeModels = claudeModelOptions(null, anthropicModelIds(discoveredClaude))
+      .slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
+    setIfPresent(env, 'CORTEX_SUBAGENT_CLAUDE_MODELS', encodeSubagentModels(claudeModels));
+  }
+}
+
 export function buildClaudeEnv(
   channel: string,
   sessionId: string,
@@ -478,28 +511,8 @@ export function buildClaudeEnv(
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
-  // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it
-  // already cached. Peeked, never refreshed: decorating a Claude spawn must not be what loads the
-  // PI SDK. An empty cache writes nothing, so such a spawn stays byte-identical to one from before
-  // this variable existed.
-  const piModels = piModelOptions(
-    piProviderDiscovery.peekModels()
-      .slice(0, MAX_SUBAGENT_PI_MODELS)
-      .map((model) => ({ provider: model.provider, id: model.model })),
-  );
-  if (piModels.length > 0) {
-    setIfPresent(env, 'CORTEX_SUBAGENT_PI_MODELS', encodeSubagentModels(piModels));
-  }
-  // Same hand-off for the Anthropic side: the sidecar has no credential of its own to ask the
-  // Models API with, so it inherits what the daemon already discovered. Never waited on — a stale
-  // cache answers now and refreshes in the background — so an empty cache writes nothing and the
-  // sidecar falls back to the shipped table, exactly as before this variable existed.
-  const discoveredClaude = anthropicModelDiscovery.get();
-  if (discoveredClaude.length > 0) {
-    const claudeModels = claudeModelOptions(null, anthropicModelIds(discoveredClaude))
-      .slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
-    setIfPresent(env, 'CORTEX_SUBAGENT_CLAUDE_MODELS', encodeSubagentModels(claudeModels));
-  }
+  if (!pinnedEnv) applyContextCap(env);
+  applySubagentModelEnv(env);
   applyEnvOverrides(env, extraEnv, unsetEnv);
   applyCortexContextEnv(env, context);
   return env;

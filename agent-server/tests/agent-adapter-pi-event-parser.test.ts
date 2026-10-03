@@ -34,6 +34,21 @@ test('context_usage: preserves PI nulls immediately after compaction', () => {
   );
 });
 
+test('context_usage: a context cap below the model window becomes the denominator', () => {
+  assert.deepEqual(
+    piContextUsageFromStats({ contextUsage: { tokens: 100000, contextWindow: 1000000, percent: 10 } }, 200000),
+    { usedTokens: 100000, contextWindow: 200000, percent: 50, accuracy: 'estimate' },
+  );
+  assert.deepEqual(
+    piContextUsageFromStats({ contextUsage: { tokens: 68000, contextWindow: 272000, percent: 25 } }, 450000),
+    { usedTokens: 68000, contextWindow: 272000, percent: 25, accuracy: 'estimate' },
+  );
+  assert.deepEqual(
+    piContextUsageFromStats({ contextUsage: { tokens: null, contextWindow: 1000000, percent: null } }, 200000),
+    { usedTokens: null, contextWindow: 200000, percent: null, accuracy: 'estimate' },
+  );
+});
+
 test('context_usage: malformed or missing usage yields nothing', () => {
   assert.equal(piContextUsageFromStats({ contextUsage: { tokens: 12, contextWindow: 0, percent: 4 } }), null);
   assert.equal(piContextUsageFromStats({}), null);

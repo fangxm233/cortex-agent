@@ -36,6 +36,7 @@ const settings: ConfigSettingEntry[] = [
   { key: 'serverUpdateDisable', value: false, source: 'default' },
   { key: 'sessionRetentionDays', value: 30, source: 'env' },
   { key: 'piCompactReserveTokens', value: 16_384, source: 'default' },
+  { key: 'maxContextTokens', value: null, source: 'default' },
   { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
   { key: 'taskDispatchEnabled', value: false, source: 'file' },
   { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
@@ -111,6 +112,36 @@ describe('runtime settings panel save gates', () => {
     act(() => { input.props.onChange({ target: { value: '32768' } }); });
     act(() => { save().props.onClick(); });
     expect(onSet).toHaveBeenCalledWith('piCompactReserveTokens', 32_768);
+  });
+
+  it('saves the max context cap as a whole token count, or null once cleared', () => {
+    const onSet = vi.fn();
+    let renderer: ReturnType<typeof create>;
+    const render = (value: number | null) => (
+      <LangProvider>
+        <AdvancedPanelView
+          snapshot={{ ...snapshot, settings: settings.map((entry) => (
+            entry.key === 'maxContextTokens' ? { ...entry, value } : entry)) }}
+          pending={false} onToggle={() => {}} onSet={onSet} />
+      </LangProvider>
+    );
+    act(() => { renderer = create(render(null)); });
+    const input = () => renderer!.root.findByProps({ 'data-number-input': 'maxContextTokens' });
+    const save = () => renderer!.root.findByProps({ 'data-number-save': 'maxContextTokens' });
+    expect(input().props.value).toBe('');
+    expect(save().props.disabled).toBe(true);
+
+    act(() => { input().props.onChange({ target: { value: '99999' } }); });
+    expect(save().props.disabled).toBe(true);
+    act(() => { input().props.onChange({ target: { value: '450000' } }); });
+    act(() => { save().props.onClick(); });
+    expect(onSet).toHaveBeenLastCalledWith('maxContextTokens', 450_000);
+
+    act(() => { renderer!.update(render(450_000)); });
+    act(() => { input().props.onChange({ target: { value: '' } }); });
+    expect(save().props.disabled).toBe(false);
+    act(() => { save().props.onClick(); });
+    expect(onSet).toHaveBeenLastCalledWith('maxContextTokens', null);
   });
 });
 

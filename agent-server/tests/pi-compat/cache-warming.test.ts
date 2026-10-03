@@ -7,7 +7,9 @@ import { createChildSession } from '../../src/agent-adapter/pi/child-session.js'
 import type { PiSessionRequest } from '../../src/agent-adapter/pi/session-options.js';
 
 vi.mock('../../src/core/pi-sdk.js', () => ({ loadPiSdk: async () => sdk }));
-vi.mock('../../src/core/settings.js', () => ({ getSettings: () => ({ piCompactReserveTokens: 1000 }) }));
+vi.mock('../../src/core/settings.js', () => ({
+  getSettings: () => ({ piCompactReserveTokens: 1000, maxContextTokens: null }),
+}));
 vi.mock('../../src/agent-adapter/pi/agent-dir.js', () => ({ ensureCompactionReserve: vi.fn() }));
 vi.mock('../../src/agent-adapter/pi/extensions.js', () => ({ createCortexExtensions: () => [] }));
 vi.mock('../../src/agent-adapter/pi/ui-context.js', () => ({

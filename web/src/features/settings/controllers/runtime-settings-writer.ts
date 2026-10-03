@@ -7,7 +7,7 @@ import { useTRPC } from '@/lib/trpc';
 import type { WritableBooleanSettingKey, WritableSettingKey } from '@/features/settings/vm/platform-env';
 
 export type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
-export type WritableSettingValue = boolean | number;
+export type WritableSettingValue = boolean | number | null;
 
 export interface CommitSettingDeps {
   set: (args: SettingsSetArgs) => Promise<unknown>;

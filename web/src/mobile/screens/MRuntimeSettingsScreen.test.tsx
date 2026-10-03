@@ -47,6 +47,7 @@ const snapshot: ConfigSnapshot = {
     { key: 'serverUpdateDisable', value: false, source: 'default' },
     { key: 'sessionRetentionDays', value: 30, source: 'file' },
     { key: 'piCompactReserveTokens', value: 16_384, source: 'default' },
+    { key: 'maxContextTokens', value: 450_000, source: 'file' },
     { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
     { key: 'taskDispatchEnabled', value: true, source: 'file' },
     { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
@@ -100,5 +101,20 @@ describe('mobile runtime Advanced settings', () => {
     expect(row.findByType('button').props.disabled).toBe(false);
     act(() => row.findByType('button').props.onClick());
     expect(adapter.onSet).toHaveBeenCalledWith('piCompactReserveTokens', 32_768);
+  });
+
+  it('clears the max context cap to null and refuses a value under the range', () => {
+    const renderer = mountAdvanced();
+    const row = renderer.root.findByProps({ 'data-settings-row': 'maxContextTokens' });
+    const input = row.findByType('input');
+    expect(input.props.placeholder).toBeTruthy();
+
+    act(() => input.props.onChange({ target: { value: '99999' } }));
+    expect(row.findByType('button').props.disabled).toBe(true);
+
+    act(() => input.props.onChange({ target: { value: '' } }));
+    expect(row.findByType('button').props.disabled).toBe(false);
+    act(() => row.findByType('button').props.onClick());
+    expect(adapter.onSet).toHaveBeenCalledWith('maxContextTokens', null);
   });
 });

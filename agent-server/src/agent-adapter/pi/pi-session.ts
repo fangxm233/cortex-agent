@@ -295,7 +295,7 @@ export class PISession {
     const session = this.handle?.session;
     if (!session) return null;
     try {
-      return piContextUsageFromStats(session.getSessionStats());
+      return piContextUsageFromStats(session.getSessionStats(), getSettings().maxContextTokens);
     } catch (error) {
       log.warn(`PI session ${this.sessionKey}: session stats unavailable: ${errorValue(error).message}`);
       return null;

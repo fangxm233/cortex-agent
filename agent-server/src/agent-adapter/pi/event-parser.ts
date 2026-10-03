@@ -460,19 +460,23 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   return [{ type: 'ask_user_question', toolUseId: id, questions: [spec] }];
 }
 
-/** Validate a session stats payload (`AgentSession.getSessionStats()`) into a ContextUsage. */
-export function piContextUsageFromStats(data: unknown): ContextUsage | null {
+/**
+ * Validate a session stats payload (`AgentSession.getSessionStats()`) into a ContextUsage. A
+ * context cap below the model's window replaces it as the denominator, since PI compacts below it.
+ */
+export function piContextUsageFromStats(data: unknown, cap: number | null = null): ContextUsage | null {
   const usage = asRecord(asRecord(data)['contextUsage']);
-  const contextWindow = usage['contextWindow'];
-  if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+  const modelWindow = usage['contextWindow'];
+  if (typeof modelWindow !== 'number' || !Number.isFinite(modelWindow) || modelWindow <= 0) {
     return null;
   }
-  return {
-    usedTokens: nullableNonNegativeNumber(usage['tokens']),
-    contextWindow,
-    percent: nullableNonNegativeNumber(usage['percent']),
-    accuracy: 'estimate',
-  };
+  const usedTokens = nullableNonNegativeNumber(usage['tokens']);
+  if (cap === null || modelWindow <= cap) {
+    const percent = nullableNonNegativeNumber(usage['percent']);
+    return { usedTokens, contextWindow: modelWindow, percent, accuracy: 'estimate' };
+  }
+  const percent = usedTokens === null ? null : usedTokens / cap * 100;
+  return { usedTokens, contextWindow: cap, percent, accuracy: 'estimate' };
 }
 
 /** A count the child reported, floored at 0: the accumulator only ever holds finite numbers. */

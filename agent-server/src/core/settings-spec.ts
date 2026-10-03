@@ -54,6 +54,7 @@ export interface Settings {
   memoryIndexRegenIntervalMs: number;
   sessionRetentionDays: number;
   piCompactReserveTokens: number;
+  maxContextTokens: number | null;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -106,6 +107,23 @@ function validatePiCompactReserveTokens(value: number): string | null {
   }
   if (value > MAX_PI_COMPACT_RESERVE_TOKENS) {
     return `must be at most ${MAX_PI_COMPACT_RESERVE_TOKENS} tokens`;
+  }
+  return null;
+}
+
+/**
+ * Cortex-wide cap on a model's usable context window, in tokens. The range is Claude CLI's own
+ * `CLAUDE_CODE_AUTO_COMPACT_WINDOW` range (it raises anything lower to 100K), so both backends
+ * honor the same value exactly.
+ */
+export const MIN_MAX_CONTEXT_TOKENS = 100_000;
+export const MAX_MAX_CONTEXT_TOKENS = 1_000_000;
+
+function validateMaxContextTokens(value: number | null): string | null {
+  if (value === null) return null;
+  if (!Number.isInteger(value)) return 'must be a whole number of tokens';
+  if (value < MIN_MAX_CONTEXT_TOKENS || value > MAX_MAX_CONTEXT_TOKENS) {
+    return `must be between ${MIN_MAX_CONTEXT_TOKENS} and ${MAX_MAX_CONTEXT_TOKENS} tokens`;
   }
   return null;
 }
@@ -372,6 +390,13 @@ export const SETTINGS_SPEC = {
       return Number.isFinite(value) ? value : 16_384;
     },
     validate: validatePiCompactReserveTokens,
+  },
+  // Both backends: the usable window is min(model window, this), and each backend compacts below
+  // it. null leaves every model at its own window (and Claude at its own autoCompactWindow).
+  maxContextTokens: {
+    type: 'number|null',
+    default: null,
+    validate: validateMaxContextTokens,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',

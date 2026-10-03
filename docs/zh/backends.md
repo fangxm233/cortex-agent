@@ -59,6 +59,8 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **Turn 内压缩。** 一个 Cortex turn 就是一整个 PI agent loop，所以工具密集的长 turn 必须能在 loop 内部压缩。PI 自己就会做：工具结果落盘之后、下一次 assistant 回复之前，如果上下文已越过 `窗口 - reserveTokens` 就就地压缩，然后继续同一次运行——全程不 abort，对 Cortex 而言仍是同一个 turn。Cortex 只负责设定这个阈值：`piCompactReserveTokens`（默认 16384，即 PI 自己的默认值）会在会话创建时写进私有 agent 目录的 `settings.json`，余量越大 PI 压缩得越早，长 turn 里留下的可用空间也越多。Claude 不需要这些：CLI 自己就会在 turn 内压缩。
 
+**上下文上限。** `maxContextTokens` 限制两个后端所有模型的可用窗口。Claude 以 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 接收它。PI 这边 Cortex 不改模型自身的窗口（PI 还用它判断上下文溢出），而是由 `runtime-settings.ts` 把上报给 PI 的余量加上「窗口超出上限的部分」，于是 PI 在 `上限 - piCompactReserveTokens` 处压缩；余量最多取上限的一半，避免余量过大导致每个 turn 都压缩。
+
 **Cortex 的粘合层。** Cortex 附加的一切都是按会话在 `extensions.ts` 中装配的 inline PI extension：
 
 - **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 与 browser MCP 仍各自保有独立的 stdio 子进程或远程连接。

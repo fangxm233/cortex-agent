@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { resolveAutoCompactWindow } from '../../src/agent-adapter/claude/compact-window.js';
+import {
+  resolveAutoCompactWindow, resolveClaudeCompactWindow,
+} from '../../src/agent-adapter/claude/compact-window.js';
+import { updateSettings } from '../../src/core/settings.js';
 
 interface Layout {
   local?: unknown;
@@ -69,5 +72,19 @@ describe('resolveAutoCompactWindow', () => {
     const { cwd, userConfigDir } = layout({ project: '{ not json', user: { autoCompactWindow: 350_000 } });
     assert.equal(resolveAutoCompactWindow(cwd, userConfigDir), 350_000);
     assert.equal(resolveAutoCompactWindow(path.join(cwd, 'missing'), path.join(userConfigDir, 'missing')), null);
+  });
+});
+
+describe('resolveClaudeCompactWindow', () => {
+  test('Cortex maxContextTokens outranks the CLI settings files, except in a pinned trial', async () => {
+    const { cwd, userConfigDir } = layout({ user: { autoCompactWindow: 350_000 } });
+    assert.equal(resolveClaudeCompactWindow(cwd, { pinned: false, userConfigDir }), 350_000);
+    await updateSettings({ maxContextTokens: 200_000 });
+    try {
+      assert.equal(resolveClaudeCompactWindow(cwd, { pinned: false, userConfigDir }), 200_000);
+      assert.equal(resolveClaudeCompactWindow(cwd, { pinned: true, userConfigDir }), 350_000);
+    } finally {
+      await updateSettings({ maxContextTokens: null });
+    }
   });
 });

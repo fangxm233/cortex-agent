@@ -28,9 +28,9 @@ import {
   hasAnyKey,
   indexEnv,
   indexSettings,
+  numberSettingLoaded,
   numberSettingRangeLabel,
-  numberSettingValid,
-  parseWholeNumber,
+  parseNumberSettingDraft,
   type BuiltinJobSettingDescriptor,
   type DurationDraft,
   type DurationUnit,
@@ -329,11 +329,13 @@ function NumberControl(props: {
 }) {
   const L = useVocab();
   const invalidTitle = `${L[props.descriptor.invalidKey]} (${numberSettingRangeLabel(props.descriptor)})`;
+  const placeholderKey = props.descriptor.nullable?.placeholderKey;
   return (
     <div style={CONTROL_STRIP_STYLE}>
       <input
         data-number-input={props.descriptor.setting} type="number" step={1} value={props.draft}
         min={props.descriptor.min} max={props.descriptor.max}
+        placeholder={placeholderKey ? L[placeholderKey] : undefined}
         style={NUMBER_INPUT} onChange={(event) => props.onDraft(event.target.value)}
       />
       <SButton tone="neutral" data-number-save={props.descriptor.setting} disabled={!props.canSave}
@@ -355,19 +357,19 @@ function NumberSettingRow(props: {
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(() => (current === null ? '' : String(current)));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
-  const nextValue = parseWholeNumber(draft);
-  const withinRange = numberSettingValid(props.descriptor, nextValue);
-  const canSave = current !== null && withinRange && nextValue !== current && !props.pending;
+  const next = parseNumberSettingDraft(props.descriptor, draft);
+  const canSave = numberSettingLoaded(props.descriptor, entry) && next.valid
+    && next.value !== current && !props.pending;
   return (
     <SRow
       data-setting-key={props.descriptor.setting}
-      data-setting-value={current === null ? 'missing' : String(current)}
+      data-setting-value={entry === undefined ? 'missing' : String(entry.value)}
       data-setting-source={entry?.source ?? 'missing'}
       title={L[props.descriptor.titleKey]} desc={L[props.descriptor.descKey]}
       control={
         <NumberControl descriptor={props.descriptor} draft={draft} canSave={canSave}
-          withinRange={withinRange} onDraft={setDraft}
-          onSave={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }} />
+          withinRange={next.valid} onDraft={setDraft}
+          onSave={() => { if (next.valid) props.onSet(props.descriptor.setting, next.value); }} />
       }
     />
   );

@@ -5,6 +5,9 @@ export const MAX_SESSION_RETENTION_DAYS = Math.floor(Number.MAX_SAFE_INTEGER / 8
 /** PI compaction headroom bounds, in tokens. Mirrors settings-spec. */
 export const MIN_PI_COMPACT_RESERVE_TOKENS = 1_024;
 export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
+/** Cortex-wide context cap bounds, in tokens. Mirrors settings-spec. */
+export const MIN_MAX_CONTEXT_TOKENS = 100_000;
+export const MAX_MAX_CONTEXT_TOKENS = 1_000_000;
 
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }.
@@ -57,7 +60,9 @@ export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'taskArchiveIntervalMs',
   'memoryIndexRegenIntervalMs',
 ] as const;
-export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays', 'piCompactReserveTokens'] as const;
+export const WRITABLE_NUMBER_SETTING_KEYS = [
+  'sessionRetentionDays', 'maxContextTokens', 'piCompactReserveTokens',
+] as const;
 export const WRITABLE_SETTING_KEYS = [
   ...WRITABLE_BOOLEAN_SETTING_KEYS,
   ...WRITABLE_INTERVAL_SETTING_KEYS,
@@ -137,6 +142,8 @@ export interface NumberSettingDescriptor {
   /** Inclusive bounds of the accepted range, mirroring the server's own setting validator. */
   min: number;
   max: number;
+  /** An empty draft saves null; the placeholder names what null means. */
+  nullable?: { placeholderKey: keyof Vocab };
 }
 
 export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
@@ -147,6 +154,15 @@ export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
     invalidKey: 'stAdvRetentionInvalid',
     min: 1,
     max: MAX_SESSION_RETENTION_DAYS,
+  },
+  {
+    setting: 'maxContextTokens',
+    titleKey: 'stAdvMaxContextTitle',
+    descKey: 'stAdvMaxContextDesc',
+    invalidKey: 'stAdvMaxContextInvalid',
+    min: MIN_MAX_CONTEXT_TOKENS,
+    max: MAX_MAX_CONTEXT_TOKENS,
+    nullable: { placeholderKey: 'stAdvMaxContextPlaceholder' },
   },
   {
     setting: 'piCompactReserveTokens',
@@ -165,6 +181,24 @@ export function numberSettingValid(
 ): value is number {
   if (value === null) return false;
   return value >= descriptor.min && value <= descriptor.max;
+}
+
+export type NumberSettingDraft = { valid: true; value: number | null } | { valid: false };
+
+/** What a draft would save: an in-range whole number, or null for a cleared nullable row. */
+export function parseNumberSettingDraft(descriptor: NumberSettingDescriptor, draft: string): NumberSettingDraft {
+  if (descriptor.nullable && draft.trim() === '') return { valid: true, value: null };
+  const value = parseWholeNumber(draft);
+  return numberSettingValid(descriptor, value) ? { valid: true, value } : { valid: false };
+}
+
+/** The stored value is known: a number, or null on a nullable row. A missing entry is not. */
+export function numberSettingLoaded(
+  descriptor: NumberSettingDescriptor,
+  entry: ConfigSettingEntry | undefined,
+): boolean {
+  if (!entry) return false;
+  return typeof entry.value === 'number' || (descriptor.nullable !== undefined && entry.value === null);
 }
 
 /** Range hint appended to the invalid message, e.g. "50–99". */

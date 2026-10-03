@@ -37,7 +37,7 @@ import {
   type TurnTokenUsage,
 } from './event-translator.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
-import { resolveAutoCompactWindow } from './compact-window.js';
+import { resolveClaudeCompactWindow } from './compact-window.js';
 import {
   validateClaudeSupplementalMcpConfig,
   writeClaudeSupplementalMcpConfig,
@@ -240,7 +240,10 @@ function createContextUsageTracker(
 ): ClaudeContextUsageTracker {
   return new ClaudeContextUsageTracker(
     modelName,
-    resolveAutoCompactWindow(cwd, options.pinnedEnv?.CLAUDE_CONFIG_DIR),
+    resolveClaudeCompactWindow(cwd, {
+      pinned: !!options.pinnedEnv,
+      userConfigDir: options.pinnedEnv?.CLAUDE_CONFIG_DIR,
+    }),
   );
 }
 

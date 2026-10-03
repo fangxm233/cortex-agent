@@ -23,8 +23,7 @@ const log = createLogger('pi-runtime');
 export type PiRawEvent = Record<string, unknown> & { type: string };
 
 /** The slice of PI's AgentSession a PISession drives. Narrow so tests can fake it.
- *  The mid-turn context guard's members are optional: a fake without them simply runs unguarded,
- *  and so does a PI build that stopped exposing them. */
+ *  The optional members are only inspected by the SDK smoke runner, so a fake may omit them. */
 export type PiAgentSessionLike = Pick<
   AgentSession, 'sessionId' | 'sessionFile' | 'isStreaming' | 'prompt' | 'steer' | 'abort' | 'compact' | 'getSessionStats'
 > & Partial<Pick<AgentSession, 'agent' | 'settingsManager' | 'getContextUsage' | 'isCompacting'>>;

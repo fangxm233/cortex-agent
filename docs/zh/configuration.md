@@ -362,11 +362,12 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的执行间隔，单位为整数毫秒 | — |
 | `sessionRetentionDays` | number | `30` | 以天为单位的整型保留窗口，必须落在安全范围 `1` 到 `104249991`。保留协调器会在 daemon 启动时运行一次、之后每 6 小时运行一次，并在该键热重载后立即再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/活跃 capture | — |
 | `piCompactReserveTokens` | number | `16384` | 仅 PI 后端：PI 预留的上下文余量，单位 token。上下文超过 `窗口 - reserveTokens` 时 PI 就压缩 —— turn 之间会压，PI 0.84.4 起也会**在 turn 进行中**于工具批次边界压 —— 所以余量越大压缩越早，长 turn 里留下的可用空间越多。取值为 `1024` 到 `131072` 之间的整数。Cortex 把它写进私有 PI agent 目录的 `settings.json`，这也是唯一的入口：PI 没有为它提供 setter | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
+| `maxContextTokens` | number \| null | `null` | 两个后端共用的上下文窗口上限，单位 token：可用窗口取模型自身窗口与该值中较小的一个，各后端在到达它之前压缩。取值为 `100000` 到 `1000000` 之间的整数（即 Claude Code 自身接受的范围），或 `null` 表示每个模型使用自身窗口。Claude 以 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 接收它，优先级高于 Claude 设置文件里的 `autoCompactWindow`；模型窗口超过上限时，PI 在 `上限 - piCompactReserveTokens` 处压缩。上下文占用百分比按截断后的窗口计算 | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`sessionRetentionDays`、`piCompactReserveTokens`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
 
@@ -375,6 +376,8 @@ Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`aut
 内置任务间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
 
 `sessionRetentionDays` 是 **设置 → 高级** 中唯一的数值型保留控制项。桌面 Web UI 通过与布尔运行时开关相同的 `config.set { section: 'settings' }` 路径写入它，客户端也会执行与服务端相同的上界校验。`piCompactReserveTokens` 在同一张卡片、走同一条写入路径；客户端接受 `1024`–`131072`，与服务端校验一致。Cortex 在创建 PI 会话时把它写进 PI 的私有 `settings.json`，所以新值无需重启即可作用于下一个 PI 会话；已经在池子里的会话仍沿用创建时的余量。
+
+`maxContextTokens` 也在这张卡片里。输入框接受 `100000`–`1000000`；清空后保存为 `null`，即每个模型使用自身窗口。PI 每次判断是否压缩时都会读取这个上限，所以运行中的 PI 会话会立即遵循新值；Claude 在 CLI 进程启动时读取它，所以新值作用于下一个 Claude 会话。固定环境的 CLI 兼容性试运行不会收到它。
 
 这个保留时钟覆盖五类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution 与 thread step、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
 

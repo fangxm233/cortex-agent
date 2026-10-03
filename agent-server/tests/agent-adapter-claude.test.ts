@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
-import { resetSettingsForTests } from '../src/core/settings.js';
+import { resetSettingsForTests, updateSettings } from '../src/core/settings.js';
 import {
   buildSpawnArgs, buildClaudeEnv, resolveClaudeMcpBundles,
 } from '../src/agent-adapter/claude/spawn-args.js';
@@ -969,6 +969,24 @@ test('buildClaudeEnv — defaults MCP calls to the shared 30m30s deadline', () =
   assert.equal(defaultEnv.MCP_TOOL_TIMEOUT, '1830000');
   assert.equal(overriddenEnv.MCP_TOOL_TIMEOUT, '90000');
   assert.equal(deletedEnv.MCP_TOOL_TIMEOUT, undefined);
+});
+
+test('buildClaudeEnv — maxContextTokens reaches the CLI as its auto-compact window, except in pinned trials', async () => {
+  const prev = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+  process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '777000';
+  try {
+    assert.equal(buildClaudeEnv('C1', 'sid-1').CLAUDE_CODE_AUTO_COMPACT_WINDOW, undefined);
+    await updateSettings({ maxContextTokens: 450_000 });
+    assert.equal(buildClaudeEnv('C1', 'sid-2').CLAUDE_CODE_AUTO_COMPACT_WINDOW, '450000');
+    const pinned = buildClaudeEnv(
+      'C1', 'sid-3', null, null, undefined, undefined, undefined, { PATH: process.env.PATH },
+    );
+    assert.equal(pinned.CLAUDE_CODE_AUTO_COMPACT_WINDOW, undefined);
+  } finally {
+    await updateSettings({ maxContextTokens: null });
+    if (prev === undefined) delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+    else process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = prev;
+  }
 });
 
 test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override DISABLE_AUTO_MEMORY', () => {

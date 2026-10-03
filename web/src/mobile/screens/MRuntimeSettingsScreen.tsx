@@ -10,8 +10,8 @@ import { pickCopy } from '@/mobile/ui/format';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
-  durationDraftFromMs, durationDraftToMs, numberSettingValid,
-  hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
+  durationDraftFromMs, durationDraftToMs, numberSettingLoaded, parseNumberSettingDraft,
+  hasAnyKey, indexEnv, indexSettings, type AdvancedFlag,
   type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
 } from '@/features/settings/vm/platform-env';
@@ -79,16 +79,19 @@ function NumberSettingRow(props: {
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(current === null ? '' : String(current));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
-  const value = parseWholeNumber(draft);
-  const valid = numberSettingValid(props.descriptor, value);
+  const next = parseNumberSettingDraft(props.descriptor, draft);
+  const canSave = numberSettingLoaded(props.descriptor, entry) && next.valid
+    && next.value !== current && !props.write.pending;
+  const placeholderKey = props.descriptor.nullable?.placeholderKey;
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
     sub={L[props.descriptor.descKey]} trailing={
     <div className="mobile-settings-number-control">
       <input type="number" aria-label={L[props.descriptor.titleKey]} value={draft} onChange={(event) => setDraft(event.target.value)}
         min={props.descriptor.min} max={props.descriptor.max}
+        placeholder={placeholderKey ? L[placeholderKey] : undefined}
         step={1} />
-      <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
-        onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
+      <MSettingsButton disabled={!canSave}
+        onClick={() => { if (next.valid) props.write.onSet(props.descriptor.setting, next.value); }}>{L.stBuiltinSave}</MSettingsButton>
     </div>} />;
 }
 

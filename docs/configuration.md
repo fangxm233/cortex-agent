@@ -450,6 +450,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
 | `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator runs once at daemon startup, every 6 hours, and again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
 | `piCompactReserveTokens` | number | `16384` | PI backend only: the context headroom PI keeps in reserve, in tokens. PI compacts once the context passes `contextWindow - reserveTokens` — both between turns and, since PI 0.84.4, *inside* a running turn at a tool-batch boundary — so a larger reserve compacts earlier and leaves more working room in a long tool-driven turn. A whole number from `1024` through `131072`. Cortex mirrors it into the private PI agent dir's `settings.json`, which is the only way in: PI exposes no setter for it | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
+| `maxContextTokens` | number \| null | `null` | Cap on every model's usable context window, in tokens, for both backends: the usable window is the smaller of the model's own window and this value, and each backend compacts before reaching it. A whole number from `100000` through `1000000` (Claude Code's own accepted range), or `null` to leave every model at its own window. Claude receives it as `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, which outranks any `autoCompactWindow` in Claude's settings files; PI compacts at `cap - piCompactReserveTokens` once a model's window exceeds the cap. Context-usage percentages use the capped window | — |
 | `uiCorsOrigins` | string[] | `[]` | Origins that receive CORS headers from the Web UI HTTP host. See [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS` (comma-separated) |
 | `adminChannel` | string \| null | `null` | Slack channel for system notices (startup, rate-limit, disk alerts). The first DM to the bot is auto-detected and persisted here | `SLACK_ADMIN_CHANNEL`, then `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | Feishu admin `chat_id` (`oc_...`) for the same notices. Independent of `adminChannel` — Slack channel ids are not usable on Feishu | `FEISHU_ADMIN_CHANNEL` |
@@ -458,7 +459,7 @@ The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
 `serverUpdateDisable`, `commissionEnabled`, `sessionRetentionDays`,
-`piCompactReserveTokens`, and the
+`maxContextTokens`, `piCompactReserveTokens`, and the
 built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
 
@@ -495,6 +496,13 @@ client accepts `1024`–`131072`, exactly what the server validates. Cortex writ
 it into PI's private `settings.json` when a PI session is created, so a new value
 reaches the next PI session without a restart — sessions already pooled keep the
 reserve they were built with.
+
+`maxContextTokens` sits in the same card. Its field accepts `100000`–`1000000`;
+clearing the field saves `null`, which leaves every model at its own window. PI
+reads the cap each time it decides whether to compact, so running PI sessions
+follow a new value at once. Claude takes it when its CLI process starts, so it
+reaches the next Claude session; a pinned CLI compatibility trial never
+receives it.
 
 The retention coordinator has five housekeeping surfaces on that clock: live
 session-registry expiry (via `delete-intent` then `delete-commit`), orphan

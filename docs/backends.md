@@ -150,6 +150,13 @@ mirrored into the private agent dir's `settings.json` when a session is created,
 and a larger reserve makes PI compact earlier, leaving more working headroom.
 Claude needs none of this: the CLI compacts inside a turn by itself.
 
+**Context cap.** `maxContextTokens` caps the usable window of every model on both
+backends. Claude receives it as `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. On PI, Cortex
+leaves the model's own window untouched, since PI also uses it to detect overflow,
+and instead widens the reserve that `runtime-settings.ts` reports by the window's
+excess over the cap. PI then compacts at `cap - piCompactReserveTokens`, with the
+reserve bounded to half the cap so a large reserve cannot compact every turn.
+
 **Cortex's glue.** Everything Cortex adds is a set of inline PI extensions
 assembled per session in `extensions.ts`:
 
