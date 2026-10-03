@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
+import { describeModelFields, type ModelFieldBases } from '@core/agents/subagent/catalog.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
+import { hostModelOptions } from './subagent.js';
 
 /** Every worker tool returns at once; the daemon answers within this bound. */
 const TEAM_REQUEST_TIMEOUT_MS = 30 * 1000;
@@ -25,6 +27,22 @@ function textResult(text: string, isError = false) {
 const NON_BLOCKING = 'Returns immediately. Worker reports and questions arrive later as new messages '
   + 'in this conversation; after dispatching work, end your turn instead of waiting or polling.';
 
+const WORKER_MODEL_FIELD_BASES: ModelFieldBases = {
+  model: 'Optional model: provider/model[:thinking] for a pi worker, a bare model id for a claude '
+    + 'worker. Omit to keep your own current model (same backend) or use that backend\'s default.',
+  backend: 'Optional backend: "claude" or "pi". Omit to use your own.',
+};
+
+/** The backend/model field text, listing the same host catalog the `agent` tool offers. A catalog
+ *  that cannot be read degrades to the bare lead-ins rather than failing registration. */
+function describeWorkerModelFields(ctx: CortexToolContext): ModelFieldBases {
+  try {
+    return describeModelFields(hostModelOptions(ctx), WORKER_MODEL_FIELD_BASES);
+  } catch {
+    return WORKER_MODEL_FIELD_BASES;
+  }
+}
+
 /** One handler shape for all five tools: proxy, then render the daemon's text or the error. */
 function handler<P extends Record<string, unknown>>(ctx: CortexToolContext, action: string) {
   return async (params: P) => {
@@ -38,19 +56,22 @@ function handler<P extends Record<string, unknown>>(ctx: CortexToolContext, acti
 }
 
 export function registerWorkerTools(server: McpServer, ctx: CortexToolContext): void {
+  const described = describeWorkerModelFields(ctx);
   server.tool(
     'worker_spawn',
     'Start a persistent worker: a separate session with its own context and full tool surface, '
     + 'which you can continue later with worker_send. Use a worker for work that may need follow-up, '
     + 'runs long, or may need back-and-forth. For bounded reconnaissance or verification whose result '
     + 'you consume immediately, use the one-shot `agent` tool instead. Write a self-contained prompt: '
-    + 'the worker does not see this conversation. The user can open the worker and talk to it directly. '
+    + 'the worker does not see this conversation. The worker keeps your current model unless you pass '
+    + 'backend or model. The user can open the worker and talk to it directly. '
     + 'Each worker turn reports back to you with its final reply; its questions and plan approvals are '
     + `routed to you (answer with worker_answer). ${NON_BLOCKING}`,
     {
       name: z.string().describe('Short unique slug for this worker, e.g. "api-refactor" (lowercase letters, digits, hyphens; max 32).'),
       prompt: z.string().describe('Complete, self-contained task for the worker.'),
-      profile: z.string().optional().describe('Profile to run the worker on; defaults to your own.'),
+      backend: z.enum(['claude', 'pi']).optional().describe(described.backend),
+      model: z.string().optional().describe(described.model),
     },
     handler(ctx, 'spawn'),
   );

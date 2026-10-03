@@ -26,6 +26,7 @@ test('cortex-workers registers the five worker tools, each proxied to /webhook/t
   const port = (http.address() as AddressInfo).port;
   const server = await createBundledServer(['cortex-workers'], toolContextFromEnv({
     WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'lead-1',
+    CORTEX_SUBAGENT_PI_MODELS: JSON.stringify([{ backend: 'pi', provider: 'deepseek', id: 'deepseek-v4-flash' }]),
   }));
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'workers-test', version: '1.0.0' });
@@ -36,6 +37,13 @@ test('cortex-workers registers the five worker tools, each proxied to /webhook/t
     const spawn = tools.find(t => t.name === 'worker_spawn')!;
     assert.match(spawn.description!, /one-shot `agent` tool/);
     assert.match(spawn.description!, /end your turn/);
+    assert.match(spawn.description!, /keeps your current model/);
+    const props = (spawn.inputSchema as any).properties;
+    assert.deepEqual(Object.keys(props).sort(), ['backend', 'model', 'name', 'prompt']);
+    assert.deepEqual(props.backend.enum, ['claude', 'pi']);
+    assert.match(props.model.description, /^Optional model: provider\/model\[:thinking\] for a pi worker/);
+    assert.match(props.model.description, /pi: deepseek\/deepseek-v4-flash/, 'the host catalog is listed');
+    assert.match(props.backend.description, /Both backends have models configured/);
 
     const ok = await client.callTool({ name: 'worker_spawn', arguments: { name: 'a', prompt: 'do it' } });
     assert.equal(ok.isError ?? false, false);

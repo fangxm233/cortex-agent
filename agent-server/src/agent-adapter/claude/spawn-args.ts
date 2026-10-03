@@ -461,8 +461,10 @@ function applyContextCap(env: NodeJS.ProcessEnv): void {
   if (cap !== null) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(cap);
 }
 
-/** The provider/model catalogs the MCP sidecar offers subagents, read from the daemon's caches. */
-function applySubagentModelEnv(env: NodeJS.ProcessEnv): void {
+/** The provider/model catalogs the MCP sidecar offers subagents, read from the daemon's caches.
+ *  Exported for the in-process PI host, whose session env never carries them. */
+export function subagentModelEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
   // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it
   // already cached. Peeked, never refreshed: decorating a Claude spawn must not be what loads the
   // PI SDK. An empty cache writes nothing, so such a spawn stays byte-identical to one from before
@@ -472,9 +474,7 @@ function applySubagentModelEnv(env: NodeJS.ProcessEnv): void {
       .slice(0, MAX_SUBAGENT_PI_MODELS)
       .map((model) => ({ provider: model.provider, id: model.model })),
   );
-  if (piModels.length > 0) {
-    setIfPresent(env, 'CORTEX_SUBAGENT_PI_MODELS', encodeSubagentModels(piModels));
-  }
+  if (piModels.length > 0) env.CORTEX_SUBAGENT_PI_MODELS = encodeSubagentModels(piModels);
   // Same hand-off for the Anthropic side: the sidecar has no credential of its own to ask the
   // Models API with, so it inherits what the daemon already discovered. Never waited on — a stale
   // cache answers now and refreshes in the background — so an empty cache writes nothing and the
@@ -483,8 +483,13 @@ function applySubagentModelEnv(env: NodeJS.ProcessEnv): void {
   if (discoveredClaude.length > 0) {
     const claudeModels = claudeModelOptions(null, anthropicModelIds(discoveredClaude))
       .slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
-    setIfPresent(env, 'CORTEX_SUBAGENT_CLAUDE_MODELS', encodeSubagentModels(claudeModels));
+    env.CORTEX_SUBAGENT_CLAUDE_MODELS = encodeSubagentModels(claudeModels);
   }
+  return env;
+}
+
+function applySubagentModelEnv(env: NodeJS.ProcessEnv): void {
+  for (const [key, value] of Object.entries(subagentModelEnv())) setIfPresent(env, key, value);
 }
 
 export function buildClaudeEnv(
