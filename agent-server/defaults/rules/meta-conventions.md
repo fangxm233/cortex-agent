@@ -5,7 +5,7 @@ paths:
 
 # Context Meta-Rules
 
-Cross-file conventions. See the dedicated rule for each file type in the same directory (status-md.md / issues-md.md / mission-md.md / roadmap-md.md / overview-md.md / agents-md.md / task-system.md / experiment-format.md / decision-records.md).
+Cross-file conventions. See the dedicated rule for each file type in the same directory (status-md.md / issues-md.md / mission-md.md / roadmap-md.md / overview-md.md / agents-md.md / experiment-format.md / decision-records.md).
 
 ## General Rules
 
@@ -37,7 +37,6 @@ PostToolUse hook automatically records Read/Grep access to atomic files (EXP/K/P
 | `mission.md` | mission-md.md | Modify after user confirmation |
 | `roadmap.md` | roadmap-md.md | Stable, milestones must contain testable checklist |
 | `OVERVIEW.md` | overview-md.md | Synchronous update, hard limit 60 lines |
-| `TASKS.yaml` | task-system.md | Read/write via cortex-task CLI, do not manually edit |
 | `experiments/EXP-NNN.md` | experiment-format.md | Atomic file + frontmatter |
 | `knowledge/K-NNN.md` | experiment-format.md | Atomic file + evidence field |
 | `patterns/PAT-NNN.md` | experiment-format.md | Atomic file + source-experiments |

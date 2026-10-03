@@ -40,7 +40,7 @@ The project's "constitution": defines goals and success conditions. It is the ba
 - Project pitch / related-work comparison / extended "why this is worth doing" argumentation → belongs in a proposal/outline document; mission keeps only goal, success conditions, scope boundaries, resource constraints
 - Current progress/phase → belongs in `STATUS.md`
 - Roadmap and milestones → belongs in `roadmap.md`
-- Task list → belongs in `TASKS.yaml`
+- Task list → next steps belong in `STATUS.md`, milestones in `roadmap.md`
 - Experiment data → belongs in `experiments/`
 
 ## Modification Process

@@ -20,7 +20,6 @@ Root directory for project context. All project state, experiment records, knowl
 - **Find user preferences** -> `user/USER.md`
 - **Find system-level decisions** -> `decisions/` (browse with ls, search with grep)
 - **Find project-level decisions** -> `projects/<name>/decisions/`
-- **Find project task queue** -> `projects/<name>/TASKS.md` (structured task list)
 - **Find experience distillation** -> `retrospectives/YYYY-MM-DD-<topic>.md`
 - **Find scan report** -> `scans/YYYY-MM-DD.md`
 - **Find project current state** -> `projects/<name>/STATUS.md`
@@ -28,7 +27,6 @@ Root directory for project context. All project state, experiment records, knowl
 - **Find experiment records** -> `projects/<name>/experiments/index.md` (index table), details via Read specific `EXP-NNN.md`
 - **Find knowledge entries** -> `projects/<name>/knowledge/index.md` (index table), details via Read specific `K-NNN.md`
 - **Find cross-experiment patterns** -> `projects/<name>/patterns/index.md`
-- **Find completed task history** -> `projects/<name>/tasks-archive.md` (auto-archive >3 days after completion)
 - **Find project goals** -> `projects/<name>/mission.md`
 - **Find roadmap** -> `projects/<name>/roadmap.md`
 - **Find incubating direction ideas** -> `ideas/<name>.md`

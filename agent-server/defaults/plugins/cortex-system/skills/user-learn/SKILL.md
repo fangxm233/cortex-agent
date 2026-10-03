@@ -22,7 +22,7 @@ $ARGUMENTS
 ## Constraints
 
 - **USER.md hard limit: 3KB (3072 bytes).** Never let the file exceed this size.
-- USER.md is injected into every direct-conversation thread prompt. Bloat here costs tokens on every turn.
+- USER.md is injected into every conversation session. Bloat here costs tokens on every turn.
 - Prefer updating existing entries over adding new ones.
 - Use terse, structured format (bullet lists, not prose).
 
