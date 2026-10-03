@@ -211,6 +211,7 @@ export class PISession {
    */
   private flushTextBuffer(): void {
     if (this.textBuffer.length > 0) {
+      if (this.pendingTurn) this.pendingTurn.lastAssistantText = this.textBuffer;
       this.turnStream?.push(
         this.textBlockId !== null
           ? { type: 'assistant_text', text: this.textBuffer, blockId: this.textBlockId }
@@ -240,7 +241,7 @@ export class PISession {
   private startTurnIdleTimer(): void {
     this.turnIdleTimer = setTimeout(() => {
       log.info(`Session ${this.sessionKey} turn idle for 60min, killing`);
-      this.kill();
+      this.kill(new Error('PI turn idle for 60min'));
       this.onClose?.(this.sessionKey, this);
     }, PI_TURN_IDLE_TIMEOUT);
     this.turnIdleTimer.unref?.();
@@ -452,7 +453,7 @@ export class PISession {
       enteredPlanMode: false,
       exitedPlanMode: turn.planFilePath !== null,
       askUserQuestions: undefined,
-      finalOutput: null,
+      finalOutput: turn.lastAssistantText,
     };
   }
 
@@ -627,6 +628,7 @@ export class PISession {
       promptDispatched: false,
       openingUserSeen: false,
       deferredCompletion: false,
+      lastAssistantText: null,
     };
     this.startTurnIdleTimer();
   }
@@ -646,12 +648,16 @@ export class PISession {
   }
 
   async close(): Promise<void> {
+    return this.shutdown(new Error('PI session closed before turn_complete'));
+  }
+
+  private async shutdown(turnError: Error): Promise<void> {
     this.clearTimers();
     if (!this.alive) return;
     this.alive = false;
     this.steering.abandon();
     this.steering.clearSink();
-    this.rejectPendingTurn(new Error('PI session closed before turn_complete'));
+    this.rejectPendingTurn(turnError);
     this.closeTurnStream();
     const handle = this.handle;
     this.handle = null;
@@ -663,12 +669,13 @@ export class PISession {
     }
   }
 
-  /** Abort whatever PI is doing and release the session. True when it was alive. */
-  kill(): boolean {
+  /** Abort whatever PI is doing and release the session. True when it was alive. A pending turn
+   *  is rejected as cancelled (a Stop), unless the caller names another reason. */
+  kill(turnError: Error = Object.assign(new Error('Cancelled by user'), { cancelled: true })): boolean {
     if (!this.alive) return false;
     const handle = this.handle;
     if (handle) handle.session.abort().catch(() => undefined);
-    void this.close();
+    void this.shutdown(turnError);
     return true;
   }
 }

@@ -22,6 +22,8 @@ export interface PendingPiTurn {
   promptDispatched: boolean;
   openingUserSeen: boolean;
   deferredCompletion: boolean;
+  /** The main agent's last complete text block this turn: the turn's final output. */
+  lastAssistantText: string | null;
 }
 
 export function buildPromptText(message: UserMessage): string {

@@ -72,7 +72,7 @@ test('open().run() yields the phased events, in order, for a scripted PI turn', 
     // PI's `buildAgentResult` always writes the key (undefined when the turn asked nothing), and
     // the strict comparison pins that own property rather than treating an absent key as equal.
     askUserQuestions: undefined,
-    finalOutput: null,
+    finalOutput: 'hello',
   };
   // The RunEvent stream is the tapped protocol record phased foreground, minus `turn_complete`
   // (the marker, not a result), plus the authoritative result and the terminal phase.
