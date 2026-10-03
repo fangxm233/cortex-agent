@@ -123,8 +123,8 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
   noteDispatch(created.sessionId, prompt, deps.now());
   deps.deliver({ channel: created.channel, text: prompt, origin: 'team-lead' });
   return ok(
-    `Worker "${name}" started. Its report will arrive as a new message; end your turn now unless you `
-    + 'have other work to do.',
+    `Worker "${name}" started (session ${created.sessionId}). Its report will arrive as a new message; `
+    + 'end your turn now unless you have other work to do.',
     { name, sessionId: created.sessionId, status: 'running' },
   );
 }
