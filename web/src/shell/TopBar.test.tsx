@@ -2,13 +2,15 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TopBar } from './TopBar';
 
+const chrome = vi.hoisted(() => ({ mode: 'custom', fullscreen: false }));
 const actions = vi.hoisted(() => ({
   theme: vi.fn(), settings: vi.fn(), settingsSection: vi.fn(), rail: vi.fn(), back: vi.fn(), forward: vi.fn(),
   daemon: vi.fn(), minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn(),
 }));
 vi.mock('@/i18n', () => ({ useVocab: () => new Proxy({}, { get: (_, key) => String(key) }) }));
 vi.mock('@/lib/desktop-platform', () => ({
-  captionInsetLeft: () => 0, titleBarMode: () => 'custom', usesCommandKey: () => false,
+  captionInsetLeft: () => (chrome.mode === 'overlay' ? 78 : 0), titleBarMode: () => chrome.mode,
+  usesCommandKey: () => false,
   desktopPlatform: () => 'linux',
 }));
 vi.mock('@/theme', () => ({ useTheme: () => 'light', useSetTheme: () => actions.theme }));
@@ -27,12 +29,15 @@ vi.mock('./NavigationHistoryProvider', () => ({
 vi.mock('./useShellModals', () => ({ useShellModals: () => ({ openDaemonStatus: actions.daemon }) }));
 vi.mock('./menu/useAppMenus', () => ({ useAppMenus: () => ({
   menus: ['File', 'Edit', 'View', 'Help'].map((label) => ({ id: label, label, items: [] })),
-  windowActions: { ...actions, isFullscreen: false, isMaximized: false },
+  windowActions: { ...actions, isFullscreen: chrome.fullscreen, isMaximized: false },
 }) }));
 vi.mock('./menu/useMenuShortcuts', () => ({ useMenuShortcuts: () => {} }));
 vi.mock('./menu/useNativeMenu', () => ({ useNativeMenu: () => ({ active: false }) }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  Object.assign(chrome, { mode: 'custom', fullscreen: false });
+});
 
 describe('responsive TopBar', () => {
   it('retains all app menus and a shrinkable named palette button', () => {
@@ -61,6 +66,34 @@ describe('responsive TopBar', () => {
     ['rail', 'back', 'forward', 'settings', 'minimize', 'toggleMaximize', 'close'].forEach((key) => {
       expect(actions[key as keyof typeof actions]).toHaveBeenCalledOnce();
     });
+    act(() => view.unmount());
+  });
+});
+
+describe('TopBar in full screen', () => {
+  const bar = (view: ReturnType<typeof create>) => view.root.findByProps({ 'data-app-topbar': true });
+
+  it('stays on macOS without the traffic-light strip or window drag', () => {
+    Object.assign(chrome, { mode: 'overlay', fullscreen: true });
+    const view = create(<TopBar />);
+    expect(bar(view).props.style.display).toBe('flex');
+    expect(bar(view).props['data-tauri-drag-region']).toBeUndefined();
+    expect(bar(view).findAllByType('div')[1].props.style.width).toBe(0);
+    act(() => view.unmount());
+  });
+
+  it('reserves the traffic-light strip on macOS outside full screen', () => {
+    Object.assign(chrome, { mode: 'overlay', fullscreen: false });
+    const view = create(<TopBar />);
+    expect(bar(view).props['data-tauri-drag-region']).toBe('deep');
+    expect(bar(view).findAllByType('div')[1].props.style.width).toBe(78);
+    act(() => view.unmount());
+  });
+
+  it('hides on Windows and Linux', () => {
+    Object.assign(chrome, { mode: 'custom', fullscreen: true });
+    const view = create(<TopBar />);
+    expect(bar(view).props.style.display).toBe('none');
     act(() => view.unmount());
   });
 });
