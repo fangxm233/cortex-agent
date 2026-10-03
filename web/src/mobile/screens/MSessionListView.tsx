@@ -163,10 +163,10 @@ function RowMeta({ row, twoLine }: { row: MSessionRow; twoLine: boolean }) {
 // A live row takes a faint accent wash so a running session stands out while scanning the list.
 const LIVE_WASH = 'color-mix(in srgb, var(--proto-accent) 7%, transparent)';
 
-function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }) {
+function Row({ row, onOpen, nested = false }: { row: MSessionRow; onOpen: (id: string) => void; nested?: boolean }) {
   const twoLine = row.status.kind !== 'idle';
   const strong = row.unread || twoLine;
-  return (
+  const body = (
     <div
       className="m-press"
       data-session-id={row.id}
@@ -175,12 +175,14 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        minHeight: 48,
-        padding: twoLine ? '9px 14px' : '0 14px',
+        minHeight: nested ? 42 : 48,
+        // A team worker sits one indent in, under its lead, inside the same group.
+        padding: nested ? `${twoLine ? '9px' : '0'} 14px ${twoLine ? '9px' : '0'} 30px` : twoLine ? '9px 14px' : '0 14px',
         boxSizing: 'border-box',
         borderRadius: 10,
         cursor: 'pointer',
         background: isLive(row.status) ? LIVE_WASH : undefined,
+        opacity: row.retired ? 0.55 : undefined,
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -190,6 +192,13 @@ function Row({ row, onOpen }: { row: MSessionRow; onOpen: (id: string) => void }
         <StatusLine status={row.status} />
       </div>
       <RowMeta row={row} twoLine={twoLine} />
+    </div>
+  );
+  if (!row.children?.length) return body;
+  return (
+    <div data-lead-group={row.id}>
+      {body}
+      {row.children.map((child) => <Row key={child.id} row={child} onOpen={onOpen} nested />)}
     </div>
   );
 }

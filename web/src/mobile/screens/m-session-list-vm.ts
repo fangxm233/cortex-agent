@@ -5,6 +5,7 @@ import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
 import { orderSessions } from '@/features/session/list/session-groups';
+import { groupWorkers, isRetiredWorker } from '@/features/team/worker-groups';
 import { relTime } from '@/mobile/ui/format';
 
 type Lang = 'en' | 'zh';
@@ -18,6 +19,10 @@ export interface MSessionRow {
   time: string;
   unread: boolean;
   status: MSessionStatus;
+  /** Team mode only: a retired worker, rendered dimmed. */
+  retired?: boolean;
+  /** Team mode only: this lead's workers, indented under it in the same group. */
+  children?: MSessionRow[];
 }
 
 const STATUS_TEXT: Record<Lang, {
@@ -72,26 +77,40 @@ function toRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
   };
 }
 
+function toWorkerRow(s: SessionInfo, now: number, lang: Lang): MSessionRow {
+  const row = toRow(s, now, lang);
+  return isRetiredWorker(s) ? { ...row, retired: true } : row;
+}
+
 /** Scope before partitioning: Stars never aggregate sessions from different projects. */
 export function buildProjectSessionList(
   projectId: string | null, direct: SessionInfo[], scheduled: SessionInfo[],
-  schedules: ScheduleInfo[], now: number = Date.now(), lang: Lang = 'en',
+  schedules: ScheduleInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
 ) {
   // While project selection is unresolved, retain the existing flat list, not a global Stars group.
   if (projectId === null) return {
-    rows: buildSessionRows(direct, now, lang), starredRows: [],
+    rows: buildSessionRows(direct, now, lang, team), starredRows: [],
     scheduleRows: buildScheduleRows(schedules, scheduled),
   };
   const own = (session: SessionInfo) => session.projectId === projectId;
   const partition = partitionStarredSessions(direct.filter(own), scheduled.filter(own));
   return {
-    rows: buildSessionRows(partition.direct, now, lang),
+    rows: buildSessionRows(partition.direct, now, lang, team),
     starredRows: buildSessionRows(partition.starred, now, lang),
     scheduleRows: buildScheduleRows(schedules.filter(s => s.projectId === projectId), partition.scheduled),
   };
 }
 
-/** Rows for the 会话 list, in desktop rail-folder order. */
-export function buildSessionRows(sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en'): MSessionRow[] {
-  return orderSessions(sessions).map((s) => toRow(s, now, lang));
+/** Rows for the 会话 list, in desktop rail-folder order. In team mode a lead carries its workers
+ *  (those whose lead is in the same list) as `children`; the rest stay flat. */
+export function buildSessionRows(
+  sessions: SessionInfo[], now: number = Date.now(), lang: Lang = 'en', team = false,
+): MSessionRow[] {
+  if (!team) return orderSessions(sessions).map((s) => toRow(s, now, lang));
+  const { top, workers } = groupWorkers(sessions);
+  return orderSessions(top).map((s) => {
+    const children = workers.get(s.sessionId);
+    const row = toRow(s, now, lang);
+    return children ? { ...row, children: children.map((w) => toWorkerRow(w, now, lang)) } : row;
+  });
 }

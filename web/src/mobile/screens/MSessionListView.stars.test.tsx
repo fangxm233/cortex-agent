@@ -60,3 +60,20 @@ describe('mobile project Stars', () => {
     act(() => tree.unmount());
   });
 });
+
+describe('mobile team worker rows', () => {
+  it('indents children under their lead and dims retired workers', () => {
+    const lead: MSessionRow = { ...row('lead'), children: [row('w1'), { ...row('w2'), retired: true }] };
+    const tree = create(<MSessionListView rows={[lead, row('plain')]} copy={{ title: 'Sessions', empty: 'No sessions' }}
+      presence="connected" newLabel="New" onNew={() => {}} onOpen={onOpen} />);
+    expect(sessionIds(tree)).toEqual(['lead', 'w1', 'w2', 'plain']);
+    const style = (id: string) => tree.root.findByProps({ 'data-session-id': id }).props.style;
+    expect(style('lead').padding).toBe('0 14px');
+    expect(style('w1').padding).toBe('0 14px 0 30px');
+    expect(style('w1').opacity).toBeUndefined();
+    expect(style('w2').opacity).toBe(0.55);
+    expect(tree.root.findAllByProps({ 'data-lead-group': 'lead' })).toHaveLength(1);
+    expect(tree.root.findAllByProps({ 'data-lead-group': 'plain' })).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+});
