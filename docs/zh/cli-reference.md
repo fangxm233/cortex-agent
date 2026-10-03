@@ -189,16 +189,18 @@ cortex-evidence-export --input-file <路径|->
 ```
 
 从 `CORTEX_HOME` 下的生产 store 发布不可变的 terminal/composite benchmark evidence v2。
-命令初始化生产 attempt identity 与 journal store，加载 `data/executions.json` 和
-`data/threads.json`，读取归因后的 cost、任务状态与生产 topology，再把验证和原子发布委托给
-`exportProductionBenchmarkEvidence`。Cortex benchmark arm 始终运行真实 production server；
-此命令只记录该 runtime 的 store，不定义第二条 orchestration path。
+命令初始化生产 attempt identity 与 journal store，加载 `data/executions.json`，读取归因后的
+cost，再把验证和原子发布委托给 `exportProductionBenchmarkEvidence`。Cortex benchmark arm
+始终运行真实 production server，每个 trial 是一个 direct session；此命令只记录该 runtime 的
+store，不定义第二条 orchestration path。
+
+Evidence 按 session 与 execution 建键：trial 的 session 打开的每次 run 是一个 attempt，
+由 `session_id` 和 `execution_id` 标识；session 中每个后续 run 是前一个 run 的 spawn 子节点。
 
 `--input-file` 接收 JSON 编码的 `ProductionEvidenceExportInput`；传 `-` 表示从 stdin 读取。
-所有字段都由 launcher 持有：`outputDirectory`、`project`、`trialId`、`rootRunId`、
-`armName`、`armCanonicalSha256`、`bundleManifestHash`、`mode`、`expectedRoles`、
-`managerQa`、`proxyExport`，以及可选的 `evaluatedChecks`。发布前会验证 hash、mode、
-role 集合、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录
+所有字段都由 launcher 持有：`outputDirectory`、`trialId`、`rootRunId`、`armName`、
+`armCanonicalSha256`、`bundleManifestHash`、`proxyExport`，以及可选的 `evaluatedChecks`。
+发布前会验证 hash、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录
 不完整、或输出目录已存在时，命令以退出码 `1` fail closed。
 
 ```bash
