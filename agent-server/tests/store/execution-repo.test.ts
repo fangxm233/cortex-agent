@@ -283,7 +283,11 @@ test('persistence — a new record carries no thread or dispatch data, and a leg
   const repo = createRepo();
   const fresh = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'fresh' });
   assert.equal('thread' in fresh, false);
-  assert.equal(fresh.dispatch, null);
+  assert.equal('dispatch' in fresh, false);
+  await repo.flush();
+  const onDisk = JSON.parse(await fs.readFile(repo.filePath, 'utf8'))[fresh.id];
+  assert.equal('thread' in onDisk, false);
+  assert.equal('dispatch' in onDisk, false);
 
   const legacy = {
     ...fresh, id: 'exec_dispatch_legacy', kind: 'dispatch', status: 'completed',

@@ -42,8 +42,8 @@ export interface ExecutionRecord {
   };
   /** Legacy: set on records written by the retired thread runtime; never written now. */
   thread?: { threadId: string | null; agentSlotId: string | null } | null;
-  /** Legacy: set on records written by the retired task dispatcher; null on every new record. */
-  dispatch: DispatchInfo | null;
+  /** Legacy: set on records written by the retired task dispatcher; never written now. */
+  dispatch?: DispatchInfo | null;
   scheduleTaskId: string | null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
@@ -92,7 +92,6 @@ function createBaseRecord({ kind, channel, project, trigger, backend, billingMod
     backend: backend || 'claude',
     billingMode: billingMode || 'api',
     session: { sessionId: sessionId || null, ...(ownerSessionId ? { ownerSessionId } : {}) },
-    dispatch: null,
     scheduleTaskId: scheduleTaskId || null,
     runtime: {
       startedAt: timestamp,

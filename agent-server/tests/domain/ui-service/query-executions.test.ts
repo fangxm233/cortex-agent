@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { handleExecutionsList } from '../../../src/domain/ui-service/query/executions.js';
+import { handleExecutionsGet, handleExecutionsList } from '../../../src/domain/ui-service/query/executions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps } from './ui-deps-fixture.js';
 
@@ -9,7 +9,8 @@ const mockExecutions = [
   {
     id: 'exec_1', kind: 'local', status: 'running', channel: 'C1', project: 'proj1',
     source: { trigger: 'message' }, backend: 'claude', billingMode: 'api',
-    session: { sessionId: 's1' }, thread: null, dispatch: null, scheduleTaskId: null,
+    // A current record: no thread or dispatch fields are written any more.
+    session: { sessionId: 's1' }, scheduleTaskId: null,
     runtime: { startedAt: new Date(now - 60000).toISOString(), updatedAt: new Date().toISOString(), endedAt: null },
     metrics: { costUsd: null, numTurns: null, durationS: null },
     text: { label: 'test1', finalOutput: null, error: null },
@@ -35,7 +36,11 @@ const mockExecutions = [
 
 function makeDeps(): UiServiceDeps {
   return makeUiDeps({
-    executionRegistry: { getExecution: () => null, getAll: () => mockExecutions, cancelExecution: () => null },
+    executionRegistry: {
+      getExecution: (id: string) => mockExecutions.find((e) => e.id === id) ?? null,
+      getAll: () => mockExecutions,
+      cancelExecution: () => null,
+    },
   });
 }
 
@@ -65,7 +70,17 @@ test('executions.list DTO shape for running execution', async () => {
   const e = result[0];
   assert.equal(e.type, 'local');
   assert.equal(e.sessionId, 's1');
+  // The fields released clients still read come back null for a record that never had them.
+  assert.equal(e.taskId, null);
+  assert.equal(e.machine, null);
   assert.equal(e.finishedAt, null);
   assert.equal(e.durationMs, null);
   assert.equal(e.cost, null);
+});
+
+test('executions.get keeps the compat fields null for a current record', async () => {
+  const detail = await handleExecutionsGet(makeDeps(), { executionId: 'exec_1' });
+  assert.equal(detail.threadId, null);
+  assert.equal(detail.dispatch, null);
+  assert.equal(detail.sessionId, 's1');
 });
