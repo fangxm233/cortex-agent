@@ -69,7 +69,7 @@ export async function handleExecutionsGet(
     status: e.status,
     projectId: e.project ?? null,
     sessionId: e.session?.sessionId ?? null,
-    threadId: e.thread?.threadId ?? null,
+    threadId: null,
     runtime: {
       startedAt: e.runtime?.startedAt ?? '',
       updatedAt: e.runtime?.updatedAt ?? '',

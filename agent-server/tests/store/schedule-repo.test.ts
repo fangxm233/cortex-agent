@@ -119,26 +119,24 @@ test('ScheduleRepo - on-disk schema contains schedule tasks only', async () => {
   assert.equal(raw.tasks[0].id, 'schema-1');
 });
 
-// ── target / fallback fields round-trip ───────────────────────
+// ── target field round-trip ───────────────────────
 
 test('ScheduleRepo - target field round-trips through addTask/findTask (project kind)', async () => {
   const repo = createRepo();
   const task = makeTask({
     id: 'target-project',
     target: { kind: 'project', projectId: 'cortex-self' },
-    fallback: 'fresh',
-  } as Partial<ScheduleTask>);
+  });
   await repo.addTask(task);
   const found = await repo.findTask('target-project');
   assert.ok(found);
   assert.deepEqual(found.target, { kind: 'project', projectId: 'cortex-self' });
-  assert.equal(found.fallback, 'fresh');
 });
 
 test('ScheduleRepo - migrate fills target=fresh for legacy records without target field', async () => {
   const idx = _testIdx++;
   const filePath = path.join(tmpDir, `schedules-${idx}.json`);
-  // Write an old-format record (no target/fallback fields) directly to disk
+  // Write an old-format record (no target field) directly to disk
   await fs.writeFile(filePath, JSON.stringify({
     tasks: [{ id: 'legacy-1', type: 'interval', intervalMs: 60000, message: 'old task', channel: 'C1', profile: 'plan', createdAt: Date.now() }],
   }));
@@ -148,7 +146,7 @@ test('ScheduleRepo - migrate fills target=fresh for legacy records without targe
   assert.deepEqual(found.target, { kind: 'fresh' }, 'migrate should default target to fresh');
 });
 
-test('ScheduleRepo - a stored thread target is read as fresh, the rest of the record intact', async () => {
+test('ScheduleRepo - a stored thread target is read as fresh and its fallback dropped, the rest intact', async () => {
   const idx = _testIdx++;
   const filePath = path.join(tmpDir, `schedules-${idx}.json`);
   await fs.writeFile(filePath, JSON.stringify({
@@ -166,7 +164,7 @@ test('ScheduleRepo - a stored thread target is read as fresh, the rest of the re
   assert.deepEqual(thread.target, { kind: 'fresh' });
   assert.equal(thread.message, 'morning digest');
   assert.equal(thread.time, '09:00');
-  assert.equal(thread.fallback, 'skip');
+  assert.equal('fallback' in thread, false);
   // A project target without its projectId cannot be honoured either.
   assert.deepEqual((await repo.findTask('project-1'))!.target, { kind: 'fresh' });
 });

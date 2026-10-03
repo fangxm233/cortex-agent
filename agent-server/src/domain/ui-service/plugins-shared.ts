@@ -49,15 +49,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-/** The agent name a template slot points at: a bare string or a `{ ref }` object. */
-export function refName(ref: unknown): string | null {
-  if (typeof ref === 'string' && ref.length > 0) return ref;
-  if (ref && typeof ref === 'object' && typeof (ref as { ref?: unknown }).ref === 'string') {
-    return (ref as { ref: string }).ref;
-  }
-  return null;
-}
-
 export function pluginDirsOf(value: unknown): unknown {
   return value && typeof value === 'object' ? (value as { pluginDirs?: unknown }).pluginDirs : undefined;
 }
@@ -210,10 +201,4 @@ export function addedMcpPluginIds(
     if (current.has(id)) return false;
     return (snapshot.byId.get(id)?.mcp.servers.length ?? 0) > 0;
   });
-}
-
-export function samePluginIds(left: readonly string[], right: readonly string[]): boolean {
-  const a = normalizedDesiredPluginIds(left);
-  const b = normalizedDesiredPluginIds(right);
-  return a.length === b.length && a.every((id, index) => id === b[index]);
 }

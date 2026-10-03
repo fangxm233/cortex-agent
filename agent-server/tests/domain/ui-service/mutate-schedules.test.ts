@@ -13,8 +13,6 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   return {
     projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as ScheduleTask) },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
     conversationHistory: {
@@ -75,7 +73,6 @@ function makeAddSpy(): AddSpy {
       nextRun: 1_700_000_060_000,
       lastRun: null,
       target: options.target,
-      fallback: options.fallback,
     } as ScheduleTask;
   };
   return { calls, add };
@@ -98,16 +95,15 @@ test('schedules.add interval creates a schedule and returns ScheduleInfo', async
   assert.equal(spy.calls[0].options.intervalMs, 60_000);
 });
 
-test('schedules.add forwards target and fallback to scheduler.add', async () => {
+test('schedules.add forwards target to scheduler.add', async () => {
   const spy = makeAddSpy();
   const deps = makeDeps({ scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: spy.add } });
   const result = await handleAddSchedule(deps, {
     type: 'interval', message: 'ping', intervalMs: 60_000,
-    target: { kind: 'project', projectId: 'general' }, fallback: 'skip',
+    target: { kind: 'project', projectId: 'general' },
   });
   assert.equal(result.ok, true);
   assert.deepEqual(spy.calls[0].options.target, { kind: 'project', projectId: 'general' });
-  assert.equal(spy.calls[0].options.fallback, 'skip');
 });
 
 test('schedules.add rejects interval without intervalMs and does not write', async () => {

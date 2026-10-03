@@ -25,13 +25,10 @@ import {
 import { handlePluginsList } from '../../../src/domain/ui-service/query/plugins.js';
 import type { Err, Ok, Result, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
-const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
 const ENV_DIR = path.join(CONFIG_DIR, 'environments');
 
 function deps(): UiServiceDeps {
   return {
-    threadStore: { getAll: () => [], get: () => null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
     bus: { publish: () => {}, subscribe: () => ({ unsubscribe: () => {} }) },
   } as unknown as UiServiceDeps;
 }
@@ -112,10 +109,8 @@ function seedAgent(name: string, pluginDirs?: string[]): void {
 }
 
 beforeEach(() => {
-  rmSync(TT_DIR, { recursive: true, force: true });
   rmSync(ENV_DIR, { recursive: true, force: true });
   rmSync(PLUGINS_DIR, { recursive: true, force: true });
-  mkdirSync(TT_DIR, { recursive: true });
   mkdirSync(PLUGINS_DIR, { recursive: true });
   seedPlugin('alpha', ['review']);
   seedPlugin('beta', []);

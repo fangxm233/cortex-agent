@@ -17,7 +17,6 @@ import type {
   ConfigProfileEntry,
   ConfigMachine,
   ConfigMcp,
-  ConfigThreadTemplates,
   ConfigAgentEntry,
   ConfigEnvEntry,
   ConfigSettingEntry,
@@ -177,25 +176,22 @@ export async function readConfigSnapshot(
   liveSettings: ConfigSettingEntry[],
   lang: ConfigLang,
 ): Promise<ConfigSnapshot> {
-  const tt = path.join(configDir, 'thread-templates');
-  const hooks = loadMountedHookSummaries(path.join(configDir, 'hooks'), path.join(tt, 'templates'));
+  const hooks = loadMountedHookSummaries(
+    path.join(configDir, 'hooks'), path.join(configDir, 'thread-templates', 'templates'),
+  );
   const parts = await Promise.all([
     readJson(path.join(configDir, 'budget.json')),
     readJson(path.join(configDir, 'profiles.json')),
     readJson(path.join(configDir, 'machines.json')),
     readJson(path.join(configDir, 'mcp-config.json')),
-    listJsonBasenames(path.join(tt, 'agents')),
-    listJsonBasenames(path.join(tt, 'templates')),
-    listJsonBasenames(path.join(tt, 'shells')),
     readEnv(path.join(configDir, '.env')),
     listJsonBasenames(path.join(configDir, ENVIRONMENTS_DIRNAME)),
   ]);
-  const [budget, profiles, machines, mcp, agents, templates, shells, env, environments] = parts;
-  const threadTemplates: ConfigThreadTemplates = { agents, templates, shells };
+  const [budget, profiles, machines, mcp, env, environments] = parts;
   return {
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
-    mcp: parseMcp(mcp), threadTemplates,
+    mcp: parseMcp(mcp),
     agents: await readAgentEntries(path.join(configDir, ENVIRONMENTS_DIRNAME), environments),
     hooks, env, settings: liveSettings, lang,
   };

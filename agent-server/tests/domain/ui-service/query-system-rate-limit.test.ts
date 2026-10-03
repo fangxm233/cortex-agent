@@ -55,9 +55,7 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
   assert.deepEqual(status.providers.map((provider) => provider.windows[0].resetsAt), [nowSec + 900, nowSec + 300]);
   assert.equal(status.providers[0].windows[0].utilization, 0.97);
   assert.equal(status.providers[0].windows[1].label, 'Sonnet');
-  assert.deepEqual(status.providers.map((provider) => [provider.waitingSessions, provider.waitingThreads]), [
-    [1, 1], [0, 1],
-  ]);
+  assert.deepEqual(status.providers.map((provider) => provider.waitingSessions), [1, 0]);
 });
 
 test('system.rateLimitStatus returns no placeholder when throttle is inactive', async () => {

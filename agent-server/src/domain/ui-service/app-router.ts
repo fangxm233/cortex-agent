@@ -28,10 +28,6 @@ import {
   sessionsCancelResumeInput,
   sessionsRewindInput,
   sessionsPendingInteractionInput,
-  threadsListInput,
-  threadsGetInput,
-  tasksListInput,
-  taskVerificationInput,
   schedulesListInput,
   commissionsListInput,
   commissionsGetInput,
@@ -55,15 +51,11 @@ import {
   noteActionInput,
   notesClearCompletedInput,
   costSummaryInput,
-  threadsCancelInput,
   executionsCancelInput,
   waitpointsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
   scheduleUpdateInput,
-  taskActionInput,
-  taskCompleteInput,
-  taskBlockInput,
   configGetInput,
   configSetInput,
   configSetProviderRateLimitPolicyInput,
@@ -102,11 +94,11 @@ import {
   pluginsConvertInput,
   pluginsMcpReadInput,
   pluginsMcpWriteInput,
-  threadTemplatesGetInput,
-  threadTemplatesDetailInput,
-  threadTemplatesValidateInput,
-  threadTemplatesSaveInput,
-  threadTemplatesRemoveInput,
+  environmentsListInput,
+  environmentsGetInput,
+  environmentsValidateInput,
+  environmentsSaveInput,
+  environmentsDeleteInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
@@ -138,7 +130,7 @@ const subscribeFilterInput = z.object({
 
 // ── Result → value / Err → TRPCError ─────────────────────────────────────────────
 // Domain Err.code strings emitted by ui-service handlers: 'not-found', 'invalid-args',
-// 'invalid-name', 'already-terminal', 'already-exists', 'task-lock-busy', 'internal'. Map each to the closest tRPC code;
+// 'invalid-name', 'already-terminal', 'already-exists', 'internal'. Map each to the closest tRPC code;
 // preserve the original domain code as `cause` for downstream diagnostics.
 const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'not-found': 'NOT_FOUND',
@@ -154,7 +146,6 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'not_manageable': 'BAD_REQUEST',
   'runtime_unavailable': 'BAD_REQUEST',
   'logout_failed': 'INTERNAL_SERVER_ERROR',
-  'task-lock-busy': 'CONFLICT',
   'internal': 'INTERNAL_SERVER_ERROR',
 };
 
@@ -232,26 +223,6 @@ function sessionsRouter(service: UiService) {
     respondDecision: makeMutation(service, 'sessions.respondDecision', sessionsRespondDecisionInput),
     cancelResume: makeMutation(service, 'sessions.cancelResume', sessionsCancelResumeInput),
     rewind: makeMutation(service, 'sessions.rewind', sessionsRewindInput),
-  });
-}
-
-function threadsRouter(service: UiService) {
-  return router({
-    list: makeQuery(service, 'threads.list', threadsListInput),
-    get: makeQuery(service, 'threads.get', threadsGetInput),
-    cancel: makeMutation(service, 'threads.cancel', threadsCancelInput),
-  });
-}
-
-function tasksRouter(service: UiService) {
-  return router({
-    list: makeQuery(service, 'tasks.list', tasksListInput),
-    verification: makeQuery(service, 'tasks.verification', taskVerificationInput),
-    claim: makeMutation(service, 'tasks.claim', taskActionInput),
-    unclaim: makeMutation(service, 'tasks.unclaim', taskActionInput),
-    complete: makeMutation(service, 'tasks.complete', taskCompleteInput),
-    block: makeMutation(service, 'tasks.block', taskBlockInput),
-    unblock: makeMutation(service, 'tasks.unblock', taskActionInput),
   });
 }
 
@@ -431,13 +402,13 @@ function pluginsRouter(service: UiService) {
   });
 }
 
-function threadTemplatesRouter(service: UiService) {
+function environmentsRouter(service: UiService) {
   return router({
-    get: makeQuery(service, 'threadTemplates.get', threadTemplatesGetInput),
-    detail: makeQuery(service, 'threadTemplates.detail', threadTemplatesDetailInput),
-    validate: makeMutation(service, 'threadTemplates.validate', threadTemplatesValidateInput),
-    save: makeMutation(service, 'threadTemplates.save', threadTemplatesSaveInput),
-    remove: makeMutation(service, 'threadTemplates.remove', threadTemplatesRemoveInput),
+    list: makeQuery(service, 'environments.list', environmentsListInput),
+    get: makeQuery(service, 'environments.get', environmentsGetInput),
+    validate: makeMutation(service, 'environments.validate', environmentsValidateInput),
+    save: makeMutation(service, 'environments.save', environmentsSaveInput),
+    delete: makeMutation(service, 'environments.delete', environmentsDeleteInput),
   });
 }
 
@@ -457,8 +428,6 @@ export function createAppRouter(service: UiService) {
   return router({
     projects: projectsRouter(service),
     sessions: sessionsRouter(service),
-    threads: threadsRouter(service),
-    tasks: tasksRouter(service),
     schedules: schedulesRouter(service),
     commissions: commissionsRouter(service),
     executions: executionsRouter(service),
@@ -476,7 +445,7 @@ export function createAppRouter(service: UiService) {
     machines: machinesRouter(service),
     skills: skillsRouter(service),
     plugins: pluginsRouter(service),
-    threadTemplates: threadTemplatesRouter(service),
+    environments: environmentsRouter(service),
     system: systemRouter(service),
     subscribe: subscribeProcedure(service),
   });

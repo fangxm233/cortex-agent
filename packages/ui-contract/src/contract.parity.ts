@@ -16,10 +16,6 @@ import type {
   sessionsSetCommissionInput,
   sessionsSetStarredInput,
   sessionsRenameInput,
-  threadsListInput,
-  threadsGetInput,
-  tasksListInput,
-  taskVerificationInput,
   schedulesListInput,
   commissionsListInput,
   commissionsGetInput,
@@ -43,15 +39,11 @@ import type {
   noteActionInput,
   notesClearCompletedInput,
   costSummaryInput,
-  threadsCancelInput,
   executionsCancelInput,
   waitpointsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
   scheduleUpdateInput,
-  taskActionInput,
-  taskCompleteInput,
-  taskBlockInput,
   configGetInput,
   configSetInput,
   platformSettingsInput,
@@ -81,11 +73,11 @@ import type {
   skillsListInput,
   pluginsListInput,
   pluginsAssignInput,
-  threadTemplatesGetInput,
-  threadTemplatesDetailInput,
-  threadTemplatesValidateInput,
-  threadTemplatesSaveInput,
-  threadTemplatesRemoveInput,
+  environmentsListInput,
+  environmentsGetInput,
+  environmentsValidateInput,
+  environmentsSaveInput,
+  environmentsDeleteInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
@@ -116,10 +108,6 @@ const _sessionsList: QueryParity<'sessions.list', typeof sessionsListInput> = tr
 const _sessionsTranscript: QueryParity<'sessions.transcript', typeof sessionsTranscriptInput> = true;
 const _sessionsSubagentTranscript: QueryParity<'sessions.subagentTranscript', typeof sessionsSubagentTranscriptInput> = true;
 const _sessionsDebugDetails: QueryParity<'sessions.debugDetails', typeof sessionsDebugDetailsInput> = true;
-const _threadsList: QueryParity<'threads.list', typeof threadsListInput> = true;
-const _threadsGet: QueryParity<'threads.get', typeof threadsGetInput> = true;
-const _tasksList: QueryParity<'tasks.list', typeof tasksListInput> = true;
-const _taskVerification: QueryParity<'tasks.verification', typeof taskVerificationInput> = true;
 const _schedulesList: QueryParity<'schedules.list', typeof schedulesListInput> = true;
 const _commissionsList: QueryParity<'commissions.list', typeof commissionsListInput> = true;
 const _commissionsGet: QueryParity<'commissions.get', typeof commissionsGetInput> = true;
@@ -143,8 +131,8 @@ const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = tr
 const _machineDetail: QueryParity<'machines.detail', typeof machineDetailInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _pluginsList: QueryParity<'plugins.list', typeof pluginsListInput> = true;
-const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
-const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threadTemplatesDetailInput> = true;
+const _environmentsList: QueryParity<'environments.list', typeof environmentsListInput> = true;
+const _environmentsGet: QueryParity<'environments.get', typeof environmentsGetInput> = true;
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
 const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
 const _systemUsageStatus: QueryParity<'system.usageStatus', typeof systemUsageStatusInput> = true;
@@ -162,7 +150,6 @@ const _sessionsSetSelection: MutateParity<'sessions.setSelection', typeof sessio
 const _sessionsSetCommission: MutateParity<'sessions.setCommission', typeof sessionsSetCommissionInput> = true;
 const _sessionsSetStarred: MutateParity<'sessions.setStarred', typeof sessionsSetStarredInput> = true;
 const _sessionsRename: MutateParity<'sessions.rename', typeof sessionsRenameInput> = true;
-const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
 const _waitpointsCancel: MutateParity<'waitpoints.cancel', typeof waitpointsCancelInput> = true;
 const _schedulesPause: MutateParity<'schedules.pause', typeof scheduleActionInput> = true;
@@ -171,11 +158,6 @@ const _schedulesRemove: MutateParity<'schedules.remove', typeof scheduleActionIn
 const _schedulesAdd: MutateParity<'schedules.add', typeof scheduleAddInput> = true;
 const _schedulesUpdate: MutateParity<'schedules.update', typeof scheduleUpdateInput> = true;
 const _commissionsClose: MutateParity<'commissions.close', typeof commissionCloseInput> = true;
-const _tasksClaim: MutateParity<'tasks.claim', typeof taskActionInput> = true;
-const _tasksUnclaim: MutateParity<'tasks.unclaim', typeof taskActionInput> = true;
-const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> = true;
-const _tasksBlock: MutateParity<'tasks.block', typeof taskBlockInput> = true;
-const _tasksUnblock: MutateParity<'tasks.unblock', typeof taskActionInput> = true;
 const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
 const _platformSettings: MutateParity<'config.setPlatform', typeof platformSettingsInput> = true;
 const _configSetProviderRateLimitPolicy: MutateParity<
@@ -191,9 +173,9 @@ const _profilesCreate: MutateParity<'profiles.create', typeof profilesCreateInpu
 const _profilesUpdate: MutateParity<'profiles.update', typeof profilesUpdateInput> = true;
 const _profilesRemove: MutateParity<'profiles.remove', typeof profilesRemoveInput> = true;
 const _pluginsAssign: MutateParity<'plugins.assign', typeof pluginsAssignInput> = true;
-const _threadTemplatesValidate: MutateParity<'threadTemplates.validate', typeof threadTemplatesValidateInput> = true;
-const _threadTemplatesSave: MutateParity<'threadTemplates.save', typeof threadTemplatesSaveInput> = true;
-const _threadTemplatesRemove: MutateParity<'threadTemplates.remove', typeof threadTemplatesRemoveInput> = true;
+const _environmentsValidate: MutateParity<'environments.validate', typeof environmentsValidateInput> = true;
+const _environmentsSave: MutateParity<'environments.save', typeof environmentsSaveInput> = true;
+const _environmentsDelete: MutateParity<'environments.delete', typeof environmentsDeleteInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;

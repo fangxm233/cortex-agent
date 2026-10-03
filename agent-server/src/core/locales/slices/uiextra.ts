@@ -56,6 +56,7 @@ export const uiextraEn = {
   'ux.tpl.alreadyExists': "${kind} '${name}' already exists",
   'ux.tpl.changedOnDisk': "${kind} '${name}' changed on disk since it was loaded — reload before saving to avoid discarding that edit",
   'ux.tpl.notValid': "${kind} '${name}' is not valid: ${issues}",
+  'ux.env.mainUndeletable': "The '${name}' environment is the default and cannot be deleted",
   'ux.tpl.stillUsed': "${kind} '${name}' is still used by ${count} template(s): ${names}",
 
   // ── Machines panel (ui-service/query/machine-detail) ──
@@ -126,6 +127,7 @@ export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
   'ux.tpl.alreadyExists': "${kind} '${name}' 已存在",
   'ux.tpl.changedOnDisk': "${kind} '${name}' 自加载后已在磁盘上被修改。请先重新加载再保存，以免覆盖那次修改",
   'ux.tpl.notValid': "${kind} '${name}' 无效：${issues}",
+  'ux.env.mainUndeletable': "'${name}' 是默认环境，不能删除",
   'ux.tpl.stillUsed': "${kind} '${name}' 仍被 ${count} 个模板使用：${names}",
 
   'ux.machine.probeUnavailable': '探测通道不可用',

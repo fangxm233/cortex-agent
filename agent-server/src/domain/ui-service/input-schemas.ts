@@ -19,10 +19,6 @@ import {
   sessionsSubagentTranscriptInput,
   sessionsDebugDetailsInput,
   sessionsPendingInteractionInput,
-  threadsListInput,
-  threadsGetInput,
-  tasksListInput,
-  taskVerificationInput,
   schedulesListInput,
   commissionsListInput,
   commissionsGetInput,
@@ -42,10 +38,6 @@ export {
   sessionsSubagentTranscriptInput,
   sessionsDebugDetailsInput,
   sessionsPendingInteractionInput,
-  threadsListInput,
-  threadsGetInput,
-  tasksListInput,
-  taskVerificationInput,
   schedulesListInput,
   commissionsListInput,
   commissionsGetInput,
@@ -90,7 +82,7 @@ export const skillsListInput = z.object({});
 
 export const pluginsListInput = z.object({});
 
-export const threadTemplatesGetInput = z.object({});
+export const environmentsListInput = z.object({});
 
 export const systemDaemonStatusInput = z.object({});
 
@@ -307,10 +299,6 @@ export const sessionsCreateAndSendInput = z.object({
   })).optional(),
 });
 
-export const threadsCancelInput = z.object({
-  threadId: z.string(),
-});
-
 export const waitpointsCancelInput = z.object({
   waitpointId: z.string().min(1),
 });
@@ -343,7 +331,6 @@ export const scheduleAddInput = z
     dayOfWeek: z.number().int().min(0).max(6).optional(),
     delay: z.number().int().positive().optional(),
     target: scheduleTargetInput.optional(),
-    fallback: z.enum(['fresh', 'skip', 'wait']).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.type === 'interval' && val.intervalMs === undefined) {
@@ -377,23 +364,6 @@ export const scheduleUpdateInput = z.object({
   intervalMs: z.number().int().positive().optional(),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   dayOfWeek: z.number().int().min(0).max(6).optional(),
-});
-
-export const taskActionInput = z.object({
-  projectId: z.string(),
-  taskId: z.string(),
-});
-
-export const taskCompleteInput = z.object({
-  projectId: z.string(),
-  taskId: z.string(),
-  note: z.string().optional(),
-});
-
-export const taskBlockInput = z.object({
-  projectId: z.string(),
-  taskId: z.string(),
-  reason: z.string(),
 });
 
 const FORBIDDEN_PROVIDER_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -607,25 +577,14 @@ const componentByteLength = (value: string): boolean => new TextEncoder().encode
 const isSafeComponent = (value: string): boolean => value !== '.' && value !== '..'
   && !value.includes('/') && !value.includes('\\') && !value.includes('\0');
 const pluginTargetName = z.string().max(240).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
-const pluginSlotRef = z.string().max(240).regex(/^(?:__active__|[A-Za-z0-9][A-Za-z0-9_-]*)$/);
 const pluginIdInput = z.string().min(1).refine(componentByteLength).refine(isSafeComponent);
 const sha256HashInput = z.string().regex(/^[a-f0-9]{64}$/);
 
-const pluginsAssignTargetInput = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('agent'),
-    name: pluginTargetName,
-    baseHash: sha256HashInput,
-  }),
-  z.object({
-    kind: z.literal('template-slot'),
-    templateName: pluginTargetName,
-    index: z.number().int().min(0),
-    ref: pluginSlotRef,
-    baseHash: sha256HashInput,
-    mode: z.enum(['inherit', 'custom']),
-  }),
-]);
+const pluginsAssignTargetInput = z.object({
+  kind: z.literal('agent'),
+  name: pluginTargetName,
+  baseHash: sha256HashInput,
+});
 
 export const pluginsAssignInput = z.object({
   target: pluginsAssignTargetInput,
@@ -688,33 +647,28 @@ export const pluginsMcpWriteInput = z.object({
   })).max(32),
 });
 
-// threadTemplates.detail / validate / save / remove — the thread-template editing surface.
-// The name pattern mirrors template-writer's: the filename IS the entity identity, so anything
-// that could escape the config directory is rejected before it reaches the writer.
-const threadTemplateKind = z.enum(['template', 'agent', 'shell']);
-const threadTemplateName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
+// environments.get / validate / save / delete — the environment editing surface. The name pattern
+// mirrors the environment writer's: the filename IS the identity, so anything that could escape the
+// config directory is rejected before it reaches the writer.
+const environmentName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 
-export const threadTemplatesDetailInput = z.object({
-  kind: threadTemplateKind,
-  name: threadTemplateName,
+export const environmentsGetInput = z.object({
+  name: environmentName,
 });
 
-export const threadTemplatesValidateInput = z.object({
-  kind: threadTemplateKind,
-  name: threadTemplateName,
+export const environmentsValidateInput = z.object({
+  name: environmentName,
   body: z.record(z.string(), z.unknown()),
 });
 
-export const threadTemplatesSaveInput = z.object({
-  kind: threadTemplateKind,
-  name: threadTemplateName,
+export const environmentsSaveInput = z.object({
+  name: environmentName,
   body: z.record(z.string(), z.unknown()),
   baseHash: z.string().optional(),
 });
 
-export const threadTemplatesRemoveInput = z.object({
-  kind: threadTemplateKind,
-  name: threadTemplateName,
+export const environmentsDeleteInput = z.object({
+  name: environmentName,
 });
 
 export const approvalsApproveInput = z.object({
@@ -807,10 +761,6 @@ export const queryInputSchemas = {
   'sessions.subagentTranscript': sessionsSubagentTranscriptInput,
   'sessions.debugDetails': sessionsDebugDetailsInput,
   'sessions.pendingInteraction': sessionsPendingInteractionInput,
-  'threads.list': threadsListInput,
-  'threads.get': threadsGetInput,
-  'tasks.list': tasksListInput,
-  'tasks.verification': taskVerificationInput,
   'schedules.list': schedulesListInput,
   'commissions.list': commissionsListInput,
   'commissions.get': commissionsGetInput,
@@ -836,8 +786,8 @@ export const queryInputSchemas = {
   'plugins.list': pluginsListInput,
   'plugins.skillFile': pluginsSkillFileInput,
   'plugins.mcpRead': pluginsMcpReadInput,
-  'threadTemplates.get': threadTemplatesGetInput,
-  'threadTemplates.detail': threadTemplatesDetailInput,
+  'environments.list': environmentsListInput,
+  'environments.get': environmentsGetInput,
   'system.daemonStatus': systemDaemonStatusInput,
   'system.rateLimitStatus': systemRateLimitStatusInput,
   'system.usageStatus': systemUsageStatusInput,
@@ -865,7 +815,6 @@ export const mutateInputSchemas = {
   'sessions.respondDecision': sessionsRespondDecisionInput,
   'sessions.cancelResume': sessionsCancelResumeInput,
   'sessions.rewind': sessionsRewindInput,
-  'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
   'waitpoints.cancel': waitpointsCancelInput,
   'schedules.pause': scheduleActionInput,
@@ -874,11 +823,6 @@ export const mutateInputSchemas = {
   'schedules.add': scheduleAddInput,
   'schedules.update': scheduleUpdateInput,
   'commissions.close': commissionCloseInput,
-  'tasks.claim': taskActionInput,
-  'tasks.unclaim': taskActionInput,
-  'tasks.complete': taskCompleteInput,
-  'tasks.block': taskBlockInput,
-  'tasks.unblock': taskActionInput,
   'approvals.approve': approvalsApproveInput,
   'approvals.reject': approvalsRejectInput,
   'approvals.request': approvalsRequestInput,
@@ -916,9 +860,9 @@ export const mutateInputSchemas = {
   'plugins.remove': pluginsRemoveInput,
   'plugins.convertToPortable': pluginsConvertInput,
   'plugins.mcpWrite': pluginsMcpWriteInput,
-  'threadTemplates.validate': threadTemplatesValidateInput,
-  'threadTemplates.save': threadTemplatesSaveInput,
-  'threadTemplates.remove': threadTemplatesRemoveInput,
+  'environments.validate': environmentsValidateInput,
+  'environments.save': environmentsSaveInput,
+  'environments.delete': environmentsDeleteInput,
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,

@@ -41,7 +41,7 @@ test('executions.get handler maps real ExecutionRecord fields into the detail DT
   assert.equal(dto.status, 'completed');
   assert.equal(dto.projectId, 'proj2');
   assert.equal(dto.sessionId, 's2');
-  assert.equal(dto.threadId, 'thr_9');
+  assert.equal(dto.threadId, null, 'kept for old mobile clients, never filled');
   assert.equal(dto.runtime.startedAt, knownRecord.runtime.startedAt);
   assert.equal(dto.runtime.updatedAt, knownRecord.runtime.updatedAt);
   assert.equal(dto.runtime.endedAt, knownRecord.runtime.endedAt);

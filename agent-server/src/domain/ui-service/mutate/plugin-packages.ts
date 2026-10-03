@@ -90,15 +90,11 @@ export async function handlePluginsCreate(
   });
 }
 
-/** Every agent and template slot that still points at this plugin. Removing a referenced plugin
- *  would leave a dangling pluginDirs entry that only shows up as a missing skill at spawn time. */
+/** Every environment that still points at this plugin. Removing a referenced plugin would leave a
+ *  dangling pluginDirs entry that only shows up as a missing skill at spawn time. */
 async function pluginReferences(deps: UiServiceDeps, id: string): Promise<string[]> {
   const { targets } = await handlePluginsList(deps, {});
-  return targets.flatMap((target) => {
-    if (target.kind === 'template-shell') return [];
-    if (!target.managedPluginIds.includes(id)) return [];
-    return [target.kind === 'agent' ? target.name : `${target.templateName}[${target.index}]`];
-  });
+  return targets.filter((target) => target.managedPluginIds.includes(id)).map((target) => target.name);
 }
 
 export async function handlePluginsRemove(

@@ -137,7 +137,7 @@ test('readConfigSnapshot redacts .env secrets — raw value never appears in the
   assert.ok(!snap.env.some((e) => e.key.startsWith('#')));
 });
 
-test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hooks', async () => {
+test('readConfigSnapshot maps profiles / machines / mcp / environments / hooks', async () => {
   const { configDir } = await makeFixture();
   const snap = await readConfigSnapshot(configDir, [], LANG);
 
@@ -161,9 +161,6 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   assert.ok(!serialized.includes('user@host'), 'raw ssh string leaked into snapshot');
 
   assert.deepEqual(snap.mcp!.servers.sort(), ['alpha', 'beta']);
-  assert.deepEqual(snap.threadTemplates.agents, ['coder']);
-  assert.deepEqual(snap.threadTemplates.templates, ['coder-review']);
-  assert.deepEqual(snap.threadTemplates.shells, ['default']);
   // The composer picker lists the execution environments only, never the thread agents.
   assert.deepEqual(snap.agents, [
     { name: 'creative', profile: 'fast' },
@@ -243,7 +240,6 @@ test('readConfigSnapshot returns null / empty when files are absent', async () =
   assert.equal(snap.profiles, null);
   assert.equal(snap.mcp, null);
   assert.deepEqual(snap.machines, []);
-  assert.deepEqual(snap.threadTemplates, { agents: [], templates: [], shells: [] });
   assert.deepEqual(snap.hooks, []);
   assert.deepEqual(snap.env, []);
 });

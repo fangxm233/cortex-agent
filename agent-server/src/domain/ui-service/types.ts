@@ -173,33 +173,6 @@ export interface SessionsPendingInteraction {
   plan: { requestId: string; planContent: string; planFilePath: string | null } | null;
 }
 
-export interface ThreadsListParams {
-  projectId?: string;
-  status?: string[];
-  /** Scope to the threads owned by a single chat session: the handler resolves this session's
-   *  channel and returns only threads running on it (a thread spawned interactively runs on its
-   *  originating channel). Backs the inline chat thread card, which must show THIS conversation's
-   *  thread, not a random global one. Unknown session → empty. Omit for the unscoped list. */
-  sessionId?: string;
-}
-
-export interface ThreadsGetParams {
-  threadId: string;
-  /** Include artifact.md text for the open detail modal; omitted for lightweight cards. */
-  includeArtifactContent?: boolean;
-}
-
-export interface TasksListParams {
-  projectId?: string;
-  status?: 'open' | 'done';
-  actionable?: boolean;
-}
-
-export interface TaskVerificationParams {
-  projectId: string;
-  taskId: string;
-}
-
 export interface SchedulesListParams {
   projectId?: string;
   paused?: boolean;
@@ -283,7 +256,7 @@ export type SkillsListParams = Record<string, never>;
 
 export type PluginsListParams = Record<string, never>;
 
-export type ThreadTemplatesGetParams = Record<string, never>;
+export type EnvironmentsListParams = Record<string, never>;
 
 export type SystemDaemonStatusParams = Record<string, never>;
 
@@ -554,10 +527,6 @@ export interface SessionsCreateAndSendArgs {
   draftUploadId?: string;
 }
 
-export interface ThreadsCancelArgs {
-  threadId: string;
-}
-
 export interface ExecutionsCancelArgs {
   executionId: string;
 }
@@ -591,12 +560,11 @@ export interface ScheduleAddArgs {
   dayOfWeek?: number;
   delay?: number;
   target?: ScheduleTarget;
-  fallback?: 'fresh' | 'skip' | 'wait';
 }
 
 // Args for `schedules.update` — a partial patch of an existing schedule. The schedule's type is
 // immutable; only fields valid for that type are accepted (checked against the persisted task in
-// the handler, mirroring scheduler.validateTaskPatch). target/fallback are not patchable in v1.
+// the handler, mirroring scheduler.validateTaskPatch). target is not patchable in v1.
 export interface ScheduleUpdateArgs {
   scheduleId: string;
   message?: string;
@@ -605,19 +573,6 @@ export interface ScheduleUpdateArgs {
   intervalMs?: number;
   time?: string;
   dayOfWeek?: number;
-}
-
-export interface TaskActionArgs {
-  projectId: string;
-  taskId: string;
-}
-
-export interface TaskCompleteArgs extends TaskActionArgs {
-  note?: string;
-}
-
-export interface TaskBlockArgs extends TaskActionArgs {
-  reason: string;
 }
 
 // Safely-writable config.set sections (Stage 7 + task b983). Each section has its own validated
@@ -1085,174 +1040,6 @@ export interface SessionSubagentTranscript {
   messages: TranscriptMessage[];
 }
 
-export interface ThreadInfo {
-  id: string;
-  templateName: string;
-  currentStep: { index: number; name: string } | null;
-  status: 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'aborted';
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-  totalSteps: number;
-  artifactPath: string | null;
-  /** Optional while Desktop/Mobile clients and servers roll independently. */
-  taskId?: string | null;
-}
-
-// ── threads.get detail DTO (DR-0018 §6.3 B1) ─────────────────────
-
-export interface ThreadStepDetail {
-  stepIndex: number;
-  agentSlotId: string;
-  stage: string | null;
-  status: 'completed' | 'running' | 'pending';
-  executionId: string | null;
-  sessionId: string | null;
-  sessionName: string | null;
-  costUsd: number | null;
-  numTurns: number | null;
-  durationS: number | null;
-  startedAt: string | null;
-  endedAt: string | null;
-  outputSummary: string | null;
-}
-
-export interface ThreadAgentFlow {
-  slotId: string;
-  profile: string;
-  status: 'idle' | 'running' | 'completed';
-  stage: string | null;
-  sessionId: string | null;
-  sessionName: string | null;
-  lastOutput: string | null;
-}
-
-export interface ThreadChildNode {
-  id: string;
-  templateName: string | null;
-  status: ThreadInfo['status'];
-  activeAgent: string | null;
-  costUsd: number;
-  depth: number;
-  createdAt: string;
-  taskId: string | null;
-  children: ThreadChildNode[];
-  truncated: boolean;
-}
-
-export interface ThreadArtifactRefs {
-  artifactPath: string | null;
-  workspacePath: string | null;
-  taskId: string | null;
-  taskProject: string | null;
-  /** Present only when threads.get requested artifact content; null on no file/read failure. */
-  content?: string | null;
-}
-
-export interface ThreadSubtaskInfo {
-  id: string;
-  text: string;
-  status: 'open' | 'done';
-  actionable: boolean;
-  claimedBy: string | null;
-  blockedBy: string | null;
-}
-
-export interface ThreadDetail {
-  id: string;
-  templateName: string;
-  currentStep: { index: number; name: string } | null;
-  status: ThreadInfo['status'];
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-  totalSteps: number;
-  artifactPath: string | null;
-  endedAt: string | null;
-  error: string | null;
-  abortReason: string | null;
-  activeAgent: string | null;
-  activeStage: string | null;
-  totalCostUsd: number;
-  steps: ThreadStepDetail[];
-  agentFlow: ThreadAgentFlow | null;
-  subtasks: ThreadSubtaskInfo[];
-  children: ThreadChildNode[];
-  artifacts: ThreadArtifactRefs;
-}
-
-export interface TaskInfo {
-  id: string;
-  text: string;
-  project: string;
-  status: 'open' | 'done';
-  priority: 'high' | 'medium' | 'low';
-  actionable: boolean;
-  claimedBy: string | null;
-  /** Owning task-dispatch thread; optional while app and server versions roll independently. */
-  claimThreadId?: string | null;
-  blockedBy: string | null;
-  /** Approval gate from task-store `approval-needed`; absent only with an older server contract. */
-  approvalNeeded?: boolean;
-  /** Recorded approval date; absent only with an older server contract. */
-  approvedAt?: string | null;
-  dependsOn: string[];
-  /** Unresolved dependencies across all projects; optional with an older server contract. */
-  unmetDependencyIds?: string[];
-  plan: string | null;
-  template: string;
-  /** The task's rationale (task store `why`). Null when absent/empty (null-safe). */
-  why: string | null;
-  /** The task's completion criteria (task store `done-when`). Null when absent/empty (null-safe). */
-  doneWhen: string | null;
-  /** Completion timestamp; optional while app and server versions roll independently. */
-  completedAt?: string | null;
-}
-
-// ── tasks.verification DTO (DR-0018 §12 C item 11) ────────────────
-// Single-task done-when EVIDENCE + per-task dispatch history. DEEPER than TaskInfo.doneWhen (which
-// is just the criteria text): this joins the REAL completion sources — the task store's
-// `completed-note` / `completed-at` / status, plus the terminal execution that completed the task
-// (its finalOutput) — and the full per-task execution/dispatch join by taskId. Every field with no
-// structured source is an honest `null` / `[]`, never fabricated.
-
-/** Done-when achievement evidence drawn from real completion sources (task store + completing execution). */
-export interface TaskDoneWhenEvidence {
-  /** Echo of the criteria text (task store `done-when`); null when absent/empty. */
-  doneWhen: string | null;
-  /** Whether the task reached `done`. */
-  completed: boolean;
-  /** Real `completed-at` timestamp; null (honest) when the task is not completed / never recorded. */
-  completedAt: string | null;
-  /** Real `completed-note` — the achievement note captured at completion; null (honest) when absent. */
-  completedNote: string | null;
-  /** The most-recent TERMINAL execution joined by taskId that completed this task; null when none. */
-  completingExecutionId: string | null;
-  /** That execution's final output (real evidence of what the run produced); null when unavailable. */
-  completingOutput: string | null;
-}
-
-/** One execution/dispatch record joined to the task by `dispatch.taskId`. */
-export interface TaskDispatchRecord {
-  executionId: string;
-  type: 'local' | 'dispatch';
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
-  machine: string | null;
-  threadId: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-  durationMs: number | null;
-  cost: number | null;
-}
-
-export interface TaskVerificationInfo {
-  taskId: string;
-  project: string;
-  evidence: TaskDoneWhenEvidence;
-  /** Per-task execution/dispatch history, newest first. `[]` (honest) when never dispatched. */
-  dispatches: TaskDispatchRecord[];
-}
-
 export interface ScheduleInfo {
   id: string;
   type: 'interval' | 'daily' | 'weekly' | 'once';
@@ -1270,9 +1057,8 @@ export interface ScheduleInfo {
   intervalMs: number | null;
   time: string | null;
   dayOfWeek: number | null;
-  /** Persisted dispatch target / fallback; null when the record predates them (never fabricated). */
+  /** Persisted dispatch target; null when the record predates it (never fabricated). */
   target: ScheduleTarget | null;
-  fallback: 'fresh' | 'skip' | 'wait' | null;
 }
 
 // ── Commission DTOs (DR-0037) ─────────────────────────────────────
@@ -1392,7 +1178,8 @@ export interface ExecutionDetailInfo {
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'stale';
   projectId: string | null;
   sessionId: string | null;
-  threadId: string | null;
+  /** Always null. Kept so released mobile clients that still read it keep parsing the detail. */
+  threadId: null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
   dispatch: {
     taskId: string | null;
@@ -1492,12 +1279,6 @@ export interface ConfigMachine {
 
 export interface ConfigMcp {
   servers: string[];
-}
-
-export interface ConfigThreadTemplates {
-  agents: string[];
-  templates: string[];
-  shells: string[];
 }
 
 /** One execution environment (`config/environments/`) as a picker needs it: what it is for, and
@@ -1660,7 +1441,6 @@ export interface ConfigSnapshot {
   profiles: ConfigProfiles | null;
   machines: ConfigMachine[];
   mcp: ConfigMcp | null;
-  threadTemplates: ConfigThreadTemplates;
   /** The execution environments a composer may pick from, with what each one is and pins. Always
    *  emitted by current servers; optional while clients and servers roll independently. */
   agents?: ConfigAgentEntry[];
@@ -1775,15 +1555,16 @@ export interface MachineDetail {
   probeError: string | null;
 }
 
-// ── threadTemplates.get DTO (plan §12 A item 3 / 9c) ────────────────────────
-// Full body of every thread-template JSON file under
-// config/thread-templates/{templates,agents,shells}/*.json.
-// `body` is the parsed JSON object (null on parse error). Thread-template files contain
-// no secrets (they are orchestration configs); the full body is safe to expose.
+// ── environments.list / get / validate / save / delete ──────────────────────
+// The execution environments under config/environments/*.json. `body` is the raw file content (not
+// the resolved definition), so `file:` prompt refs survive an edit round-trip. Environment files
+// hold no secrets; the full body is safe to expose.
 
-export interface ThreadTemplateEntry {
-  /** Subdir origin: 'template' (orchestration), 'agent' (execution), 'shell' (shorthand). */
-  kind: 'template' | 'agent' | 'shell';
+/** 'stock' = byte-identical to the shipped default, 'modified' = a shipped name that differs,
+ *  'custom' = no shipped default of that name. */
+export type EnvironmentOrigin = 'stock' | 'modified' | 'custom';
+
+export interface EnvironmentEntry {
   /** Basename without .json extension. */
   name: string;
   /** Top-level `description` field from the file; null if absent. */
@@ -1794,83 +1575,63 @@ export interface ThreadTemplateEntry {
   valid: boolean;
   /** Count of blocking errors; 0 when valid. */
   errorCount: number;
-  /** Relationship to the shipped defaults. `mergeThreadTemplates` is copy-if-missing and never
-   *  overwrites, so editing a `stock` entity forks it from upstream permanently. */
-  origin: ThreadTemplateOrigin;
+  /** Relationship to the shipped defaults. Defaults are copy-if-missing and never overwrite, so
+   *  editing a `stock` environment forks it from upstream permanently. */
+  origin: EnvironmentOrigin;
 }
 
-/** 'stock' = byte-identical to the shipped default, 'modified' = a shipped name that differs,
- *  'custom' = no shipped default of that name. */
-export type ThreadTemplateOrigin = 'stock' | 'modified' | 'custom';
-
-// ── threadTemplates.detail / validate / save / remove ───────────────────────
-// The editing surface. `body` is the raw file content (readThreadTemplates reads files directly
-// rather than the resolved registry), so `file:` prompt refs survive an edit round-trip.
-
-export interface ThreadTemplateIssue {
-  /** Field anchor, e.g. `transitions[2].from`, or `template:<name>` for a knock-on breakage. */
+export interface EnvironmentIssue {
+  /** Field anchor, e.g. `pluginDirs[0]`. */
   path: string;
   message: string;
 }
 
-export interface ThreadTemplateDetailParams {
-  kind: 'template' | 'agent' | 'shell';
+export interface EnvironmentsGetParams {
   name: string;
 }
 
-export interface ThreadTemplateDetail {
-  kind: 'template' | 'agent' | 'shell';
+export interface EnvironmentDetail {
   name: string;
   description: string | null;
   body: Record<string, unknown> | null;
   /** Absolute path of the backing file. */
   filePath: string;
-  origin: ThreadTemplateOrigin;
+  origin: EnvironmentOrigin;
   /** Hash of the bytes on disk — pass back as `baseHash` on save to detect a concurrent edit. */
   sha256: string;
-  errors: ThreadTemplateIssue[];
-  warnings: ThreadTemplateIssue[];
-  /** Templates that declare this agent or bind this shell; empty for a template. */
-  usedByTemplates: string[];
-  /** Non-terminal threads currently running on this template. Transitions are re-read every step,
-   *  so editing while these are alive can reroute or stall them. */
-  runningThreads: number;
-  /** Open TASKS.yaml entries dispatching this template — they break if it is deleted. */
-  referencingTasks: number;
-  /** For a shell-binding template: the transition graph it expands to. Null otherwise. */
-  expanded: Record<string, unknown> | null;
+  errors: EnvironmentIssue[];
+  warnings: EnvironmentIssue[];
 }
 
-export interface ThreadTemplatesValidateArgs {
-  kind: 'template' | 'agent' | 'shell';
+export interface EnvironmentsValidateArgs {
   name: string;
   body: Record<string, unknown>;
 }
 
-export interface ThreadTemplatesValidateReturn {
+export interface EnvironmentsValidateReturn {
   ok: boolean;
-  errors: ThreadTemplateIssue[];
-  warnings: ThreadTemplateIssue[];
+  errors: EnvironmentIssue[];
+  warnings: EnvironmentIssue[];
 }
 
-export interface ThreadTemplatesSaveArgs extends ThreadTemplatesValidateArgs {
+export interface EnvironmentsSaveArgs extends EnvironmentsValidateArgs {
   /** Absent creates (the file must not exist); present is the hash the editor loaded, which the
    *  writer compares against disk to reject a save made under a stale editor. */
   baseHash?: string;
 }
 
-export interface ThreadTemplatesSaveReturn {
+export interface EnvironmentsSaveReturn {
   changed: boolean;
   sha256: string;
-  warnings: ThreadTemplateIssue[];
+  warnings: EnvironmentIssue[];
 }
 
-export interface ThreadTemplatesRemoveArgs {
-  kind: 'template' | 'agent' | 'shell';
+/** The default environment (`main`) is refused: every conversation falls back to it. */
+export interface EnvironmentsDeleteArgs {
   name: string;
 }
 
-export interface ThreadTemplatesRemoveReturn {
+export interface EnvironmentsDeleteReturn {
   removed: boolean;
 }
 
@@ -1957,31 +1718,7 @@ export interface PluginAgentTarget {
   unmanagedPluginCount: number;
 }
 
-export interface PluginTemplateSlotTarget {
-  kind: 'template-slot';
-  templateName: string;
-  index: number;
-  ref: string;
-  editable: boolean;
-  baseHash: string;
-  mode: 'inherit' | 'custom';
-  managedPluginIds: string[];
-  unmanagedPluginCount: number;
-  readOnlyReason?: 'active-agent';
-}
-
-export interface PluginTemplateShellBindingTarget {
-  kind: 'template-shell';
-  templateName: string;
-  editable: false;
-  baseHash: string;
-  readOnlyReason: 'shell-binding';
-}
-
-export type PluginAssignmentTarget =
-  | PluginAgentTarget
-  | PluginTemplateSlotTarget
-  | PluginTemplateShellBindingTarget;
+export type PluginAssignmentTarget = PluginAgentTarget;
 
 export interface PluginsListReturn {
   plugins: UiPluginCatalogEntry[];
@@ -1994,17 +1731,8 @@ export interface PluginsAssignAgentTarget {
   baseHash: string;
 }
 
-export interface PluginsAssignTemplateTarget {
-  kind: 'template-slot';
-  templateName: string;
-  index: number;
-  ref: string;
-  baseHash: string;
-  mode: 'inherit' | 'custom';
-}
-
 export interface PluginsAssignArgs {
-  target: PluginsAssignAgentTarget | PluginsAssignTemplateTarget;
+  target: PluginsAssignAgentTarget;
   pluginIds: string[];
   acknowledgeMcp?: boolean;
 }
@@ -2326,7 +2054,6 @@ export interface RateLimitProviderInfo {
   provider: string;
   displayName: string;
   waitingSessions: number;
-  waitingThreads: number;
   windows: RateLimitWindowInfo[];
 }
 
@@ -2463,10 +2190,6 @@ export interface SessionsCreateAndSendReturn {
   acceptedAt: string;
 }
 
-export interface ThreadsCancelReturn {
-  cancelled: boolean;
-}
-
 export interface ExecutionsCancelReturn {
   cancelled: boolean;
 }
@@ -2526,10 +2249,6 @@ export interface QueryParamMap {
   'sessions.subagentTranscript': SessionsSubagentTranscriptParams;
   'sessions.debugDetails': SessionsDebugDetailsParams;
   'sessions.pendingInteraction': SessionsPendingInteractionParams;
-  'threads.list': ThreadsListParams;
-  'threads.get': ThreadsGetParams;
-  'tasks.list': TasksListParams;
-  'tasks.verification': TaskVerificationParams;
   'schedules.list': SchedulesListParams;
   'commissions.list': CommissionsListParams;
   'commissions.get': CommissionsGetParams;
@@ -2555,8 +2274,8 @@ export interface QueryParamMap {
   'plugins.list': PluginsListParams;
   'plugins.skillFile': PluginsSkillFileParams;
   'plugins.mcpRead': PluginsMcpReadParams;
-  'threadTemplates.get': ThreadTemplatesGetParams;
-  'threadTemplates.detail': ThreadTemplateDetailParams;
+  'environments.list': EnvironmentsListParams;
+  'environments.get': EnvironmentsGetParams;
   'system.daemonStatus': SystemDaemonStatusParams;
   'system.rateLimitStatus': SystemRateLimitStatusParams;
   'system.usageStatus': SystemUsageStatusParams;
@@ -2571,10 +2290,6 @@ export interface QueryReturnMap {
   'sessions.subagentTranscript': SessionSubagentTranscript;
   'sessions.debugDetails': TranscriptDebugDetails | null;
   'sessions.pendingInteraction': SessionsPendingInteraction;
-  'threads.list': ThreadInfo[];
-  'threads.get': ThreadDetail;
-  'tasks.list': TaskInfo[];
-  'tasks.verification': TaskVerificationInfo;
   'schedules.list': ScheduleInfo[];
   'commissions.list': CommissionInfo[];
   'commissions.get': CommissionInfo;
@@ -2600,8 +2315,8 @@ export interface QueryReturnMap {
   'plugins.list': PluginsListReturn;
   'plugins.skillFile': PluginsSkillFile;
   'plugins.mcpRead': PluginsMcpRead;
-  'threadTemplates.get': ThreadTemplateEntry[];
-  'threadTemplates.detail': ThreadTemplateDetail;
+  'environments.list': EnvironmentEntry[];
+  'environments.get': EnvironmentDetail;
   'system.daemonStatus': SystemDaemonStatus;
   'system.rateLimitStatus': SystemRateLimitStatus;
   'system.usageStatus': SystemUsageStatus;
@@ -2629,7 +2344,6 @@ export interface MutateArgsMap {
   'sessions.respondDecision': SessionsRespondDecisionArgs;
   'sessions.cancelResume': SessionsCancelResumeArgs;
   'sessions.rewind': SessionsRewindArgs;
-  'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'waitpoints.cancel': WaitpointsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -2638,11 +2352,6 @@ export interface MutateArgsMap {
   'schedules.add': ScheduleAddArgs;
   'schedules.update': ScheduleUpdateArgs;
   'commissions.close': CommissionCloseArgs;
-  'tasks.claim': TaskActionArgs;
-  'tasks.unclaim': TaskActionArgs;
-  'tasks.complete': TaskCompleteArgs;
-  'tasks.block': TaskBlockArgs;
-  'tasks.unblock': TaskActionArgs;
   'approvals.approve': ApprovalsApproveArgs;
   'approvals.reject': ApprovalsRejectArgs;
   'approvals.request': ApprovalsRequestArgs;
@@ -2680,9 +2389,9 @@ export interface MutateArgsMap {
   'plugins.remove': PluginsRemoveArgs;
   'plugins.convertToPortable': PluginsConvertArgs;
   'plugins.mcpWrite': PluginsMcpWriteArgs;
-  'threadTemplates.validate': ThreadTemplatesValidateArgs;
-  'threadTemplates.save': ThreadTemplatesSaveArgs;
-  'threadTemplates.remove': ThreadTemplatesRemoveArgs;
+  'environments.validate': EnvironmentsValidateArgs;
+  'environments.save': EnvironmentsSaveArgs;
+  'environments.delete': EnvironmentsDeleteArgs;
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
   'system.refreshUsage': SystemRefreshUsageArgs;
@@ -2711,7 +2420,6 @@ export interface MutateReturnMap {
   'sessions.respondDecision': SessionsRespondDecisionReturn;
   'sessions.cancelResume': SessionsCancelResumeReturn;
   'sessions.rewind': SessionsRewindReturn;
-  'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'waitpoints.cancel': WaitpointsCancelReturn;
   'schedules.pause': void;
@@ -2720,11 +2428,6 @@ export interface MutateReturnMap {
   'schedules.add': ScheduleInfo;
   'schedules.update': ScheduleInfo;
   'commissions.close': CommissionInfo;
-  'tasks.claim': void;
-  'tasks.unclaim': void;
-  'tasks.complete': void;
-  'tasks.block': void;
-  'tasks.unblock': void;
   'approvals.approve': ApprovalMutateReturn;
   'approvals.reject': ApprovalMutateReturn;
   'approvals.request': ApprovalsRequestReturn;
@@ -2762,9 +2465,9 @@ export interface MutateReturnMap {
   'plugins.remove': PluginsPackageReturn;
   'plugins.convertToPortable': PluginsPackageReturn;
   'plugins.mcpWrite': PluginsMcpRead;
-  'threadTemplates.validate': ThreadTemplatesValidateReturn;
-  'threadTemplates.save': ThreadTemplatesSaveReturn;
-  'threadTemplates.remove': ThreadTemplatesRemoveReturn;
+  'environments.validate': EnvironmentsValidateReturn;
+  'environments.save': EnvironmentsSaveReturn;
+  'environments.delete': EnvironmentsDeleteReturn;
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
   'system.refreshUsage': SystemRefreshUsageReturn;
@@ -2979,16 +2682,6 @@ export interface UiServiceDeps {
   /** The last composer pick on this host, which a draft conversation starts from. Injected for the
    *  same reason as the two above. */
   getSelectionDefault?: () => ConfigSelectionDefault | null;
-  threadStore: {
-    getAll(): any[];
-    get(id: string): any | null;
-  };
-  taskStore: {
-    getAll(project?: string): any[];
-    getById(taskId: string): any | null;
-    load(): void;
-    refresh(): void;
-  };
   scheduler: {
     list(): Promise<ScheduleTask[]>;
     get(id: string): Promise<ScheduleTask | null>;
@@ -2996,7 +2689,7 @@ export interface UiServiceDeps {
     resume(id: string): Promise<ScheduleTask | null>;
     remove(id: string): Promise<boolean>;
     /** Create a schedule (schedules.add). The injected impl (app.ts) composes the real
-     *  scheduler.add + schedule-repo backfill of target/fallback, returning the final task. */
+     *  scheduler.add + schedule-repo backfill of target, returning the final task. */
     add(
       type: ScheduleTask['type'],
       options: {
@@ -3008,7 +2701,6 @@ export interface UiServiceDeps {
         dayOfWeek?: number;
         delay?: number;
         target?: ScheduleTarget;
-        fallback?: 'fresh' | 'skip' | 'wait';
       },
     ): Promise<ScheduleTask>;
     /** Patch an existing schedule (schedules.update). Maps to the real scheduler.update
