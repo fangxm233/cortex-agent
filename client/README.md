@@ -3,33 +3,35 @@
 [中文文档](./docs/zh/) | [Docs](https://fangxm233.github.io/cortex-agent/)
 
 Cortex is an autonomous agent system for long-running projects. You give
-it a mission with a success criterion, and it plans the work, dispatches
-a pipeline of agents to execute it, keeps a structured log of progress
-in your repo, and reviews itself before each commit — across days or
+it a mission with a success criterion, and it plans the work, hands
+focused pieces to subagents, keeps a structured log of progress in your
+repo, and checks the result against what you agreed — across days or
 weeks of unattended work.
 
-Cortex is designed around four failure modes of long agent runs.
+Cortex is designed around three failure modes of long agent runs.
 **Context rot** — durable project state lives as plain files in your
 repo, not chat history that accumulates and decays. **Execution drift**
-— every task carries a verifiable success criterion, checked at
-completion. **Context window limits** — work is partitioned across
-agent pipelines, each with bounded scope and fresh context.
-**Single-perspective bias** — adversarial review is a built-in pipeline
-stage, not a polite suggestion.
+— long work runs against a contract you approve before it starts, and
+every completion claim points at its evidence. **Context window
+limits** — bounded pieces of work go to subagents that start with a
+fresh context and return only their result.
 
 ## Features
 
-- **Mission-driven task system** — hand off a goal; Cortex decomposes
-  it into tracked tasks with priorities, dependencies, and verifiable
-  done-conditions, works through them autonomously, and stops to ask
-  only when blocked. You stop maintaining the todo list.
-  See [docs/tasks.md](./docs/tasks.md).
+- **Commissions for long work** — hand off a goal and Cortex drafts a
+  contract: the intent, the plan, and what "done" means. Work starts
+  only after you approve it. A ledger in the project records progress
+  with evidence, checkpoints compare the plan with what was done, and
+  gates stop for your decision. Any conversation can turn into a
+  commission when the work outgrows it.
 
-- **Multi-agent thread pipelines** — long jobs run as a relay of
-  focused agents instead of one overloaded session. Each step starts
-  with a clean context and a narrow scope, so the model never loses
-  the plot mid-task. Handoffs carry only what the next stage needs.
-  See [docs/threads.md](./docs/threads.md).
+- **Subagents and team mode** — a session hands bounded work such as
+  exploration, planning, or verification to subagents that run with a
+  clean context on either backend and report back into the transcript.
+  With team mode on (experimental), a session can also lead persistent
+  worker sessions that it continues, answers, and reports on.
+  See [docs/backends.md](./docs/backends.md#subagents) and
+  [docs/team.md](./docs/team.md).
 
 - **Structured project log** — every project keeps mission, roadmap,
   status, experiments, knowledge, patterns, and decisions as plain
@@ -63,13 +65,13 @@ stage, not a polite suggestion.
 - **Use Cortex from the Web, native apps, chat, or a terminal** — open
   the browser workbench, install the Linux/macOS/Windows desktop app or
   Android app, message Cortex through Slack or Feishu, or use the TUI.
-  Every interface reaches the same projects, sessions, tasks, and memory.
+  Every interface reaches the same projects, sessions, schedules, and memory.
   See [Browser Access](./docs/browser-access.md) and
   [Desktop and Android Apps](./docs/desktop-app.md).
 
 ## Quickstart
 
-Requirements: Node 20+. The PI backend ships inside the server package; the
+Requirements: Node ≥22.19.0. The PI backend ships inside the server package; the
 Claude Code backend is a separate install that `cortex init` performs for you.
 
 ```bash
@@ -104,12 +106,11 @@ projects/my-project/
 ├── roadmap.md           # Milestones and timeline
 ├── STATUS.md            # Current state (overwrite)
 ├── ISSUES.md            # Open friction points (append)
-├── TASKS.yaml           # Machine-readable task queue
+├── commissions/         # Commission contracts and ledgers
 ├── decisions/           # DR-NNNN.md design decisions (append)
 ├── experiments/         # EXP-NNN.md atomic experiment records
 ├── knowledge/           # K-NNN.md atomic knowledge entries
-├── patterns/            # PAT-NNN.md cross-experiment patterns
-└── tasks-archive.md     # Completed tasks (auto-archived)
+└── patterns/            # PAT-NNN.md cross-experiment patterns
 ```
 
 This is the project log. It survives sessions, restarts, and model
@@ -146,15 +147,14 @@ variable reference, file layout, and precedence rules are in
 | [Desktop & Android Apps](./docs/desktop-app.md) | Native installation, connection, downloads, and updates |
 | [Browser Access](./docs/browser-access.md) | Web workbench authentication and deployment |
 | [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
-| [Configuration](./docs/configuration.md) | Full `.env` and `config/settings.json` reference, `profiles.json`, file layout, hot-reload |
-| [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-signal` — every subcommand and flag |
+| [Configuration](./docs/configuration.md) | Full `.env` and `config/settings.json` reference, `profiles.json`, execution environments, file layout, hot-reload |
+| [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-signal` — every subcommand and flag |
 | [Backends](./docs/backends.md) | Claude Code vs PI, feature matrix, fallback, cost reporting |
 | [Architecture](./docs/architecture.md) | Server layers, WS protocol, event bus |
-| [Threads](./docs/threads.md) | Multi-agent pipelines, templates, transitions, hooks |
-| [Tasks](./docs/tasks.md) | TASKS.yaml format, lifecycle, dispatch, acceptance ledger |
+| [Team Mode](./docs/team.md) | Lead and worker sessions, reports, questions, and the roster |
 | [Memory](./docs/memory.md) | EXP/K/PAT atomized knowledge, project log governance |
 | [Skills & Plugins](./docs/skills-and-plugins.md) | Skill authoring, plugin layout, third-party plugins |
-| [Scheduling](./docs/scheduling.md) | Interval/daily/weekly/once schedules, preCheck, fallback |
+| [Scheduling](./docs/scheduling.md) | Interval/daily/weekly/once schedules, targets, preCheck |
 | [Safety & Approvals](./docs/safety-and-approvals.md) | Blast-radius classes, approval workflow, audit trail |
 | [Hooks](./docs/hooks.md) | Hook lifecycle, hook-bridge, custom hooks in settings.json |
 | [Waitpoints](./docs/waitpoints.md) | Waiting on external jobs without polling: arm, signal, quorum, expiry |
@@ -184,13 +184,13 @@ Cortex's core workspace and plugin packages are:
 
 | Package | Directory | Role |
 |---------|-----------|------|
-| `@cortex-agent/server` | `agent-server/` | Control plane, chat adapters, task dispatch, scheduling, and thread orchestration |
+| `@cortex-agent/server` | `agent-server/` | Control plane, chat adapters, session orchestration, and scheduling |
 | `@cortex-agent/client` | `client/` | Remote worker that executes tools over the client WebSocket |
 | `@cortex-agent/web` | `web/` | Browser, desktop, and mobile workbench SPA |
 | `@cortex-agent/desktop` | `desktop/` | Tauri shell for Linux, macOS, Windows, and Android |
 | `@cortex-agent/ui-contract` | `packages/ui-contract/` | Shared typed contract between the server and workbench |
 | `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Authenticated Cloudflare Worker for DeepSeek API egress |
-| Plugins | `plugins/` | Role-scoped skills loaded by thread agents at runtime |
+| Plugins | `plugins/` | Skill plugins loaded by agents at runtime |
 
 The server is organized in six layers (`src/`): core utilities → persistence
 → event bus → domain logic → orchestration → entry points. Test coverage is
