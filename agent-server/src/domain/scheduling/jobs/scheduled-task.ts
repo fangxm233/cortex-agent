@@ -1,40 +1,32 @@
-import { ctx, requireJobCtx } from '../job-registry.js';
+import * as crypto from 'node:crypto';
+import { requireJobCtx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
-import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
-
-const log = createLogger('scheduled-task');
 import { sessionStore } from '@store/session-registry-repo.js';
-import { threadStore } from '@store/thread-repo.js';
-import { getActiveProfile } from '../../agents/index.js';
+import { conversationLedger } from '@store/conversation-ledger-repo.js';
+import { applyChannelSelection, resolveBackendForChannel } from '../../agents/index.js';
+import { getDefaultProfileName } from '../../agents/profile-manager.js';
 import { projectStore } from '@domain/projects/index.js';
+import { createDirectSession, type CreateDirectSessionDeps } from '@domain/sessions/session-lifecycle.js';
+import { setSessionAsync } from '@domain/sessions/session.js';
 import { normalizeSkillCommandPrefix } from '../../memory/skill-scanner.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-guards.js';
 import { allConfigsRateLimited } from '../../runs/fallback.js';
-import { createThread } from '../../threads/index.js';
-import { registerThreadSession } from './register-thread-session.js';
-import { planScheduledDispatch, type DispatchPlan } from './target-dispatch.js';
 import type { Destination } from '@platform/index.js';
-import type { ScheduleTarget, ScheduleTask } from '@store/schedule-repo.js';
-// Type-only, so `domain` still never depends on `orchestration` at runtime: the run itself
-// arrives through `ctx.runThreadOnSurface`, injected by app.ts.
-import type { TaskVerdict, ThreadRunOutcome, ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
 import { t } from '@core/i18n.js';
 
-/** The precise shape of `ctx.runThreadOnSurface` — see the type's doc in job-registry for why it
- *  is re-declared here rather than named there. */
-type RunOnSurface = (input: ThreadRunSurfaceInput) => Promise<ThreadRunOutcome>;
-type RunInput = Parameters<RunOnSurface>[0];
+const log = createLogger('scheduled-task');
 
-// Module-level state
-const scheduledTaskActive = new Map<string, boolean>();
+/** Fires between passing the guards and their turn being admitted. A run's execution record only
+ *  exists once its turn starts, so without this a second fire in that window would not see it. */
+const scheduledTaskActive = new Set<string>();
 
 // --- Guards ---
 
 function passScheduledGuards(schedKey: string, scheduleTaskId: string): boolean {
   const runningExecutions = executionRegistry.getRunningExecutions();
   if (scheduledTaskActive.has(schedKey) || hasRunningExecutionForSchedule(runningExecutions, scheduleTaskId)) {
-    log.info(`Skipping — local agent still running for ${schedKey}`);
+    log.info(`Skipping — the previous run of ${schedKey} is still going`);
     return false;
   }
   return true;
@@ -42,16 +34,48 @@ function passScheduledGuards(schedKey: string, scheduleTaskId: string): boolean 
 
 // --- Public entry point (non-async fire-and-forget) ---
 
-interface RunScheduledTaskInput {
+export interface RunScheduledTaskInput {
   message: string;
   projectId: string;
   scheduleTaskId: string;
   profileName: string;
-  target?: ScheduleTarget;
-  fallback?: ScheduleTask['fallback'];
 }
 
-export function runScheduledTask({ message, projectId, scheduleTaskId, profileName, target, fallback }: RunScheduledTaskInput): void {
+/** Collaborators the run is opened with. Production uses the real stores; tests inject their own. */
+export interface ScheduledRunDeps {
+  createSession: (opts: Parameters<typeof createDirectSession>[1]) => ReturnType<typeof createDirectSession>;
+  applySelection: typeof applyChannelSelection;
+  newSessionId: () => string;
+}
+
+const sessionDeps: CreateDirectSessionDeps = {
+  sessionStore,
+  setChannelSession: setSessionAsync,
+  initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
+  resolveBackend: resolveBackendForChannel,
+};
+
+const defaultDeps: ScheduledRunDeps = {
+  createSession: (opts) => createDirectSession(sessionDeps, opts),
+  applySelection: applyChannelSelection,
+  newSessionId: () => crypto.randomUUID(),
+};
+
+/** Fire one schedule. Fire-and-forget: the scheduler's timer never waits on the run. */
+export function runScheduledTask(input: RunScheduledTaskInput, deps: ScheduledRunDeps = defaultDeps): void {
+  void fireScheduledTask(input, deps);
+}
+
+/**
+ * Fire one schedule and resolve once its turn is admitted (or the fire was skipped). A fire opens a
+ * session of its own — an ordinary direct session on its own `web:<sessionId>` channel, recorded as
+ * the schedule's run — and delivers the schedule's prompt as its first turn. Everything after that
+ * (the run itself, a rate-limit pause and its resume, a reply adopting the run) is the session's.
+ */
+export async function fireScheduledTask(
+  { message, projectId, scheduleTaskId, profileName }: RunScheduledTaskInput,
+  deps: ScheduledRunDeps = defaultDeps,
+): Promise<void> {
   const schedKey = `sched:${scheduleTaskId || projectId}`;
   if (!passScheduledGuards(schedKey, scheduleTaskId)) return;
 
@@ -70,142 +94,47 @@ export function runScheduledTask({ message, projectId, scheduleTaskId, profileNa
     return;
   }
 
-  scheduledTaskActive.set(schedKey, true);
-  ctx.bus!.publish({ type: 'llm.active-count-delta', delta: 1 });
-  runScheduledTaskAsync({ normalizedMessage, message, projectId, scheduleTaskId, profileName, target, fallback })
-    .catch((e) => log.error(`Scheduled task ${scheduleTaskId} failed:`, (e as Error).message))
-    .finally(() => {
-      scheduledTaskActive.delete(schedKey);
-      ctx.bus!.publish({ type: 'llm.active-count-delta', delta: -1 });
-    });
-}
-
-// --- Plan resolution ---
-
-async function resolveDispatchPlan(projectId: string, target: ScheduleTarget | undefined, fallback: ScheduleTask['fallback']): Promise<DispatchPlan> {
-  const plan = await planScheduledDispatch({
-    target,
-    fallback,
-    fallbackChannel: projectId,
-    lookups: {
-      getThread: (id) => threadStore.get(id),
-    },
-  });
-  return plan;
-}
-
-// --- Async implementation ---
-
-async function runScheduledTaskAsync({ normalizedMessage, message, projectId, scheduleTaskId, profileName, target, fallback }: RunScheduledTaskInput & { normalizedMessage: string }): Promise<void> {
-  const startTime = Date.now();
-  // Build the project-report destination for all outbound messages from this scheduled run.
-  const projectReportDest: Destination = { type: 'project-report', projectId, trigger: 'scheduled', sessionId: '' };
-
-  let input: RunInput;
+  scheduledTaskActive.add(schedKey);
   try {
-    const plan = await resolveDispatchPlan(projectId, target, fallback);
-    const effectiveProfile = profileName || getActiveProfile(projectId) || 'default';
-    const sessionName = await sessionStore.generateSessionName();
-
-    // Skip plans short-circuit before the run starts, so they don't pollute the project channel
-    // with a processing line (which ThreadRun would otherwise post).
-    if (plan.kind === 'skip') {
-      log.info(`Skipping schedule ${scheduleTaskId}: ${plan.reason}`);
-      const notify = requireJobCtx('notify');
-      try { await notify(projectReportDest, `${Icons.superseded} ${t('notice.schedule.skipped', { reason: plan.reason })}`); } catch {}
-      return;
-    }
-
-    input = buildRunInput({
-      plan, normalizedMessage, message, scheduleTaskId, effectiveProfile, startTime,
-      sessionName, projectReportDest, projectId,
-    });
+    await openScheduledRun({ normalizedMessage, message, projectId, scheduleTaskId, profileName }, deps);
   } catch (error) {
-    // Nothing ran, so there is no status line to seal — only the notice. (Before T2.2 a plan
-    // failure here was an unhandled rejection and said nothing at all.)
-    const notify = requireJobCtx('notify');
-    log.error('Scheduled task setup failed:', (error as Error).message);
-    try { await notify(projectReportDest, t('notice.schedule.error', { error: (error as Error).message })); } catch {}
-    return;
+    // Nothing ran, so the notice is the only trace this fire leaves.
+    log.error(`Scheduled task ${scheduleTaskId} setup failed:`, (error as Error).message);
+    const destination: Destination = { type: 'project-report', projectId, trigger: 'scheduled', sessionId: '' };
+    try {
+      await requireJobCtx('notify')(destination, t('notice.schedule.error', { error: (error as Error).message }));
+    } catch { /* best-effort */ }
+  } finally {
+    scheduledTaskActive.delete(schedKey);
   }
-
-  await (requireJobCtx('runThreadOnSurface') as RunOnSurface)(input);
 }
 
-// --- Plan execution ---
+async function openScheduledRun(
+  { normalizedMessage, message, projectId, scheduleTaskId, profileName }: {
+    normalizedMessage: string; message: string; projectId: string; scheduleTaskId: string; profileName: string;
+  },
+  deps: ScheduledRunDeps,
+): Promise<void> {
+  const deliver = requireJobCtx('deliverScheduledTurn');
+  const sessionId = deps.newSessionId();
+  const channel = `web:${sessionId}`;
 
-interface DispatchExecuteInput {
-  plan: Exclude<DispatchPlan, { kind: 'skip' }>;
-  normalizedMessage: string;
-  message: string;
-  scheduleTaskId: string;
-  effectiveProfile: string;
-  startTime: number;
-  sessionName: string;
-  projectReportDest: Destination;
-  projectId: string;
-}
-
-/** Turn a resolved plan into the one `ThreadRun` call this job makes. `continue-thread` re-enters
- *  an existing thread; `fresh` is the original scheduled-task semantics (scheduler template, fresh
- *  session). Everything the run then draws belongs to render-task's `scheduled` flavour. */
-function buildRunInput({ plan, normalizedMessage, message, scheduleTaskId, effectiveProfile, startTime, sessionName, projectReportDest, projectId }: DispatchExecuteInput): RunInput {
-  const project = projectStore.resolveFromMessage(message)?.id ?? 'general';
-  const threadId = plan.kind === 'continue-thread'
-    ? plan.threadId
-    : createThread(plan.channel, {
-      templateName: 'scheduler',
-      userMessage: normalizedMessage,
-      userMessageTs: `sched_${Date.now()}`,
-      projectId: project,
-      metadata: { scheduleTaskId, trigger: 'scheduled', profileOverride: effectiveProfile },
-    }).id;
-
-  return {
-    threadId,
-    mode: plan.kind === 'continue-thread'
-      ? { kind: 'continue', userMessage: normalizedMessage }
-      : { kind: 'start' },
-    channel: projectId,
-    destination: projectReportDest,
-    threadAnchorId: null,
-    // A reply under a scheduled run's status line stays a conversation message, as it always has.
-    claimPlatformThread: false,
-    statusMessage: null,
-    render: {
-      kind: 'task', flavour: 'scheduled', project: projectId, taskText: null,
-      sessionName, profileName: effectiveProfile,
-    },
-    interactive: true,
-    startTime,
-    settle: null,
-    decide: (outcome) => decideScheduled(outcome, {
-      projectId, sessionName, label: message?.substring(0, 60) || null,
-      scheduleId: scheduleTaskId || null,
-    }),
-  };
-}
-
-/** What the finished run means for the SCHEDULE. The only durable effect is registering the
- *  session (the registration half of the old shared finalize helper) — a paused or rate-limited run
- *  registers nothing, exactly as before. */
-async function decideScheduled(outcome: ThreadRunOutcome, c: {
-  projectId: string; sessionName: string; label: string | null; scheduleId: string | null;
-}): Promise<TaskVerdict> {
-  if (outcome.error) return { kind: 'error', message: outcome.error.message };
-  // Rate-limit pause: the runner already recorded the thread for auto-resume and left it in
-  // 'rate_limited'. Don't treat it as a failure — just reflect the paused state.
-  if (outcome.verdict === 'rate_limited') return { kind: 'paused' };
-  // Fallback: rate-limited but no active throttle, so the runner did not pause the thread.
-  if (outcome.verdict === 'rate_limited_exhausted') return { kind: 'exhausted' };
-
-  await registerThreadSession(c.projectId, {
-    sessionName: c.sessionName,
-    result: (outcome.result?.lastAgentResult ?? null) as any,
-    threadResult: (outcome.result ?? {}) as Record<string, any>,
-    project: c.projectId, label: c.label,
-    sessionOrigin: 'scheduled',
-    scheduleId: c.scheduleId,
+  // The profile is written before the session exists, so its first turn already runs on it. A fire
+  // is not a pick the user made, so it leaves what the next new conversation opens on alone.
+  const applied = await deps.applySelection({
+    channel, profileName: profileName || getDefaultProfileName(), seedDefault: false,
   });
-  return { kind: 'done' };
+  if (!applied.ok) throw new Error(`cannot run on profile "${profileName}": ${applied.reason}`);
+
+  const created = await deps.createSession({
+    projectId: projectStore.exists(projectId)
+      ? projectId
+      : projectStore.resolveFromMessage(message)?.id ?? 'general',
+    sessionId,
+    profileName: applied.profileName,
+    scheduleId: scheduleTaskId || null,
+    label: message.substring(0, 60) || null,
+  });
+  log.info(`Schedule ${scheduleTaskId} opened session ${created.sessionName} (${created.sessionId})`);
+  await deliver({ channel: created.channel, text: normalizedMessage });
 }

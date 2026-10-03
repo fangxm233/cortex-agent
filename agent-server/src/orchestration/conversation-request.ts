@@ -162,15 +162,32 @@ export function resolveConversationAgent(
   throw new Error(`Unknown default agent: ${FALLBACK_ENVIRONMENT}`);
 }
 
-/** The agent recorded on the session record, if any. Best-effort: a registry read that fails leaves
- *  the channel's selection to answer, which is the same thing a session with no choice of its own
- *  would produce. */
-async function sessionAgentName(sessionId: string): Promise<string | null> {
+/** The parts of the session record a turn's request reads. Best-effort: a registry read that fails
+ *  leaves the channel's selection to answer for the agent and runs the turn as an ordinary one,
+ *  which is what a session with no choice of its own would produce. */
+type SessionRunFacts = Pick<Session, 'agentName' | 'origin' | 'scheduleId'>;
+
+async function readSessionRunFacts(sessionId: string): Promise<SessionRunFacts | null> {
   try {
-    return (await sessionStore.getById(sessionId))?.agentName ?? null;
+    return await sessionStore.getById(sessionId);
   } catch {
     return null;
   }
+}
+
+/**
+ * How a turn is attributed. A schedule's run — a session its fire opened, not yet adopted by a reply
+ * — runs as a scheduled execution of that schedule: that is what the scheduler reads to skip a fire
+ * while the previous run is still going, and what cost and the gateway attribute to the schedule.
+ * Every other turn is the user's.
+ */
+export function conversationTrigger(session: Partial<SessionRunFacts> | null): Pick<
+  RunRequest['context'], 'trigger' | 'executionKind' | 'scheduleTaskId'
+> {
+  if (session?.origin === 'scheduled' && session.scheduleId) {
+    return { trigger: 'scheduled', executionKind: 'scheduled', scheduleTaskId: session.scheduleId };
+  }
+  return { trigger: 'user', executionKind: 'local', scheduleTaskId: null };
 }
 
 /** The delivery key for a session's current commission binding, or null outside the mode. Bound
@@ -288,8 +305,9 @@ export async function prepareConversationRequest(
   opts: PrepareConversationRequestOptions,
 ): Promise<PreparedRequest> {
   const { sessionId, backendSessionId, sessionName, projectId } = opts.ids;
+  const session = await readSessionRunFacts(sessionId);
   const { agentConfig } = resolveConversationAgent([
-    await sessionAgentName(sessionId),
+    session?.agentName ?? null,
     getDefaultAgent(opts.channel),
   ]);
 
@@ -367,13 +385,13 @@ export async function prepareConversationRequest(
     context: {
       channel: opts.channel,
       project,
-      trigger: 'user',
       threadId: null,
-      executionKind: 'local',
+      // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
+      // to, so it pauses and resumes on a rate limit exactly like one.
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
       ...(opts.teamLead ? { teamLead: true } : {}),
-      scheduleTaskId: null,
+      ...conversationTrigger(session),
     },
     policy,
   };

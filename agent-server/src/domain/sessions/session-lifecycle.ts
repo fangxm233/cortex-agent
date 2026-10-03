@@ -20,6 +20,7 @@ export interface SessionRegistryWriter {
     browser?: SessionBrowserOption | null;
     commissionId?: string | null; commissionDraft?: string | null;
     teamLeadId?: string | null; workerName?: string | null;
+    scheduleId?: string | null;
   }): Promise<void>;
 }
 
@@ -41,6 +42,9 @@ export interface RegisterNamedSessionOpts {
   /** Team mode: the owning lead's sessionId and this worker's name. Absent for ordinary sessions. */
   teamLeadId?: string | null;
   workerName?: string | null;
+  /** The schedule whose fire opened this session. Present, the session is that schedule's run
+   *  (kind and origin 'scheduled') until a reply adopts it as an ordinary direct session. */
+  scheduleId?: string | null;
 }
 
 /** Generate a fresh session name and register a registry record for sessionId. Returns the name.
@@ -51,13 +55,15 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
   // Resolved AFTER the name exists: a new commission's draft dir is `_draft-<session name>`, and a
   // failure here must abort creation rather than quietly produce an ordinary session.
   const commission = opts.commissionFor ? await opts.commissionFor(name) : null;
+  // Every caller path but a schedule's fire (inbound direct message, TUI and web fresh sessions,
+  // team workers) is user-initiated.
+  const scheduled = !!opts.scheduleId;
   await store.registerSession(name, {
     sessionId: opts.sessionId,
     channel: opts.channel,
     backend: opts.backend,
-    kind: 'local',
-    // The only caller paths (inbound direct message, TUI and web fresh sessions) are user-initiated.
-    origin: 'direct',
+    kind: scheduled ? 'scheduled' : 'local',
+    origin: scheduled ? 'scheduled' : 'direct',
     projectId: opts.projectId,
     label: opts.label ?? null,
     profileName: opts.profileName ?? null,
@@ -66,6 +72,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     commissionId: commission?.commissionId ?? null,
     commissionDraft: commission?.commissionDraft ?? null,
     ...(opts.teamLeadId ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null } : {}),
+    ...(scheduled ? { scheduleId: opts.scheduleId } : {}),
   });
   return name;
 }
@@ -80,9 +87,10 @@ export interface CreateDirectSessionDeps {
   resolveBackend(channel: string): string;
 }
 
-/** Create a fresh, live user-initiated (origin='direct') session for a web/UI conversation: mint a
- *  sessionId, derive its own `web:<sessionId>` conduit channel, register the named session, bind the
- *  channel→session mapping and conversation ledger. Returns the sessionId + generated name + channel.
+/** Create a fresh, live session for a web/UI conversation: mint a sessionId, derive its own
+ *  `web:<sessionId>` conduit channel, register the named session, bind the channel→session mapping
+ *  and conversation ledger. Returns the sessionId + generated name + channel. The session is
+ *  user-initiated (origin='direct') unless `scheduleId` names the schedule whose fire opened it.
  *
  *  When `profileName` is provided, the backend is resolved directly from the profile config (not
  *  from the channel's profile state) so the session is bound to the correct backend even before any
@@ -97,6 +105,7 @@ export async function createDirectSession(
     selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
     browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
     teamLeadId?: string | null; workerName?: string | null;
+    label?: string | null; scheduleId?: string | null;
   },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
@@ -157,6 +166,7 @@ export async function createDirectSession(
     channel,
     backend,
     projectId: opts.projectId,
+    label: opts.label ?? null,
     profileName: opts.profileName ?? null,
     agentName: opts.agentName ?? null,
     browser: opts.browser ?? null,
@@ -165,6 +175,7 @@ export async function createDirectSession(
       : undefined,
     teamLeadId: opts.teamLeadId ?? null,
     workerName: opts.workerName ?? null,
+    scheduleId: opts.scheduleId ?? null,
   });
   await deps.setChannelSession(channel, sessionId);
   await deps.initConversation(channel, { sessionId, sessionName, backend });
@@ -196,12 +207,12 @@ export interface AdoptScheduledSessionStore {
   convertToDirect(sessionId: string, opts: { channel: string }): Promise<unknown | null>;
 }
 
-/** Convert a scheduled run's session into a normal direct web session (design 27b: replying adopts
- *  the run). Attaches a dedicated `web:<sessionId>` conduit to the existing session — the same
- *  switch sequence as !resume, so a later send resumes the run's transcript — then re-points the
- *  registry record. `scheduleId` is intentionally KEPT on the record (provenance for the trigger
- *  card / schedule grouping). Idempotent: a non-scheduled record just returns its current channel;
- *  an unknown id returns null. */
+/** Convert a scheduled run's session into a normal direct web session (replying adopts the run).
+ *  A run opened on its own `web:<sessionId>` conduit is already bound there and only needs its record
+ *  re-pointed; an older run that lived on the shared project channel first gets that conduit attached
+ *  — the same switch sequence as !resume, so a later send resumes the run's transcript. `scheduleId`
+ *  is intentionally KEPT on the record (provenance for the trigger card / schedule grouping).
+ *  Idempotent: a non-scheduled record just returns its current channel; an unknown id returns null. */
 export async function adoptScheduledSession(
   store: AdoptScheduledSessionStore,
   sessionId: string,
@@ -210,9 +221,12 @@ export async function adoptScheduledSession(
   if (!record) return null;
   if (record.origin !== 'scheduled') return { channel: record.channel };
   const channel = `web:${sessionId}`;
-  await attachExistingSession(channel, {
-    sessionId, sessionName: record.name, backend: record.backend, profileName: record.profileName,
-  });
+  // Re-attaching the conduit it already runs on would switch the ledger under a turn that may be live.
+  if (record.channel !== channel) {
+    await attachExistingSession(channel, {
+      sessionId, sessionName: record.name, backend: record.backend, profileName: record.profileName,
+    });
+  }
   await store.convertToDirect(sessionId, { channel });
   return { channel };
 }

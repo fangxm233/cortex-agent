@@ -74,6 +74,29 @@ describe('createDirectSession', () => {
     assert.ok(!('teamLeadId' in registered[1]), 'ordinary sessions carry no worker fields');
   });
 
+  it('opens a schedule\'s run as a scheduled session on its own web channel', async () => {
+    const registered: any[] = [];
+    const deps = {
+      sessionStore: {
+        generateSessionName: async () => 'cortex-s',
+        registerSession: async (_name: string, opts: any) => { registered.push(opts); },
+      } satisfies SessionRegistryWriter,
+      setChannelSession: async () => {},
+      initConversation: async () => {},
+      resolveBackend: () => 'claude',
+    };
+    const run = await createDirectSession(deps, { projectId: 'p', scheduleId: 'sch-1', label: 'digest' });
+    await createDirectSession(deps, { projectId: 'p' });
+    assert.strictEqual(run.channel, `web:${run.sessionId}`);
+    assert.strictEqual(registered[0].kind, 'scheduled');
+    assert.strictEqual(registered[0].origin, 'scheduled');
+    assert.strictEqual(registered[0].scheduleId, 'sch-1');
+    assert.strictEqual(registered[0].label, 'digest');
+    assert.strictEqual(registered[1].kind, 'local');
+    assert.strictEqual(registered[1].origin, 'direct');
+    assert.ok(!('scheduleId' in registered[1]), 'ordinary sessions carry no schedule');
+  });
+
   it('generates a distinct sessionId + channel per call', async () => {
     const fakeStore: SessionRegistryWriter = {
       generateSessionName: async () => 'cortex-x',
@@ -192,6 +215,16 @@ describe('adoptScheduledSession', () => {
     assert.strictEqual(conv!.sessionName, 'cortex-sched');
     assert.deepStrictEqual(converted, [{ sessionId: 'sid-sched-1', channel: 'web:sid-sched-1' }],
       'registry record re-pointed at the new channel');
+  });
+
+  it('re-points a run already on its own web channel without re-attaching it', async () => {
+    // A live turn may be running on that conduit: switching its ledger again would reset it.
+    const run = { ...scheduledRecord, sessionId: 'sid-sched-own', channel: 'web:sid-sched-own' };
+    const { store, converted } = makeStore(run);
+    const result = await adoptScheduledSession(store, 'sid-sched-own');
+    assert.deepStrictEqual(result, { channel: 'web:sid-sched-own' });
+    assert.strictEqual(await conversationLedger.getConversation('web:sid-sched-own'), null, 'ledger untouched');
+    assert.deepStrictEqual(converted, [{ sessionId: 'sid-sched-own', channel: 'web:sid-sched-own' }]);
   });
 
   it('returns null for an unknown session without touching any store', async () => {
