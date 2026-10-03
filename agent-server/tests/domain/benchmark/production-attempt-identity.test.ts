@@ -16,7 +16,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from '../../../src/domain/benchmark/identity.js';
@@ -43,7 +43,7 @@ const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropi
 
 const SHA = 'a'.repeat(64);
 let root: string;
-let revision: { profiles: number; threads: number };
+let revision: { profiles: number; environments: number };
 let pool: SessionEngines;
 let piFake: FakeRuntimeFactory;
 /** Set inside the backend's spawn seam: the identity store existed at the moment of spawn. */
@@ -53,7 +53,7 @@ let piSpawns = 0;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-attempt-identity-'));
-  revision = { profiles: 1, threads: 1 };
+  revision = { profiles: 1, environments: 1 };
   identityExistedAtSpawn = false;
   claudeSpawns = 0;
   piSpawns = 0;
@@ -162,35 +162,17 @@ function claudeSpawner(): AgentProcessSpawner {
   }) as AgentProcessSpawner;
 }
 
-interface PathCase {
+/** The benchmark session an attempt runs in. */
+interface SessionCase {
   label: string;
-  threadId: string;
-  rootThreadId: string;
-  parentThreadId: string | null;
-  taskId: string | null;
-  generation: string | null;
-  template: string;
-  role: string;
-  stage: string | null;
+  sessionId: string | null;
 }
 
-const PATHS: PathCase[] = [
-  {
-    label: 'direct', threadId: 'thr-direct', rootThreadId: 'thr-direct',
-    parentThreadId: null, taskId: null, generation: null,
-    template: 'benchmark-direct', role: 'benchmark-direct', stage: null,
-  },
-  {
-    label: 'coder-review', threadId: 'thr-coder-review', rootThreadId: 'thr-coder-review',
-    parentThreadId: null, taskId: null, generation: null,
-    template: 'benchmark-coder-review', role: 'benchmark-coder', stage: 'implement',
-  },
-  {
-    label: 'task-dispatched manager', threadId: 'thr-manager', rootThreadId: 'thr-manager',
-    parentThreadId: null, taskId: 'a1b2', generation: 'generation-1',
-    template: 'benchmark-manager', role: 'benchmark-manager', stage: null,
-  },
-];
+const DIRECT: SessionCase = { label: 'direct', sessionId: 'session-direct' };
+
+function sessionCase(label: string, sessionId: string | null = `session-${label}`): SessionCase {
+  return { label, sessionId };
+}
 
 interface RequestOptions {
   evidenceContext: ProductionBenchmarkEvidenceContext | null;
@@ -203,17 +185,14 @@ interface RequestOptions {
 /** Build the RunRequest the run layer consumes from a terse literal, the way every harness does. */
 function makeRequest(
   backend: Backend,
-  pathCase: PathCase,
+  sessionCase: SessionCase,
   resolved: ResolvedProfileConfig,
   opts: RequestOptions,
 ): RunRequest {
   const request = runRequestFixture({
-    sessionKey: opts.sessionKey ?? `identity-${backend}-${pathCase.label.replaceAll(' ', '-')}`,
+    sessionKey: opts.sessionKey ?? `identity-${backend}-${sessionCase.label.replaceAll(' ', '-')}`,
+    trackSessionId: sessionCase.sessionId,
     promptText: 'do work',
-    threadId: pathCase.threadId,
-    taskId: pathCase.taskId,
-    taskProject: pathCase.taskId ? 'atlas' : null,
-    taskGeneration: pathCase.generation,
     profileName: resolved.name,
     systemPrompt: 'Resolved system prompt',
     tools: opts.tools ?? 'Read,Write',
@@ -229,11 +208,6 @@ function makeRequest(
   request.benchmark = {
     evidenceContext: opts.evidenceContext,
     identityDirective: opts.identityDirective ?? 'Act as the resolved role.',
-    rootThreadId: pathCase.rootThreadId,
-    parentThreadId: pathCase.parentThreadId,
-    templateName: pathCase.template,
-    agentSlotId: pathCase.role,
-    stage: pathCase.stage,
     preserveUnreportedAccounting: false,
   };
   request.policy.background = 'none';
@@ -271,123 +245,109 @@ function spawnCount(backend: Backend): number {
 }
 
 for (const backend of ['claude', 'pi'] as const) {
-  for (const pathCase of PATHS) {
-    test(`freezes ${backend} ${pathCase.label} identity before the adapter spawn and reloads it`, async () => {
-      const evidenceContext = initialize(backend);
-      const executionId = `exec-${backend}-${pathCase.label.replaceAll(' ', '-')}`;
-      const resolvedProfile = profile(backend);
-      const request = makeRequest(backend, pathCase, resolvedProfile, {
-        evidenceContext,
-        processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
-      });
-      const handle = start(
-        backend, request, resolvedProfile, executionId,
-        backend === 'claude' ? TRIAL_ROUTE : undefined,
-      );
-
-      await finish(handle, backend);
-      assert.equal(spawnCount(backend), 1);
-      assert.ok(identityExistedAtSpawn, 'identity must be durable before adapter spawn');
-
-      const record = getProductionAttemptIdentity(executionId);
-      assert.ok(record);
-      assert.equal(record.trial_id, 'trial-production-1');
-      assert.equal(record.root_run_id, 'root-production-1');
-      assert.match(record.attempt_id, /^execution-/);
-      assert.equal(record.root_attempt_id, record.attempt_id);
-      assert.equal(record.execution_id, executionId);
-      assert.equal(record.thread_id, pathCase.threadId);
-      assert.equal(record.root_thread_id, pathCase.rootThreadId);
-      assert.equal(record.task_id, pathCase.taskId ?? 'trial-production-1');
-      assert.equal(record.dispatch_generation, pathCase.generation);
-      assert.equal(record.template, pathCase.template);
-      assert.equal(record.role, pathCase.role);
-      assert.equal(record.stage, pathCase.stage);
-      assert.equal(record.bundle_manifest_hash, SHA);
-      const routeHost = backend === 'claude' ? 'proxy.invalid' : '127.0.0.1:9880';
-      assert.equal(record.model_execution_identity_hash, computeModelExecutionIdentityHash({
-        backend, requestedModel: resolvedProfile.model,
-        modelAliasPolicy: { policy: 'exact' }, providerProtocol: resolvedProfile.provider,
-        configuredRouteBaseHost: routeHost,
-        claudeCliVersion: backend === 'claude' ? 'claude-fixture-1' : null,
-        cliName: backend, cliVersion: backend === 'claude' ? 'claude-fixture-1' : 'pi-fixture-1',
-        reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
-      }));
-      assert.equal(record.role_tool_surface_hash, computeRoleToolSurfaceHash(
-        roleSurfaceFromSpec(handle.spec, 'Act as the resolved role.'),
-      ));
-
-      resetProductionAttemptIdentity();
-      initializeProductionAttemptIdentity({
-        storePath: storePath(), configurationRevision: () => ({ ...revision }),
-      });
-      assert.deepEqual(getProductionAttemptIdentity(executionId), record);
+  test(`freezes ${backend} session identity before the adapter spawn and reloads it`, async () => {
+    const evidenceContext = initialize(backend);
+    const executionId = `exec-${backend}-direct`;
+    const resolvedProfile = profile(backend);
+    const request = makeRequest(backend, DIRECT, resolvedProfile, {
+      evidenceContext,
+      processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
     });
-  }
+    const handle = start(
+      backend, request, resolvedProfile, executionId,
+      backend === 'claude' ? TRIAL_ROUTE : undefined,
+    );
+
+    await finish(handle, backend);
+    assert.equal(spawnCount(backend), 1);
+    assert.ok(identityExistedAtSpawn, 'identity must be durable before adapter spawn');
+
+    const record = getProductionAttemptIdentity(executionId);
+    assert.ok(record);
+    assert.equal(record.trial_id, 'trial-production-1');
+    assert.equal(record.root_run_id, 'root-production-1');
+    assert.match(record.attempt_id, /^execution-/);
+    assert.equal(record.root_attempt_id, record.attempt_id);
+    assert.equal(record.spawn_parent_attempt_id, null);
+    assert.equal(record.execution_id, executionId);
+    assert.equal(record.session_id, DIRECT.sessionId);
+    assert.equal(record.bundle_manifest_hash, SHA);
+    const routeHost = backend === 'claude' ? 'proxy.invalid' : '127.0.0.1:9880';
+    assert.equal(record.model_execution_identity_hash, computeModelExecutionIdentityHash({
+      backend, requestedModel: resolvedProfile.model,
+      modelAliasPolicy: { policy: 'exact' }, providerProtocol: resolvedProfile.provider,
+      configuredRouteBaseHost: routeHost,
+      claudeCliVersion: backend === 'claude' ? 'claude-fixture-1' : null,
+      cliName: backend, cliVersion: backend === 'claude' ? 'claude-fixture-1' : 'pi-fixture-1',
+      reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
+    }));
+    assert.equal(record.role_tool_surface_hash, computeRoleToolSurfaceHash(
+      roleSurfaceFromSpec(handle.spec, 'Act as the resolved role.'),
+    ));
+
+    resetProductionAttemptIdentity();
+    initializeProductionAttemptIdentity({
+      storePath: storePath(), configurationRevision: () => ({ ...revision }),
+    });
+    assert.deepEqual(getProductionAttemptIdentity(executionId), record);
+  });
 }
 
-test('binds every execution to a unique attempt and the persisted first root execution', async () => {
+test('chains every execution of the session to the persisted first root execution', async () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const run = async (executionId: string, threadId: string, rootThreadId: string) => {
-    const pathCase: PathCase = {
-      label: executionId, threadId, rootThreadId,
-      parentThreadId: threadId === rootThreadId ? null : rootThreadId,
-      taskId: null, generation: null,
-      template: 'benchmark-coder-review', role: 'benchmark-coder', stage: 'implement',
-    };
-    const request = makeRequest('claude', pathCase, resolvedProfile, {
+  const run = async (executionId: string) => {
+    const request = makeRequest('claude', sessionCase('root'), resolvedProfile, {
       evidenceContext, identityDirective: '', tools: 'Read',
       processSpawner: claudeSpawner(), sessionKey: `bind-${executionId}`,
     });
     await finish(start('claude', request, resolvedProfile, executionId, PROXY_ROUTE), 'claude');
   };
 
-  await run('exec-root-first', 'thr-root', 'thr-root');
+  await run('exec-root-first');
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({
     storePath: storePath(), configurationRevision: () => ({ ...revision }),
   });
-  await run('exec-root-review', 'thr-root', 'thr-root');
-  await run('exec-child', 'thr-child', 'thr-root');
+  await run('exec-root-resume');
+  await run('exec-root-third');
 
   const first = getProductionAttemptIdentity('exec-root-first');
-  const review = getProductionAttemptIdentity('exec-root-review');
-  const child = getProductionAttemptIdentity('exec-child');
-  assert.ok(first && review && child);
-  assert.equal(new Set([first.attempt_id, review.attempt_id, child.attempt_id]).size, 3);
+  const resume = getProductionAttemptIdentity('exec-root-resume');
+  const third = getProductionAttemptIdentity('exec-root-third');
+  assert.ok(first && resume && third);
+  assert.equal(new Set([first.attempt_id, resume.attempt_id, third.attempt_id]).size, 3);
   assert.equal(first.root_attempt_id, first.attempt_id);
-  assert.equal(review.root_attempt_id, first.attempt_id);
-  assert.equal(child.root_attempt_id, first.attempt_id);
+  assert.equal(resume.root_attempt_id, first.attempt_id);
+  assert.equal(third.root_attempt_id, first.attempt_id);
+  assert.equal(first.spawn_parent_attempt_id, null);
+  assert.equal(resume.spawn_parent_attempt_id, first.attempt_id);
+  assert.equal(third.spawn_parent_attempt_id, resume.attempt_id);
 });
 
-test('fails closed when a child attempt arrives before the production root attempt', () => {
+test('fails closed when a second session runs in the same trial run', async () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    label: 'orphan-child', threadId: 'thr-child', rootThreadId: 'thr-root-missing',
-    parentThreadId: 'thr-root-missing', taskId: null, generation: null,
-    template: 'benchmark-manager', role: 'benchmark-manager', stage: null,
-  };
-  const request = makeRequest('claude', pathCase, resolvedProfile, {
-    evidenceContext, identityDirective: '', tools: 'Read', processSpawner: claudeSpawner(),
+  const first = makeRequest('claude', sessionCase('owner'), resolvedProfile, {
+    evidenceContext, identityDirective: '', tools: 'Read',
+    processSpawner: claudeSpawner(), sessionKey: 'owner',
+  });
+  await finish(start('claude', first, resolvedProfile, 'exec-owner', PROXY_ROUTE), 'claude');
+  const intruder = makeRequest('claude', sessionCase('intruder'), resolvedProfile, {
+    evidenceContext, identityDirective: '', tools: 'Read',
+    processSpawner: claudeSpawner(), sessionKey: 'intruder',
   });
   assert.throws(
-    () => start('claude', request, resolvedProfile, 'exec-orphan-child', PROXY_ROUTE),
-    /root attempt|root execution/i,
+    () => start('claude', intruder, resolvedProfile, 'exec-intruder', PROXY_ROUTE),
+    /cross-run session collision/i,
   );
-  assert.equal(claudeSpawns, 0);
+  assert.equal(claudeSpawns, 1);
 });
 
 test('keeps production identity observability absent without typed evidence context', async () => {
   initializeProductionAttemptIdentity({ storePath: storePath() });
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    label: 'without-context', threadId: 'thr-without-context',
-    rootThreadId: 'thr-without-context', parentThreadId: null, taskId: null,
-    generation: null, template: 'benchmark-direct', role: 'benchmark-direct', stage: null,
-  };
-  const request = makeRequest('claude', pathCase, resolvedProfile, {
+  const request = makeRequest('claude', sessionCase('without-context'), resolvedProfile, {
     evidenceContext: null, identityDirective: '', tools: 'Read', processSpawner: claudeSpawner(),
   });
   await finish(start('claude', request, resolvedProfile, 'exec-without-context', PROXY_ROUTE), 'claude');
@@ -398,11 +358,7 @@ test('keeps production identity observability absent without typed evidence cont
 test('fails closed before spawn for fallback profiles, missing identity inputs, and hot reload drift', () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    label: 'refusal', threadId: 'thr-refusal', rootThreadId: 'thr-refusal',
-    parentThreadId: null, taskId: null, generation: null,
-    template: 'benchmark-direct', role: 'benchmark-direct', stage: null,
-  };
+  const pathCase = sessionCase('refusal');
   const fallbackProfile: ResolvedProfileConfig = {
     ...resolvedProfile,
     fallback: [{
@@ -427,7 +383,7 @@ test('fails closed before spawn for fallback profiles, missing identity inputs, 
     /execution/i,
   );
 
-  revision.threads += 1;
+  revision.environments += 1;
   const driftRequest = makeRequest('claude', pathCase, resolvedProfile, {
     evidenceContext, identityDirective: '', tools: 'Read', processSpawner: claudeSpawner(),
   });
@@ -444,7 +400,7 @@ test('hashes the effective Claude route after profile environment overrides', as
     ...profile('claude'),
     extraEnv: { ANTHROPIC_BASE_URL: 'http://profile-route.invalid/custom' },
   };
-  const request = makeRequest('claude', PATHS[0], resolvedProfile, {
+  const request = makeRequest('claude', DIRECT, resolvedProfile, {
     evidenceContext, identityDirective: '', tools: 'Read',
     processSpawner: claudeSpawner(), sessionKey: 'route',
   });
@@ -465,7 +421,7 @@ for (const backend of ['claude', 'pi'] as const) {
   test(`refuses ${backend} spawn config that diverges from the resolved profile`, () => {
     const evidenceContext = initialize(backend);
     const resolvedProfile = profile(backend);
-    const request = makeRequest(backend, PATHS[0], resolvedProfile, {
+    const request = makeRequest(backend, DIRECT, resolvedProfile, {
       evidenceContext, identityDirective: '', tools: 'Read',
       processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
       sessionKey: `divergence-${backend}`,
@@ -492,10 +448,7 @@ function evidenceFiles(directory: string): string[] {
 test('per-spawn route credentials reach the child env but never the attestation', async () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    ...PATHS[0], label: 'route-secret',
-    threadId: 'thr-route-secret', rootThreadId: 'thr-route-secret',
-  };
+  const pathCase = sessionCase('route-secret');
   const route = {
     ...TRIAL_ROUTE,
     ANTHROPIC_API_KEY: 'sk-must-not-be-attested',
@@ -533,11 +486,7 @@ test('per-spawn route credentials reach the child env but never the attestation'
 test('does not expose mutable in-memory identity records', async () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    label: 'immutable', threadId: 'thr-immutable', rootThreadId: 'thr-immutable',
-    parentThreadId: null, taskId: null, generation: null,
-    template: 'benchmark-direct', role: 'benchmark-direct', stage: null,
-  };
+  const pathCase = sessionCase('immutable');
   const request = makeRequest('claude', pathCase, resolvedProfile, {
     evidenceContext, identityDirective: '', tools: 'Read',
     processSpawner: claudeSpawner(), sessionKey: 'immutable',
@@ -545,18 +494,14 @@ test('does not expose mutable in-memory identity records', async () => {
   await finish(start('claude', request, resolvedProfile, 'exec-immutable', PROXY_ROUTE), 'claude');
   const record = getProductionAttemptIdentity('exec-immutable');
   assert.ok(record);
-  assert.throws(() => { (record as { role: string }).role = 'mutated'; }, TypeError);
-  assert.equal(getProductionAttemptIdentity('exec-immutable')?.role, 'benchmark-direct');
+  assert.throws(() => { (record as { session_id: string }).session_id = 'mutated'; }, TypeError);
+  assert.equal(getProductionAttemptIdentity('exec-immutable')?.session_id, 'session-immutable');
 });
 
-test('fails closed for unapplied output caps and incomplete task-dispatch identity', () => {
+test('fails closed for unapplied output caps and a run without a session', () => {
   const piEvidence = initialize('pi', 4096);
   const piProfile = profile('pi');
-  const capCase: PathCase = {
-    label: 'cap', threadId: 'thr-cap', rootThreadId: 'thr-cap', parentThreadId: null,
-    taskId: null, generation: null, template: 'benchmark-direct',
-    role: 'benchmark-direct', stage: null,
-  };
+  const capCase = sessionCase('cap');
   const capRequest = makeRequest('pi', capCase, piProfile, {
     evidenceContext: piEvidence, identityDirective: '', tools: 'Read',
   });
@@ -568,27 +513,19 @@ test('fails closed for unapplied output caps and incomplete task-dispatch identi
   resetProductionAttemptIdentity();
   const claudeEvidence = initialize('claude');
   const claudeProfile = profile('claude');
-  const taskCase: PathCase = {
-    ...capCase, label: 'task-incomplete',
-    threadId: 'thr-task-incomplete', rootThreadId: 'thr-task-incomplete', taskId: 'a1b2',
-  };
-  const taskRequest = makeRequest('claude', taskCase, claudeProfile, {
+  const sessionless = makeRequest('claude', sessionCase('sessionless', null), claudeProfile, {
     evidenceContext: claudeEvidence, identityDirective: '', tools: 'Read',
   });
   assert.throws(
-    () => start('claude', taskRequest, claudeProfile, 'exec-task-incomplete', PROXY_ROUTE),
-    /task project|dispatch generation/i,
+    () => start('claude', sessionless, claudeProfile, 'exec-sessionless', PROXY_ROUTE),
+    /session identity/i,
   );
 });
 
 test('refuses reuse of an execution identity with a changed resolved spawn surface', async () => {
   const evidenceContext = initialize('claude');
   const resolvedProfile = profile('claude');
-  const pathCase: PathCase = {
-    label: 'reused', threadId: 'thr-reused', rootThreadId: 'thr-reused',
-    parentThreadId: null, taskId: null, generation: null,
-    template: 'benchmark-direct', role: 'benchmark-direct', stage: null,
-  };
+  const pathCase = sessionCase('reused');
   const first = makeRequest('claude', pathCase, resolvedProfile, {
     evidenceContext, identityDirective: '', tools: 'Read',
     processSpawner: claudeSpawner(), sessionKey: 'reuse',
@@ -609,12 +546,24 @@ test('refuses reuse of an execution identity with a changed resolved spawn surfa
 test('rejects incomplete persisted identity records on reload', () => {
   fs.mkdirSync(path.dirname(storePath()), { recursive: true });
   fs.writeFileSync(storePath(), `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity/3',
+    schema_version: 'cortex-production-attempt-identity/4',
     execution_id: 'exec-incomplete', attempt_id: 'attempt-exec-incomplete',
   })}\n`);
   assert.throws(() => initializeProductionAttemptIdentity({
     storePath: storePath(), configurationRevision: () => ({ ...revision }),
   }), /store invalid/i);
+});
+
+test('skips identity rows an earlier schema wrote on reload', () => {
+  fs.mkdirSync(path.dirname(storePath()), { recursive: true });
+  fs.writeFileSync(storePath(), `${JSON.stringify({
+    schema_version: 'cortex-production-attempt-identity/3',
+    execution_id: 'exec-old', attempt_id: 'execution-exec-old', thread_id: 'thr-old',
+  })}\n`);
+  initializeProductionAttemptIdentity({
+    storePath: storePath(), configurationRevision: () => ({ ...revision }),
+  });
+  assert.equal(getProductionAttemptIdentity('exec-old'), null);
 });
 
 test('rejects malformed typed evidence context before spawn', () => {
@@ -624,12 +573,7 @@ test('rejects malformed typed evidence context before spawn', () => {
     model_execution: { cli_name: 'pi' },
   } as unknown as ProductionBenchmarkEvidenceContext;
   const resolvedProfile = profile('pi');
-  const pathCase: PathCase = {
-    label: 'context-invalid', threadId: 'thr-context-invalid',
-    rootThreadId: 'thr-context-invalid', parentThreadId: null, taskId: null,
-    generation: null, template: 'benchmark-direct',
-    role: 'benchmark-direct', stage: null,
-  };
+  const pathCase = sessionCase('context-invalid');
   const request = makeRequest('pi', pathCase, resolvedProfile, {
     evidenceContext: malformed, identityDirective: '', tools: 'Read',
   });

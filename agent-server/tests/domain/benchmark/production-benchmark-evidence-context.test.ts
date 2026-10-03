@@ -14,7 +14,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { AgentProcessSpawner, EngineSpec, Backend } from '../../../src/agent-adapter/types.js';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
@@ -40,14 +40,14 @@ const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
 const SHA = 'c'.repeat(64);
 let root: string;
 let storePath: string;
-let revision: { profiles: number; threads: number };
+let revision: { profiles: number; environments: number };
 let pool: SessionEngines;
 let piFake: FakeRuntimeFactory;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-evidence-context-'));
   storePath = path.join(root, 'data', 'attempt-identities.jsonl');
-  revision = { profiles: 1, threads: 1 };
+  revision = { profiles: 1, environments: 1 };
   piFake = makeFakeRuntimeFactory();
   const piAdapter = new PIAdapter(
     piFake.factory,
@@ -137,16 +137,8 @@ function claudeSpawner(): AgentProcessSpawner {
 
 interface AttemptOptions {
   executionId: string;
-  threadId: string;
-  rootThreadId?: string;
-  parentThreadId?: string | null;
-  template?: string;
-  role?: string;
-  stage?: string | null;
+  sessionId: string;
   tools?: string;
-  taskId?: string | null;
-  taskProject?: string | null;
-  taskGeneration?: string | null;
   context?: ProductionBenchmarkEvidenceContext;
 }
 
@@ -164,15 +156,11 @@ function runAttempt(
   const override = attemptOf(resolved);
   const partial: RunRequestFixtureInput = {
     sessionKey: input.executionId,
-    trackSessionId: null,
+    trackSessionId: input.sessionId,
     profileName: resolved.name,
     model: resolved.model,
     piProvider: backend === 'pi' ? resolved.provider : undefined,
     claudeBackend: 'print',
-    threadId: input.threadId,
-    taskId: input.taskId ?? null,
-    taskProject: input.taskProject ?? null,
-    taskGeneration: input.taskGeneration ?? null,
     tools: input.tools ?? 'Read',
     pluginDirs: [],
     mcpComposition: 'none',
@@ -187,11 +175,6 @@ function runAttempt(
     benchmark: {
       evidenceContext: input.context ?? null,
       identityDirective: 'Resolved directive',
-      rootThreadId: input.rootThreadId ?? input.threadId,
-      parentThreadId: input.parentThreadId ?? null,
-      templateName: input.template ?? 'benchmark-direct',
-      agentSlotId: input.role ?? 'benchmark-direct',
-      stage: input.stage ?? null,
       preserveUnreportedAccounting: false,
     },
   };
@@ -216,41 +199,27 @@ function runAttempt(
 }
 
 for (const backend of ['claude', 'pi'] as const) {
-  test(`${backend} direct, coder-review, and dispatched manager attempts use typed context`, async () => {
+  test(`${backend} session attempts use typed context`, async () => {
     const spawns: EngineSpec[] = [];
-    for (const [kind, role, taskId] of [
-      ['direct', 'benchmark-direct', null],
-      ['coder', 'benchmark-coder', null],
-      ['manager', 'benchmark-manager', 'a1b2'],
-    ] as const) {
-      const executionId = `${backend}-${kind}`;
-      await runAttempt(backend, spawns, {
-        executionId, threadId: `${executionId}-thread`, context: evidence(backend, executionId),
-        template: kind === 'coder' ? 'benchmark-coder-review' : `benchmark-${kind}`,
-        role, stage: kind === 'coder' ? 'implement' : null, taskId,
-        taskProject: taskId ? 'atlas' : null, taskGeneration: taskId ? 'generation-1' : null,
-      }).settled;
-      assert.equal(getProductionAttemptIdentity(executionId)?.execution_id, executionId);
-    }
-    assert.equal(spawns.length, 3);
+    const executionId = `${backend}-direct`;
+    await runAttempt(backend, spawns, {
+      executionId, sessionId: `${executionId}-session`, context: evidence(backend, executionId),
+    }).settled;
+    const identity = getProductionAttemptIdentity(executionId);
+    assert.equal(identity?.execution_id, executionId);
+    assert.equal(identity?.session_id, `${executionId}-session`);
+    assert.equal(spawns.length, 1);
   });
 }
 
-test('coder, reviewer, and fixer form the exact same-thread spawn chain', async () => {
-  const context = evidence('claude', 'coder-review-fix');
+test('a session\'s executions form the exact spawn chain', async () => {
+  const context = evidence('claude', 'session-chain');
   const spawns: EngineSpec[] = [];
-  for (const [suffix, role, tools] of [
-    ['coder', 'benchmark-coder', 'Read,Write'],
-    ['reviewer', 'benchmark-reviewer', 'Read'],
-    ['fixer', 'benchmark-fixer', 'Read,Write'],
-  ] as const) {
-    await runAttempt('claude', spawns, {
-      executionId: suffix, threadId: 'thread-three', context,
-      template: 'benchmark-coder-review', role, tools,
-    }).settled;
+  for (const executionId of ['first', 'second', 'third']) {
+    await runAttempt('claude', spawns, { executionId, sessionId: 'session-chain', context }).settled;
   }
 
-  const records = ['coder', 'reviewer', 'fixer'].map(id => getProductionAttemptIdentity(id)!);
+  const records = ['first', 'second', 'third'].map(id => getProductionAttemptIdentity(id)!);
   assert.equal(records[0].spawn_parent_attempt_id, null);
   assert.equal(records[1].spawn_parent_attempt_id, records[0].attempt_id);
   assert.equal(records[2].spawn_parent_attempt_id, records[1].attempt_id);
@@ -262,95 +231,41 @@ test('coder, reviewer, and fixer form the exact same-thread spawn chain', async 
   assert.equal(Object.isFrozen(listed), true);
 });
 
-test('retry, resumed, and nested executions cannot collide with the root attempt', async () => {
+test('retried and resumed executions cannot collide with the root attempt', async () => {
   const context = evidence('claude');
   const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
-    executionId: 'root-first', threadId: 'root-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-coder',
+    executionId: 'root-first', sessionId: 'root-session', context,
   }).settled;
   await runAttempt('claude', spawns, {
-    executionId: 'root-retry', threadId: 'root-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-coder',
+    executionId: 'root-retry', sessionId: 'root-session', context,
   }).settled;
 
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({ storePath });
   await runAttempt('claude', spawns, {
-    executionId: 'root-resumed', threadId: 'root-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-reviewer',
-  }).settled;
-  await runAttempt('claude', spawns, {
-    executionId: 'nested-manager', threadId: 'child-thread', rootThreadId: 'root-thread',
-    parentThreadId: 'root-thread', context,
-    template: 'benchmark-manager', role: 'benchmark-manager',
+    executionId: 'root-resumed', sessionId: 'root-session', context,
   }).settled;
 
-  const records = ['root-first', 'root-retry', 'root-resumed', 'nested-manager']
+  const records = ['root-first', 'root-retry', 'root-resumed']
     .map(id => getProductionAttemptIdentity(id)!);
   assert.equal(new Set(records.map(row => row.attempt_id)).size, records.length);
   assert.ok(records.every(row => row.root_attempt_id === records[0].attempt_id));
   assert.equal(records[0].spawn_parent_attempt_id, null);
   assert.equal(records[1].spawn_parent_attempt_id, records[0].attempt_id);
   assert.equal(records[2].spawn_parent_attempt_id, records[1].attempt_id);
-  assert.equal(records[3].spawn_parent_attempt_id, records[2].attempt_id);
 
   const retryBeforeReuse = records[1];
   assert.throws(() => runAttempt('claude', spawns, {
-    executionId: 'root-retry', threadId: 'root-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-coder',
+    executionId: 'root-retry', sessionId: 'root-session', context,
   }), /journal already exists/i);
   assert.deepEqual(getProductionAttemptIdentity('root-retry')!, retryBeforeReuse);
-});
-
-test('child and dispatcher-created task attempts use the latest causal parent attempt', async () => {
-  const context = evidence('claude', 'children');
-  const spawns: EngineSpec[] = [];
-  await runAttempt('claude', spawns, {
-    executionId: 'manager-first', threadId: 'manager-thread', context,
-    template: 'benchmark-manager', role: 'benchmark-manager',
-  }).settled;
-  const first = getProductionAttemptIdentity('manager-first')!;
-
-  await Promise.all(['child-a', 'child-b'].map(async (executionId) => runAttempt('claude', spawns, {
-    executionId, threadId: `${executionId}-thread`, rootThreadId: 'manager-thread',
-    parentThreadId: 'manager-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-coder',
-  }).settled));
-  assert.equal(getProductionAttemptIdentity('child-a')!.spawn_parent_attempt_id, first.attempt_id);
-  assert.equal(getProductionAttemptIdentity('child-b')!.spawn_parent_attempt_id, first.attempt_id);
-
-  await runAttempt('claude', spawns, {
-    executionId: 'child-a-review', threadId: 'child-a-thread', rootThreadId: 'manager-thread',
-    parentThreadId: 'manager-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-reviewer',
-  }).settled;
-  assert.equal(
-    getProductionAttemptIdentity('child-a-review')!.spawn_parent_attempt_id,
-    getProductionAttemptIdentity('child-a')!.attempt_id,
-  );
-
-  await runAttempt('claude', spawns, {
-    executionId: 'manager-resumed', threadId: 'manager-thread', context,
-    template: 'benchmark-manager', role: 'benchmark-manager',
-  }).settled;
-  const resumed = getProductionAttemptIdentity('manager-resumed')!;
-  await runAttempt('claude', spawns, {
-    executionId: 'dispatch-child', threadId: 'dispatch-child-thread',
-    rootThreadId: 'manager-thread', parentThreadId: 'manager-thread', context,
-    template: 'benchmark-coder-review', role: 'benchmark-coder',
-    taskId: 'b2c3', taskProject: 'atlas', taskGeneration: 'generation-child',
-  }).settled;
-  const dispatched = getProductionAttemptIdentity('dispatch-child')!;
-  assert.equal(dispatched.spawn_parent_attempt_id, resumed.attempt_id);
-  assert.equal(dispatched.task_id, 'b2c3');
-  assert.equal(dispatched.dispatch_generation, 'generation-child');
 });
 
 test('absence disables observability while malformed context refuses before spawn', async () => {
   const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
-    executionId: 'without-context', threadId: 'without-context',
+    executionId: 'without-context', sessionId: 'without-context',
   }).settled;
   assert.equal(getProductionAttemptIdentity('without-context'), null);
   assert.equal(fs.existsSync(storePath), false);
@@ -360,22 +275,8 @@ test('absence disables observability while malformed context refuses before spaw
     model_execution: { cli_name: 'claude' },
   } as unknown as ProductionBenchmarkEvidenceContext;
   assert.throws(() => runAttempt('claude', spawns, {
-    executionId: 'malformed-context', threadId: 'malformed-context', context: malformed,
+    executionId: 'malformed-context', sessionId: 'malformed-context', context: malformed,
   }), /evidence context.*invalid|model_execution/i);
-  assert.equal(spawns.length, 1);
-});
-
-test('fails closed when a child first execution cannot resolve its parent attempt', async () => {
-  const context = evidence('claude', 'missing-parent');
-  const spawns: EngineSpec[] = [];
-  await runAttempt('claude', spawns, {
-    executionId: 'root-existing', threadId: 'root-existing-thread', context,
-  }).settled;
-  assert.throws(() => runAttempt('claude', spawns, {
-    executionId: 'child-orphan', threadId: 'child-orphan-thread',
-    rootThreadId: 'root-existing-thread', parentThreadId: 'missing-parent-thread', context,
-  }), /parent.*attempt|spawn parent/i);
-  assert.equal(getProductionAttemptIdentity('child-orphan'), null);
   assert.equal(spawns.length, 1);
 });
 
@@ -388,11 +289,11 @@ test('strict reads refuse unknown run scopes', () => {
 test('reload rejects self-links, cross-run links, and attempt identity collisions', async () => {
   const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
-    executionId: 'tamper-one', threadId: 'tamper-thread-one',
+    executionId: 'tamper-one', sessionId: 'tamper-session-one',
     context: evidence('claude', 'tamper-one'),
   }).settled;
   await runAttempt('claude', spawns, {
-    executionId: 'tamper-two', threadId: 'tamper-thread-two',
+    executionId: 'tamper-two', sessionId: 'tamper-session-two',
     context: evidence('claude', 'tamper-two'),
   }).settled;
   const original = fs.readFileSync(storePath, 'utf8').trimEnd().split('\n')
@@ -423,7 +324,7 @@ test('root baseline refuses drift and the attested spec is the launched spec', a
   const context = evidence('claude');
   const spawns: EngineSpec[] = [];
   const handle = runAttempt('claude', spawns, {
-    executionId: 'baseline', threadId: 'baseline-thread', context,
+    executionId: 'baseline', sessionId: 'baseline-session', context,
   });
   await handle.settled;
   assert.ok(fs.existsSync(storePath));
@@ -438,7 +339,7 @@ test('root baseline refuses drift and the attested spec is the launched spec', a
   );
 
   assert.throws(() => runAttempt('claude', spawns, {
-    executionId: 'drifted', threadId: 'baseline-thread', context, tools: 'Write',
+    executionId: 'drifted', sessionId: 'baseline-session', context, tools: 'Write',
   }), /baseline|role.*drift|identity changed/i);
   assert.equal(spawns.length, 1);
 });

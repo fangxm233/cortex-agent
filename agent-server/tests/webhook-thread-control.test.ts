@@ -16,9 +16,8 @@ import { threadStore } from '../src/store/thread-repo.js';
 import { loadConfig } from '../src/domain/threads/template-loader.js';
 import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
-import type {
-  ProductionBenchmarkEvidenceContext, ThreadRecord, ThreadStatus,
-} from '../src/core/types/thread-types.js';
+import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../src/core/types/benchmark-types.js';
 
 // The webhook now enforces a bearer token on all routes (except /webhook/github). Set one
 // for these control-plane tests and send it on every request.
@@ -37,17 +36,6 @@ beforeAll(() => {
     name: 'evidence-child-agent', profile: '__active__', persistSession: false,
     directive: 'Test descendant evidence propagation', promptTemplate: '{{input}}',
   }));
-  for (const name of ['benchmark-direct', 'benchmark-coder-review']) {
-    const templatePath = path.join(
-      CONFIG_DIR, 'thread-templates', 'templates', `${name}.json`,
-    );
-    fs.mkdirSync(path.dirname(templatePath), { recursive: true });
-    fs.writeFileSync(templatePath, JSON.stringify({
-      name, description: 'Single production root fixture',
-      agents: ['evidence-child-agent'], transitions: [],
-      entryAgent: 'evidence-child-agent', maxTotalSteps: 1, maxTotalCostUsd: 1,
-    }));
-  }
   loadConfig();
   setOrchestrationRuntime({ adapter: {
     postMessage: vi.fn().mockResolvedValue(null),
@@ -78,18 +66,6 @@ function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
   return rec;
 }
 
-function evidenceContext(): ProductionBenchmarkEvidenceContext {
-  return {
-    schema_version: 'cortex-production-benchmark-evidence-context/1',
-    trial_id: 'trial-attested-root', root_run_id: 'root-attested-root',
-    bundle_manifest_hash: 'a'.repeat(64),
-    model_execution: {
-      model_alias_policy: { policy: 'exact' }, cli_name: 'pi',
-      cli_version: 'pi-fixture-1', max_output_tokens: 65_536,
-    },
-  };
-}
-
 /** Drive a webhook handler with a POST to /webhook/thread-op and resolve the parsed reply. */
 function postThreadOp(
   body: any, target: ReturnType<typeof createWebhookHandler> = handler,
@@ -115,133 +91,6 @@ function postThreadOp(
     req.emit('end');
   });
 }
-
-test('native root start accepts one validated production evidence context', async () => {
-  const evidence: ProductionBenchmarkEvidenceContext = {
-    schema_version: 'cortex-production-benchmark-evidence-context/1',
-    trial_id: 'trial-native-root', root_run_id: 'root-native-root',
-    bundle_manifest_hash: 'e'.repeat(64),
-    model_execution: {
-      model_alias_policy: { policy: 'exact' }, cli_name: 'pi',
-      cli_version: 'pi-fixture-1', max_output_tokens: 65_536,
-    },
-  };
-
-  const { json } = await postThreadOp({
-    action: 'start', agent: 'evidence-child-agent', message: 'root work',
-    projectId: 'atlas', productionBenchmarkEvidenceContext: evidence,
-  });
-
-  assert.equal(json.success, true);
-  const root = threadStore.get(json.data.threadId)!;
-  createdThreadIds.add(root.id);
-  assert.deepEqual(root.metadata?.productionBenchmarkEvidenceContext, evidence);
-});
-
-test('production single-root mode admits one exact attested root under a concurrent race', async () => {
-  const callsBefore = detached.openThreadRunDetached.mock.calls.length;
-  const evidence: ProductionBenchmarkEvidenceContext = {
-    schema_version: 'cortex-production-benchmark-evidence-context/1',
-    trial_id: 'trial-single-root', root_run_id: 'root-single-root',
-    bundle_manifest_hash: 'f'.repeat(64),
-    model_execution: {
-      model_alias_policy: { policy: 'exact' }, cli_name: 'pi',
-      cli_version: 'pi-fixture-1', max_output_tokens: 65_536,
-    },
-  };
-  process.env.CORTEX_WEBHOOK_SINGLE_ROOT = '1';
-  process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE = 'benchmark-direct';
-  try {
-    const invalid = await postThreadOp({
-      action: 'start', agent: 'evidence-child-agent', message: 'unattested root',
-      projectId: 'atlas',
-    });
-    assert.equal(invalid.json.success, false);
-    assert.match(invalid.json.error, /exact attested production root/i);
-
-    const start = () => postThreadOp({
-      action: 'start', template: 'benchmark-direct', message: 'admitted root',
-      projectId: 'general', depth: 0, productionBenchmarkEvidenceContext: evidence,
-    });
-    const attempts = await Promise.all([start(), start()]);
-    const admitted = attempts.filter(item => item.json.success === true);
-    const refused = attempts.filter(item => item.json.success === false);
-    assert.equal(admitted.length, 1);
-    assert.equal(refused.length, 1);
-    assert.match(refused[0].json.error, /single production root.*already started/i);
-    createdThreadIds.add(admitted[0].json.data.threadId);
-    assert.equal(detached.openThreadRunDetached.mock.calls.length, callsBefore + 1);
-
-    const result = await postThreadOp({
-      action: 'result', threadId: admitted[0].json.data.threadId,
-    });
-    assert.equal(result.json.success, true, 'polling remains available after root admission');
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT;
-    delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE;
-  }
-});
-
-test('single-root mode admits the launcher-attested template and no other', async () => {
-  const attested = createWebhookHandler();
-  process.env.CORTEX_WEBHOOK_SINGLE_ROOT = '1';
-  process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE = 'benchmark-coder-review';
-  try {
-    const wrongArm = await postThreadOp({
-      action: 'start', template: 'benchmark-direct', message: 'another arm',
-      projectId: 'general', depth: 0, productionBenchmarkEvidenceContext: evidenceContext(),
-    }, attested);
-    assert.equal(wrongArm.json.success, false);
-    assert.match(wrongArm.json.error, /exact attested production root/i);
-
-    const admitted = await postThreadOp({
-      action: 'start', template: 'benchmark-coder-review', message: 'audit-retry root',
-      projectId: 'general', depth: 0, productionBenchmarkEvidenceContext: evidenceContext(),
-    }, attested);
-    assert.equal(admitted.json.success, true);
-    createdThreadIds.add(admitted.json.data.threadId);
-
-    const second = await postThreadOp({
-      action: 'start', template: 'benchmark-coder-review', message: 'second root',
-      projectId: 'general', depth: 0, productionBenchmarkEvidenceContext: evidenceContext(),
-    }, attested);
-    assert.equal(second.json.success, false);
-    assert.match(second.json.error, /single production root.*already started/i);
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT;
-    delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE;
-  }
-});
-
-test('single-root mode admits nothing when the launcher attested no template', async () => {
-  const unattested = createWebhookHandler();
-  process.env.CORTEX_WEBHOOK_SINGLE_ROOT = '1';
-  delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE;
-  try {
-    for (const template of ['benchmark-direct', 'benchmark-coder-review']) {
-      const { json } = await postThreadOp({
-        action: 'start', template, message: 'unattested root',
-        projectId: 'general', depth: 0, productionBenchmarkEvidenceContext: evidenceContext(),
-      }, unattested);
-      assert.equal(json.success, false);
-      assert.match(json.error, /exact attested production root/i);
-    }
-  } finally {
-    delete process.env.CORTEX_WEBHOOK_SINGLE_ROOT;
-  }
-});
-
-test('native root start refuses malformed production evidence before dispatch', async () => {
-  const callsBefore = detached.openThreadRunDetached.mock.calls.length;
-  const { json } = await postThreadOp({
-    action: 'start', agent: 'evidence-child-agent', message: 'root work',
-    productionBenchmarkEvidenceContext: { trial_id: 'unsealed' },
-  });
-
-  assert.equal(json.success, false);
-  assert.match(json.error, /production benchmark evidence context invalid/i);
-  assert.equal(detached.openThreadRunDetached.mock.calls.length, callsBefore);
-});
 
 test('native child start inherits parent evidence after thread-store reload', async () => {
   const evidence: ProductionBenchmarkEvidenceContext = {

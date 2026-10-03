@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { STORE_DIR } from '../../core/paths.js';
 import type { Backend, EngineSpec } from '../../agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../core/types/benchmark-types.js';
 import { parseProductionBenchmarkEvidenceContext } from '../../core/production-benchmark-evidence.js';
 import type { RunRequest } from '../runs/request.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
@@ -14,14 +14,12 @@ import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
 } from './production-attempt-journal.js';
 
-const RECORD_SCHEMA = 'cortex-production-attempt-identity/3';
+const RECORD_SCHEMA = 'cortex-production-attempt-identity/4';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_STORE_PATH = path.join(STORE_DIR, 'benchmark-attempt-identities.jsonl');
 const RECORD_KEYS = [
   'schema_version', 'trial_id', 'root_run_id', 'attempt_id', 'root_attempt_id',
-  'spawn_parent_attempt_id', 'execution_id', 'thread_id', 'parent_thread_id',
-  'root_thread_id', 'task_id',
-  'task_project', 'dispatch_generation', 'template', 'role', 'stage', 'profile_name',
+  'spawn_parent_attempt_id', 'execution_id', 'session_id', 'profile_name',
   'backend', 'provider', 'requested_model', 'model_execution_identity_hash',
   'role_tool_surface_hash', 'bundle_manifest_hash', 'frozen_at',
 ] as const;
@@ -34,15 +32,7 @@ export type ProductionAttemptIdentityRecord = Readonly<{
   root_attempt_id: string;
   spawn_parent_attempt_id: string | null;
   execution_id: string;
-  thread_id: string;
-  parent_thread_id: string | null;
-  root_thread_id: string;
-  task_id: string;
-  task_project: string | null;
-  dispatch_generation: string | null;
-  template: string;
-  role: string;
-  stage: string | null;
+  session_id: string;
   profile_name: string;
   backend: Backend;
   provider: string | null;
@@ -55,7 +45,7 @@ export type ProductionAttemptIdentityRecord = Readonly<{
 
 interface ConfigurationRevision {
   profiles: number;
-  threads: number;
+  environments: number;
 }
 
 export interface ProductionAttemptIdentityInit {
@@ -99,11 +89,6 @@ function requiredText(value: unknown, label: string): string {
   return value;
 }
 
-function nullableText(value: unknown, label: string): string | null {
-  if (value === null) return null;
-  return requiredText(value, label);
-}
-
 function isNullableString(value: unknown): boolean {
   return value === null || (typeof value === 'string' && value.length > 0);
 }
@@ -111,14 +96,10 @@ function isNullableString(value: unknown): boolean {
 function storedRecordValid(value: Record<string, unknown>): boolean {
   const strings = [
     'trial_id', 'root_run_id', 'attempt_id', 'root_attempt_id', 'execution_id',
-    'thread_id', 'root_thread_id', 'task_id', 'template', 'role', 'profile_name',
-    'requested_model', 'model_execution_identity_hash', 'role_tool_surface_hash',
-    'bundle_manifest_hash', 'frozen_at',
+    'session_id', 'profile_name', 'requested_model', 'model_execution_identity_hash',
+    'role_tool_surface_hash', 'bundle_manifest_hash', 'frozen_at',
   ];
-  const nullable = [
-    'spawn_parent_attempt_id', 'parent_thread_id', 'task_project',
-    'dispatch_generation', 'stage', 'provider',
-  ];
+  const nullable = ['spawn_parent_attempt_id', 'provider'];
   const hashes = [
     value.model_execution_identity_hash, value.role_tool_surface_hash, value.bundle_manifest_hash,
   ];
@@ -130,11 +111,15 @@ function storedRecordValid(value: Record<string, unknown>): boolean {
     && hashes.every(hash => typeof hash === 'string' && SHA256_PATTERN.test(hash));
 }
 
-function parseStoredRecord(text: string, line: number): ProductionAttemptIdentityRecord {
+/** One stored row, or null for a row an earlier schema wrote: those identities were keyed by a
+ *  run surface that no longer exists, so they are left on disk and never linked to. */
+function parseStoredRecord(text: string, line: number): ProductionAttemptIdentityRecord | null {
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch {
     throw new Error(`Production attempt identity store malformed at line ${line}`);
   }
+  if (isRecord(parsed) && typeof parsed.schema_version === 'string'
+    && parsed.schema_version !== RECORD_SCHEMA) return null;
   if (!isRecord(parsed) || !storedRecordValid(parsed)) {
     throw new Error(`Production attempt identity store invalid at line ${line}`);
   }
@@ -149,7 +134,7 @@ function sameRecord(
 }
 
 type AttemptScope = Pick<ProductionAttemptIdentityRecord,
-  'trial_id' | 'root_run_id' | 'thread_id' | 'parent_thread_id' | 'root_thread_id'>;
+  'trial_id' | 'root_run_id' | 'session_id'>;
 
 export interface ProductionAttemptIdentityScope {
   trialId: string;
@@ -163,6 +148,11 @@ function sameRun(
   return record.trial_id === scope.trial_id && record.root_run_id === scope.root_run_id;
 }
 
+/**
+ * Every attempt of a trial run belongs to its one benchmark session, and its attempts form a chain:
+ * the first is the root, each later one (a resumed turn) names the attempt before it as its spawn
+ * parent.
+ */
 export class ProductionAttemptIdentityRepo {
   private readonly byExecution = new Map<string, ProductionAttemptIdentityRecord>();
   private readonly byAttempt = new Map<string, ProductionAttemptIdentityRecord>();
@@ -179,62 +169,34 @@ export class ProductionAttemptIdentityRepo {
       throw error;
     }
     text.split('\n').filter(Boolean).forEach((line, index) => {
-      this.remember(parseStoredRecord(line, index + 1));
+      const record = parseStoredRecord(line, index + 1);
+      if (record) this.remember(record);
     });
   }
 
-  private latestThreadAttempt(
-    scope: AttemptScope,
-    threadId: string,
-  ): ProductionAttemptIdentityRecord | null {
+  private latestSessionAttempt(scope: AttemptScope): ProductionAttemptIdentityRecord | null {
     for (let index = this.ordered.length - 1; index >= 0; index -= 1) {
       const candidate = this.ordered[index];
-      if (sameRun(candidate, scope) && candidate.root_thread_id === scope.root_thread_id
-        && candidate.thread_id === threadId) return candidate;
+      if (sameRun(candidate, scope) && candidate.session_id === scope.session_id) return candidate;
     }
     return null;
   }
 
-  private assertRunRoot(scope: AttemptScope): void {
+  private assertRunSession(scope: AttemptScope): void {
     const existing = this.ordered.find(record => sameRun(record, scope));
-    if (existing && existing.root_thread_id !== scope.root_thread_id) {
-      throw new Error('Production attempt identity cross-run root thread collision');
+    if (existing && existing.session_id !== scope.session_id) {
+      throw new Error('Production attempt identity cross-run session collision');
     }
   }
 
   resolveRootAttemptId(scope: AttemptScope, attemptId: string): string {
-    this.assertRunRoot(scope);
-    const root = this.latestThreadAttempt(scope, scope.root_thread_id);
-    if (root) return root.root_attempt_id;
-    if (scope.thread_id === scope.root_thread_id) return attemptId;
-    throw new Error('Production benchmark root attempt is missing before child adapter spawn');
-  }
-
-  private firstThreadSpawnParent(scope: AttemptScope): string | null {
-    if (scope.thread_id === scope.root_thread_id) {
-      if (scope.parent_thread_id !== null) {
-        throw new Error('Production root attempt cannot declare a parent thread');
-      }
-      return null;
-    }
-    if (!scope.parent_thread_id) {
-      throw new Error('Production benchmark child attempt is missing parent thread identity');
-    }
-    const parent = this.latestThreadAttempt(scope, scope.parent_thread_id);
-    if (!parent) {
-      throw new Error('Production benchmark spawn parent attempt is missing before child adapter spawn');
-    }
-    return parent.attempt_id;
+    this.assertRunSession(scope);
+    return this.latestSessionAttempt(scope)?.root_attempt_id ?? attemptId;
   }
 
   resolveSpawnParentAttemptId(scope: AttemptScope): string | null {
-    this.assertRunRoot(scope);
-    const previous = this.latestThreadAttempt(scope, scope.thread_id);
-    if (!previous) return this.firstThreadSpawnParent(scope);
-    if (previous.parent_thread_id !== scope.parent_thread_id) {
-      throw new Error('Production attempt thread ancestry changed across executions');
-    }
-    return previous.attempt_id;
+    this.assertRunSession(scope);
+    return this.latestSessionAttempt(scope)?.attempt_id ?? null;
   }
 
   private assertTopology(record: ProductionAttemptIdentityRecord): void {
@@ -249,11 +211,6 @@ export class ProductionAttemptIdentityRepo {
     if (record.root_attempt_id !== expectedRoot
       || record.spawn_parent_attempt_id !== expectedParent) {
       throw new Error('Production attempt spawn topology is invalid');
-    }
-    const parent = record.spawn_parent_attempt_id
-      ? this.byAttempt.get(record.spawn_parent_attempt_id) : null;
-    if (parent && !sameRun(parent, record)) {
-      throw new Error('Production attempt spawn parent crosses trial or root run');
     }
   }
 
@@ -286,16 +243,7 @@ export class ProductionAttemptIdentityRepo {
   }
 
   firstRootAttempt(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord | null {
-    return this.ordered.find(candidate => sameRun(candidate, record)
-      && candidate.thread_id === record.root_thread_id
-      && candidate.root_thread_id === record.root_thread_id) ?? null;
-  }
-
-  firstRoleAttempt(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord | null {
-    return this.ordered.find(candidate => sameRun(candidate, record)
-      && candidate.root_thread_id === record.root_thread_id
-      && candidate.template === record.template && candidate.role === record.role
-      && candidate.stage === record.stage) ?? null;
+    return this.ordered.find(candidate => sameRun(candidate, record)) ?? null;
   }
 
   append(record: ProductionAttemptIdentityRecord): ProductionAttemptIdentityRecord {
@@ -419,33 +367,11 @@ function maxOutputTokens(
 }
 
 type AttemptLinkage = Pick<ProductionAttemptIdentityRecord,
-  'attempt_id' | 'root_attempt_id' | 'spawn_parent_attempt_id' | 'execution_id' |
-  'thread_id' | 'parent_thread_id' | 'root_thread_id' | 'task_id' |
-  'task_project' | 'dispatch_generation'>;
-
-type AttemptTask = Pick<ProductionAttemptIdentityRecord,
-  'task_id' | 'task_project' | 'dispatch_generation'>;
-
-type AttemptShape = Pick<ProductionAttemptIdentityRecord,
-  'template' | 'role' | 'stage'>;
+  'attempt_id' | 'root_attempt_id' | 'spawn_parent_attempt_id' | 'execution_id' | 'session_id'>;
 
 type AttemptModel = Pick<ProductionAttemptIdentityRecord,
   'profile_name' | 'backend' | 'provider' | 'requested_model' |
   'model_execution_identity_hash' | 'role_tool_surface_hash'>;
-
-function attemptTask(
-  request: RunRequest,
-  context: ProductionBenchmarkEvidenceContext,
-): AttemptTask {
-  if (!request.context.taskId) {
-    return { task_id: context.trial_id, task_project: null, dispatch_generation: null };
-  }
-  return {
-    task_id: request.context.taskId,
-    task_project: requiredOption(request.context.taskProject, 'task project'),
-    dispatch_generation: requiredOption(request.context.taskGeneration, 'dispatch generation'),
-  };
-}
 
 function attemptLinkage(
   state: ActiveIdentityState,
@@ -458,9 +384,7 @@ function attemptLinkage(
   const attemptId = `execution-${executionId}`;
   const scope: AttemptScope = {
     trial_id: context.trial_id, root_run_id: context.root_run_id,
-    thread_id: requiredOption(request.context.threadId, 'thread identity'),
-    parent_thread_id: nullableText(request.benchmark?.parentThreadId ?? null, 'parent thread identity'),
-    root_thread_id: requiredOption(request.benchmark?.rootThreadId, 'root thread identity'),
+    session_id: requiredOption(request.session.sessionId, 'session identity'),
   };
   return {
     attempt_id: attemptId,
@@ -468,17 +392,7 @@ function attemptLinkage(
       ?? state.repo.resolveRootAttemptId(scope, attemptId),
     spawn_parent_attempt_id: existing?.spawn_parent_attempt_id
       ?? state.repo.resolveSpawnParentAttemptId(scope),
-    execution_id: executionId, thread_id: scope.thread_id,
-    parent_thread_id: scope.parent_thread_id, root_thread_id: scope.root_thread_id,
-    ...attemptTask(request, context),
-  };
-}
-
-function attemptShape(request: RunRequest): AttemptShape {
-  return {
-    template: requiredOption(request.benchmark?.templateName, 'template identity'),
-    role: requiredOption(request.benchmark?.agentSlotId, 'role identity'),
-    stage: nullableText(request.benchmark?.stage ?? null, 'stage identity'),
+    execution_id: executionId, session_id: scope.session_id,
   };
 }
 
@@ -532,7 +446,6 @@ function buildRecord(
     trial_id: context.trial_id,
     root_run_id: context.root_run_id,
     ...attemptLinkage(state, input.request, input.executionId, context, existing),
-    ...attemptShape(input.request),
     ...attemptModel(context, input),
     bundle_manifest_hash: context.bundle_manifest_hash,
     frozen_at: new Date().toISOString(),
@@ -552,8 +465,7 @@ function assertRootBaseline(
   if (rootFields.some(field => root[field] !== record[field])) {
     throw new Error('Production benchmark immutable root identity baseline drifted');
   }
-  const role = repo.firstRoleAttempt(record);
-  if (role && role.role_tool_surface_hash !== record.role_tool_surface_hash) {
+  if (root.role_tool_surface_hash !== record.role_tool_surface_hash) {
     throw new Error('Production benchmark immutable role tool baseline drifted');
   }
 }

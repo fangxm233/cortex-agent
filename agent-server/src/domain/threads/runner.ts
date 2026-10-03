@@ -20,7 +20,6 @@ import {
   getRootThreadId,
   getTemplate,
   readArtifact,
-  resolveSystemVars,
   type PendingControl,
 } from './index.js';
 import {
@@ -492,6 +491,9 @@ export function buildThreadRunRequest(
       trigger: meta?.trigger || 'thread-step',
       threadId,
       threadDepth: meta?.depth ?? 0,
+      agentSlotId: stepCtx.agentSlotId,
+      rootThreadId: getRootThreadId(ctx.thread),
+      parentThreadId: meta?.parentThreadId ?? null,
       taskId: meta?.taskId ?? null,
       taskProject: meta?.taskProject ?? null,
       taskGeneration: meta?.dispatchGeneration ?? null,
@@ -517,16 +519,6 @@ export function buildThreadRunRequest(
       // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
       // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
       captureTranscripts: true,
-    },
-    benchmark: {
-      evidenceContext: meta?.productionBenchmarkEvidenceContext ?? null,
-      identityDirective: agentConfig.directive ? resolveSystemVars(agentConfig.directive) : '',
-      rootThreadId: getRootThreadId(ctx.thread),
-      parentThreadId: meta?.parentThreadId ?? null,
-      templateName: ctx.thread.templateName,
-      agentSlotId: stepCtx.agentSlotId,
-      stage: stepCtx.stage,
-      preserveUnreportedAccounting: false,
     },
   };
 }

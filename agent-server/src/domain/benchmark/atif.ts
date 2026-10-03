@@ -3,7 +3,7 @@ import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.
 export interface SourceJournalHeader extends Record<string, unknown> {
   schema_version: string;
   root_run_id: string;
-  thread_id: string;
+  session_id: string;
   agent_slot: string;
   resolved_cwd: string;
   model_execution_identity_hash: string;
@@ -13,7 +13,7 @@ export interface SourceJournalHeader extends Record<string, unknown> {
 
 export interface SourceJournalEvent extends Record<string, unknown> {
   root_run_id: string;
-  thread_id: string | null;
+  session_id: string;
   agent_slot: string;
   seq: number;
   ts: string;
@@ -274,7 +274,7 @@ function buildAgent(fragment: SourceFragment): Record<string, unknown> {
 function trajectoryExtra(fragment: SourceFragment): Record<string, unknown> {
   return {
     root_run_id: fragment.header.root_run_id,
-    thread_id: fragment.header.thread_id,
+    session_id: fragment.header.session_id,
     agent_slot: fragment.header.agent_slot,
     resolved_cwd: fragment.header.resolved_cwd,
     model_execution_identity_hash: fragment.header.model_execution_identity_hash,
@@ -306,15 +306,15 @@ function buildSteps(fragment: SourceFragment): Array<Record<string, unknown>> {
 }
 
 /**
- * §9.3 M3 — recursive, so nesting follows the DAG to whatever depth the DAG has: one level for
- * `coder-review` (§9.4 C7), the full depth for `manager` (§9.4 M-16). The two are the same code
- * because depth is a property of the DAG, not of the builder.
+ * §9.3 M3 — recursive, so nesting follows the DAG to whatever depth the DAG has: a session's later
+ * attempts nest under the attempt they continued. Depth is a property of the DAG, not of the
+ * builder.
  */
 function buildTrajectory(node: AtifNode): AtifTrajectory {
   const fragment = node.fragment;
   const trajectory: AtifTrajectory = {
     schema_version: 'ATIF-v1.7',
-    trajectory_id: fragment.header.thread_id,
+    trajectory_id: fragment.header.session_id,
     agent: buildAgent(fragment),
     steps: buildSteps(fragment),
     extra: trajectoryExtra(fragment),
@@ -325,8 +325,8 @@ function buildTrajectory(node: AtifNode): AtifTrajectory {
   return trajectory;
 }
 
-/** Children arrive already ordered by the caller — call order, or the DAG's own node order for a
- *  manager tree. Timestamps never order trajectories. */
+/** Children arrive already ordered by the caller, in the DAG's own node order. Timestamps never
+ *  order trajectories. */
 export function buildAtifTree(root: AtifNode): AtifTrajectory {
   const trajectory = buildTrajectory(root);
   trajectory.extra.subagent_link_source = 'explicit';

@@ -1,4 +1,4 @@
-import type { Backend } from './agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from './benchmark-types.js';
 // MessageRef: persisted on ThreadRecord.metadata.statusMsgRef (a stored reference, not a handle).
 // OutputStream: the port RunThreadOptions carries. No PlatformAdapter / Destination here.
 import type { MessageRef } from '@platform/types.js';
@@ -372,24 +372,6 @@ export interface ThreadContract {
 export interface BufferedThreadUserInput {
   id: string;
   text: string;
-}
-
-export type ProductionBenchmarkIdentityJsonValue =
-  | null | boolean | number | string
-  | ProductionBenchmarkIdentityJsonValue[]
-  | { [key: string]: ProductionBenchmarkIdentityJsonValue };
-
-export interface ProductionBenchmarkEvidenceContext {
-  readonly schema_version: 'cortex-production-benchmark-evidence-context/1';
-  readonly trial_id: string;
-  readonly root_run_id: string;
-  readonly bundle_manifest_hash: string;
-  readonly model_execution: {
-    readonly model_alias_policy: ProductionBenchmarkIdentityJsonValue;
-    readonly cli_name: Backend;
-    readonly cli_version: string;
-    readonly max_output_tokens: number | null;
-  };
 }
 
 /** Caller-provided metadata stored on ThreadRecord, used by thread-runner for execution registry etc. */

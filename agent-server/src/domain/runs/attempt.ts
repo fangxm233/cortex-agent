@@ -61,21 +61,22 @@ export interface RunAttempt {
 }
 
 /** The cost columns every row of this attempt carries. Frozen once: an attempt cannot change
- *  which thread/task/trial it belongs to halfway through. */
+ *  which session/trial it belongs to halfway through. */
 function costAttribution(
   request: RunRequest,
   executionId: string | null,
   identity: ProductionAttemptIdentityRecord | null,
 ): Readonly<CostAttribution> {
   return Object.freeze({
-    session_id: request.session.sessionId ?? request.session.backendSessionId ?? null,
+    session_id: identity?.session_id
+      ?? request.session.sessionId ?? request.session.backendSessionId ?? null,
     execution_id: identity?.execution_id ?? executionId ?? null,
-    thread_id: identity?.thread_id ?? request.context.threadId ?? null,
-    parent_thread_id: identity?.parent_thread_id ?? request.benchmark?.parentThreadId ?? null,
-    root_thread_id: identity?.root_thread_id ?? request.benchmark?.rootThreadId ?? null,
-    task_id: identity?.task_id ?? request.context.taskId ?? null,
-    task_project: identity?.task_project ?? request.context.taskProject ?? null,
-    dispatch_generation: identity?.dispatch_generation ?? request.context.taskGeneration ?? null,
+    thread_id: request.context.threadId ?? null,
+    parent_thread_id: request.context.parentThreadId ?? null,
+    root_thread_id: request.context.rootThreadId ?? null,
+    task_id: request.context.taskId ?? null,
+    task_project: request.context.taskProject ?? null,
+    dispatch_generation: request.context.taskGeneration ?? null,
     attempt_id: identity?.attempt_id ?? null,
     root_attempt_id: identity?.root_attempt_id ?? null,
     trial_id: identity?.trial_id ?? null,

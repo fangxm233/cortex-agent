@@ -18,7 +18,7 @@ import type { AgentProcessSpawner, Backend, EngineSpec } from '../../../src/agen
 import type { RunEvent } from '../../../src/agent-adapter/run-events.js';
 import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/benchmark-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
@@ -166,18 +166,13 @@ async function runAttempt(
 ): Promise<void> {
   const resolved = profile(backend);
   const override = attemptOf(resolved);
-  const isRoot = suffix === 'zero';
   const partial: RunRequestFixtureInput = {
-    sessionKey: `session-${suffix}`,
-    trackSessionId: `session-${suffix}`,
+    sessionKey: `engine-${suffix}`,
+    trackSessionId: 'session-accounting',
     profileName: resolved.name,
     model: resolved.model,
     piProvider: backend === 'pi' ? resolved.provider : undefined,
     claudeBackend: 'print',
-    threadId: `thr-${suffix}`,
-    taskId: `task-${suffix}`,
-    taskProject: 'cortex-self',
-    taskGeneration: `generation-${suffix}`,
     tools: 'Read',
     pluginDirs: [],
     mcpComposition: 'none',
@@ -185,7 +180,7 @@ async function runAttempt(
     loadCortexRules: false,
     recordCost: true,
     project: 'cortex-self',
-    trigger: 'thread',
+    trigger: 'user',
     processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
   };
   const base = runRequestFixture(partial, override);
@@ -194,11 +189,6 @@ async function runAttempt(
     benchmark: {
       evidenceContext,
       identityDirective: '',
-      rootThreadId: 'thr-zero',
-      parentThreadId: isRoot ? null : 'thr-zero',
-      templateName: 'benchmark-direct',
-      agentSlotId: 'benchmark-direct',
-      stage: null,
       preserveUnreportedAccounting: true,
     },
   };
@@ -266,10 +256,9 @@ for (const backend of ['claude', 'pi'] as const) {
     for (const suffix of suffixes) {
       const row = rows.get(`exec-${suffix}`);
       assert.ok(row);
-      assert.equal(row.session_id, `session-${suffix}`);
-      assert.equal(row.thread_id, `thr-${suffix}`);
-      assert.equal(row.task_id, `task-${suffix}`);
-      assert.equal(row.dispatch_generation, `generation-${suffix}`);
+      assert.equal(row.session_id, 'session-accounting');
+      assert.equal(row.thread_id, null);
+      assert.equal(row.task_id, null);
       assert.equal(row.attempt_id, expectedAttempts.get(suffix));
       assert.equal(row.root_run_id, 'root-accounting');
     }

@@ -1,7 +1,6 @@
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';
-import { parseProductionBenchmarkEvidenceContext } from '@core/production-benchmark-evidence.js';
 import * as http from 'http';
 import * as crypto from 'crypto';
 import { readFileSync } from 'fs';
@@ -27,6 +26,7 @@ import { settleThread } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
 import { handleTeamWebhook } from '../team-webhook.js';
+import { handleBenchmarkSessionWebhook } from '../benchmark-session-webhook.js';
 import { sendAgentFiles } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
@@ -160,15 +160,10 @@ async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promi
 }
 
 function createWebhookHandler() {
-  let productionRootStarted = false;
   return (req, res) => {
-    const threadOpOnly = process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY === '1';
-    const managerQaAllowed = process.env.CORTEX_WEBHOOK_MANAGER_QA_ALLOWED === '1';
-    const confinedRoute = req.method === 'POST' && (
-      req.url === '/webhook/thread-op'
-      || (managerQaAllowed && req.url === '/webhook/manager-qa')
-    );
-    if (threadOpOnly && !confinedRoute) {
+    // A benchmark trial's server serves the one route its launcher drives and refuses the rest.
+    const benchmarkOnly = process.env.CORTEX_WEBHOOK_BENCHMARK_ONLY === '1';
+    if (benchmarkOnly && !(req.method === 'POST' && req.url === '/webhook/benchmark-session')) {
       res.writeHead(403);
       res.end('Forbidden');
       return;
@@ -375,6 +370,18 @@ function createWebhookHandler() {
       return;
     }
 
+    // --- Benchmark session (from the benchmark launcher → benchmark-session-webhook) ---
+    // `start` returns once the session exists and its task is handed over; `status` is polled.
+    if (req.method === 'POST' && req.url === '/webhook/benchmark-session') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const reply = await handleBenchmarkSessionWebhook(data ?? {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(reply));
+      });
+      return;
+    }
+
     // --- Thread operation (from MCP sidecar → thread system) ---
     // Local-only, no secret (same trust model as /webhook/remote-command). thread_start is
     // fire-and-forget: createThread + runThread().catch() without await, returning the threadId.
@@ -405,34 +412,9 @@ function createWebhookHandler() {
             // Tree resource guards (DR-0014): width / node count / budget. A rejection is a
             // signal to escalate or re-plan — the error text says so to the calling agent.
             const parentThread = data.parentThreadId ? threadStore.get(String(data.parentThreadId)) : null;
-            const evidenceContext = data.productionBenchmarkEvidenceContext === undefined
-              ? undefined
-              : parseProductionBenchmarkEvidenceContext(data.productionBenchmarkEvidenceContext);
-            if (parentThread && evidenceContext) {
-              return reply({ success: false, error: 'production evidence context is root-only' });
-            }
             const guard = checkSpawnGuards(parentThread);
             if (guard.ok === false) {
               return reply({ success: false, error: `${guard.reason}. Do NOT retry this spawn — fold the remaining work into your own step, or escalate with thread_abort.` });
-            }
-            if (process.env.CORTEX_WEBHOOK_SINGLE_ROOT === '1') {
-              // The admitted root template is whatever the launcher attested for the arm it
-              // materialized, never a name this server carries. An unset attestation admits
-              // nothing at all, so the guard stays fail-closed for every arm.
-              const attestedTemplate = process.env.CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE;
-              const exactProductionRoot = (
-                !!attestedTemplate && template === attestedTemplate
-                && !agent && !data.parentThreadId
-                && curDepth === 0 && data.projectId === 'general' && evidenceContext !== undefined
-              );
-              if (!exactProductionRoot) {
-                return reply({ success: false, error: 'single-root mode requires the exact attested production root' });
-              }
-              if (productionRootStarted) {
-                return reply({ success: false, error: 'single production root already started' });
-              }
-              // Consume before createThread: concurrent or failing requests remain fail-closed.
-              productionRootStarted = true;
             }
             const projectId = data.projectId || 'general';
             // The originating conduit (the starter agent's SLACK_CHANNEL, forwarded by thread-ops.ts).
@@ -470,9 +452,6 @@ function createWebhookHandler() {
                 resumeDest: haveChannel ? 'interactive-reply' : 'project-report',
                 contract,
                 missionChain,
-                ...(evidenceContext
-                  ? { productionBenchmarkEvidenceContext: evidenceContext }
-                  : {}),
               },
             });
             // Register the child on its thread parent: childThreadIds always (width counter),

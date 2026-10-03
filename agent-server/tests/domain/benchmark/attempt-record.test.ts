@@ -8,16 +8,15 @@ import {
   EDGE_ENDPOINT_LEGALITY,
   ENDPOINT_REF_KINDS,
   assignAttemptOrdinals,
-  threadScopedIdentityHolds,
   type AttemptRecord,
 } from '../../../src/domain/benchmark/attempt-record.js';
 
-/** §9.1's declaration order (`design:2571-2603`), transcribed field by field. */
+/** The record's declaration order, transcribed field by field. */
 const NINE_ONE_ORDER: readonly string[] = [
   'trial_id', 'root_run_id', 'task_id', 'parent_task_id', 'dispatch_generation',
   'attempt_id', 'attempt_ordinal',
-  'thread_id', 'parent_thread_id', 'root_thread_id', 'task_ancestry',
-  'template', 'role', 'stage',
+  'session_id', 'execution_id', 'task_ancestry',
+  'role',
   'backend', 'provider', 'requested_model', 'reported_model',
   'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
   'terminal_state', 'terminal_reason', 'disposition', 'superseded_by',
@@ -31,11 +30,10 @@ export function sampleAttempt(overrides: Partial<AttemptRecord> = {}): AttemptRe
   const sha = 'a'.repeat(64);
   return {
     trial_id: 'trial-1', root_run_id: 'root-1', task_id: 'trial-1', parent_task_id: null,
-    // A PARENT attempt: null thread, and therefore null thread-scoped identity (G4-N14).
-    dispatch_generation: null, attempt_id: 'run-root-1', attempt_ordinal: 1,
-    thread_id: null, parent_thread_id: null, root_thread_id: null,
+    dispatch_generation: null, attempt_id: 'execution-exec-1', attempt_ordinal: 1,
+    session_id: 'session-1', execution_id: 'exec-1',
     task_ancestry: ['trial-1'],
-    template: null, role: 'parent', stage: null,
+    role: 'direct',
     backend: 'claude', provider: null, requested_model: 'model-x', reported_model: null,
     model_execution_identity_hash: sha, role_tool_surface_hash: sha, bundle_manifest_hash: sha,
     terminal_state: 'completed', terminal_reason: 'ok', disposition: 'none', superseded_by: null,
@@ -51,11 +49,9 @@ export function sampleAttempt(overrides: Partial<AttemptRecord> = {}): AttemptRe
   };
 }
 
-describe('AttemptRecord member set — §9.1, 39 members (§17 17.1.4)', () => {
-  it('declares exactly the 39 members §9.1 declares, in §9.1 declaration order', () => {
-    // The count is obtained by ENUMERATING THE CONSTRUCT, never from a table's row count:
-    // (17.1.4) presents 38 rows because its row 34 carries `started_at`/`ended_at` together.
-    expect(ATTEMPT_RECORD_KEYS.length).toBe(39);
+describe('AttemptRecord member set — 36 members', () => {
+  it('declares exactly its 36 members, in declaration order', () => {
+    expect(ATTEMPT_RECORD_KEYS.length).toBe(36);
     expect([...ATTEMPT_RECORD_KEYS]).toEqual(NINE_ONE_ORDER);
   });
 
@@ -153,41 +149,4 @@ describe('attempt_ordinal — G4-AI4 / G4-AI5', () => {
     // The same set re-encoded after a1 was superseded keeps every ordinal it already had.
     expect(assignAttemptOrdinals([...attempts].reverse())).toEqual(ordinals);
   });
-});
-
-describe('D-NULL3 — the three widened members (G4-N13 / G4-N14)', () => {
-
-  it('G4-N14 direction 1: a PARENT attempt holds null thread-scoped identity', () => {
-    const parent = sampleAttempt();
-    expect(parent.thread_id).toBeNull();
-    expect(threadScopedIdentityHolds(parent)).toBe(true);
-  });
-
-  it('G4-N14 direction 2: a THREAD attempt holds NON-null thread-scoped identity', () => {
-    const thread = sampleAttempt({
-      thread_id: 'c1', root_thread_id: 'root-1', template: 'benchmark-coder-review',
-    });
-    expect(threadScopedIdentityHolds(thread)).toBe(true);
-  });
-
-  it('G4-N14: a thread attempt that LOST its thread-scoped identity is refused', () => {
-    // A bare `| null` would let this pass schema while silently losing real data — which is why
-    // the widening is a biconditional and not an unconditional one.
-    expect(threadScopedIdentityHolds(
-      sampleAttempt({ thread_id: 'c1', root_thread_id: null, template: 'tpl' }),
-    )).toBe(false);
-    expect(threadScopedIdentityHolds(
-      sampleAttempt({ thread_id: 'c1', root_thread_id: 'r', template: null }),
-    )).toBe(false);
-  });
-
-  it('G4-N14: a parent attempt that FABRICATED thread-scoped identity is refused', () => {
-    expect(threadScopedIdentityHolds(
-      sampleAttempt({ thread_id: null, root_thread_id: 'invented' }),
-    )).toBe(false);
-    expect(threadScopedIdentityHolds(
-      sampleAttempt({ thread_id: null, template: 'invented' }),
-    )).toBe(false);
-  });
-
 });

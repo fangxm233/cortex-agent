@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { ThreadRecord } from '../../core/types/thread-types.js';
-import { scanAllTasks, type Task } from '../../core/task-parser.js';
 import { executionRepo, type ExecutionRecord } from '../../store/execution-repo.js';
-import { threadStore } from '../../store/thread-repo.js';
 import { costRepo, type CostEntry } from '../costs/cost-tracker.js';
 import {
   buildAtifTree, type AtifNode, type AtifTrajectory,
@@ -22,34 +19,27 @@ import {
   type Tagged,
 } from './accounting-reconciliation.js';
 import {
-  assignAttemptOrdinals, type AttemptDisposition, type AttemptRecord,
+  assignAttemptOrdinals, type AttemptEdge, type AttemptRecord,
 } from './attempt-record.js';
 import {
   buildCompositeManifest, canonicalCompositeManifestBytes, validateCompositeManifest,
-  type CompositeManifest, type OrchestrationModeName, type PredicateCheckResult,
+  type CompositeManifest, type PredicateCheckResult,
 } from './composite-manifest.js';
-import {
-  readProductionTopologyFacts, type ProductionTopologyFact,
-} from '../tasks/production-topology-ledger.js';
+import { PRODUCTION_ROLE } from './journal.js';
 import {
   parseProductionEvidenceJournal, type ParsedProductionJournal,
 } from './production-evidence-journal.js';
-import { projectProductionEvidenceTopology } from './production-evidence-topology.js';
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const PATH_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 export interface ProductionEvidenceExportInput {
   outputDirectory: string;
-  project: string;
   trialId: string;
   rootRunId: string;
   armName: string;
   armCanonicalSha256: string;
   bundleManifestHash: string;
-  mode: OrchestrationModeName;
-  expectedRoles: readonly string[];
-  managerQa: 'on' | 'off' | null;
   proxyExport: ProxyExport;
   evaluatedChecks?: Readonly<Record<
     string, { result: PredicateCheckResult; detail: string | null }
@@ -63,10 +53,7 @@ export interface ProductionEvidenceSources {
   }): readonly ProductionAttemptIdentityRecord[];
   getJournal(executionId: string): ProductionAttemptJournalRecord | null;
   getExecution(executionId: string): ExecutionRecord | null;
-  getThread(threadId: string): ThreadRecord | null;
   readCosts(): Promise<readonly CostEntry[]>;
-  readTopology(project: string): readonly ProductionTopologyFact[];
-  readTasks(project: string): readonly Task[];
 }
 
 export class ProductionEvidenceExportError extends Error {
@@ -85,12 +72,8 @@ interface AttemptSource {
   readonly identity: ProductionAttemptIdentityRecord;
   readonly journal: ProductionAttemptJournalRecord;
   readonly execution: ExecutionRecord;
-  readonly thread: ThreadRecord;
   readonly parsedJournal: ParsedProductionJournal;
   readonly costs: readonly CostEntry[];
-  readonly taskAncestry: readonly string[];
-  readonly parentTaskId: string | null;
-  readonly taskDependencies: readonly string[];
 }
 
 interface AttemptUsage {
@@ -104,7 +87,6 @@ interface ProjectedAttempt {
   readonly source: AttemptSource;
   readonly state: TerminalState;
   readonly reason: TerminalReason;
-  readonly disposition: AttemptDisposition;
   readonly usage: AttemptUsage;
   readonly journalPath: string;
   readonly terminalPath: string;
@@ -140,24 +122,8 @@ function requireRecord(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function assertExpectedRoleInput(value: unknown): asserts value is readonly string[] {
-  if (!Array.isArray(value) || value.length === 0
-    || value.some(role => typeof role !== 'string' || role.length === 0)
-    || new Set(value).size !== value.length) fail('expected role set is invalid');
-}
-
 function isOneOf(value: unknown, allowed: readonly string[]): boolean {
   return typeof value === 'string' && allowed.includes(value);
-}
-
-function assertModeInput(input: Record<string, unknown>): void {
-  if (!isOneOf(input.mode, ['direct', 'coder-review', 'manager'])) {
-    fail('orchestration mode is invalid');
-  }
-  if (![null, 'on', 'off'].includes(input.managerQa as null | string)
-    || (input.mode === 'manager') !== (input.managerQa !== null)) {
-    fail('manager Q&A mode is invalid');
-  }
 }
 
 function assertEvaluatedChecks(value: unknown): void {
@@ -180,14 +146,11 @@ export function assertProductionEvidenceExportInput(
 ): asserts value is ProductionEvidenceExportInput {
   const input = requireRecord(value, 'input');
   requiredText(input.outputDirectory, 'output directory');
-  requiredText(input.project, 'project');
   requiredText(input.trialId, 'trial identity');
   requiredText(input.rootRunId, 'root run identity');
   requiredText(input.armName, 'arm name');
   requireHash(input.armCanonicalSha256, 'arm canonical hash');
   requireHash(input.bundleManifestHash, 'bundle manifest hash');
-  assertExpectedRoleInput(input.expectedRoles);
-  assertModeInput(input);
   const proxy = requireRecord(input.proxyExport, 'proxy export');
   if (proxy.trial_id !== input.trialId) fail('proxy trial identity mismatch');
   assertEvaluatedChecks(input.evaluatedChecks);
@@ -218,8 +181,7 @@ function assertExecution(
   const ended = requireTimestamp(execution.runtime.endedAt, 'execution ended_at');
   const frozen = requireTimestamp(identity.frozen_at, 'identity frozen_at');
   if (started > frozen || frozen > ended) fail(`attempt timing mismatch for ${identity.attempt_id}`);
-  if (execution.thread?.threadId !== identity.thread_id
-    || execution.thread.agentSlotId !== identity.role) {
+  if (execution.session.sessionId !== identity.session_id) {
     fail(`execution linkage mismatch for ${identity.attempt_id}`);
   }
   if (!['completed', 'failed', 'cancelled'].includes(execution.status)) {
@@ -227,46 +189,9 @@ function assertExecution(
   }
 }
 
-function taskAncestry(taskId: string, tasks: ReadonlyMap<string, Task>): string[] {
-  const ancestry: string[] = [];
-  const seen = new Set<string>();
-  let current: string | null = taskId;
-  while (current) {
-    if (seen.has(current)) fail(`task ancestry cycle at ${current}`);
-    seen.add(current);
-    const task = tasks.get(current);
-    if (!task) fail(`task record missing for ${current}`);
-    ancestry.push(current);
-    current = task.parent;
-  }
-  return ancestry.reverse();
-}
-
-function taskProjection(
-  identity: ProductionAttemptIdentityRecord, input: ProductionEvidenceExportInput,
-  tasks: ReadonlyMap<string, Task>,
-): { ancestry: readonly string[]; parent: string | null; dependencies: readonly string[] } {
-  if (input.mode !== 'manager') {
-    if (identity.task_id !== input.trialId || identity.task_project !== null
-      || identity.dispatch_generation !== null) fail(`taskless identity invalid for ${identity.attempt_id}`);
-    return { ancestry: [input.trialId], parent: null, dependencies: [] };
-  }
-  if (identity.task_project !== input.project) fail(`task project mismatch for ${identity.attempt_id}`);
-  const task = tasks.get(identity.task_id);
-  if (!task) fail(`task record missing for ${identity.attempt_id}`);
-  return {
-    ancestry: taskAncestry(identity.task_id, tasks), parent: task.parent,
-    dependencies: [...task.depends_on],
-  };
-}
-
 function correlationMatches(cost: CostEntry, identity: ProductionAttemptIdentityRecord): boolean {
   const fields: Array<[unknown, unknown]> = [
-    [cost.execution_id, identity.execution_id], [cost.thread_id, identity.thread_id],
-    [cost.parent_thread_id ?? null, identity.parent_thread_id],
-    [cost.root_thread_id, identity.root_thread_id], [cost.task_id, identity.task_id],
-    [cost.task_project ?? null, identity.task_project],
-    [cost.dispatch_generation ?? null, identity.dispatch_generation],
+    [cost.execution_id, identity.execution_id], [cost.session_id, identity.session_id],
     [cost.root_attempt_id, identity.root_attempt_id],
   ];
   return fields.every(([actual, expected]) => actual === expected);
@@ -294,7 +219,6 @@ function collectSources(
   input: ProductionEvidenceExportInput, source: ProductionEvidenceSources,
   identities: readonly ProductionAttemptIdentityRecord[], costs: readonly CostEntry[],
 ): AttemptSource[] {
-  const tasks = new Map(source.readTasks(input.project).map(task => [task.id, task]));
   const costRows = costRowsByAttempt(costs, identities, input);
   return identities.map(identity => {
     assertIdentity(identity, input);
@@ -306,17 +230,10 @@ function collectSources(
     const execution = source.getExecution(identity.execution_id);
     if (!execution) fail(`execution record missing for ${identity.attempt_id}`);
     assertExecution(execution, identity);
-    const thread = source.getThread(identity.thread_id);
-    if (!thread || thread.id !== identity.thread_id) {
-      fail(`thread record missing for ${identity.attempt_id}`);
-    }
-    const task = taskProjection(identity, input, tasks);
     return {
-      identity, journal, execution, thread,
+      identity, journal, execution,
       parsedJournal: parseProductionEvidenceJournal(journal, identity),
       costs: costRows.get(identity.attempt_id) ?? [],
-      taskAncestry: task.ancestry, parentTaskId: task.parent,
-      taskDependencies: task.dependencies,
     };
   });
 }
@@ -349,23 +266,7 @@ function usage(source: AttemptSource): AttemptUsage {
   };
 }
 
-function finalAttemptForThread(
-  candidate: AttemptSource, attempts: readonly AttemptSource[],
-): boolean {
-  const peers = attempts.filter(item => item.identity.thread_id === candidate.identity.thread_id);
-  const finals = peers.filter(item => !peers.some(other => (
-    other.identity.spawn_parent_attempt_id === item.identity.attempt_id
-  )));
-  if (finals.length !== 1) fail(`thread ${candidate.identity.thread_id} final attempt is ambiguous`);
-  return finals[0].identity.attempt_id === candidate.identity.attempt_id;
-}
-
-function terminalOutcome(
-  source: AttemptSource, attempts: readonly AttemptSource[],
-): { state: TerminalState; reason: TerminalReason } {
-  if (source.thread.status === 'aborted' && finalAttemptForThread(source, attempts)) {
-    return { state: 'aborted', reason: 'aborted' };
-  }
+function terminalOutcome(source: AttemptSource): { state: TerminalState; reason: TerminalReason } {
   const outcomes: Record<string, { state: TerminalState; reason: TerminalReason }> = {
     completed: { state: 'completed', reason: 'ok' },
     cancelled: { state: 'cancelled', reason: 'cancelled' },
@@ -376,33 +277,13 @@ function terminalOutcome(
   return outcomes[source.execution.status] ?? fail(`terminal outcome missing for ${source.identity.attempt_id}`);
 }
 
-/** Terminal thread statuses that mean the pipeline stopped rather than finished its roles. */
-const THREAD_STOPPED_EARLY: ReadonlySet<string> = new Set(['failed', 'cancelled', 'aborted']);
-
-function assertExpectedRoles(
-  input: ProductionEvidenceExportInput, attempts: readonly AttemptSource[],
-): void {
-  const expected = [...input.expectedRoles].sort();
-  const observed = [...new Set(attempts.map(item => item.identity.role))].sort();
-  if (input.mode === 'direct' && attempts.length !== 1) {
-    fail(`direct host mirror requires one attempt, got ${attempts.length}`);
-  }
-  const unexpected = observed.filter(role => !expected.includes(role));
-  if (unexpected.length > 0) {
-    fail(`attempt role ${unexpected.join(',')} is outside ${expected.join(',')}`);
-  }
-  const missing = expected.filter(role => !observed.includes(role));
-  if (missing.length === 0) return;
-  // A role with no attempt is a defect only when the run had the chance to reach it. A coder-review
-  // thread whose coder was cut off -- its budget revoked at the wall clock, or the vendor refusing
-  // the request outright -- genuinely has no reviewer attempt, because there was never a reviewer.
-  // Demanding the full set turned "this arm was stopped" into "this arm was not measured", and
-  // worse: the export refusal aborts the trial before the verifier runs, so eight terminal-bench
-  // trials lost even the score they had earned on 2026-08-27. A role missing from a thread that ran
-  // to completion is still a defect, and still refused, which is the discrimination that matters.
-  if (attempts.every(item => !THREAD_STOPPED_EARLY.has(item.thread.status))) {
-    fail(`attempt roles mismatch: expected ${expected.join(',')}, got ${observed.join(',')}`);
-  }
+/** A session's attempts form one chain: each later attempt continued the one before it. */
+function spawnEdges(attempts: readonly AttemptSource[]): AttemptEdge[] {
+  return attempts.flatMap((item): AttemptEdge[] => item.identity.spawn_parent_attempt_id ? [{
+    kind: 'spawn',
+    from: { ref: 'attempt', id: item.identity.spawn_parent_attempt_id },
+    to: { ref: 'attempt', id: item.identity.attempt_id },
+  }] : []);
 }
 
 function terminalBytes(
@@ -429,11 +310,10 @@ function terminalBytes(
 }
 
 function projectAttempts(
-  attempts: readonly AttemptSource[], dispositions: ReadonlyMap<string, AttemptDisposition>,
-  rootAttemptId: string,
+  attempts: readonly AttemptSource[], rootAttemptId: string,
 ): ProjectedAttempt[] {
   return attempts.map(source => {
-    const outcome = terminalOutcome(source, attempts);
+    const outcome = terminalOutcome(source);
     const attemptUsage = usage(source);
     const isRoot = source.identity.attempt_id === rootAttemptId;
     const journalPath = isRoot ? 'events.jsonl'
@@ -443,7 +323,6 @@ function projectAttempts(
     const bytes = terminalBytes(source, outcome.state, outcome.reason, attemptUsage, journalPath);
     return {
       source, state: outcome.state, reason: outcome.reason,
-      disposition: dispositions.get(source.identity.attempt_id) ?? 'none',
       usage: attemptUsage, journalPath, terminalPath,
       terminalBytes: bytes, terminalSha256: sha256(bytes),
     };
@@ -452,26 +331,25 @@ function projectAttempts(
 
 function attemptRecords(projected: readonly ProjectedAttempt[]): AttemptRecord[] {
   const ordinals = assignAttemptOrdinals(projected.map(item => ({
-    attempt_id: item.source.identity.attempt_id, task_id: item.source.identity.task_id,
+    attempt_id: item.source.identity.attempt_id, task_id: item.source.identity.trial_id,
     started_at: item.source.execution.runtime.startedAt,
   })));
   return projected.map(item => {
     const { identity, execution, parsedJournal, journal } = item.source;
     return {
       trial_id: identity.trial_id, root_run_id: identity.root_run_id,
-      task_id: identity.task_id, parent_task_id: item.source.parentTaskId,
-      dispatch_generation: identity.dispatch_generation, attempt_id: identity.attempt_id,
-      attempt_ordinal: ordinals.get(identity.attempt_id)!, thread_id: identity.thread_id,
-      parent_thread_id: identity.parent_thread_id, root_thread_id: identity.root_thread_id,
-      task_ancestry: item.source.taskAncestry, template: identity.template,
-      role: identity.role, stage: identity.stage, backend: identity.backend,
+      task_id: identity.trial_id, parent_task_id: null,
+      dispatch_generation: null, attempt_id: identity.attempt_id,
+      attempt_ordinal: ordinals.get(identity.attempt_id)!,
+      session_id: identity.session_id, execution_id: identity.execution_id,
+      task_ancestry: [identity.trial_id], role: PRODUCTION_ROLE, backend: identity.backend,
       provider: identity.provider, requested_model: identity.requested_model,
       reported_model: parsedJournal.reportedModel,
       model_execution_identity_hash: identity.model_execution_identity_hash,
       role_tool_surface_hash: identity.role_tool_surface_hash,
       bundle_manifest_hash: identity.bundle_manifest_hash,
       terminal_state: item.state, terminal_reason: item.reason,
-      disposition: item.disposition, superseded_by: null,
+      disposition: 'none', superseded_by: null,
       artifact_path: null, artifact_sha256: null, journal_path: item.journalPath,
       journal_sha256: journal.journal_sha256, event_count: journal.event_count,
       terminal_manifest_path: item.terminalPath,
@@ -486,14 +364,9 @@ function attemptRecords(projected: readonly ProjectedAttempt[]): AttemptRecord[]
 function identityMap(
   attempts: readonly AttemptSource[], read: (identity: ProductionAttemptIdentityRecord) => string,
 ): Readonly<Record<string, string>> {
-  const result: Record<string, string> = {};
-  for (const attempt of attempts) {
-    const value = read(attempt.identity);
-    const existing = result[attempt.identity.role];
-    if (existing && existing !== value) fail(`role identity drift for ${attempt.identity.role}`);
-    result[attempt.identity.role] = value;
-  }
-  return result;
+  const values = new Set(attempts.map(attempt => read(attempt.identity)));
+  if (values.size !== 1) fail(`role identity drift for ${PRODUCTION_ROLE}`);
+  return { [PRODUCTION_ROLE]: [...values][0] };
 }
 
 function availableTotal(values: readonly (number | null)[]): Tagged<number> {
@@ -517,7 +390,7 @@ function journalTotals(projected: readonly ProjectedAttempt[]): JournalTotals {
       output: availableTotal(projected.map(item => item.usage.tokens.output)),
       cached: availableTotal(projected.map(item => item.usage.tokens.cache_read)),
     },
-    source: 'trajectory_merge', roles: [...new Set(projected.map(item => item.source.identity.role))],
+    source: 'trajectory_merge', roles: [PRODUCTION_ROLE],
   };
 }
 
@@ -531,7 +404,7 @@ function rootAttempt(attempts: readonly AttemptSource[]): AttemptSource {
 function startedBytes(item: ProjectedAttempt): Buffer {
   return Buffer.from(`${JSON.stringify({
     root_run_id: item.source.identity.root_run_id,
-    thread_id: item.source.identity.thread_id,
+    session_id: item.source.identity.session_id,
     ts: item.source.execution.runtime.startedAt,
     journal_path: item.journalPath,
   })}\n`, 'utf8');
@@ -607,15 +480,8 @@ export async function projectProductionBenchmarkEvidence(
   await sources.flush();
   const identities = sources.listIdentities({ trialId: input.trialId, rootRunId: input.rootRunId });
   const attempts = collectSources(input, sources, identities, await sources.readCosts());
-  const facts = sources.readTopology(input.project);
-  assertExpectedRoles(input, attempts);
-  const topology = projectProductionEvidenceTopology(
-    input.mode, input.managerQa, facts, attempts,
-  );
   const root = rootAttempt(attempts);
-  const projected = projectAttempts(
-    attempts, topology.dispositions, root.identity.attempt_id,
-  );
+  const projected = projectAttempts(attempts, root.identity.attempt_id);
   const manifest = buildCompositeManifest({
     trial_id: input.trialId, root_run_id: input.rootRunId,
     arm_name: input.armName, arm_canonical_sha256: input.armCanonicalSha256,
@@ -624,13 +490,10 @@ export async function projectProductionBenchmarkEvidence(
       role_tool_surface_hash: identityMap(attempts, value => value.role_tool_surface_hash),
       bundle_manifest_hash: input.bundleManifestHash,
     },
-    nodes: attemptRecords(projected), edges: topology.edges,
-    roots: {
-      root_attempt_id: root.identity.attempt_id,
-      root_task_id: input.mode === 'manager' ? root.identity.task_id : null,
-    },
+    nodes: attemptRecords(projected), edges: spawnEdges(attempts),
+    roots: { root_attempt_id: root.identity.attempt_id, root_task_id: null },
     accounting: buildAccountingRecord(input.proxyExport, journalTotals(projected)),
-    mode: input.mode, evaluatedChecks: input.evaluatedChecks,
+    mode: 'direct', evaluatedChecks: input.evaluatedChecks,
   });
   const violations = validateCompositeManifest(manifest, {
     lifecycleStems: projected.map(item => item.source.identity.attempt_id),
@@ -644,13 +507,10 @@ export async function projectProductionBenchmarkEvidence(
 
 export const PRODUCTION_EVIDENCE_SOURCES: ProductionEvidenceSources = {
   flush: async () => {
-    await Promise.all([executionRepo.flush(), threadStore.flush(), costRepo.flush()]);
+    await Promise.all([executionRepo.flush(), costRepo.flush()]);
   },
   listIdentities: listProductionAttemptIdentities,
   getJournal: getProductionAttemptJournal,
   getExecution: executionId => executionRepo.getExecution(executionId),
-  getThread: threadId => threadStore.get(threadId),
   readCosts: async () => (await costRepo.readCosts()).entries,
-  readTopology: project => readProductionTopologyFacts({ project }),
-  readTasks: project => scanAllTasks(project),
 };
