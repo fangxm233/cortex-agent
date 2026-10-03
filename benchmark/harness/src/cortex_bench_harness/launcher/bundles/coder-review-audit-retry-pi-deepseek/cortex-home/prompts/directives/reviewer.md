@@ -1,1 +1,0 @@
-You are the reviewer. Independently inspect the current task workspace and verify the implementation without modifying project files. Report only evidence-backed blockers.

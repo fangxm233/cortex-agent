@@ -47,30 +47,6 @@ def direct_codex_arm(**overrides: object) -> dict[str, object]:
     )
 
 
-def audit_retry_arm(**overrides: object) -> dict[str, object]:
-    return arm(
-        {"mode": "coder-review", "coder_review_variant": "audit-retry",
-         "ask_manager": False},
-        **overrides,
-    )
-
-
-def reviewer_fix_arm(**overrides: object) -> dict[str, object]:
-    return arm(
-        {"mode": "coder-review", "coder_review_variant": "reviewer-fix",
-         "ask_manager": False},
-        **overrides,
-    )
-
-
-def manager_qa_off_arm(**overrides: object) -> dict[str, object]:
-    return arm({"mode": "manager", "ask_manager": False}, **overrides)
-
-
-def manager_qa_on_arm(**overrides: object) -> dict[str, object]:
-    return arm({"mode": "manager", "ask_manager": True}, **overrides)
-
-
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -80,12 +56,9 @@ def test_direct_arm_resolves_to_the_committed_direct_bundle() -> None:
 
     assert bundle.key == "direct-pi-deepseek"
     assert bundle.bundle_dir.name == "cortex-home"
-    assert bundle.root_template == "direct"
+    assert bundle.environment == "main"
     assert bundle.profile_name == "direct"
-    assert bundle.evidence_mode == "direct"
-    assert bundle.expected_roles == ("direct",)
     assert bundle.thinking == "off"
-    assert bundle.manager_qa is None
 
 
 def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
@@ -93,107 +66,40 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
 
     assert bundle.key == "direct-pi-openai-codex"
     assert bundle.bundle_dir.name == "cortex-home"
-    assert bundle.root_template == "direct"
+    assert bundle.environment == "main"
     assert bundle.profile_name == "direct"
-    assert bundle.evidence_mode == "direct"
-    assert bundle.expected_roles == ("direct",)
     assert bundle.provider == "openai-codex"
     assert bundle.model == "gpt-5.6-sol"
     assert bundle.credential_capability == "pi-openai-codex-oauth"
     assert bundle.thinking == "xhigh"
-    assert bundle.manager_qa is None
     assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
 
 
-def test_audit_retry_arm_resolves_to_its_own_bundle_template_and_roles() -> None:
-    bundle = require_production_arm(audit_retry_arm())
-
-    assert bundle.key == "coder-review-audit-retry-pi-deepseek"
-    assert bundle.root_template == "coder-review"
-    assert bundle.profile_name == "coder-review"
-    assert bundle.evidence_mode == "coder-review"
-    assert bundle.expected_roles == ("coder", "reviewer")
-    assert bundle.manager_qa is None
-    assert bundle.bundle_dir != require_production_arm(direct_arm()).bundle_dir
-
-
-def test_manager_qa_on_arm_differs_only_by_its_question_tool_gate() -> None:
-    off = require_production_arm(manager_qa_off_arm())
-    on = require_production_arm(manager_qa_on_arm())
-
-    assert on.key == "manager-qa-on-pi-deepseek"
-    assert on.root_template == off.root_template == "manager"
-    assert on.profile_name == off.profile_name == "manager"
-    assert on.evidence_mode == off.evidence_mode == "manager"
-    assert on.expected_roles == off.expected_roles == ("manager",)
-    assert on.manager_qa == "on"
-
-    off_files = {
-        path.relative_to(off.bundle_dir): path.read_bytes()
-        for path in off.bundle_dir.rglob("*") if path.is_file()
-    }
-    on_files = {
-        path.relative_to(on.bundle_dir): path.read_bytes()
-        for path in on.bundle_dir.rglob("*") if path.is_file()
-    }
-    assert on_files.keys() == off_files.keys()
-    changed = {path for path in on_files if on_files[path] != off_files[path]}
-    agent_path = Path("config/thread-templates/agents/manager.json")
-    assert changed == {agent_path}
-
-    off_agent = read_json(off.bundle_dir / agent_path)
-    on_agent = read_json(on.bundle_dir / agent_path)
-    assert on_agent["mcpToolAllowlist"] == [*off_agent["mcpToolAllowlist"], "ask_manager"]
-    ignored = {"description", "mcpToolAllowlist"}
-    assert {key: value for key, value in on_agent.items() if key not in ignored} == {
-        key: value for key, value in off_agent.items() if key not in ignored
-    }
-
-
-def test_manager_arm_declares_a_task_root_and_the_one_path_it_needs_writable() -> None:
-    """The second injection kind: work enters as a task the production dispatcher runs, which
-    means the sealed home cannot keep the whole context tree read-only.
-    """
-    manager = require_production_arm(manager_qa_off_arm())
-
-    assert manager.injection == "task-root"
-    assert manager.writable_home_paths == ("context/projects/general",)
-    for thread_root in (direct_arm(), audit_retry_arm(), reviewer_fix_arm()):
-        bundle = require_production_arm(thread_root)
-        assert bundle.injection == "thread-root"
-        assert bundle.writable_home_paths == ()
-
-
-def test_manager_arm_confinement_is_recorded_with_a_closed_endpoint_set() -> None:
-    manager = require_production_arm(manager_qa_off_arm())
-
-    assert manager.confinement_record() == {
-        "injection": "task-root",
-        "webhook_endpoints": ["POST /webhook/thread-op"],
-        "writable_home_paths": ["context/projects/general"],
-    }
-    assert require_production_arm(manager_qa_on_arm()).confinement_record() == {
-        "injection": "task-root",
-        "webhook_endpoints": [
-            "POST /webhook/thread-op", "POST /webhook/manager-qa",
-        ],
-        "writable_home_paths": ["context/projects/general"],
-    }
-    assert require_production_arm(direct_arm()).confinement_record() == {
-        "injection": "thread-root",
-        "webhook_endpoints": ["POST /webhook/thread-op"],
-        "writable_home_paths": [],
-    }
-
-
-def test_a_coder_review_variant_without_a_bundle_is_not_a_production_candidate() -> None:
-    other = arm({
-        "mode": "coder-review", "coder_review_variant": "reviewer-advise",
-        "ask_manager": False,
-    })
+@pytest.mark.parametrize("orchestration", [
+    {"mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False},
+    {"mode": "coder-review", "coder_review_variant": "reviewer-fix", "ask_manager": False},
+    {"mode": "manager", "ask_manager": False},
+    {"mode": "manager", "ask_manager": True},
+    {"mode": "direct", "ask_manager": True},
+])
+def test_only_the_direct_orchestration_is_a_production_arm(
+    orchestration: dict[str, object],
+) -> None:
+    other = arm(orchestration)
 
     assert production_arm_candidate(other) is None
-    assert resolve_production_arm(other) is None
+    with pytest.raises(ProductionArmError, match="committed PI arm"):
+        require_production_arm(other)
+
+
+def test_every_arm_records_the_one_session_endpoint_it_needs_open() -> None:
+    for bundle in PRODUCTION_ARM_BUNDLES:
+        assert bundle.confinement_record() == {
+            "webhook_endpoints": ["POST /webhook/benchmark-session"],
+        }
+        assert bundle.attested_record() == {
+            "key": bundle.key, "profile_name": "direct", "environment": "main",
+        }
 
 
 def test_a_non_pi_deepseek_arm_is_not_a_production_candidate() -> None:
@@ -208,15 +114,16 @@ def test_an_unknown_bundle_key_is_refused() -> None:
         production_arm_bundle("no-such-bundle")
 
 
-def test_every_bundle_exposes_only_its_normal_named_template_surface() -> None:
+def test_every_bundle_exposes_only_its_normal_named_environment_surface() -> None:
     for bundle in PRODUCTION_ARM_BUNDLES:
         home = bundle.bundle_dir
-        template_dir = home / "config/thread-templates/templates"
-        agent_dir = home / "config/thread-templates/agents"
-        templates = sorted(template_dir.glob("*.json"))
-        assert [path.stem for path in templates] == [bundle.root_template]
+        config = sorted(path.relative_to(home / "config").as_posix()
+                        for path in (home / "config").rglob("*") if path.is_file())
+        assert config == [
+            "environments/main.json", "machines.json", "profiles.json", "settings.json",
+        ]
         surface_files = [
-            *templates, *agent_dir.glob("*.json"),
+            *(home / "config/environments").glob("*.json"),
             *(home / "prompts/directives").glob("*.md"),
             *(home / "prompts/systemPrompts").glob("*.md"),
         ]
@@ -226,29 +133,27 @@ def test_every_bundle_exposes_only_its_normal_named_template_surface() -> None:
 
 
 def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
-    """The bundle is the arm: its root template, every agent that template names, a prompt file
-    for each of those agents, and the profile the agents run under all live in the committed tree.
+    """The bundle is the arm: the environment its session opens in, a prompt file for each prompt
+    that environment names, and the profile it runs under all live in the committed tree.
     """
     for bundle in PRODUCTION_ARM_BUNDLES:
         home = bundle.bundle_dir
         assert production_arm_bundle(bundle.key) is bundle
-        template = read_json(
-            home / f"config/thread-templates/templates/{bundle.root_template}.json")
-        agents = template["agents"]
-        assert isinstance(agents, list) and agents
-        assert tuple(sorted(str(name) for name in agents)) == bundle.expected_roles
+        environment = read_json(home / f"config/environments/{bundle.environment}.json")
+        assert environment["name"] == bundle.environment
+        assert environment["profile"] == bundle.profile_name
+        assert environment["disableHooks"] is True
         profiles = read_json(home / "config/profiles.json")
         assert profiles["defaultProfile"] == bundle.profile_name
         assert bundle.profile_name in profiles["profiles"]
         assert profiles["profiles"][bundle.profile_name]["thinking"] == bundle.thinking
-        assert read_json(home / "data/mode.json")["activeProfile"] == bundle.profile_name
-        for name in agents:
-            agent = read_json(home / f"config/thread-templates/agents/{name}.json")
-            assert agent["profile"] == bundle.profile_name
-            for field, kind in (("directive", "directives"), ("systemPrompt", "systemPrompts")):
-                reference = str(agent[field])
-                assert reference.startswith("file:")
-                assert (home / "prompts" / kind / reference[len("file:"):]).is_file()
+        mode = read_json(home / "data/mode.json")
+        assert mode["activeProfile"] == bundle.profile_name
+        assert mode["defaultAgent"] == bundle.environment
+        for field, kind in (("directive", "directives"), ("systemPrompt", "systemPrompts")):
+            reference = str(environment[field])
+            assert reference.startswith("file:")
+            assert (home / "prompts" / kind / reference[len("file:"):]).is_file()
         for required in (
             "config/machines.json", "config/settings.json",
             "context/projects/general/TASKS.yaml", "data/schedules.json",
@@ -256,26 +161,21 @@ def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
             assert (home / required).is_file()
 
 
-def test_a_provider_pair_of_the_same_orchestration_differs_in_exactly_two_files() -> None:
-    """Five orchestrations exist twice, once per provider. If the pair differed anywhere else,
-    a provider comparison would be measuring that difference too."""
-    by_orchestration: dict[str, dict[str, object]] = {}
+def test_the_provider_pair_differs_in_exactly_two_files() -> None:
+    """The direct arm exists twice, once per provider. If the pair differed anywhere else, a
+    provider comparison would be measuring that difference too."""
+    pair = {bundle.provider: bundle for bundle in PRODUCTION_ARM_BUNDLES}
+    assert sorted(pair) == ["deepseek", "openai-codex"]
     for bundle in PRODUCTION_ARM_BUNDLES:
-        suffix = f"-pi-{bundle.provider}"
-        assert bundle.key.endswith(suffix)
-        by_orchestration.setdefault(bundle.key[: -len(suffix)], {})[bundle.provider] = bundle
-
-    assert len(by_orchestration) == 5
-    for name, pair in by_orchestration.items():
-        assert sorted(pair) == ["deepseek", "openai-codex"], name
-        left, right = pair["deepseek"].bundle_dir, pair["openai-codex"].bundle_dir
-        differing = {
-            path.relative_to(left).as_posix()
-            for path in sorted(left.rglob("*")) if path.is_file()
-            and (right / path.relative_to(left)).read_bytes() != path.read_bytes()
-        }
-        assert differing == {"config/profiles.json", "data/mode.json"}, name
-        assert sorted(path.relative_to(left).as_posix()
-                      for path in left.rglob("*") if path.is_file()) == sorted(
-            path.relative_to(right).as_posix()
-            for path in right.rglob("*") if path.is_file())
+        assert bundle.key == f"direct-pi-{bundle.provider}"
+    left, right = pair["deepseek"].bundle_dir, pair["openai-codex"].bundle_dir
+    differing = {
+        path.relative_to(left).as_posix()
+        for path in sorted(left.rglob("*")) if path.is_file()
+        and (right / path.relative_to(left)).read_bytes() != path.read_bytes()
+    }
+    assert differing == {"config/profiles.json", "data/mode.json"}
+    assert sorted(path.relative_to(left).as_posix()
+                  for path in left.rglob("*") if path.is_file()) == sorted(
+        path.relative_to(right).as_posix()
+        for path in right.rglob("*") if path.is_file())
