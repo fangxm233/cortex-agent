@@ -73,6 +73,8 @@ export interface DeliverToSessionOptions {
   raw?: Record<string, unknown>;
   /** Hand an already-held turn-mutation admission to the turn instead of taking a new one. */
   mutationRelease?: TurnMutationRelease;
+  /** The sender keeps the message if a rebuild hold refuses it (see `AgentRunnerCtx`). */
+  onRebuildHold?: () => Promise<void> | void;
   /** Adapter override. Production leaves it unset and takes the one the runtime holds. */
   adapter?: PlatformAdapter;
   /** Route seam for tests (resume-dispatcher and session-rewind inject their own). */
@@ -135,6 +137,7 @@ export async function deliverToSession(opts: DeliverToSessionOptions): Promise<v
     userMessage: opts.text,
     agentMessage: opts.text,
     ...(opts.mutationRelease ? { mutationRelease: opts.mutationRelease } : {}),
+    ...(opts.onRebuildHold ? { onRebuildHold: opts.onRebuildHold } : {}),
   });
 }
 

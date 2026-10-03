@@ -29,6 +29,8 @@ interface World {
   applied: ApplySelectionRequest[];
   /** When set, the next applySelection refuses with this. */
   refuse: Partial<ApplySelectionResult> | null;
+  /** The server refuses new turns ahead of a restart. */
+  held: boolean;
   deps: TeamWebhookDeps;
 }
 
@@ -47,6 +49,7 @@ function world(): World {
     }]]),
     applied: [] as ApplySelectionRequest[],
     refuse: null,
+    held: false,
   } as World;
   let next = 0;
   const listWorkers = async (leadId: string) => [...w.sessions.values()].filter(s => s.teamLeadId === leadId);
@@ -95,6 +98,7 @@ function world(): World {
     // Dispatches mark a worker running for a while; the clock is pinned past that window here so the
     // tests below decide "running" explicitly.
     describeTeam: (id) => describeTeam(id, { ...viewDeps, now: () => Number.MAX_SAFE_INTEGER }, listWorkers),
+    held: () => w.held,
     now: () => 1000,
   };
   return w;
@@ -307,4 +311,26 @@ test('spawn refuses a selection the rule rejects, and an unknown backend, creati
   assert.equal(w.applied.length, 1, 'an invalid backend never reaches the rule');
   assert.equal([...w.sessions.values()].filter(s => s.teamLeadId).length, 0);
   assert.deepEqual(w.delivered, []);
+});
+
+test('spawn and send say so while the server is about to restart, creating and delivering nothing', async () => {
+  const w = world();
+  w.sessions.set('old', session('old', { teamLeadId: 'lead', workerName: 'old', workerRetiredAt: 5 }));
+  w.held = true;
+
+  const spawned = await call(w, { action: 'spawn', name: 'fresh', prompt: 'p' });
+  assert.equal(spawned.success, false);
+  assert.match(spawned.error!, /about to restart.*the worker was not created/);
+  assert.equal(w.applied.length, 0, 'no selection written for a worker that does not exist');
+  assert.equal([...w.sessions.values()].filter(s => s.workerName === 'fresh').length, 0);
+
+  const sent = await call(w, { action: 'send', worker: 'old', message: 'go' });
+  assert.equal(sent.success, false);
+  assert.match(sent.error!, /about to restart.*the message was not delivered/);
+  assert.equal(w.sessions.get('old').workerRetiredAt, 5, 'not revived by a send that did not happen');
+  assert.deepEqual(w.delivered, []);
+
+  w.held = false;
+  assert.equal((await call(w, { action: 'send', worker: 'old', message: 'go' })).success, true);
+  assert.equal(w.delivered.length, 1);
 });

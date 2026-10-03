@@ -89,3 +89,28 @@ test('a callback refused under the hold is recorded instead of answered into a c
   assert.equal(notices.length, 1);
   assert.match(notices[0].text, /Background agent sa_99/);
 });
+
+test('a sender that keeps its own refused message gets the hook instead of the dropped notice', async () => {
+  const { runner, calls } = spyRunner();
+  let kept = 0;
+  const ctx = makeCtx({ channel: 'web:lead', onRebuildHold: async () => { kept += 1; } });
+  holdNewTurns({ phase: 'restart' });
+
+  await runner.route(ctx);
+
+  assert.equal(kept, 1);
+  assert.deepEqual(calls.track, []);
+  assert.deepEqual(calls.enqueued, []);
+  assert.equal(ctx.adapter.posted.length, 0);
+  assert.equal(listSystemNotices().length, 0, 'nothing was lost, so nothing is reported as dropped');
+});
+
+test('a keep hook that fails falls back to the refusal', async () => {
+  const { runner } = spyRunner();
+  const ctx = makeCtx({ onRebuildHold: async () => { throw new Error('disk full'); } });
+  holdNewTurns({ phase: 'restart' });
+
+  await runner.route(ctx);
+
+  assert.equal(ctx.adapter.posted.length, 1, 'the person is told, as without the hook');
+});
