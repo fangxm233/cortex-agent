@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { appendFile, mkdir } from 'fs/promises';
 import { JsonRepository } from '@core/json-repository.js';
 import { createLogger } from '@core/log.js';
@@ -42,8 +42,8 @@ export interface ExecutionRecord {
   };
   /** Legacy: set on records written by the retired thread runtime; never written now. */
   thread?: { threadId: string | null; agentSlotId: string | null } | null;
-  /** Legacy: set on records written by the retired task dispatcher; null on every new record. */
-  dispatch: DispatchInfo | null;
+  /** Legacy: set on records written by the retired task dispatcher; never written now. */
+  dispatch?: DispatchInfo | null;
   scheduleTaskId: string | null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
@@ -92,7 +92,6 @@ function createBaseRecord({ kind, channel, project, trigger, backend, billingMod
     backend: backend || 'claude',
     billingMode: billingMode || 'api',
     session: { sessionId: sessionId || null, ...(ownerSessionId ? { ownerSessionId } : {}) },
-    dispatch: null,
     scheduleTaskId: scheduleTaskId || null,
     runtime: {
       startedAt: timestamp,
@@ -152,6 +151,8 @@ class ExecutionRepo {
   private _pendingPersist: Promise<void> = Promise.resolve();
   /** True while a persist is queued but not yet snapshotting — lets queuePersist coalesce. */
   private _persistQueued = false;
+  /** Set by {@link follow}: identifies the file version the map holds, null when not following. */
+  private followed: string | null = null;
 
   constructor(opts?: ExecutionRepoOptions) {
     this.filePath = getExecutionsFile(opts?.filePath);
@@ -179,13 +180,49 @@ class ExecutionRepo {
     }
   }
 
+  /**
+   * Serve reads from the file as it is now, for a process that only reads executions (the stdio
+   * MCP sidecar, whose session can outlive many runs). Every read re-loads the file when it changed
+   * since the last one. The daemon owns and writes the file, so it never follows: a reload there
+   * would drop whatever it still has queued to write.
+   */
+  follow(): void {
+    this.followed = '';
+    this.refresh();
+  }
+
+  /** Following only: re-read the file when its identity changed. An unreadable or half-written file
+   *  keeps the last good snapshot and is retried on the next read. */
+  private refresh(): void {
+    if (this.followed === null) return;
+    let version: string;
+    try {
+      const stat = statSync(this.filePath);
+      version = `${stat.ino}:${stat.mtimeMs}:${stat.size}`;
+    } catch {
+      this.map.clear();
+      this.followed = 'missing';
+      return;
+    }
+    if (version === this.followed) return;
+    try {
+      const data = JSON.parse(readFileSync(this.filePath, 'utf8')) as ExecutionsData;
+      this.map = new Map(Object.entries(data));
+      this.followed = version;
+    } catch (error) {
+      log.warn(`Could not re-read ${this.filePath}: ${(error as Error).message}`);
+    }
+  }
+
   // --- Sync reads (fast path, no await) ---
 
   getExecution(id: string): ExecutionRecord | null {
+    this.refresh();
     return this.map.get(id) || null;
   }
 
   getRunningExecutions(): ExecutionRecord[] {
+    this.refresh();
     const results: ExecutionRecord[] = [];
     for (const record of this.map.values()) {
       if (record.status === 'running') results.push(record);
@@ -194,10 +231,12 @@ class ExecutionRepo {
   }
 
   getAllExecutions(): ExecutionRecord[] {
+    this.refresh();
     return Array.from(this.map.values());
   }
 
   getAll(): ExecutionRecord[] {
+    this.refresh();
     return Array.from(this.map.values())
       .sort((a, b) => b.runtime.startedAt.localeCompare(a.runtime.startedAt));
   }

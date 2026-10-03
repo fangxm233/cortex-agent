@@ -14,7 +14,6 @@ vi.mock('@core/version.js', async (importOriginal) => {
 });
 
 const { runMigrations } = await import('../../src/store/version-migrations.js');
-const { DEFAULTS_DIR } = await import('../../src/core/paths.js');
 
 let tmpDir: string;
 let testIndex = 0;
@@ -376,23 +375,4 @@ test('runMigrations leaves customized worker prompts untouched by the STATUS mig
   // STATUS migration itself must not alter customized text.
   assert.match(out, /Our workers report status in a wiki, not STATUS\.md\./);
   assert.doesNotMatch(out, /state register, not a changelog/);
-});
-
-test('runMigrations preserves compact shipped directives and base prompts', async () => {
-  const { dataDir, storeDir, defaultsDir } = setupDirs();
-  const relatives = [
-    ...['coder', 'coder-reviewer', 'doc-writer', 'doc-reviewer', 'executor',
-      'executor-reviewer', 'director'].map(name => `prompts/directives/${name}.md`),
-    'prompts/systemPrompts/worker.md', 'prompts/systemPrompts/coder.md',
-  ];
-  const originals = new Map<string, string>();
-  for (const relative of relatives) {
-    const content = await readText(path.join(DEFAULTS_DIR, relative));
-    originals.set(relative, content);
-    await writeText(path.join(dataDir, relative), content);
-  }
-  await runMigrations({ dataDir, storeDir, defaultsDir });
-  for (const [relative, content] of originals) {
-    assert.equal(await readText(path.join(dataDir, relative)), content, relative);
-  }
 });

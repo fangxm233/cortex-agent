@@ -1148,7 +1148,7 @@ function createDirectories(paths: InitPaths): void {
     paths.CONFIG_DIR,
     paths.STORE_DIR,
     path.join(paths.DATA_DIR, 'logs', 'sessions'),
-    path.join(paths.WORKSPACE_DIR, 'threads'),
+    paths.WORKSPACE_DIR,
     paths.PROJECTS_DIR,
     // Dense Context structure
     path.join(paths.CONTEXT_DIR, 'user'),

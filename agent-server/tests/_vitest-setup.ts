@@ -29,7 +29,7 @@ if (shared) {
   try { cpSync(shared, home, { recursive: true }); } catch { /* best-effort */ }
 }
 
-for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 'tmp', path.join('tmp', 'threads'), '.claude']) {
+for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 'tmp', '.claude']) {
   try { mkdirSync(path.join(home, d), { recursive: true }); } catch { /* best-effort */ }
 }
 
