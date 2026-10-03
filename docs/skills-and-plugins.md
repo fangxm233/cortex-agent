@@ -1,6 +1,6 @@
 # Cortex Skills and Plugins
 
-Cortex uses skills for reusable agent instructions and plugins for installable capability bundles. A plugin can contribute skills alone or, when it follows the portable Agent Plugins format, skills together with Model Context Protocol (MCP) servers. Plugin assignment is scoped to an agent or a template slot, so each spawned backend receives only the selected surface.
+Cortex uses skills for reusable agent instructions and plugins for installable capability bundles. A plugin can contribute skills alone or, when it follows the portable Agent Plugins format, skills together with Model Context Protocol (MCP) servers. Plugins are assigned to [execution environments](./configuration.md#execution-environments), so each spawned backend receives only the surface its environment selects.
 
 ## Skills
 
@@ -103,7 +103,7 @@ The detailed transport and isolation rules come from the [Agent Plugins MCP runt
 
 The desktop and browser workbench expose the catalog at **Settings → Plugins**. The page reads the connected Cortex server, so its entries belong to that server rather than to the local desktop installation. It lists every installed package and opens each one on three tabs.
 
-Overview carries the package's identity and health: format, manifest source and metadata, on-disk location, validation issues, and any spawn-time scope restriction. It also lists which agents and template slots currently reference the plugin, so the relationship stays discoverable from the package side without the page owning it.
+Overview carries the package's identity and health: format, manifest source and metadata, on-disk location, validation issues, and any spawn-time scope restriction. It also lists which environments currently reference the plugin, so the relationship stays discoverable from the package side without the page owning it.
 
 ## Managing a plugin's contents
 
@@ -111,24 +111,25 @@ The Skills tab lists what the package ships, each with its description and its p
 
 The MCP tab edits `mcp.json` as a form. Command, arguments, working directory and URL round-trip normally, but environment values and headers do not: this page is never told them. Each stored key shows as kept, and replacing one is an explicit action; keys you leave alone are merged back server-side from what is already on disk. A legacy package cannot declare MCP servers at all, so its MCP tab offers the conversion instead — writing a root `plugin.json` while leaving `.claude-plugin/plugin.json` in place so updates keep working.
 
-Two things about a plugin are worth reading before editing it. A package Cortex ships is marked as such, and so is each shipped skill inside it: the update mechanism rewrites every shipped file at the next version bump, so an edit there lasts until then, while skills you add yourself are never touched. A shipped package also cannot be deleted, because the next update would redeploy it. A local package can be deleted once no agent or template slot still references it.
+Two things about a plugin are worth reading before editing it. A package Cortex ships is marked as such, and so is each shipped skill inside it: the update mechanism rewrites every shipped file at the next version bump, so an edit there lasts until then, while skills you add yourself are never touched. A shipped package also cannot be deleted, because the next update would redeploy it. A local package can be deleted once no environment still references it.
 
 ## Assigning plugins
 
-Assignment is a field of an agent or a template slot rather than a property of the plugin, so it is edited on the entity that owns it: **Settings → Templates**, select an agent or template, then the Plugins tab. Agent entities expose a single plugin set. Template entities expose one target per `agents[]` slot, chosen from a slot picker, and cover ordinary slots, shell bindings, and `__active__` slots. Agent targets store a complete managed plugin set. An ordinary template slot can either use the referenced agent's defaults or customize a complete snapshot. A custom snapshot does not track later agent changes; switching back to agent defaults removes the slot-level `pluginDirs` override. Shell bindings and `__active__` slots are read-only because they do not provide a stable writable assignment location.
+Assignment is a field of an execution environment rather than a property of the plugin, so it is edited on the environment: **Settings → Environments**, select an environment, then the Plugins tab. Each environment has a single plugin set, and saving stores it as a complete managed set.
 
-Saving uses the entity content hash as an optimistic concurrency guard. If the agent or template changes on disk, Cortex refreshes the target instead of overwriting the newer file. Existing plugin paths that are outside the managed catalog remain preserved and are reported as unmanaged. An already selected invalid catalog entry can be removed, but a new invalid entry cannot be assigned.
+Saving uses the environment file's content hash as an optimistic concurrency guard. If the environment changes on disk, Cortex refreshes the target instead of overwriting the newer file. Existing plugin paths that are outside the managed catalog remain preserved and are reported as unmanaged. An already selected invalid catalog entry can be removed, but a new invalid entry cannot be assigned.
 
 Adding a portable plugin with at least one valid root `mcp.json` server opens a confirmation that explains the local-code and network trust surface. The acknowledgment is required for that portable MCP addition, but it is not a sandbox or an independent authorization boundary. Reset discards the local draft, while Save persists it through `plugins.assign`. The Settings modal blocks section navigation and closing while an assignment draft is dirty. If a background refetch reports a different assignment hash, the page preserves the user's draft, marks it stale, disables Save, and requires Reset instead of silently replacing the edits (`web/src/features/settings/vm/plugin-assign-vm.ts:143-164,199-210`).
 
 The assignment tab and the JSON body editor write the same file, so only one of them may hold a draft at a time: the tab is frozen while the body has unsaved edits. Assignment is also not the last word on whether a plugin loads. Scoped plugins are filtered again at spawn time, so a commission-scoped or channel-scoped package shows an inline note saying it will not load outside that scope however it is assigned.
 
-Assignments continue to use `pluginDirs` in the agent and template JSON files. An agent can be configured directly as follows:
+Assignments are stored as `pluginDirs` in the environment's JSON file under `$CORTEX_HOME/config/environments/`, and can be written there directly:
 
 ```json
 {
   "name": "researcher",
   "profile": "claude-sonnet",
+  "persistSession": true,
   "pluginDirs": [
     "plugins/cortex-system",
     "plugins/my-plugin"
@@ -136,22 +137,7 @@ Assignments continue to use `pluginDirs` in the agent and template JSON files. A
 }
 ```
 
-A template slot with no `pluginDirs` inherits the referenced agent. A slot object with `pluginDirs` is a complete custom set:
-
-```json
-{
-  "name": "special-review",
-  "agents": [
-    {
-      "ref": "researcher",
-      "pluginDirs": ["plugins/my-plugin"]
-    }
-  ],
-  "transitions": [],
-  "entryAgent": "researcher",
-  "maxTotalSteps": 4
-}
-```
+The list is the complete plugin set for that environment's sessions; there is no inheritance between environments.
 
 Relative paths resolve against `$CORTEX_HOME`; absolute paths remain supported as unmanaged legacy configuration. The Settings UI canonicalizes managed entries to `plugins/<plugin-id>` while preserving unmanaged entries.
 
@@ -169,7 +155,7 @@ Portable MCP is suppressed for the explicit `none` composition and for the restr
 
 Everything below `$CORTEX_HOME/plugins/` is administrator-installed code. Assign only packages whose source and contents you trust: a stdio MCP server can execute local code with the backend process's account, and a remote MCP server can receive tool data over the network. Portable skills are copied into private snapshots, but stdio commands, arguments, working directories, and package data remain trusted administrator-controlled runtime inputs rather than a sandbox boundary. Manifest validation, path containment, private runtime files, redirect rejection, and assignment confirmation reduce configuration mistakes and secret exposure; they do not sandbox plugin behavior.
 
-The Plugins page manages inventory and assignment only. Its MCP inventory and acknowledgment apply only to portable root `mcp.json`; a legacy Claude-native `.mcp.json` remains outside this managed view. Installation, marketplace search, update, removal, OAuth, credential entry, per-tool permission policy, and live MCP health checks are outside this surface. Installing a package means placing its directory under `$CORTEX_HOME/plugins/` through an administrator-controlled workflow.
+The Plugins page manages inventory and package contents, and an environment's Plugins tab manages assignment. Its MCP inventory and acknowledgment apply only to portable root `mcp.json`; a legacy Claude-native `.mcp.json` remains outside this managed view. Installation, marketplace search, update, OAuth, credential entry, per-tool permission policy, and live MCP health checks are outside this surface. Installing a package means placing its directory under `$CORTEX_HOME/plugins/` through an administrator-controlled workflow.
 
 ## Skill discovery and invocation
 
@@ -184,8 +170,8 @@ When the `Skill` tool invokes a skill, Cortex's hook bridge records the activity
 | Catalog precedence, fixed locations, and narrow validation | `agent-server/src/domain/plugins/catalog.ts:224-390` |
 | Portable MCP validation and sanitized summaries | `agent-server/src/domain/plugins/mcp.ts:102-323` |
 | Spawn-time projection, normalization, and fingerprinting | `agent-server/src/domain/plugins/runtime.ts:143-688` |
-| Agent and template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
-| Connected-server catalog and target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
+| Environment plugin assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts` |
+| Connected-server catalog and environment inventory | `agent-server/src/domain/ui-service/query/plugins.ts` |
 | Settings plugin package manager | `web/src/features/settings/panels/PluginsPanel.tsx` |
 | Skill and plugin writes, containment-checked | `agent-server/src/domain/plugins/authoring.ts` |
 | Authoring ops and MCP secret merging | `agent-server/src/domain/ui-service/mutate/plugin-packages.ts` |

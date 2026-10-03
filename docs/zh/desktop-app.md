@@ -1,6 +1,6 @@
 # 桌面与 Android 应用 {#desktop-and-android-apps}
 
-Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳。桌面端使用三栏工作台，Android 使用针对手机设计的四 Tab 界面。两者都通过 Web UI HTTP 传输直连 Cortex 服务器，并与浏览器工作台共享项目、会话、任务、线程、审批、文件和记忆。
+Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳。桌面端使用三栏工作台，Android 使用针对手机设计的双 Tab 界面。两者都通过 Web UI HTTP 传输直连 Cortex 服务器，并与浏览器工作台共享项目、会话、审批、文件和记忆。
 
 原生应用需要可访问的 Web UI 端点和服务器的 `CORTEX_CLIENT_TOKEN`。浏览器访问采用独立的 Cloudflare Access 路径，详见[浏览器访问](browser-access.md)。
 
@@ -107,19 +107,19 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 ## 桌面工作台 {#desktop-workbench}
 
-桌面应用与浏览器使用同一个三栏工作台。左侧导航栏列出项目和项目范围内的会话，并提供当前项目的 Overview 入口。中间区域包含对话、流式智能体输出、工具活动、附件、问题卡片与计划审批。对话左侧有一条细导航条，为会话中的每条提问标出一个刻度。指针沿导航条移动时，附近的刻度会随距离伸长，指针所在的那条弹出预览卡显示当时问了什么，点击即可把转录滚回该处。当前视野内的每个 turn 刻度都保持高亮，无论屏幕上显示的是它的开头、结尾还是全部。右侧面板可在 Threads、Tasks 与 Machines 之间切换，显示当天项目费用，也可由私人 Notes 面板替代。
+桌面应用与浏览器使用同一个三栏工作台。左侧导航栏列出项目和项目范围内的会话，并提供当前项目的 Overview 入口。中间区域包含对话、流式智能体输出、工具活动、附件、问题卡片与计划审批。对话左侧有一条细导航条，为会话中的每条提问标出一个刻度。指针沿导航条移动时，附近的刻度会随距离伸长，指针所在的那条弹出预览卡显示当时问了什么，点击即可把转录滚回该处。当前视野内的每个 turn 刻度都保持高亮，无论屏幕上显示的是它的开头、结尾还是全部。右侧面板列出各台机器，显示当天项目费用，也可由私人 Notes 面板替代。
 
 桌面和手机聊天页顶部的 **⋯** 菜单提供**添加星标／取消星标**与**重命名**。桌面会话列表中，鼠标悬停某一行时，其时间会换成 **⋯** 菜单，可直接操作该会话而不切换当前对话；键盘聚焦也可显示此入口。每个项目的会话列表内有可折叠的**星标**栏；添加星标会把会话移入该栏，取消后回到原分组，没有星标时隐藏空栏。名称与星标保存在服务端。重命名只修改显示标题，不改变会话 ID；标题不能为空，最多 60 个字符。
 
-线程卡片会打开 modal，显示实时 pipeline、各步骤、嵌套线程与持久化 artifact。执行条目会打开带实时日志和取消控制的 drawer。在 macOS 上按 `⌘K`，或在 Linux 与 Windows 上按 `Ctrl+K`，可打开命令面板。
+项目 Overview 中的执行条目会打开带实时日志和取消控制的 drawer。在 macOS 上按 `⌘K`，或在 Linux 与 Windows 上按 `Ctrl+K`，可打开命令面板。
 
 对话中的代码块在指针悬停时显示复制按钮；触屏设备上该按钮常驻显示。在 Windows 上，通过 `Ctrl+C`、右键菜单或复制按钮在应用内复制的内容，会像其他应用的复制一样出现在剪贴板历史（`Win+V`）中。WebView2 从自己的浏览器进程写入这些内容，Windows 不会把它们记入历史，因此应用壳会以自身窗口重新写入同一份数据。写入方标记为不记入历史的内容仍保持排除（`desktop/src-tauri/src/clipboard_history.rs`）。
 
 ### 插件设置 {#plugin-settings}
 
-**Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins，并把它们分配给 agent definition 或 template slot。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx:81-112`；`web/src/features/settings/panels/PluginsPanel.tsx:365-800`）。
+**Settings → Plugins** 会盘点当前连接的 Cortex server 上安装的 plugins。每个 entry 显示 portable 或 legacy 格式、manifest metadata、skills、validation issues、使用它的执行环境，以及 portable root `mcp.json` server 的 sanitized summary。Desktop shell 与 browser 渲染同一个 server-backed SPA，因此不会维护另一份本地 catalog（`web/src/features/settings/SettingsModal.tsx`；`web/src/features/settings/panels/PluginsPanel.tsx`）。
 
-普通 template slot 可以使用 agent defaults，也可以自定义完整 plugin snapshot。Shell binding 与 `__active__` slot 只读。加入至少含一个有效、已盘点 `mcp.json` server 的 portable plugin 时必须先确认才能保存；assignment edit 尚未保存时，target navigation 与 Settings modal 关闭都会被阻止。如果编辑期间 server data 发生变化，页面会保留并标记 stale draft，重置后才能继续保存。该页面只管理 assignment，package directory 的安装、更新与删除由 server administrator 完成。Package 格式、runtime behavior 与 trusted-code boundary 见[技能与插件](./skills-and-plugins.md)。
+**Settings → Environments** 编辑[执行环境](./configuration.md#execution-environments)，每个执行环境的 Plugins tab 负责为它分配插件。加入至少含一个有效、已盘点 `mcp.json` server 的 portable plugin 时必须先确认才能保存；assignment edit 尚未保存时，切换与关闭 Settings modal 都会被阻止。如果编辑期间 server data 发生变化，页面会保留并标记 stale draft，重置后才能继续保存。Package directory 的安装与更新由 server administrator 完成。Package 格式、runtime behavior 与 trusted-code boundary 见[技能与插件](./skills-and-plugins.md)。
 
 如需切换服务器，打开 daemon 或连接状态，选择 **Disconnect**，然后在连接界面输入新的端点和 token。
 
@@ -135,7 +135,7 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 ## Android 界面 {#android-interface}
 
-Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话聊天、计划阅读、线程详情、任务详情、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
+Android 使用两个底部 Tab：Sessions 与 Project。会话聊天、计划阅读、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
 
 授予通知权限后，**设置 → 通知 → 后台通知**可启用 Android 原生后台连接，页面切到后台后仍继续监听。一条静默常驻通知显示跨项目运行中的 direct session 数量，包含后台延续任务；数量为零时显示后台通知已连接，断线重连时明确显示状态暂不可用，不保留假实时数字。关闭这个本设备开关或断开服务器连接会停止服务并清理相关通知（`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`；`Reconciler.kt`）。
 
@@ -183,7 +183,7 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 | macOS | 将已校验的 DMG 复制到 Downloads 并打开；将 Cortex 拖入 Applications 后完成安装。 |
 | Android | 对已校验的 APK 打开系统 package installer；Android 会在需要时请求 install-source 权限。 |
 
-运行中的线程在服务器上执行，因此重启或重新安装客户端不会停止它们。设置了 `CORTEX_FRONTEND_DIR` 的开发运行、未携带 CalVer release version 的应用，或设置 `CORTEX_APP_UPDATE_DISABLE=1` 时，都不会检查原生壳更新。
+会话在服务器上运行，因此重启或重新安装客户端不会停止它们。设置了 `CORTEX_FRONTEND_DIR` 的开发运行、未携带 CalVer release version 的应用，或设置 `CORTEX_APP_UPDATE_DISABLE=1` 时，都不会检查原生壳更新。
 
 ## 故障排查 {#troubleshooting}
 

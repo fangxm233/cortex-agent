@@ -83,8 +83,8 @@ npm --version    # should print 10.x.y or later
 npm install -g @cortex-agent/server
 ```
 
-This puts three commands on your PATH: `cortex`, `cortex-task`, and
-`cortex-signal`.
+This puts the `cortex` command on your PATH, along with three helpers:
+`cortex-signal`, `cortex-hook`, and `cortex-evidence-export`.
 
 If `npm install -g` fails with a permission error (common on Linux),
 prefix with `sudo`, or better, configure npm to use a user-local
@@ -434,20 +434,16 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── machines.json           # this machine's capabilities (gpuCount, path)
 │   ├── mcp-config.json         # direct-session MCP servers
 │   ├── mcp-config-core.json    # remote execution/time layer
-│   ├── mcp-config-tasks.json   # read-only task-monitoring layer
-│   ├── mcp-config-manager-qa.json # shared manager-answer layer
-│   ├── mcp-config-thread.json  # thread-control layer
 │   ├── mcp-config-interaction.json # Shared interaction layer
 │   ├── profiles.json           # named (backend, model) profiles
-│   ├── thread-templates/       # multi-agent thread definitions
-│   │   └── agents/, templates/, shells/   # one JSON file per entity
+│   ├── environments/           # execution environments: main.json, creative.json
 │   └── hooks/                  # hook registry — one JSON declaration per hook
 ├── data/
 │   ├── mode.json               # current mode + active profile
-│   └── schedules.json          # seeded recurring tasks
+│   └── schedules.json          # seeded built-in schedules
 ├── context/                    # the project log lives here
 │   ├── AGENTS.md, projects/, decisions/, scans/, ideas/, retrospectives/, user/
-├── plugins/                    # 8 role-scoped skill plugins (full copy of defaults)
+├── plugins/                    # skill plugins (full copy of defaults)
 ├── prompts/                    # directives, system prompts, templates
 ├── rules/                      # rule files auto-loaded by agents
 ├── hooks/                      # hook scripts (.mjs)
@@ -514,36 +510,22 @@ create a project called "hello-world" — I want to build a
 simple web dashboard that shows the weather in my city
 ```
 
-Cortex replies with the project structure it created, the initial
-tasks it decomposed, and asks if you want it to start working on them.
+Cortex replies with the project structure it created and what it
+understood the mission to be.
 
 
-### 4.3 Create a task in an existing project
-
-Once you have a project, you can add tasks to it directly from Slack:
-
-```
-in project hello-world, add a task: add a 5-day forecast
-chart using Chart.js
-```
-
-Cortex adds the task to the project's `TASKS.yaml`, assigns it a hex
-ID, sets priority and dependencies, and confirms back.
-
-
-### 4.4 Check project status
+### 4.3 Check project status
 
 ```
 status of hello-world
 ```
 
-Cortex reads the project's `STATUS.md`, `TASKS.yaml`, and recent
-experiment records, then gives you a summary of where things stand.
+Cortex reads the project's `STATUS.md`, mission, and recent experiment
+records, then gives you a summary of where things stand.
 
-Once a project has tasks in its queue, Cortex automatically picks up
-and dispatches the highest-priority ready task — you don't need to
-tell it to "start working." Just keep adding tasks and Cortex will work
-through them autonomously.
+For work that will span several sessions, ask Cortex to start a
+commission. It drafts a contract stating the goal, the plan, and what
+"done" means, and starts once you approve it.
 
 ## What to read next
 
@@ -556,8 +538,9 @@ through them autonomously.
   [cli-reference.md](./cli-reference.md).
 - You want to switch backends or add another provider — read
   [backends.md](./backends.md).
-- You want to understand how the multi-agent thread pipelines work —
-  read [threads.md](./threads.md).
+- You want Cortex to hand work to subagents, or to lead persistent
+  worker sessions — read [backends.md](./backends.md#subagents) and
+  [team.md](./team.md).
 - You want to connect remote machines to Cortex — read
   [cross-machine.md](./cross-machine.md).
 - You want to understand the project log structure (experiments,

@@ -129,7 +129,7 @@ From a manifest.
 | `users:read`           | Map user IDs to names in transcripts                                                 |
 | `files:read/write`     | Receive uploaded files and post generated artifacts (plots, PDFs, logs)              |
 | `emoji:read`           | Custom-emoji status indicators                                                       |
-| `pins:read/write`      | Pin / unpin key thread artifacts                                                     |
+| `pins:read/write`      | Pin / unpin key messages                                                             |
 | `commands`             | Reserved for future slash commands                                                   |
 
 ### What each event is for

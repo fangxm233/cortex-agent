@@ -15,19 +15,16 @@ $CORTEX_HOME/
 │   ├── .env                      # Same file (symlinked / canonical location)
 │   ├── settings.json             # Runtime behavior settings (hot-reloaded)
 │   ├── profiles.json             # Named agent profiles
-│   ├── thread-templates/         # Thread config — one JSON per agent/template/shell
+│   ├── environments/             # Execution environments — one JSON per environment
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
 │   ├── mcp-config.json           # Direct-session MCP configuration
 │   ├── mcp-config-core.json      # Remote execution/time layer
-│   ├── mcp-config-tasks.json     # Read-only task-monitoring layer
-│   ├── mcp-config-manager-qa.json # Shared manager-answer layer
-│   ├── mcp-config-thread.json    # Thread-control layer
 │   ├── mcp-config-interaction.json # Shared interaction layer
 │   └── hooks/                    # Hook registry — one JSON declaration per hook
 ├── data/
 │   ├── mode.json                 # Current runtime mode and profile
-│   ├── schedules.json            # Persistent scheduled task list
+│   ├── schedules.json            # Persistent schedule list
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
 │   ├── session-registry.jsonl    # Session records, channel bindings, conversation headers + turns (single owner)
@@ -37,7 +34,7 @@ $CORTEX_HOME/
 ├── .claude/
 │   └── settings.json             # Cortex-scaffolded Claude Code project settings
 ├── hooks/                        # Hook scripts (.mjs)
-├── plugins/                      # Role-scoped skill plugins
+├── plugins/                      # Skill plugins
 ├── prompts/                      # System prompts, directives, templates
 ├── rules/                        # Context rules for agent sessions
 ├── context/                      # Dense Context knowledge repository
@@ -45,7 +42,7 @@ $CORTEX_HOME/
 ├── logs/                         # Daemon and backend session logs
 │   ├── sessions/                 # Claude capture logs
 │   └── sessions-pi/              # PI transcript bundles
-└── tmp/                          # Temporary workspaces (threads, etc.)
+└── tmp/                          # Temporary workspaces
 ```
 
 ## Loading order and precedence
@@ -263,8 +260,8 @@ lists only offer, they never narrow what this file accepts.
 
 At agent spawn time, Cortex resolves the profile through this chain:
 
-1. If a profile name is explicitly provided (via `--profile` or thread
-   template), use it.
+1. If a profile name is explicitly provided (via `--profile`, or by the
+   conversation's execution environment naming one), use it.
 2. Otherwise, use `defaultProfile` from `profiles.json`.
 3. The resolved profile supplies `model`, `backend`, `mode`, `extraEnv`,
    `extraOption`, `claudeBackend`, and `thinking`.
@@ -283,34 +280,102 @@ or `pi`. `claudeBackend` must be `print` or `tui` if specified.
 `thinking`, if specified, must be a value from the entry's backend value
 set (see the fields table). Unknown fields are silently ignored.
 
-## Agents vs profiles
+## Execution environments
+
+An execution environment decides how a conversation runs, apart from which
+model runs it: the system prompt, the built-in tool list, which plugins load,
+which Cortex MCP tools the session gets, and how much ambient context (rules,
+hooks, the project block, the backend's own skills) comes with it. Each
+environment is one file, `config/environments/<name>.json`, and the file name is
+its name.
+
+Cortex ships two:
+
+| Environment | What it is for |
+|---|---|
+| `main` | General-purpose work on the currently active profile, with the Cortex system, commission, and Feishu plugins. It is the default: a session that has not picked an environment runs in `main`, and `main` cannot be deleted |
+| `creative` | A clean-room surface for writing, image prompts, naming, and copy, with the operational context stripped out (see [A minimal surface](#a-minimal-surface)) |
+
+The shipped files are copied into `config/environments/` at `cortex init`, and
+again at every server start when they are missing. A file you already have is
+never overwritten, so your edits survive upgrades, and a file you add is an
+environment like any other. Changes to the directory are picked up about 300 ms
+later without a restart. A file that is not valid JSON, or whose `name` does not
+match its file name, is skipped and logged.
+
+### Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Must equal the file name without `.json` |
+| `description` | string | no | One line describing what the environment is for, shown in pickers |
+| `profile` | string | yes | A profile from `profiles.json`, or `"__active__"` to run on whatever profile the conversation resolves to. A named profile overrides the model for this environment's turns without changing the conversation's own profile |
+| `persistSession` | boolean | yes | Conversations keep their backend session across turns either way; the shipped environments set `true` |
+| `directive` | string | no | Role or identity text prepended to the prompt |
+| `systemPrompt` | string | no | Replaces the backend's default system prompt |
+| `promptTemplate` | string | no | Wraps each message; `{{input}}` stands for what was sent |
+| `claudeAgent` | string | no | Claude Code agent name, passed as `--agent`. Claude only |
+| `outputStyle` | string | no | Claude Code output style. Claude only |
+| `tools` | string | no | Comma-separated built-in tool list that replaces the backend's default set |
+| `pluginDirs` | string[] | no | Plugin directories to load, relative to `$CORTEX_HOME` unless absolute. Absent loads none |
+| `mcpComposition` | `"direct"` \| `"none"` | no | `direct` (default) gives the session the Cortex MCP tools; `none` gives it no MCP at all, plugin servers included |
+| `mcpToolAllowlist` | string[] | no | Narrows the Cortex MCP tools to the names listed. Absent keeps the full surface |
+| `loadRules` | boolean | no | Default `true`: prepend the global rules from `rules/` |
+| `disableHooks` | boolean | no | Default `false`. `true` runs the session without lifecycle hooks |
+| `skills` | boolean | no | Default `true`. `false` removes the backend's skill layer, including the `Skill` tool |
+| `settingSources` | string[] | no | Which Claude setting files to read: any of `user`, `project`, `local`. Absent uses the CLI default; `[]` reads none |
+| `projectContext` | boolean | no | Default `true`: tell the session which project it belongs to on its first turn |
+
+The three prompt fields accept `file:<name>` instead of literal text. The text is
+then read from `prompts/directives/`, `prompts/systemPrompts/`, or
+`prompts/promptTemplates/` respectively; the shipped `main` uses
+`"systemPrompt": "file:direct.md"`. A field the schema does not know, a missing
+prompt file, or a missing plugin directory is reported as a warning, and the
+environment still loads.
+
+### Plugins and the Environments panel
+
+Plugins attach to environments. An environment's `pluginDirs` is the complete
+set of plugin directories its sessions load; the environment's Plugins tab
+writes that same field, and **Settings → Plugins** shows which environments use
+each installed plugin (see
+[Skills and Plugins](./skills-and-plugins.md#assigning-plugins)).
+
+In the Web workbench and the desktop app, **Settings → Environments** lists
+every environment and edits one at a time: the JSON body with live validation,
+a Validation tab for errors and warnings, and a Plugins tab for its plugin set.
+A new environment starts from a skeleton that already validates, and an existing
+one can be duplicated under a new name. Errors block a save, warnings do not,
+and a save made against a file that changed on disk in the meantime is refused
+rather than overwriting it. Editing a shipped environment that still matches its
+default warns first, because from then on it no longer follows the shipped
+version. `main` cannot be deleted. On Android, Settings shows Environments as a
+desktop-only entry.
+
+## Environments vs profiles
 
 Two entities decide how a session runs, and they change independently.
 
 A **profile** is model routing: backend, model, mode, thinking level, extra
-environment, and the fallback chain. An **agent template**
-(`config/thread-templates/agents/<name>.json`, fields in
-[threads.md](./threads.md#agent-definitions)) is the execution environment: the
-system prompt, the tool list, which Cortex plugins load, which MCP surface the
-session gets and which tools inside it, whether the ambient rules and the
-lifecycle hooks load, whether the project block is injected, and whether the
-backend's skill layer loads at all.
+environment, and the fallback chain. An **execution environment** (above)
+decides everything else about the session: its prompt, tools, plugins, MCP
+surface, and ambient context.
 
 `!profile <name>` changes the model and leaves the environment alone; `!agent
-<name>` changes the environment and leaves the model alone. An agent that pins
-`"profile": "__active__"` runs on whatever its conversation currently resolves
-to; one that names a profile runs on that profile, as an override along the run
-path — it never rewrites the conversation's own profile, so a later `!agent
-reset` leaves the model exactly where it was.
+<name>` changes the environment and leaves the model alone. An environment that
+pins `"profile": "__active__"` runs on whatever its conversation currently
+resolves to; one that names a profile runs on that profile, as an override along
+the run path. It never rewrites the conversation's own profile, so a later
+`!agent reset` leaves the model exactly where it was.
 
-### Choosing an agent per conversation
+### Choosing an environment per conversation
 
-The agent is chosen the way the profile is: per conversation, over a host-wide
-default.
+The environment is chosen the way the profile is: per conversation, over a
+host-wide default.
 
 | Command | What it does |
 |---|---|
-| `!agent` | Shows this conversation's agent, the host-wide default it falls back to, and the list to pick from — as buttons on Slack and Feishu |
+| `!agent` | Shows this conversation's environment, the host-wide default it falls back to, and the list to pick from — as buttons on Slack and Feishu |
 | `!agent <name>` | Runs THIS conversation in `<name>`, from its next turn |
 | `!agent reset` | Hands this conversation back to the host-wide default. `clear`, `off`, `none` and `disable` say the same thing |
 | `!agent global <name>` | Sets the host-wide default: what every conversation that has not chosen one runs |
@@ -321,34 +386,36 @@ default moves only behind the explicit `global` prefix.
 
 In the Web app and the desktop client the same choice is the composer's own
 control: a chip of its own, immediately left of the engine chip — where the turn
-runs, before what runs it. It names the agent the conversation is in, or, when
-the conversation has picked none, the host-wide default it falls back to, drawn
-muted so a choice reads differently from a fallback. Clicking it opens one flat
-list: a `default` row meaning "follow the host-wide default", then every template
-this host declares, each with what it is for and the profile it pins. A host
-declaring a single agent shows no chip — there is nothing to choose between. A
-pick on a new conversation travels with its first message; on a live one it
-applies at once and takes effect on the next turn.
+runs, before what runs it. It names the environment the conversation is in, or,
+when the conversation has picked none, the host-wide default it falls back to,
+drawn muted so a choice reads differently from a fallback. Clicking it opens one
+flat list: a `default` row meaning "follow the host-wide default", then every
+environment this host declares, each with what it is for and the profile it
+pins. A host declaring a single environment shows no chip — there is nothing to
+choose between. A pick on a new conversation travels with its first message; on
+a live one it applies at once and takes effect on the next turn.
 
-A turn resolves its agent through this chain: the session's own agent, then the
-conversation's, then the host-wide default, then `main`.
+A turn resolves its environment through this chain: the session's own choice,
+then the conversation's, then the host-wide default, then `main`. A name that no
+longer resolves, because the environment was renamed or deleted, is skipped.
 
 Switching obeys the same rule `!profile` does — a conversation with history may
-not change backend, so an agent pinning a profile on the other backend is
+not change backend, so an environment pinning a profile on the other backend is
 refused and says which backend it would have needed. A conversation with no
-turns yet may take any agent. Within one backend the switch lands on the next
+turns yet may take any environment. Within one backend the switch lands on the next
 turn and the history stays, which means the model sees turns it produced in the
 previous environment; `!new` if that is not what you want.
 
 ### A minimal surface
 
-The shipped `creative` agent is the smallest environment Cortex ships — writing,
+The shipped `creative` environment is the smallest one Cortex ships — writing,
 image prompts, naming and copy, with the operational context stripped out:
 
 ```json
 {
   "name": "creative",
   "profile": "__active__",
+  "persistSession": true,
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
   "pluginDirs": [],
@@ -370,10 +437,9 @@ and zero skills when asked what it can see.
 `mcpToolAllowlist` is an upper bound, not a requirement. It narrows a session's
 MCP surface to the names it lists; a name the session does not compose on the
 surface it opened on is simply absent there. One list therefore runs everywhere:
-this `creative` keeps all three tools in the Web and desktop app, only
+this `creative` keeps all three tools in the Web and desktop app, and only
 `cortex_ask_user` on Slack and Feishu (their file delivery is a tool of its own,
-which this list does not name), and nothing at all on a thread step, which
-composes no user-facing bridge. A name that exists in no bundle on the host is
+which this list does not name). A name that exists in no bundle on the host is
 still refused at spawn — that is a typo, not a surface.
 
 ### Skills outside `pluginDirs`
@@ -381,10 +447,10 @@ still refused at spawn — that is a typo, not a surface.
 `pluginDirs` is not the whole skill layer. Claude Code loads its own on every
 spawn no matter what Cortex passes: the plugins enabled in
 `~/.claude/settings.json`, anything under `~/.claude/skills/`, and the CLI's
-built-in skills. Two agent fields reach them. `settingSources: []` stops the
+built-in skills. Two environment fields reach them. `settingSources: []` stops the
 setting files being read at all, which removes the enabled plugins' skills;
 `skills: false` removes the layer outright, built-ins included, and takes the
-`Skill` tool with it. An agent that sets both sees no skills and no slash
+`Skill` tool with it. An environment that sets both sees no skills and no slash
 commands.
 
 ## config/settings.json
@@ -404,7 +470,7 @@ settings panels.
 ```json
 {
   "turnNotify": false,
-  "waitingSweepMs": 30000,
+  "turnNotifyThresholdS": 120,
   "uiCorsOrigins": ["cortexui://localhost"]
 }
 ```
@@ -423,30 +489,21 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `notifyCompaction` | boolean | `true` | Post a chat notice when an agent's context is compacted. Covers the Claude Code (print mode) and pi backends | `CORTEX_NOTIFY_COMPACTION` |
 | `showToolCalls` | boolean | `false` | Inline tool-call rendering in VirtualMessage tails | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
-| `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations and threads the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
+| `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `streamDeltas` | boolean | `true` | Stream assistant text token by token. Disable to deliver each assistant message in one piece | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | Write the event bus to the daily rolling JSONL event log | `CORTEX_EVENT_LOG` |
 | `diskMonitor` | boolean | `true` | Check free space on the filesystem containing `$CORTEX_HOME` every five minutes and send a system notice below 500 MiB. `false` stops the timer; switching back to `true` runs an immediate check | `CORTEX_DISK_MONITOR` |
-| `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) | `CORTEX_DISABLE_USER_CONTEXT` |
+| `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `commissionEnabled` | boolean | `true` | Kill switch for commission mode — contract-anchored long tasks. On by default: any session can enter the mode mid-conversation, either because the agent calls `cortex_commission_start` or because you flip the composer's commission capsule. Turn it off to refuse every entry point (create, composer, the start webhook) and stop injecting contract blocks; existing commissions stay readable on the board | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `false` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `hooksLegacy` | boolean | `false` | Bypass the hook registry and build Claude hook settings from the fixed built-in table instead. See [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
-| `managerRotateSteps` | number | `10` | Steps a manager session runs before it is rotated into a fresh incarnation. See [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
-| `waitingSweepMs` | number | `60000` | Interval, in milliseconds, of the disk-driven sweep that reconciles waiting manager threads against on-disk task state. `0` disables the sweep (see the hot-reload exception below) | `CORTEX_WAITING_SWEEP_MS` |
 | `waitpointSweepMs` | number | `30000` | Interval, in milliseconds, of the waitpoint sweep: it drains spooled signals (locally and from connected devices), expires overdue waitpoints, and retries deliveries that failed. See [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | Default lifetime of a waitpoint (7 days) when the agent does not set one. A waitpoint may ask for less, or for more up to a hard ceiling of 30 days; past it the waitpoint expires and the session is told nothing arrived | `CORTEX_WAITPOINT_TTL_MS` |
 | `waitpointMaxWakesPerHour` | number | `12` | Cap on how many times a single waitpoint may wake its session per hour. A runaway signalling loop is throttled (and says so once) rather than flooding the conversation | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |
 | `injectWaitMaxS` | number | `600` | Upper bound, in seconds, on how long an injected mid-turn message waits for a reply before the busy gate is released. Prevents a wedged process from holding the daemon restart gate forever | `CORTEX_INJECT_WAIT_MAX_S` |
-| `threadMaxDepth` | number | `5` | Maximum nesting depth for spawning nested threads; a spawn at or beyond this depth is rejected | `CORTEX_THREAD_MAX_DEPTH` |
-| `taskArtifactTemplates` | string[] | `["manager"]` | Templates whose dispatch threads keep their artifact on the task node instead of the temporary workspace | `CORTEX_TASK_ARTIFACT_TEMPLATES` (comma-separated) |
-| `taskDispatchMaxConcurrent` | number \| null | `null` | Max number of task-dispatch threads allowed to run concurrently. A number set here is used as-is (use a positive value); `null` keeps the automatic policy `max(4, os.cpus().length - 2)` — all-but-2 cores, floored at 4 | `TASK_DISPATCH_MAX_CONCURRENT` |
-| `taskDispatchEnabled` | boolean | `true` | Run the built-in task dispatcher. Switching from `false` to `true` triggers an immediate dispatch check | — |
-| `taskDispatchIntervalMs` | number | `30000` | Interval between built-in dispatch checks, in integer milliseconds | — |
-| `taskArchiveEnabled` | boolean | `true` | Run the built-in completed-task archiver. Switching from `false` to `true` runs it immediately | — |
-| `taskArchiveIntervalMs` | number | `21600000` | Interval between completed-task archive runs, in integer milliseconds | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
 | `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator runs once at daemon startup, every 6 hours, and again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
@@ -485,8 +542,8 @@ clear.
 
 Built-in job intervals must be integer milliseconds from `1000` through
 `2147483647`, the safe range for Node timers. Enabled jobs run once at daemon
-startup. Archive and memory-index runs never overlap; a changed interval takes
-effect after an active run finishes.
+startup. Memory-index runs never overlap; a changed interval takes effect
+after an active run finishes.
 
 `sessionRetentionDays` is the one numeric retention control in **Settings →
 Advanced**. The desktop Web UI writes it through the same
@@ -511,7 +568,7 @@ session-registry expiry (via `delete-intent` then `delete-commit`), orphan
 `logs/sessions-pi/`, orphan Claude capture files under `logs/sessions/`, and
 the synced Claude user `cleanupPeriodDays` helper. Orphan history and PI files
 use a two-sweep confirmation before deletion. Active direct sessions, running
-executions and thread steps, pending interaction/bg-held sessions, live PI
+executions, pending interaction/bg-held sessions, live PI
 backend session ids, and active Claude capture pairs are protected.
 
 ### Hot reload
@@ -521,7 +578,7 @@ The config directory is watched. A change to `settings.json` is debounced for
 daemon restart**. Two consequences worth knowing:
 
 - Each setting takes effect at its own point of use: the next turn, the next
-  agent spawn, the next dispatch cycle, or the next HTTP request. `uiCorsOrigins`
+  agent spawn, the next built-in job run, or the next HTTP request. `uiCorsOrigins`
   is resolved per request; `adminChannel` and `feishuAdminChannel` are pushed
   into the running platform adapter as soon as they change. `diskMonitor=false`
   stops its timer, while restoring `true` starts the timer and checks immediately.
@@ -530,13 +587,6 @@ daemon restart**. Two consequences worth knowing:
 - A broken file never takes the server down. Invalid JSON or a type mismatch
   leaves the previous settings in place and logs the error; fix the file and the
   next write reloads it.
-
-**Exception — `waitingSweepMs`.** The waiting-manager sweep re-arms itself after
-each run using the current value, so raising or lowering the interval applies
-from the next round. Setting it to `0` while the server runs stops the loop for
-good: nothing re-arms it, and restoring a positive value later does **not**
-restart it. Only a daemon restart does. (A value of `0` at startup means the
-loop never starts.)
 
 ### Legacy environment variables and deprecation
 
@@ -632,7 +682,7 @@ settings in [`config/settings.json`](#configsettingsjson).
 
 The `agent-server/defaults/` directory in the npm package contains
 shipped defaults. Most are copied to `$CORTEX_HOME/` during init; the hook
-assets and the thread-template entities are additionally re-synced by the
+assets and the execution environments are additionally re-synced by the
 server on every startup:
 
 | Source | Destination | Overwrite behavior |
@@ -641,7 +691,7 @@ server on every startup:
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | Never |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never — this applies only to the `$CORTEX_HOME/.claude/settings.json` scaffolded path; arbitrary repository-local `.claude/settings.json` files are outside Cortex's copy/sync loop |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
-| `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | Per-file copy-if-missing, at init and again at every server start: a shipped agent/template/shell file you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
+| `defaults/config/environments/` | `$CORTEX_HOME/config/environments/` | Per-file copy-if-missing, at init and again at every server start: a shipped environment you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | Per-file CalVer sync at every server start: added when missing, refreshed when the shipped `version` is newer. A declaration with no `version` — yours — is never overwritten |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | Per-file: new files always added, existing preserved unless `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | Per-file: new files always added, existing preserved unless `--force` |
@@ -651,10 +701,10 @@ server on every startup:
 | `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
 
 This design means npm package upgrades automatically deliver new prompts,
-plugins, rules, hooks, and thread-template entities without overwriting user
+plugins, rules, hooks, and execution environments without overwriting user
 customizations. Whole-file config such as `budget.json` still requires
-`--force` to replace; `config/thread-templates/` is merged per file instead,
-so newly shipped entities reach existing installs without touching your edits.
+`--force` to replace; `config/environments/` is merged per file instead,
+so newly shipped environments reach existing installs without touching your edits.
 
 ## Hot-reload behavior
 
@@ -665,9 +715,7 @@ polling mode as it uses with filesystem events.
 
 - **`config/settings.json`** — watched via file watcher, debounced 300 ms. New
   values apply at the next point of use without a restart; a broken file keeps
-  the previous settings. `waitingSweepMs` set to `0` at runtime is the one
-  exception that needs a restart to recover. See
-  [config/settings.json](#configsettingsjson).
+  the previous settings. See [config/settings.json](#configsettingsjson).
 - **`schedules.json`** — watched via file watcher. Changes are picked up
   within seconds without restart. See [scheduling.md](./scheduling.md)
   for the full scheduling system.
@@ -676,10 +724,9 @@ polling mode as it uses with filesystem events.
   the previous profiles.
 - **`machines.json`** — watched and reloaded after valid changes. Invalid
   entries keep the previous machine registry.
-- **`thread-templates/`** — each entity subdirectory (`agents/`, `templates/`,
-  `shells/`) is watched. Changes are debounced (300ms) and the whole config is
-  reloaded without a restart; a legacy single `thread-templates.json` is watched
-  the same way until it is migrated. See [threads.md](./threads.md).
+- **`environments/`** — watched. Changes are debounced (300 ms) and every
+  environment is reloaded without a restart. See
+  [Execution environments](#execution-environments).
 - **`.env`** — requires a daemon restart to pick up changes (loaded once
   at startup via dotenv). Behavior settings that used to live here have moved
   to `config/settings.json`, which does not.
@@ -697,13 +744,13 @@ polling mode as it uses with filesystem events.
 | `.env` | Environment variables | `$CORTEX_HOME/config/.env` |
 | `settings.json` | Runtime behavior settings (hot-reloaded) | `$CORTEX_HOME/config/settings.json` |
 | `profiles.json` | Agent profiles | `$CORTEX_HOME/config/profiles.json` |
-| `thread-templates/` | Thread definitions — one JSON per agent/template/shell. Used when present; otherwise the loader falls back to the legacy single file `thread-templates.json`, which is split into this directory by a one-time startup migration | `$CORTEX_HOME/config/thread-templates/` |
+| `environments/` | Execution environments — one JSON per environment | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP server config | `$CORTEX_HOME/config/mcp-config.json` |
 | `.claude/settings.json` | Claude Code hooks/permissions (not the Cortex settings file) | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | Runtime mode | `$CORTEX_HOME/data/mode.json` |
-| `schedules.json` | Scheduled tasks | `$CORTEX_HOME/data/schedules.json` |
+| `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
 | `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | Two-sweep orphan cleanup candidates | `$CORTEX_HOME/data/retention-candidates.json` |
 | `conversation-history/` | Per-session transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |

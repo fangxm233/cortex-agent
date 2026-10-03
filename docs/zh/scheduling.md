@@ -1,7 +1,7 @@
 # Cortex 调度系统 {#cortex-scheduling-system}
 
 
-调度系统让你设置周期性或一次性的智能体调用。调度持久化到磁盘，在重启后存活，并在外部更改时热重载。任务派发、任务归档和记忆索引重建等 daemon 基础设施循环由下文的内置任务控制器运行，不保存为调度记录。
+调度系统让你设置周期性或一次性的智能体调用。调度持久化到磁盘，在重启后存活，并在外部更改时热重载。每次触发都会新开一个会话来运行调度的提示。Provider 用量采集和记忆索引重建等 daemon 基础设施循环由下文的内置作业控制器运行，不保存为调度记录。
 
 !!! tip "在等某件事结束？别用调度去轮询"
     只为检查任务是否完成而触发的调度，每次都要花掉一整轮 agent，而其中几乎每一轮
@@ -38,8 +38,7 @@
       "createdAt": 1747680000000,
       "nextRun": 1747683600000,
       "lastRun": 1747680000000,
-      "target": { "kind": "fresh" },
-      "fallback": "fresh"
+      "target": { "kind": "fresh" }
     }
   ]
 }
@@ -52,7 +51,7 @@
 | `id` | 8 字符十六进制标识符（自动生成） |
 | `type` | `interval`、`daily`、`weekly` 或 `once` |
 | `message` | 调度触发时发送的提示（触发时自动添加 `[Scheduled Task]` 前缀） |
-| `projectId` | 调度关联的项目及其回退目标 |
+| `projectId` | 调度所属的项目；每次触发的会话都在这个项目中打开 |
 | `profile` | 智能体配置名称（默认为活动配置） |
 | `intervalMs` | 对于 `interval` 类型：触发之间的毫秒数 |
 | `time` | 对于 `daily`/`weekly` 类型：`HH:MM` 24 小时时间 |
@@ -67,44 +66,36 @@
 | `pausedBy` | `"user"` 或 `"rate-limit"`——谁暂停了它 |
 | `dispatchType` | 保留的内部处理器键；普通用户调度不填写 |
 | `preCheck` | 可选的 shell 命令；非零退出 → 跳过此次触发 |
-| `target` | 触发的任务应到达哪里（见下方目标解析） |
-| `fallback` | 如果目标不可用怎么办：`"fresh"`（默认）、`"skip"` 或 `"wait"` |
+| `target` | 调度的项目是如何选定的（见[触发后到哪里运行](#where-a-fire-lands)） |
 
-## 内置周期任务 {#built-in-periodic-jobs}
+## 内置周期作业 {#built-in-periodic-jobs}
 
-任务派发、已完成任务归档和记忆索引重建是 daemon 内置任务。它们不会出现在 `schedules.json`、`!schedule list`、调度 CLI 或 Web 调度列表中。开关与间隔可在 **设置 → 高级 → 内置任务** 中配置，也可使用 `config/settings.json` 中的三组键：`taskDispatchEnabled` / `taskDispatchIntervalMs`、`taskArchiveEnabled` / `taskArchiveIntervalMs`、`memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`。
+Provider 用量采集和记忆索引重建是 daemon 内置作业。它们不会出现在 `schedules.json`、`!schedule list`、调度 CLI 或 Web 调度列表中。开关与间隔可在 **设置 → 高级 → 内置任务** 中配置，也可使用 `config/settings.json` 中的两组键：`providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs`、`memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`。
 
-启用的任务会在 daemon 启动时执行一次。设置热更新生效：禁用会清除下一次计时器，启用会立即执行，修改间隔会重排下一次空闲运行。默认值和取值范围见 [configuration.md](./configuration.md#configsettingsjson)。
+启用的作业会在 daemon 启动时执行一次。设置热更新生效：禁用会清除下一次计时器，启用会立即执行，修改间隔会重排下一次空闲运行。默认值和取值范围见 [configuration.md](./configuration.md#configsettingsjson)。
 
-## 目标解析 {#target-resolution}
+## 触发后到哪里运行 {#where-a-fire-lands}
 
-`target` 字段控制调度任务触发时**到达哪里**：
+每次触发都会新开一个普通会话——与你在 Web UI 或桌面端新建的会话相同——并把调度的消息加上
+`[Scheduled Task]` 前缀作为它的第一轮发送。这个会话被记为该调度的一次运行，并以消息开头作为
+标题；打开它即可查看结果，也可以像其他对话一样回复。触发从不复用之前运行的会话，因此周期性
+调度的每次运行各有独立的记录。
 
-| 目标简写 | 行为 |
-|-----------------|----------|
-| `fresh` | 总是创建新线程（默认）。调度的频道用作回退 |
-| `current-channel` | 如果存在则重用频道的活动线程；否则用频道的会话创建默认线程 |
-| `current-session` | 恢复指定的命名会话（`cortex-XXXX`）。如果会话消失，应用回退 |
-| `current-thread` | 通过 ID 继续特定线程。如果线程消失或不在运行/等待状态，应用回退 |
+`target` 字段只决定调度属于哪个项目，并在创建调度时确定：
 
-`current-channel`、`current-session` 和 `current-thread` 简写在**创建时**从当前执行上下文解析为具体 ID。也可以使用显式目标对象：
+| 目标 | 行为 |
+|------|------|
+| `fresh` | 默认。项目取自 `projectId`，否则取创建所在频道登记的项目，再否则为 `general` |
+| `current-project` | 简写，在创建时解析为创建该调度的对话所在的项目 |
+
+存储形式总是显式对象：
 
 ```json
 { "kind": "fresh" }
-{ "kind": "channel", "channel": "C07ABCDEF" }
-{ "kind": "session", "sessionName": "cortex-a1b2c3", "sessionId": "sess_xyz", "channel": "C07ABCDEF" }
-{ "kind": "thread", "threadId": "thr_a1b2c3d4", "channel": "C07ABCDEF" }
+{ "kind": "project", "projectId": "my-project" }
 ```
 
-## 回退行为 {#fallback-behavior}
-
-当 `session` 或 `thread` 目标在触发时不再可用，`fallback` 字段决定发生什么：
-
-| 回退 | 行为 |
-|----------|----------|
-| `fresh` | 静默回退到在调度的频道中创建新线程（默认） |
-| `skip` | 记录 `lastSkipped`，发布一行 Slack 通知，不运行任务 |
-| `wait` | 尚未实现——目前当作 `fresh` 处理 |
+其他种类的已存储目标一律按 `fresh` 读取。
 
 ## PreCheck
 
@@ -138,7 +129,7 @@
 
 ## 进行中保护 {#in-flight-protection}
 
-每个任务有一个 `_inFlight` 标志。如果任务的定时器触发时前一次调用仍在运行（因为任务 ID 在 `_inFlight` 中被检测到），新的调用被跳过。这防止了同一调度的重叠执行。
+如果调度触发时它的上一次运行仍在进行，这次触发会被跳过。这防止了同一调度的运行相互重叠。
 
 ## 暂停和恢复 {#pause-and-resume}
 
@@ -179,14 +170,14 @@
 
 | 工具 | 描述 |
 |------|-------------|
-| `cortex_schedule_add` | 创建新调度。接受 `type`、`message`、`interval`/`time`/`dayOfWeek`/`delay`、`target`、`fallback`、`profile`、`preCheck` |
+| `cortex_schedule_add` | 创建新调度。接受 `type`、`message`、`interval`/`time`/`dayOfWeek`/`delay`、`target`、`profile`、`preCheck`、`channel`、`projectId` |
 | `cortex_schedule_list` | 列出所有调度（默认：50） |
 | `cortex_schedule_get` | 按 ID 获取调度 |
 | `cortex_schedule_remove` | 按 ID 删除调度（幂等） |
 | `cortex_schedule_pause` | 暂停周期性调度 |
 | `cortex_schedule_resume` | 恢复暂停的调度 |
 
-`cortex_context` MCP 工具提供当前执行上下文（channel、sessionId、sessionName、threadId、profile、project、backend），供 `cortex_schedule_add` 用于 `current-channel`/`current-session`/`current-thread` 目标解析。
+`cortex_context` MCP 工具返回当前执行上下文（sessionId、sessionName、profile、project、backend）；`cortex_schedule_add` 按同一上下文解析 `current-project`。
 
 ### 通过 MCP 创建调度 {#creating-a-schedule-via-mcp}
 
@@ -195,8 +186,7 @@
   "type": "interval",
   "message": "检查 GPU 状态并报告",
   "interval": "10m",
-  "target": "current-channel",
-  "fallback": "fresh"
+  "target": "current-project"
 }
 ```
 
@@ -223,7 +213,7 @@
 
 ## 执行路由 {#execution-routing}
 
-普通调度记录使用 `scheduled-task` runner，把带有 `[Scheduled Task]` 前缀的消息发送给 agent。少量随产品提供的调度可使用保留的内部处理器键；未注册的 `dispatchType` 会被跳过，不会被解释成 agent prompt。daemon 周期基础设施由 `builtin-jobs.ts` 运行，不经过调度持久化。
+普通调度记录使用 `scheduled-task` runner：每次触发新开一个会话，并发送带有 `[Scheduled Task]` 前缀的消息。少量随产品提供的调度可使用保留的内部处理器键；未注册的 `dispatchType` 会被跳过，不会被解释成 agent prompt。daemon 周期基础设施由 `builtin-jobs.ts` 运行，不经过调度持久化。
 
 ## 速率限制集成 {#rate-limit-integration}
 

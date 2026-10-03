@@ -85,9 +85,7 @@ plugins:
             CLI Reference: CLI 参考
             Backends: 后端
             Architecture: 架构
-            Threads: 线程
             Team Mode: 团队模式
-            Tasks: 任务
             Memory: 记忆
             Skills & Plugins: 技能与插件
             Scheduling: 调度
@@ -107,9 +105,7 @@ nav:
   - CLI Reference: cli-reference.md
   - Backends: backends.md
   - Architecture: architecture.md
-  - Threads: threads.md
   - Team Mode: team.md
-  - Tasks: tasks.md
   - Memory: memory.md
   - Skills & Plugins: skills-and-plugins.md
   - Scheduling: scheduling.md

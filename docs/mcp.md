@@ -1,8 +1,8 @@
 # MCP — Model Context Protocol
 
 Cortex ships privilege-scoped and platform-scoped MCP (Model Context Protocol)
-servers that give agents access to remote machines, task monitoring, thread
-control, scheduling, costs, and platform integrations. This document explains
+servers that give agents access to remote machines, subagents, scheduling,
+costs, waitpoints, team workers, and platform integrations. This document explains
 what each server provides, how they are composed, and how to add third-party
 MCP servers.
 
@@ -38,7 +38,7 @@ child; PI runs it inside the agent-server process over an in-memory transport
 pair, bound to a tool context built for that one session. Claude keeps the
 `cortex-core` server key, so core remote tools retain their existing raw names.
 Other bundled Claude tools share that prefix, such as
-`mcp__cortex-core__task_status`. PI exposes the same tools under their
+`mcp__cortex-core__cortex_schedule_add`. PI exposes the same tools under their
 unprefixed names.
 
 User-provided MCP is outside this bundle. Portable plugin servers, browser MCP,
@@ -77,35 +77,6 @@ A subagent never receives `agent` or `agent_stop` itself. That is enforced by
 the tool allowlist rather than by the prompt, so a child cannot fan out further
 no matter what it is asked to do.
 
-### cortex-tasks
-
-Exposes read-only task monitoring and is loaded in maintained Claude and PI
-top-level direct and thread sessions. Subagents receive only
-cortex-core.
-
-| Tool | Parameters | Description |
-|---|---|---|
-| `task_status` | `task_id`, `project?` | Read a task's lifecycle state (status, actionable, claimed_by, blocked_by, deps, parent) |
-| `task_result` | `task_id`, `project?` | Read a task's outcome (done/blocked, done_when, completion note, block reason) |
-| `task_list` | `project?`, `status?`, `parent?`, `limit?` | List tasks (optionally by status or parent) |
-
-The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in
-`agent-server/src/domain/mcp/tools/task-monitor.ts`.
-
-### cortex-manager-qa
-
-Exposes the manager-to-subtask answer channel to top-level direct and thread
-sessions. The canonical Claude tool name is
-`mcp__cortex-core__answer_subtask`. Subagents do not load this
-bundle because they do not own task-tree questions.
-
-| Tool | Parameters | Description |
-|---|---|---|
-| `answer_subtask` | `question_id`, `answer` | Answer a clarification question from a child task |
-
-The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tool is in
-`agent-server/src/domain/mcp/tools/manager-qa.ts`.
-
 ### cortex-workers
 
 The lead's side of [team mode](./team.md). A session selects this bundle when `teamEnabled` is
@@ -124,39 +95,23 @@ as new messages.
 The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`; the tools are in
 `agent-server/src/domain/mcp/tools/workers.ts` and are served by the `/webhook/team` route.
 
-### cortex-thread
-
-Exposes thread lifecycle control and upward clarification. For Claude and PI,
-it is loaded only when `CORTEX_THREAD_ID` identifies an active thread; direct
-sessions never receive these tools.
-
-| Tool | Parameters | Description |
-|---|---|---|
-| `thread_abort` | `kind`, `diagnosis` | Escalate YOUR OWN thread when the task is too-big / mis-scoped / blocked-external (terminal `aborted`) |
-| `thread_split` | `subtasks` | Decompose YOUR OWN task into children (keep-parent join) that flow through the dispatch queue |
-| `thread_wait` | `on_tasks?`, `on_threads?` | Suspend YOUR OWN thread until awaited children finish; pair with `cortex-task spawn` |
-| `ask_manager` | `question` | Ask the planning manager a blocking clarification question |
-
-The bundle is loaded by `agent-server/src/domain/mcp/bundled-server.ts`.
-Tool registrars are in `agent-server/src/domain/mcp/tools/`.
-
 ### cortex-ext
 
-Exposes Cortex management tools: scheduling, cost queries, context
-resolution, and waitpoints. Claude loads it only for direct/user sessions; the PI bridge
-loads cortex-ext in all top-level sessions.
+Exposes Cortex management tools: scheduling, cost queries, execution
+records, context resolution, and waitpoints. Every top-level session whose MCP
+composition is not `none` loads it, on Claude and PI alike; subagents do not.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `cortex_schedule_add` | `type`, `message`, `interval?`, `time?`, `dayOfWeek?`, `delay?`, `target?`, `fallback?`, `profile?`, `preCheck?`, `channel?` | Create a scheduled task (interval, daily, weekly, or once) |
-| `cortex_schedule_list` | `limit?` | List all scheduled tasks with their status |
-| `cortex_schedule_get` | `id` | Look up a scheduled task by its 8-char hex ID |
-| `cortex_schedule_remove` | `id` | Delete a scheduled task (idempotent) |
-| `cortex_schedule_pause` | `id` | Pause a recurring scheduled task |
-| `cortex_schedule_resume` | `id` | Resume a paused scheduled task |
+| `cortex_schedule_add` | `type`, `message`, `interval?`, `time?`, `dayOfWeek?`, `delay?`, `target?`, `profile?`, `preCheck?`, `channel?`, `projectId?` | Create a schedule (interval, daily, weekly, or once); every fire opens a new session |
+| `cortex_schedule_list` | `limit?` | List all schedules with their status |
+| `cortex_schedule_get` | `id` | Look up a schedule by its 8-char hex ID |
+| `cortex_schedule_remove` | `id` | Delete a schedule (idempotent) |
+| `cortex_schedule_pause` | `id` | Pause a recurring schedule |
+| `cortex_schedule_resume` | `id` | Resume a paused schedule |
 | `cost_query` | _(none)_ | Query current cost: today/month spending, budget limits, remaining budget, API/plan split, source breakdown, token usage |
-| `query_executions` | `execution_id?`, `task_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
-| `cortex_context` | _(none)_ | Return the current execution context: channel, sessionId, sessionName, threadId, profile, project, backend |
+| `query_executions` | `execution_id?`, `status?`, `project?`, `limit?` | Query execution records — filter by status, project, or look up by ID |
+| `cortex_context` | _(none)_ | Return the current execution context: sessionId, sessionName, profile, project, backend |
 | `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | Arm a waitpoint and return the id, a one-time secret, and ready-to-paste signal commands; then end the turn |
 | `wait_check` | `id?` | Inspect one waitpoint, or list everything this session is waiting on |
 | `wait_cancel` | `id` | Cancel a waitpoint so it can no longer fire |
@@ -288,11 +243,9 @@ session's origin platform.
 
 | File | Purpose | Default logical bundles |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | Direct-session Cortex process | core + tasks + manager-Q&A + ext |
-| `~/.cortex/config/mcp-config-thread.json` | Thread-session Cortex process | core + tasks + manager-Q&A + thread |
+| `~/.cortex/config/mcp-config.json` | Direct-session Cortex process | core + ext |
 | `~/.cortex/config/mcp-config-core.json` | Explicit restricted composition | core |
-| `~/.cortex/config/mcp-config-tasks.json` | Explicit task-monitor composition | tasks |
-| `~/.cortex/config/mcp-config-manager-qa.json` | Explicit manager-answer composition | manager-Q&A |
+| `~/.cortex/config/mcp-config-empty.json` | The `none` composition: no MCP servers | — |
 | `~/.cortex/config/mcp-config-interaction.json` | Explicit interaction composition | interaction |
 | `~/.cortex/config/mcp-config-slack.json` | Explicit Slack composition | Slack |
 | `~/.cortex/config/mcp-config-feishu.json` | Explicit Feishu composition | Feishu |
@@ -307,7 +260,7 @@ Each file follows Claude Code's standard MCP config format:
       "command": "node",
       "args": [
         "/path/to/bundled-server.js",
-        "[\"cortex-core\",\"cortex-tasks\",\"cortex-manager-qa\",\"cortex-ext\"]"
+        "[\"cortex-core\",\"cortex-ext\"]"
       ],
       "cwd": "/path/to/cwd"
     }
@@ -322,19 +275,19 @@ that the tools read.
 
 ### How the right config gets selected
 
-In `agent-adapter/claude/spawn-args.ts`, direct sessions load
-`mcp-config.json`, while thread/template sessions load only
-`mcp-config-thread.json`. The Claude adapter writes the final logical selection
-to `CORTEX_MCP_BUNDLES` for the stdio child it spawns, adding interaction and
-one eligible platform bundle when the session context permits them.
+In `agent-adapter/claude/spawn-args.ts`, a session on the `direct` composition
+loads `mcp-config.json`, and one on `none` loads `mcp-config-empty.json` with
+`--strict-mcp-config`. The Claude adapter writes the final logical selection
+to `CORTEX_MCP_BUNDLES` for the stdio child it spawns: core and ext, plus the
+interaction bundle for user-initiated sessions, the workers bundle for a team
+lead, and one eligible platform bundle when the session context permits them.
 Supplemental portable MCP and browser MCP remain separate config entries.
 
-The thread branch is marked by `session.cortexContext.useCoreMcp`. PI's bridge
-computes the same logical selection from the session's own environment and
-hands it directly to the in-process bundled server, alongside one independent
-state per plugin server. Subagents select only cortex-core. Tool
-allowlists are validated against the selected logical union before the bundled
-server registers tools.
+PI's bridge computes the same logical selection from the session's own
+environment and hands it directly to the in-process bundled server, alongside
+one independent state per plugin server. Subagents select only cortex-core.
+Tool allowlists are validated against the selected logical union before the
+bundled server registers tools.
 
 ## How MCP tools communicate with agent-server
 
@@ -357,13 +310,13 @@ their server runs. They communicate through two paths:
 
 MCP calls and loopback HTTP requests share a 30-minute-30-second infrastructure
 deadline. Tool-specific business deadlines remain authoritative: shell commands
-use their `timeout` argument, while human and manager interactions retain their
-30-minute response window. The extra 30 seconds lets a business timeout return
+use their `timeout` argument, while human interactions retain their 30-minute
+response window. The extra 30 seconds lets a business timeout return
 its result before an outer transport deadline closes the request.
 
 ## Plugin-provided MCP servers
 
-Target-scoped third-party MCP belongs in a portable Agent Plugins package under `$CORTEX_HOME/plugins/<plugin-id>/`. The package declares servers in root `mcp.json`, and **Settings → Plugins** assigns the package to an agent or template slot. The schema supports `stdio`, `streamable-http`, and legacy `sse`; [Skills and Plugins](./skills-and-plugins.md#portable-mcp-servers) documents the complete package and trust model.
+Environment-scoped third-party MCP belongs in a portable Agent Plugins package under `$CORTEX_HOME/plugins/<plugin-id>/`. The package declares servers in root `mcp.json`, and the Plugins tab of an execution environment (**Settings → Environments**) assigns the package to it. The schema supports `stdio`, `streamable-http`, and legacy `sse`; [Skills and Plugins](./skills-and-plugins.md#portable-mcp-servers) documents the complete package and trust model.
 
 A legacy plugin directory is still passed through to its backend. Claude can load a Claude-native root `.mcp.json` from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root `mcp.json` only (`agent-server/src/domain/plugins/runtime.ts:546-562`; `agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`).
 
@@ -377,7 +330,7 @@ The plugin catalog and Settings API expose sanitized summaries. Stdio summaries 
 
 The files under `$CORTEX_HOME/config/mcp-config*.json` describe Cortex's global and session-composed MCP layers. They are regenerated at server startup, so direct edits are temporary. A persistent global server requires an explicit builder and privilege-composition change in `agent-server/src/core/config-generator.ts`; it does not belong in an assignment-scoped plugin.
 
-This distinction keeps global Cortex privileges separate from administrator-installed plugin capabilities. Use a portable plugin when the server should follow agent or template assignment, and change the global builders only when every eligible session composition should receive the server.
+This distinction keeps global Cortex privileges separate from administrator-installed plugin capabilities. Use a portable plugin when the server should follow environment assignment, and change the global builders only when every eligible session composition should receive the server.
 
 ## Permission model
 
@@ -390,10 +343,9 @@ controls:
 
 1. **Registration-level availability** — the bundled Cortex server registers
    only the logical surfaces selected for that session, and an optional
-   canonical tool allowlist filters them further. Both top-level direct and
-   thread sessions receive manager-Q&A tools, only thread sessions receive
-   thread control, subagents receive core tools alone, and top-level
-   PI sessions retain ext tools.
+   canonical tool allowlist filters them further. Top-level sessions receive
+   core and ext tools, user-initiated sessions add the interaction tools, a
+   team lead adds the worker tools, and subagents receive core tools alone.
 
 2. **Claude account-level MCP discovery is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
@@ -407,11 +359,7 @@ controls:
    meaning it won't prompt for each MCP tool call. Access control happens at
    the MCP tool implementation level and through the PreToolUse hook system.
 
-4. **PreToolUse guards** — the `tasks-yaml-guard.mjs` hook intercepts
-   Edit/Write operations on `TASKS.yaml` files (including remote edits) and
-   checks project locks.
-
-5. **Network boundary** — MCP tools that talk to remote machines go through
+4. **Network boundary** — MCP tools that talk to remote machines go through
    the client-manager's WebSocket layer. The `machines.json` registry
    controls which devices are known. Only devices with an active WebSocket
    connection can receive commands.
@@ -426,14 +374,13 @@ The MCP server processes receive a subset of the agent server's environment:
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | Session context | interaction-server, context tools |
 | `CORTEX_SESSION_NAME` | Session context | context tools |
-| `CORTEX_THREAD_ID` | Thread context | cortex-thread tools, PI thread-control predicate, context tools |
 | `CORTEX_PROFILE` | Session context | context tools |
 | `CORTEX_PROJECT` | Session context | context tools |
-| `CORTEX_EXECUTION_ID` | Execution context | task lock hooks |
+| `CORTEX_EXECUTION_ID` | Execution context | Hook scripts |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
 | `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | Claude TUI process |
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
-| `CORTEX_SCHEDULE_TASK_ID` | Optional schedule task ID | cortex-ext |
+| `CORTEX_SCHEDULE_TASK_ID` | Optional schedule ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |
 | `PLUGIN_ROOT` | Resolved selected plugin root | Portable stdio plugin servers |
 | `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.10.2
+// @cortex-hook-version 2026.10.3
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve, sep } from 'path';
@@ -29,8 +29,8 @@ const LIMIT_RULES = [
     trimAdvice: [
       'STATUS is a state register, not a changelog. Trim before writing:',
       '- delete entries that no longer affect decisions (their content already lives in git / EXP records),',
-      '- compress each bullet to one line + pointer (task-id / EXP-NNN / K-NNN / DR-NNNN / commit SHA),',
-      '- move completion reports to the task note, durable facts to knowledge entries, verdict analysis to the gate artifact.',
+      '- compress each bullet to one line + pointer (EXP-NNN / K-NNN / DR-NNNN / commit SHA / file path),',
+      '- move completion reports to commit messages or the work\'s own report, durable facts to knowledge entries, verdict analysis to the gate artifact.',
     ],
   },
   {
@@ -45,7 +45,7 @@ const LIMIT_RULES = [
     trimAdvice: [
       'ISSUES.md is a friction log with <=4-line entries. Trim before writing:',
       '- delete resolved entries outright (no changelog),',
-      '- compress each entry to symptom + one-line root cause + pointer (K-NNN / task artifact / EXP-NNN / file:line),',
+      '- compress each entry to symptom + one-line root cause + pointer (K-NNN / report / EXP-NNN / file:line),',
       '- merge same-cause frictions into one entry.',
     ],
   },

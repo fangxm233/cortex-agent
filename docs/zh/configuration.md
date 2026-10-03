@@ -14,19 +14,16 @@ $CORTEX_HOME/
 │   ├── .env                      # 同一个文件（符号链接/规范位置）
 │   ├── settings.json             # 运行时行为设置（热更新）
 │   ├── profiles.json             # 命名的智能体配置
-│   ├── thread-templates/         # 线程配置——每个 agent/template/shell 一个 JSON
+│   ├── environments/             # 执行环境——每个环境一个 JSON
 │   ├── machines.json             # 远程客户端机器注册表
 │   ├── budget.json               # 每日/每月预算限制
 │   ├── mcp-config.json           # 直接会话 MCP 配置
 │   ├── mcp-config-core.json      # 远程执行/时间分层
-│   ├── mcp-config-tasks.json     # 只读任务监控分层
-│   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
-│   ├── mcp-config-thread.json    # 线程控制分层
 │   ├── mcp-config-interaction.json # 共享交互分层
 │   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── mode.json                 # 当前运行时模式和配置
-│   ├── schedules.json            # 持久化的调度任务列表
+│   ├── schedules.json            # 持久化的定时任务列表
 │   ├── executions.json           # 统一执行注册表
 │   ├── costs.jsonl               # 90 天滚动费用记录
 │   ├── session-registry.jsonl    # 会话记录、频道绑定、对话头与轮次（唯一所有者）
@@ -36,7 +33,7 @@ $CORTEX_HOME/
 ├── .claude/
 │   └── settings.json             # Cortex 脚手架生成的 Claude Code 项目设置
 ├── hooks/                        # 钩子脚本（.mjs）
-├── plugins/                      # 角色限定技能插件
+├── plugins/                      # 技能插件
 ├── prompts/                      # 系统提示、指令、模板
 ├── rules/                        # 智能体会话的上下文规则
 ├── context/                      # Dense Context 知识库
@@ -44,7 +41,7 @@ $CORTEX_HOME/
 ├── logs/                         # 守护进程和后端会话日志
 │   ├── sessions/                 # Claude capture 日志
 │   └── sessions-pi/              # PI transcript bundle
-└── tmp/                          # 临时工作区（线程等）
+└── tmp/                          # 临时工作区
 ```
 
 ## 加载顺序和优先级 {#loading-order-and-precedence}
@@ -217,7 +214,7 @@ $CORTEX_HOME/
 
 在智能体生成时，Cortex 通过以下链解析配置：
 
-1. 如果显式提供了配置名称（通过 `--profile` 或线程模板），使用它。
+1. 如果显式提供了配置名称（通过 `--profile`，或由对话的执行环境指定），使用它。
 2. 否则，使用 `profiles.json` 中的 `defaultProfile`。
 3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption`、`claudeBackend` 和 `thinking`。
 4. 直接会话可以在该 profile 之上覆盖 `model`、`provider`、`thinking` 和 `mode`——在 Web 输入框的引擎选择器里选定，按 channel 保存。其余一概不可覆盖：后端、环境变量与回退链仍属于 profile。参见 [backends.md](./backends.md#per-session-model-thinking-level-and-route)。
@@ -227,28 +224,84 @@ $CORTEX_HOME/
 
 配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
 
-## Agent 与 profile {#agents-vs-profiles}
+## 执行环境 {#execution-environments}
+
+执行环境决定一次对话除了"用哪个模型"之外的跑法：系统提示、内置工具列表、加载哪些插件、
+会话拿到哪些 Cortex MCP 工具，以及带上多少环境上下文（规则、hook、项目块、后端自己的
+skill）。每个执行环境是一个文件 `config/environments/<name>.json`，文件名就是它的名字。
+
+Cortex 随包提供两个：
+
+| 执行环境 | 用途 |
+|---|---|
+| `main` | 通用工作，跑在当前激活的 profile 上，加载 Cortex 的系统、commission 与飞书插件。它是默认环境：没选过执行环境的会话都跑在 `main` 里，且 `main` 不能删除 |
+| `creative` | 用于写作、图像提示词、起名与文案的干净环境，运营性上下文全部剥掉（见[最小工具面](#a-minimal-surface)） |
+
+随包文件在 `cortex init` 时拷入 `config/environments/`，之后每次服务器启动时，缺失的
+文件会再补上。你已有的文件绝不被覆盖，所以你的改动在升级后依然保留；你自己新增的文件
+也和随包的一样是一个执行环境。目录变更约 300 毫秒后生效，无需重启。不是合法 JSON、或
+`name` 与文件名不一致的文件会被跳过并记录日志。
+
+### 字段 {#environment-fields}
+
+| 字段 | 类型 | 必需 | 说明 |
+|---|---|---|---|
+| `name` | string | 是 | 必须等于去掉 `.json` 的文件名 |
+| `description` | string | 否 | 一行用途说明，显示在选择器里 |
+| `profile` | string | 是 | `profiles.json` 中的某个 profile，或 `"__active__"` 表示跟随对话当前解析出的 profile。指定具体 profile 时，它只覆盖该环境下各轮的模型，不改写对话自己的 profile |
+| `persistSession` | boolean | 是 | 无论取值如何，对话都会跨轮保留后端会话；随包环境设为 `true` |
+| `directive` | string | 否 | 前置到提示前面的角色或身份说明 |
+| `systemPrompt` | string | 否 | 替换后端默认的系统提示 |
+| `promptTemplate` | string | 否 | 包裹每条消息；`{{input}}` 代表发送的内容 |
+| `claudeAgent` | string | 否 | Claude Code 的 agent 名称，以 `--agent` 传入。仅 Claude |
+| `outputStyle` | string | 否 | Claude Code 的输出风格。仅 Claude |
+| `tools` | string | 否 | 逗号分隔的内置工具列表，替换后端的默认工具集 |
+| `pluginDirs` | string[] | 否 | 要加载的插件目录，非绝对路径时相对于 `$CORTEX_HOME`。缺省时不加载任何插件 |
+| `mcpComposition` | `"direct"` \| `"none"` | 否 | `direct`（默认）让会话拿到 Cortex MCP 工具；`none` 不给任何 MCP，插件里的 server 也不给 |
+| `mcpToolAllowlist` | string[] | 否 | 把 Cortex MCP 工具收窄到所列名字。缺省时保留完整工具面 |
+| `loadRules` | boolean | 否 | 默认 `true`：前置 `rules/` 中的全局规则 |
+| `disableHooks` | boolean | 否 | 默认 `false`。`true` 时会话不运行生命周期 hook |
+| `skills` | boolean | 否 | 默认 `true`。`false` 移除后端的 skill 层，连 `Skill` 工具一起拿掉 |
+| `settingSources` | string[] | 否 | 读取哪些 Claude 设置文件：`user`、`project`、`local` 任选。缺省时用 CLI 默认值；`[]` 一个都不读 |
+| `projectContext` | boolean | 否 | 默认 `true`：在会话第一轮告诉它属于哪个项目 |
+
+三个提示字段都可以写成 `file:<name>` 而不是字面文本，文本分别从 `prompts/directives/`、
+`prompts/systemPrompts/`、`prompts/promptTemplates/` 读取；随包的 `main` 用的就是
+`"systemPrompt": "file:direct.md"`。schema 不认识的字段、缺失的提示文件或缺失的插件目录
+只会报警告，执行环境照常加载。
+
+### 插件与 Environments 面板 {#plugins-and-the-environments-panel}
+
+插件挂在执行环境上。执行环境的 `pluginDirs` 就是其会话加载的完整插件目录集合；执行环境的
+Plugins 标签页写的就是这个字段，**Settings → Plugins** 则显示每个已安装插件被哪些执行环境使用
+（见[技能与插件](./skills-and-plugins.md#assigning-plugins)）。
+
+在 Web 工作台和桌面应用中，**Settings → Environments** 列出所有执行环境，一次编辑一个：
+带实时校验的 JSON 正文、显示错误与警告的 Validation 标签页，以及管理插件集合的 Plugins
+标签页。新建的执行环境从一个本身就能通过校验的骨架开始，已有的可以换个名字复制一份。
+错误会阻止保存，警告不会；如果文件在你编辑期间已在磁盘上被改动，保存会被拒绝而不是覆盖它。
+编辑一个仍与随包默认值相同的执行环境时会先提示，因为从那以后它不再跟随随包版本。`main`
+不能删除。Android 的设置页把 Environments 标为仅限桌面端。
+
+## 执行环境与 profile {#environments-vs-profiles}
 
 决定一次会话怎么跑的是两个实体，它们各自独立变化。
 
 **profile** 管模型路由：backend、model、mode、thinking 级别、额外环境变量和
-fallback 链。**agent 模板**（`config/thread-templates/agents/<name>.json`，字段见
-[threads.md](./threads.md#agent-definitions)）管执行环境：系统提示、工具列表、加载哪些
-Cortex 插件、会话拿到哪个 MCP 面以及面里的哪些工具、是否加载环境规则与生命周期 hook、
-是否注入项目块，以及后端的 skill 层到底加不加载。
+fallback 链。**执行环境**（见上文）管会话的其余一切：提示、工具、插件、MCP 面与环境上下文。
 
 `!profile <name>` 只换模型不动环境；`!agent <name>` 只换环境不动模型。钉了
-`"profile": "__active__"` 的 agent 跟随所在对话当前解析出的 profile；指定了具体 profile
-的 agent 则以 override 的形式在运行路径上生效——它不会改写对话自己的 profile，所以之后
+`"profile": "__active__"` 的执行环境跟随所在对话当前解析出的 profile；指定了具体 profile
+的执行环境则以 override 的形式在运行路径上生效——它不会改写对话自己的 profile，所以之后
 `!agent reset` 时模型仍停在原处。
 
-### 按对话选 agent {#choosing-an-agent-per-conversation}
+### 按对话选执行环境 {#choosing-an-environment-per-conversation}
 
-agent 的选择方式与 profile 相同：按对话选，下面垫着一个全局默认。
+执行环境的选择方式与 profile 相同：按对话选，下面垫着一个全局默认。
 
 | 命令 | 作用 |
 |---|---|
-| `!agent` | 显示本对话的 agent、它回退到的全局默认，以及可选列表——Slack 与飞书上是按钮 |
+| `!agent` | 显示本对话的执行环境、它回退到的全局默认，以及可选列表——Slack 与飞书上是按钮 |
 | `!agent <name>` | 让**本对话**从下一轮起跑在 `<name>` 里 |
 | `!agent reset` | 把本对话交还给全局默认。`clear`、`off`、`none`、`disable` 同义 |
 | `!agent global <name>` | 设置全局默认：所有没自己选过的对话跑哪个 |
@@ -257,16 +310,16 @@ agent 的选择方式与 profile 相同：按对话选，下面垫着一个全�
 所有不带前缀的形式都只作用于当前对话；只有显式的 `global` 前缀才会动全局默认。
 
 Web 与桌面端里，同一个选择有自己的控件：输入框上紧挨引擎胶囊左侧的一枚胶囊——先说在哪里
-跑，再说用什么跑。它直接显示本对话所在的 agent；本对话没选过时，显示它将回退到的全局默认，
-并以灰色呈现，好让“自己选的”和“只是回退到的”一眼可分。点开是一个平铺列表：最上面的
-`default` 表示“跟随全局默认”，下面是本机声明的每个模板，各自标注用途与它钉住的 profile。
-只声明一个 agent 的机器不画这枚胶囊——没有可选的余地。新对话里的选择随第一条消息一起提交；
+跑，再说用什么跑。它直接显示本对话所在的执行环境；本对话没选过时，显示它将回退到的全局
+默认，并以灰色呈现，好让“自己选的”和“只是回退到的”一眼可分。点开是一个平铺列表：最上面的
+`default` 表示“跟随全局默认”，下面是本机声明的每个执行环境，各自标注用途与它钉住的 profile。
+只声明一个执行环境的机器不画这枚胶囊——没有可选的余地。新对话里的选择随第一条消息一起提交；
 进行中的对话立即生效，从下一轮开始。
 
-一轮对话按这条链解析自己的 agent：会话自己的 agent → 所在对话的 → 全局默认 → `main`。
+一轮对话按这条链解析自己的执行环境：会话自己的选择 → 所在对话的 → 全局默认 → `main`。已经无法解析的名字（执行环境被改名或删除）会被跳过。
 
 切换遵循与 `!profile` 相同的规则：有历史的对话不能换 backend，所以钉在另一个 backend 的
-profile 上的 agent 会被拒绝，并说明它需要哪个 backend。尚无对话轮次的会话可以任选。同一
+profile 上的执行环境会被拒绝，并说明它需要哪个 backend。尚无对话轮次的会话可以任选。同一
 backend 内切换在下一轮生效，历史保留——也就是说模型会看到自己在上一个环境里产生的那几轮；
 不希望如此就 `!new`。
 
@@ -279,6 +332,7 @@ backend 内切换在下一轮生效，历史保留——也就是说模型会看
 {
   "name": "creative",
   "profile": "__active__",
+  "persistSession": true,
   "systemPrompt": "file:creative.md",
   "tools": "Read,Write,Edit",
   "pluginDirs": [],
@@ -299,16 +353,16 @@ backend 内切换在下一轮生效，历史保留——也就是说模型会看
 `mcpToolAllowlist` 是上界，不是要求。它把会话的 MCP 面收窄到所列的名字；某个名字在这次
 spawn 的 surface 上本来就不存在，那它在那里就只是不存在而已。所以同一份列表到处都能用：
 这个 `creative` 在 Web 与桌面端保留三个工具，在 Slack 与飞书只剩 `cortex_ask_user`（它们
-的文件交付是另一个工具，本列表没写），在 thread step 上一个都没有——它不组装面向用户的桥。
+的文件交付是另一个工具，本列表没写）。
 而一个在本机任何 bundle 里都不存在的名字仍然会让 spawn 失败：那是拼写错误，不是 surface。
 
 ### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
 
 `pluginDirs` 并不是 skill 层的全部。无论 Cortex 传什么，Claude Code 每次 spawn 都会加载
 它自己的那一份：`~/.claude/settings.json` 里启用的 plugin、`~/.claude/skills/` 下的内容，
-以及 CLI 的内置 skill。有两个 agent 字段能够到它们。`settingSources: []` 让设置文件根本
+以及 CLI 的内置 skill。有两个执行环境字段能够到它们。`settingSources: []` 让设置文件根本
 不被读取，于是启用的 plugin 带来的 skill 随之消失；`skills: false` 直接移除整层，内置的
-也不剩，连 `Skill` 工具一起拿掉。两个都设的 agent 看到的是零 skill、零斜杠命令。
+也不剩，连 `Skill` 工具一起拿掉。两个都设的执行环境看到的是零 skill、零斜杠命令。
 
 ## config/settings.json
 
@@ -319,7 +373,7 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 ```json
 {
   "turnNotify": false,
-  "waitingSweepMs": 30000,
+  "turnNotifyThresholdS": 120,
   "uiCorsOrigins": ["cortexui://localhost"]
 }
 ```
@@ -335,30 +389,21 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `notifyCompaction` | boolean | `true` | 在 agent 的上下文被压缩（compaction）时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端 | `CORTEX_NOTIFY_COMPACTION` |
 | `showToolCalls` | boolean | `false` | 在 VirtualMessage 尾部内联渲染工具调用 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
-| `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话与线程，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
+| `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目通过 `windows` 数组保存 `{ type, label?, enabled, threshold? }`；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
 | `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本。关闭后每条助手消息整条投递 | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | 后台任务结束时，把其输出续投回会话 | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | 把事件总线写入按日滚动的 JSONL 事件日志 | `CORTEX_EVENT_LOG` |
 | `diskMonitor` | boolean | `true` | 每五分钟检查 `$CORTEX_HOME` 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。设为 `false` 会停止计时器；重新设为 `true` 会立即检查一次 | `CORTEX_DISK_MONITOR` |
-| `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到） | `CORTEX_DISABLE_USER_CONTEXT` |
+| `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
 | `teamEnabled` | boolean | `false` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起不再提供这些工具，已有的 worker 变回普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
-| `managerRotateSteps` | number | `10` | 一个 manager 会话在被轮换成新 incarnation 之前运行的步数。参见 [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
-| `waitingSweepMs` | number | `60000` | 磁盘对账扫描的间隔（毫秒），逐个核对等待中的 manager 线程与磁盘上的任务状态。`0` 表示禁用扫描（见下文的热更新例外） | `CORTEX_WAITING_SWEEP_MS` |
 | `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
 | `waitpointTtlMs` | number | `604800000` | agent 未指定时 waitpoint 的默认存活时长（7 天）。单个 waitpoint 可以要更短，也可以更长但不超过 30 天硬上限；超时后 waitpoint 过期，并会告知 session「什么都没来」 | `CORTEX_WAITPOINT_TTL_MS` |
 | `waitpointMaxWakesPerHour` | number | `12` | 单个 waitpoint 每小时唤醒其 session 的次数上限。失控的信号循环会被限流（并只提示一次），而不是刷屏 | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |
 | `injectWaitMaxS` | number | `600` | 一条中途注入的消息等待回复的时长上限（秒），超过即释放 busy 闸门。防止卡死的进程永久占住守护进程的重启闸门 | `CORTEX_INJECT_WAIT_MAX_S` |
-| `threadMaxDepth` | number | `5` | 嵌套线程生成的最大深度；达到或超过该深度的 spawn 会被拒绝 | `CORTEX_THREAD_MAX_DEPTH` |
-| `taskArtifactTemplates` | string[] | `["manager"]` | 哪些模板的派发线程把 artifact 挂在任务节点上，而不是临时工作区 | `CORTEX_TASK_ARTIFACT_TEMPLATES`（逗号分隔） |
-| `taskDispatchMaxConcurrent` | number \| null | `null` | 允许并发运行的任务派发线程数上限。这里写的数值直接使用（请填正数）；`null` 保持自动策略 `max(4, os.cpus().length - 2)`——按「核数减 2」伸缩，并以 4 为下限保底 | `TASK_DISPATCH_MAX_CONCURRENT` |
-| `taskDispatchEnabled` | boolean | `true` | 运行内置任务派发器；从 `false` 切换为 `true` 时立即检查一次任务队列 | — |
-| `taskDispatchIntervalMs` | number | `30000` | 内置任务派发检查的间隔，单位为整数毫秒 | — |
-| `taskArchiveEnabled` | boolean | `true` | 运行内置已完成任务归档器；从 `false` 切换为 `true` 时立即执行一次 | — |
-| `taskArchiveIntervalMs` | number | `21600000` | 已完成任务归档的执行间隔，单位为整数毫秒 | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | 运行内置实验、知识和模式索引重建；从 `false` 切换为 `true` 时立即执行一次 | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的执行间隔，单位为整数毫秒 | — |
 | `sessionRetentionDays` | number | `30` | 以天为单位的整型保留窗口，必须落在安全范围 `1` 到 `104249991`。保留协调器会在 daemon 启动时运行一次、之后每 6 小时运行一次，并在该键热重载后立即再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/活跃 capture | — |
@@ -368,28 +413,26 @@ spawn 的 surface 上本来就不存在，那它在那里就只是不存在而�
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置任务的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`commissionEnabled`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`，以及内置作业的开关和间隔），以及桌面端/移动端 **Usage** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中按 provider id 建立的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型额度行同时使用 `type` 和 provider 上报的精确 `label`。精确窗口策略优先于旧版 provider 级 `enabled`/`threshold` 字段；这些根字段只作为兼容回退，非默认时会在 Usage 中明确显示并可一键清除。
 
 桌面端和移动端 Usage 会分别在每条 5 小时、weekly、含超额 weekly、Codex 主/次窗口及带名称的模型额度行上显示独立控件。省略 `threshold` 时使用该行系统默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他窗口为 `0.90`。只显示花费的卡片没有额度控件。模型策略依赖 provider 上报的显示名称；名称变化后旧条目不会再匹配。策略改动只作用于后续额度观测；已经激活的额度窗口或 outage 窗口会保持当前状态，直到自然重置或被手动 **Resume now** 清除。
 
-内置任务间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的任务会在 daemon 启动时执行一次。任务归档和记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
+内置作业间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的作业会在 daemon 启动时执行一次。记忆索引重建不会重叠运行；运行期间修改间隔会在本轮结束后生效。
 
 `sessionRetentionDays` 是 **设置 → 高级** 中唯一的数值型保留控制项。桌面 Web UI 通过与布尔运行时开关相同的 `config.set { section: 'settings' }` 路径写入它，客户端也会执行与服务端相同的上界校验。`piCompactReserveTokens` 在同一张卡片、走同一条写入路径；客户端接受 `1024`–`131072`，与服务端校验一致。Cortex 在创建 PI 会话时把它写进 PI 的私有 `settings.json`，所以新值无需重启即可作用于下一个 PI 会话；已经在池子里的会话仍沿用创建时的余量。
 
 `maxContextTokens` 也在这张卡片里。输入框接受 `100000`–`1000000`；清空后保存为 `null`，即每个模型使用自身窗口。PI 每次判断是否压缩时都会读取这个上限，所以运行中的 PI 会话会立即遵循新值；Claude 在 CLI 进程启动时读取它，所以新值作用于下一个 Claude 会话。固定环境的 CLI 兼容性试运行不会收到它。
 
-这个保留时钟覆盖五类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution 与 thread step、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
+这个保留时钟覆盖五类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件，以及同步后的 Claude 用户 `cleanupPeriodDays` helper。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution、待响应 interaction/bg-held session、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都会被保护。
 
 ### 热更新 {#hot-reload}
 
 config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读取文件，之后一律使用新值——**无需重启守护进程**。有两点值得注意：
 
-- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。`diskMonitor=false` 会停止计时器，恢复为 `true` 时会重新启动并立即检查。每个内置任务开关也会立即停止或启动对应计时器，间隔修改会重排下一次空闲运行。
+- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一次内置作业运行，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。`diskMonitor=false` 会停止计时器，恢复为 `true` 时会重新启动并立即检查。每个内置作业开关也会立即停止或启动对应计时器，间隔修改会重排下一次空闲运行。
 - 坏文件不会打挂服务器。JSON 非法或类型不符时保留上一份设置并记录错误日志；修好文件后，下一次写入即被重新加载。
-
-**例外——`waitingSweepMs`。** 等待中 manager 的扫描循环在每轮结束后按当前值自我重排，因此调大或调小间隔会从下一轮开始生效。但在运行中把它改成 `0` 会让循环彻底停下：没有任何东西会重排它，之后再改回正数也**不会**把它重新拉起，只有重启守护进程才行。（启动时值为 `0` 则该循环从不启动。）
 
 ### 旧环境变量与弃用提示 {#legacy-environment-variables-and-deprecation}
 
@@ -432,7 +475,7 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 ## defaults/config/ 布局 {#defaultsconfig-layout}
 
-npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与线程模板实体还会在服务器每次启动时重新同步：
+npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与执行环境还会在服务器每次启动时重新同步：
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
@@ -440,7 +483,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | 从不 |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不——这里只指 `$CORTEX_HOME/.claude/settings.json` 这个脚手架路径；任意仓库内的本地 `.claude/settings.json` 都不在 Cortex 的 copy/sync 回路里 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |
-| `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | 逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的 agent/template/shell 文件会被拷入；你已有的文件绝不被覆盖——`--force` 对这棵树不生效 |
+| `defaults/config/environments/` | `$CORTEX_HOME/config/environments/` | 逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的随包执行环境会被拷入；你已有的文件绝不被覆盖——`--force` 对这棵树不生效 |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | 每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 `version` 更新则刷新。没有 `version` 的声明（你自己的）永不被覆盖 |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
@@ -449,17 +492,17 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | 从不（除非 `--force`） |
 | `defaults/context/` | `$CORTEX_HOME/context/` | 脚手架文件：从不覆盖 |
 
-这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和线程模板实体，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/thread-templates/` 则改为逐文件合并，新发货的实体能到达已有安装，同时不动你的改动。
+这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和执行环境，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/environments/` 则改为逐文件合并，新发货的执行环境能到达已有安装，同时不动你的改动。
 
 ## 热重载行为 {#hot-reload-behavior}
 
 `config/` 下通过文件监视器热更新的配置，在监视器无法启动或运行期报错时，会自动切换为每 5 秒一次的文件系统快照轮询。每个加载器在轮询模式下沿用其处理文件事件时的校验和失败行为。
 
-- **`config/settings.json`** — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。唯一的例外是运行中把 `waitingSweepMs` 改成 `0`，需重启才能恢复。参见 [config/settings.json](#configsettingsjson)。
+- **`config/settings.json`** — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。参见 [config/settings.json](#configsettingsjson)。
 - **`schedules.json`** — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 [scheduling.md](./scheduling.md)。
 - **`profiles.json`** — 缓存在内存中并监视可解析的 JSON 变更。更新会在下一个智能体生成前刷新缓存；JSON 语法损坏时保留上一份配置。
 - **`machines.json`** — 监视并在有效变更后重新加载。条目无效时保留上一份机器注册表。
-- **`thread-templates/`** — 每个实体子目录（`agents/`、`templates/`、`shells/`）都被监视。变更去抖（300ms）后整体重载配置，无需重启；旧的单文件 `thread-templates.json` 在迁移前以同样方式被监视。参见 [threads.md](./threads.md)。
+- **`environments/`** — 被监视。变更去抖（300 毫秒）后重载所有执行环境，无需重启。参见[执行环境](#execution-environments)。
 - **`.env`** — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。过去放在这里的行为设置已迁到 `config/settings.json`，后者不需要重启。
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
@@ -472,13 +515,13 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `.env` | 环境变量 | `$CORTEX_HOME/config/.env` |
 | `settings.json` | 运行时行为设置（热更新） | `$CORTEX_HOME/config/settings.json` |
 | `profiles.json` | 智能体配置 | `$CORTEX_HOME/config/profiles.json` |
-| `thread-templates/` | 线程定义——每个 agent/template/shell 一个 JSON。目录存在时使用它；否则加载器回落读取旧的单文件 `thread-templates.json`，该文件会被一次性启动迁移拆分进本目录 | `$CORTEX_HOME/config/thread-templates/` |
+| `environments/` | 执行环境——每个环境一个 JSON | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | 机器注册表 | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | 预算限制 | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP 服务器配置 | `$CORTEX_HOME/config/mcp-config.json` |
 | `.claude/settings.json` | Claude Code 钩子/权限（不是 Cortex 的设置文件） | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | 运行时模式 | `$CORTEX_HOME/data/mode.json` |
-| `schedules.json` | 调度任务 | `$CORTEX_HOME/data/schedules.json` |
+| `schedules.json` | 定时任务 | `$CORTEX_HOME/data/schedules.json` |
 | `session-registry.jsonl` | 仅追加的 session registry 日志 | `$CORTEX_HOME/data/session-registry.jsonl` |
 | `retention-candidates.json` | 两轮确认的孤儿清理候选表 | `$CORTEX_HOME/data/retention-candidates.json` |
 | `conversation-history/` | 按会话分文件的 transcript/history JSONL | `$CORTEX_HOME/data/conversation-history/` |

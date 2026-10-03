@@ -396,7 +396,7 @@ tail -f ~/.cortex/logs/daemon.log | grep client-manager
 
 没有自动的设备选择。智能体在每个工具调用中通过 `device` 参数显式指定目标设备。智能体从 `machines.json` 注册表（通过上下文注入可见）和工具描述中了解可用设备。
 
-对于 GPU 感知的工作负载（训练），分发系统查询 `gpuCount` 并可以在分配工作前检查 GPU 利用率。任务分发模型参见 [tasks.md](./tasks.md)。
+对于 GPU 感知的工作负载（训练），智能体可以从注册表读取每台机器的 `gpuCount`，并在决定在哪里运行之前检查设备上的 GPU 利用率。
 
 ## client-manage 技能 {#the-client-manage-skill}
 

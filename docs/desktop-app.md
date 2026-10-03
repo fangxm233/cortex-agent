@@ -1,6 +1,6 @@
 # Desktop and Android Apps
 
-Cortex provides a Tauri v2 native shell for Linux, macOS, Windows, and Android. The desktop shell presents the three-pane workbench; Android presents a phone-specific four-tab interface. Both connect directly to a Cortex server over the Web UI HTTP transport and use the same projects, sessions, tasks, threads, approvals, files, and memory as the browser workbench.
+Cortex provides a Tauri v2 native shell for Linux, macOS, Windows, and Android. The desktop shell presents the three-pane workbench; Android presents a phone-specific two-tab interface. Both connect directly to a Cortex server over the Web UI HTTP transport and use the same projects, sessions, approvals, files, and memory as the browser workbench.
 
 The native apps require a reachable Web UI endpoint and the server's `CORTEX_CLIENT_TOKEN`. Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
 
@@ -109,19 +109,19 @@ Linux, macOS, and Windows store the connection JSON in the operating-system keyc
 
 ## Desktop workbench
 
-The desktop app uses the same three-pane workbench as the browser. The left rail lists projects and project-scoped sessions and links to the selected project's Overview. The center pane contains chat, streamed agent output, tool activity, attachments, question cards, and plan approvals. A slim rail along the chat's left edge marks every prompt in the session. The marks nearest the pointer stretch as it travels down the rail, the one under it previews what was asked, and clicking it scrolls the transcript back to that point. Marks stay lit for every turn the view currently shows, whether it holds the whole turn or only its head or tail. The right pane switches among Threads, Tasks, and Machines, shows today's project cost, and can be replaced by the private Notes pane.
+The desktop app uses the same three-pane workbench as the browser. The left rail lists projects and project-scoped sessions and links to the selected project's Overview. The center pane contains chat, streamed agent output, tool activity, attachments, question cards, and plan approvals. A slim rail along the chat's left edge marks every prompt in the session. The marks nearest the pointer stretch as it travels down the rail, the one under it previews what was asked, and clicking it scrolls the transcript back to that point. Marks stay lit for every turn the view currently shows, whether it holds the whole turn or only its head or tail. The right pane lists the machines, shows today's project cost, and can be replaced by the private Notes pane.
 
 The chat header's **⋯** menu offers **Star / Unstar** and **Rename** on desktop and mobile. In the desktop session list, hovering a row replaces its time with the same actions under **⋯**, without opening that conversation; the control is also available by keyboard focus. Each project's session list has a collapsible **Stars** section; starring moves a session there, and unstarring returns it to its ordinary group. Empty Stars sections are hidden. Names and stars are saved on the server. Rename changes only the display title, not either session ID, and accepts a nonblank title of up to 60 characters.
 
-Thread cards open a modal with the live pipeline, individual steps, nested threads, and the persisted artifact. Execution rows open a drawer with live logs and cancellation controls. `⌘K` on macOS or `Ctrl+K` on Linux and Windows opens the command palette.
+Execution rows on a project's Overview open a drawer with live logs and cancellation controls. `⌘K` on macOS or `Ctrl+K` on Linux and Windows opens the command palette.
 
 Code blocks in chat show a copy button while the pointer is over them; on touch screens the button stays visible. On Windows, text copied in the app with `Ctrl+C`, the context menu, or a copy button appears in Clipboard History (`Win+V`) like a copy from any other application. WebView2 writes these copies from its own browser process, which Windows leaves out of the history, so the app shell writes the same data back under its own window. Content its writer marks as excluded from history stays excluded (`desktop/src-tauri/src/clipboard_history.rs`).
 
 ### Plugin settings
 
-**Settings → Plugins** inventories plugins installed on the connected Cortex server and assigns them to agent definitions or template slots. Each entry shows its portable or legacy format, manifest metadata, skills, validation issues, and a sanitized summary of portable root `mcp.json` servers. The desktop shell does not maintain a separate local catalog because it renders the same server-backed SPA as the browser (`web/src/features/settings/SettingsModal.tsx:81-112`; `web/src/features/settings/panels/PluginsPanel.tsx:365-800`).
+**Settings → Plugins** inventories plugins installed on the connected Cortex server. Each entry shows its portable or legacy format, manifest metadata, skills, validation issues, the environments that use it, and a sanitized summary of portable root `mcp.json` servers. The desktop shell does not maintain a separate local catalog because it renders the same server-backed SPA as the browser (`web/src/features/settings/SettingsModal.tsx`; `web/src/features/settings/panels/PluginsPanel.tsx`).
 
-An ordinary template slot can use its agent defaults or customize a complete plugin snapshot. Shell bindings and `__active__` slots are read-only. Adding a portable plugin with at least one valid inventoried `mcp.json` server requires confirmation before save, and unsaved assignment edits block target navigation and closing the Settings modal. If server data changes during editing, the draft stays visible as stale and must be reset before saving. The page manages assignment only; administrators install, update, and remove package directories on the server. [Skills and Plugins](./skills-and-plugins.md) describes package formats, runtime behavior, and the trusted-code boundary.
+**Settings → Environments** edits the [execution environments](./configuration.md#execution-environments), and each environment's Plugins tab assigns plugins to it. Adding a portable plugin with at least one valid inventoried `mcp.json` server requires confirmation before save, and unsaved assignment edits block navigation and closing the Settings modal. If server data changes during editing, the draft stays visible as stale and must be reset before saving. Administrators install and update package directories on the server. [Skills and Plugins](./skills-and-plugins.md) describes package formats, runtime behavior, and the trusted-code boundary.
 
 To change servers, open the daemon or connectivity status, choose **Disconnect**, and enter the new endpoint and token on the connection screen.
 
@@ -137,7 +137,7 @@ Desktop and browser notifications require the app or page to remain running; clo
 
 ## Android interface
 
-Android uses four bottom tabs: Sessions, Threads, Tasks, and Project. Session chat, plan review, thread details, task details, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens. The Android back action closes overlays first, then returns through the app's navigation stack.
+Android uses two bottom tabs: Sessions and Project. Session chat, plan review, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens. The Android back action closes overlays first, then returns through the app's navigation stack.
 
 With notification permission granted, **Settings → Notifications → Background notifications** enables an Android-owned connection that continues listening when the page is in the background. A silent ongoing notification shows the running direct-session count across projects, including background continuations. At zero it shows that background notifications are connected; while reconnecting it reports unavailable state rather than a stale count. Disabling this device-local switch or disconnecting stops the service and clears its notifications (`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`; `Reconciler.kt`).
 
@@ -185,7 +185,7 @@ A server release can also carry native packages as GitHub Release assets. The se
 | macOS | Copies the verified DMG to Downloads and opens it; installation finishes by dragging Cortex into Applications. |
 | Android | Opens the system package installer over the verified APK; Android requests install-source permission when required. |
 
-Running threads execute on the server, so restarting or reinstalling a client does not stop them. Native shell update checks are disabled when `CORTEX_FRONTEND_DIR` marks a development run, when the installed app does not carry a CalVer release version, or when `CORTEX_APP_UPDATE_DISABLE=1` is set.
+Sessions run on the server, so restarting or reinstalling a client does not stop them. Native shell update checks are disabled when `CORTEX_FRONTEND_DIR` marks a development run, when the installed app does not carry a CalVer release version, or when `CORTEX_APP_UPDATE_DISABLE=1` is set.
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 # MCP — Model Context Protocol
 
 
-Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、任务监控、线程控制、调度、费用和平台集成的能力。本文档解释每个服务器提供什么、如何组合以及如何添加第三方 MCP 服务器。
+Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、子智能体、调度、费用、waitpoint、团队 worker 和平台集成的能力。本文档解释每个服务器提供什么、如何组合以及如何添加第三方 MCP 服务器。
 
 ## 什么是 MCP {#what-mcp-is}
 
@@ -20,7 +20,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 session 选中的能力组。Claude Code 把它作为 stdio 子进程启动；PI 则让它跑在 agent-server
 进程内，经一对内存 transport 通信，并绑定专为该 session 构建的 tool context。
 Claude 保留 `cortex-core` server key，因此 core remote tools 的 raw name 不变；其它 Cortex
-内置 Claude tools 共用这个 prefix，例如 `mcp__cortex-core__task_status`。PI 则以无前缀的
+内置 Claude tools 共用这个 prefix，例如 `mcp__cortex-core__cortex_schedule_add`。PI 则以无前缀的
 名称暴露同一批工具。
 
 用户提供的 MCP 不进入这个 bundle。Portable plugin server、browser MCP、remote HTTP/SSE
@@ -49,28 +49,6 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 子智能体自身永远拿不到 `agent` 与 `agent_stop`。这条由工具允许列表强制，而不是靠提示词约束，所以无论它被要求做什么都无法继续向下扇出。
 
-### cortex-tasks
-
-暴露只读任务监控工具，并在仍维护的 Claude 和 PI 顶层直接会话与线程会话中加载。子智能体只获得 cortex-core。
-
-| 工具 | 参数 | 描述 |
-|---|---|---|
-| `task_status` | `task_id`、`project?` | 读取任务的生命周期状态（status、是否可执行、claimed_by、blocked_by、依赖、parent） |
-| `task_result` | `task_id`、`project?` | 读取任务的结果（done/blocked、done_when、完成备注、阻塞原因） |
-| `task_list` | `project?`、`status?`、`parent?`、`limit?` | 列出任务（可按 status 或 parent 过滤） |
-
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/task-monitor.ts`。
-
-### cortex-manager-qa
-
-向顶层直接会话和线程会话暴露 manager 到子任务的回答通道。Claude 中的规范工具名是 `mcp__cortex-core__answer_subtask`。子智能体不加载此能力组，因为它们不持有任务树问题。
-
-| 工具 | 参数 | 描述 |
-|---|---|---|
-| `answer_subtask` | `question_id`、`answer` | 回答子任务提出的澄清问题 |
-
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/manager-qa.ts`。
-
 ### cortex-workers
 
 [团队模式](./team.md)中主会话一侧的工具。当 `teamEnabled` 开启、且会话是网页直接会话而本身不是 worker 时，Claude 和 PI 会话都会选入此能力组。worker 和子智能体永远不加载它。所有工具都立即返回；worker 的汇报和提问以新消息的形式到达主会话。
@@ -85,34 +63,21 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载；工具在 `agent-server/src/domain/mcp/tools/workers.ts`，由 `/webhook/team` 路由处理。
 
-### cortex-thread
-
-暴露线程生命周期控制面和向上澄清通道。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
-
-| 工具 | 参数 | 描述 |
-|---|---|---|
-| `thread_abort` | `kind`、`diagnosis` | 升级你自己的线程（too-big / mis-scoped / blocked-external，终态 `aborted`） |
-| `thread_split` | `subtasks` | 把你自己的任务分解为子任务（keep-parent 汇合），子任务走正常派发队列 |
-| `thread_wait` | `on_tasks?`、`on_threads?` | 挂起你自己的线程直到被等待的子项完成；与 `cortex-task spawn` 配合使用 |
-| `ask_manager` | `question` | 向规划本任务的 manager 提出阻塞式澄清问题 |
-
-该能力组由 `agent-server/src/domain/mcp/bundled-server.ts` 加载。工具注册器在 `agent-server/src/domain/mcp/tools/`。
-
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询、上下文解析和 waitpoint。Claude 仅在直接/用户会话中加载它；PI bridge 在所有顶层会话中加载 cortex-ext。
+暴露 Cortex 管理工具：调度、费用查询、执行记录、上下文解析和 waitpoint。MCP composition 不是 `none` 的每个顶层会话都会加载它，Claude 与 PI 都一样；子智能体不加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `cortex_schedule_add` | `type`、`message`、`interval?`、`time?`、`dayOfWeek?`、`delay?`、`target?`、`fallback?`、`profile?`、`preCheck?`、`channel?` | 创建调度任务（interval、daily、weekly 或 once） |
-| `cortex_schedule_list` | `limit?` | 列出所有调度任务及其状态 |
-| `cortex_schedule_get` | `id` | 通过 8 字符十六进制 ID 查找调度任务 |
-| `cortex_schedule_remove` | `id` | 删除调度任务（幂等） |
-| `cortex_schedule_pause` | `id` | 暂停周期性调度任务 |
-| `cortex_schedule_resume` | `id` | 恢复暂停的调度任务 |
+| `cortex_schedule_add` | `type`、`message`、`interval?`、`time?`、`dayOfWeek?`、`delay?`、`target?`、`profile?`、`preCheck?`、`channel?`、`projectId?` | 创建定时任务（interval、daily、weekly 或 once）；每次触发都新开一个会话 |
+| `cortex_schedule_list` | `limit?` | 列出所有定时任务及其状态 |
+| `cortex_schedule_get` | `id` | 通过 8 字符十六进制 ID 查找定时任务 |
+| `cortex_schedule_remove` | `id` | 删除定时任务（幂等） |
+| `cortex_schedule_pause` | `id` | 暂停周期性定时任务 |
+| `cortex_schedule_resume` | `id` | 恢复暂停的定时任务 |
 | `cost_query` | _(无)_ | 查询当前费用：今天/月支出、预算限制、剩余预算、API/plan 分摊、来源细分、令牌使用量 |
-| `query_executions` | `execution_id?`、`task_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
-| `cortex_context` | _(无)_ | 返回当前执行上下文：channel、sessionId、sessionName、threadId、profile、project、backend |
+| `query_executions` | `execution_id?`、`status?`、`project?`、`limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
+| `cortex_context` | _(无)_ | 返回当前执行上下文：sessionId、sessionName、profile、project、backend |
 | `wait_create` | `label`、`intent`、`members?`、`quorum?`、`fail_fast?`、`max_signals?`、`expires_in_hours?`、`device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；然后结束这一轮 |
 | `wait_check` | `id?` | 查看某个 waitpoint，或列出本 session 正在等的全部内容 |
 | `wait_cancel` | `id` | 取消一个 waitpoint，使其不再触发 |
@@ -209,11 +174,9 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 | 文件 | 用途 | 默认逻辑能力组 |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | 直接会话 Cortex 进程 | core + tasks + manager-Q&A + ext |
-| `~/.cortex/config/mcp-config-thread.json` | 线程会话 Cortex 进程 | core + tasks + manager-Q&A + thread |
+| `~/.cortex/config/mcp-config.json` | 直接会话 Cortex 进程 | core + ext |
 | `~/.cortex/config/mcp-config-core.json` | 显式受限 composition | core |
-| `~/.cortex/config/mcp-config-tasks.json` | 显式任务监控 composition | tasks |
-| `~/.cortex/config/mcp-config-manager-qa.json` | 显式 manager 回答 composition | manager-Q&A |
+| `~/.cortex/config/mcp-config-empty.json` | `none` composition：不含任何 MCP server | — |
 | `~/.cortex/config/mcp-config-interaction.json` | 显式交互 composition | interaction |
 | `~/.cortex/config/mcp-config-slack.json` | 显式 Slack composition | Slack |
 | `~/.cortex/config/mcp-config-feishu.json` | 显式飞书 composition | Feishu |
@@ -228,7 +191,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
       "command": "node",
       "args": [
         "/path/to/bundled-server.js",
-        "[\"cortex-core\",\"cortex-tasks\",\"cortex-manager-qa\",\"cortex-ext\"]"
+        "[\"cortex-core\",\"cortex-ext\"]"
       ],
       "cwd": "/path/to/cwd"
     }
@@ -240,13 +203,13 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 ### 如何选择正确的配置 {#how-the-right-config-gets-selected}
 
-在 `agent-adapter/claude/spawn-args.ts` 中，直接会话只加载 `mcp-config.json`，
-线程/模板会话只加载 `mcp-config-thread.json`。Claude adapter 为它启动的 stdio 子进程把最终
-逻辑 selection 写入 `CORTEX_MCP_BUNDLES`，并在 session context 允许时加入 interaction 与一个
-platform 能力组。Supplemental portable MCP 与 browser MCP 仍是独立 config entry。
+在 `agent-adapter/claude/spawn-args.ts` 中，`direct` composition 的会话加载 `mcp-config.json`，
+`none` composition 的会话加载 `mcp-config-empty.json` 并带上 `--strict-mcp-config`。Claude
+adapter 为它启动的 stdio 子进程把最终逻辑 selection 写入 `CORTEX_MCP_BUNDLES`：core 与 ext，
+用户发起的会话再加 interaction 能力组，team lead 再加 workers 能力组，并在 session context
+允许时加入一个 platform 能力组。Supplemental portable MCP 与 browser MCP 仍是独立 config entry。
 
-线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 从 session 自身的环境计算出
-相同的逻辑 selection，直接交给进程内的 bundled server，并为每个 plugin server 追加一个独立
+PI bridge 从 session 自身的环境计算出相同的逻辑 selection，直接交给进程内的 bundled server，并为每个 plugin server 追加一个独立
 state。子智能体只选择 cortex-core。
 Tool allowlist 会先针对已选逻辑能力组的并集校验，再由 bundled server 注册工具。
 
@@ -258,11 +221,11 @@ Tool allowlist 会先针对已选逻辑能力组的并集校验，再由 bundled
 
 2. **共享文件访问** — 调度、费用和执行工具直接读取和写入 `~/.cortex/data/` 中的共享数据文件（schedules.json、costs.jsonl、executions.json），使用与主服务器进程相同的仓库层。
 
-MCP 调用与 loopback HTTP 请求统一使用 30 分 30 秒的基础设施 deadline。工具自身的业务 deadline 仍然优先：shell 命令使用其 `timeout` 参数，人工及 manager 交互保留 30 分钟响应窗口。额外 30 秒用于让业务超时结果在外层 transport 关闭请求前正常返回。
+MCP 调用与 loopback HTTP 请求统一使用 30 分 30 秒的基础设施 deadline。工具自身的业务 deadline 仍然优先：shell 命令使用其 `timeout` 参数，人工交互保留 30 分钟响应窗口。额外 30 秒用于让业务超时结果在外层 transport 关闭请求前正常返回。
 
 ## 插件提供的 MCP servers {#plugin-provided-mcp-servers}
 
-按 target 分配的第三方 MCP 应放入 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package。Package 在根目录 `mcp.json` 声明 servers，再由 **Settings → Plugins** 分配给 agent 或 template slot。Schema 支持 `stdio`、`streamable-http` 与 legacy `sse`；完整 package 与 trust model 见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。
+按执行环境分配的第三方 MCP 应放入 `$CORTEX_HOME/plugins/<plugin-id>/` 下的 portable Agent Plugins package。Package 在根目录 `mcp.json` 声明 servers，再在执行环境的 Plugins 标签页（**Settings → Environments**）中分配给它。Schema 支持 `stdio`、`streamable-http` 与 legacy `sse`；完整 package 与 trust model 见[技能与插件](./skills-and-plugins.md#portable-mcp-servers)。
 
 Legacy plugin directory 仍会原样传给 backend。Claude 可以从该目录加载 Claude-native root `.mcp.json`，但 Cortex 不会 inventory、summarize 或 acknowledgment-gate 这些 native servers，PI 也不会获得它们。本节保证只适用于 portable root `mcp.json`（`agent-server/src/domain/plugins/runtime.ts:546-562`；`agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`）。
 
@@ -276,21 +239,19 @@ Plugin catalog 与 Settings API 只公开 sanitized summary。Stdio summary 包�
 
 `$CORTEX_HOME/config/mcp-config*.json` 描述 Cortex 的 global 与 session-composed MCP layers。这些文件在 server startup 时重新生成，因此直接修改只是临时的。要持久加入 global server，必须在 `agent-server/src/core/config-generator.ts` 中显式修改 builder 与 privilege composition；它不属于 assignment-scoped plugin。
 
-这种区分把 global Cortex privileges 与 administrator-installed plugin capabilities 分开。Server 应随 agent 或 template assignment 加载时使用 portable plugin；只有所有 eligible session composition 都应获得该 server 时才修改 global builders。
+这种区分把 global Cortex privileges 与 administrator-installed plugin capabilities 分开。Server 应随执行环境的分配加载时使用 portable plugin；只有所有 eligible session composition 都应获得该 server 时才修改 global builders。
 
 ## 权限模型 {#permission-model}
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Installed plugin 属于 administrator-trusted code。对 portable root `mcp.json`，assignment confirmation 会显式呈现新增 capability，但它不是 sandbox，也不是独立 authorization boundary；legacy Claude-native MCP configuration 不经过该 confirmation。Cortex 应用以下控制：
 
-1. **注册级可用性** — bundled Cortex server 只注册当前 session 选中的逻辑能力组，可选 canonical tool allowlist 会进一步过滤。顶层直接会话和线程会话都获得 manager-Q&A tools；只有线程会话获得 thread control；子智能体只获得 core tools；PI 顶层会话继续保留 ext tools。
+1. **注册级可用性** — bundled Cortex server 只注册当前 session 选中的逻辑能力组，可选 canonical tool allowlist 会进一步过滤。顶层会话获得 core 与 ext tools，用户发起的会话再加 interaction tools，team lead 再加 worker tools，子智能体只获得 core tools。
 
 2. **Claude account-level MCP discovery 被禁用** — `~/.cortex/.claude/settings.json` 中的 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 account-level auto-discovery，但不会禁用显式分配的 legacy plugin directory 内 Claude-native `.mcp.json`。Cortex 通过自己的 config layers 管理 bundled 与 portable MCP，同时保留该 legacy backend behavior。
 
 3. **绕过权限** — Claude Code 以 `--dangerously-skip-permissions --permission-mode bypassPermissions` 生成，意味着它不会对每个 MCP 工具调用提示。访问控制在 MCP 工具实现级别和通过 PreToolUse 钩子系统进行。
 
-4. **PreToolUse 守卫** — `tasks-yaml-guard.mjs` 钩子拦截对 `TASKS.yaml` 文件的 Edit/Write 操作（包括远程编辑）并检查项目锁。
-
-5. **网络边界** — 与远程机器通信的 MCP 工具通过 client-manager 的 WebSocket 层。`machines.json` 注册表控制哪些设备是已知的。只有具有活跃 WebSocket 连接的设备才能接收命令。
+4. **网络边界** — 与远程机器通信的 MCP 工具通过 client-manager 的 WebSocket 层。`machines.json` 注册表控制哪些设备是已知的。只有具有活跃 WebSocket 连接的设备才能接收命令。
 
 ## 传递给 MCP 服务器的环境变量 {#environment-variables-passed-to-mcp-servers}
 
@@ -302,14 +263,13 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | 会话上下文 | interaction-server、context 工具 |
 | `CORTEX_SESSION_NAME` | 会话上下文 | context 工具 |
-| `CORTEX_THREAD_ID` | 线程上下文 | cortex-thread 工具、PI 线程控制谓词、context 工具 |
 | `CORTEX_PROFILE` | 会话上下文 | context 工具 |
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
-| `CORTEX_EXECUTION_ID` | 执行上下文 | 任务锁钩子 |
+| `CORTEX_EXECUTION_ID` | 执行上下文 | 钩子脚本 |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
 | `CORTEX_TUI_MODE` | 在 TUI 模式下设为 `'1'` | Claude TUI 进程 |
 | `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
-| `CORTEX_SCHEDULE_TASK_ID` | 可选调度任务 ID | cortex-ext |
+| `CORTEX_SCHEDULE_TASK_ID` | 可选定时任务 ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |
 | `PLUGIN_ROOT` | 解析后的 selected plugin root | Portable stdio plugin servers |
 | `PLUGIN_DATA` | Private persistent per-plugin data directory | Portable stdio plugin servers |
