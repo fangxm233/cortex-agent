@@ -60,7 +60,10 @@ test('sessions.setAgent maps unknown-agent to invalid-args', async () => {
   const outcome: SwitchOutcome = { ok: false, agentName: null, effectiveProfile: '', backendChanged: false, reason: 'unknown-agent' };
   const res = await handleSetAgent(makeDeps(session('web:sess-1'), outcome, sink), { sessionId: 'sess-1', agentName: 'nope' });
   assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'invalid-args');
+  if (!res.ok) {
+    assert.equal(res.code, 'invalid-args');
+    assert.equal(res.message, 'Unknown environment: nope');
+  }
 });
 
 test('sessions.setAgent maps a cross-backend block to backend-locked (CONFLICT)', async () => {

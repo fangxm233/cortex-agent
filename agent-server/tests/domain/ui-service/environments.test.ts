@@ -70,6 +70,7 @@ describe('environments.save', () => {
     const result = await handleEnvironmentsSave(deps(), { name: 'c', body: environmentBody('other') });
     assert.equal(result.ok, false);
     assert.equal((result as { code: string }).code, 'invalid-args');
+    assert.match((result as { message: string }).message, /^Environment 'c' is not valid: /);
     assert.equal(existsSync(path.join(ENV_DIR, 'c.json')), false);
   });
 
@@ -89,6 +90,7 @@ describe('environments.save', () => {
     });
     assert.equal(stale.ok, false);
     assert.equal((stale as { code: string }).code, 'conflict');
+    assert.match((stale as { message: string }).message, /^Environment 'c' changed on disk/);
   });
 });
 
@@ -113,6 +115,7 @@ describe('environments.delete', () => {
     const result = await handleEnvironmentsDelete(deps(), { name: 'ghost' });
     assert.equal(result.ok, false);
     assert.equal((result as { code: string }).code, 'not-found');
+    assert.equal((result as { message: string }).message, "Unknown environment: 'ghost'");
   });
 });
 

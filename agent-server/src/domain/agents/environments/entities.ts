@@ -59,7 +59,7 @@ export function readEnvironment(dir: string, name: string): EnvironmentRead {
   assertName(name);
   const filePath = environmentPath(dir, name);
   if (!existsSync(filePath)) {
-    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind: 'agent', name }));
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { name }));
   }
   const content = readFileSync(filePath, 'utf8');
   let body: Record<string, unknown> | null = null;
@@ -103,19 +103,19 @@ export function saveEnvironment(dir: string, input: SaveEnvironmentInput, refs?:
   const exists = existsSync(filePath);
   const current = exists ? readFileSync(filePath, 'utf8') : null;
   if (baseHash === null && exists) {
-    throw writeError('invalid-args', t('ux.tpl.alreadyExists', { kind: 'agent', name }));
+    throw writeError('invalid-args', t('ux.tpl.alreadyExists', { name }));
   }
   if (baseHash !== null && !exists) {
-    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind: 'agent', name }));
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { name }));
   }
   if (baseHash !== null && current !== null && sha256(current) !== baseHash) {
-    throw writeError('conflict', t('ux.tpl.changedOnDisk', { kind: 'agent', name }));
+    throw writeError('conflict', t('ux.tpl.changedOnDisk', { name }));
   }
   const { errors, warnings } = validateEnvironment(name, body, refs);
   if (errors.length > 0) {
     throw writeError(
       'invalid-args',
-      t('ux.tpl.notValid', { kind: 'agent', name, issues: errors.map((e) => `${e.path}: ${e.message}`).join('; ') }),
+      t('ux.tpl.notValid', { name, issues: errors.map((e) => `${e.path}: ${e.message}`).join('; ') }),
       errors,
     );
   }
@@ -133,7 +133,7 @@ export function removeEnvironment(dir: string, name: string): { removed: boolean
   assertName(name);
   const filePath = environmentPath(dir, name);
   if (!existsSync(filePath)) {
-    throw writeError('not-found', t('ux.tpl.unknownEntity', { kind: 'agent', name }));
+    throw writeError('not-found', t('ux.tpl.unknownEntity', { name }));
   }
   rmSync(filePath, { force: true });
   return { removed: true, filePath };
