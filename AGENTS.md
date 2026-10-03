@@ -61,6 +61,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
 | `config/environments/` | Execution environments: one JSON file per environment (`main`, `creative`, and any the user adds) |
+| `config/archive/`, `data/archive/` | Configuration and state an upgrade retired, moved aside rather than deleted |
 | `logs/` | Daemon and LLM logs |
 
 ### CLI Design

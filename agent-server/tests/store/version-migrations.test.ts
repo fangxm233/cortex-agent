@@ -87,6 +87,10 @@ test('compareCalVer - zero version', () => {
 // Each test uses an isolated temp dir passed as MigrationOptions to
 // runMigrations(), avoiding dependency on the global CORTEX_HOME env var
 // (which is locked at module load time via @core/paths).
+//
+// The runner tests below use the legacy thread-templates.json file migration as their vehicle. The
+// step that retires threads would archive that file after the file loop, so they run without steps.
+const NO_STEPS: never[] = [];
 
 test('runMigrations - no versions file, adds systemPrompt to agent missing it', async () => {
   const idx = _testIdx++;
@@ -111,7 +115,7 @@ test('runMigrations - no versions file, adds systemPrompt to agent missing it', 
     templates: {},
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   // Verify
   const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
@@ -147,12 +151,12 @@ test('runMigrations - idempotent on second run', async () => {
   });
 
   // First run
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const first = await readJson(path.join(configDir, 'thread-templates.json')) as any;
   assert.equal(first.agents.main.systemPrompt, 'file:direct.md');
 
   // Second run — should be a no-op
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
   const second = await readJson(path.join(configDir, 'thread-templates.json')) as any;
   assert.equal(second.agents.main.systemPrompt, 'file:direct.md');
   assert.deepEqual(second, first);
@@ -182,7 +186,7 @@ test('runMigrations - skips when file is already up to date', async () => {
     'config/thread-templates.json': '2026.5.23',
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   // Migration was skipped, so systemPrompt was not backfilled
   const content = await readJson(path.join(configDir, 'thread-templates.json')) as any;
@@ -263,7 +267,7 @@ test('runMigrations - handles corrupt versions.json gracefully', async () => {
   await fs.writeFile(path.join(storeDir, 'versions.json'), 'not json {');
 
   // Should not throw — migration should still apply
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
   assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
@@ -296,7 +300,7 @@ test('runMigrations - vector-clock: only runs versions newer than tracked', asyn
     'config/thread-templates.json': '2026.5.10',
   });
 
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
   assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
@@ -466,7 +470,7 @@ test('runMigrations - no defaults file, still runs (migration function handles u
   });
 
   // Should not throw — migration function checks for undefined defaults
-  await runMigrations({ dataDir, defaultsDir, storeDir });
+  await runMigrations({ dataDir, defaultsDir, storeDir, stepMigrations: NO_STEPS });
 
   // File should be unchanged (no defaults means no systemPrompt to copy)
   const content = await readJson(path.join(configDir, 'thread-templates.json')) as any;

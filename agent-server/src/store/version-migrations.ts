@@ -552,6 +552,17 @@ const stepMigrations: StepMigration[] = [
     version: '2026.10.2',
     run: async ({ dataDir, defaultsDir }) => { await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir); },
   },
+  // S6: threads and the task queue were removed. Their config and state are moved aside into
+  // config/archive/ and data/archive/ (never deleted), and the settings, MCP configs and tool
+  // allowlists stop naming them. Runs after S5 so the environments are seeded from the thread
+  // agents before those are archived.
+  {
+    key: 'sentinel:retire-threads-tasks',
+    version: '2026.10.2',
+    run: async ({ dataDir, storeDir, defaultsDir }) => {
+      await retireThreadAndTaskState(dataDir, storeDir, defaultsDir);
+    },
+  },
 ];
 
 // ── Execution environments (S5) ────────────────────────────────
@@ -629,6 +640,182 @@ export async function seedEnvironmentsFromThreadAgents(
   await fs.rename(staging, envDir);
   log.info(`Created config/environments with ${written.join(', ') || 'no environments'}`);
   return written;
+}
+
+// ── Retired threads and task queue (S6) ────────────────────────
+
+/** Generated MCP configs for the removed thread, task and manager-Q&A surfaces. */
+const RETIRED_MCP_CONFIG_FILES = ['mcp-config-thread.json', 'mcp-config-tasks.json', 'mcp-config-manager-qa.json'];
+const RETIRED_MCP_BUNDLES = new Set(['cortex-tasks', 'cortex-manager-qa', 'cortex-thread', 'cortex-benchmark-thread']);
+const RETIRED_MCP_TOOLS = new Set([
+  'task_status', 'task_result', 'task_list', 'answer_subtask',
+  'thread_abort', 'thread_split', 'thread_wait', 'ask_manager', 'thread_run',
+]);
+const RETIRED_SETTING_KEYS = new Set([
+  'dispatchReconcilerEnabled', 'taskArtifactTemplates', 'managerRotateSteps', 'threadMaxDepth', 'waitingSweepMs',
+]);
+const RETIRED_SCHEDULE_TYPES = new Set(['task-dispatch', 'task-archive']);
+/** Thread and task state under the store directory. */
+const RETIRED_STORE_PATHS = [
+  'threads.json', path.join('archive', 'threads-archive.jsonl'), 'production-topology',
+  'pending-tasks.json', 'task-mutation-locks',
+];
+const MCP_BUNDLES_ENV_KEY = 'CORTEX_MCP_BUNDLES';
+const MCP_TOOL_ALLOWLIST_ENV_KEY = 'CORTEX_MCP_TOOL_ALLOWLIST';
+
+function isRetiredSettingKey(key: string): boolean {
+  return key.startsWith('taskDispatch') || key.startsWith('taskArchive') || RETIRED_SETTING_KEYS.has(key);
+}
+
+/** UTC timestamp safe in a file name, e.g. `20261003T221500Z`. */
+function archiveStamp(now: Date): string {
+  return now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+}
+
+/** Move `source` to `target` when it exists. Refuses to overwrite, so nothing archived earlier is
+ *  ever replaced; the throw leaves the step unbumped and it retries next boot. */
+async function moveAside(source: string, target: string): Promise<boolean> {
+  if (!await pathExists(source)) return false;
+  if (await pathExists(target)) throw new Error(`archive target already exists: ${target}`);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.rename(source, target);
+  log.info(`Archived ${source} -> ${target}`);
+  return true;
+}
+
+async function readJsonOrNull(filePath: string): Promise<unknown> {
+  const text = await readTextOrNull(filePath);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    log.warn(`Leaving ${filePath} alone: not valid JSON`);
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Drop retired names from a JSON-encoded string array. Returns null when `raw` is not one, or
+ *  when nothing was dropped. */
+function withoutRetired(raw: unknown, retired: ReadonlySet<string>): string | null {
+  if (typeof raw !== 'string') return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== 'string')) return null;
+  const kept = (parsed as string[]).filter((value) => !retired.has(value));
+  return kept.length === parsed.length ? null : JSON.stringify(kept);
+}
+
+/** Strip the retired bundles and tools from one MCP config document. True when it changed. */
+function stripRetiredMcpSurface(document: unknown): boolean {
+  if (!isRecord(document) || !isRecord(document.mcpServers)) return false;
+  const servers = document.mcpServers;
+  let changed = false;
+  for (const name of Object.keys(servers)) {
+    if (RETIRED_MCP_BUNDLES.has(name)) {
+      delete servers[name];
+      changed = true;
+      continue;
+    }
+    const server = servers[name];
+    if (!isRecord(server)) continue;
+    if (Array.isArray(server.args)) {
+      for (let index = 0; index < server.args.length; index += 1) {
+        const next = withoutRetired(server.args[index], RETIRED_MCP_BUNDLES);
+        if (next !== null) { server.args[index] = next; changed = true; }
+      }
+    }
+    if (isRecord(server.env)) {
+      const bundles = withoutRetired(server.env[MCP_BUNDLES_ENV_KEY], RETIRED_MCP_BUNDLES);
+      if (bundles !== null) { server.env[MCP_BUNDLES_ENV_KEY] = bundles; changed = true; }
+      const tools = withoutRetired(server.env[MCP_TOOL_ALLOWLIST_ENV_KEY], RETIRED_MCP_TOOLS);
+      if (tools !== null) { server.env[MCP_TOOL_ALLOWLIST_ENV_KEY] = tools; changed = true; }
+    }
+  }
+  return changed;
+}
+
+async function stripMcpConfigFile(filePath: string): Promise<void> {
+  const document = await readJsonOrNull(filePath);
+  if (!stripRetiredMcpSurface(document)) return;
+  await atomicWrite(filePath, `${JSON.stringify(document, null, 2)}\n`);
+  log.info(`Removed retired MCP bundles and tools from ${filePath}`);
+}
+
+async function stripRetiredSettings(filePath: string): Promise<void> {
+  const settings = await readJsonOrNull(filePath);
+  if (!isRecord(settings)) return;
+  const retired = Object.keys(settings).filter(isRetiredSettingKey);
+  if (retired.length === 0) return;
+  for (const key of retired) delete settings[key];
+  await atomicWrite(filePath, `${JSON.stringify(settings, null, 2)}\n`);
+  log.info(`Removed retired settings from ${filePath}: ${retired.join(', ')}`);
+}
+
+async function dropRetiredSchedules(filePath: string): Promise<void> {
+  const data = await readJsonOrNull(filePath);
+  if (!isRecord(data) || !Array.isArray(data.tasks)) return;
+  const kept = data.tasks.filter((task) => !(isRecord(task) && RETIRED_SCHEDULE_TYPES.has(String(task.dispatchType))));
+  if (kept.length === data.tasks.length) return;
+  data.tasks = kept;
+  await atomicWrite(filePath, `${JSON.stringify(data, null, 2)}\n`);
+  log.info(`Removed retired task-queue schedules from ${filePath}`);
+}
+
+/**
+ * Move the removed thread runtime and task queue out of an install. Everything is moved, never
+ * deleted: config into `config/archive/` (the thread templates as `thread-templates-<stamp>/`, the
+ * rest under `retired-threads-tasks-<stamp>/`) and state into `data/archive/retired-threads-tasks-
+ * <stamp>/`. Settings, generated MCP configs and gated tool allowlists drop the names that no longer
+ * exist, and the task-queue jobs leave the schedule. A sealed config is left as it is; its state is
+ * still moved. Idempotent: a second run finds nothing left to move or strip.
+ */
+export async function retireThreadAndTaskState(
+  dataDir: string,
+  storeDir: string,
+  defaultsDir: string,
+  now: Date = new Date(),
+): Promise<void> {
+  // The environments come from the thread agents, so they must exist before those move away.
+  await seedEnvironmentsFromThreadAgents(dataDir, defaultsDir);
+  const stamp = archiveStamp(now);
+  const configDir = path.join(dataDir, 'config');
+
+  if (process.env.CORTEX_CONFIG_IMMUTABLE !== '1') {
+    const templatesArchive = path.join(configDir, 'archive', `thread-templates-${stamp}`);
+    await moveAside(path.join(configDir, 'thread-templates'), templatesArchive);
+    for (const legacy of ['thread-templates.json', 'thread-templates.json.migrated-bak']) {
+      await moveAside(path.join(configDir, legacy), path.join(templatesArchive, legacy));
+    }
+
+    const configArchive = path.join(configDir, 'archive', `retired-threads-tasks-${stamp}`);
+    for (const file of RETIRED_MCP_CONFIG_FILES) {
+      await moveAside(path.join(configDir, file), path.join(configArchive, file));
+    }
+    await moveAside(path.join(dataDir, 'rules', 'task-system.md'), path.join(configArchive, 'rules', 'task-system.md'));
+    await moveAside(path.join(dataDir, 'hooks', 'post-task-hook.mjs'), path.join(configArchive, 'hooks', 'post-task-hook.mjs'));
+
+    await stripMcpConfigFile(path.join(configDir, 'mcp-config.json'));
+    const gatesDir = path.join(configDir, 'mcp-tool-gates');
+    const gates = await fs.readdir(gatesDir).catch(() => [] as string[]);
+    for (const file of gates.filter((name) => name.endsWith('.json'))) {
+      await stripMcpConfigFile(path.join(gatesDir, file));
+    }
+    await stripRetiredSettings(path.join(configDir, 'settings.json'));
+  }
+
+  await dropRetiredSchedules(path.join(storeDir, 'schedules.json'));
+  const stateArchive = path.join(storeDir, 'archive', `retired-threads-tasks-${stamp}`);
+  for (const relative of RETIRED_STORE_PATHS) {
+    await moveAside(path.join(storeDir, relative), path.join(stateArchive, path.basename(relative)));
+  }
 }
 
 // ── AGENTS.md rename (S3) ──────────────────────────────────────
