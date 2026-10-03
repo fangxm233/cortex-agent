@@ -273,6 +273,9 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
     case 'subtask-question': return L.chatSystemOriginSubtaskQuestion;
     case 'agent-result': return L.chatSystemOriginAgentResult;
     case 'external-signal': return L.chatSystemOriginExternalSignal;
+    case 'team-lead': return L.chatSystemOriginTeamLead;
+    case 'worker-result': return L.chatSystemOriginWorkerResult;
+    case 'worker-question': return L.chatSystemOriginWorkerQuestion;
     default: return unlabelledOrigin(origin, L);
   }
 }

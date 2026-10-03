@@ -18,6 +18,15 @@ test('a backgrounded agent result keeps a web sender id so it can still fold int
   assert.equal(m.senderId, WEB_UI_SENDER);
 });
 
+test('team origins use the web sender so they can fold into a live turn, and keep their own tag', () => {
+  for (const origin of ['team-lead', 'worker-result', 'worker-question'] as const) {
+    const m = buildDeliveryMessage({ channel: 'web:s1', text: 'x', origin });
+    assert.equal(m.senderId, WEB_UI_SENDER);
+    assert.equal(m.systemOrigin, origin);
+    assert.deepEqual(m.raw, { source: 'web-ui' });
+  }
+});
+
 test('raw carries the origin source, and the caller may add fields but not replace it', () => {
   const resume = buildDeliveryMessage({
     channel: 'C1', text: 'reminder', origin: 'resume',

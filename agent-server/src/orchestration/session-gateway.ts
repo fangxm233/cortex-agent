@@ -30,7 +30,10 @@ export type DeliveryOrigin =
   | 'thread-callback'   // a background thread finished
   | 'task-callback'     // a dispatched task turned terminal
   | 'subtask-question'  // ask_manager escalated to the top of the tree
-  | 'external-signal';  // a waitpoint fired — an external process reported it finished
+  | 'external-signal'   // a waitpoint fired — an external process reported it finished
+  | 'team-lead'         // a team lead handing work to one of its workers
+  | 'worker-result'     // a worker reporting the end of a turn to its lead
+  | 'worker-question';  // a worker's pending question or plan, forwarded to its lead
 
 interface OriginSpec {
   senderId: string;
@@ -61,6 +64,9 @@ const ORIGINS: Record<DeliveryOrigin, OriginSpec> = {
   'task-callback':    { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'task-callback' },
   'subtask-question': { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'task-callback', systemOrigin: 'subtask-question' },
   'external-signal':  { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'external-signal', systemOrigin: 'external-signal' },
+  'team-lead':        { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'team-lead' },
+  'worker-result':    { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-result' },
+  'worker-question':  { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-question' },
 };
 
 export interface DeliverToSessionOptions {
