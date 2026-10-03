@@ -432,6 +432,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `commissionEnabled` | boolean | `true` | Kill switch for commission mode — contract-anchored long tasks. On by default: any session can enter the mode mid-conversation, either because the agent calls `cortex_commission_start` or because you flip the composer's commission capsule. Turn it off to refuse every entry point (create, composer, the start webhook) and stop injecting contract blocks; existing commissions stay readable on the board | `CORTEX_COMMISSION_ENABLED` |
+| `teamEnabled` | boolean | `false` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `hooksLegacy` | boolean | `false` | Bypass the hook registry and build Claude hook settings from the fixed built-in table instead. See [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `managerRotateSteps` | number | `10` | Steps a manager session runs before it is rotated into a fresh incarnation. See [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
 | `waitingSweepMs` | number | `60000` | Interval, in milliseconds, of the disk-driven sweep that reconciles waiting manager threads against on-disk task state. `0` disables the sweep (see the hot-reload exception below) | `CORTEX_WAITING_SWEEP_MS` |
@@ -458,7 +459,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, `commissionEnabled`, `sessionRetentionDays`,
+`serverUpdateDisable`, `commissionEnabled`, `teamEnabled`, `sessionRetentionDays`,
 `maxContextTokens`, `piCompactReserveTokens`, and the
 built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
