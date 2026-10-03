@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
 
-const log = createLogger('template-resolver');
+const log = createLogger('prompt-includes');
 
 interface Frontmatter {
   extends?: string;

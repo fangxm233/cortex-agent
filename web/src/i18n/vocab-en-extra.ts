@@ -278,6 +278,7 @@ export const enExtra = {
   chatSystemOriginTeamLead: 'From lead session',
   chatSystemOriginWorkerResult: 'Worker report',
   chatSystemOriginWorkerQuestion: 'Worker request',
+  chatSystemOriginScheduled: 'Scheduled task',
   chatSystemOriginGeneric: 'System message',
   wbTeamExpand: 'Show workers',
   wbTeamCollapse: 'Hide workers',

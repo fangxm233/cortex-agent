@@ -173,7 +173,7 @@ async function processImage(
   };
 }
 
-export function registerTaskOpsTools(server: McpServer, ctx: CortexToolContext): void {
+export function registerRemoteOpsTools(server: McpServer, ctx: CortexToolContext): void {
 
   // --- remote_bash ---
 

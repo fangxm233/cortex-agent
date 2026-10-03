@@ -328,7 +328,6 @@ export const scheduleActionInput = z.object({
 const scheduleTargetInput = z.union([
   z.object({ kind: z.literal('fresh') }),
   z.object({ kind: z.literal('project'), projectId: z.string() }),
-  z.object({ kind: z.literal('thread'), threadId: z.string(), channel: z.string() }),
 ]);
 
 // schedules.add (DR-0018 §2.1 7c). Field-level zod + per-type required-field superRefine so the

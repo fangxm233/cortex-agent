@@ -1,11 +1,10 @@
 import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'fs';
 import { isDeepStrictEqual } from 'node:util';
 import * as path from 'path';
-import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/paths.js';
+import { CONFIG_DIR, PROMPTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '../../core/icons.js';
-import { resolveTemplate } from './template-resolver.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
 import {
   FILE_REF_PREFIX,
@@ -14,6 +13,7 @@ import {
   type RawRegistry,
   type RefResolver,
 } from './template-validate.js';
+import { fsRefResolver, resolveFileRef, resolvePluginDir } from '../agents/environments/index.js';
 import type { AgentDefinition, ThreadTemplate, ThreadConfigFile, ShellDefinition } from '@core/types/thread-types.js';
 import { t } from '@core/i18n.js';
 
@@ -23,7 +23,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'thread-templates.json');
 /** Directory-based config root (preferred). Exported for the write path. */
 export const CONFIG_TEMPLATES_DIR = path.join(CONFIG_DIR, 'thread-templates');
 const ENTITY_SUBDIRS = ['agents', 'templates', 'shells'] as const;
-export { FILE_REF_PREFIX };
+export { FILE_REF_PREFIX, resolveFileRef, resolvePluginDir };
 
 let agents: Record<string, AgentDefinition> = {};
 let templates: Record<string, ThreadTemplate> = {};
@@ -36,27 +36,6 @@ export function getThreadConfigRevision(): number {
 // --- Admin notification (hot-reload → Slack) ---
 let _adminNotifier: ((text: string) => void) | null = null;
 export function setAdminNotifier(fn: (text: string) => void): void { _adminNotifier = fn; }
-
-// --- File reference resolution ---
-// Fields support "file:filename.md" syntax to read content from prompts/<subdir>/filename.md
-
-/** Resolve a "file:<name>" reference for a given field. Returns value unchanged if not a file ref.
- *  Exported so prompt-builder.ts can resolve file refs on per-template agent overrides. */
-export function resolveFileRef(field: string, value: string | undefined): string | undefined {
-  if (!value || !value.startsWith(FILE_REF_PREFIX)) return value;
-  const filename = value.slice(FILE_REF_PREFIX.length);
-  const subdir = PROMPT_FIELD_DIRS[field];
-  if (!subdir) return value;
-  const filePath = path.join(PROMPTS_DIR, subdir, filename);
-  try {
-    const raw = readFileSync(filePath, 'utf8');
-    const tplDir = path.join(PROMPTS_DIR, subdir, 'templates');
-    return resolveTemplate(raw, tplDir);
-  } catch (e: any) {
-    log.error(`Failed to read ${field} file ref "${value}": ${e.message}`);
-    return value;
-  }
-}
 
 function resolveAgentFileRefs(agent: AgentDefinition): void {
   const resolved = resolveFileRef('directive', agent.directive);
@@ -71,13 +50,6 @@ function resolveAgentFileRefs(agent: AgentDefinition): void {
       if (r !== undefined) stage.promptTemplate = r;
     }
   }
-}
-
-/** Resolve a plugin directory path. Absolute paths are returned as-is;
- *  relative paths are resolved against DATA_DIR (plugins live under DATA_DIR/plugins/). */
-export function resolvePluginDir(dir: string): string {
-  if (path.isAbsolute(dir)) return dir;
-  return path.join(DATA_DIR, dir);
 }
 
 /** In-place: resolve an agent's file refs and plugin dirs (shared by both load paths). */
@@ -280,13 +252,7 @@ function loadConfigFromDir(dir: string): LoadedConfig {
 
 /** Filesystem probes for the validator's `file:` ref and pluginDirs existence checks. */
 export function loaderRefResolver(): RefResolver {
-  return {
-    promptsDir: PROMPTS_DIR,
-    pluginBaseDir: DATA_DIR,
-    join: path.join,
-    exists: existsSync,
-    isAbsolute: path.isAbsolute,
-  };
+  return fsRefResolver();
 }
 
 /**

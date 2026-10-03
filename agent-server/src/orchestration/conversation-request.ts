@@ -6,7 +6,7 @@ import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { resolveAgentSlotConfigByName } from '@domain/threads/index.js';
+import { FALLBACK_ENVIRONMENT, resolveAgentSlotConfigByName } from '@domain/agents/environments/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { resolveSystemVars } from '@core/prompt-template.js';
 import { sessionEvidenceContext } from '@domain/benchmark/session-evidence.js';
@@ -23,7 +23,7 @@ import { isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, rosterLine, type WorkerView } from './team-state.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
-import type { AgentSlotConfig } from '@core/types/thread-types.js';
+import type { AgentSlotConfig } from '@core/types/environment-types.js';
 import {
   buildPrompt as buildAgentPrompt, formatAttachmentFailures,
 } from '../agent-adapter/normalize/prompt-builder.js';
@@ -141,9 +141,6 @@ export function conversationRunPolicy(
   };
 }
 
-/** The agent a conversation falls back to when nothing anywhere names one. */
-const FALLBACK_AGENT = 'main';
-
 /**
  * Which agent — which execution environment — a conversation turn opens under.
  *
@@ -159,23 +156,40 @@ export function resolveConversationAgent(
   candidates: ReadonlyArray<string | null | undefined>,
   resolve: (name: string) => AgentSlotConfig | null = resolveAgentSlotConfigByName,
 ): { agentName: string; agentConfig: AgentSlotConfig } {
-  for (const name of [...candidates, FALLBACK_AGENT]) {
+  for (const name of [...candidates, FALLBACK_ENVIRONMENT]) {
     if (!name) continue;
     const agentConfig = resolve(name);
     if (agentConfig) return { agentName: name, agentConfig };
   }
-  throw new Error(`Unknown default agent: ${FALLBACK_AGENT}`);
+  throw new Error(`Unknown default agent: ${FALLBACK_ENVIRONMENT}`);
 }
 
-/** The agent recorded on the session record, if any. Best-effort: a registry read that fails leaves
- *  the channel's selection to answer, which is the same thing a session with no choice of its own
- *  would produce. */
-async function sessionAgentName(sessionId: string): Promise<string | null> {
+/** The parts of the session record a turn's request reads. Best-effort: a registry read that fails
+ *  leaves the channel's selection to answer for the agent and runs the turn as an ordinary one,
+ *  which is what a session with no choice of its own would produce. */
+type SessionRunFacts = Pick<Session, 'agentName' | 'origin' | 'scheduleId'>;
+
+async function readSessionRunFacts(sessionId: string): Promise<SessionRunFacts | null> {
   try {
-    return (await sessionStore.getById(sessionId))?.agentName ?? null;
+    return await sessionStore.getById(sessionId);
   } catch {
     return null;
   }
+}
+
+/**
+ * How a turn is attributed. A schedule's run — a session its fire opened, not yet adopted by a reply
+ * — runs as a scheduled execution of that schedule: that is what the scheduler reads to skip a fire
+ * while the previous run is still going, and what cost and the gateway attribute to the schedule.
+ * Every other turn is the user's.
+ */
+export function conversationTrigger(session: Partial<SessionRunFacts> | null): Pick<
+  RunRequest['context'], 'trigger' | 'executionKind' | 'scheduleTaskId'
+> {
+  if (session?.origin === 'scheduled' && session.scheduleId) {
+    return { trigger: 'scheduled', executionKind: 'scheduled', scheduleTaskId: session.scheduleId };
+  }
+  return { trigger: 'user', executionKind: 'local', scheduleTaskId: null };
 }
 
 /** The delivery key for a session's current commission binding, or null outside the mode. Bound
@@ -293,8 +307,9 @@ export async function prepareConversationRequest(
   opts: PrepareConversationRequestOptions,
 ): Promise<PreparedRequest> {
   const { sessionId, backendSessionId, sessionName, projectId } = opts.ids;
+  const session = await readSessionRunFacts(sessionId);
   const { agentConfig } = resolveConversationAgent([
-    await sessionAgentName(sessionId),
+    session?.agentName ?? null,
     getDefaultAgent(opts.channel),
   ]);
 
@@ -372,13 +387,13 @@ export async function prepareConversationRequest(
     context: {
       channel: opts.channel,
       project,
-      trigger: 'user',
       threadId: null,
-      executionKind: 'local',
+      // A scheduled run stays user-initiated: it is an ordinary session the user reads and may reply
+      // to, so it pauses and resumes on a rate limit exactly like one.
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
       ...(opts.teamLead ? { teamLead: true } : {}),
-      scheduleTaskId: null,
+      ...conversationTrigger(session),
     },
     policy,
   };

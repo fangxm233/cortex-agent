@@ -1,5 +1,5 @@
 import type { Destination, PlatformAdapter } from '@platform/index.js';
-import { getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
+import { getMachineRegistry } from '@domain/remote/machine-registry.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import { statSync, existsSync, mkdirSync, unlinkSync } from 'fs';

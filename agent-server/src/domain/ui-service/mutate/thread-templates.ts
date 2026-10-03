@@ -20,6 +20,7 @@ import type {
   ThreadTemplatesRemoveReturn,
 } from '../types.js';
 import { toErr } from './errors.js';
+import { removeEnvironmentFile, saveEnvironmentBody, validateEnvironmentBody } from './environments.js';
 
 function currentRegistry(): RawRegistry {
   return readRawRegistry(CONFIG_TEMPLATES_DIR);
@@ -30,6 +31,9 @@ export async function handleThreadTemplatesValidate(
   args: ThreadTemplatesValidateArgs,
 ): Promise<Result<ThreadTemplatesValidateReturn>> {
   try {
+    // Agents are execution environments (config/environments/); only templates and shells live
+    // under thread-templates.
+    if (args.kind === 'agent') return { ok: true, data: validateEnvironmentBody(args.name, args.body) };
     // Judge the candidate by the world it would produce, not the one it replaces.
     const registry = withCandidate(currentRegistry(), args.kind, args.name, args.body);
     const { errors, warnings } = validateEntity(
@@ -50,6 +54,9 @@ export async function handleThreadTemplatesSave(
   args: ThreadTemplatesSaveArgs,
 ): Promise<Result<ThreadTemplatesSaveReturn>> {
   try {
+    if (args.kind === 'agent') {
+      return { ok: true, data: saveEnvironmentBody(args.name, args.body, args.baseHash ?? null) };
+    }
     const result = saveEntity(
       CONFIG_TEMPLATES_DIR,
       { kind: args.kind, name: args.name, body: args.body, baseHash: args.baseHash ?? null },
@@ -73,6 +80,7 @@ export async function handleThreadTemplatesRemove(
   args: ThreadTemplatesRemoveArgs,
 ): Promise<Result<ThreadTemplatesRemoveReturn>> {
   try {
+    if (args.kind === 'agent') return { ok: true, data: removeEnvironmentFile(args.name) };
     const result = removeEntity(CONFIG_TEMPLATES_DIR, args.kind, args.name);
     if (result.removed) loadConfig();
     return { ok: true, data: { removed: result.removed } };

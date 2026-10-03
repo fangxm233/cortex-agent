@@ -20,6 +20,7 @@ import {
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson, listChoices } from '@core/profile-generator.js';
 import { mergeThreadTemplates } from '@domain/threads/index.js';
+import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice } from '@core/profile-generator.js';
 import { createLogger } from '@core/log.js';
 import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
@@ -287,7 +288,7 @@ export function generateDefaultModeJson(primaryBackend: InitBackend = 'claude'):
     backend: primaryBackend,
     claudeModel: 'opus',
     activeProfile: '__active__',
-    defaultAgent: 'direct',
+    defaultAgent: 'main',
   });
 }
 
@@ -1336,6 +1337,11 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
   mergeThreadTemplates(
     path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
     path.join(paths.CONFIG_DIR, 'thread-templates'),
+  );
+  // Execution environments are merged the same way: shipped ones added, existing ones preserved.
+  mergeDefaultEnvironments(
+    path.join(DEFAULTS_DIR, 'config', ENVIRONMENTS_DIRNAME),
+    path.join(paths.CONFIG_DIR, ENVIRONMENTS_DIRNAME),
   );
   // Seed asset trees — per-file safeCopy semantics: new files always added, existing files
   // preserved unless force=true. These directories are referenced at runtime; without them

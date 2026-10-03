@@ -2,7 +2,7 @@ import { resolveSystemVars } from '@core/prompt-template.js';
 import { roleToolsForBackend } from '@core/agents/roles.js';
 import type { AgentRole } from '@core/agents/roles.js';
 import type { Backend } from '@core/types/agent-types.js';
-import type { AgentSlotConfig } from '@core/types/thread-types.js';
+import type { AgentSlotConfig } from '@core/types/environment-types.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 
 /**
@@ -63,9 +63,8 @@ export function bareSpec(): AgentSpec {
 }
 
 /**
- * The spec for a configured agent. Takes the *resolved* slot config (the plan calls this
- * `fromAgentDefinition`): `AgentDefinition` merged with any per-template ref overrides, which
- * `threads/template-loader.resolveAgentSlotConfig` already produced and both callers hold.
+ * The spec for a configured agent. Takes the *resolved* slot config: an `AgentDefinition` merged
+ * with any per-use overrides (`agents/environments` `buildSlotConfig`), which both callers hold.
  *
  * `mcpComposition` is the surface's default, which the agent may override: the caller passes what
  * the surface would otherwise run on (thread-control for a thread step, direct for a plain

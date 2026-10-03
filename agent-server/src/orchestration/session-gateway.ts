@@ -33,7 +33,8 @@ export type DeliveryOrigin =
   | 'external-signal'   // a waitpoint fired — an external process reported it finished
   | 'team-lead'         // a team lead handing work to one of its workers
   | 'worker-result'     // a worker reporting the end of a turn to its lead
-  | 'worker-question';  // a worker's pending question or plan, forwarded to its lead
+  | 'worker-question'   // a worker's pending question or plan, forwarded to its lead
+  | 'scheduled';        // a schedule fired: the prompt that opens its run session
 
 interface OriginSpec {
   senderId: string;
@@ -67,6 +68,8 @@ const ORIGINS: Record<DeliveryOrigin, OriginSpec> = {
   'team-lead':        { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'team-lead' },
   'worker-result':    { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-result' },
   'worker-question':  { senderId: WEB_UI_SENDER,             prefix: 'web',    rawSource: 'web-ui', systemOrigin: 'worker-question' },
+  // Synthetic sender: a fire always opens a turn of its own and is never folded into a live one.
+  'scheduled':        { senderId: SYNTHETIC_CALLBACK_SENDER, prefix: 'cb',     rawSource: 'scheduled', systemOrigin: 'scheduled' },
 };
 
 export interface DeliverToSessionOptions {

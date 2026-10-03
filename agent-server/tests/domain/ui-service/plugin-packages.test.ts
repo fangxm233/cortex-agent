@@ -26,6 +26,7 @@ import { handlePluginsList } from '../../../src/domain/ui-service/query/plugins.
 import type { Err, Ok, Result, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
+const ENV_DIR = path.join(CONFIG_DIR, 'environments');
 
 function deps(): UiServiceDeps {
   return {
@@ -105,13 +106,14 @@ function agentBody(name: string, pluginDirs?: string[]) {
 }
 
 function seedAgent(name: string, pluginDirs?: string[]): void {
-  const dir = path.join(TT_DIR, 'agents');
+  const dir = ENV_DIR;
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, `${name}.json`), `${JSON.stringify(agentBody(name, pluginDirs), null, 2)}\n`, 'utf8');
 }
 
 beforeEach(() => {
   rmSync(TT_DIR, { recursive: true, force: true });
+  rmSync(ENV_DIR, { recursive: true, force: true });
   rmSync(PLUGINS_DIR, { recursive: true, force: true });
   mkdirSync(TT_DIR, { recursive: true });
   mkdirSync(PLUGINS_DIR, { recursive: true });

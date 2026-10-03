@@ -29,6 +29,8 @@ svg { flex: none; }
    the drag region and it carries the caption buttons, which sit flush in the corner. */
 .app-header[data-caption='custom'], .app-header[data-caption='overlay'] { user-select: none; -webkit-user-select: none; }
 .app-header[data-caption='custom'] { padding-right: 0; }
+/* macOS: the traffic lights are centred on the 44px workspace bar, so this bar matches it. */
+.app-header[data-caption='overlay'] { height: 44px; }
 .caption-buttons { display: flex; flex: none; align-self: stretch; }
 .caption-button {
   width: 46px; align-self: stretch; border: 0; padding: 0; cursor: default;

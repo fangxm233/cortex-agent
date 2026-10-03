@@ -1,4 +1,4 @@
-import { getMachineRegistry } from '../tasks/dispatch-utils.js';
+import { getMachineRegistry } from '../remote/machine-registry.js';
 import { sendCommand, isDeviceOnline } from '../remote/client-manager.js';
 import { Icons } from '../../core/icons.js';
 

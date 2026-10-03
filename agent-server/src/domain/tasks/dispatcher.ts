@@ -4,20 +4,20 @@ import { isProjectLocked } from './system/task-lock.js';
 
 const log = createLogger('task-dispatch');
 const gpuLog = createLogger('gpu-preflight');
-import { getMachineRegistry, getLocalMachine, type MachineEntry } from './dispatch-utils.js';
+import { getMachineRegistry, getLocalMachine, type MachineEntry } from '../remote/machine-registry.js';
 import { isDeviceOnline } from '../remote/client-manager.js';  // still needed for online check before queryGpuSnapshot
 import { queryGpuSnapshot } from '../monitor/gpu-monitor.js';
 import * as executionRegistry from '../executions/registry.js';
-import type { ExecutionRecord } from '../executions/registry.js';
 import { taskStore } from '@store/task-repo.js';
 import { taskMutator } from './mutator.js';
 import { listTemplateNames } from '../threads/template-loader.js';
 import { resolveTemplateProfiles } from '../threads/index.js';
 import { allConfigsRateLimited } from '../runs/fallback.js';
+import { isValidDispatchPrompt } from '../scheduling/run-guards.js';
 
 // --- Interfaces ---
 
-// MachineEntry type imported from dispatch-utils.ts
+// MachineEntry type imported from remote/machine-registry.ts
 
 interface OccupancyGpuInfo {
   index: number;
@@ -54,15 +54,6 @@ interface FilterDeps {
 }
 
 
-// --- Null/empty prompt guard (ISS-CS-005 durable fix) ---
-
-function isValidDispatchPrompt(value: unknown): boolean {
-  if (!value || typeof value === 'object') return false;
-  const s = typeof value === 'string' ? value : String(value);
-  if (!s.trim()) return false;
-  if (s === 'null' || s === 'undefined') return false;
-  return true;
-}
 
 // --- Locked-project filter: skip tasks from projects with active locks ---
 
@@ -261,14 +252,6 @@ async function filterDispatchableTasks(tasks: any[] | null, gpuBusyCounts: Map<s
   return eligible;
 }
 
-function hasRunningExecutionForSchedule(records: Pick<ExecutionRecord, 'status' | 'kind' | 'scheduleTaskId'>[], scheduleTaskId: string): boolean {
-  return records.some((record) =>
-    record.status === 'running' &&
-    record.kind === 'scheduled' &&
-    record.scheduleTaskId === scheduleTaskId
-  );
-}
-
 // --- Dispatch prompt assembly ---
 
 function buildDispatchPrompt(task: any): string {
@@ -386,8 +369,6 @@ async function selectAndClaimTask({ dryRun = false, profileName = null }: { dryR
 
 export {
   selectAndClaimTask,
-  hasRunningExecutionForSchedule,
-  isValidDispatchPrompt,
   isTemplateRateLimited,
   // For testing
   filterLockedProjects,

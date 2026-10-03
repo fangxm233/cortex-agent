@@ -172,11 +172,15 @@ export function TopBar(): JSX.Element {
   useMenuShortcuts(menus, !nativeMenu.active);
 
   const mode = titleBarMode();
+  // Full screen keeps the bar. The traffic lights hide there, so their strip goes, and the window
+  // drag and caption buttons have nothing to act on.
+  const fullscreen = windowActions.isFullscreen;
+  const insetLeft = fullscreen ? 0 : captionInsetLeft();
   const style: CSSProperties = {
     height: TOP_BAR_HEIGHT,
     boxSizing: 'border-box',
     flex: 'none',
-    display: windowActions.isFullscreen ? 'none' : 'flex',
+    display: 'flex',
     alignItems: 'center',
     // Transparent on purpose: the bar is a strip of the mesh ground, not a panel. Its buttons are
     // the only marks on it, so the panes below read as floating rather than as a docked layout with
@@ -189,9 +193,9 @@ export function TopBar(): JSX.Element {
     // clickable ancestor — buttons and role="menuitem" rows block the drag before it reaches here
     // (tauri/src/window/scripts/drag.js). Without `deep`, only direct hits on the bar element would
     // drag and every gap inside a wrapper div would be a dead zone.
-    <div style={style} data-app-topbar data-tauri-drag-region="deep">
+    <div style={style} data-app-topbar data-tauri-drag-region={fullscreen ? undefined : 'deep'}>
       {/* macOS keeps its native traffic lights under TitleBarStyle::Overlay; reserve their strip. */}
-      <div style={{ width: captionInsetLeft(), flex: 'none' }} />
+      <div style={{ width: insetLeft, flex: 'none' }} />
 
       {/* The bar itself is full-bleed, so the gutter is on the first and last CONTENT clusters —
           that is what lines the brand mark up with the rail below it. */}
@@ -201,7 +205,7 @@ export function TopBar(): JSX.Element {
           alignItems: 'center',
           gap: 9,
           flex: 'none',
-          paddingLeft: mode === 'overlay' ? 0 : 'var(--app-gutter)',
+          paddingLeft: insetLeft ? 0 : 'var(--app-gutter)',
           paddingRight: 10,
         }}
       >
@@ -289,7 +293,7 @@ export function TopBar(): JSX.Element {
         </IconButton>
       </div>
 
-      {mode === 'custom' && <WindowControls actions={windowActions} />}
+      {mode === 'custom' && !fullscreen && <WindowControls actions={windowActions} />}
     </div>
   );
 }

@@ -15,6 +15,8 @@
   padding: 0 28px; background: var(--material-card-bg); border-bottom: 1px solid var(--proto-line);
 }
 .provider-setup .setup-header[data-caption='custom'] { padding-right: 0; }
+/* macOS: the traffic lights are centred on the 44px workspace bar, so this bar matches it. */
+.provider-setup .setup-header[data-caption='overlay'] { height: 44px; }
 .provider-setup .setup-brand { display: inline-flex; gap: 9px; align-items: center; font-size: 14px; font-weight: 650; }
 .provider-setup .setup-brand-mark {
   display: flex; align-items: center; justify-content: center;

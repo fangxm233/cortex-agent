@@ -1,7 +1,7 @@
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { requestLoopbackJson } from '../../../src/core/loopback-http.js';
-import { registerTaskOpsTools } from '../../../src/domain/mcp/tools/task-ops.js';
+import { registerRemoteOpsTools } from '../../../src/domain/mcp/tools/remote-ops.js';
 import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 
 vi.mock('../../../src/core/loopback-http.js', () => ({ requestLoopbackJson: vi.fn() }));
@@ -14,7 +14,7 @@ function captureRemoteTools(): Map<string, any[]> {
   const fakeServer = {
     tool: (...args: any[]) => tools.set(args[0], args),
   };
-  registerTaskOpsTools(fakeServer as any, ctx);
+  registerRemoteOpsTools(fakeServer as any, ctx);
   return tools;
 }
 

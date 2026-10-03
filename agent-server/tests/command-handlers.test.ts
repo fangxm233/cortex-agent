@@ -17,7 +17,7 @@ import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { profileRepo } from '../src/store/profile-repo.js';
-import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
+import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';

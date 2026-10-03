@@ -13,8 +13,12 @@ async function makeFixture(): Promise<string> {
   await fs.mkdir(path.join(tt, 'templates'), { recursive: true });
   await fs.mkdir(path.join(tt, 'shells'), { recursive: true });
 
+  await fs.mkdir(path.join(configDir, 'environments'), { recursive: true });
+  // A thread agent is only a validation input for the templates that name it; the list shows the
+  // environments.
+  await fs.writeFile(path.join(tt, 'agents', 'executor-reviewer.json'), JSON.stringify({ name: 'executor-reviewer' }));
   await fs.writeFile(
-    path.join(tt, 'agents', 'executor.json'),
+    path.join(configDir, 'environments', 'executor.json'),
     JSON.stringify({
       name: 'executor',
       description: 'Executor — performs assigned work',
@@ -57,6 +61,7 @@ test('readThreadTemplates returns one entry per kind from fixture dirs', async (
   const entries = await readThreadTemplates(configDir);
 
   assert.equal(entries.length, 3);
+  assert.ok(!entries.some((e) => e.name === 'executor-reviewer'), 'thread agents are not listed');
   const kinds = new Set(entries.map((e) => e.kind));
   assert.ok(kinds.has('agent'), 'should include agent kind');
   assert.ok(kinds.has('template'), 'should include template kind');
@@ -77,7 +82,7 @@ test('readThreadTemplates agent entry has name and non-null body', async () => {
 
 test('readThreadTemplates sets body=null for malformed JSON', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tt-bad-'));
-  const agentDir = path.join(root, 'config', 'thread-templates', 'agents');
+  const agentDir = path.join(root, 'config', 'environments');
   await fs.mkdir(agentDir, { recursive: true });
   await fs.writeFile(path.join(agentDir, 'bad.json'), 'not-json{{{');
   const entries = await readThreadTemplates(path.join(root, 'config'));
