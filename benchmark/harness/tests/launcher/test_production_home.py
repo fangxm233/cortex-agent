@@ -64,7 +64,7 @@ EXPECTED_SETTINGS = {
 EXPECTED_ENVIRONMENT = {
     "name": "main",
     "description": "Handles a task directly in one session",
-    "profile": "direct",
+    "profile": "direct", "persistSession": True,
     "promptTemplate": "{{input}}", "directive": "file:direct.md",
     "systemPrompt": "file:direct.md",
     "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
